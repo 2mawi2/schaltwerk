@@ -302,8 +302,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             if (selection.kind !== 'session') return
             window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-view'))
         },
-        onFocusTerminal: () => {
+        onFocusTerminal: async () => {
             const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
+            // Ask terminal grid to show itself if globally minimized
+            window.dispatchEvent(new Event('schaltwerk:show-terminal'))
             setFocusForSession(sessionKey, 'terminal')
             setCurrentFocus('terminal')
         },

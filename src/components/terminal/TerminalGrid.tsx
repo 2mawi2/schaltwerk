@@ -11,7 +11,7 @@ import { useRef, useEffect, useState } from 'react'
 export function TerminalGrid() {
     const { selection, terminals, isReady, isDraft } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
-    const { isCollapsed } = useTerminalUIPreferences()
+    const { isCollapsed, setCollapsed } = useTerminalUIPreferences()
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
@@ -117,24 +117,20 @@ export function TerminalGrid() {
         return () => ro.disconnect()
     }, [isBottomCollapsed, collapsedPercent])
 
-    // Load sizes/collapse state when selection changes (avoid unnecessary updates)
+    // Load sizes when selection changes (avoid unnecessary updates)
     const sessionKey = () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown')
     useEffect(() => {
         const key = sessionKey()
         const raw = localStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
-        const rawCollapsed = localStorage.getItem(`schaltwerk:terminal-grid:collapsed:${key}`)
         const rawExpanded = localStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`)
         let nextSizes: number[] = [65, 35]
-        let collapsed = false
         let expandedBottom = 35
         if (raw) {
             try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed } catch {}
         }
-        if (rawCollapsed === 'true') collapsed = true
         if (rawExpanded) { const v = Number(rawExpanded); if (!Number.isNaN(v) && v > 0 && v < 100) expandedBottom = v }
         setLastExpandedBottomPercent(expandedBottom)
-        setIsBottomCollapsed(collapsed)
-        if (collapsed) {
+        if (isBottomCollapsed) {
             const pct = collapsedPercent
             const target = [100 - pct, pct]
             if (sizes[0] !== target[0] || sizes[1] !== target[1]) setSizes(target)
@@ -155,7 +151,7 @@ export function TerminalGrid() {
         }
     }, [sizes, isBottomCollapsed])
 
-    // Persist collapsed state
+    // Persist collapsed state (kept for backward compatibility; no longer read per-session)
     useEffect(() => {
         const key = sessionKey()
         localStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
@@ -189,6 +185,21 @@ export function TerminalGrid() {
             terminalTabsRef.current?.focus()
         }, 100)
     }
+
+    // Keep the bottom split's collapsed state consistent when switching sessions while minimized globally
+    useEffect(() => {
+        if (!isCollapsed) return
+        if (!isBottomCollapsed) setIsBottomCollapsed(true)
+    }, [isCollapsed])
+
+    // Open the entire terminal section when a global show event is dispatched (e.g., Cmd+/)
+    useEffect(() => {
+        const handler = async () => {
+            try { await setCollapsed(false) } catch {}
+        }
+        window.addEventListener('schaltwerk:show-terminal', handler)
+        return () => window.removeEventListener('schaltwerk:show-terminal', handler)
+    }, [setCollapsed])
 
 
     // No prompt UI here anymore; moved to right panel dock
@@ -257,9 +268,9 @@ export function TerminalGrid() {
                 {claudeSection}
             <div className="mt-2 flex justify-center">
                     <button
-                        onClick={toggleTerminalCollapsed}
+                        onClick={async () => { try { await setCollapsed(false) } catch {} }}
                         className="px-3 py-1 text-xs bg-slate-700/50 text-slate-400 hover:bg-slate-600/50 rounded border border-slate-600 transition-colors flex items-center gap-1"
-                        title="Show Terminal (⌘B)"
+                        title="Show Terminal (⌘/)"
                     >
                         <span>▼</span>
                         <span>Show Terminal</span>
@@ -343,7 +354,7 @@ export function TerminalGrid() {
                                 : 'bg-slate-700/50 text-slate-400'
                         }`} title="Focus Terminal (⌘/)">⌘/</span>
                         <button
-                            onClick={toggleTerminalCollapsed}
+                        onClick={toggleTerminalCollapsed}
                             title={isBottomCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
                             className={`w-7 h-7 ml-1 flex items-center justify-center rounded transition-colors ${
                                 localFocus === 'terminal'
