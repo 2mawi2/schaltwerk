@@ -11,6 +11,7 @@ use crate::diff_engine::{
     DiffResponse, SplitDiffResponse, FileInfo
 };
 use crate::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
+use serde::Serialize;
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
@@ -497,6 +498,162 @@ pub async fn get_commit_comparison_info(session_name: Option<String>) -> Result<
     let head_commit = String::from_utf8_lossy(&head_output.stdout).trim().to_string();
     
     Ok((base_commit, head_commit))
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct CommitInfo {
+    pub hash: String,
+    pub parents: Vec<String>,
+    pub author: String,
+    pub email: String,
+    pub date: String,
+    pub message: String,
+}
+
+#[tauri::command]
+pub async fn get_git_history(
+    session_name: Option<String>,
+    skip: Option<u32>,
+    limit: Option<u32>,
+) -> Result<Vec<CommitInfo>, String> {
+    let repo_path = get_repo_path(session_name).await?;
+    let skip = skip.unwrap_or(0).to_string();
+    let limit = limit.unwrap_or(200).to_string();
+
+    // Use topo-order for consistent parent-after-child ordering
+    let format = "%H|%P|%an|%ae|%ad|%s";
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &repo_path,
+            "log",
+            "--all",
+            "--topo-order",
+            "--date-order",
+            "--date=iso-strict",
+            "--no-color",
+            &format!("--format={format}"),
+            "--skip",
+            &skip,
+            "-n",
+            &limit,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run git log: {e}"))?;
+
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let commits = stdout
+        .lines()
+        .filter(|l| !l.is_empty())
+        .map(|line| {
+            let mut parts = line.splitn(6, '|');
+            let hash = parts.next().unwrap_or("").to_string();
+            let parents_raw = parts.next().unwrap_or("");
+            let author = parts.next().unwrap_or("").to_string();
+            let email = parts.next().unwrap_or("").to_string();
+            let date = parts.next().unwrap_or("").to_string();
+            let message = parts.next().unwrap_or("").to_string();
+            let parents = if parents_raw.is_empty() {
+                Vec::new()
+            } else {
+                parents_raw
+                    .split_whitespace()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>()
+            };
+            CommitInfo { hash, parents, author, email, date, message }
+        })
+        .collect::<Vec<_>>();
+
+    Ok(commits)
+}
+
+#[derive(Serialize, Clone, Debug)]
+pub struct CommitChangedFile {
+    pub path: String,
+    pub change_type: String, // "A", "M", "D", "R", etc.
+}
+
+#[tauri::command]
+pub async fn get_commit_files(
+    session_name: Option<String>,
+    commit: String,
+) -> Result<Vec<CommitChangedFile>, String> {
+    let repo_path = get_repo_path(session_name).await?;
+    let output = Command::new("git")
+        .args([
+            "-C",
+            &repo_path,
+            "diff-tree",
+            "--no-commit-id",
+            "--name-status",
+            "-r",
+            &commit,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to run git diff-tree: {e}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let files = stdout
+        .lines()
+        .filter_map(|line| {
+            let mut parts = line.split_whitespace();
+            let status = parts.next()?;
+            let path = parts.last()?; // handles R100 old new -> last is new path
+            Some(CommitChangedFile { path: path.to_string(), change_type: status.to_string() })
+        })
+        .collect::<Vec<_>>();
+    Ok(files)
+}
+
+#[tauri::command]
+pub async fn get_commit_file_contents(
+    session_name: Option<String>,
+    commit: String,
+    file_path: String,
+) -> Result<(String, String), String> {
+    let repo_path = get_repo_path(session_name).await?;
+
+    // Determine first parent; for root commits, there is none
+    let parents_out = Command::new("git")
+        .args(["-C", &repo_path, "rev-list", "--parents", "-n", "1", &commit])
+        .output()
+        .map_err(|e| format!("Failed to get commit parents: {e}"))?;
+    if !parents_out.status.success() {
+        return Err(String::from_utf8_lossy(&parents_out.stderr).to_string());
+    }
+    let parents_line = String::from_utf8_lossy(&parents_out.stdout);
+    let mut items = parents_line.split_whitespace();
+    let _self = items.next();
+    let first_parent = items.next().map(|s| s.to_string());
+
+    let old_text = if let Some(parent) = first_parent.clone() {
+        let out = Command::new("git")
+            .args(["-C", &repo_path, "show", &format!("{parent}:{file_path}")])
+            .output();
+        match out {
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+            _ => String::new(),
+        }
+    } else {
+        String::new()
+    };
+
+    let new_out = Command::new("git")
+        .args(["-C", &repo_path, "show", &format!("{commit}:{file_path}")])
+        .output();
+    let new_text = match new_out {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => String::new(),
+    };
+
+    Ok((old_text, new_text))
 }
 
 async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {

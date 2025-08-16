@@ -716,6 +716,9 @@ fn main() {
             diff_commands::get_commit_comparison_info,
             diff_commands::compute_unified_diff_backend,
             diff_commands::compute_split_diff_backend,
+            diff_commands::get_git_history,
+            diff_commands::get_commit_files,
+            diff_commands::get_commit_file_contents,
             // Project commands
             get_recent_projects,
             add_recent_project,
