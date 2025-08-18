@@ -253,6 +253,30 @@ jobs:
               system_command "/usr/bin/codesign",
                             args: ["--force", "--deep", "-s", "-", "#{appdir}/Schaltwerk.app"],
                             sudo: false
+              
+              # Create wrapper script for CLI with better handling
+              wrapper_script = "#{HOMEBREW_PREFIX}/bin/schaltwerk"
+              File.write wrapper_script, <<~SHELL
+                #!/bin/bash
+                APP_PATH="#{appdir}/Schaltwerk.app"
+                EXECUTABLE_PATH="$APP_PATH/Contents/MacOS/Schaltwerk"
+                
+                if [ $# -eq 0 ]; then
+                  open "$APP_PATH"
+                else
+                  TARGET_DIR="$1"
+                  [[ ! "$TARGET_DIR" = /* ]] && TARGET_DIR="$(pwd)/$TARGET_DIR"
+                  TARGET_DIR="${TARGET_DIR%/}"
+                  
+                  if [ ! -d "$TARGET_DIR" ]; then
+                    echo "Error: Directory not found: $TARGET_DIR" >&2
+                    exit 1
+                  fi
+                  
+                  "$EXECUTABLE_PATH" "$TARGET_DIR" &
+                fi
+              SHELL
+              File.chmod 0755, wrapper_script
             end
 
             zap trash: [

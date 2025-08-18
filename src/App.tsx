@@ -8,6 +8,7 @@ import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useSelection } from './contexts/SelectionContext'
 import { useProject } from './contexts/ProjectContext'
 import { useFontSize } from './contexts/FontSizeContext'
@@ -51,6 +52,58 @@ export default function App() {
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
+
+  // Handle CLI directory argument
+  useEffect(() => {
+    // Handle opening a Git repository
+    const unlistenDirectoryPromise = listen<string>('schaltwerk:open-directory', async (event) => {
+      const directoryPath = event.payload
+      console.log('Received open-directory event:', directoryPath)
+      
+      try {
+        // Initialize the project at the specified directory
+        await invoke('initialize_project', { projectPath: directoryPath })
+        
+        // Set the project path in context
+        setProjectPath(directoryPath)
+        
+        // Hide home screen and show the project
+        setShowHome(false)
+        
+        // Add to open tabs
+        const basename = getBasename(directoryPath)
+        setOpenTabs(prev => {
+          const exists = prev.some(tab => tab.projectPath === directoryPath)
+          if (!exists) {
+            return [...prev, { projectPath: directoryPath, projectName: basename }]
+          }
+          return prev
+        })
+        setActiveTabPath(directoryPath)
+        
+        console.log('Successfully opened project at:', directoryPath)
+      } catch (error) {
+        console.error('Failed to open project:', error)
+      }
+    })
+    
+    // Handle opening home screen for non-Git directories
+    const unlistenHomePromise = listen<string>('schaltwerk:open-home', async (event) => {
+      const directoryPath = event.payload
+      console.log('Received open-home event for non-Git directory:', directoryPath)
+      
+      // Just ensure we're showing the home screen
+      setShowHome(true)
+      
+      // Log the attempt for debugging
+      console.log('Opened home screen because', directoryPath, 'is not a Git repository')
+    })
+    
+    return () => {
+      unlistenDirectoryPromise.then(unlisten => unlisten())
+      unlistenHomePromise.then(unlisten => unlisten())
+    }
+  }, [setProjectPath])
 
   useEffect(() => {
     const handlePermissionError = (event: Event) => {

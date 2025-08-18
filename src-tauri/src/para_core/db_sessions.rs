@@ -13,8 +13,6 @@ pub trait SessionMethods {
     fn list_all_active_sessions(&self) -> Result<Vec<Session>>;
     fn list_sessions_by_state(&self, repo_path: &Path, state: SessionState) -> Result<Vec<Session>>;
     fn update_session_status(&self, id: &str, status: SessionStatus) -> Result<()>;
-    #[cfg(test)]
-    fn update_session_activity(&self, id: &str, timestamp: chrono::DateTime<chrono::Utc>) -> Result<()>;
     fn set_session_activity(&self, id: &str, timestamp: chrono::DateTime<chrono::Utc>) -> Result<()>;
     fn update_session_display_name(&self, id: &str, display_name: &str) -> Result<()>;
     fn update_session_branch(&self, id: &str, new_branch: &str) -> Result<()>;
@@ -266,20 +264,6 @@ impl SessionMethods for Database {
              SET status = ?1, updated_at = ?2
              WHERE id = ?3",
             params![status.as_str(), Utc::now().timestamp(), id],
-        )?;
-        
-        Ok(())
-    }
-    
-    #[cfg(test)]
-    fn update_session_activity(&self, id: &str, timestamp: chrono::DateTime<chrono::Utc>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
-        
-        conn.execute(
-            "UPDATE sessions
-             SET last_activity = ?1
-             WHERE id = ?2 AND (last_activity IS NULL OR last_activity < ?1)",
-            params![timestamp.timestamp(), id],
         )?;
         
         Ok(())

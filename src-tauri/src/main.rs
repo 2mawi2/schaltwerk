@@ -502,6 +502,41 @@ fn main() {
     logging::init_logging();
     log::info!("Para UI starting...");
     
+    // Parse command line arguments for directory
+    let args: Vec<String> = std::env::args().collect();
+    let initial_directory = if args.len() > 1 {
+        // Skip the first argument (program name) and get the directory
+        let dir_path = &args[1];
+        
+        // Validate that it's a valid directory
+        if std::path::Path::new(dir_path).is_dir() {
+            // Check if it's a Git repository
+            let git_check = std::process::Command::new("git")
+                .arg("-C")
+                .arg(dir_path)
+                .arg("rev-parse")
+                .arg("--git-dir")
+                .output();
+            
+            match git_check {
+                Ok(output) if output.status.success() => {
+                    log::info!("Opening Schaltwerk with Git repository: {dir_path}");
+                    Some((dir_path.clone(), true))
+                }
+                _ => {
+                    log::warn!("Directory {dir_path} is not a Git repository, will open at home screen");
+                    // Still pass the directory info but mark it as non-Git
+                    Some((dir_path.clone(), false))
+                }
+            }
+        } else {
+            log::warn!("Invalid directory path: {dir_path}, opening at home");
+            None
+        }
+    } else {
+        None
+    };
+    
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
 
@@ -583,7 +618,29 @@ fn main() {
             get_project_settings,
             set_project_settings
         ])
-        .setup(|app| {
+        .setup(move |app| {
+            // Pass initial directory to the frontend if provided
+            if let Some((dir, is_git)) = initial_directory.clone() {
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // Wait a moment for the window to be ready
+                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+                    
+                    // Emit different events based on whether it's a Git repo
+                    if is_git {
+                        // Emit event to open the Git repository
+                        if let Err(e) = app_handle.emit("schaltwerk:open-directory", &dir) {
+                            log::error!("Failed to emit open-directory event: {e}");
+                        }
+                    } else {
+                        // Emit event to open home screen (non-Git directory)
+                        if let Err(e) = app_handle.emit("schaltwerk:open-home", &dir) {
+                            log::error!("Failed to emit open-home event: {e}");
+                        }
+                    }
+                });
+            }
+            
             // Initialize settings manager
             let settings_handle = app.handle().clone();
             tauri::async_runtime::block_on(async {
