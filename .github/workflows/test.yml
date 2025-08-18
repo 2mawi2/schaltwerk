@@ -8,6 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
     - uses: actions/checkout@v4
@@ -23,6 +24,19 @@ jobs:
       with:
         components: rustfmt, clippy
     
+    - name: Cache Rust dependencies
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          src-tauri/target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+    
     - name: Install system dependencies
       run: |
         sudo apt-get update
@@ -31,5 +45,14 @@ jobs:
     - name: Install npm dependencies
       run: npm ci
     
-    - name: Run tests
-      run: npm run test
+    - name: Run TypeScript lint
+      run: npm run lint
+    
+    - name: Run Rust lint
+      run: npm run lint:rust
+    
+    - name: Run Rust tests
+      run: npm run test:rust
+    
+    - name: Build Rust
+      run: npm run build:rust
