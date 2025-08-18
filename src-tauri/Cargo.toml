@@ -76,6 +76,11 @@ codegen-units = 1
 panic = 'abort'
 strip = true
 
+[profile.ci]
+inherits = "release"
+lto = "thin"
+codegen-units = 16
+
 [profile.dev]
 opt-level = 1
 debug = 0

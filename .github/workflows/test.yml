@@ -2,57 +2,52 @@ name: Test
 
 on:
   push:
-    branches: [ para/github-ci-tests ]
+    branches:
+      - main
   pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
+    name: Test
+    runs-on: macos-latest
+    
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '20'
-        cache: 'npm'
-    
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@stable
-      with:
-        components: rustfmt, clippy
-    
-    - name: Cache Rust dependencies
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/.cargo/bin/
-          ~/.cargo/registry/index/
-          ~/.cargo/registry/cache/
-          ~/.cargo/git/db/
-          src-tauri/target/
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
-    
-    - name: Install npm dependencies
-      run: npm ci
-    
-    - name: Run TypeScript lint
-      run: npm run lint
-    
-    - name: Run Rust check
-      run: cd src-tauri && cargo check --all-features
-    
-    - name: Run Rust clippy
-      run: cd src-tauri && cargo clippy --all-features -- -D warnings
-    
-    - name: Run Rust tests
-      run: cd src-tauri && cargo test --all-features
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-test-
+            ${{ runner.os }}-cargo-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        env:
+          CARGO_PROFILE_TEST_OPT_LEVEL: '0'
+          CARGO_PROFILE_DEV_OPT_LEVEL: '0'
+        run: npm run test
