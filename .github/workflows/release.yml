@@ -62,7 +62,7 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: 'thin'
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
         run: |
-          # Build both targets in parallel with faster CI profile
+          # Build both targets in parallel with faster CI settings
           npm run tauri build -- --target x86_64-apple-darwin &
           PID_INTEL=$!
           npm run tauri build -- --target aarch64-apple-darwin &
