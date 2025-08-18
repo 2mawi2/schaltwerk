@@ -1,0 +1,110 @@
+/* VS Code Dark+ Theme for Highlight.js */
+/* Based on https://github.com/highlightjs/highlight.js/blob/main/src/styles/vs2015.css */
+
+.hljs {
+  color: #d4d4d4;
+  background: #1e1e1e;
+}
+
+/* General */
+.hljs-comment,
+.hljs-quote {
+  color: #6a9955;
+}
+
+/* Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+  color: #d16969;
+}
+
+/* Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+  color: #b5cea8;
+}
+
+/* Yellow */
+.hljs-attribute {
+  color: #ce9178;
+}
+
+/* Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+  color: #ce9178;
+}
+
+/* Blue */
+.hljs-title,
+.hljs-section {
+  color: #569cd6;
+}
+
+/* Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+  color: #c586c0;
+}
+
+/* Additional VS Code Dark+ specific colors */
+.hljs-function .hljs-title,
+.hljs-class .hljs-title {
+  color: #dcdcaa;
+}
+
+.hljs-keyword {
+  color: #569cd6;
+}
+
+.hljs-built_in {
+  color: #4ec9b0;
+}
+
+.hljs-string {
+  color: #ce9178;
+}
+
+.hljs-doctag {
+  color: #608b4e;
+}
+
+.hljs-params {
+  color: #9cdcfe;
+}
+
+.hljs-meta {
+  color: #569cd6;
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Ensure proper contrast for additions and deletions in diffs */
+.hljs-addition {
+  color: #b5cea8;
+  background-color: rgba(87, 166, 74, 0.15);
+}
+
+.hljs-deletion {
+  color: #f48771;
+  background-color: rgba(244, 135, 113, 0.15);
+}

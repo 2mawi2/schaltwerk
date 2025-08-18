@@ -61,8 +61,8 @@ export function DiffLineRow({
     <tr
       className={clsx(
         "group transition-colors",
-        line.type === 'added' && "bg-green-500/5 hover:bg-green-500/10",
-        line.type === 'removed' && "bg-red-500/5 hover:bg-red-500/10",
+        line.type === 'added' && "bg-green-900/20 hover:bg-green-900/30",
+        line.type === 'removed' && "bg-red-900/20 hover:bg-red-900/30",
         line.type === 'unchanged' && "hover:bg-slate-900/30",
         isSelected && "!bg-blue-500/20 hover:!bg-blue-500/25"
       )}
@@ -101,8 +101,8 @@ export function DiffLineRow({
       {/* Change indicator */}
       <td className={clsx(
         "w-6 text-center select-none font-mono",
-        line.type === 'added' && "text-green-400",
-        line.type === 'removed' && "text-red-400"
+        line.type === 'added' && "text-green-500",
+        line.type === 'removed' && "text-red-500"
       )}>
         {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ''}
       </td>
@@ -110,10 +110,10 @@ export function DiffLineRow({
       {/* Code content */}
       <td className="px-2 py-0.5 font-mono text-sm relative whitespace-pre overflow-x-auto">
         {line.type === 'added' && (
-          <div className="absolute left-0 top-0 w-1 h-full bg-green-400/50" />
+          <div className="absolute left-0 top-0 w-1 h-full bg-green-500/70" />
         )}
         {line.type === 'removed' && (
-          <div className="absolute left-0 top-0 w-1 h-full bg-red-400/50" />
+          <div className="absolute left-0 top-0 w-1 h-full bg-red-500/70" />
         )}
         <div className="flex items-start gap-2">
           {highlightedContent ? (

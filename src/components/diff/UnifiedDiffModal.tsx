@@ -19,6 +19,7 @@ import {
 } from 'react-icons/vsc'
 import clsx from 'clsx'
 import hljs from 'highlight.js'
+import '../../styles/vscode-dark-theme.css'
 
 interface ChangedFile {
   path: string

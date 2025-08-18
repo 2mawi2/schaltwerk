@@ -59,29 +59,29 @@ const createTheme = (): Extension => {
 
 const customTheme = EditorView.theme({
   '&': {
-    color: '#e2e8f0',
-    backgroundColor: '#0f172a',
+    color: '#d4d4d4',
+    backgroundColor: '#1e1e1e',
   },
   '.cm-content': {
-    caretColor: '#e2e8f0',
+    caretColor: '#d4d4d4',
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: '#e2e8f0',
+    borderLeftColor: '#d4d4d4',
   },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'rgba(59, 130, 246, 0.3)',
+    backgroundColor: 'rgba(38, 79, 120, 0.6)',
   },
   '.cm-activeLine': {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   '.cm-gutters': {
-    backgroundColor: '#0f172a',
-    color: '#475569',
+    backgroundColor: '#1e1e1e',
+    color: '#858585',
     border: 'none',
   },
   '.cm-lineNumbers .cm-activeLineGutter': {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
-    color: '#94a3b8',
+    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    color: '#c6c6c6',
   },
 }, { dark: true })
 
@@ -89,46 +89,46 @@ const syntaxHighlighting = EditorView.theme({
   '.cm-header-1': {
     fontSize: '1.5em',
     fontWeight: 'bold',
-    color: '#93c5fd',
+    color: '#569cd6',
   },
   '.cm-header-2': {
     fontSize: '1.3em',
     fontWeight: 'bold',
-    color: '#93c5fd',
+    color: '#569cd6',
   },
   '.cm-header-3': {
     fontSize: '1.1em',
     fontWeight: 'bold',
-    color: '#93c5fd',
+    color: '#569cd6',
   },
   '.cm-header-4, .cm-header-5, .cm-header-6': {
     fontWeight: 'bold',
-    color: '#93c5fd',
+    color: '#569cd6',
   },
   '.cm-strong': {
     fontWeight: 'bold',
-    color: '#fbbf24',
+    color: '#d7ba7d',
   },
   '.cm-emphasis': {
     fontStyle: 'italic',
-    color: '#c084fc',
+    color: '#c586c0',
   },
   '.cm-link': {
-    color: '#60a5fa',
+    color: '#4ec9b0',
     textDecoration: 'underline',
   },
   '.cm-url': {
-    color: '#60a5fa',
+    color: '#4ec9b0',
     textDecoration: 'underline',
   },
   '.cm-code': {
-    backgroundColor: 'rgba(30, 41, 59, 0.8)',
-    color: '#86efac',
+    backgroundColor: 'rgba(30, 30, 30, 0.8)',
+    color: '#ce9178',
     padding: '2px 4px',
     borderRadius: '3px',
   },
   '.cm-codeblock': {
-    backgroundColor: 'rgba(30, 41, 59, 0.5)',
+    backgroundColor: 'rgba(30, 30, 30, 0.5)',
     display: 'block',
     padding: '8px',
     borderRadius: '4px',
@@ -136,20 +136,20 @@ const syntaxHighlighting = EditorView.theme({
     marginBottom: '4px',
   },
   '.cm-quote': {
-    color: '#94a3b8',
-    borderLeft: '3px solid #475569',
+    color: '#6a9955',
+    borderLeft: '3px solid #404040',
     paddingLeft: '8px',
     fontStyle: 'italic',
   },
   '.cm-list': {
-    color: '#e2e8f0',
+    color: '#d4d4d4',
   },
   '.cm-hr': {
-    color: '#475569',
+    color: '#404040',
   },
   '.cm-strikethrough': {
     textDecoration: 'line-through',
-    color: '#94a3b8',
+    color: '#808080',
   },
 }, { dark: true })
 
@@ -168,7 +168,7 @@ const scrollableInnerStyles: React.CSSProperties = {
   overflowY: 'auto',
   overflowX: 'hidden',
   position: 'relative',
-  backgroundColor: '#0f172a',
+  backgroundColor: '#1e1e1e',
 }
 
 export const MarkdownEditor = memo(function MarkdownEditor({
