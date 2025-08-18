@@ -1,3 +1,4 @@
+import { memo } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight, VscComment } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../utils/diff'
@@ -16,7 +17,7 @@ interface DiffLineRowProps {
   commentText?: string
 }
 
-export function DiffLineRow({
+function DiffLineRowComponent({
   line,
   isSelected,
   onLineMouseDown,
@@ -135,3 +136,22 @@ export function DiffLineRow({
     </tr>
   )
 }
+
+function areEqual(prev: DiffLineRowProps, next: DiffLineRowProps) {
+  // Avoid re-rendering unless relevant props actually change
+  return (
+    prev.line === next.line &&
+    prev.index === next.index &&
+    prev.isSelected === next.isSelected &&
+    prev.isCollapsed === next.isCollapsed &&
+    prev.hasComment === next.hasComment &&
+    prev.commentText === next.commentText &&
+    prev.highlightedContent === next.highlightedContent &&
+    prev.onLineMouseDown === next.onLineMouseDown &&
+    prev.onLineMouseEnter === next.onLineMouseEnter &&
+    prev.onLineMouseUp === next.onLineMouseUp &&
+    prev.onToggleCollapse === next.onToggleCollapse
+  )
+}
+
+export const DiffLineRow = memo(DiffLineRowComponent, areEqual)

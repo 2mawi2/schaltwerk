@@ -318,13 +318,22 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
   const language = useMemo(() => getFileLanguage(selectedFile || ''), [selectedFile])
 
+  const highlightCacheRef = useRef<Map<string, string>>(new Map())
   const highlightCode = useCallback((code: string) => {
     if (!code) return ''
+    const langKey = language || 'auto'
+    const cacheKey = `${langKey}::${code}`
+    const cache = highlightCacheRef.current
+    const cached = cache.get(cacheKey)
+    if (cached) return cached
     try {
-      if (language && hljs.getLanguage(language)) {
-        return hljs.highlight(code, { language, ignoreIllegals: true }).value
-      }
-      return hljs.highlightAuto(code).value
+      const highlighted = language && hljs.getLanguage(language)
+        ? hljs.highlight(code, { language, ignoreIllegals: true }).value
+        : hljs.highlightAuto(code).value
+      // Simple cap to avoid unbounded growth
+      if (cache.size > 10000) cache.clear()
+      cache.set(cacheKey, highlighted)
+      return highlighted
     } catch {
       return code
     }
@@ -763,7 +772,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                         const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
                                         const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
                                         const collapsedComment = getCommentForLine(collapsedLineNum, collapsedSide)
-                                        rows.push(
+                                         const needsHighlight = collapsedLine.type !== 'unchanged'
+                                         rows.push(
                                           <DiffLineRow
                                             key={`${globalIdx}-expanded-${collapsedIdx}`}
                                             line={collapsedLine}
@@ -772,7 +782,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                             onLineMouseDown={handleLineMouseDown}
                                             onLineMouseEnter={handleLineMouseEnter}
                                             onLineMouseUp={handleLineMouseUp}
-                                            highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
+                                             highlightedContent={needsHighlight && collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
                                             hasComment={!!collapsedComment}
                                             commentText={collapsedComment?.comment}
                                           />
@@ -784,6 +794,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                   }
                                   
                                   const comment = getCommentForLine(lineNum, side)
+                                  const needsHighlight = line.type !== 'unchanged'
                                   return (
                                     <DiffLineRow
                                       key={globalIdx}
@@ -793,7 +804,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                       onLineMouseDown={handleLineMouseDown}
                                       onLineMouseEnter={handleLineMouseEnter}
                                       onLineMouseUp={handleLineMouseUp}
-                                      highlightedContent={line.content ? highlightCode(line.content) : undefined}
+                                      highlightedContent={needsHighlight && line.content ? highlightCode(line.content) : undefined}
                                       hasComment={!!comment}
                                       commentText={comment?.comment}
                                     />
@@ -822,18 +833,21 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                               </div>
                               <table className="w-full" style={{ tableLayout: 'fixed' }}>
                                 <tbody>
-                                  {fileDiff.splitDiffResult.leftLines.map((line, idx) => (
-                                    <DiffLineRow
-                                      key={`${file.path}-left-${idx}`}
-                                      line={line}
-                                      index={`${file.path}-left-${idx}`}
-                                      isSelected={line.oldLineNumber ? lineSelection.isLineSelected(line.oldLineNumber, 'old') : false}
-                                      onLineMouseDown={handleLineMouseDown}
-                                      onLineMouseEnter={handleLineMouseEnter}
-                                      onLineMouseUp={handleLineMouseUp}
-                                      highlightedContent={line.content ? highlightCode(line.content) : undefined}
-                                    />
-                                  ))}
+                                  {fileDiff.splitDiffResult.leftLines.map((line, idx) => {
+                                    const needsHighlight = line.type !== 'unchanged'
+                                    return (
+                                      <DiffLineRow
+                                        key={`${file.path}-left-${idx}`}
+                                        line={line}
+                                        index={`${file.path}-left-${idx}`}
+                                        isSelected={line.oldLineNumber ? lineSelection.isLineSelected(line.oldLineNumber, 'old') : false}
+                                        onLineMouseDown={handleLineMouseDown}
+                                        onLineMouseEnter={handleLineMouseEnter}
+                                        onLineMouseUp={handleLineMouseUp}
+                                        highlightedContent={needsHighlight && line.content ? highlightCode(line.content) : undefined}
+                                      />
+                                    )
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -868,18 +882,21 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                               </div>
                               <table className="w-full" style={{ tableLayout: 'fixed' }}>
                                 <tbody>
-                                  {fileDiff.splitDiffResult.rightLines.map((line, idx) => (
-                                    <DiffLineRow
-                                      key={`${file.path}-right-${idx}`}
-                                      line={line}
-                                      index={`${file.path}-right-${idx}`}
-                                      isSelected={line.newLineNumber ? lineSelection.isLineSelected(line.newLineNumber, 'new') : false}
-                                      onLineMouseDown={handleLineMouseDown}
-                                      onLineMouseEnter={handleLineMouseEnter}
-                                      onLineMouseUp={handleLineMouseUp}
-                                      highlightedContent={line.content ? highlightCode(line.content) : undefined}
-                                    />
-                                  ))}
+                                  {fileDiff.splitDiffResult.rightLines.map((line, idx) => {
+                                    const needsHighlight = line.type !== 'unchanged'
+                                    return (
+                                      <DiffLineRow
+                                        key={`${file.path}-right-${idx}`}
+                                        line={line}
+                                        index={`${file.path}-right-${idx}`}
+                                        isSelected={line.newLineNumber ? lineSelection.isLineSelected(line.newLineNumber, 'new') : false}
+                                        onLineMouseDown={handleLineMouseDown}
+                                        onLineMouseEnter={handleLineMouseEnter}
+                                        onLineMouseUp={handleLineMouseUp}
+                                        highlightedContent={needsHighlight && line.content ? highlightCode(line.content) : undefined}
+                                      />
+                                    )
+                                  })}
                                 </tbody>
                               </table>
                             </div>
