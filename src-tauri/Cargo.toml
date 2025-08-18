@@ -39,7 +39,7 @@ which = "6.0"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 uuid = { version = "1.11", features = ["v4", "serde"] }
 walkdir = "2.5"
-git2 = { version = "0.19", features = ["vendored-libgit2"] }
+git2 = { version = "0.19", features = ["vendored-libgit2", "vendored-openssl"] }
 sha2 = "0.10"
 hyper = { version = "1.5", features = ["server", "http1", "http2"] }
 hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }

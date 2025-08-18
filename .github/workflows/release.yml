@@ -21,7 +21,9 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+        # For testing, only build native arch. Uncomment both targets for production
+        # target: [x86_64-apple-darwin, aarch64-apple-darwin]
+        target: [aarch64-apple-darwin]  # GitHub Actions runs on M1 now
     
     steps:
       - name: Checkout code
