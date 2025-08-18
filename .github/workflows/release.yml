@@ -34,28 +34,51 @@ jobs:
         with:
           targets: x86_64-apple-darwin,aarch64-apple-darwin
 
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            src-tauri/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
       - name: Install dependencies
         run: npm ci
+
+      - name: Run tests
+        run: npm run test
 
       - name: Build frontend
         run: npm run build
 
-      - name: Install Apple targets
-        run: |
-          rustup target add x86_64-apple-darwin
-          rustup target add aarch64-apple-darwin
-
-      - name: Build for Intel
+      - name: Build for Intel and Apple Silicon in parallel
         env:
           MACOSX_DEPLOYMENT_TARGET: '11.0'
+          CARGO_PROFILE_RELEASE_LTO: 'thin'
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
         run: |
-          npm run tauri build -- --target x86_64-apple-darwin
-
-      - name: Build for Apple Silicon
-        env:
-          MACOSX_DEPLOYMENT_TARGET: '11.0'
-        run: |
-          npm run tauri build -- --target aarch64-apple-darwin
+          # Build both targets in parallel with faster CI settings
+          npm run tauri build -- --target x86_64-apple-darwin &
+          PID_INTEL=$!
+          npm run tauri build -- --target aarch64-apple-darwin &
+          PID_ARM=$!
+          
+          # Wait for both builds to complete
+          wait $PID_INTEL
+          INTEL_STATUS=$?
+          wait $PID_ARM
+          ARM_STATUS=$?
+          
+          # Check if both builds succeeded
+          if [ $INTEL_STATUS -ne 0 ] || [ $ARM_STATUS -ne 0 ]; then
+            echo "Build failed"
+            exit 1
+          fi
 
       - name: Create Universal Binary
         run: |
