@@ -2,18 +2,14 @@ name: Release
 
 on:
   push:
-    branches:
-      - para/internal-homebrew-bundle  # Temporary for testing
-      # - main  # Uncomment after testing
     tags:
       - 'v*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version to release (e.g., 0.1.0)'
-        required: false
+        required: true
         type: string
-        default: '0.1.0-test'
 
 jobs:
   build-macos:
@@ -21,9 +17,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        # For testing, only build native arch. Uncomment both targets for production
-        # target: [x86_64-apple-darwin, aarch64-apple-darwin]
-        target: [aarch64-apple-darwin]  # GitHub Actions runs on M1 now
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
     
     steps:
       - name: Checkout code
