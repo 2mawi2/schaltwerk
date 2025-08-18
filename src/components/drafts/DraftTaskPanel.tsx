@@ -262,7 +262,7 @@ export function DraftTaskPanel() {
                 
                 <div className="mb-3">
                   {(draft.draft_content || draft.initial_prompt) ? (
-                    <div className="text-xs text-slate-300 bg-slate-900/50 rounded overflow-hidden max-h-20">
+                    <div className="text-xs text-slate-300 bg-slate-800/50 rounded overflow-hidden max-h-20">
                       <Suspense fallback={
                         <div className="p-2 text-slate-400">Loading preview...</div>
                       }>

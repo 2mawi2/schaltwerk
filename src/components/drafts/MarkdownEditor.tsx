@@ -59,8 +59,8 @@ const createTheme = (): Extension => {
 
 const customTheme = EditorView.theme({
   '&': {
-    color: '#d4d4d4',
-    backgroundColor: '#1e1e1e',
+    color: '#e2e8f0',
+    backgroundColor: 'rgb(30 41 59 / 0.5)',
   },
   '.cm-content': {
     caretColor: '#d4d4d4',
@@ -75,8 +75,8 @@ const customTheme = EditorView.theme({
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   '.cm-gutters': {
-    backgroundColor: '#1e1e1e',
-    color: '#858585',
+    backgroundColor: 'rgb(30 41 59 / 0.5)',
+    color: '#475569',
     border: 'none',
   },
   '.cm-lineNumbers .cm-activeLineGutter': {
@@ -168,7 +168,7 @@ const scrollableInnerStyles: React.CSSProperties = {
   overflowY: 'auto',
   overflowX: 'hidden',
   position: 'relative',
-  backgroundColor: '#1e1e1e',
+  backgroundColor: 'rgb(30 41 59 / 0.5)',
 }
 
 export const MarkdownEditor = memo(function MarkdownEditor({
