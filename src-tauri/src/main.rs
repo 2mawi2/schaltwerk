@@ -19,6 +19,7 @@ mod project_manager;
 mod settings;
 mod mcp_api;
 mod commands;
+mod permissions;
 
 use std::sync::Arc;
 use project_manager::ProjectManager;
@@ -507,6 +508,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            // Permission commands
+            permissions::check_folder_access,
+            permissions::trigger_folder_permission_request,
+            permissions::ensure_folder_permission,
             // Terminal commands
             create_terminal,
             write_terminal,

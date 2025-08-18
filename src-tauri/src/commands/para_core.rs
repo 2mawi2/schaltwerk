@@ -260,6 +260,24 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     
+    // Check if we have permission to access the working directory
+    log::info!("Checking permissions for working directory: {cwd}");
+    match std::fs::read_dir(&cwd) {
+        Ok(_) => log::info!("Working directory access confirmed: {cwd}"),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            log::warn!("Permission denied for working directory: {cwd}");
+            return Err(format!("Permission required for folder: {cwd}. Please grant access when prompted and then retry starting the agent."));
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            log::warn!("Working directory not found: {cwd}");
+            return Err(format!("Working directory not found: {cwd}"));
+        }
+        Err(e) => {
+            log::error!("Error checking working directory access: {e}");
+            return Err(format!("Error accessing working directory: {e}"));
+        }
+    }
+    
     let terminal_id = format!("session-{session_name}-top");
     let terminal_manager = get_terminal_manager().await?;
     
@@ -355,6 +373,24 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
     log::info!("Claude command for orchestrator: {command}");
     
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
+    
+    // Check if we have permission to access the working directory
+    log::info!("Checking permissions for orchestrator working directory: {cwd}");
+    match std::fs::read_dir(&cwd) {
+        Ok(_) => log::info!("Orchestrator working directory access confirmed: {cwd}"),
+        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+            log::warn!("Permission denied for orchestrator working directory: {cwd}");
+            return Err(format!("Permission required for folder: {cwd}. Please grant access when prompted and then retry starting the agent."));
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            log::warn!("Orchestrator working directory not found: {cwd}");
+            return Err(format!("Working directory not found: {cwd}"));
+        }
+        Err(e) => {
+            log::error!("Error checking orchestrator working directory access: {e}");
+            return Err(format!("Error accessing working directory: {e}"));
+        }
+    }
     
     let terminal_manager = get_terminal_manager().await?;
     

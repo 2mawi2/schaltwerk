@@ -14,6 +14,7 @@ import { useFontSize } from './contexts/FontSizeContext'
 import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab } from './components/TabBar'
 import { TopBar } from './components/TopBar'
+import { PermissionPrompt } from './components/PermissionPrompt'
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -45,9 +46,32 @@ export default function App() {
   const [openTabs, setOpenTabs] = useState<ProjectTab[]>([])
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null)
   const [startFromDraftName, setStartFromDraftName] = useState<string | null>(null)
+  const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
+  const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
+
+  useEffect(() => {
+    const handlePermissionError = (event: Event) => {
+      const customEvent = event as CustomEvent<{error: string}>
+      const error = customEvent.detail?.error
+      if (error?.includes('Permission required for folder:')) {
+        // Extract the folder path from the error message
+        const match = error.match(/Permission required for folder: ([^.]+)/)
+        if (match && match[1]) {
+          setPermissionDeniedPath(match[1])
+        }
+        setShowPermissionPrompt(true)
+      }
+    }
+    
+    window.addEventListener('schaltwerk:permission-error', handlePermissionError)
+    
+    return () => {
+      window.removeEventListener('schaltwerk:permission-error', handlePermissionError)
+    }
+  }, [])
 
   useEffect(() => {
     const handleSessionAction = (event: CustomEvent<SessionActionEvent>) => {
@@ -494,6 +518,25 @@ export default function App() {
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
           />
+          
+          {/* Permission Prompt - shows only when needed */}
+          {showPermissionPrompt && (
+            <PermissionPrompt
+              showOnlyIfNeeded={true}
+              folderPath={permissionDeniedPath || undefined}
+              onPermissionGranted={() => {
+                console.log(`Folder permission granted for: ${permissionDeniedPath}`)
+                setShowPermissionPrompt(false)
+                setPermissionDeniedPath(null)
+              }}
+              onRetryAgent={() => {
+                // Trigger a re-attempt to start the agent
+                window.dispatchEvent(new CustomEvent('schaltwerk:retry-agent-start'))
+                setShowPermissionPrompt(false)
+                setPermissionDeniedPath(null)
+              }}
+            />
+          )}
         </>
       )}
     </>

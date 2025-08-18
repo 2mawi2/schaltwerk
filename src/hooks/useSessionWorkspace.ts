@@ -158,6 +158,14 @@ export function useSessionWorkspace(): SessionWorkspace {
                 }
             } catch (err) {
                 console.error('[SessionWorkspace] Failed to start/resume Claude (centralized):', err)
+                
+                // Check if it's a permission error and dispatch event
+                const errorMessage = String(err);
+                if (errorMessage.includes('Permission required for folder:')) {
+                    window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
+                        detail: { error: errorMessage }
+                    }));
+                }
             }
             
             // Update the center unified ring color to match selection

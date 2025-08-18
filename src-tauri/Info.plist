@@ -6,5 +6,9 @@
     <string>Schaltwerk needs to send Apple Events to control terminal sessions.</string>
     <key>NSDesktopFolderUsageDescription</key>
     <string>Schaltwerk needs access to your files to manage development sessions.</string>
+    <key>NSDocumentsFolderUsageDescription</key>
+    <string>Schaltwerk needs access to your Documents folder to manage development sessions and run AI agents.</string>
+    <key>NSDownloadsFolderUsageDescription</key>
+    <string>Schaltwerk needs access to your Downloads folder to manage development sessions.</string>
 </dict>
 </plist>

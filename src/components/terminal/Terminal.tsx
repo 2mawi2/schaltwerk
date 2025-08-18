@@ -553,6 +553,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         // Roll back start flags on failure to allow retry
                         startedGlobal.delete(terminalId);
                         console.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
+                        
+                        // Check if it's a permission error and dispatch event
+                        const errorMessage = String(e);
+                        if (errorMessage.includes('Permission required for folder:')) {
+                            window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
+                                detail: { error: errorMessage }
+                            }));
+                        }
                         throw e;
                     }
                     startingTerminals.current.set(terminalId, false);
@@ -586,6 +594,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         // Roll back start flags on failure to allow retry
                         startedGlobal.delete(terminalId);
                         console.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
+                        
+                        // Check if it's a permission error and dispatch event
+                        const errorMessage = String(e);
+                        if (errorMessage.includes('Permission required for folder:')) {
+                            window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
+                                detail: { error: errorMessage }
+                            }));
+                        }
                         throw e;
                     }
                     startingTerminals.current.set(terminalId, false);
