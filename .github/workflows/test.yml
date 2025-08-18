@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [ para/github-ci-tests ]
+    branches: [ main ]
   pull_request:
 
 jobs:
