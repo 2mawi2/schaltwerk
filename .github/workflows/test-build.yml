@@ -1,0 +1,78 @@
+name: Test Build
+
+on:
+  push:
+    branches:
+      - para/internal-homebrew-bundle
+  workflow_dispatch:
+
+jobs:
+  test-build:
+    name: Test Build on macOS
+    runs-on: macos-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: System info
+        run: |
+          echo "macOS version:"
+          sw_vers
+          echo "Architecture:"
+          uname -m
+          echo "Rust version:"
+          rustc --version || echo "Rust not installed"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm list @tauri-apps/cli
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Check Tauri CLI
+        run: npx tauri --version
+
+      - name: Build Tauri app (native arch only)
+        run: |
+          npm run tauri build
+
+      - name: Check build output
+        run: |
+          echo "Build output structure:"
+          ls -la src-tauri/target/release/bundle/
+          ls -la src-tauri/target/release/bundle/macos/ || echo "No macOS bundle"
+          
+      - name: Test code signing
+        run: |
+          APP_PATH="src-tauri/target/release/bundle/macos/Schaltwerk.app"
+          if [ -d "$APP_PATH" ]; then
+            echo "Signing app..."
+            codesign --force --deep -s - "$APP_PATH"
+            echo "Verifying signature..."
+            codesign --verify --verbose "$APP_PATH"
+            echo "App info:"
+            codesign -dvv "$APP_PATH"
+          else
+            echo "App bundle not found at $APP_PATH"
+            exit 1
+          fi
+
+      - name: Create test archive
+        run: |
+          cd src-tauri/target/release/bundle/macos
+          tar -czf schaltwerk-test.tar.gz Schaltwerk.app
+          echo "Archive created:"
+          ls -lh *.tar.gz
+          shasum -a 256 *.tar.gz

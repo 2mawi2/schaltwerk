@@ -1,0 +1,197 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - para/internal-homebrew-bundle  # Temporary for testing
+      # - main  # Uncomment after testing
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0)'
+        required: false
+        type: string
+        default: '0.1.0-test'
+
+jobs:
+  build-macos:
+    name: Build macOS
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        target: [x86_64-apple-darwin, aarch64-apple-darwin]
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build Tauri app
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
+        run: |
+          npm run tauri build -- --target ${{ matrix.target }}
+
+      - name: Ad-hoc code sign
+        run: |
+          APP_PATH="src-tauri/target/${{ matrix.target }}/release/bundle/macos/Schaltwerk.app"
+          codesign --force --deep -s - "$APP_PATH"
+          codesign --verify --verbose "$APP_PATH"
+
+      - name: Create tarball
+        run: |
+          cd src-tauri/target/${{ matrix.target }}/release/bundle/macos
+          VERSION="${{ github.event.inputs.version || '0.1.0-test' }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+            VERSION="${VERSION#v}"
+          fi
+          tar -czf "schaltwerk-${VERSION}-${{ matrix.target }}.tar.gz" Schaltwerk.app
+          mv *.tar.gz ${{ github.workspace }}/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: schaltwerk-${{ matrix.target }}
+          path: schaltwerk-*.tar.gz
+
+  create-release:
+    name: Create GitHub Release
+    needs: build-macos
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Calculate checksums
+        run: |
+          cd artifacts
+          find . -name "*.tar.gz" -exec mv {} . \; 2>/dev/null || true
+          shasum -a 256 *.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', github.event.inputs.version || '0.1.0-test') }}
+          name: Schaltwerk ${{ github.event.inputs.version || '0.1.0-test' }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*.tar.gz
+            artifacts/checksums.txt
+          body: |
+            ## Installation
+
+            ### Using Homebrew (Recommended)
+            ```bash
+            # Add the private tap (one-time setup)
+            brew tap mariuswichtner/schaltwerk https://github.com/mariuswichtner/homebrew-schaltwerk.git
+
+            # Install Schaltwerk
+            brew install schaltwerk
+
+            # First launch requires approval in System Settings
+            schaltwerk
+            ```
+
+            ### Manual Installation
+            1. Download the appropriate `.tar.gz` for your architecture
+            2. Extract: `tar -xzf schaltwerk-*.tar.gz`
+            3. Move to Applications: `mv Schaltwerk.app /Applications/`
+            4. Open the app and approve in System Settings when prompted
+
+            ## What's Changed
+            - See commit history for details
+
+            ## Checksums
+            See `checksums.txt` for SHA256 verification
+
+  update-homebrew-tap:
+    name: Update Homebrew Tap
+    needs: create-release
+    runs-on: ubuntu-latest
+    if: github.repository == 'mariuswichtner/para-ui' && startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v4
+        with:
+          repository: mariuswichtner/homebrew-schaltwerk
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-schaltwerk
+
+      - name: Download checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: schaltwerk-x86_64-apple-darwin
+          path: artifacts
+
+      - name: Download ARM checksums
+        uses: actions/download-artifact@v4
+        with:
+          name: schaltwerk-aarch64-apple-darwin
+          path: artifacts
+
+      - name: Calculate SHA256
+        id: sha256
+        run: |
+          cd artifacts
+          INTEL_SHA=$(shasum -a 256 *x86_64*.tar.gz | cut -d' ' -f1)
+          ARM_SHA=$(shasum -a 256 *aarch64*.tar.gz | cut -d' ' -f1)
+          echo "intel_sha=$INTEL_SHA" >> $GITHUB_OUTPUT
+          echo "arm_sha=$ARM_SHA" >> $GITHUB_OUTPUT
+          echo "Intel SHA: $INTEL_SHA"
+          echo "ARM SHA: $ARM_SHA"
+
+      - name: Update Formula
+        run: |
+          cd homebrew-schaltwerk
+          VERSION="${{ github.event.inputs.version || '0.1.0-test' }}"
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          fi
+          VERSION="${VERSION#v}"
+          
+          sed -i "s/version \".*\"/version \"$VERSION\"/" Formula/schaltwerk.rb
+          sed -i "s/sha256 \".*\" # x86_64/sha256 \"${{ steps.sha256.outputs.intel_sha }}\" # x86_64/" Formula/schaltwerk.rb
+          sed -i "s/sha256 \".*\" # aarch64/sha256 \"${{ steps.sha256.outputs.arm_sha }}\" # aarch64/" Formula/schaltwerk.rb
+
+      - name: Commit and push
+        run: |
+          cd homebrew-schaltwerk
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Formula/schaltwerk.rb
+          git commit -m "Update Schaltwerk to ${{ github.event.inputs.version || github.ref_name }}"
+          git push

@@ -28,7 +28,24 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["app", "dmg"],
+    "publisher": "Marius Wichtner",
+    "copyright": "© 2024 Marius Wichtner",
+    "category": "DeveloperTools",
+    "shortDescription": "Visual interface for managing Para sessions",
+    "longDescription": "Schaltwerk provides a powerful terminal-based interface for managing and monitoring Para development sessions with real-time status updates.",
+    "macOS": {
+      "frameworks": [],
+      "minimumSystemVersion": "11.0",
+      "exceptionDomain": "",
+      "signingIdentity": null,
+      "providerShortName": null,
+      "entitlements": null,
+      "infoPlistAdditions": {
+        "NSAppleEventsUsageDescription": "Schaltwerk needs to send Apple Events to control terminal sessions.",
+        "NSDesktopFolderUsageDescription": "Schaltwerk needs access to your files to manage development sessions."
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
