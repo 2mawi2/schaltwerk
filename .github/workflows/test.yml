@@ -8,7 +8,7 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
     - uses: actions/checkout@v4
@@ -48,11 +48,11 @@ jobs:
     - name: Run TypeScript lint
       run: npm run lint
     
-    - name: Run Rust lint
-      run: npm run lint:rust
+    - name: Run Rust check
+      run: cd src-tauri && cargo check --all-features
+    
+    - name: Run Rust clippy
+      run: cd src-tauri && cargo clippy --all-features -- -D warnings
     
     - name: Run Rust tests
-      run: npm run test:rust
-    
-    - name: Build Rust
-      run: npm run build:rust
+      run: cd src-tauri && cargo test --all-features
