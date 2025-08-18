@@ -40,11 +40,7 @@
       "exceptionDomain": "",
       "signingIdentity": null,
       "providerShortName": null,
-      "entitlements": null,
-      "infoPlistAdditions": {
-        "NSAppleEventsUsageDescription": "Schaltwerk needs to send Apple Events to control terminal sessions.",
-        "NSDesktopFolderUsageDescription": "Schaltwerk needs access to your files to manage development sessions."
-      }
+      "entitlements": null
     },
     "icon": [
       "icons/32x32.png",

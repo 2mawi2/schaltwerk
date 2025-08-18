@@ -1,14 +1,14 @@
 class Schaltwerk < Formula
   desc "Visual interface for managing Para sessions"
-  homepage "https://github.com/mariuswichtner/para-ui"
+  homepage "https://github.com/2mawi2/para-ui"
   version "0.1.0"
   
   on_macos do
     if Hardware::CPU.arm?
-      url "https://github.com/mariuswichtner/para-ui/releases/download/v#{version}/schaltwerk-#{version}-aarch64-apple-darwin.tar.gz"
+      url "https://github.com/2mawi2/para-ui/releases/download/v#{version}/schaltwerk-#{version}-aarch64-apple-darwin.tar.gz"
       sha256 "PLACEHOLDER_ARM_SHA256" # aarch64
     else
-      url "https://github.com/mariuswichtner/para-ui/releases/download/v#{version}/schaltwerk-#{version}-x86_64-apple-darwin.tar.gz"
+      url "https://github.com/2mawi2/para-ui/releases/download/v#{version}/schaltwerk-#{version}-x86_64-apple-darwin.tar.gz"
       sha256 "PLACEHOLDER_INTEL_SHA256" # x86_64
     end
   end

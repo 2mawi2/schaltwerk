@@ -116,7 +116,7 @@ jobs:
             ### Using Homebrew (Recommended)
             ```bash
             # Add the private tap (one-time setup)
-            brew tap mariuswichtner/schaltwerk https://github.com/mariuswichtner/homebrew-schaltwerk.git
+            brew tap 2mawi2/tap https://github.com/2mawi2/homebrew-tap.git
 
             # Install Schaltwerk
             brew install schaltwerk
@@ -141,15 +141,15 @@ jobs:
     name: Update Homebrew Tap
     needs: create-release
     runs-on: ubuntu-latest
-    if: github.repository == 'mariuswichtner/para-ui' && startsWith(github.ref, 'refs/tags/')
+    if: github.repository == '2mawi2/para-ui' && startsWith(github.ref, 'refs/tags/')
     
     steps:
       - name: Checkout Homebrew tap
         uses: actions/checkout@v4
         with:
-          repository: mariuswichtner/homebrew-schaltwerk
+          repository: 2mawi2/homebrew-tap
           token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          path: homebrew-schaltwerk
+          path: homebrew-tap
 
       - name: Download checksums
         uses: actions/download-artifact@v4
@@ -174,24 +174,93 @@ jobs:
           echo "Intel SHA: $INTEL_SHA"
           echo "ARM SHA: $ARM_SHA"
 
-      - name: Update Formula
+      - name: Create Schaltwerk Formula
         run: |
-          cd homebrew-schaltwerk
+          cd homebrew-tap
           VERSION="${{ github.event.inputs.version || '0.1.0-test' }}"
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             VERSION="${{ github.ref_name }}"
           fi
           VERSION="${VERSION#v}"
           
-          sed -i "s/version \".*\"/version \"$VERSION\"/" Formula/schaltwerk.rb
-          sed -i "s/sha256 \".*\" # x86_64/sha256 \"${{ steps.sha256.outputs.intel_sha }}\" # x86_64/" Formula/schaltwerk.rb
-          sed -i "s/sha256 \".*\" # aarch64/sha256 \"${{ steps.sha256.outputs.arm_sha }}\" # aarch64/" Formula/schaltwerk.rb
+          cat > Formula/schaltwerk.rb << 'EOF'
+          class Schaltwerk < Formula
+            desc "Visual interface for managing Para sessions"
+            homepage "https://github.com/2mawi2/para-ui"
+            version "VERSION_PLACEHOLDER"
+            
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/2mawi2/para-ui/releases/download/vVERSION_PLACEHOLDER/schaltwerk-VERSION_PLACEHOLDER-aarch64-apple-darwin.tar.gz"
+                sha256 "ARM_SHA_PLACEHOLDER"
+              else
+                url "https://github.com/2mawi2/para-ui/releases/download/vVERSION_PLACEHOLDER/schaltwerk-VERSION_PLACEHOLDER-x86_64-apple-darwin.tar.gz"
+                sha256 "INTEL_SHA_PLACEHOLDER"
+              end
+            end
+
+            depends_on :macos
+
+            def install
+              app = "Schaltwerk.app"
+              
+              (libexec/"bin").install app
+              
+              system "codesign", "--force", "--deep", "--sign", "-", "#{libexec}/bin/#{app}"
+              system "xattr", "-cr", "#{libexec}/bin/#{app}"
+              
+              (bin/"schaltwerk").write <<~EOS
+                #!/bin/bash
+                exec "#{libexec}/bin/#{app}/Contents/MacOS/schaltwerk" "$@"
+              EOS
+              (bin/"schaltwerk").chmod 0755
+              
+              ohai "Installation complete!"
+              ohai ""
+              ohai "IMPORTANT: First-time setup required"
+              ohai "======================================"
+              ohai ""
+              ohai "Since this app is not signed with an Apple Developer certificate,"
+              ohai "you'll need to approve it in System Settings on first launch:"
+              ohai ""
+              ohai "1. Try to open Schaltwerk (it will be blocked)"
+              ohai "2. Open System Settings > Privacy & Security"
+              ohai "3. Find 'Schaltwerk was blocked' message"
+              ohai "4. Click 'Open Anyway'"
+              ohai "5. Confirm when prompted"
+              ohai ""
+              ohai "This is only needed once. The app will work normally afterwards."
+              ohai ""
+              ohai "To launch: schaltwerk"
+            end
+
+            def caveats
+              <<~EOS
+                To use Schaltwerk, you may need to grant additional permissions:
+                
+                - Terminal access: for PTY functionality
+                - File system access: for session management
+                
+                The app will prompt for these permissions when needed.
+              EOS
+            end
+
+            test do
+              assert_predicate libexec/"bin/Schaltwerk.app", :exist?
+              assert_predicate libexec/"bin/Schaltwerk.app/Contents/MacOS/schaltwerk", :executable?
+            end
+          end
+          EOF
+          
+          sed -i '' "s/VERSION_PLACEHOLDER/${VERSION}/g" Formula/schaltwerk.rb
+          sed -i '' "s/ARM_SHA_PLACEHOLDER/${{ steps.sha256.outputs.arm_sha }}/g" Formula/schaltwerk.rb
+          sed -i '' "s/INTEL_SHA_PLACEHOLDER/${{ steps.sha256.outputs.intel_sha }}/g" Formula/schaltwerk.rb
 
       - name: Commit and push
         run: |
-          cd homebrew-schaltwerk
+          cd homebrew-tap
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git add Formula/schaltwerk.rb
-          git commit -m "Update Schaltwerk to ${{ github.event.inputs.version || github.ref_name }}"
+          git commit -m "Update Schaltwerk to ${{ github.event.inputs.version || github.ref_name }}" || echo "No changes to commit"
           git push
