@@ -135,8 +135,6 @@ export function AsciiBuilderLogo({
     }
 
     const fov = 42 // pseudo focal length; higher = less perspective
-    // Disable idle wobble to prevent stray dots below the logo
-    const idleWobble = false
 
     // Reusable buffers
     const depth = new Float32Array(width * height)
@@ -157,10 +155,16 @@ export function AsciiBuilderLogo({
         chars[i] = ' '
       }
 
-      // Optional idle wobble after settle
+      // Calculate if animation has settled
+      const allSettled = particlesRef.current.every(p => {
+        const localTime = Math.max(0, elapsed - p.delayMs)
+        return localTime >= settleDurationMs
+      })
+
+      // Enable wobble only after all particles have settled to prevent stray dots
       const spinPhase = (elapsed % spinDurationMs) / spinDurationMs
-      const wobbleAngle = idleWobble ? (Math.sin(spinPhase * Math.PI * 2) * 6 * Math.PI) / 180 : 0
-      const wobbleAngleY = idleWobble ? (Math.cos(spinPhase * Math.PI * 2) * 5 * Math.PI) / 180 : 0
+      const wobbleAngle = allSettled ? (Math.sin(spinPhase * Math.PI * 2) * 6 * Math.PI) / 180 : 0
+      const wobbleAngleY = allSettled ? (Math.cos(spinPhase * Math.PI * 2) * 5 * Math.PI) / 180 : 0
 
       for (let p = 0; p < particlesRef.current.length; p++) {
         const particle = particlesRef.current[p]
