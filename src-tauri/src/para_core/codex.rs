@@ -1,10 +1,13 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
+#[cfg(test)]
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {
     pub binary_path: Option<String>,
 }
 
+#[cfg(test)]
 fn resolve_codex_binary_with_config(config: Option<&CodexConfig>) -> String {
     let command = "codex";
     
@@ -23,6 +26,7 @@ fn resolve_codex_binary_with_config(config: Option<&CodexConfig>) -> String {
     resolve_codex_binary_impl(command)
 }
 
+#[cfg(test)]
 fn resolve_codex_binary_impl(command: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
         let user_paths = vec![
