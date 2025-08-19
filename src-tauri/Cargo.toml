@@ -47,6 +47,7 @@ http-body-util = "0.1"
 urlencoding = "2.1"
 rand = "0.9"
 shell-words = "1.1"
+futures = "0.3"
 
 [dev-dependencies]
 tokio-test = "0.4"

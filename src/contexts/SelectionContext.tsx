@@ -154,33 +154,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
     }, [getTerminalIds, createTerminal, projectPath])
     
-    // Helper to restore selection from localStorage for current project
-    const restoreSelectionFromStorage = useCallback(async (): Promise<Selection> => {
-        if (!projectPath) return { kind: 'orchestrator' }
-        
-        try {
-            const selections = JSON.parse(localStorage.getItem('schaltwerk-selections') || '{}')
-            const stored = selections[projectPath]
-            
-            if (stored?.kind === 'session' && stored.sessionName) {
-                const sessionData = await invoke('para_core_get_session', { 
-                    name: stored.sessionName 
-                }) as any
-                
-                if (sessionData?.worktree_path) {
-                    return {
-                        kind: 'session',
-                        payload: stored.sessionName,
-                        worktreePath: sessionData.worktree_path
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('Failed to restore selection from storage:', e)
-        }
-        
+    // Helper to get default selection for current project
+    const getDefaultSelection = useCallback(async (): Promise<Selection> => {
+        // Always start with orchestrator - let the user or backend events drive selection changes
+        // This avoids stale state issues and makes the backend the single source of truth
         return { kind: 'orchestrator' }
-    }, [projectPath])
+    }, [])
     
     // Clear terminal tracking and close terminals to prevent orphaned processes
     // Used when: 1) Switching projects (orchestrator IDs change), 2) Restarting orchestrator with new model
@@ -213,8 +192,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             return
         }
         
-        // Mark as not ready during transition
-        setIsReady(false)
+        // For already created terminals, switch immediately without showing "Initializing..."
+        const terminalAlreadyExists = terminalsCreated.current.has(newTerminalIds.top)
+        
+        // Only mark as not ready if we actually need to create new terminals
+        if (!terminalAlreadyExists) {
+            setIsReady(false)
+        }
         
         try {
             // If forcing recreate, clear terminal tracking and close old terminals first
@@ -223,26 +207,30 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 await clearTerminalTracking([ids.top])
             }
             
-            // Ensure terminals exist BEFORE changing selection
+            // If terminal already exists, update state immediately for instant switch
+            if (terminalAlreadyExists && !forceRecreate) {
+                // Update selection and terminals immediately
+                setSelectionState(newSelection)
+                setTerminals(newTerminalIds)
+                
+                // No need to persist to localStorage here - the backend should be the source of truth
+                // The current selection is already in React state
+                
+                // Ensure ready state
+                if (!isReady) {
+                    setIsReady(true)
+                }
+                return
+            }
+            
+            // For new terminals, create them first
             const terminalIds = await ensureTerminals(newSelection)
             
             // Now atomically update both selection and terminals
             setSelectionState(newSelection)
             setTerminals(terminalIds)
             
-            // Persist to localStorage per project
-            if (projectPath) {
-                try {
-                    const selections = JSON.parse(localStorage.getItem('schaltwerk-selections') || '{}')
-                    selections[projectPath] = {
-                        kind: newSelection.kind,
-                        sessionName: newSelection.payload
-                    }
-                    localStorage.setItem('schaltwerk-selections', JSON.stringify(selections))
-                } catch (e) {
-                    console.warn('Failed to save selection to localStorage:', e)
-                }
-            }
+            // No need to persist to localStorage - backend is source of truth
             
             // Mark as ready
             setIsReady(true)
@@ -307,10 +295,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             hasInitialized.current = true
             previousProjectPath.current = projectPath
             
-            // Determine target selection - if project changed, reset to orchestrator, otherwise restore from storage
+            // Determine target selection - if project changed, reset to orchestrator, otherwise use default
             const targetSelection = projectChanged 
                 ? { kind: 'orchestrator' as const }
-                : await restoreSelectionFromStorage()
+                : await getDefaultSelection()
             
             // Set the selection - the orchestrator terminals are already project-specific via the ID hash
             // No need to force recreate, just switch to the correct project's orchestrator

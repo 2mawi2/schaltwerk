@@ -583,6 +583,7 @@ fn main() {
             resize_terminal,
             close_terminal,
             terminal_exists,
+            terminals_exist_bulk,
             get_terminal_buffer,
             get_terminal_activity_status,
             get_all_terminal_activity,
