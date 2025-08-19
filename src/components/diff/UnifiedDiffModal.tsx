@@ -356,24 +356,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [isDraggingSelection, lineSelection])
 
-  const handleLineMouseUp = useCallback(() => {
+  const handleLineMouseUp = useCallback((event: React.MouseEvent) => {
     if (isDraggingSelection) {
       setIsDraggingSelection(false)
       
-      // Calculate position based on the selected lines
+      // Always use the mouse position from the event
       if (lineSelection.selection) {
-        const endLine = Math.max(lineSelection.selection.startLine, lineSelection.selection.endLine)
-        
-        // Find the DOM element for the last selected line
-        const lineElements = document.querySelectorAll(`[data-line-num="${endLine}"][data-side="${lineSelection.selection.side}"]`)
-        if (lineElements.length > 0) {
-          const rect = lineElements[0].getBoundingClientRect()
-          // Position below the selection, aligned to the right side of the viewport
-          setCommentFormPosition({ 
-            x: window.innerWidth - 420, // Right-aligned with some margin
-            y: rect.bottom + 10 
-          })
-        }
+        setCommentFormPosition({ 
+          x: window.innerWidth - 420, // Right-aligned with some margin
+          y: event.clientY + 10 
+        })
       }
     }
   }, [isDraggingSelection, lineSelection.selection])
@@ -381,13 +373,20 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // Global mouse up handler
   useEffect(() => {
     if (isDraggingSelection) {
-      const handleGlobalMouseUp = () => {
+      const handleGlobalMouseUp = (e: MouseEvent) => {
         setIsDraggingSelection(false)
+        // Use the global mouse event position when mouseup happens outside the button
+        if (lineSelection.selection) {
+          setCommentFormPosition({ 
+            x: window.innerWidth - 420,
+            y: e.clientY + 10 
+          })
+        }
       }
       document.addEventListener('mouseup', handleGlobalMouseUp)
       return () => document.removeEventListener('mouseup', handleGlobalMouseUp)
     }
-  }, [isDraggingSelection])
+  }, [isDraggingSelection, lineSelection.selection])
 
   const toggleCollapsed = useCallback((idx: string | number) => {
     setExpandedSections(prev => {

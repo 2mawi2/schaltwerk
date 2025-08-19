@@ -9,7 +9,7 @@ interface DiffLineRowProps {
   isSelected: boolean
   onLineMouseDown?: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
   onLineMouseEnter?: (lineNum: number, side: 'old' | 'new') => void
-  onLineMouseUp?: () => void
+  onLineMouseUp?: (event: React.MouseEvent) => void
   onToggleCollapse?: () => void
   isCollapsed?: boolean
   highlightedContent?: string
@@ -76,7 +76,7 @@ function DiffLineRowComponent({
           <button
             onMouseDown={(e) => onLineMouseDown(lineNum, side, e)}
             onMouseEnter={() => onLineMouseEnter?.(lineNum, side)}
-            onMouseUp={onLineMouseUp}
+            onMouseUp={(e) => onLineMouseUp?.(e)}
             className={clsx(
               "p-1 transition-all rounded",
               isSelected 

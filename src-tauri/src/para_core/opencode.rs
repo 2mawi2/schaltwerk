@@ -222,6 +222,10 @@ pub fn resolve_opencode_binary() -> String {
 mod tests {
     use super::*;
     use std::path::Path;
+    use std::sync::Mutex;
+    
+    // Mutex to ensure tests that modify OPENCODE_BIN run sequentially
+    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 #[test]
     fn test_sanitize_path_for_opencode() {
@@ -378,6 +382,7 @@ mod tests {
     
     #[test]
     fn test_new_session_with_prompt() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Save the original value if it exists
         let original_value = std::env::var("OPENCODE_BIN").ok();
         std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
@@ -397,6 +402,7 @@ mod tests {
     
 #[test]
     fn test_continue_with_session_id() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Save the original value if it exists
         let original_value = std::env::var("OPENCODE_BIN").ok();
         
@@ -426,6 +432,7 @@ mod tests {
     
     #[test]
     fn test_new_session_no_prompt() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Save the original value if it exists
         let original_value = std::env::var("OPENCODE_BIN").ok();
         std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
@@ -445,6 +452,7 @@ mod tests {
     
     #[test]
     fn test_session_without_history() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Save the original value if it exists
         let original_value = std::env::var("OPENCODE_BIN").ok();
         std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
@@ -485,6 +493,7 @@ mod tests {
     
 #[test]
     fn test_continue_session_with_new_prompt() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Save the original value if it exists
         let original_value = std::env::var("OPENCODE_BIN").ok();
         std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
@@ -511,6 +520,7 @@ mod tests {
     
     #[test]
     fn test_prompt_with_quotes() {
+        let _guard = ENV_MUTEX.lock().unwrap();
         // Save the original value if it exists
         let original_value = std::env::var("OPENCODE_BIN").ok();
         std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
