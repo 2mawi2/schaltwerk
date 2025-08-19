@@ -228,13 +228,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 return updated
             })
             
-            // Use startTransition to keep UI responsive during heavy selection changes
-            startTransition(() => {
-                setSelection({
-                    kind: 'session',
-                    payload: s.session_id,
-                    worktreePath: s.worktree_path
-                })
+            // Directly set selection to minimize latency in switching
+            await setSelection({
+                kind: 'session',
+                payload: s.session_id,
+                worktreePath: s.worktree_path
             })
         }
     }

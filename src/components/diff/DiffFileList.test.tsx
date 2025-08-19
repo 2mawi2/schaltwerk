@@ -28,6 +28,10 @@ vi.mock('@tauri-apps/api/core', () => ({
   }),
 }))
 
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(async () => () => {})
+}))
+
 // Component to set project path and selection for tests
 function TestWrapper({ 
   children, 
@@ -63,7 +67,7 @@ function Wrapper({ children, sessionName }: { children: React.ReactNode, session
   )
 }
 
-describe.skip('DiffFileList - skipped due to component refactor', () => {
+describe('DiffFileList', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
