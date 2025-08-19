@@ -150,7 +150,7 @@ export function useSessionWorkspace(): SessionWorkspace {
                 } else {
                     if (detail.kind === 'orchestrator') {
                         console.log('[SessionWorkspace] Starting Claude in orchestrator (centralized)')
-                        await invoke('para_core_start_claude_orchestrator')
+                        await invoke('para_core_start_claude_orchestrator', { terminalId: targetTop })
                     } else if (detail.kind === 'session' && detail.payload) {
                         console.log('[SessionWorkspace] Starting Claude in session (centralized)', { sessionName: detail.payload, targetTop })
                         await invoke('para_core_start_claude', { sessionName: detail.payload })

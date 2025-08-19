@@ -192,4 +192,24 @@ mod tests {
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude "implement \"feature\" with quotes""#);
     }
+
+    #[test]
+    fn test_sanitize_para_ui_main_repo_path() {
+        // Matches observed ~/.claude/projects folder: -Users-marius-wichtner-Documents-git-para-ui
+        let path = Path::new("/Users/marius.wichtner/Documents/git/para-ui");
+        let sanitized = sanitize_path_for_claude(path);
+        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-para-ui");
+    }
+
+    #[test]
+    fn test_sanitize_para_ui_worktree_path() {
+        // Matches observed ~/.claude/projects folder for this worktree:
+        // -Users-marius-wichtner-Documents-git-para-ui--schaltwerk-worktrees-auto-submit-functionality
+        let path = Path::new("/Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/auto-submit-functionality");
+        let sanitized = sanitize_path_for_claude(path);
+        assert_eq!(
+            sanitized,
+            "-Users-marius-wichtner-Documents-git-para-ui--schaltwerk-worktrees-auto-submit-functionality"
+        );
+    }
 }
