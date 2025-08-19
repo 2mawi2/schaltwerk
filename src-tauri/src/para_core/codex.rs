@@ -1,10 +1,11 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {
     pub binary_path: Option<String>,
 }
 
+#[cfg(test)]
 fn resolve_codex_binary_with_config(config: Option<&CodexConfig>) -> String {
     let command = "codex";
     
@@ -23,6 +24,7 @@ fn resolve_codex_binary_with_config(config: Option<&CodexConfig>) -> String {
     resolve_codex_binary_impl(command)
 }
 
+#[cfg(test)]
 fn resolve_codex_binary_impl(command: &str) -> String {
     if let Ok(home) = std::env::var("HOME") {
         let user_paths = vec![
@@ -33,10 +35,10 @@ fn resolve_codex_binary_impl(command: &str) -> String {
         ];
         
         for path in user_paths {
-            let full_path = PathBuf::from(&path).join(command);
-            if full_path.exists() {
-                log::info!("Found codex at {}", full_path.display());
-                return full_path.to_string_lossy().to_string();
+            let candidate = format!("{}/{}", path, command);
+            if std::path::Path::new(&candidate).exists() {
+                log::info!("Found codex at {}", candidate);
+                return candidate;
             }
         }
     }
@@ -49,10 +51,10 @@ fn resolve_codex_binary_impl(command: &str) -> String {
     ];
     
     for path in common_paths {
-        let full_path = PathBuf::from(path).join(command);
-        if full_path.exists() {
-            log::info!("Found codex at {}", full_path.display());
-            return full_path.to_string_lossy().to_string();
+        let candidate = format!("{}/{}", path, command);
+        if std::path::Path::new(&candidate).exists() {
+            log::info!("Found codex at {}", candidate);
+            return candidate;
         }
     }
     
