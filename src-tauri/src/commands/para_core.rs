@@ -293,6 +293,8 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
         "opencode"
     } else if agent_name.contains("gemini") {
         "gemini"
+    } else if agent_name == "codex" {
+        "codex"
     } else {
         "claude"
     };
@@ -406,6 +408,8 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
         "opencode"
     } else if agent_name.contains("gemini") {
         "gemini"
+    } else if agent_name == "codex" {
+        "codex"
     } else {
         "claude"
     };

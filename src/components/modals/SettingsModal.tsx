@@ -7,7 +7,7 @@ interface Props {
     onClose: () => void
 }
 
-type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini'
+type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
 type EnvVars = Record<string, string>
 type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects'
 
@@ -71,7 +71,8 @@ export function SettingsModal({ open, onClose }: Props) {
         claude: [],
         cursor: [],
         opencode: [],
-        gemini: []
+        gemini: [],
+        codex: []
     })
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -97,12 +98,13 @@ export function SettingsModal({ open, onClose }: Props) {
     const loadEnvVars = async () => {
         setLoading(true)
         try {
-            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini']
+            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
             const loadedVars: Record<AgentType, Array<{key: string, value: string}>> = {
                 claude: [],
                 cursor: [],
                 opencode: [],
-                gemini: []
+                gemini: [],
+                codex: []
             }
 
             for (const agent of agents) {
@@ -122,7 +124,7 @@ export function SettingsModal({ open, onClose }: Props) {
         setSaving(true)
         try {
             // Save environment variables
-            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini']
+            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
             
             for (const agent of agents) {
                 const vars: EnvVars = {}
@@ -189,7 +191,7 @@ export function SettingsModal({ open, onClose }: Props) {
         <div className="flex flex-col h-full">
             <div className="border-b border-slate-800">
                 <div className="flex">
-                    {(['claude', 'cursor', 'opencode', 'gemini'] as AgentType[]).map(agent => (
+                    {(['claude', 'cursor', 'opencode', 'gemini', 'codex'] as AgentType[]).map(agent => (
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
@@ -199,7 +201,7 @@ export function SettingsModal({ open, onClose }: Props) {
                                     : 'text-slate-400 hover:text-slate-300'
                             }`}
                         >
-                            {agent === 'opencode' ? 'OpenCode' : agent}
+                            {agent === 'opencode' ? 'OpenCode' : agent === 'codex' ? 'Codex' : agent}
                         </button>
                     ))}
                 </div>
@@ -208,7 +210,7 @@ export function SettingsModal({ open, onClose }: Props) {
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
                     <div className="text-sm text-slate-400 mb-4">
-                        Configure environment variables for {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab} agent. 
+                        Configure environment variables for {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
                         These variables will be available when starting sessions with this agent type.
                     </div>
 
@@ -294,6 +296,19 @@ export function SettingsModal({ open, onClose }: Props) {
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>GOOGLE_API_KEY - Your Google AI Studio API key</li>
                                     <li>GEMINI_MODEL - Model to use (e.g., gemini-1.5-pro)</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeAgentTab === 'codex' && (
+                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-xs text-slate-400">
+                                <strong>Common Codex variables:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
+                                    <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>
+                                    <li>CODEX_PROFILE - Configuration profile to use</li>
                                 </ul>
                             </div>
                         </div>

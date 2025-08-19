@@ -1,24 +1,25 @@
 import { useState } from 'react'
 
 interface ModelSelectorProps {
-    value: 'claude' | 'cursor' | 'opencode' | 'gemini'
-    onChange: (value: 'claude' | 'cursor' | 'opencode' | 'gemini') => void
+    value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
+    onChange: (value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => void
     disabled?: boolean
 }
 
 export function ModelSelector({ value, onChange, disabled = false }: ModelSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     
-    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini', label: string, color: string }> = [
+    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex', label: string, color: string }> = [
         { value: 'claude', label: 'Claude', color: 'blue' },
         { value: 'cursor', label: 'Cursor', color: 'purple' },
         { value: 'opencode', label: 'OpenCode', color: 'green' },
-        { value: 'gemini', label: 'Gemini', color: 'orange' }
+        { value: 'gemini', label: 'Gemini', color: 'orange' },
+        { value: 'codex', label: 'Codex', color: 'red' }
     ]
     
     const selectedModel = models.find(m => m.value === value) || models[0]
     
-    const handleSelect = (modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini') => {
+    const handleSelect = (modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
         onChange(modelValue)
         setIsOpen(false)
     }
@@ -39,7 +40,8 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                     <span className={`w-2 h-2 rounded-full ${
                         selectedModel.color === 'blue' ? 'bg-blue-500' : 
                         selectedModel.color === 'purple' ? 'bg-purple-500' : 
-                        selectedModel.color === 'green' ? 'bg-green-500' : 'bg-orange-500'
+                        selectedModel.color === 'green' ? 'bg-green-500' : 
+                        selectedModel.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
                     }`} />
                     {selectedModel.label}
                 </span>
@@ -67,7 +69,8 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                                 <span className={`w-2 h-2 rounded-full ${
                                     model.color === 'blue' ? 'bg-blue-500' : 
                                     model.color === 'purple' ? 'bg-purple-500' : 
-                                    model.color === 'green' ? 'bg-green-500' : 'bg-orange-500'
+                                    model.color === 'green' ? 'bg-green-500' : 
+                                    model.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
                                 }`} />
                                 {model.label}
                             </button>

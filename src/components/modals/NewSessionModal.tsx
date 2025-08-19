@@ -27,7 +27,7 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
     const [loadingBranches, setLoadingBranches] = useState(false)
     const [isValidBranch, setIsValidBranch] = useState(true)
     const [skipPermissions, setSkipPermissions] = useState(false)
-    const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini'>('claude')
+    const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'>('claude')
     const [validationError, setValidationError] = useState('')
     const [creating, setCreating] = useState(false)
     const [createAsDraft, setCreateAsDraft] = useState(false)
@@ -44,7 +44,7 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
         await saveSkipPermissions(checked)
     }
 
-    const handleAgentTypeChange = async (type: 'claude' | 'cursor' | 'opencode' | 'gemini') => {
+    const handleAgentTypeChange = async (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
         setAgentType(type)
         await saveAgentType(type)
     }

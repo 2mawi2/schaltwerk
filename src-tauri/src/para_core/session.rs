@@ -620,6 +620,31 @@ impl SessionManager {
                     skip_permissions,
                 )
             }
+            "codex" => {
+                let session_id = crate::para_core::codex::find_codex_session(&session.worktree_path);
+                let prompt_to_use = if session_id.is_none() && !has_session_been_prompted(&session.worktree_path) {
+                    session.initial_prompt.as_ref().map(|p| {
+                        mark_session_prompted(&session.worktree_path);
+                        p.as_str()
+                    })
+                } else {
+                    None
+                };
+                
+                // For Codex, use workspace-write as default sandbox mode
+                let sandbox_mode = if skip_permissions {
+                    "danger-full-access"
+                } else {
+                    "workspace-write"
+                };
+                
+                crate::para_core::codex::build_codex_command(
+                    &session.worktree_path,
+                    session_id.as_deref(),
+                    prompt_to_use,
+                    sandbox_mode,
+                )
+            }
             _ => {
                 let session_id = crate::para_core::claude::find_claude_session(&session.worktree_path);
                 let prompt_to_use = if session_id.is_none() && !has_session_been_prompted(&session.worktree_path) {
@@ -673,6 +698,22 @@ impl SessionManager {
                     session_id.as_deref(),
                     None,
                     skip_permissions,
+                )
+            }
+            "codex" => {
+                let session_id = crate::para_core::codex::find_codex_session(&self.repo_path);
+                // For Codex orchestrator, use workspace-write as default sandbox mode
+                let sandbox_mode = if skip_permissions {
+                    "danger-full-access"
+                } else {
+                    "workspace-write"
+                };
+                
+                crate::para_core::codex::build_codex_command(
+                    &self.repo_path,
+                    session_id.as_deref(),
+                    None,
+                    sandbox_mode,
                 )
             }
             _ => {

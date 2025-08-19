@@ -10,6 +10,7 @@ pub struct AgentEnvVars {
     pub cursor: HashMap<String, String>,
     pub opencode: HashMap<String, String>,
     pub gemini: HashMap<String, String>,
+    pub codex: HashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -74,6 +75,7 @@ impl SettingsManager {
             "cursor" => self.settings.agent_env_vars.cursor.clone(),
             "opencode" => self.settings.agent_env_vars.opencode.clone(),
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
+            "codex" => self.settings.agent_env_vars.codex.clone(),
             _ => HashMap::new(),
         }
     }
@@ -84,6 +86,7 @@ impl SettingsManager {
             "cursor" => self.settings.agent_env_vars.cursor = env_vars,
             "opencode" => self.settings.agent_env_vars.opencode = env_vars,
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
+            "codex" => self.settings.agent_env_vars.codex = env_vars,
             _ => return Err(format!("Unknown agent type: {agent_type}")),
         }
         

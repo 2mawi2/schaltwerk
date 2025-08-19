@@ -68,14 +68,17 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     // Normalize/validate the agent token
     let is_opencode = agent_token == "opencode" || agent_token.ends_with("/opencode");
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
+    let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
     let agent_name = if agent_token == "claude" {
         "claude"
     } else if agent_token == "cursor-agent" {
         "cursor-agent"
-    } else if is_opencode || is_gemini {
+    } else if agent_token == "codex" {
+        "codex"
+    } else if is_opencode || is_gemini || is_codex {
         agent_token
     } else {
-        return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', or 'gemini': {command}"));
+        return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', 'gemini', or 'codex': {command}"));
     };
 
     // Split the rest into arguments, handling quoted strings
@@ -806,6 +809,24 @@ mod tests {
         assert_eq!(cwd, "/tmp/work");
         assert_eq!(agent, "/usr/local/bin/gemini");
         assert_eq!(args, vec!["--prompt-interactive", "hello world"]);
+    }
+
+    #[test]
+    fn test_parse_agent_command_codex_with_sandbox() {
+        let cmd = r#"cd /tmp/work && codex --sandbox workspace-write "test prompt""#;
+        let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+        assert_eq!(cwd, "/tmp/work");
+        assert_eq!(agent, "codex");
+        assert_eq!(args, vec!["--sandbox", "workspace-write", "test prompt"]);
+    }
+
+    #[test]
+    fn test_parse_agent_command_codex_danger_mode() {
+        let cmd = r#"cd /repo && codex --sandbox danger-full-access"#;
+        let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+        assert_eq!(cwd, "/repo");
+        assert_eq!(agent, "codex");
+        assert_eq!(args, vec!["--sandbox", "danger-full-access"]);
     }
 
     // Tests removed: get_current_directory now uses active project instead of current working directory
