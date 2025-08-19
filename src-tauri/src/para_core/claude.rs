@@ -15,10 +15,7 @@ pub fn find_claude_session(path: &Path) -> Option<String> {
     
     let mut sessions: Vec<_> = fs::read_dir(&project_dir).ok()?
         .filter_map(|e| e.ok())
-        .filter(|e| {
-            e.path().extension().map(|ext| ext == "jsonl").unwrap_or(false)
-                && e.metadata().map(|m| m.len() > 1000).unwrap_or(false)
-        })
+        .filter(|e| e.path().extension().map(|ext| ext == "jsonl").unwrap_or(false))
         .collect();
     
     sessions.sort_by_key(|e| {
@@ -66,6 +63,9 @@ pub fn build_claude_command(
 mod tests {
     use super::*;
     use std::path::Path;
+    use std::io::Write as _;
+    use std::fs::{self, File};
+    use std::time::{SystemTime, Duration};
 
     #[test]
     fn test_new_session_with_prompt() {
@@ -94,6 +94,70 @@ mod tests {
         let path = Path::new("/Users/john.doe/my-project");
         let sanitized = sanitize_path_for_claude(path);
         assert_eq!(sanitized, "-Users-john-doe-my-project");
+    }
+
+    #[test]
+    fn test_sanitize_path_for_claude_schaltwerk_worktree_para_ui() {
+        // Realistic path from our setup
+        let path = Path::new("/Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/eager_tesla");
+        let sanitized = sanitize_path_for_claude(path);
+        // Expectations based on observed ~/.claude/projects entries:
+        // - leading dash for absolute path
+        // - components separated by single '-'
+        // - hidden ".schaltwerk" becomes "--schaltwerk" due to '/' -> '-' and '.' -> '-'
+        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-para-ui--schaltwerk-worktrees-eager_tesla");
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_find_claude_session_with_temp_home_and_project_files() {
+        // Prepare a temporary HOME with a Claude projects directory
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let home_path = tempdir.path();
+        // Save and override HOME
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_path);
+
+        let worktree = Path::new("/Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/eager_tesla");
+        let sanitized = sanitize_path_for_claude(worktree);
+
+        let projects_root = home_path.join(".claude").join("projects");
+        let projects = projects_root.join(&sanitized);
+        fs::create_dir_all(&projects).expect("create projects dir");
+
+        // Create a couple of jsonl files; newest (by mtime) should be chosen
+        let older = projects.join("ses_old.jsonl");
+        let newer = projects.join("ses_new.jsonl");
+
+        // Ensure files exceed the 1000-byte threshold used by find_claude_session()
+        let mut f_old = File::create(&older).unwrap();
+        f_old.write_all(&vec![b'x'; 1200]).unwrap();
+        let mut f_new = File::create(&newer).unwrap();
+        f_new.write_all(&vec![b'y'; 1500]).unwrap();
+
+        // Adjust mtimes to ensure ordering (older, then newer)
+        #[cfg(unix)]
+        {
+            // Touch: set older mtime to now - 2s, newer to now - 1s
+            let now = SystemTime::now();
+            filetime::set_file_mtime(&older, filetime::FileTime::from_system_time(now - Duration::from_secs(2))).unwrap();
+            filetime::set_file_mtime(&newer, filetime::FileTime::from_system_time(now - Duration::from_secs(1))).unwrap();
+        }
+
+        // Sanity: directory exists and visible to reader
+        assert!(projects.exists(), "projects dir should exist");
+        let jsonl_count = fs::read_dir(&projects)
+            .unwrap()
+            .filter_map(|e| e.ok())
+            .filter(|e| e.path().extension().map(|ext| ext == "jsonl").unwrap_or(false))
+            .count();
+        assert_eq!(jsonl_count, 2, "should see 2 jsonl files in the project dir");
+
+        let found = find_claude_session(worktree).expect("session id should be found");
+        assert_eq!(found, "ses_new");
+
+        // Restore HOME
+        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
     }
 
     #[test]
