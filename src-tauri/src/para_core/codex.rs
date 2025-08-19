@@ -6,6 +6,7 @@ pub struct CodexConfig {
 }
 
 // We rely on PATH for codex binary resolution now
+// Removed unused binary resolution helpers to satisfy dead_code lint
 
 pub fn find_codex_session(_path: &Path) -> Option<String> {
     None
