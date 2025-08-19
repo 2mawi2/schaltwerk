@@ -415,6 +415,13 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                         last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
                     }
                 })))
+                // Initialize previous states snapshot for transition detection
+                const nextStates = new Map<string, string>()
+                for (const s of allSessions) {
+                    const state = (s.info.session_state || s.info.status || 'active') as string
+                    nextStates.set(s.info.session_id, state)
+                }
+                prevSessionStatesRef.current = nextStates
             } catch (err) {
                 console.error('Failed to load sessions:', err)
             } finally {
@@ -464,6 +471,27 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     }))
 
                     const allSessions = [...baseSessions, ...enrichedDrafts]
+
+                    // Detect draft -> running transitions
+                    const prevStates = prevSessionStatesRef.current
+                    const transitioned = allSessions.filter(s => {
+                        const prev = prevStates.get(s.info.session_id)
+                        const nowState = (s.info.session_state || s.info.status || 'active') as string
+                        return prev === 'draft' && nowState !== 'draft'
+                    })
+
+                    if (transitioned.length > 0) {
+                        const t = transitioned[0]
+                        if (latestFilterModeRef.current === 'draft') {
+                            setFilterMode('running')
+                        }
+                        setSelection({
+                            kind: 'session',
+                            payload: t.info.session_id,
+                            worktreePath: t.info.worktree_path
+                        })
+                    }
+
                     setSessions(allSessions.map(s => ({
                         ...s,
                         info: {
@@ -471,6 +499,14 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
                         }
                     })))
+
+                    // Update snapshot of states
+                    const nextStates = new Map<string, string>()
+                    for (const s of allSessions) {
+                        const state = (s.info.session_state || s.info.status || 'active') as string
+                        nextStates.set(s.info.session_id, state)
+                    }
+                    prevSessionStatesRef.current = nextStates
                 } catch (err) {
                     console.error('Failed to reload sessions:', err)
                 }
@@ -501,9 +537,12 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     // Keep latest values in refs for use in event handlers without re-attaching listeners
     const latestSelectionRef = useRef(selection)
     const latestSortedSessionsRef = useRef(sortedSessions)
+    const latestFilterModeRef = useRef(filterMode)
+    const prevSessionStatesRef = useRef<Map<string, string>>(new Map())
 
     useEffect(() => { latestSelectionRef.current = selection }, [selection])
     useEffect(() => { latestSortedSessionsRef.current = sortedSessions }, [sortedSessions])
+    useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
@@ -601,6 +640,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     return [enriched, ...prev]
                 })
                 // Auto-select the newly created session tab immediately
+                if (latestFilterModeRef.current === 'draft') {
+                    setFilterMode('running')
+                }
                 setSelection({ 
                     kind: 'session', 
                     payload: session_name,

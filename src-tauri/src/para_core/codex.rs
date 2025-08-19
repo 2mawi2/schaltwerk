@@ -1,84 +1,9 @@
 use std::path::Path;
-#[cfg(test)]
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {
     pub binary_path: Option<String>,
 }
-
-#[cfg(test)]
-fn resolve_codex_binary_with_config(config: Option<&CodexConfig>) -> String {
-    let command = "codex";
-    
-    // Check config first (useful for tests)
-    if let Some(cfg) = config {
-        if let Some(ref path) = cfg.binary_path {
-            let trimmed = path.trim();
-            if !trimmed.is_empty() {
-                log::info!("Using codex from config: {trimmed}");
-                return trimmed.to_string();
-            }
-        }
-    }
-    
-    // Continue with normal resolution
-    resolve_codex_binary_impl(command)
-}
-
-#[cfg(test)]
-fn resolve_codex_binary_impl(command: &str) -> String {
-    if let Ok(home) = std::env::var("HOME") {
-        let user_paths = vec![
-            format!("{}/.local/bin", home),
-            format!("{}/.cargo/bin", home),
-            format!("{}/bin", home),
-            format!("{}/.codex/bin", home),
-        ];
-        
-        for path in user_paths {
-            let full_path = PathBuf::from(&path).join(command);
-            if full_path.exists() {
-                log::info!("Found codex at {}", full_path.display());
-                return full_path.to_string_lossy().to_string();
-            }
-        }
-    }
-    
-    let common_paths = vec![
-        "/usr/local/bin",
-        "/opt/homebrew/bin",
-        "/usr/bin",
-        "/bin",
-    ];
-    
-    for path in common_paths {
-        let full_path = PathBuf::from(path).join(command);
-        if full_path.exists() {
-            log::info!("Found codex at {}", full_path.display());
-            return full_path.to_string_lossy().to_string();
-        }
-    }
-    
-    if let Ok(output) = std::process::Command::new("which")
-        .arg(command)
-        .output()
-    {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    log::info!("Found codex via which: {path}");
-                    return path.to_string();
-                }
-            }
-        }
-    }
-    
-    log::warn!("Could not resolve path for 'codex', using as-is. This may fail in installed apps.");
-    command.to_string()
-}
-
 pub fn find_codex_session(_path: &Path) -> Option<String> {
     None
 }
