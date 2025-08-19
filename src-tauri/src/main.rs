@@ -616,6 +616,8 @@ fn main() {
             set_project_default_base_branch,
             get_agent_env_vars,
             set_agent_env_vars,
+            get_agent_cli_args,
+            set_agent_cli_args,
             get_terminal_ui_preferences,
             set_terminal_collapsed,
             set_terminal_divider_position,

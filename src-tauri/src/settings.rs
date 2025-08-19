@@ -5,6 +5,15 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentCliArgs {
+    pub claude: String,
+    pub cursor: String,
+    pub opencode: String,
+    pub gemini: String,
+    pub codex: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentEnvVars {
     pub claude: HashMap<String, String>,
     pub cursor: HashMap<String, String>,
@@ -22,6 +31,7 @@ pub struct TerminalUIPreferences {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Settings {
     pub agent_env_vars: AgentEnvVars,
+    pub agent_cli_args: AgentCliArgs,
     pub terminal_ui: TerminalUIPreferences,
 }
 
@@ -104,6 +114,30 @@ impl SettingsManager {
     
     pub fn set_terminal_divider_position(&mut self, position: f64) -> Result<(), String> {
         self.settings.terminal_ui.divider_position = Some(position);
+        self.save()
+    }
+    
+    pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
+        match agent_type {
+            "claude" => self.settings.agent_cli_args.claude.clone(),
+            "cursor" => self.settings.agent_cli_args.cursor.clone(),
+            "opencode" => self.settings.agent_cli_args.opencode.clone(),
+            "gemini" => self.settings.agent_cli_args.gemini.clone(),
+            "codex" => self.settings.agent_cli_args.codex.clone(),
+            _ => String::new(),
+        }
+    }
+    
+    pub fn set_agent_cli_args(&mut self, agent_type: &str, cli_args: String) -> Result<(), String> {
+        match agent_type {
+            "claude" => self.settings.agent_cli_args.claude = cli_args,
+            "cursor" => self.settings.agent_cli_args.cursor = cli_args,
+            "opencode" => self.settings.agent_cli_args.opencode = cli_args,
+            "gemini" => self.settings.agent_cli_args.gemini = cli_args,
+            "codex" => self.settings.agent_cli_args.codex = cli_args,
+            _ => return Err(format!("Unknown agent type: {agent_type}")),
+        }
+        
         self.save()
     }
 }

@@ -74,12 +74,20 @@ export function SettingsModal({ open, onClose }: Props) {
         gemini: [],
         codex: []
     })
+    const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>({
+        claude: '',
+        cursor: '',
+        opencode: '',
+        gemini: '',
+        codex: ''
+    })
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
 
     useEffect(() => {
         if (open) {
             loadEnvVars()
+            loadCliArgs()
             loadProjectSettings()
         }
     }, [open])
@@ -120,13 +128,36 @@ export function SettingsModal({ open, onClose }: Props) {
         }
     }
 
+    const loadCliArgs = async () => {
+        try {
+            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
+            const loadedArgs: Record<AgentType, string> = {
+                claude: '',
+                cursor: '',
+                opencode: '',
+                gemini: '',
+                codex: ''
+            }
+
+            for (const agent of agents) {
+                const args = await invoke<string>('get_agent_cli_args', { agentType: agent })
+                loadedArgs[agent] = args || ''
+            }
+
+            setCliArgs(loadedArgs)
+        } catch (error) {
+            console.error('Failed to load CLI arguments:', error)
+        }
+    }
+
     const handleSave = async () => {
         setSaving(true)
         try {
-            // Save environment variables
+            // Save environment variables and CLI arguments
             const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
             
             for (const agent of agents) {
+                // Save environment variables
                 const vars: EnvVars = {}
                 for (const item of envVars[agent]) {
                     if (item.key.trim()) {
@@ -134,6 +165,9 @@ export function SettingsModal({ open, onClose }: Props) {
                     }
                 }
                 await invoke('set_agent_env_vars', { agentType: agent, envVars: vars })
+                
+                // Save CLI arguments
+                await invoke('set_agent_cli_args', { agentType: agent, cliArgs: cliArgs[agent] })
             }
             
             // Save project settings
@@ -208,58 +242,84 @@ export function SettingsModal({ open, onClose }: Props) {
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-4">
-                    <div className="text-sm text-slate-400 mb-4">
-                        Configure environment variables for {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
-                        These variables will be available when starting sessions with this agent type.
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">CLI Arguments</h3>
+                        <div className="text-sm text-slate-400 mb-3">
+                            Add custom command-line arguments that will be appended to the {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} command.
+                        </div>
+                        <input
+                            type="text"
+                            value={cliArgs[activeAgentTab]}
+                            onChange={(e) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: e.target.value }))}
+                            placeholder="e.g., --profile test or -p some 'quoted value'"
+                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                        />
+                        <div className="mt-2 text-xs text-slate-500">
+                            Examples: <code className="text-blue-400">--profile test</code>, <code className="text-blue-400">-d</code>, <code className="text-blue-400">--model gpt-4</code>
+                        </div>
                     </div>
 
-                    <div className="space-y-3">
-                        {envVars[activeAgentTab].map((item, index) => (
-                            <div key={index} className="flex gap-2">
-                                <input
-                                    type="text"
-                                    value={item.key}
-                                    onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', e.target.value)}
-                                    placeholder="Variable name (e.g., API_KEY)"
-                                    className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
-                                />
-                                <input
-                                    type="text"
-                                    value={item.value}
-                                    onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', e.target.value)}
-                                    placeholder="Value"
-                                    className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
-                                />
-                                <button
-                                    onClick={() => handleRemoveEnvVar(activeAgentTab, index)}
-                                    className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 hover:text-red-400"
-                                >
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                </button>
-                            </div>
-                        ))}
-                    </div>
+                    <div className="border-t border-slate-700 pt-6">
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">Environment Variables</h3>
+                        <div className="text-sm text-slate-400 mb-4">
+                            Configure environment variables for {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
+                            These variables will be available when starting sessions with this agent type.
+                        </div>
 
-                    <button
-                        onClick={() => handleAddEnvVar(activeAgentTab)}
-                        className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-300"
-                    >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add Environment Variable
-                    </button>
+                        <div className="space-y-3">
+                            {envVars[activeAgentTab].map((item, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={item.key}
+                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', e.target.value)}
+                                        placeholder="Variable name (e.g., API_KEY)"
+                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={item.value}
+                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', e.target.value)}
+                                        placeholder="Value"
+                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
+                                    />
+                                    <button
+                                        onClick={() => handleRemoveEnvVar(activeAgentTab, index)}
+                                        className="px-3 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 hover:text-red-400"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
+
+                        <button
+                            onClick={() => handleAddEnvVar(activeAgentTab)}
+                            className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-300"
+                        >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Add Environment Variable
+                        </button>
+                    </div>
 
                     {activeAgentTab === 'claude' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
-                                <strong>Common Claude variables:</strong>
+                                <strong>Common Claude CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>-d</code> or <code>--dangerously-skip-permissions</code> - Skip permission prompts</li>
+                                    <li><code>--profile test</code> - Use a specific profile</li>
+                                    <li><code>--model claude-3-opus-20240229</code> - Specify model</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>ANTHROPIC_API_KEY - Your Anthropic API key</li>
-                                    <li>CLAUDE_MODEL - Model to use (e.g., claude-3-opus-20240229)</li>
+                                    <li>CLAUDE_MODEL - Model to use</li>
                                 </ul>
                             </div>
                         </div>
@@ -268,7 +328,12 @@ export function SettingsModal({ open, onClose }: Props) {
                     {activeAgentTab === 'cursor' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
-                                <strong>Common Cursor variables:</strong>
+                                <strong>Common Cursor CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--model gpt-4</code> - Specify model preference</li>
+                                    <li><code>--max-tokens 4000</code> - Set token limit</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>CURSOR_API_KEY - Your Cursor API key</li>
                                     <li>CURSOR_MODEL - Model preference</li>
@@ -280,7 +345,12 @@ export function SettingsModal({ open, onClose }: Props) {
                     {activeAgentTab === 'opencode' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
-                                <strong>Common OpenCode variables:</strong>
+                                <strong>Common OpenCode CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--model gpt-4-turbo</code> - Specify OpenAI model</li>
+                                    <li><code>--temperature 0.7</code> - Set temperature</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>OPENAI_API_KEY - Your OpenAI API key</li>
                                     <li>OPENCODE_MODEL - Model to use</li>
@@ -292,10 +362,15 @@ export function SettingsModal({ open, onClose }: Props) {
                     {activeAgentTab === 'gemini' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
-                                <strong>Common Gemini variables:</strong>
+                                <strong>Common Gemini CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--model gemini-1.5-pro</code> - Specify Gemini model</li>
+                                    <li><code>--temperature 0.9</code> - Set temperature</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>GOOGLE_API_KEY - Your Google AI Studio API key</li>
-                                    <li>GEMINI_MODEL - Model to use (e.g., gemini-1.5-pro)</li>
+                                    <li>GEMINI_MODEL - Model to use</li>
                                 </ul>
                             </div>
                         </div>
@@ -304,7 +379,13 @@ export function SettingsModal({ open, onClose }: Props) {
                     {activeAgentTab === 'codex' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
-                                <strong>Common Codex variables:</strong>
+                                <strong>Common Codex CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--sandbox workspace-write</code> - Workspace write access</li>
+                                    <li><code>--sandbox danger-full-access</code> - Full system access</li>
+                                    <li><code>--model o3</code> - Use specific model</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
                                     <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>

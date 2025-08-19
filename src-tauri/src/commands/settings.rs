@@ -25,6 +25,26 @@ pub async fn set_agent_env_vars(agent_type: String, env_vars: HashMap<String, St
 }
 
 #[tauri::command]
+pub async fn get_agent_cli_args(agent_type: String) -> Result<String, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_agent_cli_args(&agent_type))
+}
+
+#[tauri::command]
+pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let mut manager = settings_manager.lock().await;
+    manager.set_agent_cli_args(&agent_type, cli_args)
+}
+
+#[tauri::command]
 pub async fn get_terminal_ui_preferences() -> Result<TerminalUIPreferences, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()

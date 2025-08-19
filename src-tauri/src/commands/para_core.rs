@@ -341,24 +341,35 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
         "claude"
     };
     
-    let env_vars = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+    let (env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = settings_manager.lock().await;
-        manager.get_agent_env_vars(agent_type)
+        let env_vars = manager.get_agent_env_vars(agent_type)
             .into_iter()
-            .collect::<Vec<(String, String)>>()
+            .collect::<Vec<(String, String)>>();
+        let cli_args = manager.get_agent_cli_args(agent_type);
+        (env_vars, cli_args)
     } else {
-        vec![]
+        (vec![], String::new())
     };
     
-    log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars", env_vars.len());
+    log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
     let is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
+    
+    let mut final_args = agent_args;
+    if !cli_args.is_empty() {
+        // Parse the CLI arguments string into individual arguments
+        // This is a simple split on spaces, but respects quoted strings
+        let additional_args = shell_words::split(&cli_args)
+            .unwrap_or_else(|_| vec![cli_args.clone()]);
+        final_args.extend(additional_args);
+    }
     
     terminal_manager.create_terminal_with_app(
         terminal_id.clone(),
         cwd,
         agent_name.clone(),
-        agent_args,
+        final_args,
         env_vars,
     ).await?;
     
@@ -456,24 +467,35 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
         "claude"
     };
     
-    let env_vars = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+    let (env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = settings_manager.lock().await;
-        manager.get_agent_env_vars(agent_type)
+        let env_vars = manager.get_agent_env_vars(agent_type)
             .into_iter()
-            .collect::<Vec<(String, String)>>()
+            .collect::<Vec<(String, String)>>();
+        let cli_args = manager.get_agent_cli_args(agent_type);
+        (env_vars, cli_args)
     } else {
-        vec![]
+        (vec![], String::new())
     };
     
-    log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars", env_vars.len());
+    log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
     let is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
+    
+    let mut final_args = agent_args;
+    if !cli_args.is_empty() {
+        // Parse the CLI arguments string into individual arguments
+        // This is a simple split on spaces, but respects quoted strings
+        let additional_args = shell_words::split(&cli_args)
+            .unwrap_or_else(|_| vec![cli_args.clone()]);
+        final_args.extend(additional_args);
+    }
     
     terminal_manager.create_terminal_with_app(
         terminal_id.clone(),
         cwd,
         agent_name.clone(),
-        agent_args,
+        final_args,
         env_vars,
     ).await?;
     

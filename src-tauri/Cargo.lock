@@ -3532,6 +3532,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "sha2",
+ "shell-words",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
