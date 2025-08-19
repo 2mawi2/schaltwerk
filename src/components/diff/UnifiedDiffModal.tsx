@@ -503,6 +503,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       }
 
       if (e.key === 'Escape') {
+        // Prevent ESC from reaching terminals while modal is open
+        e.preventDefault()
+        e.stopPropagation()
         if (showCommentForm) {
           setShowCommentForm(false)
           setCommentFormPosition(null)
