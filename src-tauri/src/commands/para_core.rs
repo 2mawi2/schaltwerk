@@ -394,8 +394,11 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
                     let terminal_manager_clone = terminal_manager.clone();
                     let terminal_id_clone = terminal_id.clone();
                     tokio::spawn(async move {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                        let formatted_content = format!("{initial_prompt}\n");
+                        // Give the TUI a moment to fully initialize before sending input
+                        tokio::time::sleep(tokio::time::Duration::from_millis(2500)).await;
+                        // Use LF to simulate Enter; some TUIs treat CR as newline only
+                        // Send double newline to ensure submit from multi-line editors
+                        let formatted_content = format!("{initial_prompt}\n\n");
                         if let Err(e) = terminal_manager_clone.write_terminal(
                             terminal_id_clone.clone(), 
                             formatted_content.as_bytes().to_vec()
