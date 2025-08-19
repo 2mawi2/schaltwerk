@@ -8,106 +8,79 @@ pub struct OpenApp {
     pub kind: String, // "editor" | "terminal" | "system"
 }
 
-fn is_command_available(cmd: &str) -> bool {
-    which::which(cmd).is_ok()
-}
-
-fn is_macos_app_installed(app_name: &str) -> bool {
-    // We rely on `open -Ra` which returns exit status 0 if app exists
-    Command::new("open")
-        .args(["-Ra", app_name])
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
-}
 
 fn detect_available_apps() -> Vec<OpenApp> {
-    let mut apps: Vec<OpenApp> = Vec::new();
-
-    // Finder (always available on macOS)
-    if cfg!(target_os = "macos") {
-        apps.push(OpenApp { id: "finder".into(), name: "Finder".into(), kind: "system".into() });
-    }
-
-    // Cursor editor
-    if is_command_available("cursor") || (cfg!(target_os = "macos") && is_macos_app_installed("Cursor")) {
-        apps.push(OpenApp { id: "cursor".into(), name: "Cursor".into(), kind: "editor".into() });
-    }
-
-    // VS Code
-    if is_command_available("code") || (cfg!(target_os = "macos") && is_macos_app_installed("Visual Studio Code")) {
-        apps.push(OpenApp { id: "vscode".into(), name: "VS Code".into(), kind: "editor".into() });
-    }
-
-    // Ghostty
-    if is_command_available("ghostty") || (cfg!(target_os = "macos") && is_macos_app_installed("Ghostty")) {
-        apps.push(OpenApp { id: "ghostty".into(), name: "Ghostty".into(), kind: "terminal".into() });
-    }
-
-    // Warp
-    if is_command_available("warp") || (cfg!(target_os = "macos") && is_macos_app_installed("Warp")) {
-        apps.push(OpenApp { id: "warp".into(), name: "Warp".into(), kind: "terminal".into() });
-    }
-
-    // Apple Terminal
-    if cfg!(target_os = "macos") {
-        apps.push(OpenApp { id: "terminal".into(), name: "Terminal".into(), kind: "terminal".into() });
-    }
-
-    apps
+    // Show all common macOS apps and let error handling deal with missing ones
+    // This avoids sandbox permission issues with app detection
+    vec![
+        OpenApp { id: "finder".into(), name: "Finder".into(), kind: "system".into() },
+        OpenApp { id: "cursor".into(), name: "Cursor".into(), kind: "editor".into() },
+        OpenApp { id: "vscode".into(), name: "VS Code".into(), kind: "editor".into() },
+        OpenApp { id: "warp".into(), name: "Warp".into(), kind: "terminal".into() },
+        OpenApp { id: "terminal".into(), name: "Terminal".into(), kind: "terminal".into() },
+    ]
 }
 
 fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
-    #[cfg(target_os = "macos")]
-    {
-        match app_id {
-            "finder" => {
-                Command::new("open").arg(path).status().map_err(|e| e.to_string())?
-                    .success().then_some(()).ok_or_else(|| "Failed to open in Finder".to_string())
-            }
-            "cursor" => {
-                if is_command_available("cursor") {
-                    Command::new("cursor").arg(path).status()
-                } else {
-                    Command::new("open").args(["-a", "Cursor", path]).status()
-                }.map_err(|e| e.to_string())?
-                .success().then_some(()).ok_or_else(|| "Failed to open in Cursor".to_string())
-            }
-            "vscode" => {
-                if is_command_available("code") {
-                    Command::new("code").arg(path).status()
-                } else {
-                    Command::new("open").args(["-a", "Visual Studio Code", path]).status()
-                }.map_err(|e| e.to_string())?
-                .success().then_some(()).ok_or_else(|| "Failed to open in VS Code".to_string())
-            }
-            "ghostty" => {
-                // Ghostty CLI does not launch the app directly; use macOS open with --args
-                Command::new("open").args(["-a", "Ghostty", "--args", "--working-directory", path]).status()
-                    .map_err(|e| e.to_string())?
-                    .success().then_some(()).ok_or_else(|| "Failed to open in Ghostty".to_string())
-            }
-            "warp" => {
-                if is_command_available("warp") {
-                    // Warp CLI can open a directory focus
-                    Command::new("warp").arg("--cwd").arg(path).status()
-                } else {
-                    Command::new("open").args(["-a", "Warp", path]).status()
-                }.map_err(|e| e.to_string())?
-                .success().then_some(()).ok_or_else(|| "Failed to open in Warp".to_string())
-            }
-            "terminal" => {
-                Command::new("open").args(["-a", "Terminal", path]).status()
-                    .map_err(|e| e.to_string())?
-                    .success().then_some(()).ok_or_else(|| "Failed to open in Terminal".to_string())
-            }
-            other => Err(format!("Unsupported app id: {other}")),
+    let result = match app_id {
+        "finder" => {
+            Command::new("open").arg(path).status()
         }
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = (app_id, path);
-        Err("Only macOS is supported for external open currently".into())
+        "cursor" => {
+            // Try CLI first, fall back to open -a
+            if which::which("cursor").is_ok() {
+                Command::new("cursor").arg(path).status()
+            } else {
+                Command::new("open").args(["-a", "Cursor", path]).status()
+            }
+        }
+        "vscode" => {
+            // Try CLI first, fall back to open -a
+            if which::which("code").is_ok() {
+                Command::new("code").arg(path).status()
+            } else {
+                Command::new("open").args(["-a", "Visual Studio Code", path]).status()
+            }
+        }
+        "warp" => {
+            // Try CLI first, fall back to open -a
+            if which::which("warp").is_ok() {
+                Command::new("warp").arg("--cwd").arg(path).status()
+            } else {
+                Command::new("open").args(["-a", "Warp", path]).status()
+            }
+        }
+        "terminal" => {
+            Command::new("open").args(["-a", "Terminal", path]).status()
+        }
+        other => return Err(format!("Unsupported app id: {other}")),
+    };
+
+    match result {
+        Ok(status) if status.success() => Ok(()),
+        Ok(_status) => {
+            // Non-zero exit code likely means app not found
+            let app_name = match app_id {
+                "cursor" => "Cursor",
+                "vscode" => "VS Code",
+                "warp" => "Warp",
+                "terminal" => "Terminal",
+                _ => app_id,
+            };
+            Err(format!("{app_name} is not installed. Please install it from the official website or choose a different application."))
+        }
+        Err(e) => {
+            // Command execution failed
+            let app_name = match app_id {
+                "cursor" => "Cursor",
+                "vscode" => "VS Code",
+                "warp" => "Warp",
+                "terminal" => "Terminal",
+                "finder" => "Finder",
+                _ => app_id,
+            };
+            Err(format!("Failed to open in {app_name}: {e}"))
+        }
     }
 }
 
@@ -116,15 +89,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_detect_available_apps_includes_finder_on_macos_or_empty_elsewhere() {
+    fn test_detect_available_apps_includes_expected_apps() {
         let apps = detect_available_apps();
-        if cfg!(target_os = "macos") {
-            assert!(apps.iter().any(|a| a.id == "finder"));
-        } else {
-            // On non-mac, list may be empty or contain CLI detected entries
-            // Ensure any discovered app entries have non-empty ids
-            assert!(apps.iter().all(|a| !a.id.is_empty()));
-        }
+        // We should always have all apps available on macOS
+        assert!(apps.iter().any(|a| a.id == "finder"));
+        assert!(apps.iter().any(|a| a.id == "terminal"));
+        assert_eq!(apps.len(), 5); // Should have all 5 apps
     }
 }
 
@@ -149,5 +119,10 @@ pub async fn set_default_open_app(app_id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub async fn open_in_app(app_id: String, worktree_path: String) -> Result<(), String> {
-    open_path_in(&app_id, &worktree_path)
+    // Run in a blocking task to avoid UI freezing
+    tokio::task::spawn_blocking(move || {
+        open_path_in(&app_id, &worktree_path)
+    })
+    .await
+    .map_err(|e| format!("Failed to spawn task: {e}"))?
 }
