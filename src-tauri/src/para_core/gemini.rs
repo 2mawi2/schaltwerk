@@ -1,4 +1,4 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
 
 #[derive(Debug, Clone, Default)]
@@ -61,10 +61,10 @@ pub fn build_gemini_command_with_config(
     }
     
     // Gemini doesn't support session resumption like Claude
-    // Use --prompt-interactive for interactive mode with an initial prompt
+    // Use --prompt for interactive mode with an initial prompt
     if let Some(prompt) = initial_prompt {
         let escaped = prompt.replace('"', r#"\""#);
-        cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
+        cmd.push_str(&format!(r#" --prompt "{escaped}""#));
     }
     
     cmd
@@ -97,7 +97,7 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --yolo --prompt-interactive "implement feature X""#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --yolo --prompt "implement feature X""#);
     }
 
     #[test]
@@ -143,6 +143,6 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --prompt-interactive "implement \"feature\" with quotes""#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --prompt "implement \"feature\" with quotes""#);
     }
 }
