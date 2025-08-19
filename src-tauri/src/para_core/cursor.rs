@@ -1,5 +1,58 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::fs;
+
+fn resolve_cursor_binary() -> String {
+    let command = "cursor-agent";
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let user_paths = vec![
+            format!("{}/.local/bin", home),
+            format!("{}/.cargo/bin", home),
+            format!("{}/bin", home),
+        ];
+        
+        for path in user_paths {
+            let full_path = PathBuf::from(&path).join(command);
+            if full_path.exists() {
+                log::info!("Found cursor-agent at {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
+        }
+    }
+    
+    let common_paths = vec![
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/usr/bin",
+        "/bin",
+    ];
+    
+    for path in common_paths {
+        let full_path = PathBuf::from(path).join(command);
+        if full_path.exists() {
+            log::info!("Found cursor-agent at {}", full_path.display());
+            return full_path.to_string_lossy().to_string();
+        }
+    }
+    
+    if let Ok(output) = std::process::Command::new("which")
+        .arg(command)
+        .output()
+    {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    log::info!("Found cursor-agent via which: {path}");
+                    return path.to_string();
+                }
+            }
+        }
+    }
+    
+    log::warn!("Could not resolve path for 'cursor-agent', using as-is. This may fail in installed apps.");
+    command.to_string()
+}
 
 pub fn find_cursor_session(path: &Path) -> Option<String> {
     // For cursor-agent, we need a different approach than Claude
@@ -33,7 +86,8 @@ pub fn build_cursor_command(
     initial_prompt: Option<&str>,
     force_flag: bool,
 ) -> String {
-    let mut cmd = format!("cd {} && cursor-agent", worktree_path.display());
+    let cursor_path = resolve_cursor_binary();
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), cursor_path);
     
     if let Some(id) = session_id {
         // Resuming an existing session

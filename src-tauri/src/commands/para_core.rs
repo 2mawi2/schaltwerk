@@ -327,9 +327,9 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
     
-    let agent_type = if agent_name == "claude" {
+    let agent_type = if agent_name == "claude" || agent_name.ends_with("/claude") {
         "claude"
-    } else if agent_name == "cursor-agent" {
+    } else if agent_name == "cursor-agent" || agent_name.ends_with("/cursor-agent") {
         "cursor"
     } else if agent_name.contains("opencode") {
         "opencode"
@@ -418,12 +418,26 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
 pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<String, String> {
     log::info!("Starting Claude for orchestrator in terminal: {terminal_id}");
     
-    let core = get_para_core().await?;
+    // First check if we have a valid project initialized
+    let core = match get_para_core().await {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("Failed to get para_core for orchestrator: {e}");
+            // If we can't get a para_core (no project), create a user-friendly error
+            if e.contains("No active project") {
+                return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
+            }
+            return Err(format!("Failed to initialize orchestrator: {e}"));
+        }
+    };
     let core = core.lock().await;
     let manager = core.session_manager();
     
     let command = manager.start_claude_in_orchestrator()
-        .map_err(|e| format!("Failed to start Claude in orchestrator: {e}"))?;
+        .map_err(|e| {
+            log::error!("Failed to build orchestrator command: {e}");
+            format!("Failed to start Claude in orchestrator: {e}")
+        })?;
     
     log::info!("Claude command for orchestrator: {command}");
     
@@ -453,9 +467,9 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
     
-    let agent_type = if agent_name == "claude" {
+    let agent_type = if agent_name == "claude" || agent_name.ends_with("/claude") {
         "claude"
-    } else if agent_name == "cursor-agent" {
+    } else if agent_name == "cursor-agent" || agent_name.ends_with("/cursor-agent") {
         "cursor"
     } else if agent_name.contains("opencode") {
         "opencode"

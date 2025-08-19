@@ -109,8 +109,19 @@ impl ProjectManager {
     
     /// Initialize or switch to a project
     pub async fn switch_to_project(&self, path: PathBuf) -> Result<Arc<Project>> {
+        log::info!("📁 ProjectManager::switch_to_project called with: {}", path.display());
+        
         // Normalize the path
-        let path = std::fs::canonicalize(&path)?;
+        let path = match std::fs::canonicalize(&path) {
+            Ok(p) => {
+                log::info!("  Canonicalized path: {}", p.display());
+                p
+            }
+            Err(e) => {
+                log::error!("  ❌ Failed to canonicalize path {}: {e}", path.display());
+                return Err(e.into());
+            }
+        };
         
         info!("Switching to project: {}", path.display());
         
@@ -118,17 +129,24 @@ impl ProjectManager {
         let mut projects = self.projects.write().await;
         
         let project = if let Some(existing) = projects.get(&path) {
-            debug!("Using existing project instance for: {}", path.display());
+            info!("♻️ Using existing project instance for: {}", path.display());
             existing.clone()
         } else {
-            debug!("Creating new project instance for: {}", path.display());
-            let new_project = Arc::new(Project::new(path.clone())?);
+            info!("🆕 Creating new project instance for: {}", path.display());
+            let new_project = match Project::new(path.clone()) {
+                Ok(p) => Arc::new(p),
+                Err(e) => {
+                    log::error!("❌ Failed to create project: {e}");
+                    return Err(e);
+                }
+            };
             projects.insert(path.clone(), new_project.clone());
             new_project
         };
         
         // Update current project
-        *self.current_project.write().await = Some(path);
+        *self.current_project.write().await = Some(path.clone());
+        log::info!("✅ Current project set to: {}", path.display());
         
         Ok(project)
     }
@@ -138,10 +156,16 @@ impl ProjectManager {
         let current_path = self.current_project.read().await;
         
         if let Some(path) = current_path.as_ref() {
+            log::debug!("Current project path is set to: {}", path.display());
             let projects = self.projects.read().await;
             if let Some(project) = projects.get(path) {
+                log::debug!("Found project instance for: {}", path.display());
                 return Ok(project.clone());
+            } else {
+                log::error!("❌ Current project path is set but no project instance found: {}", path.display());
             }
+        } else {
+            log::warn!("⚠️ No current project path set");
         }
         
         Err(anyhow!("No active project"))

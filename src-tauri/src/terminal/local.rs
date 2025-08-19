@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
@@ -48,6 +49,10 @@ impl LocalPtyAdapter {
         *self.app_handle.lock().await = Some(handle);
     }
 
+    fn resolve_command(command: &str) -> String {
+        resolve_command(command)
+    }
+    
     fn get_shell_command() -> CommandBuilder {
         let mut cmd = CommandBuilder::new(get_shell_binary());
         cmd.arg("-i");
@@ -68,13 +73,33 @@ impl LocalPtyAdapter {
         cmd.env("TERM_PROGRAM", "schaltwerk");
         
         if let Ok(home) = std::env::var("HOME") {
-            cmd.env("HOME", home);
+            cmd.env("HOME", home.clone());
+            
+            let mut path_components = vec![];
+            
+            path_components.push(format!("{home}/.local/bin"));
+            path_components.push(format!("{home}/.cargo/bin"));
+            path_components.push(format!("{home}/bin"));
+            
+            path_components.push("/opt/homebrew/bin".to_string());
+            path_components.push("/usr/local/bin".to_string());
+            path_components.push("/usr/bin".to_string());
+            path_components.push("/bin".to_string());
+            path_components.push("/usr/sbin".to_string());
+            path_components.push("/sbin".to_string());
+            
+            if let Ok(existing_path) = std::env::var("PATH") {
+                path_components.push(existing_path);
+            }
+            
+            let path = path_components.join(":");
+            cmd.env("PATH", path);
+        } else {
+            let path = std::env::var("PATH").unwrap_or_else(|_| {
+                "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
+            });
+            cmd.env("PATH", path);
         }
-        
-        let path = std::env::var("PATH").unwrap_or_else(|_| {
-            "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
-        });
-        cmd.env("PATH", path);
         
         // Preserve other important environment variables for colors
         if let Ok(lang) = std::env::var("LANG") {
@@ -270,7 +295,10 @@ impl TerminalBackend for LocalPtyAdapter {
             .map_err(|e| format!("Failed to open PTY: {e}"))?;
         
         let mut cmd = if let Some(app) = params.app {
-            let mut cmd = CommandBuilder::new(app.command);
+            let resolved_command = Self::resolve_command(&app.command);
+            info!("Resolved command '{}' to '{}'" , app.command, resolved_command);
+            
+            let mut cmd = CommandBuilder::new(resolved_command);
             for arg in app.args {
                 cmd.arg(arg);
             }
@@ -283,12 +311,17 @@ impl TerminalBackend for LocalPtyAdapter {
         };
         
         Self::setup_environment(&mut cmd);
-        cmd.cwd(params.cwd);
+        cmd.cwd(params.cwd.clone());
+        
+        info!("Spawning terminal {id} with cwd: {}", params.cwd);
         
         let child = pair
             .slave
             .spawn_command(cmd)
-            .map_err(|e| format!("Failed to spawn command: {e}"))?;
+            .map_err(|e| {
+                error!("Failed to spawn command for terminal {id}: {e}");
+                format!("Failed to spawn command: {e}")
+            })?;
         
         info!("Successfully spawned shell process for terminal {id}");
         
@@ -458,6 +491,62 @@ fn get_shell_binary() -> String {
             "/bin/bash".to_string()
         }
     })
+}
+
+fn resolve_command(command: &str) -> String {
+    if command.contains('/') {
+        return command.to_string();
+    }
+    
+    let common_paths = vec![
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/usr/bin",
+        "/bin",
+    ];
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let mut user_paths = vec![
+            format!("{}/.local/bin", home),
+            format!("{}/.cargo/bin", home),
+            format!("{}/bin", home),
+        ];
+        user_paths.extend(common_paths.iter().map(|s| s.to_string()));
+        
+        for path in user_paths {
+            let full_path = PathBuf::from(&path).join(command);
+            if full_path.exists() {
+                info!("Found {command} at {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
+        }
+    } else {
+        for path in common_paths {
+            let full_path = PathBuf::from(path).join(command);
+            if full_path.exists() {
+                info!("Found {command} at {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
+        }
+    }
+    
+    if let Ok(output) = std::process::Command::new("which")
+        .arg(command)
+        .output()
+    {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    info!("Found {command} via which: {path}");
+                    return path.to_string();
+                }
+            }
+        }
+    }
+    
+    warn!("Could not resolve path for '{command}', using as-is");
+    command.to_string()
 }
 
 #[cfg(test)]

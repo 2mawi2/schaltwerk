@@ -556,9 +556,28 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
-                        if (errorMessage.includes('Permission required for folder:')) {
+                        if (errorMessage.includes('No project is currently open')) {
+                            // Handle no project error
+                            console.error(`[Terminal ${terminalId}] No project open:`, errorMessage);
+                            window.dispatchEvent(new CustomEvent('schaltwerk:no-project-error', {
+                                detail: { error: errorMessage, terminalId }
+                            }));
+                        } else if (errorMessage.includes('Permission required for folder:')) {
                             window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
                                 detail: { error: errorMessage }
+                            }));
+                        } else if (errorMessage.includes('Failed to spawn command')) {
+                            // Log more details about spawn failures
+                            console.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
+                            // Dispatch a specific event for spawn failures
+                            window.dispatchEvent(new CustomEvent('schaltwerk:spawn-error', {
+                                detail: { error: errorMessage, terminalId }
+                            }));
+                        } else if (errorMessage.includes('not a git repository')) {
+                            // Handle non-git repository error
+                            console.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
+                            window.dispatchEvent(new CustomEvent('schaltwerk:not-git-error', {
+                                detail: { error: errorMessage, terminalId }
                             }));
                         }
                         throw e;

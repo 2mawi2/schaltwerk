@@ -140,9 +140,13 @@ pub async fn get_terminal_manager() -> Result<Arc<terminal::TerminalManager>, St
 }
 
 pub async fn get_para_core() -> Result<Arc<tokio::sync::Mutex<para_core::SchaltwerkCore>>, String> {
+    log::debug!("get_para_core() called");
     let manager = get_project_manager().await;
     manager.current_para_core().await
-        .map_err(|e| format!("Failed to get para core: {e}"))
+        .map_err(|e| {
+            log::error!("Failed to get para core: {e}");
+            format!("Failed to get para core: {e}")
+        })
 }
 
 pub async fn get_message_queue() -> MessageQueue {
@@ -507,12 +511,27 @@ fn main() {
     
     // Parse command line arguments for directory
     let args: Vec<String> = std::env::args().collect();
+    log::info!("Application started with {} arguments", args.len());
+    for (i, arg) in args.iter().enumerate() {
+        log::info!("  Arg[{i}]: {arg}");
+    }
+    
+    // Also log current working directory
+    if let Ok(cwd) = std::env::current_dir() {
+        log::info!("Current working directory: {}", cwd.display());
+    } else {
+        log::warn!("Failed to get current working directory");
+    }
+    
     let initial_directory = if args.len() > 1 {
         // Skip the first argument (program name) and get the directory
         let dir_path = &args[1];
+        log::info!("Attempting to open directory from argument: {dir_path}");
         
         // Validate that it's a valid directory
         if std::path::Path::new(dir_path).is_dir() {
+            log::info!("Directory exists: {dir_path}");
+            
             // Check if it's a Git repository
             let git_check = std::process::Command::new("git")
                 .arg("-C")
@@ -523,20 +542,28 @@ fn main() {
             
             match git_check {
                 Ok(output) if output.status.success() => {
-                    log::info!("Opening Schaltwerk with Git repository: {dir_path}");
+                    log::info!("✅ Opening Schaltwerk with Git repository: {dir_path}");
                     Some((dir_path.clone(), true))
                 }
-                _ => {
+                Ok(output) => {
+                    let stderr = String::from_utf8_lossy(&output.stderr);
+                    log::warn!("Git check failed for {dir_path}: {stderr}");
                     log::warn!("Directory {dir_path} is not a Git repository, will open at home screen");
                     // Still pass the directory info but mark it as non-Git
                     Some((dir_path.clone(), false))
                 }
+                Err(e) => {
+                    log::error!("Failed to run git command: {e}");
+                    log::warn!("Could not verify if {dir_path} is a Git repository");
+                    Some((dir_path.clone(), false))
+                }
             }
         } else {
-            log::warn!("Invalid directory path: {dir_path}, opening at home");
+            log::warn!("❌ Invalid directory path: {dir_path}, opening at home");
             None
         }
     } else {
+        log::info!("No directory argument provided, opening at home screen");
         None
     };
     

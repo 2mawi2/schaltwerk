@@ -57,13 +57,40 @@ pub fn create_new_project(name: String, parent_path: String) -> Result<String, S
 
 #[tauri::command]
 pub async fn initialize_project(path: String) -> Result<(), String> {
-    let path = PathBuf::from(path);
+    log::info!("🔧 Initialize project command called with path: {path}");
+    
+    let path = PathBuf::from(&path);
+    
+    // Log detailed path information
+    if path.exists() {
+        log::info!("  Path exists: {}", path.display());
+        if path.is_dir() {
+            log::info!("  Path is a directory");
+        } else {
+            log::warn!("  Path is not a directory!");
+        }
+        
+        // Check if it's a git repository
+        if path.join(".git").exists() {
+            log::info!("  ✅ Git repository detected (.git folder exists)");
+        } else {
+            log::warn!("  ⚠️ No .git folder found - not a git repository");
+        }
+    } else {
+        log::error!("  ❌ Path does not exist: {}", path.display());
+    }
+    
     let manager = get_project_manager().await;
     
+    log::info!("Switching to project: {}", path.display());
     manager.switch_to_project(path)
         .await
-        .map_err(|e| format!("Failed to initialize project: {e}"))?;
+        .map_err(|e| {
+            log::error!("Failed to initialize project: {e}");
+            format!("Failed to initialize project: {e}")
+        })?;
     
+    log::info!("✅ Project initialized successfully");
     Ok(())
 }
 

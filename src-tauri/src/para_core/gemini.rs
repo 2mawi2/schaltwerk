@@ -44,19 +44,65 @@ pub fn build_gemini_command(
 }
 
 pub fn resolve_gemini_binary() -> String {
+    let command = "gemini";
+    
     if let Ok(from_env) = std::env::var("GEMINI_BIN") {
         let trimmed = from_env.trim();
         if !trimmed.is_empty() {
+            log::info!("Using gemini from GEMINI_BIN: {trimmed}");
             return trimmed.to_string();
         }
     }
-    if let Some(home) = dirs::home_dir() {
-        let candidate: PathBuf = home.join(".gemini").join("bin").join("gemini");
-        if candidate.exists() {
-            return candidate.to_string_lossy().to_string();
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let user_paths = vec![
+            format!("{}/.local/bin", home),
+            format!("{}/.cargo/bin", home),
+            format!("{}/bin", home),
+            format!("{}/.gemini/bin", home),
+        ];
+        
+        for path in user_paths {
+            let full_path = PathBuf::from(&path).join(command);
+            if full_path.exists() {
+                log::info!("Found gemini at {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
         }
     }
-    "gemini".to_string()
+    
+    let common_paths = vec![
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/usr/bin",
+        "/bin",
+    ];
+    
+    for path in common_paths {
+        let full_path = PathBuf::from(path).join(command);
+        if full_path.exists() {
+            log::info!("Found gemini at {}", full_path.display());
+            return full_path.to_string_lossy().to_string();
+        }
+    }
+    
+    if let Ok(output) = std::process::Command::new("which")
+        .arg(command)
+        .output()
+    {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    log::info!("Found gemini via which: {path}");
+                    return path.to_string();
+                }
+            }
+        }
+    }
+    
+    log::warn!("Could not resolve path for 'gemini', using as-is. This may fail in installed apps.");
+    command.to_string()
 }
 
 #[cfg(test)]

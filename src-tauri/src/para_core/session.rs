@@ -724,8 +724,24 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator(&self) -> Result<String> {
+        log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
+        
+        // Validate that the repo path exists and is accessible
+        if !self.repo_path.exists() {
+            log::error!("Repository path does not exist: {}", self.repo_path.display());
+            return Err(anyhow!("Repository path does not exist: {}. Please open a valid project folder.", self.repo_path.display()));
+        }
+        
+        // Check if it's a git repository
+        if !self.repo_path.join(".git").exists() {
+            log::error!("Not a git repository: {}", self.repo_path.display());
+            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+        }
+        
         let skip_permissions = self.db.get_skip_permissions()?;
         let agent_type = self.db.get_agent_type()?;
+        
+        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         let command = match agent_type.as_str() {
             "cursor" => {
@@ -975,6 +991,10 @@ mod session_tests {
         let temp_dir = TempDir::new().unwrap();
         let db_path = temp_dir.path().join("test.db");
         let db = Database::new(Some(db_path)).unwrap();
+        
+        // Initialize git repository for tests
+        std::fs::create_dir_all(temp_dir.path().join(".git")).unwrap();
+        
         let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
         
         let worktree_path = temp_dir.path().join("test-session");

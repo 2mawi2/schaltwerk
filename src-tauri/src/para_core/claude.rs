@@ -1,6 +1,59 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 
+fn resolve_claude_binary() -> String {
+    let command = "claude";
+    
+    if let Ok(home) = std::env::var("HOME") {
+        let user_paths = vec![
+            format!("{}/.local/bin", home),
+            format!("{}/.cargo/bin", home),
+            format!("{}/bin", home),
+        ];
+        
+        for path in user_paths {
+            let full_path = PathBuf::from(&path).join(command);
+            if full_path.exists() {
+                log::info!("Found claude at {}", full_path.display());
+                return full_path.to_string_lossy().to_string();
+            }
+        }
+    }
+    
+    let common_paths = vec![
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/usr/bin",
+        "/bin",
+    ];
+    
+    for path in common_paths {
+        let full_path = PathBuf::from(path).join(command);
+        if full_path.exists() {
+            log::info!("Found claude at {}", full_path.display());
+            return full_path.to_string_lossy().to_string();
+        }
+    }
+    
+    if let Ok(output) = std::process::Command::new("which")
+        .arg(command)
+        .output()
+    {
+        if output.status.success() {
+            if let Ok(path) = String::from_utf8(output.stdout) {
+                let path = path.trim();
+                if !path.is_empty() {
+                    log::info!("Found claude via which: {path}");
+                    return path.to_string();
+                }
+            }
+        }
+    }
+    
+    log::warn!("Could not resolve path for 'claude', using as-is. This may fail in installed apps.");
+    command.to_string()
+}
+
 pub fn find_claude_session(path: &Path) -> Option<String> {
     let home = std::env::var("HOME").ok()?;
     let claude_dir = PathBuf::from(home).join(".claude");
@@ -43,7 +96,8 @@ pub fn build_claude_command(
     initial_prompt: Option<&str>,
     skip_permissions: bool,
 ) -> String {
-    let mut cmd = format!("cd {} && claude", worktree_path.display());
+    let claude_path = resolve_claude_binary();
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), claude_path);
     
     if skip_permissions {
         cmd.push_str(" --dangerously-skip-permissions");
