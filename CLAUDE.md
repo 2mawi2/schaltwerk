@@ -65,7 +65,7 @@ src-tauri/
 - **Persistent state**: Terminals keep running when switching sessions
 - **Proper cleanup**: All processes killed when app exits
 
-### Terminal ID Convention
+### Terminal ID Convention (required)
 ```
 Orchestrator:
 - orchestrator-top
@@ -387,7 +387,6 @@ npm run build          # Rebuild MCP server
 - **Avoid double database calls**: All operations should be single transactions where possible
 
 ### Webhook Integration
-MCP server notifies Rust backend via webhooks:
 - `POST /webhook/draft-created` - When draft is created
 - `POST /webhook/session-added` - When session becomes active
 - `POST /webhook/session-removed` - When session is deleted
