@@ -468,3 +468,5 @@ curl -X POST http://127.0.0.1:8547/api/drafts -H "Content-Type: application/json
 - Always develop deterministic solutions and never heuristics.
 - Never use #[allow(dead_code)] Implement real implementations and unused code you can delete if we do not need it anymore.
 - Never introduce YAGNI: Code that eventually will be needed in the future but not now, all the code must be used and referenced now
+- Never implement non-deterministic fallbacks for external CLIs (e.g., simulating key presses, pasting text).
+  If a CLI feature is required (like an interactive prompt flag), upgrade the dependency and use the official flag instead of workarounds.
