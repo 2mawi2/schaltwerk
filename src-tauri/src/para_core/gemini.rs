@@ -35,7 +35,7 @@ pub fn find_gemini_session(path: &Path) -> Option<String> {
 pub fn build_gemini_command_with_config(
     worktree_path: &Path,
     _session_id: Option<&str>,
-    initial_prompt: Option<&str>,
+    _initial_prompt: Option<&str>,
     skip_permissions: bool,
     config: Option<&GeminiConfig>,
 ) -> String {
@@ -60,12 +60,8 @@ pub fn build_gemini_command_with_config(
         cmd.push_str(" --yolo");
     }
     
-    // Gemini doesn't support session resumption like Claude
-    // Use --prompt for interactive mode with an initial prompt
-    if let Some(prompt) = initial_prompt {
-        let escaped = prompt.replace('"', r#"\""#);
-        cmd.push_str(&format!(r#" --prompt "{escaped}""#));
-    }
+    // For Gemini, always launch interactive TUI without passing prompt flags.
+    // Any initial prompt is injected later by the terminal manager.
     
     cmd
 }
@@ -97,7 +93,7 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --yolo --prompt "implement feature X""#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --yolo"#);
     }
 
     #[test]
@@ -143,6 +139,6 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && gemini --prompt "implement \"feature\" with quotes""#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && gemini"#);
     }
 }

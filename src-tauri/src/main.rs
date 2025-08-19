@@ -816,11 +816,11 @@ mod tests {
 
     #[test]
     fn test_parse_agent_command_gemini_with_prompt() {
-        let cmd = r#"cd /tmp/work && gemini --yolo --prompt "test prompt""#;
+        let cmd = r#"cd /tmp/work && gemini --yolo""#;
         let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
         assert_eq!(cwd, "/tmp/work");
         assert_eq!(agent, "gemini");
-        assert_eq!(args, vec!["--yolo", "--prompt", "test prompt"]);
+        assert_eq!(args, vec!["--yolo"]);
     }
 
     #[test]
@@ -834,11 +834,11 @@ mod tests {
 
     #[test]
     fn test_parse_agent_command_gemini_absolute_path() {
-        let cmd = r#"cd /tmp/work && /usr/local/bin/gemini --prompt "hello world""#;
+        let cmd = r#"cd /tmp/work && /usr/local/bin/gemini"#;
         let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
         assert_eq!(cwd, "/tmp/work");
         assert_eq!(agent, "/usr/local/bin/gemini");
-        assert_eq!(args, vec!["--prompt", "hello world"]);
+        assert_eq!(args, Vec::<String>::new());
     }
 
     #[test]
