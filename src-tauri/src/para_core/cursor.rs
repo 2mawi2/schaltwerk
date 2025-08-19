@@ -7,13 +7,7 @@ pub struct CursorConfig {
 }
 
 
-
 pub fn find_cursor_session(path: &Path) -> Option<String> {
-    // For cursor-agent, we need a different approach than Claude
-    // Cursor sessions are not directly tied to project paths like Claude sessions
-    // 
-    // For now, we'll check if there's a .cursor-session file in the worktree
-    // that stores the session ID for this specific worktree
     let session_file = path.join(".cursor-session");
     
     if session_file.exists() {
@@ -28,8 +22,6 @@ pub fn find_cursor_session(path: &Path) -> Option<String> {
                 }
             })
     } else {
-        // Don't try to find global cursor sessions
-        // Each Para session should have its own cursor session
         None
     }
 }
@@ -59,10 +51,8 @@ pub fn build_cursor_command_with_config(
     let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
     
     if let Some(id) = session_id {
-        // Resuming an existing session
         cmd.push_str(&format!(r#" --resume "{id}""#));
     } else {
-        // Starting a new session
         if force_flag {
             cmd.push_str(" -f");
         }

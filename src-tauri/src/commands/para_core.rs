@@ -386,29 +386,8 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
         });
     }
     
-    let is_gemini = agent_name == "gemini" || agent_name.ends_with("/gemini");
-    if is_gemini {
-        if let Ok(session) = manager.get_session(&session_name) {
-            if let Some(initial_prompt) = session.initial_prompt {
-                if !initial_prompt.trim().is_empty() {
-                    let terminal_manager_clone = terminal_manager.clone();
-                    let terminal_id_clone = terminal_id.clone();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-                        let formatted_content = format!("{initial_prompt}\n");
-                        if let Err(e) = terminal_manager_clone.write_terminal(
-                            terminal_id_clone.clone(), 
-                            formatted_content.as_bytes().to_vec()
-                        ).await {
-                            log::warn!("Failed to paste draft content to Gemini terminal {terminal_id_clone}: {e}");
-                        } else {
-                            log::info!("Successfully pasted draft content to Gemini terminal {terminal_id_clone}");
-                        }
-                    });
-                }
-            }
-        }
-    }
+    // For Gemini, we rely on the CLI's own interactive prompt flag.
+    // Do not implement non-deterministic paste-based workarounds.
     
     log::info!("Successfully started Claude in terminal: {terminal_id}");
     Ok(command)

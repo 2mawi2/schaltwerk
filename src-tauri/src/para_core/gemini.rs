@@ -35,7 +35,7 @@ pub fn find_gemini_session(path: &Path) -> Option<String> {
 pub fn build_gemini_command_with_config(
     worktree_path: &Path,
     _session_id: Option<&str>,
-    initial_prompt: Option<&str>,
+    _initial_prompt: Option<&str>,
     skip_permissions: bool,
     config: Option<&GeminiConfig>,
 ) -> String {
@@ -60,11 +60,13 @@ pub fn build_gemini_command_with_config(
         cmd.push_str(" --yolo");
     }
     
-    // Gemini doesn't support session resumption like Claude
-    // Use --prompt-interactive for interactive mode with an initial prompt
-    if let Some(prompt) = initial_prompt {
-        let escaped = prompt.replace('"', r#"\""#);
-        cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
+    // Prefer using real CLI interactive prompt flag when available.
+    // Fallback: launch TUI and inject prompt via terminal manager.
+    if let Some(prompt) = _initial_prompt {
+        if !prompt.trim().is_empty() {
+            let escaped = prompt.replace('"', r#"\""#);
+            cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
+        }
     }
     
     cmd

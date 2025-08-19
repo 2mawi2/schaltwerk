@@ -4,6 +4,9 @@ use std::path::Path;
 pub struct CodexConfig {
     pub binary_path: Option<String>,
 }
+
+// We rely on PATH for codex binary resolution now
+
 pub fn find_codex_session(_path: &Path) -> Option<String> {
     None
 }
