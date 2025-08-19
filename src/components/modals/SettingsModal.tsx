@@ -84,6 +84,68 @@ export function SettingsModal({ open, onClose }: Props) {
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
 
+    // Normalize smart dashes some platforms insert automatically (Safari/macOS)
+    // so CLI flags like "--model" are preserved as two ASCII hyphens.
+    const normalizeCliText = (text: string): string => {
+        return text
+            .replace(/—/g, '--') // em dash → double hyphen
+            .replace(/–/g, '--') // en dash → double hyphen
+            .replace(/−/g, '-')  // minus sign → hyphen
+    }
+
+    // Prevent smart punctuation from altering input by intercepting beforeinput
+    // and paste events. Applies normalization and attempts to preserve caret.
+    const handleBeforeInputNormalize = (
+        e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
+        currentValue: string,
+        applyValue: (value: string) => void,
+    ) => {
+        // @ts-expect-error: React typings don't expose .data on nativeEvent
+        const data: string | null | undefined = e.nativeEvent?.data
+        if (!data) return
+        if (!/[—–−]/.test(data)) return
+
+        const target = e.currentTarget as HTMLInputElement
+        const selectionStart = target.selectionStart ?? currentValue.length
+        const selectionEnd = target.selectionEnd ?? selectionStart
+        const replacement = normalizeCliText(data)
+
+        e.preventDefault()
+        const next =
+            currentValue.slice(0, selectionStart) +
+            replacement +
+            currentValue.slice(selectionEnd)
+        const newCaret = selectionStart + replacement.length
+        applyValue(next)
+        requestAnimationFrame(() => {
+            try { target.setSelectionRange(newCaret, newCaret) } catch {}
+        })
+    }
+
+    const handlePasteNormalize = (
+        e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>,
+        currentValue: string,
+        applyValue: (value: string) => void,
+    ) => {
+        const pasted = e.clipboardData.getData('text')
+        if (!/[—–−]/.test(pasted)) return
+        const target = e.currentTarget as HTMLInputElement
+        const selectionStart = target.selectionStart ?? currentValue.length
+        const selectionEnd = target.selectionEnd ?? selectionStart
+        const replacement = normalizeCliText(pasted)
+
+        e.preventDefault()
+        const next =
+            currentValue.slice(0, selectionStart) +
+            replacement +
+            currentValue.slice(selectionEnd)
+        const newCaret = selectionStart + replacement.length
+        applyValue(next)
+        requestAnimationFrame(() => {
+            try { target.setSelectionRange(newCaret, newCaret) } catch {}
+        })
+    }
+
     useEffect(() => {
         if (open) {
             loadEnvVars()
@@ -251,9 +313,29 @@ export function SettingsModal({ open, onClose }: Props) {
                         <input
                             type="text"
                             value={cliArgs[activeAgentTab]}
-                            onChange={(e) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: e.target.value }))}
+                            onChange={(e) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: normalizeCliText(e.target.value) }))}
+                            onBeforeInput={(e) =>
+                                handleBeforeInputNormalize(
+                                    e,
+                                    cliArgs[activeAgentTab],
+                                    (val) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: val })),
+                                )
+                            }
+                            onPaste={(e) =>
+                                handlePasteNormalize(
+                                    e,
+                                    cliArgs[activeAgentTab],
+                                    (val) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: val })),
+                                )
+                            }
                             placeholder="e.g., --profile test or -p some 'quoted value'"
                             className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                            autoCorrect="off"
+                            autoCapitalize="off"
+                            autoComplete="off"
+                            spellCheck={false}
+                            inputMode="text"
+                            style={{ fontVariantLigatures: 'none' }}
                         />
                         <div className="mt-2 text-xs text-slate-500">
                             Examples: <code className="text-blue-400">--profile test</code>, <code className="text-blue-400">-d</code>, <code className="text-blue-400">--model gpt-4</code>
@@ -273,16 +355,56 @@ export function SettingsModal({ open, onClose }: Props) {
                                     <input
                                         type="text"
                                         value={item.key}
-                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', e.target.value)}
+                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', normalizeCliText(e.target.value))}
+                                        onBeforeInput={(e) =>
+                                            handleBeforeInputNormalize(
+                                                e,
+                                                item.key,
+                                                (val) => handleEnvVarChange(activeAgentTab, index, 'key', val),
+                                            )
+                                        }
+                                        onPaste={(e) =>
+                                            handlePasteNormalize(
+                                                e,
+                                                item.key,
+                                                (val) => handleEnvVarChange(activeAgentTab, index, 'key', val),
+                                            )
+                                        }
                                         placeholder="Variable name (e.g., API_KEY)"
                                         className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
+                                        autoCorrect="off"
+                                        autoCapitalize="off"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        inputMode="text"
+                                        style={{ fontVariantLigatures: 'none' }}
                                     />
                                     <input
                                         type="text"
                                         value={item.value}
-                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', e.target.value)}
+                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', normalizeCliText(e.target.value))}
+                                        onBeforeInput={(e) =>
+                                            handleBeforeInputNormalize(
+                                                e,
+                                                item.value,
+                                                (val) => handleEnvVarChange(activeAgentTab, index, 'value', val),
+                                            )
+                                        }
+                                        onPaste={(e) =>
+                                            handlePasteNormalize(
+                                                e,
+                                                item.value,
+                                                (val) => handleEnvVarChange(activeAgentTab, index, 'value', val),
+                                            )
+                                        }
                                         placeholder="Value"
                                         className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
+                                        autoCorrect="off"
+                                        autoCapitalize="off"
+                                        autoComplete="off"
+                                        spellCheck={false}
+                                        inputMode="text"
+                                        style={{ fontVariantLigatures: 'none' }}
                                     />
                                     <button
                                         onClick={() => handleRemoveEnvVar(activeAgentTab, index)}
