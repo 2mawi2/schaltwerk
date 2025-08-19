@@ -526,6 +526,10 @@ fi`}
                                     <span className="text-slate-300">Open Diff Viewer</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + G</kbd>
                                 </li>
+                                <li className="flex justify-between items-center">
+                                    <span className="text-slate-300">Run Draft Task (when focused)</span>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
+                                </li>
                             </ul>
                         </div>
                     </div>

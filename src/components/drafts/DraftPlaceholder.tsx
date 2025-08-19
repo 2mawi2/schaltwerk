@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSelection } from '../../contexts/SelectionContext'
 import { VscPlay, VscDebugStart, VscRocket } from 'react-icons/vsc'
 
@@ -9,7 +9,7 @@ export function DraftPlaceholder() {
 
   const sessionName = selection.kind === 'session' ? selection.payload : undefined
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
     if (!sessionName) return
     try {
       setStarting(true)
@@ -22,11 +22,23 @@ export function DraftPlaceholder() {
     } finally {
       setStarting(false)
     }
-  }
+  }, [sessionName])
 
   useEffect(() => {
     setError(null)
   }, [sessionName])
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !starting) {
+        e.preventDefault()
+        handleRun()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [handleRun, starting])
 
   return (
     <div className="h-full w-full flex items-center justify-center">
@@ -36,17 +48,18 @@ export function DraftPlaceholder() {
         </div>
         <h2 className="text-slate-100 text-base font-semibold mb-1">Draft task</h2>
         <p className="text-slate-400 text-[13px] mb-5">Start the task to create a worktree and launch the agent. You can edit the content on the right before running.</p>
-        <div className="flex items-center justify-center gap-2">
-          <button
-            onClick={handleRun}
-            disabled={starting}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed"
-            title="Run task"
-          >
+        <button
+          onClick={handleRun}
+          disabled={starting}
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white text-sm disabled:opacity-60 disabled:cursor-not-allowed group"
+          title="Run task (⌘⏎)"
+        >
+          <span className="flex items-center gap-2">
             {starting ? <VscDebugStart className="text-sm" /> : <VscPlay className="text-sm" />}
             {starting ? 'Starting…' : 'Run Task'}
-          </button>
-        </div>
+          </span>
+          <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘⏎</span>
+        </button>
         {error && (
           <div className="mt-3 text-xs text-red-400">{error}</div>
         )}
