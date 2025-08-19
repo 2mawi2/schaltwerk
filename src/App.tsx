@@ -62,7 +62,8 @@ export default function App() {
       
       try {
         // Initialize the project at the specified directory
-        await invoke('initialize_project', { projectPath: directoryPath })
+        await invoke('initialize_project', { path: directoryPath })
+        await invoke('add_recent_project', { path: directoryPath })
         
         // Set the project path in context
         setProjectPath(directoryPath)
