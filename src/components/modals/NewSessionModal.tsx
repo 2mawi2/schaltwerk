@@ -7,6 +7,7 @@ import { ModelSelector } from '../inputs/ModelSelector'
 
 interface Props {
     open: boolean
+    initialIsDraft?: boolean
     onClose: () => void
     onCreate: (data: {
         name: string
@@ -18,7 +19,7 @@ interface Props {
     }) => void | Promise<void>
 }
 
-export function NewSessionModal({ open, onClose, onCreate }: Props) {
+export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreate }: Props) {
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
@@ -149,7 +150,7 @@ export function NewSessionModal({ open, onClose, onCreate }: Props) {
             wasEditedRef.current = false
             setTaskContent('')
             setValidationError('')
-            setCreateAsDraft(false)
+            setCreateAsDraft(initialIsDraft)
             setNameLocked(false)
             
             // Fetch available branches and the project-specific default branch

@@ -49,6 +49,7 @@ export default function App() {
   const [startFromDraftName, setStartFromDraftName] = useState<string | null>(null)
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
+  const [openAsDraft, setOpenAsDraft] = useState(false)
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
@@ -168,14 +169,15 @@ export default function App() {
           setNewSessionOpen(true)
         }
       }
-      // New Draft shortcut: Cmd+Shift+N (avoids conflicts with system Cmd+D)
+      // New Draft shortcut: Cmd+Shift+N (deterministic open-as-draft)
       if (modifierKey && e.shiftKey && (e.key === 'n' || e.key === 'N')) {
         const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
                                document.activeElement?.tagName === 'TEXTAREA' ||
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
-          window.dispatchEvent(new CustomEvent('schaltwerk:new-draft'))
+          setOpenAsDraft(true)
+          setNewSessionOpen(true)
         }
       }
       
@@ -222,11 +224,8 @@ export default function App() {
   // Open NewSessionModal directly in draft mode when requested
   useEffect(() => {
     const handler = () => {
+      setOpenAsDraft(true)
       setNewSessionOpen(true)
-      // Wait a tick then toggle the draft checkbox in the modal by dispatching a custom event
-      setTimeout(() => {
-        window.dispatchEvent(new CustomEvent('schaltwerk:new-session:set-draft'))
-      }, 0)
     }
     window.addEventListener('schaltwerk:new-draft', handler as any)
     return () => window.removeEventListener('schaltwerk:new-draft', handler as any)
@@ -519,7 +518,7 @@ export default function App() {
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
                   </button>
                   <button 
-                    onClick={() => window.dispatchEvent(new CustomEvent('schaltwerk:new-draft'))} 
+                    onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }} 
                     className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
                     title="Create draft (⇧⌘N)"
                   >
@@ -544,7 +543,12 @@ export default function App() {
             </div>
           </Split>
           
-          <NewSessionModal open={newSessionOpen} onClose={() => { setNewSessionOpen(false); setStartFromDraftName(null) }} onCreate={handleCreateSession} />
+          <NewSessionModal 
+            open={newSessionOpen}
+            initialIsDraft={openAsDraft}
+            onClose={() => { setNewSessionOpen(false); setOpenAsDraft(false); setStartFromDraftName(null) }} 
+            onCreate={handleCreateSession} 
+          />
           
           {currentSession && (
             <CancelConfirmation

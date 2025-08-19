@@ -239,7 +239,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
             
-            if (modifierKey && (event.key === 'n' || event.key === 'N')) {
+            // Prefer Shift+Cmd/Ctrl+N as "New draft"
+            if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
+                window.dispatchEvent(new CustomEvent('schaltwerk:new-draft'))
+                return false
+            }
+            // Plain Cmd/Ctrl+N opens the regular new session modal
+            if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
                 // Dispatch a custom event to trigger the global new session handler
                 window.dispatchEvent(new CustomEvent('global-new-session-shortcut'))
                 return false // Prevent xterm.js from processing this event
