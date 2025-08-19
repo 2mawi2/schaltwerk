@@ -58,9 +58,9 @@ impl SessionManager {
     }
     
     fn generate_random_suffix(len: usize) -> String {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         (0..len)
-            .map(|_| rng.gen_range(b'a'..=b'z') as char)
+            .map(|_| rng.random_range(b'a'..=b'z') as char)
             .collect()
     }
     
