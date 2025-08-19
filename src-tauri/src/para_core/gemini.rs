@@ -1,4 +1,6 @@
 use std::path::Path;
+#[cfg(not(test))]
+use std::process::Command;
 use std::fs;
 
 #[derive(Debug, Clone, Default)]
@@ -60,8 +62,17 @@ pub fn build_gemini_command_with_config(
         cmd.push_str(" --yolo");
     }
     
-    // For Gemini, always launch interactive TUI without passing prompt flags.
-    // Any initial prompt is injected later by the terminal manager.
+    // Prefer using real CLI interactive prompt flag when available.
+    // Fallback: launch TUI and inject prompt via terminal manager.
+    #[cfg(not(test))]
+    {
+        if let Some(prompt) = _initial_prompt {
+            if !prompt.trim().is_empty() && gemini_supports_prompt_interactive(binary_name) {
+                let escaped = prompt.replace('"', r#"\""#);
+                cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
+            }
+        }
+    }
     
     cmd
 }
@@ -74,6 +85,24 @@ pub fn build_gemini_command(
 ) -> String {
     build_gemini_command_with_config(worktree_path, session_id, initial_prompt, skip_permissions, None)
 }
+
+#[cfg(not(test))]
+fn gemini_supports_prompt_interactive(binary_name: &str) -> bool {
+    let output = Command::new(binary_name)
+        .arg("--help")
+        .output();
+    match output {
+        Ok(out) => {
+            let help = String::from_utf8_lossy(&out.stdout);
+            help.contains("prompt-interactive")
+        }
+        Err(_) => false,
+    }
+}
+
+#[cfg(test)]
+#[allow(dead_code)]
+fn gemini_supports_prompt_interactive(_binary_name: &str) -> bool { false }
 
 
 #[cfg(test)]
