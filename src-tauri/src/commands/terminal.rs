@@ -83,6 +83,23 @@ pub async fn terminal_exists(id: String) -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub async fn terminals_exist_bulk(ids: Vec<String>) -> Result<Vec<(String, bool)>, String> {
+    let manager = get_terminal_manager().await?;
+    
+    // Check all terminals in parallel using join_all
+    let futures: Vec<_> = ids.into_iter().map(|id| {
+        let manager = manager.clone();
+        async move {
+            let exists = manager.terminal_exists(&id).await.unwrap_or(false);
+            (id, exists)
+        }
+    }).collect();
+    
+    let results = ::futures::future::join_all(futures).await;
+    Ok(results)
+}
+
+#[tauri::command]
 pub async fn get_terminal_buffer(id: String) -> Result<String, String> {
     let manager = get_terminal_manager().await?;
     manager.get_terminal_buffer(id).await

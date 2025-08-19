@@ -263,6 +263,7 @@ impl LocalPtyAdapter {
 impl TerminalBackend for LocalPtyAdapter {
     async fn create(&self, params: CreateParams) -> Result<(), String> {
         let id = params.id.clone();
+        let start_time = Instant::now();
         
         // Check if already creating
         {
@@ -277,6 +278,7 @@ impl TerminalBackend for LocalPtyAdapter {
         // Check if already exists
         if self.exists(&id).await? {
             self.creating.lock().await.remove(&id);
+            debug!("Terminal {id} already exists, skipping creation ({}ms)", start_time.elapsed().as_millis());
             return Ok(());
         }
         
@@ -323,7 +325,7 @@ impl TerminalBackend for LocalPtyAdapter {
                 format!("Failed to spawn command: {e}")
             })?;
         
-        info!("Successfully spawned shell process for terminal {id}");
+        info!("Successfully spawned shell process for terminal {id} (spawn took {}ms)", start_time.elapsed().as_millis());
         
         let writer = pair
             .master
@@ -361,7 +363,12 @@ impl TerminalBackend for LocalPtyAdapter {
         
         self.creating.lock().await.remove(&id);
         
-        info!("Terminal created successfully: id={id}");
+        let total_time = start_time.elapsed();
+        if total_time.as_millis() > 100 {
+            warn!("Terminal {id} creation took {}ms (slow)", total_time.as_millis());
+        } else {
+            info!("Terminal created successfully: id={id} (total {}ms)", total_time.as_millis());
+        }
         Ok(())
     }
     
