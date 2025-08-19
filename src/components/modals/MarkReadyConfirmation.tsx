@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 
@@ -19,16 +19,41 @@ export function MarkReadyConfirmation({
 }: MarkReadyConfirmationProps) {
   const [autoCommit, setAutoCommit] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [freshHasUncommitted, setFreshHasUncommitted] = useState<boolean | null>(null)
+
+  // Refresh uncommitted-changes state when the modal opens to avoid stale UI info
+  useEffect(() => {
+    if (!open) {
+      setFreshHasUncommitted(null)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const dirty = await invoke<boolean>('para_core_has_uncommitted_changes', { name: sessionName })
+        if (!cancelled) setFreshHasUncommitted(dirty)
+      } catch {
+        // If check fails, fall back to prop
+        if (!cancelled) setFreshHasUncommitted(null)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [open, sessionName])
+
+  const effectiveHasUncommitted = useMemo(() => {
+    return freshHasUncommitted ?? hasUncommittedChanges
+  }, [freshHasUncommitted, hasUncommittedChanges])
   
   const handleConfirm = useCallback(async () => {
     if (loading) return
-    if (hasUncommittedChanges && !autoCommit) return
+    if (effectiveHasUncommitted && !autoCommit) return
     
     setLoading(true)
     try {
       const success = await invoke<boolean>('para_core_mark_session_ready', {
         name: sessionName,
-        autoCommit: hasUncommittedChanges ? autoCommit : false
+        // Always pass current autoCommit choice; backend is idempotent if clean
+        autoCommit: autoCommit
       })
       
       if (success) {
@@ -43,7 +68,7 @@ export function MarkReadyConfirmation({
     } finally {
       setLoading(false)
     }
-  }, [loading, hasUncommittedChanges, autoCommit, sessionName, onSuccess, onClose])
+  }, [loading, effectiveHasUncommitted, autoCommit, sessionName, onSuccess, onClose])
   
   if (!open) return null
 
@@ -52,7 +77,7 @@ export function MarkReadyConfirmation({
       <p className="text-slate-300 mb-4">
         Marking <span className="font-mono text-blue-400">{sessionName}</span> as reviewed.
       </p>
-      {hasUncommittedChanges && (
+      {effectiveHasUncommitted && (
         <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">
           <p className="text-amber-200 text-sm mb-3">⚠ This session has uncommitted changes</p>
           <label className="flex items-center gap-2 cursor-pointer">
@@ -85,7 +110,7 @@ export function MarkReadyConfirmation({
       cancelTitle="Cancel (Esc)"
       onConfirm={handleConfirm}
       onCancel={onClose}
-      confirmDisabled={loading || (hasUncommittedChanges && !autoCommit)}
+      confirmDisabled={loading || (effectiveHasUncommitted && !autoCommit)}
       loading={loading}
       variant="success"
     />

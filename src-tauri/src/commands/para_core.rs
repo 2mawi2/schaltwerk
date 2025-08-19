@@ -597,6 +597,20 @@ pub async fn para_core_mark_session_ready(name: String, auto_commit: bool) -> Re
 }
 
 #[tauri::command]
+pub async fn para_core_has_uncommitted_changes(name: String) -> Result<bool, String> {
+    let core = get_para_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+
+    let session = manager
+        .get_session(&name)
+        .map_err(|e| format!("Failed to get session: {e}"))?;
+
+    crate::para_core::git::has_uncommitted_changes(&session.worktree_path)
+        .map_err(|e| format!("Failed to check uncommitted changes: {e}"))
+}
+
+#[tauri::command]
 pub async fn para_core_unmark_session_ready(name: String) -> Result<(), String> {
     log::info!("Unmarking session {name} as reviewed");
     
