@@ -8,6 +8,7 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { computeNextSelectedSessionId } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
+import { ConvertToDraftConfirmation } from '../modals/ConvertToDraftConfirmation'
 import { SessionButton } from './SessionButton'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
@@ -91,6 +92,16 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
+        open: false,
+        sessionName: '',
+        hasUncommitted: false
+    })
+    const [convertToDraftModal, setConvertToDraftModal] = useState<{ 
+        open: boolean; 
+        sessionName: string; 
+        sessionDisplayName?: string;
+        hasUncommitted: boolean 
+    }>({
         open: false,
         sessionName: '',
         hasUncommitted: false
@@ -821,6 +832,15 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                         }
                                     }))
                                 }}
+                                onConvertToDraft={(sessionId) => {
+                                    // Open confirmation modal
+                                    setConvertToDraftModal({
+                                        open: true,
+                                        sessionName: sessionId,
+                                        sessionDisplayName: session.info.display_name || session.info.session_id,
+                                        hasUncommitted: session.info.has_uncommitted_changes || false
+                                    })
+                                }}
                                 onRunDraft={async (sessionId) => {
                                     try {
                                         // Open Start task modal prefilled from draft
@@ -905,6 +925,57 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : new Date(draft.created_at).toISOString(),
                             has_uncommitted_changes: false,
                             ready_to_merge: false,
+                            diff_stats: undefined,
+                            is_current: false,
+                            session_type: 'worktree' as any,
+                        },
+                        terminals: [
+                            `session-${draft.name}-top`,
+                            `session-${draft.name}-bottom`,
+                            `session-${draft.name}-right`
+                        ]
+                    }))
+                    const allSessions = [...regularSessions, ...enrichedDrafts]
+                    setSessions(allSessions.map(s => ({
+                        ...s,
+                        info: {
+                            ...s.info,
+                            last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
+                        }
+                    })))
+                }}
+            />
+            <ConvertToDraftConfirmation
+                open={convertToDraftModal.open}
+                sessionName={convertToDraftModal.sessionName}
+                sessionDisplayName={convertToDraftModal.sessionDisplayName}
+                hasUncommittedChanges={convertToDraftModal.hasUncommitted}
+                onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
+                onSuccess={async () => {
+                    // Refresh sessions list
+                    const [regularSessions, draftSessions] = await Promise.all([
+                        invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
+                        invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
+                    ])
+                    
+                    // Convert draft sessions to enriched format
+                    const enrichedDrafts = draftSessions.map(draft => ({
+                        info: {
+                            session_id: draft.name,
+                            display_name: draft.display_name,
+                            branch: '',
+                            worktree_path: '',
+                            base_branch: '',
+                            merge_mode: '',
+                            status: 'draft' as any,
+                            created_at: draft.created_at,
+                            last_modified: draft.updated_at,
+                            has_uncommitted_changes: false,
+                            ready_to_merge: false,
+                            session_state: 'draft',
+                            current_task: draft.draft_content?.split('\n')[0]?.replace(/^#\s*/, '') || 'Draft task',
+                            todo_percentage: 0,
+                            is_blocked: false,
                             diff_stats: undefined,
                             is_current: false,
                             session_type: 'worktree' as any,

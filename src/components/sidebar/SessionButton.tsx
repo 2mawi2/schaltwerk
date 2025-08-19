@@ -45,6 +45,7 @@ interface SessionButtonProps {
     onMarkReady: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady: (sessionId: string) => void
     onCancel: (sessionId: string, hasUncommitted: boolean) => void
+    onConvertToDraft?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
     onDeleteDraft?: (sessionId: string) => void
 }
@@ -70,6 +71,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     onMarkReady,
     onUnmarkReady,
     onCancel,
+    onConvertToDraft,
     onRunDraft,
     onDeleteDraft
 }) => {
@@ -207,6 +209,16 @@ export const SessionButton = memo<SessionButtonProps>(({
                                 Unmark
                             </span>
                         )}
+                        <span 
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                onConvertToDraft?.(s.session_id)
+                            }}
+                            className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/60"
+                            title="Convert back to draft"
+                        >
+                            Draft
+                        </span>
                         <span 
                             onClick={(e) => {
                                 e.stopPropagation()

@@ -864,3 +864,63 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(retrieved1_updated, Some(updated_script1.to_string()));
         assert_eq!(retrieved2_unchanged, Some(script2.to_string()));
     }
+
+    #[test]
+    fn test_convert_running_session_to_draft() {
+        use crate::para_core::types::SessionState;
+        
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+        
+        // Create a draft session first
+        let draft_content = "# Task: Implement authentication\n- Add login form\n- Setup JWT tokens";
+        let draft_session = manager.create_draft_session("auth-feature", draft_content).unwrap();
+        assert_eq!(draft_session.session_state, SessionState::Draft);
+        assert_eq!(draft_session.draft_content, Some(draft_content.to_string()));
+        
+        // Start the draft session (convert to running)
+        manager.start_draft_session("auth-feature", None).unwrap();
+        
+        // Verify it's now running
+        let running_session = manager.db_ref().get_session_by_name(&env.repo_path, "auth-feature").unwrap();
+        assert_eq!(running_session.session_state, SessionState::Running);
+        assert_eq!(running_session.status, SessionStatus::Active);
+        
+        // Convert the running session back to draft
+        manager.convert_session_to_draft("auth-feature").unwrap();
+        
+        // Verify it's back to draft state
+        let converted_session = manager.db_ref().get_session_by_name(&env.repo_path, "auth-feature").unwrap();
+        assert_eq!(converted_session.session_state, SessionState::Draft);
+        assert_eq!(converted_session.status, SessionStatus::Draft);
+        assert_eq!(converted_session.draft_content, Some(draft_content.to_string()));
+        
+        // Verify the worktree has been removed
+        assert!(!converted_session.worktree_path.exists());
+        
+        // Verify the branch has been archived
+        assert!(!git::branch_exists(&env.repo_path, &converted_session.branch).unwrap());
+    }
+    
+    #[test]
+    fn test_convert_session_to_draft_preserves_content() {
+        use crate::para_core::types::SessionState;
+        
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+        
+        // Create a draft session with detailed content
+        let draft_content = "# Task: Build user authentication system\n\n## Requirements:\n- OAuth2 login\n- JWT tokens\n- User profile management\n- Password reset flow\n\n## Technical Details:\n- Use Rust backend\n- PostgreSQL database\n- React frontend";
+        let _draft_session = manager.create_draft_session("auth-system", draft_content).unwrap();
+        
+        // Start the draft session
+        manager.start_draft_session("auth-system", None).unwrap();
+        
+        // Convert back to draft
+        manager.convert_session_to_draft("auth-system").unwrap();
+        
+        // Verify content is preserved
+        let converted = manager.db_ref().get_session_by_name(&env.repo_path, "auth-system").unwrap();
+        assert_eq!(converted.draft_content, Some(draft_content.to_string()));
+        assert_eq!(converted.session_state, SessionState::Draft);
+    }

@@ -223,6 +223,48 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
 }
 
 #[tauri::command]
+pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    log::info!("Converting session to draft: {name}");
+    
+    let core = get_para_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    
+    match manager.convert_session_to_draft(&name) {
+        Ok(()) => {
+            log::info!("Successfully converted session to draft: {name}");
+            
+            // Close associated terminals
+            if let Ok(terminal_manager) = get_terminal_manager().await {
+                let ids = vec![
+                    format!("session-{}-top", name),
+                    format!("session-{}-bottom", name),
+                    format!("session-{}-right", name),
+                ];
+                for id in ids {
+                    if let Ok(true) = terminal_manager.terminal_exists(&id).await {
+                        if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
+                            log::warn!("Failed to close terminal {id} on convert to draft: {e}");
+                        }
+                    }
+                }
+            }
+            
+            // Emit event to notify frontend of the change
+            if let Ok(sessions) = manager.list_enriched_sessions() {
+                let _ = app.emit("schaltwerk:sessions-refreshed", &sessions);
+            }
+            
+            Ok(())
+        },
+        Err(e) => {
+            log::error!("Failed to convert session {name} to draft: {e}");
+            Err(format!("Failed to convert session to draft: {e}"))
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn para_core_update_git_stats(session_id: String) -> Result<(), String> {
     let core = get_para_core().await?;
     let core = core.lock().await;

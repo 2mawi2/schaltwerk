@@ -358,6 +358,61 @@ impl SessionManager {
         Ok(())
     }
     
+    pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
+        use crate::para_core::types::SessionState;
+        
+        let session = self.db.get_session_by_name(&self.repo_path, name)?;
+        
+        // Verify the session is currently running
+        if session.session_state != SessionState::Running {
+            return Err(anyhow!("Session '{}' is not in running state", name));
+        }
+        
+        log::info!("Converting session '{name}' from running to draft");
+        
+        // Check for uncommitted changes and warn
+        let has_uncommitted = if session.worktree_path.exists() {
+            git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
+        } else {
+            false
+        };
+        
+        if has_uncommitted {
+            log::warn!("Converting session '{name}' to draft with uncommitted changes");
+        }
+        
+        // Remove worktree first (required before branch operations)
+        if session.worktree_path.exists() {
+            if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
+                return Err(anyhow!("Failed to remove worktree: {}", e));
+            }
+        } else {
+            log::warn!(
+                "Worktree path missing for session '{name}', continuing conversion"
+            );
+        }
+        
+        // Archive branch instead of deleting
+        if git::branch_exists(&self.repo_path, &session.branch)? {
+            match git::archive_branch(&self.repo_path, &session.branch, &session.name) {
+                Ok(archived_name) => {
+                    log::info!("Archived branch '{}' to '{}'", session.branch, archived_name);
+                },
+                Err(e) => {
+                    log::warn!("Failed to archive branch '{}': {}", session.branch, e);
+                }
+            }
+        }
+        
+        // Update session to draft state
+        self.db.update_session_status(&session.id, SessionStatus::Draft)?;
+        self.db.update_session_state(&session.id, SessionState::Draft)?;
+        
+        log::info!("Successfully converted session '{name}' to draft");
+        
+        Ok(())
+    }
+    
     
     pub fn get_session(&self, name: &str) -> Result<Session> {
         self.db.get_session_by_name(&self.repo_path, name)
