@@ -167,6 +167,28 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         // Unreviewed on top, reviewed at bottom
         return [...sortedUnreviewed, ...sortedReviewed]
     }, [sessions, filterMode, sortMode, applySortMode])
+    
+    // Auto-select first visible session when current selection disappears from view
+    useEffect(() => {
+        if (selection.kind !== 'session') return
+        
+        const currentSessionVisible = sortedSessions.some(s => s.info.session_id === selection.payload)
+        
+        if (!currentSessionVisible) {
+            if (sortedSessions.length > 0) {
+                // Current selection is not visible anymore, select the first visible session
+                const firstSession = sortedSessions[0]
+                setSelection({
+                    kind: 'session',
+                    payload: firstSession.info.session_id,
+                    worktreePath: firstSession.info.worktree_path
+                })
+            } else {
+                // No sessions visible, select orchestrator
+                setSelection({ kind: 'orchestrator' })
+            }
+        }
+    }, [sortedSessions, selection, setSelection])
 
     // Compute time-based idle sessions from last activity
     useEffect(() => {
