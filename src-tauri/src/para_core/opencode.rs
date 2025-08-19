@@ -1,6 +1,11 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 
+#[derive(Debug, Clone, Default)]
+pub struct OpenCodeConfig {
+    pub binary_path: Option<String>,
+}
+
 pub struct OpenCodeSessionInfo {
     pub id: String,
     pub has_history: bool,
@@ -148,13 +153,14 @@ fn sanitize_path_for_opencode(path: &Path) -> String {
     result
 }
 
-pub fn build_opencode_command(
+pub fn build_opencode_command_with_config(
     worktree_path: &Path,
     session_info: Option<&OpenCodeSessionInfo>,
     initial_prompt: Option<&str>,
     _skip_permissions: bool,
+    config: Option<&OpenCodeConfig>,
 ) -> String {
-    let opencode_bin = resolve_opencode_binary();
+    let opencode_bin = resolve_opencode_binary_with_config(config);
     let mut cmd = format!("cd {} && {}", worktree_path.display(), opencode_bin);
     
     match session_info {
@@ -197,23 +203,44 @@ pub fn build_opencode_command(
     cmd
 }
 
-/// Resolve the OpenCode binary path in a user-agnostic way.
-/// Order:
-/// 1. Environment variable `OPENCODE_BIN` when set (useful for tests/CI)
-/// 2. User-specific directories (~/.local/bin, ~/.cargo/bin, ~/bin, ~/.opencode/bin/opencode)
-/// 3. Common system directories (/usr/local/bin, /opt/homebrew/bin, /usr/bin, /bin)
-/// 4. Use `which` command to find it in PATH
-/// 5. Fallback to `opencode` (expecting it on PATH)
-pub fn resolve_opencode_binary() -> String {
+pub fn build_opencode_command(
+    worktree_path: &Path,
+    session_info: Option<&OpenCodeSessionInfo>,
+    initial_prompt: Option<&str>,
+    skip_permissions: bool,
+) -> String {
+    build_opencode_command_with_config(worktree_path, session_info, initial_prompt, skip_permissions, None)
+}
+
+fn resolve_opencode_binary_with_config(config: Option<&OpenCodeConfig>) -> String {
     let command = "opencode";
     
-    if let Ok(from_env) = std::env::var("OPENCODE_BIN") {
-        let trimmed = from_env.trim();
-        if !trimmed.is_empty() {
-            log::info!("Using opencode from OPENCODE_BIN: {trimmed}");
-            return trimmed.to_string();
+    // Check config first (useful for tests)
+    if let Some(cfg) = config {
+        if let Some(ref path) = cfg.binary_path {
+            let trimmed = path.trim();
+            if !trimmed.is_empty() {
+                log::info!("Using opencode from config: {trimmed}");
+                return trimmed.to_string();
+            }
         }
     }
+    
+    // Continue with normal resolution
+    resolve_opencode_binary_impl(command)
+}
+
+/// Resolve the OpenCode binary path in a user-agnostic way.
+/// Order:
+/// 1. User-specific directories (~/.local/bin, ~/.cargo/bin, ~/bin, ~/.opencode/bin/opencode)
+/// 2. Common system directories (/usr/local/bin, /opt/homebrew/bin, /usr/bin, /bin)
+/// 3. Use `which` command to find it in PATH
+/// 4. Fallback to `opencode` (expecting it on PATH)
+pub fn resolve_opencode_binary() -> String {
+    resolve_opencode_binary_with_config(None)
+}
+
+fn resolve_opencode_binary_impl(command: &str) -> String {
     
     if let Ok(home) = std::env::var("HOME") {
         let user_paths = vec![
@@ -270,10 +297,6 @@ pub fn resolve_opencode_binary() -> String {
 mod tests {
     use super::*;
     use std::path::Path;
-    use std::sync::Mutex;
-    
-    // Mutex to ensure tests that modify OPENCODE_BIN run sequentially
-    static ENV_MUTEX: Mutex<()> = Mutex::new(());
 
 #[test]
     fn test_sanitize_path_for_opencode() {
@@ -430,161 +453,116 @@ mod tests {
     
     #[test]
     fn test_new_session_with_prompt() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Save the original value if it exists
-        let original_value = std::env::var("OPENCODE_BIN").ok();
-        std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
-        let cmd = build_opencode_command(
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
+        let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some("implement feature X"),
             true,
+            Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && /custom/bin/opencode --prompt "implement feature X""#);
-        // Restore the original value or remove if it didn't exist
-        match original_value {
-            Some(val) => std::env::set_var("OPENCODE_BIN", val),
-            None => std::env::remove_var("OPENCODE_BIN"),
-        }
+        assert_eq!(cmd, r#"cd /path/to/worktree && opencode --prompt "implement feature X""#);
     }
     
 #[test]
     fn test_continue_with_session_id() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Save the original value if it exists
-        let original_value = std::env::var("OPENCODE_BIN").ok();
-        
-        // Set our test value directly without clearing first
-        std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
-        
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
         let session_info = OpenCodeSessionInfo {
             id: "ses_743dfa323ffe5EQMH4dv6COsh1".to_string(),
             has_history: true,
         };
-        let cmd = build_opencode_command(
+        let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             None,
             false,
+            Some(&config),
         );
-        // Verify command uses --session for continuing existing sessions
-        assert!(cmd.starts_with("cd /path/to/worktree && "));
-        assert!(cmd.contains(r#"--session "ses_743dfa323ffe5EQMH4dv6COsh1""#));
-        
-        // Restore the original value or remove if it didn't exist
-        match original_value {
-            Some(val) => std::env::set_var("OPENCODE_BIN", val),
-            None => std::env::remove_var("OPENCODE_BIN"),
-        }
+        assert_eq!(cmd, r#"cd /path/to/worktree && opencode --session "ses_743dfa323ffe5EQMH4dv6COsh1""#);
     }
     
     #[test]
     fn test_new_session_no_prompt() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Save the original value if it exists
-        let original_value = std::env::var("OPENCODE_BIN").ok();
-        std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
-        let cmd = build_opencode_command(
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
+        let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             None,
             false,
+            Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && /custom/bin/opencode");
-        // Restore the original value or remove if it didn't exist
-        match original_value {
-            Some(val) => std::env::set_var("OPENCODE_BIN", val),
-            None => std::env::remove_var("OPENCODE_BIN"),
-        }
+        assert_eq!(cmd, "cd /path/to/worktree && opencode");
     }
     
     #[test]
     fn test_session_without_history() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Save the original value if it exists
-        let original_value = std::env::var("OPENCODE_BIN").ok();
-        std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
         
         // Test session with no history and no prompt - should start fresh
         let session_info = OpenCodeSessionInfo {
             id: "ses_new_session".to_string(),
             has_history: false,
         };
-        let cmd = build_opencode_command(
+        let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             None,
             false,
+            Some(&config),
         );
-        // Just verify the command structure, not the exact binary path
-        // as the binary path depends on environment
-        assert!(cmd.starts_with("cd /path/to/worktree && "));
-        assert!(cmd.ends_with("opencode"));
+        assert_eq!(cmd, "cd /path/to/worktree && opencode");
         
         // Test session with no history but with a prompt - should start fresh
-        let cmd_with_prompt = build_opencode_command(
+        let cmd_with_prompt = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             Some("implement feature Y"),
             false,
+            Some(&config),
         );
-        // Verify the command structure with prompt
-        assert!(cmd_with_prompt.starts_with("cd /path/to/worktree && "));
-        assert!(cmd_with_prompt.contains(r#"--prompt "implement feature Y""#));
-        
-        // Restore the original value or remove if it didn't exist
-        match original_value {
-            Some(val) => std::env::set_var("OPENCODE_BIN", val),
-            None => std::env::remove_var("OPENCODE_BIN"),
-        }
+        assert_eq!(cmd_with_prompt, r#"cd /path/to/worktree && opencode --prompt "implement feature Y""#);
     }
     
 #[test]
     fn test_continue_session_with_new_prompt() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Save the original value if it exists
-        let original_value = std::env::var("OPENCODE_BIN").ok();
-        std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
         let session_info = OpenCodeSessionInfo {
             id: "ses_743dfa323ffe5EQMH4dv6COsh1".to_string(),
             has_history: true,
         };
-        let cmd = build_opencode_command(
+        let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
             Some("new task"),
             true,
+            Some(&config),
         );
         // When session has history, we use --session to continue the specific session
-        // Verify command uses --session for continuing existing sessions
-        assert!(cmd.starts_with("cd /path/to/worktree && "));
-        assert!(cmd.contains(r#"--session "ses_743dfa323ffe5EQMH4dv6COsh1""#));
-        // Restore the original value or remove if it didn't exist
-        match original_value {
-            Some(val) => std::env::set_var("OPENCODE_BIN", val),
-            None => std::env::remove_var("OPENCODE_BIN"),
-        }
+        assert_eq!(cmd, r#"cd /path/to/worktree && opencode --session "ses_743dfa323ffe5EQMH4dv6COsh1""#);
     }
     
     #[test]
     fn test_prompt_with_quotes() {
-        let _guard = ENV_MUTEX.lock().unwrap();
-        // Save the original value if it exists
-        let original_value = std::env::var("OPENCODE_BIN").ok();
-        std::env::set_var("OPENCODE_BIN", "/custom/bin/opencode");
-        let cmd = build_opencode_command(
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
+        let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some(r#"implement "feature" with quotes"#),
             false,
+            Some(&config),
         );
-        // Verify the command handles quotes correctly
-        assert!(cmd.starts_with("cd /path/to/worktree && "));
-        assert!(cmd.contains(r#"--prompt "implement \"feature\" with quotes""#));
-        // Restore the original value or remove if it didn't exist
-        match original_value {
-            Some(val) => std::env::set_var("OPENCODE_BIN", val),
-            None => std::env::remove_var("OPENCODE_BIN"),
-        }
+        assert_eq!(cmd, r#"cd /path/to/worktree && opencode --prompt "implement \"feature\" with quotes""#);
     }
 }

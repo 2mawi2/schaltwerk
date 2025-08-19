@@ -1,8 +1,30 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 
-fn resolve_cursor_binary() -> String {
+#[derive(Debug, Clone, Default)]
+pub struct CursorConfig {
+    pub binary_path: Option<String>,
+}
+
+fn resolve_cursor_binary_with_config(config: Option<&CursorConfig>) -> String {
     let command = "cursor-agent";
+    
+    // Check config first (useful for tests)
+    if let Some(cfg) = config {
+        if let Some(ref path) = cfg.binary_path {
+            let trimmed = path.trim();
+            if !trimmed.is_empty() {
+                log::info!("Using cursor from config: {trimmed}");
+                return trimmed.to_string();
+            }
+        }
+    }
+    
+    // Continue with normal resolution
+    resolve_cursor_binary_impl(command)
+}
+
+fn resolve_cursor_binary_impl(command: &str) -> String {
     
     if let Ok(home) = std::env::var("HOME") {
         let user_paths = vec![
@@ -80,13 +102,14 @@ pub fn find_cursor_session(path: &Path) -> Option<String> {
     }
 }
 
-pub fn build_cursor_command(
+pub fn build_cursor_command_with_config(
     worktree_path: &Path,
     session_id: Option<&str>,
     initial_prompt: Option<&str>,
     force_flag: bool,
+    config: Option<&CursorConfig>,
 ) -> String {
-    let cursor_path = resolve_cursor_binary();
+    let cursor_path = resolve_cursor_binary_with_config(config);
     let mut cmd = format!("cd {} && {}", worktree_path.display(), cursor_path);
     
     if let Some(id) = session_id {
@@ -107,6 +130,15 @@ pub fn build_cursor_command(
     cmd
 }
 
+pub fn build_cursor_command(
+    worktree_path: &Path,
+    session_id: Option<&str>,
+    initial_prompt: Option<&str>,
+    force_flag: bool,
+) -> String {
+    build_cursor_command_with_config(worktree_path, session_id, initial_prompt, force_flag, None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,55 +146,75 @@ mod tests {
 
     #[test]
     fn test_new_session_with_prompt() {
-        let cmd = build_cursor_command(
+        let config = CursorConfig {
+            binary_path: Some("cursor-agent".to_string()),
+        };
+        let cmd = build_cursor_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some("implement feature X"),
             true,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent -f "implement feature X""#);
     }
 
     #[test]
     fn test_resume_with_session_id() {
-        let cmd = build_cursor_command(
+        let config = CursorConfig {
+            binary_path: Some("cursor-agent".to_string()),
+        };
+        let cmd = build_cursor_command_with_config(
             Path::new("/path/to/worktree"),
             Some("eed07399-7097-4087-b7dc-bb3a26ca2948"),
             None,
             false,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent --resume "eed07399-7097-4087-b7dc-bb3a26ca2948""#);
     }
 
     #[test]
     fn test_new_session_no_prompt_no_force() {
-        let cmd = build_cursor_command(
+        let config = CursorConfig {
+            binary_path: Some("cursor-agent".to_string()),
+        };
+        let cmd = build_cursor_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             None,
             false,
+            Some(&config),
         );
         assert_eq!(cmd, "cd /path/to/worktree && cursor-agent");
     }
 
     #[test]
     fn test_resume_with_force() {
-        let cmd = build_cursor_command(
+        let config = CursorConfig {
+            binary_path: Some("cursor-agent".to_string()),
+        };
+        let cmd = build_cursor_command_with_config(
             Path::new("/path/to/worktree"),
             Some("session-123"),
             Some("ignored prompt"),
             true,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent --resume "session-123""#);
     }
 
     #[test]
     fn test_prompt_with_quotes() {
-        let cmd = build_cursor_command(
+        let config = CursorConfig {
+            binary_path: Some("cursor-agent".to_string()),
+        };
+        let cmd = build_cursor_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some(r#"implement "feature" with quotes"#),
             false,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent "implement \"feature\" with quotes""#);
     }

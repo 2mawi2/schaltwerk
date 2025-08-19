@@ -1,8 +1,30 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 
-fn resolve_claude_binary() -> String {
+#[derive(Debug, Clone, Default)]
+pub struct ClaudeConfig {
+    pub binary_path: Option<String>,
+}
+
+fn resolve_claude_binary_with_config(config: Option<&ClaudeConfig>) -> String {
     let command = "claude";
+    
+    // Check config first (useful for tests)
+    if let Some(cfg) = config {
+        if let Some(ref path) = cfg.binary_path {
+            let trimmed = path.trim();
+            if !trimmed.is_empty() {
+                log::info!("Using claude from config: {trimmed}");
+                return trimmed.to_string();
+            }
+        }
+    }
+    
+    // Continue with normal resolution
+    resolve_claude_binary_impl(command)
+}
+
+fn resolve_claude_binary_impl(command: &str) -> String {
     
     if let Ok(home) = std::env::var("HOME") {
         let user_paths = vec![
@@ -90,13 +112,14 @@ fn sanitize_path_for_claude(path: &Path) -> String {
         .replace(['/', '.'], "-")
 }
 
-pub fn build_claude_command(
+pub fn build_claude_command_with_config(
     worktree_path: &Path,
     session_id: Option<&str>,
     initial_prompt: Option<&str>,
     skip_permissions: bool,
+    config: Option<&ClaudeConfig>,
 ) -> String {
-    let claude_path = resolve_claude_binary();
+    let claude_path = resolve_claude_binary_with_config(config);
     let mut cmd = format!("cd {} && {}", worktree_path.display(), claude_path);
     
     if skip_permissions {
@@ -113,6 +136,15 @@ pub fn build_claude_command(
     cmd
 }
 
+pub fn build_claude_command(
+    worktree_path: &Path,
+    session_id: Option<&str>,
+    initial_prompt: Option<&str>,
+    skip_permissions: bool,
+) -> String {
+    build_claude_command_with_config(worktree_path, session_id, initial_prompt, skip_permissions, None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -123,22 +155,30 @@ mod tests {
 
     #[test]
     fn test_new_session_with_prompt() {
-        let cmd = build_claude_command(
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some("implement feature X"),
             true,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions "implement feature X""#);
     }
 
     #[test]
     fn test_resume_with_session_id() {
-        let cmd = build_claude_command(
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
             Some("12345678-1234-1234-1234-123456789012"),
             None,
             false,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude -r "12345678-1234-1234-1234-123456789012""#);
     }
@@ -216,33 +256,45 @@ mod tests {
 
     #[test]
     fn test_new_session_no_prompt_no_permissions() {
-        let cmd = build_claude_command(
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             None,
             false,
+            Some(&config),
         );
         assert_eq!(cmd, "cd /path/to/worktree && claude");
     }
 
     #[test]
     fn test_resume_with_permissions() {
-        let cmd = build_claude_command(
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
             Some("session-123"),
             Some("ignored prompt"),
             true,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions -r "session-123""#);
     }
 
     #[test]
     fn test_prompt_with_quotes() {
-        let cmd = build_claude_command(
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
             None,
             Some(r#"implement "feature" with quotes"#),
             false,
+            Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude "implement \"feature\" with quotes""#);
     }
