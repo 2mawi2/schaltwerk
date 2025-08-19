@@ -160,8 +160,22 @@ pub fn build_opencode_command_with_config(
     _skip_permissions: bool,
     config: Option<&OpenCodeConfig>,
 ) -> String {
-    let opencode_bin = resolve_opencode_binary_with_config(config);
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), opencode_bin);
+    // Use simple binary name and let system PATH handle resolution
+    let binary_name = if let Some(cfg) = config {
+        if let Some(ref path) = cfg.binary_path {
+            let trimmed = path.trim();
+            if !trimmed.is_empty() {
+                trimmed
+            } else {
+                "opencode"
+            }
+        } else {
+            "opencode"
+        }
+    } else {
+        "opencode"
+    };
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
     
     match session_info {
         Some(info) if info.has_history => {

@@ -86,8 +86,22 @@ pub fn build_codex_command_with_config(
     sandbox_mode: &str,
     config: Option<&CodexConfig>,
 ) -> String {
-    let codex_path = resolve_codex_binary_with_config(config);
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), codex_path);
+    // Use simple binary name and let system PATH handle resolution
+    let binary_name = if let Some(cfg) = config {
+        if let Some(ref path) = cfg.binary_path {
+            let trimmed = path.trim();
+            if !trimmed.is_empty() {
+                trimmed
+            } else {
+                "codex"
+            }
+        } else {
+            "codex"
+        }
+    } else {
+        "codex"
+    };
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
     
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));
     

@@ -6,75 +6,7 @@ pub struct CursorConfig {
     pub binary_path: Option<String>,
 }
 
-fn resolve_cursor_binary_with_config(config: Option<&CursorConfig>) -> String {
-    let command = "cursor-agent";
-    
-    // Check config first (useful for tests)
-    if let Some(cfg) = config {
-        if let Some(ref path) = cfg.binary_path {
-            let trimmed = path.trim();
-            if !trimmed.is_empty() {
-                log::info!("Using cursor from config: {trimmed}");
-                return trimmed.to_string();
-            }
-        }
-    }
-    
-    // Continue with normal resolution
-    resolve_cursor_binary_impl(command)
-}
 
-fn resolve_cursor_binary_impl(command: &str) -> String {
-    
-    if let Ok(home) = std::env::var("HOME") {
-        let user_paths = vec![
-            format!("{}/.local/bin", home),
-            format!("{}/.cargo/bin", home),
-            format!("{}/bin", home),
-        ];
-        
-        for path in user_paths {
-            let full_path = PathBuf::from(&path).join(command);
-            if full_path.exists() {
-                log::info!("Found cursor-agent at {}", full_path.display());
-                return full_path.to_string_lossy().to_string();
-            }
-        }
-    }
-    
-    let common_paths = vec![
-        "/usr/local/bin",
-        "/opt/homebrew/bin",
-        "/usr/bin",
-        "/bin",
-    ];
-    
-    for path in common_paths {
-        let full_path = PathBuf::from(path).join(command);
-        if full_path.exists() {
-            log::info!("Found cursor-agent at {}", full_path.display());
-            return full_path.to_string_lossy().to_string();
-        }
-    }
-    
-    if let Ok(output) = std::process::Command::new("which")
-        .arg(command)
-        .output()
-    {
-        if output.status.success() {
-            if let Ok(path) = String::from_utf8(output.stdout) {
-                let path = path.trim();
-                if !path.is_empty() {
-                    log::info!("Found cursor-agent via which: {path}");
-                    return path.to_string();
-                }
-            }
-        }
-    }
-    
-    log::warn!("Could not resolve path for 'cursor-agent', using as-is. This may fail in installed apps.");
-    command.to_string()
-}
 
 pub fn find_cursor_session(path: &Path) -> Option<String> {
     // For cursor-agent, we need a different approach than Claude
@@ -109,8 +41,22 @@ pub fn build_cursor_command_with_config(
     force_flag: bool,
     config: Option<&CursorConfig>,
 ) -> String {
-    let cursor_path = resolve_cursor_binary_with_config(config);
-    let mut cmd = format!("cd {} && {}", worktree_path.display(), cursor_path);
+    // Use simple binary name and let system PATH handle resolution
+    let binary_name = if let Some(cfg) = config {
+        if let Some(ref path) = cfg.binary_path {
+            let trimmed = path.trim();
+            if !trimmed.is_empty() {
+                trimmed
+            } else {
+                "cursor-agent"
+            }
+        } else {
+            "cursor-agent"
+        }
+    } else {
+        "cursor-agent"
+    };
+    let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
     
     if let Some(id) = session_id {
         // Resuming an existing session
