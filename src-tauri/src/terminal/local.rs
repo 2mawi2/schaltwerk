@@ -300,6 +300,21 @@ impl TerminalBackend for LocalPtyAdapter {
             let resolved_command = Self::resolve_command(&app.command);
             info!("Resolved command '{}' to '{}'" , app.command, resolved_command);
             
+            // Log the exact command that will be executed
+            // Show args with proper quoting so it's clear what's a single argument
+            let args_str = app.args.iter()
+                .map(|arg| {
+                    if arg.contains(' ') {
+                        format!("'{arg}'")
+                    } else {
+                        arg.clone()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(" ");
+            info!("EXACT COMMAND EXECUTION: {resolved_command} {args_str}");
+            info!("Command args array (each element is a separate argument): {:?}", app.args);
+            
             let mut cmd = CommandBuilder::new(resolved_command);
             for arg in app.args {
                 cmd.arg(arg);

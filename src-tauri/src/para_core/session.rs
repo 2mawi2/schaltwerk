@@ -598,6 +598,10 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_session(&self, session_name: &str) -> Result<String> {
+        self.start_claude_in_session_with_args(session_name, None)
+    }
+    
+    pub fn start_claude_in_session_with_args(&self, session_name: &str, _cli_args: Option<&str>) -> Result<String> {
         let session = self.db.get_session_by_name(&self.repo_path, session_name)?;
         // Use per-session original settings if available, falling back to current globals
         let skip_permissions = session.original_skip_permissions.unwrap_or(self.db.get_skip_permissions()?);
@@ -693,11 +697,15 @@ impl SessionManager {
                     "workspace-write"
                 };
                 
-                crate::para_core::codex::build_codex_command(
+                let config = crate::para_core::codex::CodexConfig {
+                    binary_path: None,
+                };
+                crate::para_core::codex::build_codex_command_with_config(
                     &session.worktree_path,
                     session_id.as_deref(),
                     prompt_to_use,
                     sandbox_mode,
+                    Some(&config),
                 )
             }
             _ => {
@@ -724,6 +732,10 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator(&self) -> Result<String> {
+        self.start_claude_in_orchestrator_with_args(None)
+    }
+    
+    pub fn start_claude_in_orchestrator_with_args(&self, _cli_args: Option<&str>) -> Result<String> {
         log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
         
         // Validate that the repo path exists and is accessible
@@ -780,11 +792,15 @@ impl SessionManager {
                     "workspace-write"
                 };
                 
-                crate::para_core::codex::build_codex_command(
+                let config = crate::para_core::codex::CodexConfig {
+                    binary_path: None,
+                };
+                crate::para_core::codex::build_codex_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,
                     sandbox_mode,
+                    Some(&config),
                 )
             }
             _ => {

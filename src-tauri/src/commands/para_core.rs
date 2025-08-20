@@ -4,6 +4,81 @@ use crate::para_core::db_sessions::SessionMethods;
 use crate::para_core::db_app_config::AppConfigMethods;
 use crate::{get_para_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
 
+// Normalize user-provided CLI text copied from rich sources:
+// - Replace Unicode dash-like characters with ASCII '-'
+// - Replace various Unicode spaces (including NBSP) with ASCII ' '
+fn normalize_cli_text(s: &str) -> String {
+    s.chars()
+        .map(|c| match c {
+            // Dashes
+            '\u{2010}' /* HYPHEN */
+            | '\u{2011}' /* NON-BREAKING HYPHEN */
+            | '\u{2012}' /* FIGURE DASH */
+            | '\u{2013}' /* EN DASH */
+            | '\u{2014}' /* EM DASH */
+            | '\u{2015}' /* HORIZONTAL BAR */
+            | '\u{2212}' /* MINUS SIGN */ => '-',
+            // Spaces
+            '\u{00A0}' /* NBSP */
+            | '\u{2000}'..='\u{200B}' /* En/Em/Thin spaces incl. ZWSP */
+            | '\u{202F}' /* NNBSP */
+            | '\u{205F}' /* MMSP */
+            | '\u{3000}' /* IDEOGRAPHIC SPACE */ => ' ',
+            _ => c,
+        })
+        .collect()
+}
+
+// Turn accidental single-dash long options into proper double-dash for Codex
+// Only affects known long flags: model, profile. Keeps true short flags intact.
+fn fix_codex_single_dash_long_flags(args: &mut Vec<String>) {
+    for a in args.iter_mut() {
+        if a.starts_with("--") { continue; }
+        if let Some(stripped) = a.strip_prefix('-') {
+            // Keep short flags like -m, -p, -v
+            if stripped.len() == 1 { continue; }
+            // Check name part (before optional '=')
+            let (name, value_opt) = match stripped.split_once('=') {
+                Some((n, v)) => (n, Some(v)),
+                None => (stripped, None),
+            };
+            if name == "model" || name == "profile" {
+                if let Some(v) = value_opt {
+                    *a = format!("--{}={}", name, v);
+                } else {
+                    *a = format!("--{}", name);
+                }
+            }
+        }
+    }
+}
+// For Codex, ensure `--model`/`-m` appears after any `--profile`
+fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
+    let mut without_model = Vec::with_capacity(args.len());
+    let mut model_flags = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--model" || a == "-m" {
+            // capture flag and its value if present
+            model_flags.push(a.clone());
+            if i + 1 < args.len() {
+                model_flags.push(args[i + 1].clone());
+                i += 2;
+            } else {
+                i += 1;
+            }
+        } else if a.starts_with("--model=") || a.starts_with("-m=") {
+            model_flags.push(a.clone());
+            i += 1;
+        } else {
+            without_model.push(a.clone());
+            i += 1;
+        }
+    }
+    without_model.extend(model_flags);
+    *args = without_model;
+}
 #[tauri::command]
 pub async fn para_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
     log::debug!("Listing enriched sessions from para_core");
@@ -292,7 +367,24 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     let core = core.lock().await;
     let manager = core.session_manager();
     
-    let command = manager.start_claude_in_session(&session_name)
+    // Get the session to determine the agent type
+    let session = manager.get_session(&session_name)
+        .map_err(|e| format!("Failed to get session: {e}"))?;
+    let agent_type = session.original_agent_type
+        .clone()
+        .or_else(|| core.database().get_agent_type().ok())
+        .unwrap_or_else(|| "claude".to_string());
+    
+    // Get CLI arguments for the agent type
+    let cli_args = if let Some(settings_manager) = crate::SETTINGS_MANAGER.get() {
+        let manager = settings_manager.lock().await;
+        let args = manager.get_agent_cli_args(&agent_type);
+        if args.is_empty() { None } else { Some(args) }
+    } else {
+        None
+    };
+    
+    let command = manager.start_claude_in_session_with_args(&session_name, cli_args.as_deref())
         .map_err(|e| {
             log::error!("Failed to build Claude command for session {session_name}: {e}");
             format!("Failed to start Claude in session: {e}")
@@ -355,15 +447,59 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
     let is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
+    let is_codex = agent_type == "codex";
     
-    let mut final_args = agent_args;
+    // Build args for all agents consistently:
+    // 1. Start with parsed args from command string (may include prompt for Claude/Cursor)
+    // 2. Add any additional CLI args from settings
+    let mut final_args = agent_args.clone();
+    
+    log::info!("ARGUMENT BUILDING for {agent_type}: initial agent_args={agent_args:?}, cli_args='{cli_args}'");
+    
+    // Add CLI arguments from settings for all agent types
     if !cli_args.is_empty() {
-        // Parse the CLI arguments string into individual arguments
-        // This is a simple split on spaces, but respects quoted strings
-        let additional_args = shell_words::split(&cli_args)
+        // For Codex, normalize any Unicode dash characters users might paste (em/en dashes)
+        // Normalize dashes and non-standard spaces for all agents
+        let cli_args_for_parse = normalize_cli_text(&cli_args);
+        let mut additional_args = shell_words::split(&cli_args_for_parse)
             .unwrap_or_else(|_| vec![cli_args.clone()]);
-        final_args.extend(additional_args);
+
+        log::info!("Parsed CLI args: {additional_args:?}");
+
+        // For agents that include prompts in their command strings (Claude, Cursor),
+        // the prompt is already in agent_args, so we append CLI args.
+        // For agents that need CLI args before prompts (Codex), we prepend.
+        // This ensures correct argument order for all agent types.
+        if agent_type == "codex" {
+            // Codex: Keep sandbox first, then append CLI args, then prompt
+            log::info!("Codex mode: keep --sandbox first, then CLI args");
+            // Fix accidental single-dash long options for known long flags
+            fix_codex_single_dash_long_flags(&mut additional_args);
+            // Reorder so that model flag comes after profile to override profile defaults
+            reorder_codex_model_after_profile(&mut additional_args);
+            let mut new_args = final_args; // starts with ["--sandbox", mode]
+            new_args.extend(additional_args);
+            final_args = new_args;
+        } else {
+            // Other agents: Append CLI args after existing args
+            log::info!("Standard mode: appending CLI args after existing args");
+            final_args.extend(additional_args);
+        }
     }
+    
+    // Codex: always pass prompt (if present) to avoid interactive editor
+    if is_codex {
+        if let Ok(current_session) = manager.get_session(&session_name) {
+            if let Some(prompt) = current_session.initial_prompt.as_ref() {
+                if !prompt.trim().is_empty() {
+                    final_args.push(prompt.clone());
+                }
+            }
+        }
+    }
+    
+    // Log the exact command that will be executed
+    log::info!("FINAL COMMAND CONSTRUCTION for {agent_type}: command='{agent_name}', args={final_args:?}");
     
     terminal_manager.create_terminal_with_app(
         terminal_id.clone(),
@@ -475,13 +611,39 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
     
     let is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
     
-    let mut final_args = agent_args;
+    // Build args for all agents consistently:
+    // 1. Start with parsed args from command string (may include prompt for Claude/Cursor)
+    // 2. Add any additional CLI args from settings
+    let mut final_args = agent_args.clone();
+    
+    log::info!("ARGUMENT BUILDING for {agent_type}: initial agent_args={agent_args:?}, cli_args='{cli_args}'");
+    
+    // Add CLI arguments from settings for all agent types
     if !cli_args.is_empty() {
-        // Parse the CLI arguments string into individual arguments
-        // This is a simple split on spaces, but respects quoted strings
-        let additional_args = shell_words::split(&cli_args)
+        // Normalize dashes and non-standard spaces for all agents
+        let cli_args_for_parse = normalize_cli_text(&cli_args);
+        let mut additional_args = shell_words::split(&cli_args_for_parse)
             .unwrap_or_else(|_| vec![cli_args.clone()]);
-        final_args.extend(additional_args);
+
+        log::info!("Parsed CLI args: {additional_args:?}");
+        
+        // For agents that include prompts in their command strings (Claude, Cursor),
+        // the prompt is already in agent_args, so we append CLI args.
+        // For agents that need CLI args before prompts (Codex), we prepend.
+        // This ensures correct argument order for all agent types.
+        if agent_type == "codex" {
+            // Codex orchestrator: keep sandbox first, then CLI args
+            log::info!("Codex mode: keep --sandbox first, then CLI args");
+            fix_codex_single_dash_long_flags(&mut additional_args);
+            reorder_codex_model_after_profile(&mut additional_args);
+            let mut new_args = final_args; // starts with ["--sandbox", mode]
+            new_args.extend(additional_args);
+            final_args = new_args;
+        } else {
+            // Other agents: Append CLI args after existing args
+            log::info!("Standard mode: appending CLI args after existing args");
+            final_args.extend(additional_args);
+        }
     }
     
     terminal_manager.create_terminal_with_app(
