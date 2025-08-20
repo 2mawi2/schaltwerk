@@ -121,3 +121,16 @@ pub async fn list_project_branches() -> Result<Vec<String>, String> {
             .map_err(|e| format!("Failed to list branches: {e}"))
     }
 }
+
+#[tauri::command]
+pub async fn repository_is_empty() -> Result<bool, String> {
+    let manager = get_project_manager().await;
+    let repo_path = if let Ok(project) = manager.current_project().await {
+        project.path.clone()
+    } else {
+        std::env::current_dir()
+            .map_err(|e| format!("Failed to get current directory: {e}"))?
+    };
+    
+    Ok(!crate::para_core::git::repository_has_commits(&repo_path).unwrap_or(true))
+}

@@ -3,6 +3,8 @@ use std::process::Command;
 use anyhow::{Result, anyhow};
 use std::fs;
 
+pub const INITIAL_COMMIT_MESSAGE: &str = "Initial commit";
+
 pub fn discover_repository() -> Result<PathBuf> {
     if let Ok(repo_env) = std::env::var("PARA_REPO_PATH") {
         if !repo_env.trim().is_empty() {
@@ -44,6 +46,44 @@ pub fn get_current_branch(repo_path: &Path) -> Result<String> {
     }
     
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+pub fn get_unborn_head_branch(repo_path: &Path) -> Result<String> {
+    log::debug!("Checking for unborn HEAD in repository: {}", repo_path.display());
+    
+    let output = Command::new("git")
+        .args([
+            "-C", repo_path.to_str().unwrap(),
+            "symbolic-ref", "HEAD"
+        ])
+        .output()?;
+    
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        log::debug!("Failed to get symbolic ref HEAD: {stderr}");
+        return Err(anyhow!("Failed to get symbolic ref HEAD: {}", stderr));
+    }
+    
+    let full_ref = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    log::debug!("Found HEAD symbolic ref: {full_ref}");
+    
+    if let Some(branch) = full_ref.strip_prefix("refs/heads/") {
+        log::info!("Detected unborn HEAD branch: {branch}");
+        Ok(branch.to_string())
+    } else {
+        Err(anyhow!("HEAD symbolic ref is not a branch: {}", full_ref))
+    }
+}
+
+pub fn repository_has_commits(repo_path: &Path) -> Result<bool> {
+    let output = Command::new("git")
+        .args([
+            "-C", repo_path.to_str().unwrap(),
+            "rev-list", "-n", "1", "--all"
+        ])
+        .output()?;
+    
+    Ok(output.status.success() && !output.stdout.is_empty())
 }
 
 pub fn get_default_branch(repo_path: &Path) -> Result<String> {
@@ -113,20 +153,20 @@ pub fn get_default_branch(repo_path: &Path) -> Result<String> {
         let branch_names: Vec<&str> = branches.lines().collect();
         log::debug!("Available branches: {branch_names:?}");
         
-        for default_name in &["main", "master", "develop", "dev"] {
-            if branch_names.contains(default_name) {
-                log::info!("Using common default branch: {default_name}");
-                return Ok(default_name.to_string());
+        if !branch_names.is_empty() {
+            if let Some(first_branch) = branch_names.first() {
+                log::info!("Using first available branch: {first_branch}");
+                return Ok(first_branch.to_string());
             }
-        }
-        
-        if let Some(first_branch) = branch_names.first() {
-            log::info!("Using first available branch: {first_branch}");
-            return Ok(first_branch.to_string());
         }
     }
     
-    log::error!("No branches found in repository: {}", repo_path.display());
+    if let Ok(unborn_branch) = get_unborn_head_branch(repo_path) {
+        log::info!("Repository has no commits, using unborn HEAD branch: {unborn_branch}");
+        return Ok(unborn_branch);
+    }
+    
+    log::error!("No branches found and unable to detect unborn HEAD in repository: {}", repo_path.display());
     Err(anyhow!("No branches found in repository"))
 }
 
@@ -161,5 +201,24 @@ pub fn init_repository(path: &Path) -> Result<()> {
         return Err(anyhow!("Git init failed: {}", stderr));
     }
     
+    Ok(())
+}
+
+pub fn create_initial_commit(repo_path: &Path) -> Result<()> {
+    log::info!("Creating initial empty commit in repository: {}", repo_path.display());
+    
+    let output = Command::new("git")
+        .args([
+            "-C", repo_path.to_str().unwrap(),
+            "commit", "--allow-empty", "-m", INITIAL_COMMIT_MESSAGE
+        ])
+        .output()?;
+    
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!("Failed to create initial commit: {}", stderr));
+    }
+    
+    log::info!("Successfully created initial commit");
     Ok(())
 }

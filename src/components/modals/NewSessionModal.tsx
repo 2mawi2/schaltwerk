@@ -33,6 +33,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [creating, setCreating] = useState(false)
     const [createAsDraft, setCreateAsDraft] = useState(false)
     const [nameLocked, setNameLocked] = useState(false)
+    const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
     const { getSkipPermissions, setSkipPermissions: saveSkipPermissions, getAgentType, setAgentType: saveAgentType } = useClaudeSession()
     const nameInputRef = useRef<HTMLInputElement>(null)
     const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
@@ -158,18 +159,21 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             Promise.all([
                 invoke<string[]>('list_project_branches'),
                 invoke<string | null>('get_project_default_base_branch'),
-                invoke<string>('get_project_default_branch')
+                invoke<string>('get_project_default_branch'),
+                invoke<boolean>('repository_is_empty')
             ])
-                .then(([branchList, savedDefaultBranch, gitDefaultBranch]) => {
+                .then(([branchList, savedDefaultBranch, gitDefaultBranch, isEmpty]) => {
                     setBranches(branchList)
                     // Use saved default if available, otherwise use git default
                     const defaultBranch = savedDefaultBranch || gitDefaultBranch
                     setBaseBranch(defaultBranch)
+                    setRepositoryIsEmpty(isEmpty)
                 })
                 .catch(err => {
                     console.warn('Failed to get branches:', err)
                     setBranches([])
                     setBaseBranch('')
+                    setRepositoryIsEmpty(false)
                 })
                 .finally(() => setLoadingBranches(false))
             
@@ -302,6 +306,20 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                             )}
                         </p>
                     </div>
+
+                    {repositoryIsEmpty && !createAsDraft && (
+                        <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 flex items-start gap-2">
+                            <svg className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div className="text-sm text-amber-200">
+                                <p className="font-medium mb-1">New repository detected</p>
+                                <p className="text-xs text-amber-300">
+                                    This repository has no commits yet. An initial commit will be created automatically when you start the task.
+                                </p>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-3 gap-3">
                         <div>

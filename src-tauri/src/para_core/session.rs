@@ -262,6 +262,17 @@ impl SessionManager {
             session_state: SessionState::Running,
         };
         
+        // Check if repository has no commits and create initial commit if needed
+        let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
+        if repo_was_empty {
+            log::info!("Repository has no commits, creating initial commit: '{}'", git::INITIAL_COMMIT_MESSAGE);
+            git::create_initial_commit(&self.repo_path)
+                .map_err(|e| {
+                    self.unreserve_name(&unique_name);
+                    anyhow!("Failed to create initial commit: {}", e)
+                })?;
+        }
+        
         // Always create worktree from the parent branch (either specified or detected)
         let create_result = git::create_worktree_from_base(
             &self.repo_path, 

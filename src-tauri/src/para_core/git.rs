@@ -5,7 +5,7 @@ mod worktrees;
 mod stats;
 mod operations;
 
-pub use repository::{discover_repository, get_default_branch, init_repository};
+pub use repository::{discover_repository, get_default_branch, init_repository, repository_has_commits, create_initial_commit, INITIAL_COMMIT_MESSAGE};
 
 #[cfg(test)]
 pub use repository::{get_current_branch, get_commit_hash};

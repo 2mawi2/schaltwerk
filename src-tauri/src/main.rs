@@ -639,6 +639,7 @@ fn main() {
             initialize_project,
             get_project_default_branch,
             list_project_branches,
+            repository_is_empty,
             // Settings commands
             get_project_default_base_branch,
             set_project_default_base_branch,

@@ -451,13 +451,14 @@ describe('SelectionContext', () => {
       // Check that storage was created (async persistence)
       await waitFor(() => {
         const stored1 = localStorage.getItem('schaltwerk-selections')
-        expect(stored1).toBeTruthy()
-        const parsed1 = JSON.parse(stored1!)
+        if (!stored1) return false // Keep waiting if not yet stored
+        const parsed1 = JSON.parse(stored1)
         expect(parsed1[project1]).toEqual({
           kind: 'session',
           sessionName: 'session1'
         })
-      })
+        return true // Signal success
+      }, { timeout: 3000 })
 
       // Switch to project 2 and select session2 via the trigger
       currentProjectPath = project2
@@ -467,8 +468,8 @@ describe('SelectionContext', () => {
       // Check that both projects are stored (async persistence)
       await waitFor(() => {
         const stored2 = localStorage.getItem('schaltwerk-selections')
-        expect(stored2).toBeTruthy()
-        const parsed2 = JSON.parse(stored2!)
+        if (!stored2) return false // Keep waiting if not yet stored
+        const parsed2 = JSON.parse(stored2)
         expect(parsed2[project1]).toEqual({
           kind: 'session',
           sessionName: 'session1'
@@ -477,7 +478,8 @@ describe('SelectionContext', () => {
           kind: 'session',
           sessionName: 'session2'
         })
-      })
+        return true // Signal success
+      }, { timeout: 3000 })
     }, 20000)
 
     it('should restore selections per project', async () => {

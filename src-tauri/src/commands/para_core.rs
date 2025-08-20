@@ -446,48 +446,33 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
-    let is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
+    let is_opencode = (agent_name == "opencode") || agent_name.ends_with("/opencode");
     let is_codex = agent_type == "codex";
     
-    // Build args for all agents consistently:
-    // 1. Start with parsed args from command string (may include prompt for Claude/Cursor)
-    // 2. Add any additional CLI args from settings
     let mut final_args = agent_args.clone();
     
     log::info!("ARGUMENT BUILDING for {agent_type}: initial agent_args={agent_args:?}, cli_args='{cli_args}'");
     
-    // Add CLI arguments from settings for all agent types
     if !cli_args.is_empty() {
-        // For Codex, normalize any Unicode dash characters users might paste (em/en dashes)
-        // Normalize dashes and non-standard spaces for all agents
         let cli_args_for_parse = normalize_cli_text(&cli_args);
         let mut additional_args = shell_words::split(&cli_args_for_parse)
             .unwrap_or_else(|_| vec![cli_args.clone()]);
 
         log::info!("Parsed CLI args: {additional_args:?}");
 
-        // For agents that include prompts in their command strings (Claude, Cursor),
-        // the prompt is already in agent_args, so we append CLI args.
-        // For agents that need CLI args before prompts (Codex), we prepend.
-        // This ensures correct argument order for all agent types.
         if agent_type == "codex" {
-            // Codex: Keep sandbox first, then append CLI args, then prompt
             log::info!("Codex mode: keep --sandbox first, then CLI args");
-            // Fix accidental single-dash long options for known long flags
             fix_codex_single_dash_long_flags(&mut additional_args);
-            // Reorder so that model flag comes after profile to override profile defaults
             reorder_codex_model_after_profile(&mut additional_args);
-            let mut new_args = final_args; // starts with ["--sandbox", mode]
+            let mut new_args = final_args;
             new_args.extend(additional_args);
             final_args = new_args;
         } else {
-            // Other agents: Append CLI args after existing args
             log::info!("Standard mode: appending CLI args after existing args");
             final_args.extend(additional_args);
         }
     }
     
-    // Codex: always pass prompt (if present) to avoid interactive editor
     if is_codex {
         if let Ok(current_session) = manager.get_session(&session_name) {
             if let Some(prompt) = current_session.initial_prompt.as_ref() {

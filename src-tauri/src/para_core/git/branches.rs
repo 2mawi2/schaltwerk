@@ -1,9 +1,22 @@
 use std::path::Path;
 use std::process::Command;
 use anyhow::{Result, anyhow};
+use crate::para_core::git::repository::{repository_has_commits, get_unborn_head_branch};
 
 pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
     log::info!("Listing branches for repo: {}", repo_path.display());
+    
+    let has_commits = repository_has_commits(repo_path).unwrap_or(false);
+    
+    if !has_commits {
+        log::info!("Repository has no commits, checking for unborn HEAD");
+        if let Ok(unborn_branch) = get_unborn_head_branch(repo_path) {
+            log::info!("Returning unborn HEAD branch: {unborn_branch}");
+            return Ok(vec![unborn_branch]);
+        }
+        log::warn!("Repository has no commits and no unborn HEAD detected");
+        return Ok(Vec::new());
+    }
     
     let output = Command::new("git")
         .args([
