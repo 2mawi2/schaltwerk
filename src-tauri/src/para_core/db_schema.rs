@@ -194,11 +194,23 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         "CREATE TABLE IF NOT EXISTS project_config (
             repository_path TEXT PRIMARY KEY,
             setup_script TEXT,
+            last_selection_kind TEXT,
+            last_selection_payload TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
         [],
     )?;
+    
+    // Migration: Add last_selection columns if they don't exist
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN last_selection_kind TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN last_selection_payload TEXT",
+        [],
+    );
     
     Ok(())
 }

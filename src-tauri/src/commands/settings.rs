@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::{SETTINGS_MANAGER, get_para_core, PROJECT_MANAGER};
 use crate::settings::TerminalUIPreferences;
 use crate::para_core::db_app_config::AppConfigMethods;
-use crate::para_core::db_project_config::ProjectConfigMethods;
+use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection};
 
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
@@ -131,6 +131,39 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
         .map_err(|e| format!("Failed to set project setup script: {e}"))?;
     
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_project_selection() -> Result<Option<ProjectSelection>, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+    
+    let core = project.para_core.lock().await;
+    let db = core.database();
+    
+    db.get_project_selection(&project.path)
+        .map_err(|e| format!("Failed to get project selection: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_project_selection(kind: String, payload: Option<String>) -> Result<(), String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+    
+    let core = project.para_core.lock().await;
+    let db = core.database();
+    
+    let selection = ProjectSelection { kind, payload };
+    db.set_project_selection(&project.path, &selection)
+        .map_err(|e| format!("Failed to set project selection: {e}"))
 }
 
 #[cfg(test)]

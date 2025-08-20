@@ -651,7 +651,9 @@ fn main() {
             set_terminal_collapsed,
             set_terminal_divider_position,
             get_project_settings,
-            set_project_settings
+            set_project_settings,
+            get_project_selection,
+            set_project_selection
         ])
         .setup(move |app| {
             // Pass initial directory to the frontend if provided

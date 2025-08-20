@@ -121,6 +121,12 @@ If tests are failing, they must be fixed immediately. Do not assume test failure
 
 **NEVER SKIP TESTS**: Under NO circumstances should you use `.skip()`, `xit()`, or any other mechanism to skip failing tests. If a test is failing:
 1. Fix the implementation to make the test pass, OR
+2. Fix the test to match the new expected behavior, OR  
+3. Delete the test if it's genuinely no longer needed
+But NEVER skip tests. Skipping tests is not a solution - it's avoiding the problem.
+
+**NEVER SKIP TESTS**: Under NO circumstances should you use `.skip()`, `xit()`, or any other mechanism to skip failing tests. If a test is failing:
+1. Fix the implementation to make the test pass, OR
 2. Fix the test to match the new expected behavior
 But NEVER skip tests. Skipping tests is not a solution - it's avoiding the problem.
 

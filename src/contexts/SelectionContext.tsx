@@ -44,8 +44,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const terminalsCreated = useRef(new Set<string>())
     const creationLock = useRef(new Map<string, Promise<void>>())
     
-    // Selection memory per project (in-memory only, persists during app runtime)
-    const selectionMemory = useRef(new Map<string, Selection>())
     const isRestoringRef = useRef(false)
     
     // Get terminal IDs for a selection
@@ -160,16 +158,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
-        // Try to load saved selection for this project
+        // Try to load saved selection for this project from database
         if (projectPath) {
             try {
-                const stored = localStorage.getItem('schaltwerk-selections')
-                if (stored) {
-                    const selections = JSON.parse(stored)
-                    const savedSelection = selections[projectPath]
-                    if (savedSelection) {
-                        console.log('[SelectionContext] Restored saved selection for project:', projectPath, savedSelection)
-                        return savedSelection
+                const dbSelection = await invoke<{ kind: string; payload: string | null } | null>('get_project_selection')
+                if (dbSelection) {
+                    console.log('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
+                    return {
+                        kind: dbSelection.kind as 'session' | 'orchestrator',
+                        payload: dbSelection.payload ?? undefined
                     }
                 }
             } catch (error) {
@@ -267,9 +264,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 setSelectionState(newSelection)
                 setTerminals(newTerminalIds)
                 
-                // Save to memory if this is an intentional change and not during restoration
+                // Save to database if this is an intentional change and not during restoration
                 if (isIntentional && !isRestoringRef.current && projectPath) {
-                    selectionMemory.current.set(projectPath, newSelection)
+                    try {
+                        await invoke('set_project_selection', {
+                            kind: newSelection.kind,
+                            payload: newSelection.payload ?? null
+                        })
+                    } catch (e) {
+                        console.error('[SelectionContext] Failed to persist selection to database:', e)
+                    }
                 }
                 
                 // Ensure ready state
@@ -286,9 +290,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setSelectionState(newSelection)
             setTerminals(terminalIds)
             
-            // Save to memory if this is an intentional change and not during restoration
+            // Save to database if this is an intentional change and not during restoration
             if (isIntentional && !isRestoringRef.current && projectPath) {
-                selectionMemory.current.set(projectPath, newSelection)
+                try {
+                    await invoke('set_project_selection', {
+                        kind: newSelection.kind,
+                        payload: newSelection.payload ?? null
+                    })
+                } catch (e) {
+                    console.error('[SelectionContext] Failed to persist selection to database:', e)
+                }
             }
             
             // Mark as ready
@@ -359,10 +370,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Set initialized flag and update previous path
             hasInitialized.current = true
             
-            // If switching projects, save current selection for the old project before switching
-            if (projectChanged && previousProjectPath.current && !isRestoringRef.current) {
-                selectionMemory.current.set(previousProjectPath.current, selection)
-            }
             
             previousProjectPath.current = projectPath
             
@@ -370,20 +377,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             let targetSelection: Selection
             
             if (projectChanged) {
-                // Check if we have a remembered selection for this project
-                const remembered = selectionMemory.current.get(projectPath)
-                if (remembered) {
-                    // Mark that we're restoring to prevent saving this automatic change
-                    isRestoringRef.current = true
-                    try {
-                        // Validate the remembered selection (session might be deleted)
-                        targetSelection = await validateAndRestoreSelection(remembered)
-                    } finally {
-                        isRestoringRef.current = false
-                    }
-                } else {
-                    // No memory for this project, default to orchestrator
-                    targetSelection = { kind: 'orchestrator' }
+                // When switching projects, always load from database
+                isRestoringRef.current = true
+                try {
+                    const savedSelection = await getDefaultSelection()
+                    // Validate the saved selection (session might be deleted)
+                    targetSelection = await validateAndRestoreSelection(savedSelection)
+                } finally {
+                    isRestoringRef.current = false
                 }
             } else {
                 // First initialization, use default
@@ -430,35 +431,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
     }, [setSelection])
     
-    // Listen for session removal to clear from memory
-    useEffect(() => {
-        let unlisten: (() => void) | undefined
-        
-        const setupRemovalListener = async () => {
-            try {
-                unlisten = await listen<{ sessionName: string }>('schaltwerk:session-removed', (event) => {
-                    const removedSessionName = event.payload.sessionName
-                    
-                    // Clear from memory for all projects if this session was selected
-                    selectionMemory.current.forEach((selection, projectPath) => {
-                        if (selection.kind === 'session' && selection.payload === removedSessionName) {
-                            selectionMemory.current.delete(projectPath)
-                        }
-                    })
-                })
-            } catch (e) {
-                console.error('[SelectionContext] Failed to attach session-removed listener', e)
-            }
-        }
-        
-        setupRemovalListener()
-        
-        return () => {
-            if (unlisten) {
-                unlisten()
-            }
-        }
-    }, [])
     
     return (
         <SelectionContext.Provider value={{ 
