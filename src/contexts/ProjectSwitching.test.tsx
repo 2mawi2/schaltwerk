@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { render, waitFor, screen } from '@testing-library/react'
+import { render, waitFor } from '@testing-library/react'
 import { renderHook, act } from '@testing-library/react'
 import { SelectionProvider, useSelection } from './SelectionContext'
 import { ProjectProvider, useProject } from './ProjectContext'
@@ -16,7 +16,7 @@ vi.mock('@tauri-apps/api/event', () => ({
     emit: vi.fn(),
 }))
 
-const TestWrapper = ({ children, initialProject = null }: { children: React.ReactNode, initialProject?: string | null }) => (
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
         <FocusProvider>
             <SelectionProvider>
@@ -44,10 +44,10 @@ describe('Project Switching Selection Behavior', () => {
                         <div data-testid="selection">{JSON.stringify(selection)}</div>
                         <button onClick={() => setProjectPath('/project1')}>Project 1</button>
                         <button onClick={() => setProjectPath('/project2')}>Project 2</button>
-                        <button onClick={() => setSelection({ kind: 'session', id: 'session1' })}>
+                        <button onClick={() => setSelection({ kind: 'session', payload: 'session1' })}>
                             Select Session 1
                         </button>
-                        <button onClick={() => setSelection({ kind: 'session', id: 'session2' })}>
+                        <button onClick={() => setSelection({ kind: 'session', payload: 'session2' })}>
                             Select Session 2
                         </button>
                     </div>
@@ -76,7 +76,7 @@ describe('Project Switching Selection Behavior', () => {
 
             await waitFor(() => {
                 const selection = JSON.parse(getByTestId('selection').textContent!)
-                expect(selection).toEqual({ kind: 'session', id: 'session1' })
+                expect(selection).toEqual({ kind: 'session', payload: 'session1' })
             })
 
             // Switch to project 2
@@ -95,7 +95,7 @@ describe('Project Switching Selection Behavior', () => {
 
             await waitFor(() => {
                 const selection = JSON.parse(getByTestId('selection').textContent!)
-                expect(selection).toEqual({ kind: 'session', id: 'session2' })
+                expect(selection).toEqual({ kind: 'session', payload: 'session2' })
             })
 
             // Switch back to project 1
@@ -110,22 +110,22 @@ describe('Project Switching Selection Behavior', () => {
             // Should restore session1 selection, NOT reset to orchestrator
             await waitFor(() => {
                 const selection = JSON.parse(getByTestId('selection').textContent!)
-                expect(selection).toEqual({ kind: 'session', id: 'session1' })
+                expect(selection).toEqual({ kind: 'session', payload: 'session1' })
             }, { timeout: 2000 })
         })
 
         it('should NOT reset to orchestrator when switching between projects', async () => {
             const TestComponent = () => {
                 const { selection, setSelection } = useSelection()
-                const { projectPath, setProjectPath } = useProject()
+                const { setProjectPath } = useProject()
                 
                 return (
                     <div>
                         <div data-testid="selection-kind">{selection.kind}</div>
-                        <div data-testid="selection-id">{selection.kind === 'session' ? selection.id : 'none'}</div>
+                        <div data-testid="selection-id">{selection.kind === 'session' ? selection.payload : 'none'}</div>
                         <button onClick={() => setProjectPath('/project-a')}>Project A</button>
                         <button onClick={() => setProjectPath('/project-b')}>Project B</button>
-                        <button onClick={() => setSelection({ kind: 'session', id: 'task-123' })}>
+                        <button onClick={() => setSelection({ kind: 'session', payload: 'task-123' })}>
                             Select Task
                         </button>
                     </div>
@@ -199,14 +199,14 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'session-p1' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'session-p1' })
             })
 
             await waitFor(() => {
                 const stored = localStorage.getItem('schaltwerk-selections')
                 expect(stored).toBeTruthy()
                 const parsed = JSON.parse(stored!)
-                expect(parsed[project1]).toEqual({ kind: 'session', id: 'session-p1' })
+                expect(parsed[project1]).toEqual({ kind: 'session', payload: 'session-p1' })
             })
 
             // Set project 2 and select a different session
@@ -219,15 +219,15 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'session-p2' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'session-p2' })
             })
 
             await waitFor(() => {
                 const stored = localStorage.getItem('schaltwerk-selections')
                 expect(stored).toBeTruthy()
                 const parsed = JSON.parse(stored!)
-                expect(parsed[project1]).toEqual({ kind: 'session', id: 'session-p1' })
-                expect(parsed[project2]).toEqual({ kind: 'session', id: 'session-p2' })
+                expect(parsed[project1]).toEqual({ kind: 'session', payload: 'session-p1' })
+                expect(parsed[project2]).toEqual({ kind: 'session', payload: 'session-p2' })
             })
         })
 
@@ -284,7 +284,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'p1-session' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'p1-session' })
             })
 
             // Rapidly switch between projects
@@ -293,7 +293,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'p2-session' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'p2-session' })
             })
 
             act(() => {
@@ -301,7 +301,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'p3-session' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'p3-session' })
             })
 
             // Switch back to project 1
@@ -311,16 +311,16 @@ describe('Project Switching Selection Behavior', () => {
 
             // Should restore the correct selection for project 1
             await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'session', id: 'p1-session' })
+                expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'p1-session' })
             }, { timeout: 2000 })
 
             // Verify all selections are properly stored
             const stored = localStorage.getItem('schaltwerk-selections')
             expect(stored).toBeTruthy()
             const parsed = JSON.parse(stored!)
-            expect(parsed[project1]).toEqual({ kind: 'session', id: 'p1-session' })
-            expect(parsed[project2]).toEqual({ kind: 'session', id: 'p2-session' })
-            expect(parsed[project3]).toEqual({ kind: 'session', id: 'p3-session' })
+            expect(parsed[project1]).toEqual({ kind: 'session', payload: 'p1-session' })
+            expect(parsed[project2]).toEqual({ kind: 'session', payload: 'p2-session' })
+            expect(parsed[project3]).toEqual({ kind: 'session', payload: 'p3-session' })
         })
     })
 
@@ -345,11 +345,11 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'my-session' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'my-session' })
             })
 
             await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'session', id: 'my-session' })
+                expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
             })
 
             // Switch to the same project again
@@ -359,7 +359,7 @@ describe('Project Switching Selection Behavior', () => {
 
             // Selection should remain unchanged
             await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'session', id: 'my-session' })
+                expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
             })
         })
 
@@ -378,7 +378,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             act(() => {
-                result.current.selection.setSelection({ kind: 'session', id: 'session1' })
+                result.current.selection.setSelection({ kind: 'session', payload: 'session1' })
             })
 
             // Set project to null (e.g., going to home screen)
