@@ -3,7 +3,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
-import { ReviewComment } from '../../types/review'
 import { useLineSelection } from '../../hooks/useLineSelection'
 import { 
   computeUnifiedDiff, 
@@ -12,6 +11,8 @@ import {
   getFileLanguage
 } from '../../utils/diff'
 import { DiffLineRow } from './DiffLineRow'
+import { ReviewCommentsList } from './ReviewCommentsList'
+import { useReviewComments } from '../../hooks/useReviewComments'
 import { 
   VscClose, VscComment, VscSend, VscCheck,
   VscSplitHorizontal, VscListFlat, VscFile,
@@ -42,7 +43,7 @@ interface FileDiffData {
 
 export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModalProps) {
   const { selection, setSelection } = useSelection()
-  const { currentReview, startReview, addComment, getCommentsForFile, clearReview } = useReview()
+  const { currentReview, startReview, addComment, getCommentsForFile, clearReview, removeComment } = useReview()
   const { setFocusForSession, setCurrentFocus } = useFocus()
   const lineSelection = useLineSelection()
   const lineSelectionRef = useRef(lineSelection)
@@ -432,29 +433,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     lineSelection.clearSelection()
   }, [lineSelection, selectedFile, allFileDiffs, addComment])
 
-  const formatReviewForPrompt = useCallback((comments: ReviewComment[]) => {
-    let output = '\n# Code Review Comments\n\n'
-    
-    const commentsByFile = comments.reduce((acc, comment) => {
-      if (!acc[comment.filePath]) {
-        acc[comment.filePath] = []
-      }
-      acc[comment.filePath].push(comment)
-      return acc
-    }, {} as Record<string, ReviewComment[]>)
-
-    for (const [file, fileComments] of Object.entries(commentsByFile)) {
-      output += `## ${file}\n\n`
-      
-      for (const comment of fileComments) {
-        output += `### Lines ${comment.lineRange.start}-${comment.lineRange.end} (${comment.side === 'old' ? 'base' : 'current'}):\n`
-        output += `\`\`\`\n${comment.selectedText}\n\`\`\`\n`
-        output += `**Comment:** ${comment.comment}\n\n`
-      }
-    }
-
-    return output
-  }, [])
+  const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
 
   const handleFinishReview = useCallback(async () => {
     if (!currentReview || currentReview.comments.length === 0) return
@@ -642,34 +621,38 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 })}
               </div>
               {currentReview && currentReview.comments.length > 0 && (
-                <div className="p-3 border-t border-slate-800 space-y-2">
+                <div className="p-3 border-t border-slate-800 flex flex-col gap-3">
                   <div className="text-xs text-slate-500">
-                    <div className="font-medium text-slate-400 mb-1">Review Summary:</div>
-                    <div className="space-y-1">
-                      {files.map(file => {
-                        const fileComments = getCommentsForFile(file.path)
-                        if (fileComments.length === 0) return null
-                        return (
-                          <div key={file.path} className="flex items-center justify-between">
-                            <span className="truncate">{file.path.split('/').pop()}</span>
-                            <span className="text-blue-400">{fileComments.length} comment{fileComments.length > 1 ? 's' : ''}</span>
-                          </div>
-                        )
-                      }).filter(Boolean)}
-                    </div>
+                    <div className="font-medium text-slate-400 mb-2">Review Comments:</div>
+                    <ReviewCommentsList 
+                      comments={currentReview.comments}
+                      onDeleteComment={removeComment}
+                    />
                   </div>
-                  <button
-                    onClick={handleFinishReview}
-                    className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                  >
-                    <VscCheck />
-                    <span>
-                      Finish Review ({currentReview.comments.length} comment{currentReview.comments.length > 1 ? 's' : ''})
-                    </span>
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-300">
-                      ⌘↩
-                    </span>
-                  </button>
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleFinishReview}
+                      className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <VscCheck />
+                      <span>
+                        Finish Review ({currentReview.comments.length} comment{currentReview.comments.length > 1 ? 's' : ''})
+                      </span>
+                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-300">
+                        ⌘↩
+                      </span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (window.confirm(getConfirmationMessage(currentReview.comments.length))) {
+                          clearReview()
+                        }
+                      }}
+                      className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium transition-colors text-slate-400 hover:text-slate-300"
+                    >
+                      Cancel Review
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
