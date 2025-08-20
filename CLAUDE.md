@@ -38,8 +38,8 @@ npm run check         # Full check (alias for npm run test)
 src/
 ├── components/       # React components
 │   ├── Terminal.tsx  # Core terminal renderer using xterm.js
-│   ├── TerminalGrid.tsx  # Main dual-terminal layout
-│   ├── LazyGitPanel.tsx  # Right panel terminal
+│   ├── TerminalGrid.tsx  # Main dual-terminal layout (top and bottom)
+│   ├── RightPanelTabs.tsx  # Right panel with Changes/Tasks tabs
 │   └── Sidebar.tsx   # Session list and navigation
 ├── hooks/           # Custom React hooks
 │   ├── useSessionTerminals.ts     # Single terminal management
@@ -60,23 +60,24 @@ src-tauri/
 ## Key Features
 
 ### Terminal Management
-- **Session-aware terminals**: Each session has 3 terminals (top, bottom, right)
+- **Session-aware terminals**: Each session has 2 terminals (top and bottom)
 - **Lazy creation**: Terminals created only when first needed
 - **Persistent state**: Terminals keep running when switching sessions
 - **Proper cleanup**: All processes killed when app exits
+- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Tasks/Drafts for orchestrator
 
 ### Terminal ID Convention (required)
 ```
 Orchestrator:
 - orchestrator-top
-- orchestrator-bottom  
-- orchestrator-right
+- orchestrator-bottom
 
 Sessions:
 - session-{name}-top
 - session-{name}-bottom
-- session-{name}-right
 ```
+
+Note: While the code generates a "right" terminal ID in useSessionWorkspace.ts, it's not actually used. The right panel is RightPanelTabs component showing diffs/tasks.
 
 ## Testing Requirements
 
@@ -117,6 +118,11 @@ Never consider a task complete unless `npm run test` passes without errors.
 - Considering any task complete
 
 If tests are failing, they must be fixed immediately. Do not assume test failures are from previous changes or unrelated work. Every test failure indicates a real problem that must be resolved.
+
+**NEVER SKIP TESTS**: Under NO circumstances should you use `.skip()`, `xit()`, or any other mechanism to skip failing tests. If a test is failing:
+1. Fix the implementation to make the test pass, OR
+2. Fix the test to match the new expected behavior
+But NEVER skip tests. Skipping tests is not a solution - it's avoiding the problem.
 
 ### Performance Test Failures
 
