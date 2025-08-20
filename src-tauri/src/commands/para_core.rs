@@ -31,7 +31,7 @@ fn normalize_cli_text(s: &str) -> String {
 
 // Turn accidental single-dash long options into proper double-dash for Codex
 // Only affects known long flags: model, profile. Keeps true short flags intact.
-fn fix_codex_single_dash_long_flags(args: &mut Vec<String>) {
+fn fix_codex_single_dash_long_flags(args: &mut [String]) {
     for a in args.iter_mut() {
         if a.starts_with("--") { continue; }
         if let Some(stripped) = a.strip_prefix('-') {
@@ -44,9 +44,9 @@ fn fix_codex_single_dash_long_flags(args: &mut Vec<String>) {
             };
             if name == "model" || name == "profile" {
                 if let Some(v) = value_opt {
-                    *a = format!("--{}={}", name, v);
+                    *a = format!("--{name}={v}");
                 } else {
-                    *a = format!("--{}", name);
+                    *a = format!("--{name}");
                 }
             }
         }

@@ -156,10 +156,26 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
-        // Always start with orchestrator - let the user or backend events drive selection changes
-        // This avoids stale state issues and makes the backend the single source of truth
+        // Try to load saved selection for this project
+        if (projectPath) {
+            try {
+                const stored = localStorage.getItem('schaltwerk-selections')
+                if (stored) {
+                    const selections = JSON.parse(stored)
+                    const savedSelection = selections[projectPath]
+                    if (savedSelection) {
+                        console.log('[SelectionContext] Restored saved selection for project:', projectPath, savedSelection)
+                        return savedSelection
+                    }
+                }
+            } catch (error) {
+                console.error('[SelectionContext] Failed to load saved selection:', error)
+            }
+        }
+        
+        // Default to orchestrator if no saved selection
         return { kind: 'orchestrator' }
-    }, [])
+    }, [projectPath])
     
     // Clear terminal tracking and close terminals to prevent orphaned processes
     // Used when: 1) Switching projects (orchestrator IDs change), 2) Restarting orchestrator with new model
@@ -276,13 +292,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Initialize on mount and when project path changes
     useEffect(() => {
         const initialize = async () => {
+            console.log('[SelectionContext] Initialize effect triggered, projectPath:', projectPath)
+            
             // Wait for projectPath to be set before initializing
             if (!projectPath) {
+                console.log('[SelectionContext] No projectPath, skipping initialization')
                 return
             }
             
             // Skip if already initialized with same project path
             if (hasInitialized.current && previousProjectPath.current === projectPath) {
+                console.log('[SelectionContext] Already initialized with same project path, skipping')
                 return
             }
             
@@ -290,6 +310,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const projectChanged = hasInitialized.current && 
                                   previousProjectPath.current !== null && 
                                   previousProjectPath.current !== projectPath
+            
+            console.log('[SelectionContext] Project changed?', projectChanged, 'Previous:', previousProjectPath.current, 'New:', projectPath)
             
             // Set initialized flag and update previous path
             hasInitialized.current = true
@@ -299,6 +321,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const targetSelection = projectChanged 
                 ? { kind: 'orchestrator' as const }
                 : await getDefaultSelection()
+            
+            console.log('[SelectionContext] Setting selection to:', targetSelection)
             
             // Set the selection - the orchestrator terminals are already project-specific via the ID hash
             // No need to force recreate, just switch to the correct project's orchestrator

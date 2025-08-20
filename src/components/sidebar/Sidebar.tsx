@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, startTransition, useRef } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { clsx } from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -369,6 +369,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     // Load sessions on mount and when project changes; push updates keep it fresh thereafter
     useEffect(() => {
+        console.log('[Sidebar] Project path changed, reloading sessions for:', projectPath)
         const loadSessions = async () => {
             try {
                 // Load both regular sessions and drafts

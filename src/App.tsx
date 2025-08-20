@@ -34,7 +34,7 @@ function getBasename(path: string): string {
 
 export default function App() {
   const { selection, setSelection } = useSelection()
-  const { setProjectPath } = useProject()
+  const { projectPath, setProjectPath } = useProject()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -416,15 +416,23 @@ export default function App() {
   }
 
   const handleSelectTab = async (path: string) => {
+    console.log('handleSelectTab called with path:', path)
+    console.log('Current activeTabPath:', activeTabPath)
+    console.log('Current projectPath from context:', projectPath)
+    
     // Ensure backend knows about the project switch
     try {
       await invoke('initialize_project', { path })
+      console.log('Backend initialized successfully for:', path)
     } catch (error) {
       console.error('Failed to switch project in backend:', error)
     }
+    
     setActiveTabPath(path)
     setProjectPath(path)
     setShowHome(false)
+    
+    console.log('State updated - new activeTabPath should be:', path)
   }
 
   const handleCloseTab = async (path: string) => {
