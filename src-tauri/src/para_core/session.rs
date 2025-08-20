@@ -40,7 +40,7 @@ pub struct SessionManager {
 
 impl SessionManager {
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
-        log::info!("Creating SessionManager with repo path: {}", repo_path.display());
+        log::debug!("Creating SessionManager with repo path: {}", repo_path.display());
         Self { db, repo_path }
     }
     

@@ -140,7 +140,6 @@ pub async fn get_terminal_manager() -> Result<Arc<terminal::TerminalManager>, St
 }
 
 pub async fn get_para_core() -> Result<Arc<tokio::sync::Mutex<para_core::SchaltwerkCore>>, String> {
-    log::debug!("get_para_core() called");
     let manager = get_project_manager().await;
     manager.current_para_core().await
         .map_err(|e| {

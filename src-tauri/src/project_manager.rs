@@ -156,10 +156,8 @@ impl ProjectManager {
         let current_path = self.current_project.read().await;
         
         if let Some(path) = current_path.as_ref() {
-            log::debug!("Current project path is set to: {}", path.display());
             let projects = self.projects.read().await;
             if let Some(project) = projects.get(path) {
-                log::debug!("Found project instance for: {}", path.display());
                 return Ok(project.clone());
             } else {
                 log::error!("❌ Current project path is set but no project instance found: {}", path.display());
