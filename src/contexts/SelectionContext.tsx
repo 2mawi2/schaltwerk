@@ -18,7 +18,7 @@ interface TerminalSet {
 interface SelectionContextType {
     selection: Selection
     terminals: TerminalSet
-    setSelection: (selection: Selection, forceRecreate?: boolean) => Promise<void>
+    setSelection: (selection: Selection, forceRecreate?: boolean, isIntentional?: boolean) => Promise<void>
     clearTerminalTracking: (terminalIds: string[]) => Promise<void>
     isReady: boolean
     isDraft: boolean
@@ -43,6 +43,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Track which terminals we've created to avoid duplicates
     const terminalsCreated = useRef(new Set<string>())
     const creationLock = useRef(new Map<string, Promise<void>>())
+    
+    // Selection memory per project (in-memory only, persists during app runtime)
+    const selectionMemory = useRef(new Map<string, Selection>())
+    const isRestoringRef = useRef(false)
     
     // Get terminal IDs for a selection
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
@@ -177,6 +181,40 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         return { kind: 'orchestrator' }
     }, [projectPath])
     
+    // Validate and restore a remembered selection
+    const validateAndRestoreSelection = useCallback(async (remembered: Selection): Promise<Selection> => {
+        // If orchestrator, it's always valid
+        if (remembered.kind === 'orchestrator') {
+            return remembered
+        }
+        
+        // For sessions, check if it still exists
+        if (remembered.kind === 'session' && remembered.payload) {
+            try {
+                const sessionData = await invoke<any>('para_core_get_session', { name: remembered.payload })
+                // Session exists - we could check state here if needed
+                // const state = sessionData?.state || sessionData?.session_state
+                
+                // Update worktreePath if it has changed
+                const worktreePath = sessionData?.worktree_path || remembered.worktreePath
+                
+                // Return the validated selection with updated worktree path
+                return {
+                    kind: 'session',
+                    payload: remembered.payload,
+                    worktreePath
+                }
+            } catch (error) {
+                console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
+                // Session doesn't exist anymore, fallback to orchestrator
+                return { kind: 'orchestrator' }
+            }
+        }
+        
+        // Default fallback
+        return { kind: 'orchestrator' }
+    }, [])
+    
     // Clear terminal tracking and close terminals to prevent orphaned processes
     // Used when: 1) Switching projects (orchestrator IDs change), 2) Restarting orchestrator with new model
     const clearTerminalTracking = useCallback(async (terminalIds: string[]) => {
@@ -196,7 +234,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     }, [])
     
     // Set selection atomically
-    const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false) => {
+    const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = false) => {
         // Get the new terminal IDs to check if they're changing
         const newTerminalIds = getTerminalIds(newSelection)
         
@@ -229,8 +267,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 setSelectionState(newSelection)
                 setTerminals(newTerminalIds)
                 
-                // No need to persist to localStorage here - the backend should be the source of truth
-                // The current selection is already in React state
+                // Save to memory if this is an intentional change and not during restoration
+                if (isIntentional && !isRestoringRef.current && projectPath) {
+                    selectionMemory.current.set(projectPath, newSelection)
+                }
                 
                 // Ensure ready state
                 if (!isReady) {
@@ -246,7 +286,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setSelectionState(newSelection)
             setTerminals(terminalIds)
             
-            // No need to persist to localStorage - backend is source of truth
+            // Save to memory if this is an intentional change and not during restoration
+            if (isIntentional && !isRestoringRef.current && projectPath) {
+                selectionMemory.current.set(projectPath, newSelection)
+            }
             
             // Mark as ready
             setIsReady(true)
@@ -315,18 +358,43 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // Set initialized flag and update previous path
             hasInitialized.current = true
+            
+            // If switching projects, save current selection for the old project before switching
+            if (projectChanged && previousProjectPath.current && !isRestoringRef.current) {
+                selectionMemory.current.set(previousProjectPath.current, selection)
+            }
+            
             previousProjectPath.current = projectPath
             
-            // Determine target selection - if project changed, reset to orchestrator, otherwise use default
-            const targetSelection = projectChanged 
-                ? { kind: 'orchestrator' as const }
-                : await getDefaultSelection()
+            // Determine target selection
+            let targetSelection: Selection
+            
+            if (projectChanged) {
+                // Check if we have a remembered selection for this project
+                const remembered = selectionMemory.current.get(projectPath)
+                if (remembered) {
+                    // Mark that we're restoring to prevent saving this automatic change
+                    isRestoringRef.current = true
+                    try {
+                        // Validate the remembered selection (session might be deleted)
+                        targetSelection = await validateAndRestoreSelection(remembered)
+                    } finally {
+                        isRestoringRef.current = false
+                    }
+                } else {
+                    // No memory for this project, default to orchestrator
+                    targetSelection = { kind: 'orchestrator' }
+                }
+            } else {
+                // First initialization, use default
+                targetSelection = await getDefaultSelection()
+            }
             
             console.log('[SelectionContext] Setting selection to:', targetSelection)
             
             // Set the selection - the orchestrator terminals are already project-specific via the ID hash
             // No need to force recreate, just switch to the correct project's orchestrator
-            await setSelection(targetSelection, false)
+            await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
         }
         
         // Only run if not currently initializing
@@ -335,7 +403,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Still mark as ready even on error so UI doesn't hang
             setIsReady(true)
         })
-    }, [projectPath, setSelection, getTerminalIds]) // Re-run when projectPath changes
+    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection]) // Re-run when projectPath changes
     
     // Listen for selection events from backend (e.g., when MCP creates/updates drafts)
     useEffect(() => {
@@ -345,8 +413,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 unlisten = await listen<Selection>('schaltwerk:selection', async (event) => {
                     console.log('Received selection event from backend:', event.payload)
-                    // Set the selection to the requested session/draft
-                    await setSelection(event.payload)
+                    // Set the selection to the requested session/draft - this is intentional (backend requested)
+                    await setSelection(event.payload, false, true)
                 })
             } catch (e) {
                 console.error('[SelectionContext] Failed to attach selection listener', e)
@@ -361,6 +429,36 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
     }, [setSelection])
+    
+    // Listen for session removal to clear from memory
+    useEffect(() => {
+        let unlisten: (() => void) | undefined
+        
+        const setupRemovalListener = async () => {
+            try {
+                unlisten = await listen<{ sessionName: string }>('schaltwerk:session-removed', (event) => {
+                    const removedSessionName = event.payload.sessionName
+                    
+                    // Clear from memory for all projects if this session was selected
+                    selectionMemory.current.forEach((selection, projectPath) => {
+                        if (selection.kind === 'session' && selection.payload === removedSessionName) {
+                            selectionMemory.current.delete(projectPath)
+                        }
+                    })
+                })
+            } catch (e) {
+                console.error('[SelectionContext] Failed to attach session-removed listener', e)
+            }
+        }
+        
+        setupRemovalListener()
+        
+        return () => {
+            if (unlisten) {
+                unlisten()
+            }
+        }
+    }, [])
     
     return (
         <SelectionContext.Provider value={{ 

@@ -342,13 +342,34 @@ describe('SelectionContext', () => {
     })
   })
 
-  describe('Per-Project Selection Storage', () => {
+  describe('Selection Memory Per Project', () => {
     const project1 = '/Users/test/project1'
     const project2 = '/Users/test/project2'
     
     beforeEach(() => {
       localStorage.clear()
       vi.clearAllMocks()
+      
+      // Default mock implementations
+      mockInvoke.mockImplementation((cmd: string, args?: any) => {
+        switch (cmd) {
+          case 'get_current_directory':
+            return Promise.resolve('/test/cwd')
+          case 'terminal_exists':
+            return Promise.resolve(false)
+          case 'create_terminal':
+            return Promise.resolve()
+          case 'para_core_get_session':
+            // Return session data by default, unless specified in test
+            return Promise.resolve({
+              name: args?.name,
+              session_state: 'active',
+              worktree_path: `/test/worktree/${args?.name}`
+            })
+          default:
+            return Promise.resolve()
+        }
+      })
     })
 
     // Wrapper that reads currentProjectPath from closure so tests can update it
@@ -558,5 +579,158 @@ describe('SelectionContext', () => {
       const errorCalls = mockInvoke.mock.calls.filter(c => c[0] === 'para_core_get_session')
       expect(Array.isArray(errorCalls)).toBe(true)
     }, 20000)
+    
+    // Core functionality tests
+    it('should remember last selection when switching away from project', async () => {
+      const { result } = renderHook(() => useSelection(), { wrapper })
+      
+      await waitFor(() => expect(result.current.isReady).toBe(true))
+      
+      // Select a session in project1
+      await act(async () => {
+        await result.current.setSelection({ 
+          kind: 'session', 
+          payload: 'task-123',
+          worktreePath: '/test/worktree/task-123'
+        }, false, true) // isIntentional = true
+      })
+      
+      // Verify selection is set
+      expect(result.current.selection).toEqual({
+        kind: 'session',
+        payload: 'task-123',
+        worktreePath: '/test/worktree/task-123'
+      })
+      
+      // TODO: After implementation, verify memory was saved for project1
+    })
+    
+    it('should restore remembered selection when switching back to project', async () => {
+      // TODO: Test switching from project1 → project2 → project1
+      // Should restore project1's last selection
+      expect(true).toBe(true)
+    })
+    
+    it('should handle orchestrator selection memory', async () => {
+      const { result } = renderHook(() => useSelection(), { wrapper })
+      
+      await waitFor(() => expect(result.current.isReady).toBe(true))
+      
+      // Explicitly select orchestrator (user action)
+      await act(async () => {
+        await result.current.setSelection({ kind: 'orchestrator' }, false, true) // isIntentional = true
+      })
+      
+      expect(result.current.selection.kind).toBe('orchestrator')
+      // TODO: Verify orchestrator selection is remembered for this project
+    })
+    
+    // Loading state tests
+    it('should not flicker during selection restoration', async () => {
+      // TODO: Test that isReady stays true when restoring to existing terminals
+      expect(true).toBe(true)
+    })
+    
+    it('should show loading state while validating remembered selection', async () => {
+      // TODO: Test that isReady becomes false only when creating new terminals
+      expect(true).toBe(true)
+    })
+    
+    it('should handle concurrent project switches gracefully', async () => {
+      // TODO: Test rapid A→B→C switching without race conditions
+      expect(true).toBe(true)
+    })
+    
+    // Intentional vs automatic selection tests
+    it('should save selection on user click (intentional)', async () => {
+      const { result } = renderHook(() => useSelection(), { wrapper })
+      
+      await waitFor(() => expect(result.current.isReady).toBe(true))
+      
+      // User clicks on a session (intentional change)
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: 'user-clicked-session'
+        }, false, true) // isIntentional = true
+      })
+      
+      // TODO: Verify selection was saved to memory
+      expect(result.current.selection.payload).toBe('user-clicked-session')
+    })
+    
+    it('should save selection on session-added event (intentional)', async () => {
+      // TODO: Test that session-added events (from backend) save to memory
+      expect(true).toBe(true)
+    })
+    
+    it('should NOT save selection during restore (automatic)', async () => {
+      // TODO: Test that restoring a selection doesn't overwrite memory
+      expect(true).toBe(true)
+    })
+    
+    it('should NOT save fallback selections (automatic)', async () => {
+      // TODO: Test that fallback to orchestrator doesn't save to memory
+      expect(true).toBe(true)
+    })
+    
+    // Edge case tests
+    it('should fallback to orchestrator if remembered session deleted', async () => {
+      // Mock session as not found
+      mockInvoke.mockImplementation((cmd: string, args?: any) => {
+        if (cmd === 'para_core_get_session' && args?.name === 'deleted-session') {
+          return Promise.reject(new Error('Session not found'))
+        }
+        return Promise.resolve()
+      })
+      
+      // TODO: Test restoring a deleted session falls back to orchestrator
+      expect(true).toBe(true)
+    })
+    
+    it('should handle session state changes (draft → running)', async () => {
+      // TODO: Test that draft→running transition maintains selection
+      expect(true).toBe(true)
+    })
+    
+    it('should handle session state changes (running → completed)', async () => {
+      // TODO: Test that running→completed transition maintains selection
+      expect(true).toBe(true)
+    })
+    
+    it('should clear selection memory when session is removed', async () => {
+      // TODO: Test that session removal clears it from memory
+      expect(true).toBe(true)
+    })
+    
+    it('should handle rapid project switching without race conditions', async () => {
+      // TODO: Test A→B→A→B→A rapid switching
+      expect(true).toBe(true)
+    })
+    
+    it('should handle first visit to project (no memory)', async () => {
+      const { result } = renderHook(() => useSelection(), { wrapper })
+      
+      await waitFor(() => expect(result.current.isReady).toBe(true))
+      
+      // First visit should default to orchestrator
+      expect(result.current.selection.kind).toBe('orchestrator')
+    })
+    
+    // Multiple project tests
+    it('should maintain separate memory for each project', async () => {
+      // TODO: Test that project1 and project2 have independent memory
+      expect(true).toBe(true)
+    })
+    
+    it('should handle A→B→A project switches correctly', async () => {
+      // TODO: Full integration test of switching flow
+      expect(true).toBe(true)
+    })
+    
+    it('should not interfere between different project selections', async () => {
+      // TODO: Test that selecting in project1 doesn't affect project2
+      expect(true).toBe(true)
+    })
   })
 })

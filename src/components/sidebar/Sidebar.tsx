@@ -108,6 +108,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     })
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const sidebarRef = useRef<HTMLDivElement>(null)
+    const previousProjectPath = useRef<string | null>(null)
+    const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
     
     // Extract sorting logic
@@ -145,6 +147,19 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         }
     }, [])
     
+    // Detect project changes
+    useEffect(() => {
+        if (previousProjectPath.current !== null && previousProjectPath.current !== projectPath) {
+            // Project is changing
+            isProjectSwitching.current = true
+            // Reset flag after a short delay to allow restoration to complete
+            setTimeout(() => {
+                isProjectSwitching.current = false
+            }, 500)
+        }
+        previousProjectPath.current = projectPath
+    }, [projectPath])
+    
     // Memoize displayed sessions (filter + sort) to prevent re-computation on every render
     const sortedSessions = useMemo(() => {
         let filtered = sessions
@@ -170,6 +185,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     
     // Auto-select first visible session when current selection disappears from view
     useEffect(() => {
+        // Skip auto-selection during project switches to avoid conflicts with restoration
+        if (isProjectSwitching.current) return
+        
         if (selection.kind !== 'session') return
         
         const currentSessionVisible = sortedSessions.some(s => s.info.session_id === selection.payload)
@@ -182,10 +200,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     kind: 'session',
                     payload: firstSession.info.session_id,
                     worktreePath: firstSession.info.worktree_path
-                })
+                }, false, false) // Auto-selection - not intentional
             } else {
                 // No sessions visible, select orchestrator
-                setSelection({ kind: 'orchestrator' })
+                setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional
             }
         }
     }, [sortedSessions, selection, setSelection])
@@ -213,7 +231,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     }, [sessions])
 
     const handleSelectOrchestrator = async () => {
-        await setSelection({ kind: 'orchestrator' })
+        await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }
 
     const handleSelectSession = async (index: number) => {
@@ -233,7 +251,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 kind: 'session',
                 payload: s.session_id,
                 worktreePath: s.worktree_path
-            })
+            }, false, true) // User clicked - intentional
         }
     }
 
@@ -488,7 +506,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             kind: 'session',
                             payload: t.info.session_id,
                             worktreePath: t.info.worktree_path
-                        })
+                        }, false, false) // Auto-select on state transition - not intentional
                     }
 
                     setSessions(allSessions.map(s => ({
@@ -646,7 +664,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     kind: 'session', 
                     payload: session_name,
                     worktreePath: worktree_path
-                })
+                }, false, true) // Backend requested - intentional
             })
             unlisteners.push(u3)
 
@@ -662,9 +680,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
                 if (currentSelectedId === session_name) {
                     if (nextSelectionId) {
-                        await setSelection({ kind: 'session', payload: nextSelectionId })
+                        await setSelection({ kind: 'session', payload: nextSelectionId }, false, false) // Fallback - not intentional
                     } else {
-                        await setSelection({ kind: 'orchestrator' })
+                        await setSelection({ kind: 'orchestrator' }, false, false) // Fallback - not intentional
                     }
                 }
             })
@@ -686,7 +704,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             kind: 'session',
                             payload: session_name,
                             worktreePath: session.info.worktree_path
-                        })
+                        }, false, true) // Backend requested - intentional
                         
                         // Set Claude focus for the session
                         setFocusForSession(session_name, 'claude')
@@ -1103,7 +1121,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     // Small delay to ensure terminals are closed before recreating
                     setTimeout(async () => {
                         // Force recreate terminals with new model
-                        await setSelection({ kind: 'orchestrator' }, true)
+                        await setSelection({ kind: 'orchestrator' }, true, true) // User action - intentional
                     }, 200)
                 }}
             />
