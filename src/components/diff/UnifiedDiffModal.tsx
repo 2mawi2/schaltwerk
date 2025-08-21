@@ -90,15 +90,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const HEADER_HEIGHT_SPLIT = 40 // sticky header per side; content scroll containers are separate
   const ROW_HEIGHT = 22
 
-  const allFilesTotalHeight = useMemo(() => {
-    let total = 0
-    const map = fileHeightsRef.current
-    for (const f of files) {
-      const h = map.get(f.path) ?? DEFAULT_FILE_HEIGHT
-      total += h
-    }
-    return total
-  }, [files, allFileDiffs, viewMode])
+  // Removed unused variable - was used for virtualization but no longer needed
+  // const allFilesTotalHeight = useMemo(() => {
+  //   let total = 0
+  //   const map = fileHeightsRef.current
+  //   for (const f of files) {
+  //     const h = map.get(f.path) ?? DEFAULT_FILE_HEIGHT
+  //     total += h
+  //   }
+  //   return total
+  // }, [files, allFileDiffs, viewMode])
 
   const computeFileHeight = useCallback((file: ChangedFile): number => {
     const fd = allFileDiffs.get(file.path)
@@ -798,7 +799,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                         const el = e.currentTarget
                         computeWindowForScrollTop(el.scrollTop, el.clientHeight)
                       }}
-                      onLoadCapture={(e) => {
+                      onLoadCapture={() => {
                         const el = scrollContainerRef.current
                         if (el) computeWindowForScrollTop(el.scrollTop, el.clientHeight)
                       }}
@@ -942,7 +943,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                         <div className="sticky top-0 bg-slate-900 px-3 py-1 text-xs font-medium border-b border-slate-800 z-20">
                           {branchInfo?.baseBranch || 'Base'}
                         </div>
-                        {filesToRender.map((file) => {
+                        {files.map((file) => {
                           const fileDiff = allFileDiffs.get(file.path)
                           if (!fileDiff) return null
                           
@@ -978,7 +979,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                         <div className="sticky top-0 bg-slate-900 px-3 py-1 text-xs font-medium border-b border-slate-800 z-20">
                           {branchInfo?.currentBranch || 'Current'}
                         </div>
-                        {filesToRender.map((file) => {
+                        {files.map((file) => {
                           const fileDiff = allFileDiffs.get(file.path)
                           if (!fileDiff) return null
                           const isCurrentFile = file.path === selectedFile
