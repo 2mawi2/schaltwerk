@@ -193,15 +193,26 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
                 e.preventDefault()
+                // Prevent other listeners (e.g., terminals, editors) from seeing ESC while modal is open
+                e.stopPropagation()
+                if (typeof e.stopImmediatePropagation === 'function') {
+                    e.stopImmediatePropagation()
+                }
                 onClose()
             } else if (e.key === 'Enter' && e.metaKey) {
+                // Prioritize Cmd+Enter for this modal even if other views are visible
                 e.preventDefault()
+                e.stopPropagation()
+                if (typeof e.stopImmediatePropagation === 'function') {
+                    e.stopImmediatePropagation()
+                }
                 // Use ref to ensure latest state is used when creating
                 createRef.current()
             }
         }
 
-        window.addEventListener('keydown', handleKeyDown)
+        // Use capture phase so this handler runs before others and can stop propagation
+        window.addEventListener('keydown', handleKeyDown, true)
         const setDraftHandler = () => setCreateAsDraft(true)
         const prefillHandler = (event: any) => {
             const detail = event?.detail || {}
@@ -227,7 +238,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         window.addEventListener('schaltwerk:new-session:set-draft' as any, setDraftHandler)
         window.addEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
         return () => {
-            window.removeEventListener('keydown', handleKeyDown)
+            window.removeEventListener('keydown', handleKeyDown, true)
             window.removeEventListener('schaltwerk:new-session:set-draft' as any, setDraftHandler)
             window.removeEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
         }
