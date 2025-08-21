@@ -14,6 +14,13 @@ export function Tab({ projectPath, projectName, isActive, onSelect, onClose }: T
     e.stopPropagation()
     onClose()
   }
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button === 1) {
+      e.stopPropagation()
+      onClose()
+    }
+  }
   
   return (
     <div
@@ -25,6 +32,7 @@ export function Tab({ projectPath, projectName, isActive, onSelect, onClose }: T
         }
       `}
       onClick={onSelect}
+      onMouseDown={handleMouseDown}
       title={projectPath}
       style={{ 
         minWidth: '100px', 
