@@ -595,7 +595,6 @@ impl SessionManager {
             let terminals = vec![
                 format!("session-{}-top", session.name),
                 format!("session-{}-bottom", session.name),
-                format!("session-{}-right", session.name),
             ];
             
             enriched.push(EnrichedSession {

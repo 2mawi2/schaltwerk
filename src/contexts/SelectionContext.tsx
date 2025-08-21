@@ -7,6 +7,7 @@ export interface Selection {
     kind: 'session' | 'orchestrator'
     payload?: string
     worktreePath?: string
+    sessionState?: 'draft' | 'running' | 'reviewed'  // Pass from Sidebar to avoid async fetch
 }
 
 interface TerminalSet {
@@ -131,10 +132,27 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             return ids
         }
 
-        // Sessions: determine if draft and working directory
+        // Sessions: Use passed sessionState if available to avoid async fetch
+        if (sel.sessionState) {
+            const isDraftSession = sel.sessionState === 'draft'
+            setIsDraft(isDraftSession)
+            
+            if (isDraftSession) {
+                // Do not create terminals for drafts
+                return ids
+            }
+            
+            // Create terminals for non-draft sessions
+            const cwd = sel.worktreePath || await invoke<string>('get_current_directory')
+            await createTerminal(ids.top, cwd)
+            await createTerminal(ids.bottomBase, cwd)
+            return ids
+        }
+
+        // Fallback: fetch session data if sessionState not provided (backward compatibility)
         try {
             const sessionData = await invoke<any>('para_core_get_session', { name: sel.payload })
-            const state: string | undefined = sessionData?.state || sessionData?.session_state
+            const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sel.worktreePath || sessionData?.worktree_path
             const isDraftSession = state === 'draft'
             setIsDraft(!!isDraftSession)
@@ -146,12 +164,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
             const cwd = worktreePath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
+            await createTerminal(ids.bottomBase, cwd)
             return ids
         } catch (e) {
-            console.error('[SelectionContext] Failed to inspect session state; creating terminals with fallback cwd', e)
+            console.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
             setIsDraft(false)
-            const cwd = await invoke<string>('get_current_directory')
-            await createTerminal(ids.top, cwd)
+            // Don't create terminals if we can't determine session state
             return ids
         }
     }, [getTerminalIds, createTerminal, projectPath])
@@ -260,6 +278,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // If terminal already exists, update state immediately for instant switch
             if (terminalAlreadyExists && !forceRecreate) {
+                // CRITICAL: Update isDraft state based on the new selection
+                // This was missing and causing stale isDraft when switching from draft to running
+                if (newSelection.kind === 'session') {
+                    const isDraftSession = newSelection.sessionState === 'draft'
+                    setIsDraft(isDraftSession)
+                } else {
+                    // Orchestrator is never a draft
+                    setIsDraft(false)
+                }
+                
                 // Update selection and terminals immediately
                 setSelectionState(newSelection)
                 setTerminals(newTerminalIds)
@@ -322,7 +350,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
                         const sessionData = await invoke<any>('para_core_get_session', { name: selection.payload })
-                        const state: string | undefined = sessionData?.state || sessionData?.session_state
+                        const state: string | undefined = sessionData?.session_state
                         const nowDraft = state === 'draft'
                         setIsDraft(!!nowDraft)
                         if (!nowDraft) {

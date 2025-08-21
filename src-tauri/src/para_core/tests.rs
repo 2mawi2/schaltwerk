@@ -289,10 +289,9 @@ struct TestEnvironment {
         let session1 = enriched.iter().find(|s| s.info.session_id == "session-1").unwrap();
         assert_eq!(session1.info.branch, "schaltwerk/session-1");
         assert_eq!(session1.info.current_task, Some("First session".to_string()));
-        assert_eq!(session1.terminals.len(), 3);
+        assert_eq!(session1.terminals.len(), 2);
         assert!(session1.terminals.contains(&"session-session-1-top".to_string()));
         assert!(session1.terminals.contains(&"session-session-1-bottom".to_string()));
-        assert!(session1.terminals.contains(&"session-session-1-right".to_string()));
     }
     
     #[test]

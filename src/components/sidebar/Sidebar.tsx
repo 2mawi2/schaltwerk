@@ -199,7 +199,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 setSelection({
                     kind: 'session',
                     payload: firstSession.info.session_id,
-                    worktreePath: firstSession.info.worktree_path
+                    worktreePath: firstSession.info.worktree_path,
+                    sessionState: firstSession.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
                 }, false, false) // Auto-selection - not intentional
             } else {
                 // No sessions visible, select orchestrator
@@ -250,7 +251,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             await setSelection({
                 kind: 'session',
                 payload: s.session_id,
-                worktreePath: s.worktree_path
+                worktreePath: s.worktree_path,
+                sessionState: s.session_state as 'draft' | 'running' | 'reviewed' | undefined
             }, false, true) // User clicked - intentional
         }
     }
@@ -418,8 +420,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     },
                     terminals: [
                         `session-${draft.name}-top`,
-                        `session-${draft.name}-bottom`,
-                        `session-${draft.name}-right`
+                        `session-${draft.name}-bottom`
                     ]
                 }))
                 
@@ -482,8 +483,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                         },
                         terminals: [
                             `session-${draft.name}-top`,
-                            `session-${draft.name}-bottom`,
-                            `session-${draft.name}-right`
+                            `session-${draft.name}-bottom`
                         ]
                     }))
 
@@ -505,7 +505,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                         setSelection({
                             kind: 'session',
                             payload: t.info.session_id,
-                            worktreePath: t.info.worktree_path
+                            worktreePath: t.info.worktree_path,
+                            sessionState: t.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
                         }, false, false) // Auto-select on state transition - not intentional
                     }
 
@@ -650,7 +651,6 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     const terminals = [
                         `session-${session_name}-top`,
                         `session-${session_name}-bottom`,
-                        `session-${session_name}-right`,
                     ]
                     const enriched: EnrichedSession = { info, status: undefined, terminals }
                     // Add new session without re-sorting - will be sorted by memo
@@ -663,7 +663,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 setSelection({ 
                     kind: 'session', 
                     payload: session_name,
-                    worktreePath: worktree_path
+                    worktreePath: worktree_path,
+                    sessionState: 'running' // New sessions are always running, not draft
                 }, false, true) // Backend requested - intentional
             })
             unlisteners.push(u3)
@@ -680,7 +681,13 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
                 if (currentSelectedId === session_name) {
                     if (nextSelectionId) {
-                        await setSelection({ kind: 'session', payload: nextSelectionId }, false, false) // Fallback - not intentional
+                        const nextSession = sortedSessions.find(s => s.info.session_id === nextSelectionId)
+                        await setSelection({ 
+                            kind: 'session', 
+                            payload: nextSelectionId,
+                            worktreePath: nextSession?.info.worktree_path,
+                            sessionState: nextSession?.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
+                        }, false, false) // Fallback - not intentional
                     } else {
                         await setSelection({ kind: 'orchestrator' }, false, false) // Fallback - not intentional
                     }
@@ -703,7 +710,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                         setSelection({
                             kind: 'session',
                             payload: session_name,
-                            worktreePath: session.info.worktree_path
+                            worktreePath: session.info.worktree_path,
+                            sessionState: session.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
                         }, false, true) // Backend requested - intentional
                         
                         // Set Claude focus for the session
@@ -885,8 +893,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                             },
                                             terminals: [
                                                 `session-${draft.name}-top`,
-                                                `session-${draft.name}-bottom`,
-                                                `session-${draft.name}-right`
+                                                `session-${draft.name}-bottom`
                                             ]
                                         }))
                                         const allSessions = [...regularSessions, ...enrichedDrafts]
@@ -959,8 +966,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                             },
                                             terminals: [
                                                 `session-${draft.name}-top`,
-                                                `session-${draft.name}-bottom`,
-                                                `session-${draft.name}-right`
+                                                `session-${draft.name}-bottom`
                                             ]
                                         }))
                                         const allSessions = [...regularSessions, ...enrichedDrafts]
@@ -1012,8 +1018,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                         },
                         terminals: [
                             `session-${draft.name}-top`,
-                            `session-${draft.name}-bottom`,
-                            `session-${draft.name}-right`
+                            `session-${draft.name}-bottom`
                         ]
                     }))
                     const allSessions = [...regularSessions, ...enrichedDrafts]
@@ -1063,8 +1068,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                         },
                         terminals: [
                             `session-${draft.name}-top`,
-                            `session-${draft.name}-bottom`,
-                            `session-${draft.name}-right`
+                            `session-${draft.name}-bottom`
                         ]
                     }))
                     const allSessions = [...regularSessions, ...enrichedDrafts]
@@ -1083,13 +1087,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 onSwitch={async (agentType) => {
                     // Get current orchestrator terminal IDs from the selection context
                     const orchestratorTerminals = [terminals.top, `${terminals.bottomBase}-0`]
-                    // Also try to close any 'right' terminal if it exists
+                    // Right panel is not a terminal, only close the two actual terminals
                     const allTerminals = [...orchestratorTerminals]
-                    if (terminals.top) {
-                        // Generate the right terminal ID based on the same pattern
-                        const rightId = terminals.top.replace('-top', '-right')
-                        allTerminals.push(rightId)
-                    }
                     
                     // First close existing orchestrator terminals
                     for (const terminalId of allTerminals) {

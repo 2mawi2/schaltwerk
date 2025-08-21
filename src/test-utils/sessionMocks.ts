@@ -19,8 +19,7 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
     },
     terminals: [
         `session-${name}-top`,
-        `session-${name}-bottom`,
-        `session-${name}-right`
+        `session-${name}-bottom`
     ]
 })
 

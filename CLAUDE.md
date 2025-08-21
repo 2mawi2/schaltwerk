@@ -69,15 +69,15 @@ src-tauri/
 ### Terminal ID Convention (required)
 ```
 Orchestrator:
-- orchestrator-top
-- orchestrator-bottom
+- orchestrator-{projectId}-top
+- orchestrator-{projectId}-bottom
 
 Sessions:
 - session-{name}-top
 - session-{name}-bottom
 ```
 
-Note: While the code generates a "right" terminal ID in useSessionWorkspace.ts, it's not actually used. The right panel is RightPanelTabs component showing diffs/tasks.
+Note: The orchestrator terminals include a project-specific ID hash to ensure separate terminals per project. The right panel is RightPanelTabs component showing diffs/tasks, not a terminal.
 
 ## Testing Requirements
 

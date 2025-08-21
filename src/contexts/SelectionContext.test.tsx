@@ -197,7 +197,7 @@ describe('SelectionContext', () => {
       })
     })
 
-    it('should fallback to current directory on session fetch error', async () => {
+    it('should not create terminals when session fetch fails', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       
       mockInvoke.mockImplementation((command: string) => {
@@ -225,9 +225,14 @@ describe('SelectionContext', () => {
         })
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('create_terminal', {
-        id: 'session-missing-session-top',
-        cwd: '/fallback/cwd'
+      // Should not create terminals when session lookup fails
+      expect(mockInvoke).not.toHaveBeenCalledWith('create_terminal', expect.objectContaining({
+        id: 'session-missing-session-top'
+      }))
+      
+      // Should have tried to get the session info
+      expect(mockInvoke).toHaveBeenCalledWith('para_core_get_session', {
+        name: 'missing-session'
       })
       
       consoleErrorSpy.mockRestore()
@@ -307,7 +312,7 @@ describe('SelectionContext', () => {
       ))
 
       // Should only create terminals once per ID despite multiple calls
-      expect(createTerminalCalls).toBe(1) // top only (bottom handled by tab system)
+      expect(createTerminalCalls).toBe(2) // both top and bottom terminals for sessions
     })
   })
 

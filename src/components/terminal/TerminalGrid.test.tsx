@@ -308,15 +308,15 @@ describe('TerminalGrid', () => {
     expect(screen.getByTestId('terminal-session-dev-top')).toBeInTheDocument()
     // Bottom terminal is now in tabs with -0 suffix, wait for it to be created
     await waitFor(() => {
-      expect(screen.getByTestId('terminal-session-dev-bottom-0')).toBeInTheDocument()
+      expect(screen.getByTestId('terminal-session-dev-bottom')).toBeInTheDocument()
     }, { timeout: 3000 })
 
     // Click headers to drive focus
     const m = (await import('./Terminal')) as any
     fireEvent.click(screen.getByText('Terminal — dev'))
     await new Promise(r => setTimeout(r, 120))
-    // Focus is now on the tab terminal with -0 suffix
-    expect(m.__getFocusSpy('session-dev-bottom-0')).toHaveBeenCalled()
+    // Focus is now on the bottom terminal (no -0 suffix for sessions)
+    expect(m.__getFocusSpy('session-dev-bottom')).toHaveBeenCalled()
     fireEvent.click(screen.getByText('Session — dev'))
     await new Promise(r => setTimeout(r, 120))
     expect(m.__getFocusSpy('session-dev-top')).toHaveBeenCalled()
@@ -581,7 +581,7 @@ describe('TerminalGrid', () => {
 
       // Terminal should be visible and functional after expansion
       expect(screen.getByText('Terminal — test')).toBeInTheDocument()
-      expect(screen.getByTestId('terminal-session-test-bottom-0')).toBeInTheDocument()
+      expect(screen.getByTestId('terminal-session-test-bottom')).toBeInTheDocument()
     })
 
     it('maintains correct UI state when rapidly toggling collapse', async () => {

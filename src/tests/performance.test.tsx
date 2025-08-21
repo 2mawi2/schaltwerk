@@ -37,7 +37,7 @@ function generateMockSessions(count: number) {
             },
             ready_to_merge: i % 5 === 0
         },
-        terminals: [`session-${i}-top`, `session-${i}-bottom`, `session-${i}-right`]
+        terminals: [`session-${i}-top`, `session-${i}-bottom`]
     }))
 }
 

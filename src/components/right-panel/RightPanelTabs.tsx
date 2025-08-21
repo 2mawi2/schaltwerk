@@ -86,7 +86,19 @@ export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
         ) : (
           // Task/Drafts tab content
           selection.kind === 'session' ? (
-            <DraftContentView sessionName={selection.payload!} editable={isDraft} debounceMs={1000} />
+            isDraft ? (
+              // Show placeholder for draft sessions - drafts can only be edited in orchestrator
+              <div className="h-full flex items-center justify-center p-6">
+                <div className="text-center">
+                  <div className="text-slate-400 text-sm mb-2">Draft Session</div>
+                  <div className="text-slate-500 text-xs">
+                    Edit draft content in Orchestrator → Drafts tab
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <DraftContentView sessionName={selection.payload!} editable={false} debounceMs={1000} />
+            )
           ) : (
             previewDraftName ? (
               <DraftContentView sessionName={previewDraftName} editable debounceMs={1000} />

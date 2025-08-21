@@ -278,7 +278,6 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
                 let ids = vec![
                     format!("session-{}-top", name),
                     format!("session-{}-bottom", name),
-                    format!("session-{}-right", name),
                 ];
                 for id in ids {
                     if let Ok(true) = manager.terminal_exists(&id).await {
@@ -314,7 +313,6 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
                 let ids = vec![
                     format!("session-{}-top", name),
                     format!("session-{}-bottom", name),
-                    format!("session-{}-right", name),
                 ];
                 for id in ids {
                     if let Ok(true) = terminal_manager.terminal_exists(&id).await {
