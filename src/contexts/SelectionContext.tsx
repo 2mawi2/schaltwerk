@@ -351,13 +351,30 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     try {
                         const sessionData = await invoke<any>('para_core_get_session', { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
+                        const worktreePath: string | undefined = sessionData?.worktree_path
                         const nowDraft = state === 'draft'
+                        const wasDraft = isDraft
+                        
+                        // Update isDraft state
                         setIsDraft(!!nowDraft)
-                        if (!nowDraft) {
-                            // Session became running - ensure terminals exist now
-                            try { await ensureTerminals(selection) } catch {}
-                            // Update terminals state to pick up any new ids (same ids, but ensures UI triggers)
-                            setTerminals(getTerminalIds(selection))
+                        
+                        // If state changed from draft to running, update selection and ensure terminals
+                        if (wasDraft && !nowDraft) {
+                            // Session became running - update the selection's sessionState
+                            const updatedSelection = {
+                                ...selection,
+                                sessionState: state as 'draft' | 'running' | 'reviewed' | undefined,
+                                worktreePath: worktreePath || selection.worktreePath
+                            }
+                            setSelectionState(updatedSelection)
+                            
+                            // Ensure terminals exist now that it's running
+                            try { 
+                                const ids = await ensureTerminals(updatedSelection)
+                                setTerminals(ids)
+                            } catch (e) {
+                                console.warn('[SelectionContext] Failed to create terminals for newly running session', e)
+                            }
                         }
                     } catch (e) {
                         console.warn('[SelectionContext] Failed to refresh current session state after event', e)
@@ -369,7 +386,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
         attach()
         return () => { try { if (unlisten) unlisten() } catch {} }
-    }, [selection, ensureTerminals, getTerminalIds])
+    }, [selection, ensureTerminals, getTerminalIds, isDraft])
     
     // Initialize on mount and when project path changes
     useEffect(() => {
