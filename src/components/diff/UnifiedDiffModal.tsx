@@ -4,12 +4,8 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection } from '../../hooks/useLineSelection'
-import { 
-  computeUnifiedDiff, 
-  addCollapsibleSections, 
-  computeSplitDiff,
-  getFileLanguage
-} from '../../utils/diff'
+import { getFileLanguage } from '../../utils/diff'
+import { loadAllFileDiffs, loadFileDiff, type FileDiffData, type ViewMode } from './loadDiffs'
 import { DiffLineRow } from './DiffLineRow'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { useReviewComments } from '../../hooks/useReviewComments'
@@ -33,13 +29,7 @@ interface UnifiedDiffModalProps {
   onClose: () => void
 }
 
-interface FileDiffData {
-  file: ChangedFile
-  mainContent: string
-  worktreeContent: string
-  diffResult: ReturnType<typeof addCollapsibleSections>
-  splitDiffResult: ReturnType<typeof computeSplitDiff>
-}
+// FileDiffData type moved to loadDiffs
 
 export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModalProps) {
   const { selection, setSelection } = useSelection()
@@ -71,14 +61,114 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const didInitialScrollRef = useRef(false)
   const lastInitialFilePathRef = useRef<string | null>(null)
   
-  const [viewMode, setViewMode] = useState<'unified' | 'split'>('unified')
+  const [viewMode, setViewMode] = useState<ViewMode>('unified')
   const [visibleFilePath, setVisibleFilePath] = useState<string | null>(null)
   const [showCommentForm, setShowCommentForm] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<string | number>>(new Set())
   const [commentFormPosition, setCommentFormPosition] = useState<{ x: number, y: number } | null>(null)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
+  const LARGE_FILES_THRESHOLD = 30
+  const LARGE_CHANGED_LINES_THRESHOLD = 10000
+
+  // Decide large diff mode early so downstream hooks can use it
+  const isLargeDiffMode = useMemo(() => {
+    if (files.length >= LARGE_FILES_THRESHOLD) return true
+    let totalChanged = 0
+    allFileDiffs.forEach((d) => {
+      const count = (d as any).changedLinesCount as number | undefined
+      if (typeof count === 'number') totalChanged += count
+    })
+    return totalChanged > LARGE_CHANGED_LINES_THRESHOLD
+  }, [files.length, allFileDiffs])
+
+  // Virtualization: compute per-file estimated heights and render a sliding window
+  const fileHeightsRef = useRef<Map<string, number>>(new Map())
+  const [fileWindowStart, setFileWindowStart] = useState(0)
+  const [fileWindowEnd, setFileWindowEnd] = useState(0)
+  const DEFAULT_FILE_HEIGHT = 320 // px, placeholder before diff is available
+  const HEADER_HEIGHT_UNIFIED = 56
+  const HEADER_HEIGHT_SPLIT = 40 // sticky header per side; content scroll containers are separate
+  const ROW_HEIGHT = 22
+
+  const allFilesTotalHeight = useMemo(() => {
+    let total = 0
+    const map = fileHeightsRef.current
+    for (const f of files) {
+      const h = map.get(f.path) ?? DEFAULT_FILE_HEIGHT
+      total += h
+    }
+    return total
+  }, [files, allFileDiffs, viewMode])
+
+  const computeFileHeight = useCallback((file: ChangedFile): number => {
+    const fd = allFileDiffs.get(file.path)
+    if (!fd) return DEFAULT_FILE_HEIGHT
+    if (viewMode === 'unified' && 'diffResult' in fd) {
+      const rows = fd.diffResult.length
+      return HEADER_HEIGHT_UNIFIED + rows * ROW_HEIGHT
+    }
+    if (viewMode === 'split' && 'splitDiffResult' in fd) {
+      const rows = Math.max(fd.splitDiffResult.leftLines.length, fd.splitDiffResult.rightLines.length)
+      // Two columns share the same rows; header per column handled by sticky top within each column
+      return HEADER_HEIGHT_SPLIT + rows * ROW_HEIGHT
+    }
+    return DEFAULT_FILE_HEIGHT
+  }, [allFileDiffs, viewMode])
+
+  useEffect(() => {
+    const map = fileHeightsRef.current
+    let changed = false
+    for (const f of files) {
+      const h = computeFileHeight(f)
+      if (map.get(f.path) !== h) {
+        map.set(f.path, h)
+        changed = true
+      }
+    }
+    if (changed) {
+      // Trigger dependent memo recomputation via state nudges if necessary
+      setFileWindowEnd((prev) => prev)
+    }
+  }, [files, allFileDiffs, viewMode, computeFileHeight])
+
+  const computeWindowForScrollTop = useCallback((scrollTop: number, viewportHeight: number) => {
+    // Find first file index intersecting scrollTop
+    let acc = 0
+    let start = 0
+    for (; start < files.length; start++) {
+      const h = fileHeightsRef.current.get(files[start].path) ?? DEFAULT_FILE_HEIGHT
+      if (acc + h > scrollTop) break
+      acc += h
+    }
+    // Extend until we fill viewport + buffer
+    const buffer = 800
+    let end = start
+    let used = 0
+    while (end < files.length && used < viewportHeight + buffer) {
+      const h = fileHeightsRef.current.get(files[end].path) ?? DEFAULT_FILE_HEIGHT
+      used += h
+      end++
+    }
+    // Add small overscan
+    const overscan = 2
+    start = Math.max(0, start - overscan)
+    end = Math.min(files.length, end + overscan)
+    setFileWindowStart(start)
+    setFileWindowEnd(end)
+  }, [files])
+
+  // Ensure initial window is computed as soon as container is laid out or data changes
+  useEffect(() => {
+    if (!isOpen) return
+    const el = scrollContainerRef.current
+    const vh = (el?.clientHeight ?? window.innerHeight) || 800
+    // Defer to next frame to let layout settle
+    requestAnimationFrame(() => {
+      computeWindowForScrollTop(0, vh)
+    })
+  }, [isOpen, files.length, viewMode, allFileDiffs])
   
-  const sessionName = selection.kind === 'session' ? selection.payload : null
+  const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
   
   // Helper to check if a line has comments
   const getCommentForLine = useCallback((lineNum: number | undefined, side: 'old' | 'new') => {
@@ -111,41 +201,10 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [isOpen, sessionName, currentReview, startReview])
 
-  const loadAllFileDiffs = useCallback(async (fileList: ChangedFile[]) => {
-    if (!hasLoadedOnce) {
-      setLoadingAllFiles(true)
-    }
-    
-    const newDiffs = new Map<string, FileDiffData>()
-    
+  const loadAll = useCallback(async (fileList: ChangedFile[]) => {
+    if (!hasLoadedOnce) setLoadingAllFiles(true)
     try {
-      for (const file of fileList) {
-        try {
-          const [mainText, worktreeText] = await invoke<[string, string]>('get_file_diff_from_main', {
-            sessionName,
-            filePath: file.path
-          })
-          
-          const diffLines = computeUnifiedDiff(mainText, worktreeText)
-          const diffResult = addCollapsibleSections(diffLines)
-          const splitDiffResult = computeSplitDiff(mainText, worktreeText)
-          
-          newDiffs.set(file.path, {
-            file,
-            mainContent: mainText,
-            worktreeContent: worktreeText,
-            diffResult,
-            splitDiffResult
-          })
-        } catch (fileError) {
-          console.warn(`Failed to load diff for ${file.path}:`, fileError)
-          if (file.path === selectedFile) {
-            const errorMessage = fileError instanceof Error ? fileError.message : String(fileError)
-            setFileError(errorMessage)
-          }
-        }
-      }
-      
+      const newDiffs = await loadAllFileDiffs(sessionName, fileList, viewMode, 4)
       setAllFileDiffs(newDiffs)
       setHasLoadedOnce(true)
     } catch (error) {
@@ -153,28 +212,42 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     } finally {
       setLoadingAllFiles(false)
     }
-  }, [sessionName, selectedFile, hasLoadedOnce])
+  }, [sessionName, viewMode, hasLoadedOnce])
 
   const loadChangedFiles = useCallback(async () => {
     try {
       const changedFiles = await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
       setFiles(changedFiles)
       
-      // Load all file diffs for continuous scrolling
-      await loadAllFileDiffs(changedFiles)
-      
-      // Auto-select first file when opening
-      if (changedFiles.length > 0 && !filePath) {
-        setSelectedFile(changedFiles[0].path)
-        setSelectedFileIndex(0)
-      } else if (filePath) {
-        // Find index of pre-selected file
-        const index = changedFiles.findIndex(f => f.path === filePath)
-        if (index >= 0) {
-          setSelectedFileIndex(index)
-          setSelectedFile(filePath)
+      // Prime initial selection
+      let initialIndex = 0
+      let initialPath: string | null = filePath || null
+      if (changedFiles.length > 0) {
+        if (!initialPath) initialPath = changedFiles[0].path
+        const found = changedFiles.findIndex(f => f.path === initialPath)
+        initialIndex = found >= 0 ? found : 0
+      }
+
+      if (initialPath) {
+        setSelectedFile(initialPath)
+        setSelectedFileIndex(initialIndex)
+        // Load only the initially selected file first for fast TTI
+        try {
+          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], viewMode)
+          setAllFileDiffs(new Map([[initialPath, primary]]))
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          setFileError(msg)
         }
       }
+
+      // Load remaining diffs in the background with concurrency
+      loadAll(changedFiles).then(() => {
+        // loadAll already sets state, nothing to do here
+      })
+      
+      // Auto-select first file when opening
+      // handled above
       
       const currentBranch = await invoke<string>('get_current_branch_name', { sessionName })
       const baseBranch = await invoke<string>('get_base_branch_name', { sessionName })
@@ -184,7 +257,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     } catch (error) {
       console.error('Failed to load changed files:', error)
     }
-  }, [sessionName, filePath, loadAllFileDiffs])
+  }, [sessionName, filePath, loadAll])
 
   const scrollToFile = useCallback((path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
@@ -197,6 +270,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     
     // Scroll to the file section with proper sticky offsets
     // Defer to next frame to ensure styling/layout updates are applied
+    if (isLargeDiffMode) {
+      // In large diff mode we render only the selected file; nothing to scroll
+      window.setTimeout(() => { suppressAutoSelectRef.current = false }, 150)
+      return
+    }
     requestAnimationFrame(() => {
       const fileElement = fileRefs.current.get(path)
       const container = viewMode === 'split' ? rightScrollContainerRef.current : scrollContainerRef.current
@@ -216,12 +294,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     window.setTimeout(() => {
       suppressAutoSelectRef.current = false
     }, 250)
-  }, [viewMode])
+  }, [viewMode, isLargeDiffMode])
 
   // Auto-select file while user scrolls without affecting scroll position
   useEffect(() => {
     if (!isOpen) return
-
+    if (isLargeDiffMode) return // no auto selection on scroll when only one file is rendered
     const updateSelectionForRoot = (rootEl: HTMLElement, rafRef: React.MutableRefObject<number | null>) => {
       if (suppressAutoSelectRef.current) return
       if (files.length === 0) return
@@ -273,7 +351,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         rightScrollRafRef.current = null
       }
     }
-  }, [isOpen, viewMode, files, visibleFilePath])
+  }, [isOpen, viewMode, files, visibleFilePath, isLargeDiffMode])
 
   useEffect(() => {
     if (isOpen) {
@@ -283,6 +361,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       setLoadingAllFiles(true)
     }
   }, [isOpen, loadChangedFiles])
+
+  // Recompute diffs when switching view mode
+  useEffect(() => {
+    if (!isOpen || files.length === 0) return
+    // Keep selected file diff, then reload all for current view
+    loadAll(files).then(() => {})
+  }, [viewMode])
 
   useEffect(() => {
     // Reset initial scroll state when modal re-opens or when a different file is passed in
@@ -318,10 +403,18 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
 
   const language = useMemo(() => getFileLanguage(selectedFile || ''), [selectedFile])
+  const HIGHLIGHT_LINE_CAP = 3000
 
   const highlightCacheRef = useRef<Map<string, string>>(new Map())
   const highlightCode = useCallback((code: string) => {
     if (!code) return ''
+    // Disable highlighting when too many changed lines in file to avoid jank
+    if (selectedFile) {
+      const fd = allFileDiffs.get(selectedFile)
+      if ((fd as any)?.changedLinesCount && (fd as any).changedLinesCount > HIGHLIGHT_LINE_CAP) {
+        return code
+      }
+    }
     const langKey = language || 'auto'
     const cacheKey = `${langKey}::${code}`
     const cache = highlightCacheRef.current
@@ -339,6 +432,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       return code
     }
   }, [language])
+
+  // Performance marks to capture compute and render timings (visible in devtools Timeline)
+  useEffect(() => {
+    if (!isOpen) return
+    performance.mark('udm-open')
+    return () => {
+      performance.mark('udm-close')
+      performance.measure('udm-open-duration', 'udm-open', 'udm-close')
+    }
+  }, [isOpen])
 
   const handleLineMouseDown = useCallback((lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => {
     event.preventDefault()
@@ -676,15 +779,39 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 </div>
               ) : (
                 <>
-                  {branchInfo && (
-                    <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-800 bg-slate-900/30">
-                      {branchInfo.baseBranch} ({branchInfo.baseCommit.slice(0, 7)}) → {branchInfo.currentBranch} ({branchInfo.headCommit.slice(0, 7)})
-                    </div>
+              {branchInfo && (
+                <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-800 bg-slate-900/30">
+                  {branchInfo.baseBranch} ({branchInfo.baseCommit.slice(0, 7)}) → {branchInfo.currentBranch} ({branchInfo.headCommit.slice(0, 7)})
+                  {isLargeDiffMode && (
+                    <span className="ml-2 text-amber-400">Large diff mode: highlighting reduced, background loading active</span>
                   )}
-                  
+                </div>
+              )}
+                  {/* Skeleton placeholder for initial frame to avoid flash of empty content */}
+                  {allFileDiffs.size === 0 && files.length > 0 && (
+                    <div className="p-4 text-slate-600">Preparing preview…</div>
+                  )}
+
                   {viewMode === 'unified' ? (
-                    <div className="flex-1 overflow-auto font-mono text-sm" ref={scrollContainerRef}>
-                      {files.map((file) => {
+                    <div className="flex-1 overflow-auto font-mono text-sm" ref={scrollContainerRef}
+                      onScroll={(e) => {
+                        const el = e.currentTarget
+                        computeWindowForScrollTop(el.scrollTop, el.clientHeight)
+                      }}
+                      onLoadCapture={(e) => {
+                        const el = scrollContainerRef.current
+                        if (el) computeWindowForScrollTop(el.scrollTop, el.clientHeight)
+                      }}
+                    >
+                      {/* top spacer */}
+                      <div style={{ height: (() => {
+                        let h = 0
+                        for (let i = 0; i < fileWindowStart; i++) {
+                          h += fileHeightsRef.current.get(files[i].path) ?? DEFAULT_FILE_HEIGHT
+                        }
+                        return h
+                      })() }} />
+                      {files.slice(fileWindowStart, fileWindowEnd).map((file) => {
                         const fileDiff = allFileDiffs.get(file.path)
                         if (!fileDiff) return null
                         
@@ -729,7 +856,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                             {/* File diff content */}
                             <table className="w-full" style={{ tableLayout: 'fixed' }}>
                               <tbody>
-                                {fileDiff.diffResult.flatMap((line, idx) => {
+                                {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                                   const globalIdx = `${file.path}-${idx}`
                                   const isExpanded = expandedSections.has(globalIdx)
                                   const lineNum = line.oldLineNumber || line.newLineNumber
@@ -800,6 +927,14 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                           </div>
                         )
                       })}
+                      {/* bottom spacer */}
+                      <div style={{ height: (() => {
+                        let h = 0
+                        for (let i = fileWindowEnd; i < files.length; i++) {
+                          h += fileHeightsRef.current.get(files[i].path) ?? DEFAULT_FILE_HEIGHT
+                        }
+                        return h
+                      })() }} />
                     </div>
                   ) : (
                     <div className="flex-1 flex overflow-hidden">
@@ -807,7 +942,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                         <div className="sticky top-0 bg-slate-900 px-3 py-1 text-xs font-medium border-b border-slate-800 z-20">
                           {branchInfo?.baseBranch || 'Base'}
                         </div>
-                        {files.map((file) => {
+                        {filesToRender.map((file) => {
                           const fileDiff = allFileDiffs.get(file.path)
                           if (!fileDiff) return null
                           
@@ -818,7 +953,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                               </div>
                               <table className="w-full" style={{ tableLayout: 'fixed' }}>
                                 <tbody>
-                                  {fileDiff.splitDiffResult.leftLines.map((line, idx) => {
+                                  {('splitDiffResult' in fileDiff ? fileDiff.splitDiffResult.leftLines : []).map((line, idx) => {
                                     const needsHighlight = line.type !== 'unchanged'
                                     return (
                                       <DiffLineRow
@@ -843,7 +978,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                         <div className="sticky top-0 bg-slate-900 px-3 py-1 text-xs font-medium border-b border-slate-800 z-20">
                           {branchInfo?.currentBranch || 'Current'}
                         </div>
-                        {files.map((file) => {
+                        {filesToRender.map((file) => {
                           const fileDiff = allFileDiffs.get(file.path)
                           if (!fileDiff) return null
                           const isCurrentFile = file.path === selectedFile
@@ -867,7 +1002,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                               </div>
                               <table className="w-full" style={{ tableLayout: 'fixed' }}>
                                 <tbody>
-                                  {fileDiff.splitDiffResult.rightLines.map((line, idx) => {
+                                  {('splitDiffResult' in fileDiff ? fileDiff.splitDiffResult.rightLines : []).map((line, idx) => {
                                     const needsHighlight = line.type !== 'unchanged'
                                     return (
                                       <DiffLineRow

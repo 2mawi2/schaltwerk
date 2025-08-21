@@ -19,22 +19,11 @@ const COLLAPSE_THRESHOLD = 4
 const CONTEXT_LINES = 3
 
 export function computeUnifiedDiff(oldContent: string, newContent: string): LineInfo[] {
-  // Ensure content ends with newline for consistent processing
-  const oldLines = oldContent ? oldContent.split('\n') : []
-  const newLines = newContent ? newContent.split('\n') : []
-  
-  // Remove empty last line if content ended with newline
-  if (oldLines.length > 0 && oldLines[oldLines.length - 1] === '') {
-    oldLines.pop()
-  }
-  if (newLines.length > 0 && newLines[newLines.length - 1] === '') {
-    newLines.pop()
-  }
-  
-  const changes = diffLines(
-    oldLines.join('\n') + (oldLines.length > 0 ? '\n' : ''),
-    newLines.join('\n') + (newLines.length > 0 ? '\n' : '')
-  )
+  // Ensure content ends with a single trailing newline without expensive split/join
+  const oldText = oldContent ? (oldContent.endsWith('\n') ? oldContent : oldContent + '\n') : ''
+  const newText = newContent ? (newContent.endsWith('\n') ? newContent : newContent + '\n') : ''
+
+  const changes = diffLines(oldText, newText)
   
   const lines: LineInfo[] = []
   let oldLineNum = 1
@@ -130,22 +119,11 @@ export function addCollapsibleSections(lines: LineInfo[]): LineInfo[] {
 }
 
 export function computeSplitDiff(oldContent: string, newContent: string): SplitDiffResult {
-  // Ensure content ends with newline for consistent processing
-  const oldLines = oldContent ? oldContent.split('\n') : []
-  const newLines = newContent ? newContent.split('\n') : []
-  
-  // Remove empty last line if content ended with newline
-  if (oldLines.length > 0 && oldLines[oldLines.length - 1] === '') {
-    oldLines.pop()
-  }
-  if (newLines.length > 0 && newLines[newLines.length - 1] === '') {
-    newLines.pop()
-  }
-  
-  const changes = diffLines(
-    oldLines.join('\n') + (oldLines.length > 0 ? '\n' : ''),
-    newLines.join('\n') + (newLines.length > 0 ? '\n' : '')
-  )
+  // Ensure content ends with a single trailing newline without expensive split/join
+  const oldText = oldContent ? (oldContent.endsWith('\n') ? oldContent : oldContent + '\n') : ''
+  const newText = newContent ? (newContent.endsWith('\n') ? newContent : newContent + '\n') : ''
+
+  const changes = diffLines(oldText, newText)
   
   const leftLines: LineInfo[] = []
   const rightLines: LineInfo[] = []

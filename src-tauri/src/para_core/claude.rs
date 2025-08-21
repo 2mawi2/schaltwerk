@@ -12,26 +12,26 @@ pub fn find_claude_session(path: &Path) -> Option<String> {
     let home = std::env::var("HOME").ok()?;
     let claude_dir = PathBuf::from(home).join(".claude");
     let projects_dir = claude_dir.join("projects");
-    
+
     let sanitized = sanitize_path_for_claude(path);
     let project_dir = projects_dir.join(&sanitized);
-    
+
     if !project_dir.exists() {
         return None;
     }
-    
+
     let mut sessions: Vec<_> = fs::read_dir(&project_dir).ok()?
         .filter_map(|e| e.ok())
         .filter(|e| e.path().extension().map(|ext| ext == "jsonl").unwrap_or(false))
         .collect();
-    
+
     sessions.sort_by_key(|e| {
         e.metadata()
             .and_then(|m| m.modified())
             .ok()
             .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
     });
-    
+
     sessions.last()?
         .path()
         .file_stem()
