@@ -188,10 +188,6 @@ pub struct SessionInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current_task: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub todo_percentage: Option<u8>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub is_blocked: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub diff_stats: Option<DiffStats>,
     #[serde(default)]
     pub ready_to_merge: bool,
@@ -213,10 +209,6 @@ pub struct SessionMonitorStatus {
     pub current_task: String,
     pub test_status: TestStatus,
     pub diff_stats: Option<DiffStats>,
-    pub todos_completed: Option<u32>,
-    pub todos_total: Option<u32>,
-    pub is_blocked: bool,
-    pub blocked_reason: Option<String>,
     pub last_update: DateTime<Utc>,
 }
 

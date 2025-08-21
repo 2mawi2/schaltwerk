@@ -29,7 +29,7 @@ pub async fn handle_mcp_request(
             delete_draft(&name, app).await
         }
         (&Method::POST, "/api/sessions") => create_session(req, app).await,
-        (&Method::GET, "/api/sessions") => list_sessions().await,
+        (&Method::GET, "/api/sessions") => list_sessions(req).await,
         (&Method::GET, path) if path.starts_with("/api/sessions/") => {
             let name = extract_session_name(path);
             get_session(&name).await
@@ -351,7 +351,20 @@ async fn create_session(
     }
 }
 
-async fn list_sessions() -> Result<Response<String>, hyper::Error> {
+async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper::Error> {
+    // Parse query parameters
+    let query = req.uri().query().unwrap_or("");
+    let mut filter_state: Option<SessionState> = None;
+    
+    // Simple query parameter parsing for state filter
+    if query.contains("state=reviewed") {
+        filter_state = Some(SessionState::Reviewed);
+    } else if query.contains("state=running") {
+        filter_state = Some(SessionState::Running);
+    } else if query.contains("state=draft") {
+        filter_state = Some(SessionState::Draft);
+    }
+    
     let core = match get_para_core().await {
         Ok(c) => c,
         Err(e) => {
@@ -364,7 +377,18 @@ async fn list_sessions() -> Result<Response<String>, hyper::Error> {
     let manager = core_lock.session_manager();
     
     match manager.list_enriched_sessions() {
-        Ok(sessions) => {
+        Ok(mut sessions) => {
+            // Apply filtering if requested
+            if let Some(state) = filter_state {
+                sessions.retain(|s| {
+                    match state {
+                        SessionState::Reviewed => s.info.ready_to_merge,
+                        SessionState::Running => !s.info.ready_to_merge && s.info.session_state == SessionState::Running,
+                        SessionState::Draft => s.info.session_state == SessionState::Draft,
+                    }
+                });
+            }
+            
             let json = serde_json::to_string(&sessions).unwrap_or_else(|e| {
                 error!("Failed to serialize sessions: {e}");
                 "[]".to_string()

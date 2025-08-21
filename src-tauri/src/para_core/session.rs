@@ -584,8 +584,6 @@ impl SessionManager {
                 session_type: SessionType::Worktree,
                 container_status: None,
                 current_task: session.initial_prompt.clone(),
-                todo_percentage: None,
-                is_blocked: None,
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
                 draft_content: session.draft_content.clone(),

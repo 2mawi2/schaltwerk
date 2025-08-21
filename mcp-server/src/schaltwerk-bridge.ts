@@ -62,7 +62,33 @@ export class SchaltwerkBridge {
         throw new Error(`Failed to list sessions: ${response.statusText}`)
       }
       
-      const sessions = await response.json() as Session[]
+      // The response will be EnrichedSession objects from the backend
+      const enrichedSessions = await response.json() as any[]
+      
+      // Convert EnrichedSession to Session format
+      const sessions: Session[] = enrichedSessions.map(es => ({
+        id: es.info.session_id,
+        name: es.info.session_id,
+        display_name: es.info.display_name || undefined,
+        repository_path: '',
+        repository_name: '',
+        branch: es.info.branch,
+        parent_branch: es.info.base_branch,
+        worktree_path: es.info.worktree_path,
+        status: es.info.session_state === 'Draft' ? 'draft' as const : 'active' as const,
+        session_state: es.info.session_state,
+        created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
+        updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
+        last_activity: es.info.last_modified ? new Date(es.info.last_modified).getTime() : undefined,
+        initial_prompt: es.info.current_task || undefined,
+        draft_content: es.info.draft_content || undefined,
+        ready_to_merge: es.info.ready_to_merge || false,
+        original_agent_type: undefined,
+        original_skip_permissions: undefined,
+        pending_name_generation: false,
+        was_auto_generated: false
+      }))
+      
       return sessions.filter(s => s.status !== 'draft')
     } catch (error) {
       console.error('Failed to list sessions via API:', error)
@@ -544,7 +570,15 @@ export class SchaltwerkBridge {
         return this.listDraftSessions()
       }
       
-      const response = await fetch(`${this.apiUrl}/api/sessions`, {
+      // Use query parameter for server-side filtering when possible
+      let url = `${this.apiUrl}/api/sessions`
+      if (filter === 'reviewed') {
+        url += '?state=reviewed'
+      } else if (filter === 'active') {
+        url += '?state=running'
+      }
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       })
@@ -553,21 +587,38 @@ export class SchaltwerkBridge {
         throw new Error(`Failed to list sessions: ${response.statusText}`)
       }
       
-      let sessions = await response.json() as Session[]
+      // The response will be EnrichedSession objects from the backend
+      // We need to map them to Session objects expected by MCP
+      const enrichedSessions = await response.json() as any[]
       
-      switch (filter) {
-        case 'active':
-          sessions = sessions.filter(s => s.status === 'active')
-          break
-        case 'reviewed':
-          sessions = sessions.filter(s => s.ready_to_merge)
-          break
-        case 'all':
-        default:
-          // Include both active sessions and drafts
-          const drafts = await this.listDraftSessions()
-          sessions = [...sessions, ...drafts]
-          break
+      // Convert EnrichedSession to Session format
+      let sessions: Session[] = enrichedSessions.map(es => ({
+        id: es.info.session_id,
+        name: es.info.session_id,
+        display_name: es.info.display_name || undefined,
+        repository_path: '',
+        repository_name: '',
+        branch: es.info.branch,
+        parent_branch: es.info.base_branch,
+        worktree_path: es.info.worktree_path,
+        status: es.info.status === 'active' ? 'active' as const : 'draft' as const,
+        session_state: es.info.session_state,
+        created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
+        updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
+        last_activity: es.info.last_modified ? new Date(es.info.last_modified).getTime() : undefined,
+        initial_prompt: es.info.current_task || undefined,
+        draft_content: es.info.draft_content || undefined,
+        ready_to_merge: es.info.ready_to_merge || false,
+        original_agent_type: undefined,
+        original_skip_permissions: undefined,
+        pending_name_generation: false,
+        was_auto_generated: false
+      }))
+      
+      // For 'all' filter, also include drafts
+      if (filter === 'all' || !filter) {
+        const drafts = await this.listDraftSessions()
+        sessions = [...sessions, ...drafts]
       }
       
       return sessions
