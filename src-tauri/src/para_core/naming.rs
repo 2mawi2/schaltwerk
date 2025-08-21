@@ -156,11 +156,31 @@ Respond with just the short kebab-case name:"#
     // Use the appropriate agent based on user's selection
     if agent_type == "cursor" {
         log::info!("Attempting to generate name with cursor-agent");
-        // Cursor Agent can take longer to initialize; allow more time
-        let timeout_duration = Duration::from_secs(30);
+        // Preflight: verify we can read the worktree directory; if not, fall back to a safe temp dir
+        let mut run_dir = worktree_path.to_path_buf();
+        match std::fs::read_dir(worktree_path) {
+            Ok(_) => {
+                log::debug!("Worktree readable for cursor-agent name generation: {}", worktree_path.display());
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
+                let tmp = std::env::temp_dir();
+                log::warn!(
+                    "Permission denied reading worktree '{}'. Falling back to temp dir '{}' for cursor-agent name generation.",
+                    worktree_path.display(),
+                    tmp.display()
+                );
+                run_dir = tmp;
+            }
+            Err(e) => {
+                log::debug!("Worktree read_dir returned error (non-fatal): {e}");
+            }
+        }
+
+        // Cursor Agent can take longer to initialize; allow a bit more time
+        let timeout_duration = Duration::from_secs(45);
         let cursor_future = Command::new("cursor-agent")
             .args(cursor_namegen_args(&prompt_plain))
-            .current_dir(worktree_path)
+            .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
             .output();
@@ -185,6 +205,8 @@ Respond with just the short kebab-case name:"#
             if output.status.success() {
                 let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
                 log::debug!("cursor-agent stdout: {stdout}");
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                if !stderr.trim().is_empty() { log::debug!("cursor-agent stderr: {}", stderr.trim()); }
 
                 // Try JSON first
                 let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
@@ -218,7 +240,9 @@ Respond with just the short kebab-case name:"#
                     log::warn!("cursor-agent produced no usable output for naming");
                 }
             } else {
-                log::warn!("cursor-agent returned non-zero exit status");
+                let code = output.status.code().unwrap_or(-1);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                log::warn!("cursor-agent returned non-zero exit status: code={code}, stderr='{}'", stderr.trim());
             }
         }
         
