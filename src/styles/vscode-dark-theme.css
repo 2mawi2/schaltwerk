@@ -1,18 +1,21 @@
 /* VS Code Dark+ Theme for Highlight.js */
 /* Based on https://github.com/highlightjs/highlight.js/blob/main/src/styles/vs2015.css */
+/* Scoped to avoid conflicts with other styles */
 
 .hljs {
-  color: #d4d4d4;
-  background: #1e1e1e;
+  color: #d4d4d4 !important;
+  background: transparent !important;
+  white-space: pre !important;
+  tab-size: 4;
 }
 
-/* General */
+/* General - Comments in Green */
 .hljs-comment,
 .hljs-quote {
-  color: #6a9955;
+  color: #6a9955 !important;
 }
 
-/* Red */
+/* Variables and Tags */
 .hljs-variable,
 .hljs-template-variable,
 .hljs-tag,
@@ -21,73 +24,104 @@
 .hljs-selector-class,
 .hljs-regexp,
 .hljs-deletion {
-  color: #d16969;
+  color: #9cdcfe !important;
 }
 
-/* Orange */
+/* Numbers and Literals - Light Green */
 .hljs-number,
+.hljs-literal {
+  color: #b5cea8 !important;
+}
+
+/* Built-ins - Cyan */
 .hljs-built_in,
-.hljs-literal,
+.hljs-builtin {
+  color: #4ec9b0 !important;
+}
+
+/* Types - Cyan */
 .hljs-type,
-.hljs-params,
+.hljs-class {
+  color: #4ec9b0 !important;
+}
+
+/* Parameters - Light Blue */
+.hljs-params {
+  color: #9cdcfe !important;
+}
+
+/* Meta and Links */
 .hljs-meta,
 .hljs-link {
-  color: #b5cea8;
+  color: #569cd6 !important;
 }
 
-/* Yellow */
-.hljs-attribute {
-  color: #ce9178;
+/* Attributes - Light Orange */
+.hljs-attribute,
+.hljs-attr {
+  color: #9cdcfe !important;
 }
 
-/* Green */
+/* Strings - Orange */
 .hljs-string,
 .hljs-symbol,
 .hljs-bullet,
 .hljs-addition {
-  color: #ce9178;
+  color: #ce9178 !important;
 }
 
-/* Blue */
+/* Function Names - Yellow */
 .hljs-title,
+.hljs-title.function_,
+.hljs-title.function,
 .hljs-section {
-  color: #569cd6;
+  color: #dcdcaa !important;
 }
 
-/* Purple */
+/* Keywords - Blue */
 .hljs-keyword,
 .hljs-selector-tag {
-  color: #c586c0;
+  color: #569cd6 !important;
 }
 
 /* Additional VS Code Dark+ specific colors */
 .hljs-function .hljs-title,
 .hljs-class .hljs-title {
-  color: #dcdcaa;
+  color: #dcdcaa !important;
 }
 
-.hljs-keyword {
-  color: #569cd6;
+/* Operators and Punctuation */
+.hljs-operator,
+.hljs-punctuation {
+  color: #d4d4d4 !important;
 }
 
-.hljs-built_in {
-  color: #4ec9b0;
-}
-
-.hljs-string {
-  color: #ce9178;
-}
-
+/* Doctags - Green */
 .hljs-doctag {
-  color: #608b4e;
+  color: #608b4e !important;
 }
 
-.hljs-params {
-  color: #9cdcfe;
+/* Substrings and Chars */
+.hljs-subst,
+.hljs-char.escape_ {
+  color: #d4d4d4 !important;
 }
 
-.hljs-meta {
-  color: #569cd6;
+/* Selectors */
+.hljs-selector-attr,
+.hljs-selector-pseudo {
+  color: #d7ba7d !important;
+}
+
+/* Template Tags */
+.hljs-template-tag {
+  color: #608b4e !important;
+}
+
+/* Strong/Bold */
+.hljs-strong {
+  color: #569cd6 !important;
+  font-weight: bold;
 }
 
 .hljs-emphasis {

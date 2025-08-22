@@ -1,7 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
-import 'highlight.js/styles/github-dark.css'
 import App from './App'
 import { SelectionProvider } from './contexts/SelectionContext'
 import { FocusProvider } from './contexts/FocusContext'

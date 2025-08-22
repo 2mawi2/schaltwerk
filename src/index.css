@@ -313,31 +313,10 @@ body.is-split-dragging {
   background: transparent;
 }
 
-/* Ensure highlight.js does not introduce its own background */
-.hljs {
-  background: transparent !important;
-  white-space: pre !important;
-  tab-size: 4;
-}
-
 /* Preserve whitespace in diff viewer */
 .diff-line-content,
 code {
   white-space: pre !important;
   tab-size: 4;
-}
-
-/* Adjust token colors slightly for our slate palette (optional) */
-.hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-section, .hljs-link {
-  color: #93c5fd; /* sky-300 */
-}
-.hljs-string, .hljs-title, .hljs-name, .hljs-type, .hljs-attribute {
-  color: #86efac; /* green-300 */
-}
-.hljs-number, .hljs-template-variable, .hljs-variable, .hljs-bullet {
-  color: #fca5a5; /* red-300 */
-}
-.hljs-comment, .hljs-quote {
-  color: #94a3b8; /* slate-400 */
 }
 

@@ -16,10 +16,10 @@ vi.mock('./contexts/SelectionContext', () => ({ SelectionProvider: ({ children }
 vi.mock('./contexts/FocusContext', () => ({ FocusProvider: ({ children }: any) => <div data-testid="focus-provider">{children}</div> }))
 vi.mock('./contexts/ReviewContext', () => ({ ReviewProvider: ({ children }: any) => <div data-testid="review-provider">{children}</div> }))
 vi.mock('./contexts/ProjectContext', () => ({ ProjectProvider: ({ children }: any) => <div data-testid="project-provider">{children}</div> }))
+vi.mock('./contexts/FontSizeContext', () => ({ FontSizeProvider: ({ children }: any) => <div data-testid="font-size-provider">{children}</div> }))
 
 // Need to mock styles imported in main
 vi.mock('./index.css', () => ({}))
-vi.mock('highlight.js/styles/github-dark.css', () => ({}))
 
 describe('main.tsx entry', () => {
   beforeEach(() => {
