@@ -50,9 +50,49 @@ export default function App() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsDraft] = useState(false)
-  
+
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
+
+  // Local helper to apply project activation consistently
+  const applyActiveProject = async (path: string, options: { initializeBackend?: boolean } = {}) => {
+    const { initializeBackend = true } = options
+
+    try {
+      if (initializeBackend) {
+        await invoke('initialize_project', { path })
+        await invoke('add_recent_project', { path })
+      }
+
+      setProjectPath(path)
+      setShowHome(false)
+
+      const basename = getBasename(path)
+      setOpenTabs(prev => {
+        const exists = prev.some(tab => tab.projectPath === path)
+        if (!exists) {
+          return [...prev, { projectPath: path, projectName: basename }]
+        }
+        return prev
+      })
+      setActiveTabPath(path)
+
+      console.log('Activated project:', path)
+
+      // If repository has no commits, trigger New Project flow
+      try {
+        const isEmpty = await invoke<boolean>('repository_is_empty')
+        if (isEmpty) {
+          setShowHome(true)
+          window.dispatchEvent(new CustomEvent('schaltwerk:open-new-project-dialog'))
+        }
+      } catch (e) {
+        console.warn('repository_is_empty check failed:', e)
+      }
+    } catch (error) {
+      console.error('Failed to activate project:', error)
+    }
+  }
 
   // Handle CLI directory argument
   useEffect(() => {
@@ -60,52 +100,37 @@ export default function App() {
     const unlistenDirectoryPromise = listen<string>('schaltwerk:open-directory', async (event) => {
       const directoryPath = event.payload
       console.log('Received open-directory event:', directoryPath)
-      
-      try {
-        // Initialize the project at the specified directory
-        await invoke('initialize_project', { path: directoryPath })
-        await invoke('add_recent_project', { path: directoryPath })
-        
-        // Set the project path in context
-        setProjectPath(directoryPath)
-        
-        // Hide home screen and show the project
-        setShowHome(false)
-        
-        // Add to open tabs
-        const basename = getBasename(directoryPath)
-        setOpenTabs(prev => {
-          const exists = prev.some(tab => tab.projectPath === directoryPath)
-          if (!exists) {
-            return [...prev, { projectPath: directoryPath, projectName: basename }]
-          }
-          return prev
-        })
-        setActiveTabPath(directoryPath)
-        
-        console.log('Successfully opened project at:', directoryPath)
-      } catch (error) {
-        console.error('Failed to open project:', error)
-      }
+      await applyActiveProject(directoryPath, { initializeBackend: true })
     })
-    
+
     // Handle opening home screen for non-Git directories
     const unlistenHomePromise = listen<string>('schaltwerk:open-home', async (event) => {
       const directoryPath = event.payload
       console.log('Received open-home event for non-Git directory:', directoryPath)
-      
-      // Just ensure we're showing the home screen
       setShowHome(true)
-      
-      // Log the attempt for debugging
       console.log('Opened home screen because', directoryPath, 'is not a Git repository')
     })
-    
+
+    // Deterministically pull active project on mount to avoid event race
+    ;(async () => {
+      try {
+        const active = await invoke<string | null>('get_active_project_path')
+        if (active) {
+          console.log('Detected active project on startup:', active)
+          // Backend already set the project; only sync UI state
+          await applyActiveProject(active, { initializeBackend: false })
+        }
+      } catch (e) {
+        console.warn('Failed to fetch active project on startup:', e)
+      }
+    })()
+
     return () => {
       unlistenDirectoryPromise.then(unlisten => unlisten())
       unlistenHomePromise.then(unlisten => unlisten())
     }
-  }, [setProjectPath])
+  }, [])
+
 
   useEffect(() => {
     const handlePermissionError = (event: Event) => {
@@ -120,9 +145,9 @@ export default function App() {
         setShowPermissionPrompt(true)
       }
     }
-    
+
     window.addEventListener('schaltwerk:permission-error', handlePermissionError)
-    
+
     return () => {
       window.removeEventListener('schaltwerk:permission-error', handlePermissionError)
     }
@@ -131,15 +156,15 @@ export default function App() {
   useEffect(() => {
     const handleSessionAction = (event: CustomEvent<SessionActionEvent>) => {
       const { action, sessionId, sessionName, sessionDisplayName, branch, hasUncommittedChanges = false } = event.detail
-      
-      setCurrentSession({ 
-        id: sessionId, 
-        name: sessionName, 
-        displayName: sessionDisplayName || sessionName, 
+
+      setCurrentSession({
+        id: sessionId,
+        name: sessionName,
+        displayName: sessionDisplayName || sessionName,
         branch: branch || '',
-        hasUncommittedChanges 
+        hasUncommittedChanges
       })
-      
+
       if (action === 'cancel') {
         setCancelModalOpen(true)
       } else if (action === 'cancel-immediate') {
@@ -148,7 +173,7 @@ export default function App() {
         void handleCancelSession(hasUncommittedChanges)
       }
     }
-    
+
     window.addEventListener('schaltwerk:session-action' as any, handleSessionAction)
     return () => window.removeEventListener('schaltwerk:session-action' as any, handleSessionAction)
   }, [])
@@ -157,13 +182,13 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
       const modifierKey = isMac ? e.metaKey : e.ctrlKey
-      
+
       if (modifierKey && e.key === 'n') {
         // Don't interfere if a modal is already open or if we're typing in an input
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+        const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                                document.activeElement?.tagName === 'TEXTAREA' ||
                                document.activeElement?.getAttribute('contenteditable') === 'true'
-        
+
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
           setNewSessionOpen(true)
@@ -171,7 +196,7 @@ export default function App() {
       }
       // New Draft shortcut: Cmd+Shift+N (deterministic open-as-draft)
       if (modifierKey && e.shiftKey && (e.key === 'n' || e.key === 'N')) {
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+        const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                                document.activeElement?.tagName === 'TEXTAREA' ||
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
@@ -180,7 +205,7 @@ export default function App() {
           setNewSessionOpen(true)
         }
       }
-      
+
       // Font size shortcuts
       if (modifierKey && (e.key === '+' || e.key === '=')) {
         e.preventDefault()
@@ -194,7 +219,7 @@ export default function App() {
         e.preventDefault()
         resetFontSizes()
       }
-      
+
     }
 
     const handleGlobalNewSession = () => {
@@ -213,7 +238,7 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('global-new-session-shortcut', handleGlobalNewSession)
     window.addEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
-    
+
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('global-new-session-shortcut', handleGlobalNewSession)
@@ -264,18 +289,18 @@ export default function App() {
     window.addEventListener('schaltwerk:start-task-from-draft' as any, handler)
     return () => window.removeEventListener('schaltwerk:start-task-from-draft' as any, handler)
   }, [])
-  
-  
+
+
   const handleCancelSession = async (_force: boolean) => {
     if (!currentSession) return
-    
+
     try {
       setIsCancelling(true)
-      await invoke('para_core_cancel_session', { 
+      await invoke('para_core_cancel_session', {
         name: currentSession.name
       })
       setCancelModalOpen(false)
-      
+
     } catch (error) {
       console.error('Failed to cancel session:', error)
       alert(`Failed to cancel session: ${error}`)
@@ -283,16 +308,16 @@ export default function App() {
       setIsCancelling(false)
     }
   }
-  
+
   const handleFileSelect = (filePath: string) => {
     setSelectedDiffFile(filePath)
     setIsDiffViewerOpen(true)
   }
-  
+
   const handleCloseDiffViewer = () => {
     setIsDiffViewerOpen(false)
   }
-  
+
   const handleCreateSession = async (data: {
     name: string
     prompt?: string
@@ -319,10 +344,10 @@ export default function App() {
         })
         setNewSessionOpen(false)
         setStartFromDraftName(null)
-        
+
         // Get the started session to get correct worktree path
         const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
-        
+
         // Switch to the session - rest of the app will handle agent start
         await setSelection({
           kind: 'session',
@@ -331,7 +356,7 @@ export default function App() {
         })
         return
       }
-      
+
       if (data.isDraft) {
         // Create draft session
         await invoke('para_core_create_draft_session', {
@@ -339,10 +364,10 @@ export default function App() {
           draftContent: data.draftContent || '',
         })
         setNewSessionOpen(false)
-        
+
         // Get the created session to get the correct worktree path
         const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
-        
+
         // Switch to the new draft session - no agent will start
         await setSelection({
           kind: 'session',
@@ -351,17 +376,17 @@ export default function App() {
         })
       } else {
         // Create regular session
-        await invoke('para_core_create_session', { 
+        await invoke('para_core_create_session', {
           name: data.name,
           prompt: data.prompt || null,
           baseBranch: data.baseBranch || null,
           userEditedName: data.userEditedName ?? false,
         })
         setNewSessionOpen(false)
-        
+
         // Get the created session to get the correct worktree path
         const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
-        
+
         // Switch to the new session immediately - context handles terminal creation and Claude start
         await setSelection({
           kind: 'session',
@@ -391,13 +416,13 @@ export default function App() {
       // Initialize and add new tab
       await invoke('initialize_project', { path })
       await invoke('add_recent_project', { path })
-      
+
       const projectName = getBasename(path)
       const newTab: ProjectTab = {
         projectPath: path,
         projectName
       }
-      
+
       setOpenTabs(prev => [...prev, newTab])
       setActiveTabPath(path)
       setProjectPath(path)
@@ -419,7 +444,7 @@ export default function App() {
     console.log('handleSelectTab called with path:', path)
     console.log('Current activeTabPath:', activeTabPath)
     console.log('Current projectPath from context:', projectPath)
-    
+
     // Ensure backend knows about the project switch
     try {
       await invoke('initialize_project', { path })
@@ -427,11 +452,11 @@ export default function App() {
     } catch (error) {
       console.error('Failed to switch project in backend:', error)
     }
-    
+
     setActiveTabPath(path)
     setProjectPath(path)
     setShowHome(false)
-    
+
     console.log('State updated - new activeTabPath should be:', path)
   }
 
@@ -465,7 +490,7 @@ export default function App() {
     // Remove the ring entirely - no visual indicator needed
     el.style.boxShadow = 'none'
   }, [selection])
-  
+
   if (showHome && openTabs.length === 0) {
     return (
       <>
@@ -487,7 +512,7 @@ export default function App() {
       </>
     )
   }
-  
+
   return (
     <>
       {/* Show TopBar always */}
@@ -499,14 +524,14 @@ export default function App() {
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
       />
-      
+
       {/* Show home screen if requested, or no active tab */}
       {showHome && (
         <div className="pt-[28px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
         </div>
       )}
-      
+
       {/* Show project content when a tab is active */}
       {!showHome && activeTabPath && (
         <>
@@ -517,16 +542,16 @@ export default function App() {
                   <Sidebar isDiffViewerOpen={isDiffViewerOpen} />
                 </div>
                 <div className="p-2 border-t border-slate-800 grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setNewSessionOpen(true)} 
+                  <button
+                    onClick={() => setNewSessionOpen(true)}
                     className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
                     title="Start new task (⌘N)"
                   >
                     <span>Start new task</span>
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
                   </button>
-                  <button 
-                    onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }} 
+                  <button
+                    onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }}
                     className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
                     title="Create draft (⇧⌘N)"
                   >
@@ -550,14 +575,14 @@ export default function App() {
               </Split>
             </div>
           </Split>
-          
-          <NewSessionModal 
+
+          <NewSessionModal
             open={newSessionOpen}
             initialIsDraft={openAsDraft}
-            onClose={() => { setNewSessionOpen(false); setOpenAsDraft(false); setStartFromDraftName(null) }} 
-            onCreate={handleCreateSession} 
+            onClose={() => { setNewSessionOpen(false); setOpenAsDraft(false); setStartFromDraftName(null) }}
+            onCreate={handleCreateSession}
           />
-          
+
           {currentSession && (
             <CancelConfirmation
               open={cancelModalOpen}
@@ -569,10 +594,10 @@ export default function App() {
               loading={isCancelling}
             />
           )}
-          
+
           {/* Diff Viewer Modal with Review - render only when open */}
           {isDiffViewerOpen && (
-            <UnifiedDiffModal 
+            <UnifiedDiffModal
               filePath={selectedDiffFile}
               isOpen={true}
               onClose={handleCloseDiffViewer}
@@ -584,7 +609,7 @@ export default function App() {
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
           />
-          
+
           {/* Permission Prompt - shows only when needed */}
           {showPermissionPrompt && (
             <PermissionPrompt

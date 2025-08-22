@@ -168,6 +168,12 @@ impl ProjectManager {
         
         Err(anyhow!("No active project"))
     }
+
+    /// Get the current active project path, if any
+    pub async fn current_project_path(&self) -> Option<PathBuf> {
+        let current_path = self.current_project.read().await;
+        current_path.clone()
+    }
     
     /// Clean up all projects (called on app exit)
     pub async fn cleanup_all(&self) {

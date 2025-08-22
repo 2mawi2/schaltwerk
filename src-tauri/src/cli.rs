@@ -1,9 +1,12 @@
-use std::path::PathBuf;
 use clap::Parser;
+use std::path::PathBuf;
 
-/// Schaltwerk - A Terminal UI Application
+/// Schaltwerk - An orchestrator for your agents
 #[derive(Debug, Parser)]
-#[command(name = "schaltwerk", about = "Schaltwerk - An orchestrator for your agents")]
+#[command(
+    name = "schaltwerk",
+    about = "Schaltwerk - An orchestrator for your agents"
+)]
 pub struct Cli {
     /// Optional project directory to open. Defaults to current working directory if omitted.
     #[arg(value_name = "DIR")]

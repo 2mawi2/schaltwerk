@@ -633,6 +633,7 @@ fn main() {
             get_project_default_branch,
             list_project_branches,
             repository_is_empty,
+            get_active_project_path,
             // Settings commands
             get_project_default_base_branch,
             set_project_default_base_branch,
@@ -655,7 +656,22 @@ fn main() {
             set_project_environment_variables
         ])
         .setup(move |app| {
-            // Pass initial directory to the frontend if provided
+            // If we have an initial Git directory, set it as the active project immediately to avoid race with frontend listener
+            if let Some((dir, is_git)) = initial_directory.clone() {
+                if is_git {
+                    let dir_path = std::path::PathBuf::from(&dir);
+                    tauri::async_runtime::block_on(async {
+                        let manager = get_project_manager().await;
+                        if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
+                            log::error!("Failed to set initial project: {e}");
+                        } else {
+                            log::info!("Initial project set to: {}", dir_path.display());
+                        }
+                    });
+                }
+            }
+
+            // Pass initial directory to the frontend if provided (UI sync)
             if let Some((dir, is_git)) = initial_directory.clone() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {
