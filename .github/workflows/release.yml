@@ -48,7 +48,10 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install dependencies
-        run: npm install --force
+        run: |
+          npm cache clean --force
+          rm -rf node_modules
+          npm install
 
       - name: Run tests
         run: npm run test
