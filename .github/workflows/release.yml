@@ -44,6 +44,7 @@ jobs:
             src-tauri/target/
           key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-ci-
             ${{ runner.os }}-cargo-
 
       - name: Install dependencies
@@ -103,20 +104,20 @@ jobs:
             --icon "Schaltwerk.app" 150 150 \
             --app-drop-link 450 150 \
             --hide-extension "Schaltwerk.app" \
-            "Schaltwerk-${VERSION}-universal.dmg" \
+            "Schaltwerk-${VERSION}-arm64.dmg" \
             "Schaltwerk.app"
 
       - name: Calculate checksums
         run: |
           VERSION="${{ github.event.inputs.version || github.ref_name }}"
           VERSION="${VERSION#v}"
-          shasum -a 256 "Schaltwerk-${VERSION}-universal.dmg" > checksums.txt
+          shasum -a 256 "Schaltwerk-${VERSION}-arm64.dmg" > checksums.txt
           cat checksums.txt
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: macos-universal
+          name: macos-arm64
           path: |
             Schaltwerk-*.dmg
             checksums.txt
