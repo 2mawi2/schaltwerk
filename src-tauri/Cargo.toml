@@ -1,6 +1,6 @@
 [package]
 name = "schaltwerk"
-version = "0.1.4"
+version = "0.1.9"
 description = "Schaltwerk - A Terminal UI Application"
 authors = ["you"]
 edition = "2021"
@@ -82,8 +82,10 @@ strip = true
 
 [profile.ci]
 inherits = "release"
-lto = "thin"
-codegen-units = 16
+lto = false           # Disable LTO - saves 2-3 minutes
+codegen-units = 256   # Maximum parallelism
+opt-level = 2         # Good optimization but faster than 3
+debug = false         # No debug symbols
 
 [profile.dev]
 opt-level = 1
