@@ -39,7 +39,6 @@ export function TerminalGrid() {
     
     const claudeTerminalRef = useRef<TerminalHandle>(null)
     const terminalTabsRef = useRef<TerminalTabsHandle>(null)
-    const bottomTerminalRef = useRef<TerminalHandle>(null)
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
     
 
@@ -99,12 +98,8 @@ export function TerminalGrid() {
         setTimeout(() => {
             if (focusArea === 'claude' && claudeTerminalRef.current) {
                 claudeTerminalRef.current.focus()
-            } else if (focusArea === 'terminal') {
-                if (selection.kind === 'orchestrator' && terminalTabsRef.current) {
-                    terminalTabsRef.current.focus()
-                } else if (selection.kind === 'session' && bottomTerminalRef.current) {
-                    bottomTerminalRef.current.focus()
-                }
+            } else if (focusArea === 'terminal' && terminalTabsRef.current) {
+                terminalTabsRef.current.focus()
             }
             // TODO: Add diff focus handling when we implement it
         }, 150)
@@ -142,11 +137,7 @@ export function TerminalGrid() {
             lastAppliedGlobalFocusRef.current = 'claude'
         } else if (currentFocus === 'terminal') {
             setLocalFocus('terminal')
-            if (selection.kind === 'orchestrator') {
-                terminalTabsRef.current?.focus()
-            } else {
-                bottomTerminalRef.current?.focus()
-            }
+            terminalTabsRef.current?.focus()
             lastAppliedGlobalFocusRef.current = 'terminal'
         } else {
             setLocalFocus(null)
@@ -253,20 +244,12 @@ export function TerminalGrid() {
             setSizes([100 - expanded, expanded])
             setIsBottomCollapsed(false)
             setTimeout(() => {
-                if (selection.kind === 'orchestrator') {
-                    terminalTabsRef.current?.focus()
-                } else {
-                    bottomTerminalRef.current?.focus()
-                }
+                terminalTabsRef.current?.focus()
             }, 120)
             return
         }
         setTimeout(() => {
-            if (selection.kind === 'orchestrator') {
-                terminalTabsRef.current?.focus()
-            } else {
-                bottomTerminalRef.current?.focus()
-            }
+            terminalTabsRef.current?.focus()
         }, 100)
     }
 
@@ -394,26 +377,15 @@ export function TerminalGrid() {
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 ${isBottomCollapsed ? 'hidden' : ''}`} onClick={handleTerminalClick}>
-                        {selection.kind === 'orchestrator' ? (
-                            <TerminalTabs
-                                key={`terminal-tabs-${terminalKey}`}
-                                ref={terminalTabsRef}
-                                baseTerminalId={terminals.bottomBase}
-                                workingDirectory={terminals.workingDirectory}
-                                className="h-full"
-                                sessionName={undefined}
-                                isOrchestrator={true}
-                            />
-                        ) : (
-                            <Terminal
-                                key={`bottom-terminal-${terminalKey}`}
-                                ref={bottomTerminalRef}
-                                terminalId={terminals.bottomBase}
-                                className="h-full w-full"
-                                sessionName={selection.payload ?? undefined}
-                                isOrchestrator={false}
-                            />
-                        )}
+                        <TerminalTabs
+                            key={`terminal-tabs-${terminalKey}`}
+                            ref={terminalTabsRef}
+                            baseTerminalId={terminals.bottomBase}
+                            workingDirectory={terminals.workingDirectory}
+                            className="h-full"
+                            sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                            isOrchestrator={selection.kind === 'orchestrator'}
+                        />
                     </div>
                 </div>
             </Split>
