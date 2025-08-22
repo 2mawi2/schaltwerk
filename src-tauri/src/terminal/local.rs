@@ -1,4 +1,5 @@
 use super::{CreateParams, TerminalBackend};
+use crate::SETTINGS_MANAGER;
 use log::{debug, error, info, warn};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
@@ -53,9 +54,12 @@ impl LocalPtyAdapter {
         resolve_command(command)
     }
     
-    fn get_shell_command() -> CommandBuilder {
-        let mut cmd = CommandBuilder::new(get_shell_binary());
-        cmd.arg("-i");
+    async fn get_shell_command() -> CommandBuilder {
+        let (shell, args) = get_shell_config().await;
+        let mut cmd = CommandBuilder::new(shell);
+        for arg in args {
+            cmd.arg(arg);
+        }
         cmd
     }
 
@@ -324,7 +328,7 @@ impl TerminalBackend for LocalPtyAdapter {
             }
             cmd
         } else {
-            Self::get_shell_command()
+            Self::get_shell_command().await
         };
         
         Self::setup_environment(&mut cmd);
@@ -505,14 +509,35 @@ impl LocalPtyAdapter {
     }
 }
 
-fn get_shell_binary() -> String {
-    std::env::var("SHELL").unwrap_or_else(|_| {
+async fn get_shell_config() -> (String, Vec<String>) {
+    // Try to get configured shell from settings
+    if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let manager = settings_manager.lock().await;
+        let terminal_settings = manager.get_terminal_settings();
+        
+        if let Some(shell) = terminal_settings.shell {
+            if !shell.is_empty() {
+                let args = &terminal_settings.shell_args;
+                info!("Using configured shell: {shell} with args: {args:?}");
+                return (shell, terminal_settings.shell_args);
+            }
+        }
+    }
+    
+    // Fall back to default shell detection
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| {
         if cfg!(target_os = "windows") {
             "cmd.exe".to_string()
         } else {
             "/bin/bash".to_string()
         }
-    })
+    });
+    
+    // Default args for interactive shell
+    let args = vec!["-i".to_string()];
+    
+    info!("Using default shell: {shell} with args: {args:?}");
+    (shell, args)
 }
 
 fn resolve_command(command: &str) -> String {

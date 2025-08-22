@@ -9,7 +9,7 @@ interface Props {
 
 type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
 type EnvVars = Record<string, string>
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal'
 
 interface CategoryConfig {
     id: SettingsCategory
@@ -54,11 +54,25 @@ const CATEGORIES: CategoryConfig[] = [
             </svg>
         )
     },
+    {
+        id: 'terminal',
+        label: 'Terminal',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+        )
+    },
 ]
 
 interface ProjectSettings {
     setupScript: string
     environmentVariables: Array<{key: string, value: string}>
+}
+
+interface TerminalSettings {
+    shell: string | null
+    shellArgs: string[]
 }
 
 export function SettingsModal({ open, onClose }: Props) {
@@ -68,6 +82,10 @@ export function SettingsModal({ open, onClose }: Props) {
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
         environmentVariables: []
+    })
+    const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
+        shell: null,
+        shellArgs: []
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
@@ -153,6 +171,7 @@ export function SettingsModal({ open, onClose }: Props) {
             loadEnvVars()
             loadCliArgs()
             loadProjectSettings()
+            loadTerminalSettings()
         }
     }, [open])
 
@@ -172,6 +191,22 @@ export function SettingsModal({ open, onClose }: Props) {
         } catch (error) {
             console.error('Failed to load project settings:', error)
             setProjectSettings({ setupScript: '', environmentVariables: [] })
+        }
+    }
+
+    const loadTerminalSettings = async () => {
+        try {
+            const settings = await invoke<TerminalSettings>('get_terminal_settings')
+            console.log('Loaded terminal settings:', settings)
+            // Ensure shellArgs is always an array
+            const normalizedSettings = {
+                shell: settings?.shell || null,
+                shellArgs: settings?.shellArgs || []
+            }
+            setTerminalSettings(normalizedSettings)
+        } catch (error) {
+            console.error('Failed to load terminal settings:', error)
+            setTerminalSettings({ shell: null, shellArgs: [] })
         }
     }
 
@@ -253,6 +288,10 @@ export function SettingsModal({ open, onClose }: Props) {
             }, {} as Record<string, string>)
             console.log('Saving project env vars:', projectEnvVarsObject)
             await invoke('set_project_environment_variables', { envVars: projectEnvVarsObject })
+            
+            // Save terminal settings
+            console.log('Saving terminal settings:', terminalSettings)
+            await invoke('set_terminal_settings', { terminal: terminalSettings })
             
             onClose()
         } catch (error) {
@@ -852,6 +891,91 @@ fi`}
         </div>
     )
 
+    const renderTerminalSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-4">Terminal Shell Configuration</h3>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm text-slate-300 mb-2">Shell Path</label>
+                                <input
+                                    type="text"
+                                    value={terminalSettings.shell || ''}
+                                    onChange={(e) => setTerminalSettings({ ...terminalSettings, shell: e.target.value || null })}
+                                    placeholder="Leave empty to use system default ($SHELL)"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                                />
+                                <div className="mt-2 text-xs text-slate-500">
+                                    Examples: <code className="text-blue-400">/usr/local/bin/nu</code>, <code className="text-blue-400">/opt/homebrew/bin/fish</code>, <code className="text-blue-400">/bin/zsh</code>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm text-slate-300 mb-2">Shell Arguments</label>
+                                <input
+                                    type="text"
+                                    value={(terminalSettings.shellArgs || []).join(' ')}
+                                    onChange={(e) => {
+                                        const args = e.target.value.trim() ? e.target.value.split(' ') : []
+                                        setTerminalSettings({ ...terminalSettings, shellArgs: args })
+                                    }}
+                                    placeholder="Default: -i (interactive mode)"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                                />
+                                <div className="mt-2 text-xs text-slate-500">
+                                    Space-separated arguments passed to the shell. Leave empty for default interactive mode.
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div className="mt-6 p-4 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-xs text-slate-400">
+                                <strong className="text-slate-300">Popular Shell Configurations:</strong>
+                                <ul className="mt-3 space-y-2">
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-400">Nushell:</span>
+                                        <div>
+                                            <div>Path: <code>/usr/local/bin/nu</code> or <code>/opt/homebrew/bin/nu</code></div>
+                                            <div>Args: (leave empty, Nushell doesn't need -i)</div>
+                                        </div>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-400">Fish:</span>
+                                        <div>
+                                            <div>Path: <code>/usr/local/bin/fish</code> or <code>/opt/homebrew/bin/fish</code></div>
+                                            <div>Args: <code>-i</code></div>
+                                        </div>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-400">Zsh:</span>
+                                        <div>
+                                            <div>Path: <code>/bin/zsh</code> or <code>/usr/bin/zsh</code></div>
+                                            <div>Args: <code>-i</code></div>
+                                        </div>
+                                    </li>
+                                    <li className="flex items-start gap-2">
+                                        <span className="text-blue-400">Bash:</span>
+                                        <div>
+                                            <div>Path: <code>/bin/bash</code> or <code>/usr/bin/bash</code></div>
+                                            <div>Args: <code>-i</code></div>
+                                        </div>
+                                    </li>
+                                </ul>
+                                
+                                <div className="mt-4 pt-3 border-t border-slate-600">
+                                    <strong className="text-slate-300">Note:</strong> Changes will apply to new terminals only. Existing terminals will continue using their current shell.
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+    
     const renderSettingsContent = () => {
         switch (activeCategory) {
             case 'appearance':
@@ -862,6 +986,8 @@ fi`}
                 return renderEnvironmentSettings()
             case 'projects':
                 return renderProjectSettings()
+            case 'terminal':
+                return renderTerminalSettings()
             default:
                 return renderAppearanceSettings()
         }

@@ -29,10 +29,18 @@ pub struct TerminalUIPreferences {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalSettings {
+    pub shell: Option<String>,
+    pub shell_args: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Settings {
     pub agent_env_vars: AgentEnvVars,
     pub agent_cli_args: AgentCliArgs,
     pub terminal_ui: TerminalUIPreferences,
+    pub terminal: TerminalSettings,
 }
 
 pub struct SettingsManager {
@@ -138,6 +146,15 @@ impl SettingsManager {
             _ => return Err(format!("Unknown agent type: {agent_type}")),
         }
         
+        self.save()
+    }
+    
+    pub fn get_terminal_settings(&self) -> TerminalSettings {
+        self.settings.terminal.clone()
+    }
+    
+    pub fn set_terminal_settings(&mut self, terminal: TerminalSettings) -> Result<(), String> {
+        self.settings.terminal = terminal;
         self.save()
     }
 }

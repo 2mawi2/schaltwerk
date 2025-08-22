@@ -5,7 +5,7 @@ use crate::{
     get_para_core,
     PROJECT_MANAGER,
 };
-use crate::settings::TerminalUIPreferences;
+use crate::settings::{TerminalUIPreferences, TerminalSettings};
 use crate::para_core::db_app_config::AppConfigMethods;
 use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings};
 
@@ -239,6 +239,26 @@ pub async fn set_project_environment_variables(
 
     db.set_project_environment_variables(&project.path, &env_vars)
         .map_err(|e| format!("Failed to set project environment variables: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_terminal_settings() -> Result<TerminalSettings, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_terminal_settings())
+}
+
+#[tauri::command]
+pub async fn set_terminal_settings(terminal: TerminalSettings) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let mut manager = settings_manager.lock().await;
+    manager.set_terminal_settings(terminal)
 }
 
 #[cfg(test)]
