@@ -2,6 +2,7 @@ use tauri::Emitter;
 use crate::para_core::{SessionState, EnrichedSession, Session};
 use crate::para_core::db_sessions::SessionMethods;
 use crate::para_core::db_app_config::AppConfigMethods;
+use crate::para_core::db_project_config::ProjectConfigMethods;
 use crate::{get_para_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
 
 // Normalize user-provided CLI text copied from rich sources:
@@ -431,7 +432,7 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
         "claude"
     };
     
-    let (env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+    let (mut env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = settings_manager.lock().await;
         let env_vars = manager.get_agent_env_vars(agent_type)
             .into_iter()
@@ -441,6 +442,15 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     } else {
         (vec![], String::new())
     };
+    
+    // Add project-specific environment variables
+    if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
+        let count = project_env_vars.len();
+        for (key, value) in project_env_vars {
+            env_vars.push((key, value));
+        }
+        log::info!("Added {count} project environment variables");
+    }
     
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
@@ -579,7 +589,7 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
         "claude"
     };
     
-    let (env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+    let (mut env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = settings_manager.lock().await;
         let env_vars = manager.get_agent_env_vars(agent_type)
             .into_iter()
@@ -589,6 +599,15 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
     } else {
         (vec![], String::new())
     };
+    
+    // Add project-specific environment variables
+    if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
+        let count = project_env_vars.len();
+        for (key, value) in project_env_vars {
+            env_vars.push((key, value));
+        }
+        log::info!("Added {count} project environment variables");
+    }
     
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     

@@ -58,6 +58,7 @@ const CATEGORIES: CategoryConfig[] = [
 
 interface ProjectSettings {
     setupScript: string
+    environmentVariables: Array<{key: string, value: string}>
 }
 
 export function SettingsModal({ open, onClose }: Props) {
@@ -65,7 +66,8 @@ export function SettingsModal({ open, onClose }: Props) {
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
-        setupScript: ''
+        setupScript: '',
+        environmentVariables: []
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
@@ -157,11 +159,19 @@ export function SettingsModal({ open, onClose }: Props) {
     const loadProjectSettings = async () => {
         try {
             const settings = await invoke<ProjectSettings>('get_project_settings')
+            const envVars = await invoke<Record<string, string>>('get_project_environment_variables')
+            const envVarArray = Object.entries(envVars || {}).map(([key, value]) => ({ key, value }))
+            
             console.log('Loaded project settings:', settings)
-            setProjectSettings(settings || { setupScript: '' })
+            console.log('Loaded project env vars:', envVarArray)
+            
+            setProjectSettings({
+                setupScript: settings?.setupScript || '',
+                environmentVariables: envVarArray
+            })
         } catch (error) {
             console.error('Failed to load project settings:', error)
-            setProjectSettings({ setupScript: '' })
+            setProjectSettings({ setupScript: '', environmentVariables: [] })
         }
     }
 
@@ -234,7 +244,15 @@ export function SettingsModal({ open, onClose }: Props) {
             
             // Save project settings
             console.log('Saving project settings:', projectSettings)
-            await invoke('set_project_settings', { settings: projectSettings })
+            await invoke('set_project_settings', { settings: { setupScript: projectSettings.setupScript } })
+            
+            // Save project environment variables
+            const projectEnvVarsObject = projectSettings.environmentVariables.reduce((acc, { key, value }) => {
+                if (key) acc[key] = value
+                return acc
+            }, {} as Record<string, string>)
+            console.log('Saving project env vars:', projectEnvVarsObject)
+            await invoke('set_project_environment_variables', { envVars: projectEnvVarsObject })
             
             onClose()
         } catch (error) {
@@ -262,6 +280,29 @@ export function SettingsModal({ open, onClose }: Props) {
         setEnvVars(prev => ({
             ...prev,
             [agent]: prev[agent].map((item, i) => 
+                i === index ? { ...item, [field]: value } : item
+            )
+        }))
+    }
+    
+    const handleAddProjectEnvVar = () => {
+        setProjectSettings(prev => ({
+            ...prev,
+            environmentVariables: [...prev.environmentVariables, { key: '', value: '' }]
+        }))
+    }
+    
+    const handleRemoveProjectEnvVar = (index: number) => {
+        setProjectSettings(prev => ({
+            ...prev,
+            environmentVariables: prev.environmentVariables.filter((_, i) => i !== index)
+        }))
+    }
+    
+    const handleProjectEnvVarChange = (index: number, field: 'key' | 'value', value: string) => {
+        setProjectSettings(prev => ({
+            ...prev,
+            environmentVariables: prev.environmentVariables.map((item, i) => 
                 i === index ? { ...item, [field]: value } : item
             )
         }))
@@ -574,6 +615,65 @@ fi`}
                                 <li>Configure IDE settings</li>
                                 <li>Create required directories</li>
                             </ul>
+                        </div>
+                    </div>
+                    
+                    <div className="mt-8">
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">Project Environment Variables</h3>
+                        <div className="text-sm text-slate-400 mb-4">
+                            Configure environment variables that will be set for all sessions in this project.
+                            These variables are applied to all terminals and agent processes.
+                        </div>
+                        
+                        <div className="space-y-2">
+                            {projectSettings.environmentVariables.map((envVar, index) => (
+                                <div key={index} className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={envVar.key}
+                                        onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
+                                        placeholder="KEY"
+                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                    <input
+                                        type="text"
+                                        value={envVar.value}
+                                        onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
+                                        placeholder="value"
+                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                    />
+                                    <button
+                                        onClick={() => handleRemoveProjectEnvVar(index)}
+                                        className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            ))}
+                            
+                            <button
+                                onClick={handleAddProjectEnvVar}
+                                className="w-full mt-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
+                            >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                Add Environment Variable
+                            </button>
+                        </div>
+                        
+                        <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-xs text-slate-400">
+                                <strong>Common project environment variables:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>API keys and tokens specific to this project</li>
+                                    <li>Database connection strings</li>
+                                    <li>Project-specific configuration paths</li>
+                                    <li>Feature flags and debug settings</li>
+                                </ul>
+                            </div>
                         </div>
                     </div>
                 </div>

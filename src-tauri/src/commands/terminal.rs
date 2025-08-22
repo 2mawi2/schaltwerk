@@ -1,11 +1,34 @@
-use crate::{get_terminal_manager, get_message_queue};
+use crate::{get_terminal_manager, get_message_queue, PROJECT_MANAGER};
 use tauri::Emitter;
+use crate::para_core::db_project_config::ProjectConfigMethods;
 
 #[tauri::command]
 pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> Result<String, String> {
     let manager = get_terminal_manager().await?;
     manager.set_app_handle(app.clone()).await;
-    manager.create_terminal(id.clone(), cwd).await?;
+    
+    // Get project environment variables if we have a project
+    let env_vars = if let Some(project_manager) = PROJECT_MANAGER.get() {
+        if let Ok(project) = project_manager.current_project().await {
+            let core = project.para_core.lock().await;
+            let db = core.database();
+            db.get_project_environment_variables(&project.path)
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<(String, String)>>()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+    
+    if !env_vars.is_empty() {
+        log::info!("Adding {} project environment variables to terminal {}", env_vars.len(), id);
+        manager.create_terminal_with_env(id.clone(), cwd, env_vars).await?;
+    } else {
+        manager.create_terminal(id.clone(), cwd).await?;
+    }
     
     let queue = get_message_queue().await;
     let mut queue_lock = queue.lock().await;

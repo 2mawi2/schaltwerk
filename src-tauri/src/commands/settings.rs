@@ -1,5 +1,10 @@
 use std::collections::HashMap;
-use crate::{SETTINGS_MANAGER, get_para_core, PROJECT_MANAGER};
+
+use crate::{
+    SETTINGS_MANAGER,
+    get_para_core,
+    PROJECT_MANAGER,
+};
 use crate::settings::TerminalUIPreferences;
 use crate::para_core::db_app_config::AppConfigMethods;
 use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings};
@@ -9,17 +14,20 @@ pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, St
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_env_vars(&agent_type))
 }
 
 #[tauri::command]
-pub async fn set_agent_env_vars(agent_type: String, env_vars: HashMap<String, String>) -> Result<(), String> {
+pub async fn set_agent_env_vars(
+    agent_type: String,
+    env_vars: HashMap<String, String>,
+) -> Result<(), String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_agent_env_vars(&agent_type, env_vars)
 }
@@ -29,7 +37,7 @@ pub async fn get_agent_cli_args(agent_type: String) -> Result<String, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_agent_cli_args(&agent_type))
 }
@@ -39,7 +47,7 @@ pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_agent_cli_args(&agent_type, cli_args)
 }
@@ -49,7 +57,7 @@ pub async fn get_terminal_ui_preferences() -> Result<TerminalUIPreferences, Stri
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_terminal_ui_preferences())
 }
@@ -59,7 +67,7 @@ pub async fn set_terminal_collapsed(is_collapsed: bool) -> Result<(), String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_terminal_collapsed(is_collapsed)
 }
@@ -69,7 +77,7 @@ pub async fn set_terminal_divider_position(position: f64) -> Result<(), String> 
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_terminal_divider_position(position)
 }
@@ -104,14 +112,15 @@ pub async fn get_project_settings() -> Result<ProjectSettings, String> {
         .current_project()
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
-    
+
     let core = project.para_core.lock().await;
     let db = core.database();
-    
-    let setup_script = db.get_project_setup_script(&project.path)
+
+    let setup_script = db
+        .get_project_setup_script(&project.path)
         .map_err(|e| format!("Failed to get project setup script: {e}"))?
         .unwrap_or_default();
-    
+
     Ok(ProjectSettings { setup_script })
 }
 
@@ -123,13 +132,13 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
         .current_project()
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
-    
+
     let core = project.para_core.lock().await;
     let db = core.database();
-    
+
     db.set_project_setup_script(&project.path, &settings.setup_script)
         .map_err(|e| format!("Failed to set project setup script: {e}"))?;
-    
+
     Ok(())
 }
 
@@ -141,10 +150,10 @@ pub async fn get_project_selection() -> Result<Option<ProjectSelection>, String>
         .current_project()
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
-    
+
     let core = project.para_core.lock().await;
     let db = core.database();
-    
+
     db.get_project_selection(&project.path)
         .map_err(|e| format!("Failed to get project selection: {e}"))
 }
@@ -157,13 +166,13 @@ pub async fn set_project_selection(kind: String, payload: Option<String>) -> Res
         .current_project()
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
-    
+
     let core = project.para_core.lock().await;
     let db = core.database();
-    
+
     let selection = ProjectSelection { kind, payload };
     db.set_project_selection(&project.path, &selection)
-        .map_err(|e| format!("Failed to set project selection: {e}"))
+        .map_err(|e | format!("Failed to set project selection: {e}"))
 }
 
 #[tauri::command]
@@ -174,45 +183,78 @@ pub async fn get_project_sessions_settings() -> Result<ProjectSessionsSettings, 
         .current_project()
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
-    
+
     let core = project.para_core.lock().await;
     let db = core.database();
-    
+
     db.get_project_sessions_settings(&project.path)
         .map_err(|e| format!("Failed to get project sessions settings: {e}"))
 }
 
 #[tauri::command]
-pub async fn set_project_sessions_settings(filter_mode: String, sort_mode: String) -> Result<(), String> {
+pub async fn set_project_sessions_settings(settings: ProjectSessionsSettings) -> Result<(), String> {
     let project = PROJECT_MANAGER
         .get()
         .ok_or_else(|| "Project manager not initialized".to_string())?
         .current_project()
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
-    
+
     let core = project.para_core.lock().await;
-    let db = core.database();
-    
-    let settings = ProjectSessionsSettings { filter_mode, sort_mode };
+    let db   = core.database();
+
     db.set_project_sessions_settings(&project.path, &settings)
         .map_err(|e| format!("Failed to set project sessions settings: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_project_environment_variables() -> Result<HashMap<String, String>, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.para_core.lock().await;
+    let db   = core.database();
+
+    db.get_project_environment_variables(&project.path)
+        .map_err(|e| format!("Failed to get project environment variables: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_project_environment_variables(
+    env_vars: HashMap<String, String>,
+) -> Result<(), String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.para_core.lock().await;
+    let db   = core.database();
+
+    db.set_project_environment_variables(&project.path, &env_vars)
+        .map_err(|e| format!("Failed to set project environment variables: {e}"))
 }
 
 #[cfg(test)]
 mod project_settings_tests {
     use super::*;
-    
+
     #[test]
     fn test_project_settings_serialization() {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho test".to_string(),
         };
-        
+
         let json = serde_json::to_string(&settings).unwrap();
         assert!(json.contains("setupScript"), "Should use camelCase field name");
         assert!(!json.contains("setup_script"), "Should not use snake_case field name");
-        
+
         let json_input = r#"{"setupScript":"echo hello"}"#;
         let deserialized: ProjectSettings = serde_json::from_str(json_input).unwrap();
         assert_eq!(deserialized.setup_script, "echo hello");

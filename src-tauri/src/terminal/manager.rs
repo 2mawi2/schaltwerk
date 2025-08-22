@@ -1,4 +1,4 @@
-use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend};
+use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_shell_binary};
 use log::{debug, error, info};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -33,12 +33,31 @@ impl TerminalManager {
     }
     
     pub async fn create_terminal(&self, id: String, cwd: String) -> Result<(), String> {
-        info!("Creating terminal through manager: id={id}, cwd={cwd}");
+        self.create_terminal_with_env(id, cwd, vec![]).await
+    }
+    
+    pub async fn create_terminal_with_env(&self, id: String, cwd: String, env: Vec<(String, String)>) -> Result<(), String> {
+        info!("Creating terminal through manager: id={id}, cwd={cwd}, env_count={}", env.len());
         
-        let params = CreateParams {
-            id: id.clone(),
-            cwd,
-            app: None,
+        let params = if env.is_empty() {
+            CreateParams {
+                id: id.clone(),
+                cwd,
+                app: None,
+            }
+        } else {
+            // Create a shell with environment variables set
+            let shell = get_shell_binary();
+            CreateParams {
+                id: id.clone(),
+                cwd,
+                app: Some(ApplicationSpec {
+                    command: shell,
+                    args: vec!["-i".to_string()],
+                    env,
+                    ready_timeout_ms: 5000,
+                }),
+            }
         };
         
         self.backend.create(params).await?;

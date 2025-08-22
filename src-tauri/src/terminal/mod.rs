@@ -30,3 +30,9 @@ pub mod manager;
 
 pub use local::LocalPtyAdapter;
 pub use manager::TerminalManager;
+
+pub fn get_shell_binary() -> String {
+    std::env::var("SHELL").unwrap_or_else(|_| {
+        "/bin/bash".to_string()
+    })
+}

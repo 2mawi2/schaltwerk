@@ -212,13 +212,18 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
-    // Migration: Add sessions filter and sort mode columns if they don't exist
     let _ = conn.execute(
         "ALTER TABLE project_config ADD COLUMN sessions_filter_mode TEXT DEFAULT 'all'",
         [],
     );
+
     let _ = conn.execute(
         "ALTER TABLE project_config ADD COLUMN sessions_sort_mode TEXT DEFAULT 'name'",
+        [],
+    );
+
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN environment_variables TEXT",
         [],
     );
     
