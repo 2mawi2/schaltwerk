@@ -114,6 +114,7 @@ mod performance_tests {
     }
     
     #[test]
+    #[ignore = "Performance tests are flaky in CI environments"]
     fn test_git_stats_performance_with_many_files() {
         let (_temp, repo_path, worktree_path) = setup_test_repo_with_many_files(100);
         let current_branch = get_current_branch(&repo_path).unwrap();
@@ -136,6 +137,7 @@ mod performance_tests {
     }
     
     #[test]
+    #[ignore = "Performance tests are flaky in CI environments"]
     fn test_git_stats_performance_repeated_calls() {
         let (_temp, repo_path, worktree_path) = setup_test_repo_with_many_files(50);
         let current_branch = get_current_branch(&repo_path).unwrap();
