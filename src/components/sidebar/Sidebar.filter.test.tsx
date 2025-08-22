@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import React from 'react'
 import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
@@ -10,6 +11,18 @@ vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 interface SessionInfo {
   session_id: string
@@ -82,7 +95,13 @@ describe('Sidebar filter functionality and persistence', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined
     })
   })
 
@@ -132,7 +151,41 @@ describe('Sidebar filter functionality and persistence', () => {
     })
   })
 
-  it('persists filterMode to localStorage and restores it', async () => {
+  it('persists filterMode to backend and restores it', async () => {
+    // Mock backend settings storage
+    let savedFilterMode = 'all'
+    let savedSortMode = 'name'
+    let settingsLoadCalled = false
+    
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+      if (command === 'get_project_sessions_settings') {
+        settingsLoadCalled = true
+        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
+      }
+      if (command === 'set_project_sessions_settings') {
+        // Only save if settings have been loaded (mimics the component behavior)
+        if (settingsLoadCalled) {
+          savedFilterMode = args?.filterMode || 'all'
+          savedSortMode = args?.sortMode || 'name'
+        }
+        return undefined
+      }
+      if (command === 'para_core_list_enriched_sessions') {
+        return [
+          createSession('session1'),
+          createSession('session2'),
+          createSession('session3', true),
+          createSession('session4', true),
+        ]
+      }
+      if (command === 'get_current_directory') return '/test/dir'
+      if (command === 'terminal_exists') return false
+      if (command === 'create_terminal') return true
+      if (command === 'get_buffer') return ''
+      if (command === 'para_core_list_sessions_by_state') return []
+      return undefined
+    })
+    
     // First render: set to Reviewed
     const { unmount } = renderWithProviders(<Sidebar />)
 
@@ -144,7 +197,7 @@ describe('Sidebar filter functionality and persistence', () => {
     fireEvent.click(screen.getByTitle('Show reviewed tasks'))
 
     await waitFor(() => {
-      expect(localStorage.getItem('schaltwerk:sessions:filterMode')).toBe('reviewed')
+      expect(savedFilterMode).toBe('reviewed')
     })
 
     unmount()

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import React from 'react'
 import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
@@ -10,6 +11,18 @@ vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 interface SessionInfo {
   session_id: string
@@ -62,6 +75,9 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
 })
 
 describe('Sidebar sorting functionality', () => {
+  let savedFilterMode = 'all'
+  let savedSortMode = 'name'
+  
   // Helper function to wrap component with all required providers
   const renderWithProviders = (component: React.ReactElement) => {
     return render(
@@ -77,8 +93,29 @@ describe('Sidebar sorting functionality', () => {
   
   beforeEach(() => {
     vi.clearAllMocks()
-    localStorage.clear()
+    savedFilterMode = 'all'
+    savedSortMode = 'name'
   })
+  
+  const createInvokeMock = (sessions: any[]) => {
+    return async (cmd: string, args?: any) => {
+      if (cmd === 'para_core_list_enriched_sessions') return sessions
+      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'get_current_directory') return '/test/dir'
+      if (cmd === 'terminal_exists') return false
+      if (cmd === 'create_terminal') return true
+      if (cmd === 'get_buffer') return ''
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        savedFilterMode = args?.filterMode || 'all'
+        savedSortMode = args?.sortMode || 'name'
+        return undefined
+      }
+      return undefined
+    }
+  }
 
   it('should cycle through sort modes: name -> created -> last-edited -> name', async () => {
     const sessions = [
@@ -87,28 +124,7 @@ describe('Sidebar sorting functionality', () => {
       createSession('beta_session', '2024-01-20T10:00:00Z', '2023-12-31T10:00:00Z'),  // Created Dec 31, edited Jan 20
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === 'para_core_list_enriched_sessions') {
-        return sessions
-      }
-      if (cmd === 'para_core_list_sessions_by_state') {
-        return []
-      }
-      if (cmd === 'get_current_directory') {
-        return '/test/dir'
-      }
-      if (cmd === 'terminal_exists') {
-        return false
-      }
-      if (cmd === 'create_terminal') {
-        return true
-      }
-      if (cmd === 'get_buffer') {
-        return ''
-      }
-      if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
-    })
+    vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
     renderWithProviders(<Sidebar />)
 
@@ -187,28 +203,7 @@ describe('Sidebar sorting functionality', () => {
       createSession('gamma_session', '2024-01-05T10:00:00Z', '2024-01-04T10:00:00Z', true), // reviewed
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === 'para_core_list_enriched_sessions') {
-        return sessions
-      }
-      if (cmd === 'para_core_list_sessions_by_state') {
-        return []
-      }
-      if (cmd === 'get_current_directory') {
-        return '/test/dir'
-      }
-      if (cmd === 'terminal_exists') {
-        return false
-      }
-      if (cmd === 'create_terminal') {
-        return true
-      }
-      if (cmd === 'get_buffer') {
-        return ''
-      }
-      if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
-    })
+    vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
     renderWithProviders(<Sidebar />)
 
@@ -252,28 +247,7 @@ describe('Sidebar sorting functionality', () => {
   it('should persist sort mode preference in localStorage', async () => {
     const sessions = [createSession('test_session', '2024-01-15T10:00:00Z', '2024-01-01T10:00:00Z')]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === 'para_core_list_enriched_sessions') {
-        return sessions
-      }
-      if (cmd === 'para_core_list_sessions_by_state') {
-        return []
-      }
-      if (cmd === 'get_current_directory') {
-        return '/test/dir'
-      }
-      if (cmd === 'terminal_exists') {
-        return false
-      }
-      if (cmd === 'create_terminal') {
-        return true
-      }
-      if (cmd === 'get_buffer') {
-        return ''
-      }
-      if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
-    })
+    vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
     const { unmount } = renderWithProviders(<Sidebar />)
 
@@ -290,13 +264,13 @@ describe('Sidebar sorting functionality', () => {
     // Switch to created mode
     fireEvent.click(sortButton)
     await waitFor(() => {
-      expect(localStorage.getItem('schaltwerk:sessions:sortMode')).toBe('created')
+      expect(savedSortMode).toBe('created')
     })
 
     // Switch to last-edited mode
     fireEvent.click(sortButton)
     await waitFor(() => {
-      expect(localStorage.getItem('schaltwerk:sessions:sortMode')).toBe('last-edited')
+      expect(savedSortMode).toBe('last-edited')
     })
 
     // Unmount and remount - should restore last-edited mode
@@ -317,28 +291,7 @@ describe('Sidebar sorting functionality', () => {
       createSession('another_no_timestamp', undefined),
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === 'para_core_list_enriched_sessions') {
-        return sessions
-      }
-      if (cmd === 'para_core_list_sessions_by_state') {
-        return []
-      }
-      if (cmd === 'get_current_directory') {
-        return '/test/dir'
-      }
-      if (cmd === 'terminal_exists') {
-        return false
-      }
-      if (cmd === 'create_terminal') {
-        return true
-      }
-      if (cmd === 'get_buffer') {
-        return ''
-      }
-      if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
-    })
+    vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
     renderWithProviders(<Sidebar />)
 

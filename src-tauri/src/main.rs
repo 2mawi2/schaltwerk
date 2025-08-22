@@ -653,7 +653,9 @@ fn main() {
             get_project_settings,
             set_project_settings,
             get_project_selection,
-            set_project_selection
+            set_project_selection,
+            get_project_sessions_settings,
+            set_project_sessions_settings
         ])
         .setup(move |app| {
             // Pass initial directory to the frontend if provided

@@ -11,11 +11,19 @@ pub struct ProjectSelection {
     pub payload: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectSessionsSettings {
+    pub filter_mode: String,
+    pub sort_mode: String,
+}
+
 pub trait ProjectConfigMethods {
     fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;
     fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()>;
     fn get_project_selection(&self, repo_path: &Path) -> Result<Option<ProjectSelection>>;
     fn set_project_selection(&self, repo_path: &Path, selection: &ProjectSelection) -> Result<()>;
+    fn get_project_sessions_settings(&self, repo_path: &Path) -> Result<ProjectSessionsSettings>;
+    fn set_project_sessions_settings(&self, repo_path: &Path, settings: &ProjectSessionsSettings) -> Result<()>;
 }
 
 impl ProjectConfigMethods for Database {
@@ -95,6 +103,57 @@ impl ProjectConfigMethods for Database {
                 canonical_path.to_string_lossy(), 
                 selection.kind,
                 selection.payload,
+                now, 
+                now
+            ],
+        )?;
+        
+        Ok(())
+    }
+    
+    fn get_project_sessions_settings(&self, repo_path: &Path) -> Result<ProjectSessionsSettings> {
+        let conn = self.conn.lock().unwrap();
+        
+        // Canonicalize the path for consistent storage/retrieval
+        let canonical_path = std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+        
+        let result: rusqlite::Result<(Option<String>, Option<String>)> = conn.query_row(
+            "SELECT sessions_filter_mode, sessions_sort_mode FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        );
+        
+        match result {
+            Ok((filter, sort)) => Ok(ProjectSessionsSettings {
+                filter_mode: filter.unwrap_or_else(|| "all".to_string()),
+                sort_mode: sort.unwrap_or_else(|| "name".to_string()),
+            }),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(ProjectSessionsSettings {
+                filter_mode: "all".to_string(),
+                sort_mode: "name".to_string(),
+            }),
+            Err(e) => Err(e.into()),
+        }
+    }
+    
+    fn set_project_sessions_settings(&self, repo_path: &Path, settings: &ProjectSessionsSettings) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+        
+        // Canonicalize the path for consistent storage/retrieval
+        let canonical_path = std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+        
+        conn.execute(
+            "INSERT INTO project_config (repository_path, sessions_filter_mode, sessions_sort_mode, created_at, updated_at) 
+             VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(repository_path) DO UPDATE SET 
+                sessions_filter_mode = excluded.sessions_filter_mode,
+                sessions_sort_mode = excluded.sessions_sort_mode,
+                updated_at = excluded.updated_at",
+            params![
+                canonical_path.to_string_lossy(), 
+                settings.filter_mode,
+                settings.sort_mode,
                 now, 
                 now
             ],

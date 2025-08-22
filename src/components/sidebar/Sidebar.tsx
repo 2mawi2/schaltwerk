@@ -69,25 +69,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const [sessions, setSessions] = useState<EnrichedSession[]>([])
-    const [filterMode, setFilterMode] = useState<'all' | 'draft' | 'running' | 'reviewed'>(() => {
-        const saved = typeof window !== 'undefined' ? window.localStorage.getItem('schaltwerk:sessions:filterMode') : null
-        return (saved === 'draft' || saved === 'running' || saved === 'reviewed') ? saved : 'all'
-    })
-    const [sortMode, setSortMode] = useState<'name' | 'created' | 'last-edited'>(() => {
-        if (typeof window === 'undefined') return 'name'
-        
-        try {
-            const saved = window.localStorage.getItem('schaltwerk:sessions:sortMode')
-            if (saved === 'name' || saved === 'created' || saved === 'last-edited') {
-                return saved
-            }
-        } catch (error) {
-            console.warn('Failed to load sort mode from localStorage:', error)
-        }
-        
-        return 'name'
-    })
+    const [filterMode, setFilterMode] = useState<'all' | 'draft' | 'running' | 'reviewed'>('all')
+    const [sortMode, setSortMode] = useState<'name' | 'created' | 'last-edited'>('name')
     const [loading, setLoading] = useState(true)
+    const [settingsLoaded, setSettingsLoaded] = useState(false)
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
@@ -182,6 +167,39 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         // Unreviewed on top, reviewed at bottom
         return [...sortedUnreviewed, ...sortedReviewed]
     }, [sessions, filterMode, sortMode, applySortMode])
+    
+    // Load settings when project changes
+    useEffect(() => {
+        if (!projectPath) return
+        
+        const loadProjectSettings = async () => {
+            try {
+                const settings = await invoke<{ filter_mode: string; sort_mode: string }>('get_project_sessions_settings')
+                if (settings) {
+                    // Validate and set filter mode with fallback to 'all'
+                    const validFilterModes = ['all', 'draft', 'running', 'reviewed'] as const
+                    const filterMode = validFilterModes.includes(settings.filter_mode as any) 
+                        ? settings.filter_mode as typeof validFilterModes[number]
+                        : 'all'
+                    setFilterMode(filterMode)
+                    
+                    // Validate and set sort mode with fallback to 'name'
+                    const validSortModes = ['name', 'created', 'last-edited'] as const
+                    const sortMode = validSortModes.includes(settings.sort_mode as any)
+                        ? settings.sort_mode as typeof validSortModes[number]
+                        : 'name'
+                    setSortMode(sortMode)
+                    
+                    setSettingsLoaded(true)
+                }
+            } catch (error) {
+                console.warn('Failed to load project sessions settings:', error)
+                setSettingsLoaded(true)
+            }
+        }
+        
+        loadProjectSettings()
+    }, [projectPath])
     
     // Auto-select first visible session when current selection disappears from view
     useEffect(() => {
@@ -372,20 +390,23 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         isDiffViewerOpen
     })
 
-    // Persist user preferences
+    // Persist user preferences to backend
     useEffect(() => {
-        try { window.localStorage.setItem('schaltwerk:sessions:filterMode', filterMode) } catch {}
-    }, [filterMode])
-    
-    useEffect(() => {
-        try {
-            if (typeof window !== 'undefined') {
-                window.localStorage.setItem('schaltwerk:sessions:sortMode', sortMode)
+        if (!settingsLoaded || !projectPath) return
+        
+        const saveSettings = async () => {
+            try {
+                await invoke('set_project_sessions_settings', { 
+                    filterMode, 
+                    sortMode 
+                })
+            } catch (error) {
+                console.warn('Failed to save sessions settings:', error)
             }
-        } catch (error) {
-            console.warn('Failed to save sort mode to localStorage:', error)
         }
-    }, [sortMode])
+        
+        saveSettings()
+    }, [filterMode, sortMode, settingsLoaded, projectPath])
 
     // Load sessions on mount and when project changes; push updates keep it fresh thereafter
     useEffect(() => {

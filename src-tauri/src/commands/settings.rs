@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use crate::{SETTINGS_MANAGER, get_para_core, PROJECT_MANAGER};
 use crate::settings::TerminalUIPreferences;
 use crate::para_core::db_app_config::AppConfigMethods;
-use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection};
+use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings};
 
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
@@ -164,6 +164,39 @@ pub async fn set_project_selection(kind: String, payload: Option<String>) -> Res
     let selection = ProjectSelection { kind, payload };
     db.set_project_selection(&project.path, &selection)
         .map_err(|e| format!("Failed to set project selection: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_project_sessions_settings() -> Result<ProjectSessionsSettings, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+    
+    let core = project.para_core.lock().await;
+    let db = core.database();
+    
+    db.get_project_sessions_settings(&project.path)
+        .map_err(|e| format!("Failed to get project sessions settings: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_project_sessions_settings(filter_mode: String, sort_mode: String) -> Result<(), String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+    
+    let core = project.para_core.lock().await;
+    let db = core.database();
+    
+    let settings = ProjectSessionsSettings { filter_mode, sort_mode };
+    db.set_project_sessions_settings(&project.path, &settings)
+        .map_err(|e| format!("Failed to set project sessions settings: {e}"))
 }
 
 #[cfg(test)]

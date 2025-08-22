@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import React from 'react'
 import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
@@ -10,6 +11,18 @@ vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 interface SessionInfo {
   session_id: string
@@ -62,8 +75,8 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
 })
 
 describe('Sidebar sort mode persistence', () => {
-  let mockLocalStorage: { [key: string]: string }
-  let localStorageMock: Storage
+  let savedFilterMode = 'all'
+  let savedSortMode = 'name'
 
   // Helper function to wrap component with all required providers
   const renderWithProviders = (component: React.ReactElement) => {
@@ -81,27 +94,9 @@ describe('Sidebar sort mode persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     
-    // Create a fresh mock localStorage for each test
-    mockLocalStorage = {}
-    localStorageMock = {
-      getItem: vi.fn((key: string) => mockLocalStorage[key] || null),
-      setItem: vi.fn((key: string, value: string) => {
-        mockLocalStorage[key] = value
-      }),
-      removeItem: vi.fn((key: string) => {
-        delete mockLocalStorage[key]
-      }),
-      clear: vi.fn(() => {
-        mockLocalStorage = {}
-      }),
-      length: 0,
-      key: vi.fn()
-    }
-    
-    Object.defineProperty(window, 'localStorage', {
-      value: localStorageMock,
-      writable: true
-    })
+    // Reset backend settings
+    savedFilterMode = 'all'
+    savedSortMode = 'name'
 
     const sessions = [
       createSession('test_session_a', '2024-01-15T10:00:00Z', '2024-01-01T10:00:00Z'),
@@ -109,14 +104,22 @@ describe('Sidebar sort mode persistence', () => {
       createSession('test_session_c', '2024-01-20T10:00:00Z', '2023-12-31T10:00:00Z')
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        savedFilterMode = args?.filterMode || 'all'
+        savedSortMode = args?.sortMode || 'name'
+        return undefined
+      }
+      return undefined
     })
   })
 
@@ -124,7 +127,7 @@ describe('Sidebar sort mode persistence', () => {
     vi.restoreAllMocks()
   })
 
-  it('should default to name sorting when no localStorage value exists', async () => {
+  it('should default to name sorting when no backend value exists', async () => {
     renderWithProviders(<Sidebar />)
 
     await waitFor(() => {
@@ -145,13 +148,15 @@ describe('Sidebar sort mode persistence', () => {
     expect(sessionButtons[1]).toHaveTextContent('test_session_b')
     expect(sessionButtons[2]).toHaveTextContent('test_session_c')
 
-    // Check that initial state is saved
-    expect(localStorageMock.setItem).toHaveBeenCalledWith('schaltwerk:sessions:sortMode', 'name')
+    // Check that initial state is saved to backend
+    await waitFor(() => {
+      expect(savedSortMode).toBe('name')
+    })
   })
 
-  it('should restore sort mode from localStorage on component mount', async () => {
-    // Pre-populate localStorage with 'created' mode
-    mockLocalStorage['schaltwerk:sessions:sortMode'] = 'created'
+  it('should restore sort mode from backend on component mount', async () => {
+    // Pre-populate backend with 'created' mode
+    savedSortMode = 'created'
 
     renderWithProviders(<Sidebar />)
 
@@ -178,7 +183,7 @@ describe('Sidebar sort mode persistence', () => {
     expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
   })
 
-  it('should persist sort mode changes to localStorage', async () => {
+  it('should persist sort mode changes to backend', async () => {
     renderWithProviders(<Sidebar />)
 
     await waitFor(() => {
@@ -196,26 +201,32 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
     })
-    expect(localStorageMock.setItem).toHaveBeenCalledWith('schaltwerk:sessions:sortMode', 'created')
+    await waitFor(() => {
+      expect(savedSortMode).toBe('created')
+    })
 
     // Change to last-edited mode
     fireEvent.click(sortButton)
     await waitFor(() => {
       expect(sortButton).toHaveAttribute('title', expect.stringContaining('Last Edited'))
     })
-    expect(localStorageMock.setItem).toHaveBeenCalledWith('schaltwerk:sessions:sortMode', 'last-edited')
+    await waitFor(() => {
+      expect(savedSortMode).toBe('last-edited')
+    })
 
     // Change back to name mode
     fireEvent.click(sortButton)
     await waitFor(() => {
       expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
     })
-    expect(localStorageMock.setItem).toHaveBeenCalledWith('schaltwerk:sessions:sortMode', 'name')
+    await waitFor(() => {
+      expect(savedSortMode).toBe('name')
+    })
   })
 
-  it('should handle localStorage initialization errors gracefully', async () => {
-    // Test that invalid localStorage values are handled gracefully
-    mockLocalStorage['schaltwerk:sessions:sortMode'] = 'invalid-sort-mode'
+  it('should handle backend initialization errors gracefully', async () => {
+    // Test that invalid backend values are handled gracefully
+    savedSortMode = 'invalid-sort-mode' as any
 
     renderWithProviders(<Sidebar />)
 
@@ -242,7 +253,7 @@ describe('Sidebar sort mode persistence', () => {
     expect(sortButton).toHaveAttribute('title', expect.stringContaining('Name (A-Z)'))
   })
 
-  it('should handle localStorage errors gracefully during saving', async () => {
+  it('should handle backend errors gracefully during saving', async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     
     renderWithProviders(<Sidebar />)
@@ -255,9 +266,23 @@ describe('Sidebar sort mode persistence', () => {
       expect(sessionButtons).toHaveLength(3)
     })
 
-    // Make localStorage.setItem throw an error
-    localStorageMock.setItem = vi.fn(() => {
-      throw new Error('localStorage quota exceeded')
+    // Make backend save throw an error
+    const sessions = [
+      createSession('test_session_a', '2024-01-15T10:00:00Z', '2024-01-01T10:00:00Z'),
+      createSession('test_session_b', '2024-01-10T10:00:00Z', '2024-01-02T10:00:00Z'),
+      createSession('test_session_c', '2024-01-20T10:00:00Z', '2023-12-31T10:00:00Z')
+    ]
+    
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === 'set_project_sessions_settings') {
+        throw new Error('Backend save failed')
+      }
+      // Default handling for other commands
+      if (cmd === 'para_core_list_enriched_sessions') return sessions
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
+      }
+      return undefined
     })
 
     const sortButton = screen.getByTitle(/^Sort:/i)
@@ -267,7 +292,7 @@ describe('Sidebar sort mode persistence', () => {
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        'Failed to save sort mode to localStorage:',
+        'Failed to save sessions settings:',
         expect.any(Error)
       )
     })
@@ -278,9 +303,9 @@ describe('Sidebar sort mode persistence', () => {
     consoleSpy.mockRestore()
   })
 
-  it('should ignore invalid localStorage values and use default', async () => {
-    // Pre-populate localStorage with invalid value
-    mockLocalStorage['schaltwerk:sessions:sortMode'] = 'invalid-mode'
+  it('should ignore invalid backend values and use default', async () => {
+    // Pre-populate backend with invalid value
+    savedSortMode = 'invalid-mode' as any
 
     renderWithProviders(<Sidebar />)
 
@@ -328,8 +353,8 @@ describe('Sidebar sort mode persistence', () => {
       expect(sortButton).toHaveAttribute('title', expect.stringContaining('Last Edited'))
     })
 
-    // Verify localStorage was updated
-    expect(mockLocalStorage['schaltwerk:sessions:sortMode']).toBe('last-edited')
+    // Verify backend was updated
+    expect(savedSortMode).toBe('last-edited')
 
     // Unmount component
     unmount()
@@ -361,8 +386,9 @@ describe('Sidebar sort mode persistence', () => {
   })
 
   it('should handle default fallback correctly', async () => {
-    // Start with empty localStorage to test default fallback
-    mockLocalStorage = {}
+    // Start with default backend values
+    savedFilterMode = 'all'
+    savedSortMode = 'name'
 
     renderWithProviders(<Sidebar />)
 
@@ -394,8 +420,8 @@ describe('Sidebar sort mode persistence', () => {
     
     for (let i = 0; i < modes.length; i++) {
       const mode = modes[i]
-      // Set up localStorage with the mode
-      mockLocalStorage['schaltwerk:sessions:sortMode'] = mode
+      // Set up backend with the mode
+      savedSortMode = mode
 
       const { unmount } = renderWithProviders(<Sidebar />)
 
@@ -420,9 +446,10 @@ describe('Sidebar sort mode persistence', () => {
 
       unmount()
       
-      // Clear between iterations
+      // Reset backend for next iteration
       if (i < modes.length - 1) {
-        mockLocalStorage = {}
+        savedFilterMode = 'all'
+        savedSortMode = 'name'
       }
     }
   })
