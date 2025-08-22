@@ -42,7 +42,7 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -52,53 +52,27 @@ jobs:
           rm -rf node_modules
           npm install
 
-      - name: Run tests
-        run: npm run test
+      # Skip tests in release workflow - they run in separate CI
+      # Saves ~2-3 minutes
 
       - name: Build frontend
         run: npm run build
 
-      - name: Build for Intel and Apple Silicon in parallel
+      - name: Build ARM64 (Apple Silicon) only
         env:
           MACOSX_DEPLOYMENT_TARGET: '11.0'
-          CARGO_PROFILE_RELEASE_LTO: 'thin'
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+          # Use CI profile for faster builds
+          TAURI_PROFILE: 'ci'
         run: |
-          # Build both targets in parallel with faster CI settings
-          npm run tauri build -- --target x86_64-apple-darwin &
-          PID_INTEL=$!
-          npm run tauri build -- --target aarch64-apple-darwin &
-          PID_ARM=$!
-          
-          # Wait for both builds to complete
-          wait $PID_INTEL
-          INTEL_STATUS=$?
-          wait $PID_ARM
-          ARM_STATUS=$?
-          
-          # Check if both builds succeeded
-          if [ $INTEL_STATUS -ne 0 ] || [ $ARM_STATUS -ne 0 ]; then
-            echo "Build failed"
-            exit 1
-          fi
+          # Build ARM64 only - most Macs are now Apple Silicon
+          npm run tauri build -- --target aarch64-apple-darwin --profile ci
 
-      - name: Create Universal Binary
+      - name: Prepare ARM64 App
         run: |
-          # Create a universal binary app
-          cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-arm64.app
-          cp -R src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-x64.app
+          # Copy ARM64 app to final location (from ci profile directory)
+          cp -R src-tauri/target/aarch64-apple-darwin/ci/bundle/macos/Schaltwerk.app ./Schaltwerk.app
           
-          # Create universal binary
-          lipo -create \
-            ./Schaltwerk-arm64.app/Contents/MacOS/schaltwerk \
-            ./Schaltwerk-x64.app/Contents/MacOS/schaltwerk \
-            -output ./schaltwerk-universal
-          
-          # Use the arm64 app as base and replace binary
-          cp -R ./Schaltwerk-arm64.app ./Schaltwerk.app
-          mv ./schaltwerk-universal ./Schaltwerk.app/Contents/MacOS/schaltwerk
-          
-          # Ad-hoc sign the universal app
+          # Ad-hoc sign the app
           codesign --force --deep -s - ./Schaltwerk.app
           
           # Clear extended attributes
