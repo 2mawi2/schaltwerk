@@ -52,8 +52,16 @@ jobs:
           rm -rf node_modules
           npm install
 
-      # Skip tests in release workflow - they run in separate CI
-      # Saves ~2-3 minutes
+      - name: Run tests
+        env:
+          # Optimize Rust test compilation speed
+          CARGO_PROFILE_TEST_OPT_LEVEL: '0'
+          CARGO_PROFILE_DEV_OPT_LEVEL: '0'
+          CARGO_PROFILE_TEST_CODEGEN_UNITS: '256'
+          RUST_LOG: 'warn'
+        run: |
+          # Run all tests to ensure quality before release
+          npm run test
 
       - name: Build frontend
         run: npm run build
