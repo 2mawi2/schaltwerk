@@ -802,6 +802,16 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
         }
     }
     
+    // Drop the lock before starting Claude to avoid deadlock
+    drop(core_lock);
+    
+    // Automatically start the AI agent for the newly started draft session
+    log::info!("Auto-starting AI agent for draft session: {name}");
+    if let Err(e) = para_core_start_claude(name.clone()).await {
+        log::warn!("Failed to auto-start AI agent for draft session {name}: {e}");
+        // Don't fail the whole operation if agent start fails - session is already created
+    }
+    
     Ok(())
 }
 
