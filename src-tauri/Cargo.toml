@@ -1,6 +1,6 @@
 [package]
 name = "schaltwerk"
-version = "0.1.3"
+version = "0.1.4"
 description = "Schaltwerk - A Terminal UI Application"
 authors = ["you"]
 edition = "2021"
