@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
+import { useProject } from '../../contexts/ProjectContext'
 import { VscDiff, VscChevronLeft, VscNotebook } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { DraftContentView } from '../drafts/DraftContentView'
@@ -12,6 +13,7 @@ interface RightPanelTabsProps {
 
 export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
   const { selection, isDraft } = useSelection()
+  const { projectPath } = useProject()
   const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'task' | null>(null)
   const [previewDraftName, setPreviewDraftName] = useState<string | null>(null)
 
@@ -27,6 +29,12 @@ export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
   useEffect(() => {
     if (selection.kind !== 'orchestrator') setPreviewDraftName(null)
   }, [selection])
+
+  // Reset state when project changes
+  useEffect(() => {
+    setUserSelectedTab(null)
+    setPreviewDraftName(null)
+  }, [projectPath])
 
   // Note: removed Cmd+D toggle to reserve shortcut for New Draft
 

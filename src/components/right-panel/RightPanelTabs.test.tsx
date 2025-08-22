@@ -19,6 +19,13 @@ vi.mock('../../contexts/SelectionContext', () => ({
   })),
 }))
 
+vi.mock('../../contexts/ProjectContext', () => ({
+  useProject: vi.fn(() => ({
+    projectPath: '/test/project',
+    projectName: 'test-project',
+  })),
+}))
+
 vi.mock('../diff/SimpleDiffPanel', () => ({
   SimpleDiffPanel: () => <div data-testid="diff-panel">Diff Panel</div>,
 }))
