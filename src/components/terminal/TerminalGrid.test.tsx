@@ -81,8 +81,9 @@ vi.mock('./Terminal', () => {
 // Mock TerminalTabs to work with the mount counting system
 vi.mock('./TerminalTabs', () => {
   const TerminalTabsMock = forwardRef<any, any>(function TerminalTabsMock(props, ref) {
-    const { baseTerminalId } = props
-    const terminalId = `${baseTerminalId}-0`  // Default first tab
+    const { baseTerminalId, isOrchestrator } = props
+    // For orchestrator, add -0 suffix; for sessions, no suffix
+    const terminalId = isOrchestrator ? `${baseTerminalId}-0` : baseTerminalId
     const focus = vi.fn()
     
     // Track mount for the tab terminal and register focus spy
