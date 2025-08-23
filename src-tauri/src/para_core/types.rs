@@ -187,6 +187,8 @@ pub struct SessionInfo {
     pub session_type: SessionType,
     pub container_status: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub original_agent_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub current_task: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub diff_stats: Option<DiffStats>,
@@ -220,4 +222,3 @@ pub enum TestStatus {
     Failed,
     Unknown,
 }
-

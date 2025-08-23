@@ -573,6 +573,11 @@ impl SessionManager {
                 SessionStatus::Draft => SessionStatusType::Draft,
             };
             
+            let original_agent_type = session
+                .original_agent_type
+                .clone()
+                .or_else(|| self.db.get_agent_type().ok());
+
             let info = SessionInfo {
                 session_id: session.name.clone(),
                 display_name: session.display_name.clone(),
@@ -587,6 +592,7 @@ impl SessionManager {
                 is_current: false,
                 session_type: SessionType::Worktree,
                 container_status: None,
+                original_agent_type,
                 current_task: session.initial_prompt.clone(),
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
