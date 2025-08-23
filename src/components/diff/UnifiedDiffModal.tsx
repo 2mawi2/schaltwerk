@@ -5,13 +5,12 @@ import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection } from '../../hooks/useLineSelection'
 import { getFileLanguage } from '../../utils/diff'
-import { loadAllFileDiffs, loadFileDiff, type FileDiffData, type ViewMode } from './loadDiffs'
+import { loadAllFileDiffs, loadFileDiff, type FileDiffData } from './loadDiffs'
 import { DiffLineRow } from './DiffLineRow'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { 
-  VscClose, VscComment, VscSend, VscCheck,
-  VscSplitHorizontal, VscListFlat, VscFile,
+  VscClose, VscComment, VscSend, VscCheck, VscFile,
   VscDiffAdded, VscDiffModified, VscDiffRemoved
 } from 'react-icons/vsc'
 import clsx from 'clsx'
@@ -53,15 +52,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [loadingAllFiles, setLoadingAllFiles] = useState(true)
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const rightScrollContainerRef = useRef<HTMLDivElement>(null)
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const suppressAutoSelectRef = useRef(false)
   const leftScrollRafRef = useRef<number | null>(null)
-  const rightScrollRafRef = useRef<number | null>(null)
   const didInitialScrollRef = useRef(false)
   const lastInitialFilePathRef = useRef<string | null>(null)
   
-  const [viewMode, setViewMode] = useState<ViewMode>('unified')
+  // Always use unified view mode - split view removed for performance
   const [visibleFilePath, setVisibleFilePath] = useState<string | null>(null)
   const [showCommentForm, setShowCommentForm] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<string | number>>(new Set())
@@ -81,14 +78,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     return totalChanged > LARGE_CHANGED_LINES_THRESHOLD
   }, [files.length, allFileDiffs])
 
-  // Virtualization: compute per-file estimated heights and render a sliding window
-  const fileHeightsRef = useRef<Map<string, number>>(new Map())
-  const [fileWindowStart, setFileWindowStart] = useState(0)
-  const [fileWindowEnd, setFileWindowEnd] = useState(0)
-  const DEFAULT_FILE_HEIGHT = 320 // px, placeholder before diff is available
-  const HEADER_HEIGHT_UNIFIED = 56
-  const HEADER_HEIGHT_SPLIT = 40 // sticky header per side; content scroll containers are separate
-  const ROW_HEIGHT = 22
+  // Removed virtualization to prevent jumping when diffs load
 
   // Removed unused variable - was used for virtualization but no longer needed
   // const allFilesTotalHeight = useMemo(() => {
@@ -101,73 +91,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   //   return total
   // }, [files, allFileDiffs, viewMode])
 
-  const computeFileHeight = useCallback((file: ChangedFile): number => {
-    const fd = allFileDiffs.get(file.path)
-    if (!fd) return DEFAULT_FILE_HEIGHT
-    if (viewMode === 'unified' && 'diffResult' in fd) {
-      const rows = fd.diffResult.length
-      return HEADER_HEIGHT_UNIFIED + rows * ROW_HEIGHT
-    }
-    if (viewMode === 'split' && 'splitDiffResult' in fd) {
-      const rows = Math.max(fd.splitDiffResult.leftLines.length, fd.splitDiffResult.rightLines.length)
-      // Two columns share the same rows; header per column handled by sticky top within each column
-      return HEADER_HEIGHT_SPLIT + rows * ROW_HEIGHT
-    }
-    return DEFAULT_FILE_HEIGHT
-  }, [allFileDiffs, viewMode])
-
-  useEffect(() => {
-    const map = fileHeightsRef.current
-    let changed = false
-    for (const f of files) {
-      const h = computeFileHeight(f)
-      if (map.get(f.path) !== h) {
-        map.set(f.path, h)
-        changed = true
-      }
-    }
-    if (changed) {
-      // Trigger dependent memo recomputation via state nudges if necessary
-      setFileWindowEnd((prev) => prev)
-    }
-  }, [files, allFileDiffs, viewMode, computeFileHeight])
-
-  const computeWindowForScrollTop = useCallback((scrollTop: number, viewportHeight: number) => {
-    // Find first file index intersecting scrollTop
-    let acc = 0
-    let start = 0
-    for (; start < files.length; start++) {
-      const h = fileHeightsRef.current.get(files[start].path) ?? DEFAULT_FILE_HEIGHT
-      if (acc + h > scrollTop) break
-      acc += h
-    }
-    // Extend until we fill viewport + buffer
-    const buffer = 800
-    let end = start
-    let used = 0
-    while (end < files.length && used < viewportHeight + buffer) {
-      const h = fileHeightsRef.current.get(files[end].path) ?? DEFAULT_FILE_HEIGHT
-      used += h
-      end++
-    }
-    // Add small overscan
-    const overscan = 2
-    start = Math.max(0, start - overscan)
-    end = Math.min(files.length, end + overscan)
-    setFileWindowStart(start)
-    setFileWindowEnd(end)
-  }, [files])
-
-  // Ensure initial window is computed as soon as container is laid out or data changes
-  useEffect(() => {
-    if (!isOpen) return
-    const el = scrollContainerRef.current
-    const vh = (el?.clientHeight ?? window.innerHeight) || 800
-    // Defer to next frame to let layout settle
-    requestAnimationFrame(() => {
-      computeWindowForScrollTop(0, vh)
-    })
-  }, [isOpen, files.length, viewMode, allFileDiffs])
   
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
   
@@ -205,15 +128,22 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const loadAll = useCallback(async (fileList: ChangedFile[]) => {
     if (!hasLoadedOnce) setLoadingAllFiles(true)
     try {
-      const newDiffs = await loadAllFileDiffs(sessionName, fileList, viewMode, 4)
-      setAllFileDiffs(newDiffs)
+      const newDiffs = await loadAllFileDiffs(sessionName, fileList, 'unified', 4)
+      // Merge new diffs with existing ones to avoid clearing already loaded diffs
+      setAllFileDiffs(prev => {
+        const merged = new Map(prev)
+        newDiffs.forEach((value, key) => {
+          merged.set(key, value)
+        })
+        return merged
+      })
       setHasLoadedOnce(true)
     } catch (error) {
       console.error('Failed to load all file diffs:', error)
     } finally {
       setLoadingAllFiles(false)
     }
-  }, [sessionName, viewMode, hasLoadedOnce])
+  }, [sessionName, hasLoadedOnce])
 
   const loadChangedFiles = useCallback(async () => {
     try {
@@ -234,8 +164,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         setSelectedFileIndex(initialIndex)
         // Load only the initially selected file first for fast TTI
         try {
-          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], viewMode)
-          setAllFileDiffs(new Map([[initialPath, primary]]))
+          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
+          setAllFileDiffs(prev => {
+            const merged = new Map(prev)
+            merged.set(initialPath, primary)
+            return merged
+          })
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e)
           setFileError(msg)
@@ -278,11 +212,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
     requestAnimationFrame(() => {
       const fileElement = fileRefs.current.get(path)
-      const container = viewMode === 'split' ? rightScrollContainerRef.current : scrollContainerRef.current
+      const container = scrollContainerRef.current
       if (fileElement && container) {
         const containerRect = container.getBoundingClientRect()
         const elementRect = fileElement.getBoundingClientRect()
-        const stickyOffsetPx = viewMode === 'split' ? 28 /* tailwind top-7 */ : 0
+        const stickyOffsetPx = 0
         const delta = elementRect.top - containerRect.top
         container.scrollTop += delta - stickyOffsetPx
       }
@@ -295,7 +229,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     window.setTimeout(() => {
       suppressAutoSelectRef.current = false
     }, 250)
-  }, [viewMode, isLargeDiffMode])
+  }, [isLargeDiffMode])
 
   // Auto-select file while user scrolls without affecting scroll position
   useEffect(() => {
@@ -322,37 +256,34 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         }
         if (bestPath && bestPath !== visibleFilePath) {
           setVisibleFilePath(bestPath)
+          // Update selected file to keep sidebar in sync
+          setSelectedFile(bestPath)
+          const index = files.findIndex(f => f.path === bestPath)
+          if (index >= 0) {
+            setSelectedFileIndex(index)
+          }
         }
       })
     }
 
     const leftRoot = scrollContainerRef.current
-    const rightRoot = viewMode === 'split' ? rightScrollContainerRef.current : null
-    if (!leftRoot && !rightRoot) return
+    if (!leftRoot) return
 
     const onLeftScroll = () => leftRoot && updateSelectionForRoot(leftRoot, leftScrollRafRef)
-    const onRightScroll = () => rightRoot && updateSelectionForRoot(rightRoot, rightScrollRafRef)
 
     leftRoot?.addEventListener('scroll', onLeftScroll, { passive: true })
-    rightRoot?.addEventListener('scroll', onRightScroll, { passive: true })
 
     // Initial sync once content is ready
     if (leftRoot) updateSelectionForRoot(leftRoot, leftScrollRafRef)
-    if (rightRoot) updateSelectionForRoot(rightRoot, rightScrollRafRef)
 
     return () => {
       leftRoot?.removeEventListener('scroll', onLeftScroll)
-      rightRoot?.removeEventListener('scroll', onRightScroll)
       if (leftScrollRafRef.current != null) {
         cancelAnimationFrame(leftScrollRafRef.current)
         leftScrollRafRef.current = null
       }
-      if (rightScrollRafRef.current != null) {
-        cancelAnimationFrame(rightScrollRafRef.current)
-        rightScrollRafRef.current = null
-      }
     }
-  }, [isOpen, viewMode, files, visibleFilePath, isLargeDiffMode])
+  }, [isOpen, files, visibleFilePath, isLargeDiffMode])
 
   useEffect(() => {
     if (isOpen) {
@@ -363,12 +294,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [isOpen, loadChangedFiles])
 
-  // Recompute diffs when switching view mode
-  useEffect(() => {
-    if (!isOpen || files.length === 0) return
-    // Keep selected file diff, then reload all for current view
-    loadAll(files).then(() => {})
-  }, [viewMode])
 
   useEffect(() => {
     // Reset initial scroll state when modal re-opens or when a different file is passed in
@@ -385,11 +310,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       suppressAutoSelectRef.current = true
       setTimeout(() => {
         const fileElement = fileRefs.current.get(targetPath)
-        const container = viewMode === 'split' ? rightScrollContainerRef.current : scrollContainerRef.current
+        const container = scrollContainerRef.current
         if (fileElement && container) {
           const containerRect = container.getBoundingClientRect()
           const elementRect = fileElement.getBoundingClientRect()
-          const stickyOffsetPx = viewMode === 'split' ? 28 : 0
+          const stickyOffsetPx = 0
           const delta = elementRect.top - containerRect.top
           container.scrollTop += delta - stickyOffsetPx
         }
@@ -398,7 +323,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       didInitialScrollRef.current = true
       lastInitialFilePathRef.current = filePath
     }
-  }, [isOpen, filePath, viewMode])
+  }, [isOpen, filePath])
 
   // Keyboard handler moved below after handleFinishReview is defined
 
@@ -651,32 +576,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
               )}
             </div>
             <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => setViewMode('unified')}
-                  className={clsx(
-                    'px-3 py-1 text-sm rounded transition-colors',
-                    viewMode === 'unified' 
-                      ? 'bg-slate-700 text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  )}
-                >
-                  <VscListFlat className="inline mr-1" />
-                  Unified
-                </button>
-                <button
-                  onClick={() => setViewMode('split')}
-                  className={clsx(
-                    'px-3 py-1 text-sm rounded transition-colors',
-                    viewMode === 'split' 
-                      ? 'bg-slate-700 text-white' 
-                      : 'text-slate-400 hover:text-white hover:bg-slate-800'
-                  )}
-                >
-                  <VscSplitHorizontal className="inline mr-1" />
-                  Split
-                </button>
-              </div>
               <button
                 onClick={onClose}
                 className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
@@ -793,31 +692,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                     <div className="p-4 text-slate-600">Preparing preview…</div>
                   )}
 
-                  {viewMode === 'unified' ? (
-                    <div className="flex-1 overflow-auto font-mono text-sm" ref={scrollContainerRef}
-                      onScroll={(e) => {
-                        const el = e.currentTarget
-                        computeWindowForScrollTop(el.scrollTop, el.clientHeight)
-                      }}
-                      onLoadCapture={() => {
-                        const el = scrollContainerRef.current
-                        if (el) computeWindowForScrollTop(el.scrollTop, el.clientHeight)
-                      }}
-                    >
-                      {/* top spacer */}
-                      <div style={{ height: (() => {
-                        let h = 0
-                        for (let i = 0; i < fileWindowStart; i++) {
-                          h += fileHeightsRef.current.get(files[i].path) ?? DEFAULT_FILE_HEIGHT
-                        }
-                        return h
-                      })() }} />
-                      {files.slice(fileWindowStart, fileWindowEnd).map((file) => {
+                  <div className="flex-1 overflow-auto font-mono text-sm" ref={scrollContainerRef}>
+                    {/* In large diff mode, only render the selected file */}
+                    {isLargeDiffMode ? (
+                      files.filter(f => f.path === selectedFile).map((file) => {
                         const fileDiff = allFileDiffs.get(file.path)
-                        if (!fileDiff) return null
-                        
                         const commentCount = getCommentsForFile(file.path).length
-                        const isCurrentFile = file.path === selectedFile
+                        const isCurrentFile = true
                         
                         return (
                           <div 
@@ -854,7 +735,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                               )}
                             </div>
                             
-                            {/* File diff content */}
+                            {/* File diff content or loading placeholder */}
+                            {!fileDiff ? (
+                              <div className="px-4 py-8 text-center text-slate-500">
+                                <div className="animate-pulse">Loading diff...</div>
+                              </div>
+                            ) : (
                             <table className="w-full" style={{ tableLayout: 'fixed' }}>
                               <tbody>
                                 {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
@@ -923,105 +809,132 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                 })}
                               </tbody>
                             </table>
+                            )}
                           </div>
                         )
-                      })}
-                      {/* bottom spacer */}
-                      <div style={{ height: (() => {
-                        let h = 0
-                        for (let i = fileWindowEnd; i < files.length; i++) {
-                          h += fileHeightsRef.current.get(files[i].path) ?? DEFAULT_FILE_HEIGHT
-                        }
-                        return h
-                      })() }} />
-                    </div>
-                  ) : (
-                    <div className="flex-1 flex overflow-hidden">
-                      <div className="flex-1 overflow-auto font-mono text-sm border-r border-slate-800" ref={scrollContainerRef}>
-                        <div className="sticky top-0 bg-slate-900 px-3 py-1 text-xs font-medium border-b border-slate-800 z-20">
-                          {branchInfo?.baseBranch || 'Base'}
-                        </div>
-                        {files.map((file) => {
-                          const fileDiff = allFileDiffs.get(file.path)
-                          if (!fileDiff) return null
-                          
-                          return (
-                            <div key={`${file.path}-left`} className="border-b border-slate-800 last:border-b-0">
-                              <div className="sticky top-7 z-10 bg-slate-900/95 border-b border-slate-800 px-3 py-2">
-                                <div className="text-xs text-slate-400">{file.path}</div>
-                              </div>
-                              <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                                <tbody>
-                                  {('splitDiffResult' in fileDiff ? fileDiff.splitDiffResult.leftLines : []).map((line, idx) => {
-                                    return (
-                                      <DiffLineRow
-                                        key={`${file.path}-left-${idx}`}
-                                        line={line}
-                                        index={`${file.path}-left-${idx}`}
-                                        isSelected={line.oldLineNumber ? lineSelection.isLineSelected(line.oldLineNumber, 'old') : false}
-                                        onLineMouseDown={handleLineMouseDown}
-                                        onLineMouseEnter={handleLineMouseEnter}
-                                        onLineMouseUp={handleLineMouseUp}
-                                        highlightedContent={line.content ? highlightCode(line.content) : undefined}
-                                      />
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <div className="flex-1 overflow-auto font-mono text-sm" ref={rightScrollContainerRef}>
-                        <div className="sticky top-0 bg-slate-900 px-3 py-1 text-xs font-medium border-b border-slate-800 z-20">
-                          {branchInfo?.currentBranch || 'Current'}
-                        </div>
-                        {files.map((file) => {
-                          const fileDiff = allFileDiffs.get(file.path)
-                          if (!fileDiff) return null
-                          const isCurrentFile = file.path === selectedFile
-                          
-                          return (
-                            <div 
-                              key={`${file.path}-right`} 
-                              ref={(el) => {
-                                if (el && viewMode === 'split') fileRefs.current.set(file.path, el)
-                              }}
-                              className="border-b border-slate-800 last:border-b-0"
-                            >
-                              <div className={clsx(
-                                "sticky top-7 z-10 bg-slate-900/95 border-b border-slate-800 px-3 py-2 flex items-center justify-between",
-                                isCurrentFile && "bg-slate-800"
-                              )}>
-                                <div className="flex items-center gap-2">
-                                  {getFileIcon(file.change_type)}
-                                  <div className="text-xs">{file.path}</div>
+                      })
+                    ) : (
+                      /* For normal mode, render all files */
+                      files.map((file) => {
+                        const fileDiff = allFileDiffs.get(file.path)
+                        const commentCount = getCommentsForFile(file.path).length
+                        const isCurrentFile = file.path === selectedFile
+                      
+                      return (
+                        <div 
+                          key={file.path} 
+                          ref={(el) => {
+                            if (el) fileRefs.current.set(file.path, el)
+                          }}
+                          className="border-b border-slate-800 last:border-b-0"
+                        >
+                          {/* File header */}
+                          <div 
+                            className={clsx(
+                              "sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between",
+                              isCurrentFile && "bg-slate-800"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              {getFileIcon(file.change_type)}
+                              <div>
+                                <div className="font-medium text-sm">{file.path}</div>
+                                <div className="text-xs text-slate-500">
+                                  {file.change_type === 'added' && 'New file'}
+                                  {file.change_type === 'deleted' && 'Deleted file'}
+                                  {file.change_type === 'modified' && 'Modified'}
+                                  {file.change_type === 'renamed' && 'Renamed'}
                                 </div>
                               </div>
-                              <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                                <tbody>
-                                  {('splitDiffResult' in fileDiff ? fileDiff.splitDiffResult.rightLines : []).map((line, idx) => {
-                                    return (
-                                      <DiffLineRow
-                                        key={`${file.path}-right-${idx}`}
-                                        line={line}
-                                        index={`${file.path}-right-${idx}`}
-                                        isSelected={line.newLineNumber ? lineSelection.isLineSelected(line.newLineNumber, 'new') : false}
-                                        onLineMouseDown={handleLineMouseDown}
-                                        onLineMouseEnter={handleLineMouseEnter}
-                                        onLineMouseUp={handleLineMouseUp}
-                                        highlightedContent={line.content ? highlightCode(line.content) : undefined}
-                                      />
-                                    )
-                                  })}
-                                </tbody>
-                              </table>
                             </div>
-                          )
-                        })}
-                      </div>
-                    </div>
-                  )}
+                            {commentCount > 0 && (
+                              <div className="flex items-center gap-1 text-sm text-blue-400">
+                                <VscComment />
+                                <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* File diff content or loading placeholder */}
+                          {!fileDiff ? (
+                            <div className="px-4 py-8 text-center text-slate-500">
+                              <div className="animate-pulse">Loading diff...</div>
+                            </div>
+                          ) : (
+                          <table className="w-full" style={{ tableLayout: 'fixed' }}>
+                            <tbody>
+                              {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
+                                const globalIdx = `${file.path}-${idx}`
+                                const isExpanded = expandedSections.has(globalIdx)
+                                const lineNum = line.oldLineNumber || line.newLineNumber
+                                const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
+                                
+                                if (line.isCollapsible) {
+                                  const rows = []
+                                  rows.push(
+                                    <DiffLineRow
+                                      key={globalIdx}
+                                      line={line}
+                                      index={globalIdx}
+                                      isSelected={false}
+                                      onLineMouseDown={handleLineMouseDown}
+                                      onLineMouseEnter={handleLineMouseEnter}
+                                      onLineMouseUp={handleLineMouseUp}
+                                      onToggleCollapse={() => toggleCollapsed(globalIdx)}
+                                      isCollapsed={!isExpanded}
+                                      highlightedContent={undefined}
+                                    />
+                                  )
+                                  
+                                  if (isExpanded && line.collapsedLines) {
+                                    line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
+                                      const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
+                                      const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
+                                      const collapsedComment = getCommentForLine(collapsedLineNum, collapsedSide)
+                                       rows.push(
+                                        <DiffLineRow
+                                          key={`${globalIdx}-expanded-${collapsedIdx}`}
+                                          line={collapsedLine}
+                                          index={`${globalIdx}-${collapsedIdx}`}
+                                          isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
+                                          onLineMouseDown={handleLineMouseDown}
+                                          onLineMouseEnter={handleLineMouseEnter}
+                                          onLineMouseUp={handleLineMouseUp}
+                                           highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
+                                          hasComment={!!collapsedComment}
+                                          commentText={collapsedComment?.comment}
+                                        />
+                                      )
+                                    })
+                                  }
+                                  
+                                  return rows
+                                }
+                                
+                                const comment = getCommentForLine(lineNum, side)
+                                return (
+                                  <DiffLineRow
+                                    key={globalIdx}
+                                    line={line}
+                                    index={globalIdx}
+                                    isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
+                                    onLineMouseDown={handleLineMouseDown}
+                                    onLineMouseEnter={handleLineMouseEnter}
+                                    onLineMouseUp={handleLineMouseUp}
+                                    highlightedContent={line.content ? highlightCode(line.content) : undefined}
+                                    hasComment={!!comment}
+                                    commentText={comment?.comment}
+                                  />
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                          )}
+                        </div>
+                      )
+                    })
+                    )}
+                  </div>
                   
                   {/* Comment form appears near the selected line */}
                   
