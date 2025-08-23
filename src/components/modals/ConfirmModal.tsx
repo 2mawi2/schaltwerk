@@ -42,15 +42,18 @@ export function ConfirmModal({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
+        e.stopPropagation()
         onCancel()
       } else if (e.key === 'Enter') {
         e.preventDefault()
+        e.stopPropagation()
         handleConfirm()
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    // Use capture phase to handle events before other listeners
+    window.addEventListener('keydown', handleKeyDown, true)
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [open, onCancel, handleConfirm])
 
   useEffect(() => {

@@ -30,6 +30,11 @@ export function DraftPlaceholder() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Check if a modal is open by looking for the modal dialog role
+      const modalOpen = document.querySelector('[role="dialog"]')
+      if (modalOpen) return
+      
+      // Only handle Cmd+Enter (not just Enter)
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !starting) {
         e.preventDefault()
         handleRun()

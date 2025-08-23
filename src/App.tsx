@@ -6,6 +6,7 @@ import { UnifiedDiffModal } from './components/diff/UnifiedDiffModal'
 import Split from 'react-split'
 import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
+import { DeleteDraftConfirmation } from './components/modals/DeleteDraftConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -40,6 +41,7 @@ export default function App() {
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [deleteDraftModalOpen, setDeleteDraftModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [currentSession, setCurrentSession] = useState<{ id: string; name: string; displayName: string; branch: string; hasUncommittedChanges: boolean } | null>(null)
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
@@ -179,6 +181,8 @@ export default function App() {
         // perform cancel directly
         setCancelModalOpen(false)
         void handleCancelSession(hasUncommittedChanges)
+      } else if (action === 'delete-draft') {
+        setDeleteDraftModalOpen(true)
       }
     }
 
@@ -347,6 +351,25 @@ export default function App() {
     } catch (error) {
       console.error('Failed to cancel session:', error)
       alert(`Failed to cancel session: ${error}`)
+    } finally {
+      setIsCancelling(false)
+    }
+  }
+
+  const handleDeleteDraft = async () => {
+    if (!currentSession) return
+
+    try {
+      setIsCancelling(true)
+      await invoke('para_core_cancel_session', {
+        name: currentSession.name
+      })
+      setDeleteDraftModalOpen(false)
+      // Reload sessions to update the list
+      await invoke('para_core_list_enriched_sessions')
+    } catch (error) {
+      console.error('Failed to delete draft:', error)
+      alert(`Failed to delete draft: ${error}`)
     } finally {
       setIsCancelling(false)
     }
@@ -630,15 +653,24 @@ export default function App() {
           />
 
           {currentSession && (
-            <CancelConfirmation
-              open={cancelModalOpen}
-              displayName={currentSession.displayName}
-              branch={currentSession.branch}
-              hasUncommittedChanges={currentSession.hasUncommittedChanges}
-              onConfirm={handleCancelSession}
-              onCancel={() => setCancelModalOpen(false)}
-              loading={isCancelling}
-            />
+            <>
+              <CancelConfirmation
+                open={cancelModalOpen}
+                displayName={currentSession.displayName}
+                branch={currentSession.branch}
+                hasUncommittedChanges={currentSession.hasUncommittedChanges}
+                onConfirm={handleCancelSession}
+                onCancel={() => setCancelModalOpen(false)}
+                loading={isCancelling}
+              />
+              <DeleteDraftConfirmation
+                open={deleteDraftModalOpen}
+                displayName={currentSession.displayName}
+                onConfirm={handleDeleteDraft}
+                onCancel={() => setDeleteDraftModalOpen(false)}
+                loading={isCancelling}
+              />
+            </>
           )}
 
           {/* Diff Viewer Modal with Review - render only when open */}

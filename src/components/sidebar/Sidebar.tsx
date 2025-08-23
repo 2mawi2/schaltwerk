@@ -316,29 +316,45 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         if (selection.kind === 'session') {
             const selectedSession = sortedSessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession) {
-                if (immediate) {
-                    // immediate cancel without modal
+                // Check if it's a draft
+                if (isDraft(selectedSession.info)) {
+                    // For drafts, always show confirmation dialog (ignore immediate flag)
                     window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
                         detail: {
-                            action: 'cancel-immediate',
+                            action: 'delete-draft',
                             sessionId: selectedSession.info.session_id,
                             sessionName: selectedSession.info.session_id,
                             sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
                             branch: selectedSession.info.branch,
-                            hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false
+                            hasUncommittedChanges: false // Drafts don't have uncommitted changes
                         }
                     }))
                 } else {
-                    window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
-                        detail: {
-                            action: 'cancel',
-                            sessionId: selectedSession.info.session_id,
-                            sessionName: selectedSession.info.session_id,
-                            sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
-                            branch: selectedSession.info.branch,
-                            hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false
-                        }
-                    }))
+                    // For regular sessions, handle as before
+                    if (immediate) {
+                        // immediate cancel without modal
+                        window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
+                            detail: {
+                                action: 'cancel-immediate',
+                                sessionId: selectedSession.info.session_id,
+                                sessionName: selectedSession.info.session_id,
+                                sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                                branch: selectedSession.info.branch,
+                                hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false
+                            }
+                        }))
+                    } else {
+                        window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
+                            detail: {
+                                action: 'cancel',
+                                sessionId: selectedSession.info.session_id,
+                                sessionName: selectedSession.info.session_id,
+                                sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                                branch: selectedSession.info.branch,
+                                hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false
+                            }
+                        }))
+                    }
                 }
             }
         }
