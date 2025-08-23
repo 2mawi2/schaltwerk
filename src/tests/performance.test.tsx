@@ -189,9 +189,8 @@ describe('Session Switching Performance', () => {
             </ProjectProvider>
         )
 
-        // Sessions are loaded twice - once by SessionsContext and once by Sidebar 
-        // This is expected behavior with the new SessionsContext architecture
-        expect(invokeCallCount).toBe(2)
+        // With unified SessionsContext, sessions are loaded once
+        expect(invokeCallCount).toBe(1)
         
         // All sessions should still be rendered
         expect(screen.getByText('session-0')).toBeInTheDocument()

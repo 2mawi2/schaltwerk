@@ -5,6 +5,7 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useSelection } from '../../contexts/SelectionContext'
+import { useSessions } from '../../contexts/SessionsContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { computeNextSelectedSessionId } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
@@ -13,6 +14,16 @@ import { SessionButton } from './SessionButton'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { FilterMode, SortMode, isValidFilterMode, isValidSortMode, getDefaultFilterMode, getDefaultSortMode } from '../../types/sessionFilters'
+
+// Normalize backend states to UI categories
+function mapSessionUiState(info: SessionInfo): 'draft' | 'running' | 'reviewed' {
+    if (info.session_state === 'draft' || info.status === 'draft') return 'draft'
+    if (info.ready_to_merge) return 'reviewed'
+    return 'running'
+}
+
+function isDraft(info: SessionInfo): boolean { return mapSessionUiState(info) === 'draft' }
+function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
 interface DiffStats {
     files_changed: number
@@ -69,10 +80,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const { selection, setSelection, clearTerminalTracking, terminals } = useSelection()
     const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
-    const [sessions, setSessions] = useState<EnrichedSession[]>([])
+    const { sessions, loading, reloadSessions } = useSessions()
     const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
-    const [loading, setLoading] = useState(true)
+    // loading is provided by SessionsContext
     const [settingsLoaded, setSettingsLoaded] = useState(false)
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
@@ -150,21 +161,21 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const sortedSessions = useMemo(() => {
         let filtered = sessions
         if (filterMode === FilterMode.Draft) {
-            filtered = sessions.filter(s => s.info.session_state === 'draft' || s.info.status === 'draft')
+            filtered = sessions.filter(s => isDraft(s.info))
         } else if (filterMode === FilterMode.Running) {
-            filtered = sessions.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'draft' && s.info.status !== 'draft')
+            filtered = sessions.filter(s => !isReviewed(s.info) && !isDraft(s.info))
         } else if (filterMode === FilterMode.Reviewed) {
-            filtered = sessions.filter(s => !!s.info.ready_to_merge)
+            filtered = sessions.filter(s => isReviewed(s.info))
         }
-        
-        // Separate reviewed and unreviewed
-        const reviewed = filtered.filter(s => s.info.ready_to_merge)
-        const unreviewed = filtered.filter(s => !s.info.ready_to_merge)
-        
+
+        // Separate reviewed and unreviewed using normalized mapping
+        const reviewed = filtered.filter(s => isReviewed(s.info))
+        const unreviewed = filtered.filter(s => !isReviewed(s.info))
+
         // Apply sorting to each group
         const sortedUnreviewed = applySortMode(unreviewed, sortMode)
         const sortedReviewed = applySortMode(reviewed, SortMode.Name) // Always sort reviewed by name
-        
+
         // Unreviewed on top, reviewed at bottom
         return [...sortedUnreviewed, ...sortedReviewed]
     }, [sessions, filterMode, sortMode, applySortMode])
@@ -217,7 +228,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     kind: 'session',
                     payload: firstSession.info.session_id,
                     worktreePath: firstSession.info.worktree_path,
-                    sessionState: firstSession.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
+                    sessionState: mapSessionUiState(firstSession.info)
                 }, false, false) // Auto-selection - not intentional
             } else {
                 // No sessions visible, select orchestrator
@@ -233,9 +244,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             const next = new Set<string>()
             for (const s of sessions) {
                 const ts: number | undefined = (s.info as any).last_modified_ts
-                const isDraft = s.info.session_state === 'draft' || s.info.status === 'draft'
-                const isReviewed = !!s.info.ready_to_merge
-                if (typeof ts === 'number' && !isDraft && !isReviewed && now - ts >= IDLE_THRESHOLD_MS) {
+                const draft = isDraft(s.info)
+                const reviewed = isReviewed(s.info)
+                if (typeof ts === 'number' && !draft && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
                     next.add(s.info.session_id)
                 }
             }
@@ -269,7 +280,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 kind: 'session',
                 payload: s.session_id,
                 worktreePath: s.worktree_path,
-                sessionState: s.session_state as 'draft' | 'running' | 'reviewed' | undefined
+                sessionState: mapSessionUiState(s)
             }, false, true) // User clicked - intentional
         }
     }
@@ -407,159 +418,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         saveSettings()
     }, [filterMode, sortMode, settingsLoaded, projectPath])
 
-    // Load sessions on mount and when project changes; push updates keep it fresh thereafter
-    useEffect(() => {
-        console.log('[Sidebar] Project path changed, reloading sessions for:', projectPath)
-        const loadSessions = async () => {
-            try {
-                // Load both regular sessions and drafts
-                const [regularSessions, draftSessions] = await Promise.all([
-                    invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                    invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
-                ])
-                
-                // Convert draft sessions to EnrichedSession format
-                const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
-                    id: draft.id,
-                    info: {
-                        session_id: draft.name,
-                        display_name: draft.display_name || draft.name,
-                        branch: draft.branch,
-                        worktree_path: draft.worktree_path || '',
-                        base_branch: draft.parent_branch,
-                        merge_mode: 'rebase',
-                        status: 'draft' as any,
-                        session_state: 'draft',
-                        created_at: new Date(draft.created_at).toISOString(),
-                        last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : new Date(draft.created_at).toISOString(),
-                        has_uncommitted_changes: false,
-                        ready_to_merge: false,
-                        diff_stats: undefined,
-                        is_current: false,
-                        session_type: 'worktree' as any,
-                    },
-                    terminals: [
-                        `session-${draft.name}-top`,
-                        `session-${draft.name}-bottom`
-                    ]
-                }))
-                
-                // Combine and set all sessions
-                const allSessions = [...regularSessions, ...enrichedDrafts]
-                setSessions(allSessions.map(s => ({
-                    ...s,
-                    info: {
-                        ...s.info,
-                        last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
-                    }
-                })))
-                // Initialize previous states snapshot for transition detection
-                const nextStates = new Map<string, string>()
-                for (const s of allSessions) {
-                    const state = (s.info.session_state || s.info.status || 'active') as string
-                    nextStates.set(s.info.session_id, state)
-                }
-                prevSessionStatesRef.current = nextStates
-            } catch (err) {
-                console.error('Failed to load sessions:', err)
-            } finally {
-                setLoading(false)
-            }
-        }
-
-        loadSessions()
-    }, [projectPath]) // Reload sessions when project path changes
+    // Sessions are now managed by SessionsContext
     
-    // Listen for sessions-refreshed events (e.g., after name generation)
-    useEffect(() => {
-        const setupRefreshListener = async () => {
-            const unlisten = await listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
-                try {
-                    // If we received a payload, treat it as the authoritative list of non-draft sessions.
-                    // Always merge in the current drafts to avoid dropping them.
-                    const baseSessions: EnrichedSession[] = (event.payload && event.payload.length > 0)
-                        ? event.payload
-                        : await invoke<EnrichedSession[]>('para_core_list_enriched_sessions')
-
-                    const draftSessions = await invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
-                    const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
-                        id: draft.id,
-                        info: {
-                            session_id: draft.name,
-                            display_name: draft.display_name || draft.name,
-                            branch: draft.branch,
-                            worktree_path: draft.worktree_path || '',
-                            base_branch: draft.parent_branch,
-                            merge_mode: 'rebase',
-                            status: 'draft' as any,
-                            session_state: 'draft',
-                            created_at: new Date(draft.created_at).toISOString(),
-                            last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : new Date(draft.created_at).toISOString(),
-                            has_uncommitted_changes: false,
-                            ready_to_merge: false,
-                            diff_stats: undefined,
-                            is_current: false,
-                            session_type: 'worktree' as any,
-                        },
-                        terminals: [
-                            `session-${draft.name}-top`,
-                            `session-${draft.name}-bottom`
-                        ]
-                    }))
-
-                    const allSessions = [...baseSessions, ...enrichedDrafts]
-
-                    // Detect draft -> running transitions
-                    const prevStates = prevSessionStatesRef.current
-                    const transitioned = allSessions.filter(s => {
-                        const prev = prevStates.get(s.info.session_id)
-                        const nowState = (s.info.session_state || s.info.status || 'active') as string
-                        return prev === 'draft' && nowState !== 'draft'
-                    })
-
-                    if (transitioned.length > 0) {
-                        const t = transitioned[0]
-                        if (latestFilterModeRef.current === FilterMode.Draft) {
-                            setFilterMode(FilterMode.Running)
-                        }
-                        setSelection({
-                            kind: 'session',
-                            payload: t.info.session_id,
-                            worktreePath: t.info.worktree_path,
-                            sessionState: t.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
-                        }, false, false) // Auto-select on state transition - not intentional
-                    }
-
-                    setSessions(allSessions.map(s => ({
-                        ...s,
-                        info: {
-                            ...s.info,
-                            last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
-                        }
-                    })))
-
-                    // Update snapshot of states
-                    const nextStates = new Map<string, string>()
-                    for (const s of allSessions) {
-                        const state = (s.info.session_state || s.info.status || 'active') as string
-                        nextStates.set(s.info.session_id, state)
-                    }
-                    prevSessionStatesRef.current = nextStates
-                } catch (err) {
-                    console.error('Failed to reload sessions:', err)
-                }
-            })
-
-            return () => {
-                unlisten()
-            }
-        }
-
-        const cleanup = setupRefreshListener()
-        return () => {
-            cleanup.then(fn => fn())
-        }
-    }, [])
+    // Sessions refresh handling moved into SessionsContext
     
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
@@ -576,67 +437,19 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const latestSelectionRef = useRef(selection)
     const latestSortedSessionsRef = useRef(sortedSessions)
     const latestFilterModeRef = useRef(filterMode)
-    const prevSessionStatesRef = useRef<Map<string, string>>(new Map())
+    const latestSessionsRef = useRef(sessions)
 
     useEffect(() => { latestSelectionRef.current = selection }, [selection])
     useEffect(() => { latestSortedSessionsRef.current = sortedSessions }, [sortedSessions])
     useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
+    useEffect(() => { latestSessionsRef.current = sessions }, [sessions])
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
         let unlisteners: UnlistenFn[] = []
 
         const attach = async () => {
-            // Activity updates (last_modified)
-            const u1 = await listen<{
-                session_id: string
-                session_name: string
-                last_activity_ts: number
-            }>('schaltwerk:session-activity', (event) => {
-                const { session_name, last_activity_ts } = event.payload
-                setSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== session_name) return s
-                    return {
-                        ...s,
-                        info: {
-                            ...s.info,
-                            last_modified: new Date(last_activity_ts * 1000).toISOString(),
-                            last_modified_ts: last_activity_ts * 1000,
-                        }
-                    }
-                }))
-            })
-            unlisteners.push(u1)
-            
-            // Git stats updates
-            const u2 = await listen<{
-                session_id: string
-                session_name: string
-                files_changed: number
-                lines_added: number
-                lines_removed: number
-                has_uncommitted: boolean
-            }>('schaltwerk:session-git-stats', (event) => {
-                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted } = event.payload
-                setSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== session_name) return s
-                    const diff = {
-                        files_changed: files_changed || 0,
-                        additions: lines_added || 0,
-                        deletions: lines_removed || 0,
-                        insertions: lines_added || 0,
-                    }
-                    return {
-                        ...s,
-                        info: {
-                            ...s.info,
-                            diff_stats: diff,
-                            has_uncommitted_changes: has_uncommitted,
-                        }
-                    }
-                }))
-            })
-            unlisteners.push(u2)
+            // Activity and git stats updates are handled by SessionsContext
 
             // Session added
             const u3 = await listen<{
@@ -645,37 +458,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 worktree_path: string
                 parent_branch: string
             }>('schaltwerk:session-added', (event) => {
-                const { session_name, branch, worktree_path, parent_branch } = event.payload
-                setSessions(prev => {
-                    // Avoid duplicates
-                    if (prev.some(s => s.info.session_id === session_name)) return prev
-                    const info: SessionInfo = {
-                        session_id: session_name,
-                        branch,
-                        worktree_path,
-                        base_branch: parent_branch,
-                        merge_mode: 'rebase',
-                        status: 'active',
-                        last_modified: undefined,
-                        has_uncommitted_changes: false,
-                        is_current: false,
-                        session_type: 'worktree',
-                        container_status: undefined,
-                        session_state: 'active',
-                        current_task: undefined,
-                        todo_percentage: undefined,
-                        is_blocked: undefined,
-                        diff_stats: undefined,
-                        ready_to_merge: false,
-                    }
-                    const terminals = [
-                        `session-${session_name}-top`,
-                        `session-${session_name}-bottom`,
-                    ]
-                    const enriched: EnrichedSession = { info, status: undefined, terminals }
-                    // Add new session without re-sorting - will be sorted by memo
-                    return [enriched, ...prev]
-                })
+                const { session_name, worktree_path } = event.payload
                 // Auto-select the newly created session tab immediately
                 if (latestFilterModeRef.current === FilterMode.Draft) {
                     setFilterMode(FilterMode.Running)
@@ -697,8 +480,6 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 const currentSelectedId = currentSelection.kind === 'session' ? (currentSelection.payload || null) : null
                 const nextSelectionId = computeNextSelectedSessionId(currentSorted, session_name, currentSelectedId)
 
-                setSessions(prev => prev.filter(s => s.info.session_id !== session_name))
-
                 if (currentSelectedId === session_name) {
                     if (nextSelectionId) {
                         const nextSession = sortedSessions.find(s => s.info.session_id === nextSelectionId)
@@ -706,7 +487,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             kind: 'session', 
                             payload: nextSelectionId,
                             worktreePath: nextSession?.info.worktree_path,
-                            sessionState: nextSession?.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
+                            sessionState: nextSession ? mapSessionUiState(nextSession.info) : undefined
                         }, false, false) // Fallback - not intentional
                     } else {
                         await setSelection({ kind: 'orchestrator' }, false, false) // Fallback - not intentional
@@ -723,23 +504,19 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 setSessionsWithNotifications(prev => new Set([...prev, session_name]))
                 
                 // Find the session to get its worktree path
-                setSessions(prev => {
-                    const session = prev.find(s => s.info.session_id === session_name)
-                    if (session) {
-                        // Focus the session when review content is pasted, including worktree path
-                        setSelection({
-                            kind: 'session',
-                            payload: session_name,
-                            worktreePath: session.info.worktree_path,
-                            sessionState: session.info.session_state as 'draft' | 'running' | 'reviewed' | undefined
-                        }, false, true) // Backend requested - intentional
-                        
-                        // Set Claude focus for the session
-                        setFocusForSession(session_name, 'claude')
-                        setCurrentFocus('claude')
-                    }
-                    return prev
-                })
+                const session = latestSessionsRef.current.find(s => s.info.session_id === session_name)
+                if (session) {
+                    // Focus the session when review content is pasted, including worktree path
+                    setSelection({
+                        kind: 'session',
+                        payload: session_name,
+                        worktreePath: session.info.worktree_path,
+                        sessionState: mapSessionUiState(session.info)
+                    }, false, true) // Backend requested - intentional
+                    // Set Claude focus for the session
+                    setFocusForSession(session_name, 'claude')
+                    setCurrentFocus('claude')
+                }
                 
                 // Show a toast notification
                 console.log(`📬 Follow-up message for ${session_name}: ${message}`)
@@ -817,7 +594,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.Draft)}
                             title="Show draft tasks"
                         >
-                            Drafts <span className="text-slate-400">({sessions.filter(s => s.info.session_state === 'draft' || s.info.status === 'draft').length})</span>
+                            Drafts <span className="text-slate-400">({sessions.filter(s => isDraft(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -825,7 +602,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running tasks"
                         >
-                            Running <span className="text-slate-400">({sessions.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'draft' && s.info.status !== 'draft').length})</span>
+                            Running <span className="text-slate-400">({sessions.filter(s => !isReviewed(s.info) && !isDraft(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -833,7 +610,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed tasks"
                         >
-                            Reviewed <span className="text-slate-400">({sessions.filter(s => !!s.info.ready_to_merge).length})</span>
+                            Reviewed <span className="text-slate-400">({sessions.filter(s => isReviewed(s.info)).length})</span>
                         </button>
                         <button
                             className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
@@ -888,42 +665,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                     try {
                                         await invoke('para_core_unmark_session_ready', { name: sessionId })
                                         // Reload both regular and draft sessions to avoid dropping drafts
-                                        const [regularSessions, draftSessions] = await Promise.all([
+                                        await Promise.all([
                                             invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
                                             invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
                                         ])
-                                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
-                                            id: draft.id,
-                                            info: {
-                                                session_id: draft.name,
-                                                display_name: draft.display_name || draft.name,
-                                                branch: draft.branch,
-                                                worktree_path: draft.worktree_path || '',
-                                                base_branch: draft.parent_branch,
-                                                merge_mode: 'rebase',
-                                                status: 'draft' as any,
-                                                session_state: 'draft',
-                                                created_at: new Date(draft.created_at).toISOString(),
-                                                last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : new Date(draft.created_at).toISOString(),
-                                                has_uncommitted_changes: false,
-                                                ready_to_merge: false,
-                                                diff_stats: undefined,
-                                                is_current: false,
-                                                session_type: 'worktree' as any,
-                                            },
-                                            terminals: [
-                                                `session-${draft.name}-top`,
-                                                `session-${draft.name}-bottom`
-                                            ]
-                                        }))
-                                        const allSessions = [...regularSessions, ...enrichedDrafts]
-                                        setSessions(allSessions.map(s => ({
-                                            ...s,
-                                            info: {
-                                                ...s.info,
-                                                last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
-                                            }
-                                        })))
+                                        await reloadSessions()
                                     } catch (err) {
                                         console.error('Failed to unmark reviewed session:', err)
                                     }
@@ -961,42 +707,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                     try {
                                         await invoke('para_core_cancel_session', { name: sessionId })
                                         // Reload both regular and draft sessions to ensure remaining drafts persist
-                                        const [regularSessions, draftSessions] = await Promise.all([
+                                        await Promise.all([
                                             invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
                                             invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
                                         ])
-                                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
-                                            id: draft.id,
-                                            info: {
-                                                session_id: draft.name,
-                                                display_name: draft.display_name || draft.name,
-                                                branch: draft.branch,
-                                                worktree_path: draft.worktree_path || '',
-                                                base_branch: draft.parent_branch,
-                                                merge_mode: 'rebase',
-                                                status: 'draft' as any,
-                                                session_state: 'draft',
-                                                created_at: new Date(draft.created_at).toISOString(),
-                                                last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : new Date(draft.created_at).toISOString(),
-                                                has_uncommitted_changes: false,
-                                                ready_to_merge: false,
-                                                diff_stats: undefined,
-                                                is_current: false,
-                                                session_type: 'worktree' as any,
-                                            },
-                                            terminals: [
-                                                `session-${draft.name}-top`,
-                                                `session-${draft.name}-bottom`
-                                            ]
-                                        }))
-                                        const allSessions = [...regularSessions, ...enrichedDrafts]
-                                        setSessions(allSessions.map(s => ({
-                                            ...s,
-                                            info: {
-                                                ...s.info,
-                                                last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
-                                            }
-                                        })))
+                                        await reloadSessions()
                                     } catch (err) {
                                         console.error('Failed to delete draft:', err)
                                     }
@@ -1013,42 +728,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
                     // Reload both regular and draft sessions
-                    const [regularSessions, draftSessions] = await Promise.all([
-                        invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                        invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
-                    ])
-                    const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
-                        id: draft.id,
-                        info: {
-                            session_id: draft.name,
-                            display_name: draft.display_name || draft.name,
-                            branch: draft.branch,
-                            worktree_path: draft.worktree_path || '',
-                            base_branch: draft.parent_branch,
-                            merge_mode: 'rebase',
-                            status: 'draft' as any,
-                            session_state: 'draft',
-                            created_at: new Date(draft.created_at).toISOString(),
-                            last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : new Date(draft.created_at).toISOString(),
-                            has_uncommitted_changes: false,
-                            ready_to_merge: false,
-                            diff_stats: undefined,
-                            is_current: false,
-                            session_type: 'worktree' as any,
-                        },
-                        terminals: [
-                            `session-${draft.name}-top`,
-                            `session-${draft.name}-bottom`
-                        ]
-                    }))
-                    const allSessions = [...regularSessions, ...enrichedDrafts]
-                    setSessions(allSessions.map(s => ({
-                        ...s,
-                        info: {
-                            ...s.info,
-                            last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
-                        }
-                    })))
+                    await reloadSessions()
                 }}
             />
             <ConvertToDraftConfirmation
@@ -1058,47 +738,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 hasUncommittedChanges={convertToDraftModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
-                    // Refresh sessions list
-                    const [regularSessions, draftSessions] = await Promise.all([
-                        invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                        invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
-                    ])
-                    
-                    // Convert draft sessions to enriched format
-                    const enrichedDrafts = draftSessions.map(draft => ({
-                        info: {
-                            session_id: draft.name,
-                            display_name: draft.display_name,
-                            branch: '',
-                            worktree_path: '',
-                            base_branch: '',
-                            merge_mode: '',
-                            status: 'draft' as any,
-                            created_at: draft.created_at,
-                            last_modified: draft.updated_at,
-                            has_uncommitted_changes: false,
-                            ready_to_merge: false,
-                            session_state: 'draft',
-                            current_task: draft.draft_content?.split('\n')[0]?.replace(/^#\s*/, '') || 'Draft task',
-                            todo_percentage: 0,
-                            is_blocked: false,
-                            diff_stats: undefined,
-                            is_current: false,
-                            session_type: 'worktree' as any,
-                        },
-                        terminals: [
-                            `session-${draft.name}-top`,
-                            `session-${draft.name}-bottom`
-                        ]
-                    }))
-                    const allSessions = [...regularSessions, ...enrichedDrafts]
-                    setSessions(allSessions.map(s => ({
-                        ...s,
-                        info: {
-                            ...s.info,
-                            last_modified_ts: s.info.last_modified ? Date.parse(s.info.last_modified) : undefined,
-                        }
-                    })))
+                    await reloadSessions()
                 }}
             />
             <SwitchOrchestratorModal

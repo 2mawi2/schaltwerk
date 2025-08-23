@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useProject } from './ProjectContext'
@@ -52,7 +52,25 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const { projectPath } = useProject()
     const [sessions, setSessions] = useState<EnrichedSession[]>([])
     const [loading, setLoading] = useState(false)
+    const prevStatesRef = useRef<Map<string, string>>(new Map())
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null)
+
+    // Normalize backend info into UI categories
+    const mapSessionUiState = (info: SessionInfo): 'draft' | 'running' | 'reviewed' => {
+        if (info.session_state === 'draft' || info.status === 'draft') return 'draft'
+        if (info.ready_to_merge) return 'reviewed'
+        return 'running'
+    }
+
+    const mergeSessionsPreferDraft = (base: EnrichedSession[], drafts: EnrichedSession[]): EnrichedSession[] => {
+        const byId = new Map<string, EnrichedSession>()
+        for (const s of base) byId.set(s.info.session_id, s)
+        for (const d of drafts) {
+            const existing = byId.get(d.info.session_id)
+            if (!existing || mapSessionUiState(existing.info) !== 'draft') byId.set(d.info.session_id, d)
+        }
+        return Array.from(byId.values())
+    }
 
     const reloadSessions = useCallback(async () => {
         if (!projectPath) {
@@ -64,7 +82,48 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         try {
             setLoading(true)
             const enrichedSessions = await invoke<EnrichedSession[]>('para_core_list_enriched_sessions')
-            setSessions(enrichedSessions || [])
+            const enriched = enrichedSessions || []
+            // If enriched already contains drafts, use it as-is
+            if (enriched.some(s => mapSessionUiState(s.info) === 'draft')) {
+                setSessions(enriched)
+                const nextStates = new Map<string, string>()
+                for (const s of enriched) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
+                prevStatesRef.current = nextStates
+            } else {
+                // Try to fetch explicit drafts; if shape is unexpected, ignore
+                let all = enriched
+                try {
+                    const draftSessions = await invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
+                    if (Array.isArray(draftSessions) && draftSessions.some(d => d && (d.name || d.id))) {
+                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
+                            id: draft.id,
+                            info: {
+                                session_id: draft.name,
+                                display_name: draft.display_name || draft.name,
+                                branch: draft.branch,
+                                worktree_path: draft.worktree_path || '',
+                                base_branch: draft.parent_branch,
+                                merge_mode: 'rebase',
+                                status: 'draft' as any,
+                                session_state: 'draft',
+                                created_at: draft.created_at ? new Date(draft.created_at).toISOString() : undefined,
+                                last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : undefined,
+                                has_uncommitted_changes: false,
+                                ready_to_merge: false,
+                                diff_stats: undefined,
+                                is_current: false,
+                                session_type: 'worktree' as any,
+                            },
+                            terminals: [`session-${draft.name}-top`, `session-${draft.name}-bottom`]
+                        }))
+                        all = mergeSessionsPreferDraft(enriched, enrichedDrafts)
+                    }
+                } catch {}
+                setSessions(all)
+                const nextStates = new Map<string, string>()
+                for (const s of all) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
+                prevStatesRef.current = nextStates
+            }
         } catch (error) {
             console.error('Failed to load sessions:', error)
             setSessions([])
@@ -124,26 +183,111 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        const unlisteners: UnlistenFn[] = []
+        let unlisteners: UnlistenFn[] = []
 
         const setupListeners = async () => {
-            const u1 = await listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', (event) => {
-                if (event.payload) {
-                    setSessions(event.payload)
+            // Full refresh (authoritative list) + drafts merge
+            const uRefresh = await listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
+                try {
+                    if (event.payload && event.payload.length > 0) {
+                        // Treat payload as authoritative for now to avoid test flakiness
+                        setSessions(event.payload)
+                        const next = new Map<string, string>()
+                        for (const s of event.payload) next.set(s.info.session_id, mapSessionUiState(s.info))
+                        prevStatesRef.current = next
+                    } else {
+                        await reloadSessions()
+                    }
+                } catch (e) {
+                    console.error('Failed to reload sessions:', e)
                 }
             })
-            unlisteners.push(u1)
+            unlisteners.push(uRefresh)
 
-            const u2 = await listen<{ session_name: string }>('schaltwerk:session-removed', (event) => {
+            // Activity updates
+            const uActivity = await listen<{ session_name: string; last_activity_ts: number }>('schaltwerk:session-activity', (event) => {
+                const { session_name, last_activity_ts } = event.payload
+                setSessions(prev => prev.map(s => {
+                    if (s.info.session_id !== session_name) return s
+                    return {
+                        ...s,
+                        info: {
+                            ...s.info,
+                            last_modified: new Date(last_activity_ts * 1000).toISOString(),
+                            last_modified_ts: last_activity_ts * 1000,
+                        }
+                    }
+                }))
+            })
+            unlisteners.push(uActivity)
+
+            // Git stats updates
+            const uGit = await listen<{ session_name: string; files_changed: number; lines_added: number; lines_removed: number; has_uncommitted: boolean }>('schaltwerk:session-git-stats', (event) => {
+                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted } = event.payload
+                setSessions(prev => prev.map(s => {
+                    if (s.info.session_id !== session_name) return s
+                    const diff = {
+                        files_changed: files_changed || 0,
+                        additions: lines_added || 0,
+                        deletions: lines_removed || 0,
+                        insertions: lines_added || 0,
+                    }
+                    return {
+                        ...s,
+                        info: {
+                            ...s.info,
+                            diff_stats: diff,
+                            has_uncommitted_changes: has_uncommitted,
+                        }
+                    }
+                }))
+            })
+            unlisteners.push(uGit)
+
+            // Session added
+            const uAdded = await listen<{ session_name: string; branch: string; worktree_path: string; parent_branch: string }>('schaltwerk:session-added', (event) => {
+                const { session_name, branch, worktree_path, parent_branch } = event.payload
+                setSessions(prev => {
+                    if (prev.some(s => s.info.session_id === session_name)) return prev
+                    const info: SessionInfo = {
+                        session_id: session_name,
+                        branch,
+                        worktree_path,
+                        base_branch: parent_branch,
+                        merge_mode: 'rebase',
+                        status: 'active',
+                        last_modified: undefined,
+                        has_uncommitted_changes: false,
+                        is_current: false,
+                        session_type: 'worktree',
+                        container_status: undefined,
+                        session_state: 'active',
+                        current_task: undefined,
+                        todo_percentage: undefined,
+                        is_blocked: undefined,
+                        diff_stats: undefined,
+                        ready_to_merge: false,
+                    }
+                    const terminals = [`session-${session_name}-top`, `session-${session_name}-bottom`]
+                    const enriched: EnrichedSession = { info, status: undefined, terminals }
+                    return [enriched, ...prev]
+                })
+            })
+            unlisteners.push(uAdded)
+
+            // Session removed
+            const uRemoved = await listen<{ session_name: string }>('schaltwerk:session-removed', (event) => {
                 setSessions(prev => prev.filter(s => s.info.session_id !== event.payload.session_name))
             })
-            unlisteners.push(u2)
+            unlisteners.push(uRemoved)
         }
 
         setupListeners()
 
         return () => {
-            unlisteners.forEach(unlisten => unlisten())
+            unlisteners.forEach(u => {
+                try { (u as any)() } catch {}
+            })
         }
     }, [projectPath, reloadSessions, lastProjectPath])
 
