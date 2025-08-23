@@ -3,6 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
+use crate::binary_detector::DetectedBinary;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentCliArgs {
@@ -35,12 +36,30 @@ pub struct TerminalSettings {
     pub shell_args: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentBinaryConfig {
+    pub agent_name: String,
+    pub custom_path: Option<String>,
+    pub auto_detect: bool,
+    pub detected_binaries: Vec<DetectedBinary>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentBinaryConfigs {
+    pub claude: Option<AgentBinaryConfig>,
+    pub cursor_agent: Option<AgentBinaryConfig>,
+    pub opencode: Option<AgentBinaryConfig>,
+    pub gemini: Option<AgentBinaryConfig>,
+    pub codex: Option<AgentBinaryConfig>,
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Settings {
     pub agent_env_vars: AgentEnvVars,
     pub agent_cli_args: AgentCliArgs,
     pub terminal_ui: TerminalUIPreferences,
     pub terminal: TerminalSettings,
+    pub agent_binaries: AgentBinaryConfigs,
 }
 
 pub struct SettingsManager {
@@ -77,20 +96,33 @@ impl SettingsManager {
         })
     }
     
-    pub fn save(&self) -> Result<(), String> {
+    pub fn save(&mut self) -> Result<(), String> {
+        log::debug!("Saving settings to: {:?}", self.settings_path);
+        
         let contents = serde_json::to_string_pretty(&self.settings)
-            .map_err(|e| format!("Failed to serialize settings: {e}"))?;
+            .map_err(|e| {
+                let error = format!("Failed to serialize settings: {e}");
+                log::error!("JSON serialization error: {error}");
+                error
+            })?;
         
-        fs::write(&self.settings_path, contents)
-            .map_err(|e| format!("Failed to write settings file: {e}"))?;
+        log::debug!("Settings serialized to JSON, writing to file ({} bytes)", contents.len());
         
+        fs::write(&self.settings_path, &contents)
+            .map_err(|e| {
+                let error = format!("Failed to write settings file {:?}: {e}", self.settings_path);
+                log::error!("File write error: {error}");
+                error
+            })?;
+        
+        log::debug!("Settings successfully written to disk");
         Ok(())
     }
     
     pub fn get_agent_env_vars(&self, agent_type: &str) -> HashMap<String, String> {
         match agent_type {
             "claude" => self.settings.agent_env_vars.claude.clone(),
-            "cursor" => self.settings.agent_env_vars.cursor.clone(),
+            "cursor" | "cursor-agent" => self.settings.agent_env_vars.cursor.clone(),
             "opencode" => self.settings.agent_env_vars.opencode.clone(),
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
             "codex" => self.settings.agent_env_vars.codex.clone(),
@@ -101,7 +133,7 @@ impl SettingsManager {
     pub fn set_agent_env_vars(&mut self, agent_type: &str, env_vars: HashMap<String, String>) -> Result<(), String> {
         match agent_type {
             "claude" => self.settings.agent_env_vars.claude = env_vars,
-            "cursor" => self.settings.agent_env_vars.cursor = env_vars,
+            "cursor" | "cursor-agent" => self.settings.agent_env_vars.cursor = env_vars,
             "opencode" => self.settings.agent_env_vars.opencode = env_vars,
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
             "codex" => self.settings.agent_env_vars.codex = env_vars,
@@ -128,7 +160,7 @@ impl SettingsManager {
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         match agent_type {
             "claude" => self.settings.agent_cli_args.claude.clone(),
-            "cursor" => self.settings.agent_cli_args.cursor.clone(),
+            "cursor" | "cursor-agent" => self.settings.agent_cli_args.cursor.clone(),
             "opencode" => self.settings.agent_cli_args.opencode.clone(),
             "gemini" => self.settings.agent_cli_args.gemini.clone(),
             "codex" => self.settings.agent_cli_args.codex.clone(),
@@ -137,16 +169,33 @@ impl SettingsManager {
     }
     
     pub fn set_agent_cli_args(&mut self, agent_type: &str, cli_args: String) -> Result<(), String> {
+        log::debug!("Setting CLI args in settings: agent_type='{agent_type}', cli_args='{cli_args}'");
+        
         match agent_type {
-            "claude" => self.settings.agent_cli_args.claude = cli_args,
-            "cursor" => self.settings.agent_cli_args.cursor = cli_args,
-            "opencode" => self.settings.agent_cli_args.opencode = cli_args,
-            "gemini" => self.settings.agent_cli_args.gemini = cli_args,
-            "codex" => self.settings.agent_cli_args.codex = cli_args,
-            _ => return Err(format!("Unknown agent type: {agent_type}")),
+            "claude" => self.settings.agent_cli_args.claude = cli_args.clone(),
+            "cursor" | "cursor-agent" => self.settings.agent_cli_args.cursor = cli_args.clone(),
+            "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
+            "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
+            "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
+            _ => {
+                let error = format!("Unknown agent type: {agent_type}");
+                log::error!("Invalid agent type in set_agent_cli_args: {error}");
+                return Err(error);
+            }
         }
         
-        self.save()
+        log::debug!("CLI args set in memory, now saving to disk");
+        
+        match self.save() {
+            Ok(()) => {
+                log::debug!("Successfully saved CLI args for agent '{agent_type}' to disk");
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Failed to save CLI args to disk for agent '{agent_type}': {e}");
+                Err(e)
+            }
+        }
     }
     
     pub fn get_terminal_settings(&self) -> TerminalSettings {
@@ -156,5 +205,66 @@ impl SettingsManager {
     pub fn set_terminal_settings(&mut self, terminal: TerminalSettings) -> Result<(), String> {
         self.settings.terminal = terminal;
         self.save()
+    }
+    
+    pub fn get_agent_binary_config(&self, agent_name: &str) -> Option<AgentBinaryConfig> {
+        match agent_name {
+            "claude" => self.settings.agent_binaries.claude.clone(),
+            "cursor-agent" => self.settings.agent_binaries.cursor_agent.clone(),
+            "opencode" => self.settings.agent_binaries.opencode.clone(),
+            "gemini" => self.settings.agent_binaries.gemini.clone(),
+            "codex" => self.settings.agent_binaries.codex.clone(),
+            _ => None,
+        }
+    }
+    
+    pub fn set_agent_binary_config(&mut self, config: AgentBinaryConfig) -> Result<(), String> {
+        match config.agent_name.as_str() {
+            "claude" => self.settings.agent_binaries.claude = Some(config),
+            "cursor-agent" => self.settings.agent_binaries.cursor_agent = Some(config),
+            "opencode" => self.settings.agent_binaries.opencode = Some(config),
+            "gemini" => self.settings.agent_binaries.gemini = Some(config),
+            "codex" => self.settings.agent_binaries.codex = Some(config),
+            _ => return Err(format!("Unknown agent: {}", config.agent_name)),
+        }
+        self.save()
+    }
+    
+    pub fn get_all_agent_binary_configs(&self) -> Vec<AgentBinaryConfig> {
+        let mut configs = Vec::new();
+        if let Some(config) = &self.settings.agent_binaries.claude {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.cursor_agent {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.opencode {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.gemini {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.codex {
+            configs.push(config.clone());
+        }
+        configs
+    }
+
+    pub fn get_effective_binary_path(&self, agent_name: &str) -> Result<String, String> {
+        if let Some(config) = self.get_agent_binary_config(agent_name) {
+            if let Some(custom_path) = &config.custom_path {
+                return Ok(custom_path.clone());
+            }
+            
+            if let Some(recommended) = config.detected_binaries.iter().find(|b| b.is_recommended) {
+                return Ok(recommended.path.clone());
+            }
+            
+            if let Some(first) = config.detected_binaries.first() {
+                return Ok(first.path.clone());
+            }
+        }
+        
+        Ok(agent_name.to_string())
     }
 }

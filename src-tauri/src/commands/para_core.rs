@@ -404,24 +404,27 @@ pub async fn para_core_start_claude(app: tauri::AppHandle, session_name: String)
     let core = core.lock().await;
     let manager = core.session_manager();
     
-    // Get the session to determine the agent type
-    let session = manager.get_session(&session_name)
-        .map_err(|e| format!("Failed to get session: {e}"))?;
-    let agent_type = session.original_agent_type
-        .clone()
-        .or_else(|| core.database().get_agent_type().ok())
-        .unwrap_or_else(|| "claude".to_string());
-    
-    // Get CLI arguments for the agent type
-    let cli_args = if let Some(settings_manager) = crate::SETTINGS_MANAGER.get() {
-        let manager = settings_manager.lock().await;
-        let args = manager.get_agent_cli_args(&agent_type);
-        if args.is_empty() { None } else { Some(args) }
+    // Resolve binary paths at command level (with caching)
+    let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let settings = settings_manager.lock().await;
+        let mut paths = std::collections::HashMap::new();
+        
+        // Get resolved binary paths for all agents
+        for agent in ["claude", "cursor-agent", "codex", "opencode", "gemini"] {
+            match settings.get_effective_binary_path(agent) {
+                Ok(path) => {
+                    log::debug!("Cached binary path for {agent}: {path}");
+                    paths.insert(agent.to_string(), path);
+                },
+                Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
+            }
+        }
+        paths
     } else {
-        None
+        std::collections::HashMap::new()
     };
     
-    let command = manager.start_claude_in_session_with_args(&session_name, cli_args.as_deref())
+    let command = manager.start_claude_in_session_with_binary(&session_name, &binary_paths)
         .map_err(|e| {
             log::error!("Failed to build Claude command for session {session_name}: {e}");
             format!("Failed to start Claude in session: {e}")
@@ -464,7 +467,7 @@ pub async fn para_core_start_claude(app: tauri::AppHandle, session_name: String)
         "opencode"
     } else if agent_name.contains("gemini") {
         "gemini"
-    } else if agent_name == "codex" {
+    } else if agent_name == "codex" || agent_name.ends_with("/codex") {
         "codex"
     } else {
         "claude"
@@ -587,7 +590,27 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
     let core = core.lock().await;
     let manager = core.session_manager();
     
-    let command = manager.start_claude_in_orchestrator()
+    // Resolve binary paths at command level (with caching)
+    let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let settings = settings_manager.lock().await;
+        let mut paths = std::collections::HashMap::new();
+        
+        // Get resolved binary paths for all agents
+        for agent in ["claude", "cursor-agent", "codex", "opencode", "gemini"] {
+            match settings.get_effective_binary_path(agent) {
+                Ok(path) => {
+                    log::debug!("Cached binary path for {agent}: {path}");
+                    paths.insert(agent.to_string(), path);
+                },
+                Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
+            }
+        }
+        paths
+    } else {
+        std::collections::HashMap::new()
+    };
+    
+    let command = manager.start_claude_in_orchestrator_with_binary(&binary_paths)
         .map_err(|e| {
             log::error!("Failed to build orchestrator command: {e}");
             format!("Failed to start Claude in orchestrator: {e}")
@@ -629,7 +652,7 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
         "opencode"
     } else if agent_name.contains("gemini") {
         "gemini"
-    } else if agent_name == "codex" {
+    } else if agent_name == "codex" || agent_name.ends_with("/codex") {
         "codex"
     } else {
         "claude"

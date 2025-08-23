@@ -217,14 +217,6 @@ pub fn build_opencode_command_with_config(
     cmd
 }
 
-pub fn build_opencode_command(
-    worktree_path: &Path,
-    session_info: Option<&OpenCodeSessionInfo>,
-    initial_prompt: Option<&str>,
-    skip_permissions: bool,
-) -> String {
-    build_opencode_command_with_config(worktree_path, session_info, initial_prompt, skip_permissions, None)
-}
 
 fn resolve_opencode_binary_with_config(config: Option<&OpenCodeConfig>) -> String {
     let command = "opencode";

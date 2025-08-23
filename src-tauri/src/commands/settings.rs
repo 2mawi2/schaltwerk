@@ -44,12 +44,27 @@ pub async fn get_agent_cli_args(agent_type: String) -> Result<String, String> {
 
 #[tauri::command]
 pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<(), String> {
+    log::info!("Setting CLI args for agent '{agent_type}': '{cli_args}'");
+    
     let settings_manager = SETTINGS_MANAGER
         .get()
-        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+        .ok_or_else(|| {
+            let error = "Settings manager not initialized".to_string();
+            log::error!("Failed to set CLI args: {error}");
+            error
+        })?;
 
     let mut manager = settings_manager.lock().await;
-    manager.set_agent_cli_args(&agent_type, cli_args)
+    match manager.set_agent_cli_args(&agent_type, cli_args.clone()) {
+        Ok(()) => {
+            log::info!("Successfully saved CLI args for agent '{agent_type}': '{cli_args}'");
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to save CLI args for agent '{agent_type}': {e}");
+            Err(e)
+        }
+    }
 }
 
 #[tauri::command]

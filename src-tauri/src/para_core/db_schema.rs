@@ -227,5 +227,18 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
+    // Create agent_binaries table for storing agent binary configurations
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS agent_binaries (
+            agent_name TEXT PRIMARY KEY,
+            custom_path TEXT,
+            auto_detect BOOLEAN NOT NULL DEFAULT TRUE,
+            detected_binaries_json TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )",
+        [],
+    )?;
+    
     Ok(())
 }

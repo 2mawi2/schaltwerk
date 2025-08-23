@@ -21,6 +21,8 @@ mod mcp_api;
 mod commands;
 mod permissions;
 mod cli;
+mod utils;
+mod binary_detector;
 
 use std::sync::Arc;
 use project_manager::ProjectManager;
@@ -96,16 +98,13 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     let rest = split.next().unwrap_or("");
 
     // Normalize/validate the agent token
+    let is_claude = agent_token == "claude" || agent_token.ends_with("/claude");
+    let is_cursor_agent = agent_token == "cursor-agent" || agent_token.ends_with("/cursor-agent");
     let is_opencode = agent_token == "opencode" || agent_token.ends_with("/opencode");
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
     let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
-    let agent_name = if agent_token == "claude" {
-        "claude"
-    } else if agent_token == "cursor-agent" {
-        "cursor-agent"
-    } else if agent_token == "codex" {
-        "codex"
-    } else if is_opencode || is_gemini || is_codex {
+    
+    let agent_name = if is_claude || is_cursor_agent || is_opencode || is_gemini || is_codex {
         agent_token
     } else {
         return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', 'gemini', or 'codex': {command}"));
@@ -694,7 +693,15 @@ fn main() {
             get_project_sessions_settings,
             set_project_sessions_settings,
             get_project_environment_variables,
-            set_project_environment_variables
+            set_project_environment_variables,
+            // Agent binary commands
+            detect_agent_binaries,
+            get_agent_binary_config,
+            set_agent_binary_path,
+            get_effective_agent_binary_path,
+            get_all_agent_binary_configs,
+            detect_all_agent_binaries,
+            refresh_agent_binary_detection
         ])
         .setup(move |app| {
             // Get current git branch and update window title

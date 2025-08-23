@@ -1,0 +1,199 @@
+use crate::settings::AgentBinaryConfig;
+use crate::binary_detector::{DetectedBinary, BinaryDetector};
+use crate::SETTINGS_MANAGER;
+use log::{debug, info};
+
+#[tauri::command]
+pub async fn detect_agent_binaries(agent_name: String) -> Result<Vec<DetectedBinary>, String> {
+    info!("Detecting binaries for agent: {agent_name}");
+    
+    let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
+    
+    // Save the detected binaries to settings
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let mut settings = settings_manager.lock().await;
+    
+    let config = AgentBinaryConfig {
+        agent_name: agent_name.clone(),
+        custom_path: settings.get_agent_binary_config(&agent_name)
+            .and_then(|c| c.custom_path),
+        auto_detect: true,
+        detected_binaries: detected_binaries.clone(),
+    };
+    
+    settings.set_agent_binary_config(config)?;
+    
+    Ok(detected_binaries)
+}
+
+#[tauri::command]
+pub async fn get_agent_binary_config(agent_name: String) -> Result<AgentBinaryConfig, String> {
+    debug!("Getting binary configuration for agent: {agent_name}");
+    
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let settings = settings_manager.lock().await;
+    
+    if let Some(config) = settings.get_agent_binary_config(&agent_name) {
+        Ok(config)
+    } else {
+        // Create default config with detection
+        let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
+        Ok(AgentBinaryConfig {
+            agent_name,
+            custom_path: None,
+            auto_detect: true,
+            detected_binaries,
+        })
+    }
+}
+
+#[tauri::command]
+pub async fn set_agent_binary_path(agent_name: String, path: Option<String>) -> Result<(), String> {
+    info!("Setting binary path for agent {agent_name}: {path:?}");
+    
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let mut settings = settings_manager.lock().await;
+    
+    let existing_config = settings.get_agent_binary_config(&agent_name);
+    let detected_binaries = existing_config
+        .as_ref()
+        .map(|c| c.detected_binaries.clone())
+        .unwrap_or_else(|| BinaryDetector::detect_agent_binaries(&agent_name));
+    
+    let config = AgentBinaryConfig {
+        agent_name,
+        custom_path: path.clone(),
+        auto_detect: path.is_none(),
+        detected_binaries,
+    };
+    
+    settings.set_agent_binary_config(config)
+}
+
+#[tauri::command]
+pub async fn get_effective_agent_binary_path(agent_name: String) -> Result<String, String> {
+    debug!("Getting effective binary path for agent: {agent_name}");
+    
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let settings = settings_manager.lock().await;
+    
+    if let Some(config) = settings.get_agent_binary_config(&agent_name) {
+        if let Some(custom_path) = &config.custom_path {
+            debug!("Using custom binary path for {agent_name}: {custom_path}");
+            return Ok(custom_path.clone());
+        }
+        
+        if let Some(recommended) = config.detected_binaries.iter().find(|b| b.is_recommended) {
+            debug!("Using recommended binary path for {}: {}", agent_name, recommended.path);
+            return Ok(recommended.path.clone());
+        }
+        
+        if let Some(first) = config.detected_binaries.first() {
+            debug!("Using first available binary path for {}: {}", agent_name, first.path);
+            return Ok(first.path.clone());
+        }
+    }
+    
+    debug!("No binary detected for {agent_name}, using command name as fallback");
+    Ok(agent_name)
+}
+
+#[tauri::command]
+pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, String> {
+    info!("Getting all agent binary configurations");
+    
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let mut settings = settings_manager.lock().await;
+    
+    let known_agents = vec!["claude", "cursor-agent", "codex", "opencode", "gemini"];
+    let mut configs = Vec::new();
+    
+    for agent in known_agents {
+        if let Some(config) = settings.get_agent_binary_config(agent) {
+            configs.push(config);
+        } else {
+            // Create default config with detection
+            let detected_binaries = BinaryDetector::detect_agent_binaries(agent);
+            let config = AgentBinaryConfig {
+                agent_name: agent.to_string(),
+                custom_path: None,
+                auto_detect: true,
+                detected_binaries,
+            };
+            
+            // Save it for future use
+            settings.set_agent_binary_config(config.clone())?;
+            configs.push(config);
+        }
+    }
+    
+    Ok(configs)
+}
+
+#[tauri::command]
+pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, String> {
+    info!("Running full detection for all agents");
+    
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let mut settings = settings_manager.lock().await;
+    
+    let known_agents = vec!["claude", "cursor-agent", "codex", "opencode", "gemini"];
+    let mut configs = Vec::new();
+    
+    for agent in known_agents {
+        let detected_binaries = BinaryDetector::detect_agent_binaries(agent);
+        
+        let existing_config = settings.get_agent_binary_config(agent);
+        let custom_path = existing_config.and_then(|c| c.custom_path);
+        
+        let config = AgentBinaryConfig {
+            agent_name: agent.to_string(),
+            custom_path: custom_path.clone(),
+            auto_detect: custom_path.is_none(),
+            detected_binaries,
+        };
+        
+        settings.set_agent_binary_config(config.clone())?;
+        configs.push(config);
+    }
+    
+    Ok(configs)
+}
+
+#[tauri::command]
+pub async fn refresh_agent_binary_detection(agent_name: String) -> Result<AgentBinaryConfig, String> {
+    info!("Refreshing binary detection for agent: {agent_name}");
+    
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    let mut settings = settings_manager.lock().await;
+    
+    let detected_binaries = BinaryDetector::detect_agent_binaries(&agent_name);
+    
+    let existing_config = settings.get_agent_binary_config(&agent_name);
+    let custom_path = existing_config.and_then(|c| c.custom_path);
+    
+    let config = AgentBinaryConfig {
+        agent_name,
+        custom_path: custom_path.clone(),
+        auto_detect: custom_path.is_none(),
+        detected_binaries,
+    };
+    
+    settings.set_agent_binary_config(config.clone())?;
+    
+    Ok(config)
+}

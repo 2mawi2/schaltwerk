@@ -66,14 +66,6 @@ pub fn build_cursor_command_with_config(
     cmd
 }
 
-pub fn build_cursor_command(
-    worktree_path: &Path,
-    session_id: Option<&str>,
-    initial_prompt: Option<&str>,
-    force_flag: bool,
-) -> String {
-    build_cursor_command_with_config(worktree_path, session_id, initial_prompt, force_flag, None)
-}
 
 #[cfg(test)]
 mod tests {

@@ -72,14 +72,6 @@ pub fn build_gemini_command_with_config(
     cmd
 }
 
-pub fn build_gemini_command(
-    worktree_path: &Path,
-    session_id: Option<&str>,
-    initial_prompt: Option<&str>,
-    skip_permissions: bool,
-) -> String {
-    build_gemini_command_with_config(worktree_path, session_id, initial_prompt, skip_permissions, None)
-}
 
 
 #[cfg(test)]

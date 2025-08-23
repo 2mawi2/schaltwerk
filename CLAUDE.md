@@ -260,7 +260,8 @@ The application uses the Rust `log` crate with `env_logger` for comprehensive lo
 Log files are automatically created at application startup:
 - **macOS**: `~/Library/Application Support/schaltwerk/logs/schaltwerk-{timestamp}.log`
 - **Linux**: `~/.local/share/schaltwerk/logs/schaltwerk-{timestamp}.log`
-- **Windows**: `%LOCALAPPDATA%\schaltwerk\logs\schaltwerk-{timestamp}.log`
+
+Note: Currently only macOS is officially supported.
 
 The exact log file path is printed to stderr when the app starts with a 📝 emoji prefix.
 

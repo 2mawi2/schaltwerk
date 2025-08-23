@@ -13,6 +13,8 @@ use crate::para_core::db_schema;
 #[derive(Clone)]
 pub struct Database {
     pub(crate) conn: Arc<Mutex<Connection>>,
+    #[allow(dead_code)]
+    pub(crate) db_path: PathBuf,
 }
 
 impl Database {
@@ -32,6 +34,7 @@ impl Database {
         
         let db = Self {
             conn: Arc::new(Mutex::new(conn)),
+            db_path: path,
         };
         
         db.initialize_schema()?;

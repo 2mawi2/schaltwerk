@@ -1,15 +1,39 @@
 import { useState, useEffect, ReactElement } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
+import { useSettings, AgentType } from '../../hooks/useSettings'
 
 interface Props {
     open: boolean
     onClose: () => void
 }
 
-type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
-type EnvVars = Record<string, string>
+type NotificationType = 'success' | 'error' | 'info'
+
+interface NotificationState {
+    message: string
+    type: NotificationType
+    visible: boolean
+}
+
 type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal'
+
+interface DetectedBinary {
+    path: string
+    version?: string
+    installation_method: 'Homebrew' | 'Npm' | 'Pip' | 'Manual' | 'System'
+    is_recommended: boolean
+    is_symlink: boolean
+    symlink_target?: string
+}
+
+interface AgentBinaryConfig {
+    agent_name: string
+    custom_path: string | null
+    auto_detect: boolean
+    detected_binaries: DetectedBinary[]
+}
 
 interface CategoryConfig {
     id: SettingsCategory
@@ -38,7 +62,7 @@ const CATEGORIES: CategoryConfig[] = [
     },
     {
         id: 'environment',
-        label: 'Environment Variables',
+        label: 'Agent Configuration',
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
@@ -89,20 +113,47 @@ export function SettingsModal({ open, onClose }: Props) {
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
-        cursor: [],
+        'cursor-agent': [],
         opencode: [],
         gemini: [],
         codex: []
     })
     const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>({
         claude: '',
-        cursor: '',
+        'cursor-agent': '',
         opencode: '',
         gemini: '',
         codex: ''
     })
-    const [loading, setLoading] = useState(false)
-    const [saving, setSaving] = useState(false)
+    const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>({
+        claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
+        'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
+        opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
+        gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
+        codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
+    })
+    const [notification, setNotification] = useState<NotificationState>({
+        message: '',
+        type: 'info',
+        visible: false
+    })
+    
+    const {
+        loading,
+        saving,
+        saveAllSettings,
+        loadEnvVars,
+        loadCliArgs,
+        loadProjectSettings,
+        loadTerminalSettings
+    } = useSettings()
+    
+    const showNotification = (message: string, type: NotificationType) => {
+        setNotification({ message, type, visible: true })
+        setTimeout(() => {
+            setNotification(prev => ({ ...prev, visible: false }))
+        }, 3000)
+    }
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
@@ -168,137 +219,112 @@ export function SettingsModal({ open, onClose }: Props) {
 
     useEffect(() => {
         if (open) {
-            loadEnvVars()
-            loadCliArgs()
-            loadProjectSettings()
-            loadTerminalSettings()
+            loadAllSettings()
         }
     }, [open])
+    
+    const loadAllSettings = async () => {
+        const [loadedEnvVars, loadedCliArgs, loadedProjectSettings, loadedTerminalSettings] = await Promise.all([
+            loadEnvVars(),
+            loadCliArgs(),
+            loadProjectSettings(),
+            loadTerminalSettings()
+        ])
+        
+        setEnvVars(loadedEnvVars)
+        setCliArgs(loadedCliArgs)
+        setProjectSettings(loadedProjectSettings)
+        setTerminalSettings(loadedTerminalSettings)
+        
+        loadBinaryConfigs()
+    }
 
-    const loadProjectSettings = async () => {
+
+    const loadBinaryConfigs = async () => {
         try {
-            const settings = await invoke<ProjectSettings>('get_project_settings')
-            const envVars = await invoke<Record<string, string>>('get_project_environment_variables')
-            const envVarArray = Object.entries(envVars || {}).map(([key, value]) => ({ key, value }))
+            console.log('Loading binary configurations...')
+            const configs = await invoke<AgentBinaryConfig[]>('get_all_agent_binary_configs')
+            console.log('Received binary configurations:', configs)
             
-            console.log('Loaded project settings:', settings)
-            console.log('Loaded project env vars:', envVarArray)
+            const configMap: Record<AgentType, AgentBinaryConfig> = {
+                claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
+                'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
+                opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
+                gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
+                codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
+            }
             
-            setProjectSettings({
-                setupScript: settings?.setupScript || '',
-                environmentVariables: envVarArray
+            for (const config of configs) {
+                const agent = config.agent_name as AgentType
+                if (agent in configMap) {
+                    configMap[agent] = config
+                    console.log(`Loaded config for ${agent}:`, config)
+                }
+            }
+            
+            console.log('Final configMap:', configMap)
+            setBinaryConfigs(configMap)
+        } catch (error) {
+            console.error('Failed to load binary configurations:', error)
+        }
+    }
+
+    const handleBinaryPathChange = async (agent: AgentType, path: string | null) => {
+        try {
+            await invoke('set_agent_binary_path', { 
+                agentName: agent, 
+                path: path || null 
             })
+            
+            const updatedConfig = await invoke<AgentBinaryConfig>('get_agent_binary_config', { agentName: agent })
+            setBinaryConfigs(prev => ({
+                ...prev,
+                [agent]: updatedConfig
+            }))
         } catch (error) {
-            console.error('Failed to load project settings:', error)
-            setProjectSettings({ setupScript: '', environmentVariables: [] })
+            console.error(`Failed to update binary path for ${agent}:`, error)
         }
     }
 
-    const loadTerminalSettings = async () => {
+    const handleRefreshBinaryDetection = async (agent: AgentType) => {
         try {
-            const settings = await invoke<TerminalSettings>('get_terminal_settings')
-            console.log('Loaded terminal settings:', settings)
-            // Ensure shellArgs is always an array
-            const normalizedSettings = {
-                shell: settings?.shell || null,
-                shellArgs: settings?.shellArgs || []
-            }
-            setTerminalSettings(normalizedSettings)
+            const updatedConfig = await invoke<AgentBinaryConfig>('refresh_agent_binary_detection', { agentName: agent })
+            setBinaryConfigs(prev => ({
+                ...prev,
+                [agent]: updatedConfig
+            }))
         } catch (error) {
-            console.error('Failed to load terminal settings:', error)
-            setTerminalSettings({ shell: null, shellArgs: [] })
+            console.error(`Failed to refresh binary detection for ${agent}:`, error)
         }
     }
 
-    const loadEnvVars = async () => {
-        setLoading(true)
+    const openFilePicker = async (agent: AgentType) => {
         try {
-            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
-            const loadedVars: Record<AgentType, Array<{key: string, value: string}>> = {
-                claude: [],
-                cursor: [],
-                opencode: [],
-                gemini: [],
-                codex: []
+            const selected = await openDialog({
+                title: `Select ${agent} binary`,
+                multiple: false,
+                directory: false
+            })
+            
+            if (selected) {
+                await handleBinaryPathChange(agent, selected as string)
             }
-
-            for (const agent of agents) {
-                const vars = await invoke<EnvVars>('get_agent_env_vars', { agentType: agent })
-                loadedVars[agent] = Object.entries(vars || {}).map(([key, value]) => ({ key, value }))
-            }
-
-            setEnvVars(loadedVars)
         } catch (error) {
-            console.error('Failed to load environment variables:', error)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const loadCliArgs = async () => {
-        try {
-            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
-            const loadedArgs: Record<AgentType, string> = {
-                claude: '',
-                cursor: '',
-                opencode: '',
-                gemini: '',
-                codex: ''
-            }
-
-            for (const agent of agents) {
-                const args = await invoke<string>('get_agent_cli_args', { agentType: agent })
-                loadedArgs[agent] = args || ''
-            }
-
-            setCliArgs(loadedArgs)
-        } catch (error) {
-            console.error('Failed to load CLI arguments:', error)
+            console.error('Failed to open file picker:', error)
+            showNotification(`Failed to open file picker: ${error}`, 'error')
         }
     }
 
     const handleSave = async () => {
-        setSaving(true)
-        try {
-            // Save environment variables and CLI arguments
-            const agents: AgentType[] = ['claude', 'cursor', 'opencode', 'gemini', 'codex']
-            
-            for (const agent of agents) {
-                // Save environment variables
-                const vars: EnvVars = {}
-                for (const item of envVars[agent]) {
-                    if (item.key.trim()) {
-                        vars[item.key.trim()] = item.value
-                    }
-                }
-                await invoke('set_agent_env_vars', { agentType: agent, envVars: vars })
-                
-                // Save CLI arguments
-                await invoke('set_agent_cli_args', { agentType: agent, cliArgs: cliArgs[agent] })
-            }
-            
-            // Save project settings
-            console.log('Saving project settings:', projectSettings)
-            await invoke('set_project_settings', { settings: { setupScript: projectSettings.setupScript } })
-            
-            // Save project environment variables
-            const projectEnvVarsObject = projectSettings.environmentVariables.reduce((acc, { key, value }) => {
-                if (key) acc[key] = value
-                return acc
-            }, {} as Record<string, string>)
-            console.log('Saving project env vars:', projectEnvVarsObject)
-            await invoke('set_project_environment_variables', { envVars: projectEnvVarsObject })
-            
-            // Save terminal settings
-            console.log('Saving terminal settings:', terminalSettings)
-            await invoke('set_terminal_settings', { terminal: terminalSettings })
-            
-            onClose()
-        } catch (error) {
-            console.error('Failed to save settings:', error)
-        } finally {
-            setSaving(false)
+        const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings)
+        
+        if (result.failedSettings.length > 0) {
+            showNotification(`Failed to save: ${result.failedSettings.join(', ')}`, 'error')
+        } else if (result.savedSettings.length > 0) {
+            showNotification(`Settings saved successfully`, 'success')
         }
+        
+        onClose()
     }
 
     const handleAddEnvVar = (agent: AgentType) => {
@@ -367,7 +393,7 @@ export function SettingsModal({ open, onClose }: Props) {
         <div className="flex flex-col h-full">
             <div className="border-b border-slate-800">
                 <div className="flex">
-                    {(['claude', 'cursor', 'opencode', 'gemini', 'codex'] as AgentType[]).map(agent => (
+                    {(['claude', 'cursor-agent', 'opencode', 'gemini', 'codex'] as AgentType[]).map(agent => (
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
@@ -377,7 +403,7 @@ export function SettingsModal({ open, onClose }: Props) {
                                     : 'text-slate-400 hover:text-slate-300'
                             }`}
                         >
-                            {agent === 'opencode' ? 'OpenCode' : agent === 'codex' ? 'Codex' : agent}
+                            {agent === 'opencode' ? 'OpenCode' : agent === 'codex' ? 'Codex' : agent === 'cursor-agent' ? 'Cursor' : agent}
                         </button>
                     ))}
                 </div>
@@ -385,10 +411,146 @@ export function SettingsModal({ open, onClose }: Props) {
 
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
+                    {/* Binary Path Configuration */}
                     <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">Binary Path</h3>
+                        <div className="text-sm text-slate-400 mb-4">
+                            Configure which {activeAgentTab === 'cursor-agent' ? 'cursor-agent' : activeAgentTab} binary to use. 
+                            Auto-detection finds all installed versions and recommends the best one.
+                            <span className="block mt-2 text-xs text-slate-500">
+                                Note: Agent binary configurations are stored globally and apply to all projects.
+                            </span>
+                        </div>
+
+                        {/* Current Configuration */}
+                        <div className="mb-4 p-3 bg-slate-800 rounded border border-slate-700">
+                            <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs text-slate-400">Current Binary</span>
+                                <button
+                                    onClick={() => handleRefreshBinaryDetection(activeAgentTab)}
+                                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                    title="Refresh detection"
+                                >
+                                    <svg className="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                    Refresh
+                                </button>
+                            </div>
+                            
+                            {binaryConfigs[activeAgentTab].custom_path ? (
+                                <div className="space-y-2">
+                                    <div className="font-mono text-sm text-green-400">
+                                        {binaryConfigs[activeAgentTab].custom_path}
+                                    </div>
+                                    <div className="text-xs text-slate-500">Custom path (user configured)</div>
+                                    <button
+                                        onClick={() => handleBinaryPathChange(activeAgentTab, null)}
+                                        className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                                    >
+                                        Reset to auto-detection
+                                    </button>
+                                </div>
+                            ) : binaryConfigs[activeAgentTab].detected_binaries.length > 0 ? (
+                                <div className="space-y-2">
+                                    {(() => {
+                                        const recommended = binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)
+                                        return recommended ? (
+                                            <div>
+                                                <div className="font-mono text-sm text-slate-200">
+                                                    {recommended.path}
+                                                </div>
+                                                <div className="flex items-center gap-2 text-xs">
+                                                    <span className="text-green-400">✓ Recommended</span>
+                                                    <span className="text-slate-500">•</span>
+                                                    <span className="text-slate-400">{recommended.installation_method}</span>
+                                                    {recommended.version && (
+                                                        <>
+                                                            <span className="text-slate-500">•</span>
+                                                            <span className="text-slate-400">{recommended.version}</span>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-sm text-slate-400">
+                                                {binaryConfigs[activeAgentTab].detected_binaries[0].path}
+                                            </div>
+                                        )
+                                    })()}
+                                </div>
+                            ) : (
+                                <div className="text-sm text-yellow-400">
+                                    No {activeAgentTab} binary detected
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Custom Binary Path Input */}
+                        <div className="space-y-3">
+                            <div className="flex gap-2">
+                                <input
+                                    type="text"
+                                    value={binaryConfigs[activeAgentTab].custom_path || ''}
+                                    onChange={(e) => handleBinaryPathChange(activeAgentTab, e.target.value || null)}
+                                    placeholder={binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)?.path || `Path to ${activeAgentTab} binary`}
+                                    className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                                />
+                                <button
+                                    onClick={() => openFilePicker(activeAgentTab)}
+                                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded border border-slate-600 text-sm transition-colors"
+                                    title="Browse for binary"
+                                >
+                                    Browse
+                                </button>
+                            </div>
+
+                            {/* Detected Binaries List */}
+                            {binaryConfigs[activeAgentTab].detected_binaries.length > 0 && (
+                                <div className="mt-4">
+                                    <h4 className="text-xs font-medium text-slate-300 mb-2">Detected Binaries</h4>
+                                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                                        {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => (
+                                            <div
+                                                key={index}
+                                                className="flex items-center justify-between p-2 bg-slate-800 rounded border border-slate-700 hover:border-slate-600 transition-colors cursor-pointer"
+                                                onClick={() => handleBinaryPathChange(activeAgentTab, binary.path)}
+                                            >
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-mono text-xs text-slate-200 truncate">
+                                                        {binary.path}
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-xs mt-1">
+                                                        {binary.is_recommended && (
+                                                            <span className="text-green-400">Recommended</span>
+                                                        )}
+                                                        <span className="text-slate-400">{binary.installation_method}</span>
+                                                        {binary.version && (
+                                                            <>
+                                                                <span className="text-slate-500">•</span>
+                                                                <span className="text-slate-400">{binary.version}</span>
+                                                            </>
+                                                        )}
+                                                        {binary.is_symlink && binary.symlink_target && (
+                                                            <>
+                                                                <span className="text-slate-500">•</span>
+                                                                <span className="text-blue-400">→ {binary.symlink_target}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-sm font-medium text-slate-200 mb-2">CLI Arguments</h3>
                         <div className="text-sm text-slate-400 mb-3">
-                            Add custom command-line arguments that will be appended to the {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} command.
+                            Add custom command-line arguments that will be appended to the {activeAgentTab === 'cursor-agent' ? 'cursor-agent' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} command.
                         </div>
                         <input
                             type="text"
@@ -425,7 +587,7 @@ export function SettingsModal({ open, onClose }: Props) {
                     <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-sm font-medium text-slate-200 mb-2">Environment Variables</h3>
                         <div className="text-sm text-slate-400 mb-4">
-                            Configure environment variables for {activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
+                            Configure environment variables for {activeAgentTab === 'cursor-agent' ? 'Cursor' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
                             These variables will be available when starting sessions with this agent type.
                         </div>
 
@@ -527,7 +689,7 @@ export function SettingsModal({ open, onClose }: Props) {
                         </div>
                     )}
 
-                    {activeAgentTab === 'cursor' && (
+                    {activeAgentTab === 'cursor-agent' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
                                 <strong>Common Cursor CLI arguments:</strong>
@@ -998,8 +1160,17 @@ fi`}
     }
 
     return (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-            <div className="w-[900px] max-w-[95vw] h-[600px] max-h-[80vh] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
+        <>
+            {notification.visible && (
+                <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
+                    notification.type === 'error' ? 'bg-red-900' : 
+                    notification.type === 'success' ? 'bg-green-900' : 'bg-blue-900'
+                }`}>
+                    <div className="text-white text-sm">{notification.message}</div>
+                </div>
+            )}
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
+                <div className="w-[900px] max-w-[95vw] h-[600px] max-h-[80vh] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium flex items-center justify-between">
                     <span>Settings</span>
@@ -1070,5 +1241,6 @@ fi`}
                 )}
             </div>
         </div>
+        </>
     )
 }
