@@ -645,7 +645,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Delay a tick to ensure xterm is laid out
         const t = setTimeout(start, 0);
         return () => clearTimeout(t);
-    }, [hydrated, terminalId]);
+    }, [hydrated, terminalId, isOrchestrator, sessionName]);
 
 
     return (

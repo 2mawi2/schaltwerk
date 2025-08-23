@@ -60,13 +60,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             if (projectPath) {
                 // Get just the last directory name and combine with a hash for uniqueness
                 const dirName = projectPath.split(/[/\\]/).pop() || 'unknown'
+                // Sanitize directory name: replace spaces and special chars with underscores
+                const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')
                 // Simple hash: sum of char codes
                 let hash = 0
                 for (let i = 0; i < projectPath.length; i++) {
                     hash = ((hash << 5) - hash) + projectPath.charCodeAt(i)
                     hash = hash & hash // Convert to 32bit integer
                 }
-                projectId = `${dirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
+                projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
             }
             const base = `orchestrator-${projectId}`
             return {
@@ -75,7 +77,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 workingDirectory: workingDir
             }
         } else {
-            const base = `session-${sel.payload}`
+            // Sanitize session name: replace spaces and special chars with underscores
+            const sanitizedSessionName = (sel.payload || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_')
+            const base = `session-${sanitizedSessionName}`
             const sessionWorkingDir = sel.worktreePath || workingDir
             return {
                 top: `${base}-top`,

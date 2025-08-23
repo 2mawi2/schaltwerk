@@ -126,8 +126,8 @@ describe('SelectionContext', () => {
 
       await waitFor(() => {
         expect(result.current.terminals).toEqual({
-          top: 'session-my-test_session.123-top',
-          bottomBase: 'session-my-test_session.123-bottom',
+          top: 'session-my-test_session_123-top',
+          bottomBase: 'session-my-test_session_123-bottom',
           workingDirectory: '/test/path'
         })
       })
