@@ -58,6 +58,13 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
     closeTab(tabIndex)
   }
 
+  const handleTabMouseDown = (e: React.MouseEvent, tabIndex: number) => {
+    if (e.button === 1) {
+      e.stopPropagation()
+      closeTab(tabIndex)
+    }
+  }
+
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
@@ -74,6 +81,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
                 }
               `}
               onClick={(e) => handleTabClick(e, tab.index)}
+              onMouseDown={(e) => handleTabMouseDown(e, tab.index)}
             >
               <span className="truncate flex-1">{tab.label}</span>
               {tabs.length > 1 && (
