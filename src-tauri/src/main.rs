@@ -611,6 +611,7 @@ fn main() {
             create_terminal,
             create_terminal_with_size,
             write_terminal,
+            paste_and_submit_terminal,
             resize_terminal,
             close_terminal,
             terminal_exists,

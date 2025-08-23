@@ -472,7 +472,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     
     try {
       const terminalId = `session-${sessionName}-top`
-      await invoke('write_terminal', { id: terminalId, data: reviewText })
+      // Use the new paste_and_submit command to reliably submit the review
+      await invoke('paste_and_submit_terminal', { id: terminalId, data: reviewText })
       
       // Focus the session with blue border
       await setSelection({

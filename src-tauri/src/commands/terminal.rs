@@ -169,6 +169,12 @@ pub async fn write_terminal(id: String, data: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn paste_and_submit_terminal(id: String, data: String) -> Result<(), String> {
+    let manager = get_terminal_manager().await?;
+    manager.paste_and_submit_terminal(id, data.into_bytes()).await
+}
+
+#[tauri::command]
 pub async fn resize_terminal(id: String, cols: u16, rows: u16) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager.resize_terminal(id, cols, rows).await

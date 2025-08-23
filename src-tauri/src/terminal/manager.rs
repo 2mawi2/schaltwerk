@@ -142,6 +142,34 @@ impl TerminalManager {
         self.backend.write(&id, &data).await
     }
     
+    pub async fn paste_and_submit_terminal(&self, id: String, data: Vec<u8>) -> Result<(), String> {
+        // Send bracketed paste start sequence
+        let paste_start = b"\x1b[200~";
+        self.backend.write(&id, paste_start).await?;
+        
+        // Small delay to ensure paste start is processed
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        
+        // Send the actual content
+        self.backend.write(&id, &data).await?;
+        
+        // Small delay before paste end
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+        
+        // Send bracketed paste end sequence
+        let paste_end = b"\x1b[201~";
+        self.backend.write(&id, paste_end).await?;
+        
+        // Critical delay to ensure agent processes paste end before Enter
+        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+        
+        // Send Enter key (carriage return) as a separate, non-paste action
+        let enter = b"\r";
+        self.backend.write(&id, enter).await?;
+        
+        Ok(())
+    }
+    
     pub async fn resize_terminal(&self, id: String, cols: u16, rows: u16) -> Result<(), String> {
         debug!("Resizing terminal {id}: {cols}x{rows}");
         self.backend.resize(&id, cols, rows).await
