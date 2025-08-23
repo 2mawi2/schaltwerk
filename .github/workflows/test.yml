@@ -12,66 +12,19 @@ permissions:
   contents: read
 
 jobs:
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Install Linux dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libgtk-3-dev \
-            libappindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy
-
-      - name: Cache Node modules
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-node-
-
-      - name: Install Node dependencies
-        run: npm ci
-
-      - name: Run TypeScript lint
-        run: npm run lint
-
-      - name: Run Rust lint
-        run: npm run lint:rust
-
   test:
-    name: Test (${{ matrix.os }})
-    strategy:
-      matrix:
-        os: [ubuntu-latest]
-        # Uncomment below when billing is resolved:
-        # os: [ubuntu-latest, macos-latest, windows-latest]
-      fail-fast: false
-    runs-on: ${{ matrix.os }}
+    name: Test
+    runs-on: ubuntu-latest
+    # For GitHub Actions, use their runner image
+    # For act local testing, use our custom image via actrc config
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
+      - name: Install system dependencies (GitHub Actions)
+        # Only run on GitHub Actions, not in act (which uses pre-built image)
+        if: ${{ !env.ACT }}
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -81,22 +34,24 @@ jobs:
             librsvg2-dev \
             patchelf
 
-      - name: Install Windows dependencies
-        if: runner.os == 'Windows'
-        run: |
-          choco install llvm -y
-          echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
-
-      - name: Setup Node.js
+      - name: Setup Node.js (GitHub Actions)
+        # Skip in act since Node is pre-installed in custom image
+        if: ${{ !env.ACT }}
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Setup Rust
+      - name: Setup Rust (GitHub Actions)
+        # Skip in act since Rust is pre-installed in custom image
+        if: ${{ !env.ACT }}
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
+        if: ${{ !env.ACT }}
         with:
           path: |
             ~/.cargo/bin/
@@ -104,20 +59,35 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-${{ matrix.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.os }}-cargo-test-
-            ${{ runner.os }}-cargo-test-
             ${{ runner.os }}-cargo-
 
-      - name: Install dependencies
+      - name: Install Node dependencies
+        run: npm ci
+
+      - name: Run lints
         run: |
-          npm cache clean --force
-          rm -rf node_modules
-          npm install
+          echo "::group::TypeScript lint"
+          npm run lint
+          echo "::endgroup::"
+          
+          echo "::group::Rust lint"
+          npm run lint:rust
+          echo "::endgroup::"
 
       - name: Run tests
-        env:
-          CARGO_PROFILE_TEST_OPT_LEVEL: '0'
-          CARGO_PROFILE_DEV_OPT_LEVEL: '0'
-        run: npm run test
+        run: |
+          echo "::group::Frontend tests"
+          npm run test:frontend
+          echo "::endgroup::"
+          
+          echo "::group::Rust tests"
+          npm run test:rust
+          echo "::endgroup::"
+
+      - name: Build check
+        run: |
+          echo "::group::Rust build"
+          npm run build:rust
+          echo "::endgroup::"
