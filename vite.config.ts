@@ -14,7 +14,7 @@ export default defineConfig(({ command }) => ({
   base: command === 'build' ? './' : '/',
   // 2. tauri expects a fixed port, fail if that port is not available
   server: {
-    port: 1420,
+    port: parseInt(process.env.VITE_PORT || '1420'),
     strictPort: true,
     host: host || false,
     hmr: host

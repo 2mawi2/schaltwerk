@@ -3,6 +3,7 @@ import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
+import { BranchIndicator } from './BranchIndicator'
 
 interface TopBarProps {
   tabs: ProjectTab[]
@@ -107,6 +108,9 @@ export function TopBar({
             userSelect: 'none'
           } as React.CSSProperties}
         />
+        
+        {/* Branch indicator - only shows in development builds */}
+        <BranchIndicator />
         
         {/* Open in IDE button - only show when a tab is active */}
         {activeTabPath && (

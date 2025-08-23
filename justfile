@@ -124,9 +124,12 @@ run:
     #!/usr/bin/env bash
     set -euo pipefail
     
+    # Get current git branch for display
+    branch=$(git branch --show-current 2>/dev/null || echo "no-branch")
+    
     # Find available port starting from 1420
     port=$(just _find_available_port 1420)
-    echo "🚀 Starting Para UI on port $port (optimized for speed)"
+    echo "🚀 Starting Para UI on port $port (branch: $branch)"
     
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
@@ -142,8 +145,29 @@ run:
     # Export the port for Vite
     export VITE_PORT=$port
     
-    # Start with fast build mode
-    TAURI_SKIP_DEVSERVER_CHECK=true npm run tauri dev
+    # Create temporary config override for Tauri to use the dynamic port
+    temp_config=$(mktemp)
+    cat > "$temp_config" <<EOF
+    {
+      "build": {
+        "devUrl": "http://localhost:$port",
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build",
+        "frontendDist": "../dist"
+      }
+    }
+    EOF
+    
+    # Cleanup function to remove temp config
+    cleanup() {
+        rm -f "$temp_config"
+    }
+    
+    # Set trap to cleanup on exit
+    trap cleanup EXIT
+    
+    # Start with fast build mode and config override
+    TAURI_SKIP_DEVSERVER_CHECK=true npm run tauri dev -- --config "$temp_config"
 
 # Run only the frontend (Vite dev server) on auto-detected port
 run-frontend:

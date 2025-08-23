@@ -31,6 +31,35 @@ use tokio::sync::Mutex;
 // Import all commands
 use commands::*;
 
+#[tauri::command]
+fn get_development_info() -> Result<serde_json::Value, String> {
+    // Only return development info in debug builds
+    if cfg!(debug_assertions) {
+        // Get current git branch
+        let branch_result = std::process::Command::new("git")
+            .arg("branch")
+            .arg("--show-current")
+            .output();
+        
+        let branch = match branch_result {
+            Ok(output) if output.status.success() => {
+                String::from_utf8_lossy(&output.stdout).trim().to_string()
+            }
+            _ => String::new()
+        };
+        
+        Ok(serde_json::json!({
+            "isDevelopment": true,
+            "branch": branch
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "isDevelopment": false,
+            "branch": null
+        }))
+    }
+}
+
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
 pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::const_new();
 
@@ -501,7 +530,7 @@ async fn start_webhook_server(app: tauri::AppHandle) {
     }
 }
 
-use tauri::Emitter;
+use tauri::{Emitter, Manager};
 
 fn main() {
     // Initialize logging
@@ -572,6 +601,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![
+            // Development info
+            get_development_info,
             // Permission commands
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,
@@ -662,6 +693,32 @@ fn main() {
             set_project_environment_variables
         ])
         .setup(move |app| {
+            // Get current git branch and update window title
+            let branch_result = std::process::Command::new("git")
+                .arg("branch")
+                .arg("--show-current")
+                .output();
+            
+            if let Some(window) = app.get_webview_window("main") {
+                let title = match branch_result {
+                    Ok(output) if output.status.success() => {
+                        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                        if !branch.is_empty() {
+                            format!("Schaltwerk - {branch}")
+                        } else {
+                            "Schaltwerk".to_string()
+                        }
+                    }
+                    _ => "Schaltwerk".to_string()
+                };
+                
+                if let Err(e) = window.set_title(&title) {
+                    log::warn!("Failed to set window title: {e}");
+                } else {
+                    log::info!("Window title set to: {title}");
+                }
+            }
+            
             // Pass initial directory to the frontend if provided
             if let Some((dir, is_git)) = initial_directory.clone() {
                 let app_handle = app.handle().clone();
