@@ -371,7 +371,26 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const snapshot = await invoke<string>('get_terminal_buffer', { id: terminalId });
                 
                 if (snapshot) {
+                    // Check if the snapshot contains enough data to have scrollback
+                    const lineCount = (snapshot.match(/\n/g) || []).length;
+                    const hasSignificantContent = lineCount > terminal.current!.rows;
+                    
                     writeQueueRef.current.push(snapshot);
+                    
+                    // If we have significant content, try to scroll to bottom after rendering
+                    // This prevents the terminal from appearing at the top of the scrollback
+                    if (hasSignificantContent) {
+                        requestAnimationFrame(() => {
+                            if (terminal.current && terminal.current.buffer && terminal.current.buffer.active) {
+                                try {
+                                    // Scroll to the bottom (most recent output)
+                                    terminal.current.scrollToBottom();
+                                } catch (e) {
+                                    // Scroll API might not be available
+                                }
+                            }
+                        });
+                    }
                 }
                 // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
@@ -384,6 +403,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 hydratedRef.current = true;
                 // Flush immediately to avoid dropping output on rapid remounts/tests
                 flushNow();
+                
             } catch (error) {
                 console.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
                 // On failure, still shift to live streaming and flush any buffered output to avoid drops
@@ -504,6 +524,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         return () => {
             mountedRef.current = false;
             cancelled = true;
+            
             if (resizeTimeout) clearTimeout(resizeTimeout);
             clearTimeout(mountTimeout);
             window.removeEventListener('terminal-split-drag-end', doFinalFit);
