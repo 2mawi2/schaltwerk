@@ -3,6 +3,7 @@ import React, { useEffect } from 'react'
 import { DiffFileList } from './DiffFileList'
 import { SelectionProvider, useSelection } from '../../contexts/SelectionContext'
 import { ProjectProvider, useProject } from '../../contexts/ProjectContext'
+import { FontSizeProvider } from '../../contexts/FontSizeContext'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -58,11 +59,13 @@ function TestWrapper({
 function Wrapper({ children, sessionName }: { children: React.ReactNode, sessionName?: string }) {
   return (
     <ProjectProvider>
-      <SelectionProvider>
-        <TestWrapper sessionName={sessionName}>
-          {children}
-        </TestWrapper>
-      </SelectionProvider>
+      <FontSizeProvider>
+        <SelectionProvider>
+          <TestWrapper sessionName={sessionName}>
+            {children}
+          </TestWrapper>
+        </SelectionProvider>
+      </FontSizeProvider>
     </ProjectProvider>
   )
 }

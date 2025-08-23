@@ -5,6 +5,7 @@ import { SelectionProvider } from '../contexts/SelectionContext'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ProjectProvider } from '../contexts/ProjectContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
+import { FontSizeProvider } from '../contexts/FontSizeContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -86,13 +87,15 @@ describe('Session Switching Performance', () => {
 
         const TestWrapper = ({ children }: { children: React.ReactNode }) => (
             <ProjectProvider>
-                <SessionsProvider>
-                    <SelectionProvider>
-                        <FocusProvider>
-                            {children}
-                        </FocusProvider>
-                    </SelectionProvider>
-                </SessionsProvider>
+                <FontSizeProvider>
+                    <SessionsProvider>
+                        <SelectionProvider>
+                            <FocusProvider>
+                                {children}
+                            </FocusProvider>
+                        </SelectionProvider>
+                    </SessionsProvider>
+                </FontSizeProvider>
             </ProjectProvider>
         )
 
@@ -162,13 +165,15 @@ describe('Session Switching Performance', () => {
 
         const { rerender } = render(
             <ProjectProvider>
-                <SessionsProvider>
-                    <SelectionProvider>
-                        <FocusProvider>
-                            <Sidebar />
-                        </FocusProvider>
-                    </SelectionProvider>
-                </SessionsProvider>
+                <FontSizeProvider>
+                    <SessionsProvider>
+                        <SelectionProvider>
+                            <FocusProvider>
+                                <Sidebar />
+                            </FocusProvider>
+                        </SelectionProvider>
+                    </SessionsProvider>
+                </FontSizeProvider>
             </ProjectProvider>
         )
 
@@ -179,13 +184,15 @@ describe('Session Switching Performance', () => {
         // Force re-render without changing data
         rerender(
             <ProjectProvider>
-                <SessionsProvider>
-                    <SelectionProvider>
-                        <FocusProvider>
-                            <Sidebar />
-                        </FocusProvider>
-                    </SelectionProvider>
-                </SessionsProvider>
+                <FontSizeProvider>
+                    <SessionsProvider>
+                        <SelectionProvider>
+                            <FocusProvider>
+                                <Sidebar />
+                            </FocusProvider>
+                        </SelectionProvider>
+                    </SessionsProvider>
+                </FontSizeProvider>
             </ProjectProvider>
         )
 

@@ -4,6 +4,7 @@ import { renderHook, act } from '@testing-library/react'
 import { SelectionProvider, useSelection } from './SelectionContext'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { FocusProvider } from './FocusContext'
+import { FontSizeProvider } from './FontSizeContext'
 import React from 'react'
 
 // Mock Tauri API
@@ -21,11 +22,13 @@ const mockInvoke = vi.mocked(invoke)
 
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
-        <FocusProvider>
-            <SelectionProvider>
-                {children}
-            </SelectionProvider>
-        </FocusProvider>
+        <FontSizeProvider>
+            <FocusProvider>
+                <SelectionProvider>
+                    {children}
+                </SelectionProvider>
+            </FocusProvider>
+        </FontSizeProvider>
     </ProjectProvider>
 )
 

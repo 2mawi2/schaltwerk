@@ -227,7 +227,6 @@ export default function App() {
         e.preventDefault()
         resetFontSizes()
       }
-<<<<<<< HEAD
       
       // Kanban board shortcut: Cmd+Shift+K only
       if (modifierKey && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
@@ -239,10 +238,6 @@ export default function App() {
           setIsKanbanOpen(true)
         }
       }
-      
-=======
-
->>>>>>> b22381fab0ee9935fc42c5f72833f42d48621d16
     }
 
     const handleGlobalNewSession = () => {
@@ -579,31 +574,6 @@ export default function App() {
       {!showHome && activeTabPath && (
         <>
           <Split className="h-full w-full flex pt-[28px]" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
-<<<<<<< HEAD
-              <div className="h-full bg-panel border-r border-slate-800 overflow-y-auto" data-testid="sidebar">
-                <div className="h-full flex flex-col">
-                  <div className="flex-1 overflow-y-auto">
-                    <Sidebar isDiffViewerOpen={isDiffViewerOpen} />
-                  </div>
-                  <div className="p-2 border-t border-slate-800 grid grid-cols-2 gap-2">
-                    <button 
-                      onClick={() => setNewSessionOpen(true)} 
-                      className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
-                      title="Start new task (⌘N)"
-                    >
-                      <span>Start new task</span>
-                      <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
-                    </button>
-                    <button 
-                      onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }} 
-                      className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
-                      title="Create draft (⇧⌘N)"
-                    >
-                      <span>New draft</span>
-                      <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
-                    </button>
-                  </div>
-=======
             <div className="h-full bg-panel border-r border-slate-800 overflow-y-auto" data-testid="sidebar">
               <div className="h-full flex flex-col">
                 <div className="flex-1 overflow-y-auto">
@@ -626,27 +596,10 @@ export default function App() {
                     <span>New draft</span>
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
                   </button>
->>>>>>> b22381fab0ee9935fc42c5f72833f42d48621d16
                 </div>
               </div>
+            </div>
 
-<<<<<<< HEAD
-              <div className="relative h-full">
-                {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
-                <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
-                <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
-                  <main className="bg-slate-950 h-full" data-testid="terminal-grid">
-                    <TerminalGrid />
-                  </main>
-                  <section className="overflow-hidden">
-                    <RightPanelTabs onFileSelect={handleFileSelect} />
-                  </section>
-                </Split>
-              </div>
-            </Split>
-          
-          <NewSessionModal 
-=======
             <div className="relative h-full">
               {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
               <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
@@ -662,7 +615,6 @@ export default function App() {
           </Split>
 
           <NewSessionModal
->>>>>>> b22381fab0ee9935fc42c5f72833f42d48621d16
             open={newSessionOpen}
             initialIsDraft={openAsDraft}
             onClose={() => { setNewSessionOpen(false); setOpenAsDraft(false); setStartFromDraftName(null) }}
