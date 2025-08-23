@@ -90,15 +90,17 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         }
         
         // Validate that base branch is selected and exists
-        if (!baseBranch) {
-            setValidationError('Please select a base branch')
-            return
-        }
-        
-        // Check if the branch exists in the repository
-        if (!branches.includes(baseBranch)) {
-            setValidationError(`Branch "${baseBranch}" does not exist in the repository`)
-            return
+        if (!createAsDraft) {
+            if (!baseBranch) {
+                setValidationError('Please select a base branch')
+                return
+            }
+            
+            // Check if the branch exists in the repository
+            if (!branches.includes(baseBranch)) {
+                setValidationError(`Branch "${baseBranch}" does not exist in the repository`)
+                return
+            }
         }
         
         // Validate task content if creating as draft
@@ -118,13 +120,15 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setCreating(true)
             
             // Save the selected branch as the project default for next time
-            await invoke('set_project_default_base_branch', { branch: baseBranch })
-                .catch(err => console.warn('Failed to save default branch:', err))
+            if (!createAsDraft) {
+                await invoke('set_project_default_base_branch', { branch: baseBranch })
+                    .catch(err => console.warn('Failed to save default branch:', err))
+            }
             
             await Promise.resolve(onCreate({
                 name: finalName,
                 prompt: createAsDraft ? undefined : (taskContent || undefined),
-                baseBranch,
+                baseBranch: createAsDraft ? '' : baseBranch,
                 // If user touched the input, treat name as manually edited
                 userEditedName: !!userEdited,
                 isDraft: createAsDraft,
@@ -185,7 +189,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 promptTextareaRef.current?.focus()
             }, 100)
         }
-    }, [open, getSkipPermissions, getAgentType])
+    }, [open, getSkipPermissions, getAgentType, initialIsDraft])
 
     useEffect(() => {
         if (!open) return
@@ -218,7 +222,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             const detail = event?.detail || {}
             const nameFromDraft: string | undefined = detail.name
             const taskContentFromDraft: string | undefined = detail.taskContent
-            const baseBranchFromDraft: string | undefined = detail.baseBranch
             const lockName: boolean | undefined = detail.lockName
 
             if (nameFromDraft) {
@@ -230,9 +233,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             }
             if (typeof taskContentFromDraft === 'string') {
                 setTaskContent(taskContentFromDraft)
-            }
-            if (typeof baseBranchFromDraft === 'string' && baseBranchFromDraft) {
-                setBaseBranch(baseBranchFromDraft)
             }
         }
         window.addEventListener('schaltwerk:new-session:set-draft' as any, setDraftHandler)
@@ -333,32 +333,34 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     )}
 
                     <div className="grid grid-cols-3 gap-3">
-                        <div>
-                            <label className="block text-sm text-slate-300 mb-1">Base branch</label>
-                            {loadingBranches ? (
-                                <input 
-                                    value="Loading branches..." 
-                                    disabled
-                                    className="w-full bg-slate-800 text-slate-500 rounded px-3 py-2 border border-slate-700" 
-                                />
-                            ) : (
-                                <BranchAutocomplete
-                                    value={baseBranch}
-                                    onChange={(value) => {
-                                        setBaseBranch(value)
-                                        // Clear validation error when user changes branch
-                                        if (validationError && validationError.includes('Branch')) {
-                                            setValidationError('')
-                                        }
-                                    }}
-                                    branches={branches}
-                                    disabled={branches.length === 0}
-                                    placeholder={branches.length === 0 ? "No branches available" : "Type to search branches..."}
-                                    onValidationChange={setIsValidBranch}
-                                />
-                            )}
-                            <p className="text-xs text-slate-400 mt-1">Branch from which to create the worktree</p>
-                        </div>
+                        {!createAsDraft && (
+                            <div>
+                                <label className="block text-sm text-slate-300 mb-1">Base branch</label>
+                                {loadingBranches ? (
+                                    <input 
+                                        value="Loading branches..." 
+                                        disabled
+                                        className="w-full bg-slate-800 text-slate-500 rounded px-3 py-2 border border-slate-700" 
+                                    />
+                                ) : (
+                                    <BranchAutocomplete
+                                        value={baseBranch}
+                                        onChange={(value) => {
+                                            setBaseBranch(value)
+                                            // Clear validation error when user changes branch
+                                            if (validationError && validationError.includes('Branch')) {
+                                                setValidationError('')
+                                            }
+                                        }}
+                                        branches={branches}
+                                        disabled={branches.length === 0}
+                                        placeholder={branches.length === 0 ? "No branches available" : "Type to search branches..."}
+                                        onValidationChange={setIsValidBranch}
+                                    />
+                                )}
+                                <p className="text-xs text-slate-400 mt-1">Branch from which to create the worktree</p>
+                            </div>
+                        )}
                         {!createAsDraft && (
                         <div>
                             <label className="block text-sm text-slate-300 mb-2">Agent</label>
@@ -391,7 +393,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     </button>
                     <button 
                         onClick={handleCreate} 
-                        disabled={!name.trim() || !baseBranch || !isValidBranch || creating || (createAsDraft && !taskContent.trim())}
+                        disabled={!name.trim() || (!createAsDraft && (!baseBranch || !isValidBranch)) || creating || (createAsDraft && !taskContent.trim())}
                         className={`px-3 py-1.5 ${createAsDraft ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2`}
                         title={!isValidBranch ? "Please select a valid branch" : createAsDraft ? "Create draft (Cmd+Enter)" : "Create task (Cmd+Enter)"}
                     >
@@ -409,5 +411,3 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         </div>
     )
 }
-
-
