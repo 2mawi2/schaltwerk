@@ -388,14 +388,16 @@ export default function App() {
         setNewSessionOpen(false)
         setStartFromDraftName(null)
 
-        // Get the started session to get correct worktree path
+        // Get the started session to get correct worktree path and state
         const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
 
-        // Switch to the session - rest of the app will handle agent start
+        // Switch to the session - backend will handle agent start
+        // Important: pass sessionState as 'running' since we just started the draft
         await setSelection({
           kind: 'session',
           payload: data.name,
-          worktreePath: sessionData.worktree_path
+          worktreePath: sessionData.worktree_path,
+          sessionState: 'running' // Draft has been started, it's now running
         })
         return
       }

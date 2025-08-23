@@ -223,6 +223,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             const nameFromDraft: string | undefined = detail.name
             const taskContentFromDraft: string | undefined = detail.taskContent
             const lockName: boolean | undefined = detail.lockName
+            const fromDraft: boolean | undefined = detail.fromDraft
 
             if (nameFromDraft) {
                 setName(nameFromDraft)
@@ -233,6 +234,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             }
             if (typeof taskContentFromDraft === 'string') {
                 setTaskContent(taskContentFromDraft)
+            }
+            // If running from an existing draft, don't create another draft
+            if (fromDraft) {
+                setCreateAsDraft(false)
             }
         }
         window.addEventListener('schaltwerk:new-session:set-draft' as any, setDraftHandler)

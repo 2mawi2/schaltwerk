@@ -21,12 +21,28 @@ static PROMPTED_SESSIONS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new()
 // Reserve generated names per repository path to avoid duplicates across rapid successive calls
 static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
 
+#[cfg(test)]
+pub(crate) fn has_session_been_prompted(worktree_path: &Path) -> bool {
+    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
+    let prompted = set.lock().unwrap();
+    prompted.contains(worktree_path)
+}
+
+#[cfg(not(test))]
 fn has_session_been_prompted(worktree_path: &Path) -> bool {
     let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
     let prompted = set.lock().unwrap();
     prompted.contains(worktree_path)
 }
 
+#[cfg(test)]
+pub(crate) fn mark_session_prompted(worktree_path: &Path) {
+    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
+    let mut prompted = set.lock().unwrap();
+    prompted.insert(worktree_path.to_path_buf());
+}
+
+#[cfg(not(test))]
 fn mark_session_prompted(worktree_path: &Path) {
     let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
     let mut prompted = set.lock().unwrap();
@@ -424,6 +440,10 @@ impl SessionManager {
         // Update session to draft state
         self.db.update_session_status(&session.id, SessionStatus::Draft)?;
         self.db.update_session_state(&session.id, SessionState::Draft)?;
+        
+        // Clear the prompted state so it can be prompted again when restarted
+        clear_session_prompted(&session.worktree_path);
+        log::info!("Cleared prompt state for session '{name}'");
         
         log::info!("Successfully converted session '{name}' to draft");
         
@@ -1305,5 +1325,36 @@ mod session_tests {
         assert!(result.contains("cd"));
         assert!(result.contains("path with spaces"));
         assert!(result.contains("test prompt"));
+    }
+    
+    #[test]
+    fn test_prompted_sessions_cleared_on_draft_conversion() {
+        use std::path::PathBuf;
+        
+        // This test verifies that PROMPTED_SESSIONS is properly cleared
+        // when a session is converted to draft
+        
+        // Create a mock worktree path
+        let worktree_path = PathBuf::from("/tmp/test-worktree");
+        
+        // Initially, session should not be prompted
+        assert!(!has_session_been_prompted(&worktree_path), "Session should not be prompted initially");
+        
+        // Mark it as prompted (simulating agent start)
+        mark_session_prompted(&worktree_path);
+        assert!(has_session_been_prompted(&worktree_path), "Session should be marked as prompted");
+        
+        // Clear the prompted state (simulating conversion to draft)
+        clear_session_prompted(&worktree_path);
+        
+        // After clearing, it should not be prompted anymore
+        assert!(
+            !has_session_been_prompted(&worktree_path), 
+            "Session prompt state should be cleared after calling clear_session_prompted"
+        );
+        
+        // Mark it again and verify it can be prompted again
+        mark_session_prompted(&worktree_path);
+        assert!(has_session_been_prompted(&worktree_path), "Session should be promptable again after clearing");
     }
 }
