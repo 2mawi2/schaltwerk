@@ -3,9 +3,10 @@ import { useSelection } from '../../contexts/SelectionContext'
 
 interface SimpleDiffPanelProps {
   onFileSelect: (filePath: string) => void
+  sessionNameOverride?: string
 }
 
-export function SimpleDiffPanel({ onFileSelect }: SimpleDiffPanelProps) {
+export function SimpleDiffPanel({ onFileSelect, sessionNameOverride }: SimpleDiffPanelProps) {
   // selection not needed after removing prompt dock
   useSelection()
   // Test hook data-testid for App.test.tsx
@@ -16,7 +17,7 @@ export function SimpleDiffPanel({ onFileSelect }: SimpleDiffPanelProps) {
   return (
     <div className="relative h-full flex flex-col overflow-hidden" {...testProps}>
       <div className="flex-1 min-h-0 overflow-hidden">
-        <DiffFileList onFileSelect={onFileSelect} />
+        <DiffFileList onFileSelect={onFileSelect} sessionNameOverride={sessionNameOverride} />
       </div>
     </div>
   )

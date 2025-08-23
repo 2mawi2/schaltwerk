@@ -12,9 +12,10 @@ interface ChangedFile {
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
+  sessionNameOverride?: string
 }
 
-export function DiffFileList({ onFileSelect }: DiffFileListProps) {
+export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileListProps) {
   const { selection } = useSelection()
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -25,7 +26,7 @@ export function DiffFileList({ onFileSelect }: DiffFileListProps) {
     headCommit: string 
   } | null>(null)
   
-  const sessionName = selection.kind === 'session' ? selection.payload : null
+  const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   
   const loadChangedFiles = useCallback(async () => {
     try {

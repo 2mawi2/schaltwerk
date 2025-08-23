@@ -9,9 +9,11 @@ import { DraftListView } from '../drafts/DraftListView'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
+  selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
+  isDraftOverride?: boolean
 }
 
-export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
+export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverride }: RightPanelTabsProps) {
   const { selection, isDraft } = useSelection()
   const { projectPath } = useProject()
   const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'task' | null>(null)
@@ -19,9 +21,11 @@ export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
 
   // Determine active tab based on user selection or smart defaults
   // For drafts, always show task tab regardless of user selection
-  const activeTab = (selection.kind === 'session' && isDraft) ? 'task' : (
+  const effectiveSelection = selectionOverride ?? selection
+  const effectiveIsDraft = typeof isDraftOverride === 'boolean' ? isDraftOverride : isDraft
+  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsDraft) ? 'task' : (
     userSelectedTab || (
-      selection.kind === 'orchestrator' ? 'task' : 'changes'
+      effectiveSelection.kind === 'orchestrator' ? 'task' : 'changes'
     )
   )
 
@@ -39,10 +43,10 @@ export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
   // Note: removed Cmd+D toggle to reserve shortcut for New Draft
 
   // Unified header with tabs
-  const isOrchestrator = selection.kind === 'orchestrator'
+  const isOrchestrator = effectiveSelection.kind === 'orchestrator'
   const rightTabLabel = isOrchestrator ? 'Drafts' : 'Task'
   const showBackButton = isOrchestrator && !!previewDraftName
-  const showChangesTab = selection.kind === 'session' && !isDraft
+  const showChangesTab = effectiveSelection.kind === 'session' && !effectiveIsDraft
 
   return (
     <div className="h-full flex flex-col bg-panel">
@@ -90,14 +94,17 @@ export function RightPanelTabs({ onFileSelect }: RightPanelTabsProps) {
 
       <div className="flex-1 overflow-hidden">
         {activeTab === 'changes' ? (
-          <SimpleDiffPanel onFileSelect={onFileSelect} />
+          <SimpleDiffPanel 
+            onFileSelect={onFileSelect} 
+            sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
+          />
         ) : (
           // Task/Drafts tab content
-          selection.kind === 'session' ? (
+          effectiveSelection.kind === 'session' ? (
             // For sessions, show DraftContentView - editable for drafts, read-only for running
             <DraftContentView 
-              sessionName={selection.payload!} 
-              editable={isDraft} 
+              sessionName={effectiveSelection.payload!} 
+              editable={effectiveIsDraft} 
               debounceMs={1000} 
             />
           ) : (

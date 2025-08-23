@@ -255,8 +255,12 @@ export default function App() {
     }
 
     const handleOpenDiffView = () => {
-      // open diff view for current session; file selection stays null to show list
       setSelectedDiffFile(null)
+      setIsDiffViewerOpen(true)
+    }
+    const handleOpenDiffFile = (e: any) => {
+      const filePath = e?.detail?.filePath as string | null
+      setSelectedDiffFile(filePath || null)
       setIsDiffViewerOpen(true)
     }
 
@@ -264,12 +268,14 @@ export default function App() {
     window.addEventListener('global-new-session-shortcut', handleGlobalNewSession)
     window.addEventListener('global-kanban-shortcut', handleGlobalKanban)
     window.addEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
+    window.addEventListener('schaltwerk:open-diff-file' as any, handleOpenDiffFile)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('global-new-session-shortcut', handleGlobalNewSession)
       window.removeEventListener('global-kanban-shortcut', handleGlobalKanban)
       window.removeEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
+      window.removeEventListener('schaltwerk:open-diff-file' as any, handleOpenDiffFile)
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
