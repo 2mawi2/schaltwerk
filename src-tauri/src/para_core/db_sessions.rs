@@ -9,6 +9,7 @@ pub trait SessionMethods {
     fn create_session(&self, session: &Session) -> Result<()>;
     fn get_session_by_name(&self, repo_path: &Path, name: &str) -> Result<Session>;
     fn get_session_by_id(&self, id: &str) -> Result<Session>;
+    fn get_session_task_content(&self, repo_path: &Path, name: &str) -> Result<(Option<String>, Option<String>)>;
     fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>>;
     fn list_all_active_sessions(&self) -> Result<Vec<Session>>;
     fn list_sessions_by_state(&self, repo_path: &Path, state: SessionState) -> Result<Vec<Session>>;
@@ -156,6 +157,28 @@ impl SessionMethods for Database {
         )?;
         
         Ok(session)
+    }
+    
+    fn get_session_task_content(&self, repo_path: &Path, name: &str) -> Result<(Option<String>, Option<String>)> {
+        let conn = self.conn.lock().unwrap();
+        
+        let mut stmt = conn.prepare(
+            "SELECT draft_content, initial_prompt
+             FROM sessions
+             WHERE repository_path = ?1 AND name = ?2"
+        )?;
+        
+        let result = stmt.query_row(
+            params![repo_path.to_string_lossy(), name],
+            |row| {
+                Ok((
+                    row.get::<_, Option<String>>(0)?,
+                    row.get::<_, Option<String>>(1)?
+                ))
+            }
+        )?;
+        
+        Ok(result)
     }
     
     fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>> {

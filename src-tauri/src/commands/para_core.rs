@@ -259,6 +259,16 @@ pub async fn para_core_get_session(name: String) -> Result<Session, String> {
 }
 
 #[tauri::command]
+pub async fn para_core_get_session_task_content(name: String) -> Result<(Option<String>, Option<String>), String> {
+    let core = get_para_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    
+    manager.get_session_task_content(&name)
+        .map_err(|e| format!("Failed to get session task content: {e}"))
+}
+
+#[tauri::command]
 pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Starting cancel session: {name}");
     

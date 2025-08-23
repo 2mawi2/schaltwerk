@@ -429,6 +429,10 @@ impl SessionManager {
         self.db.get_session_by_name(&self.repo_path, name)
     }
     
+    pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
+        self.db.get_session_task_content(&self.repo_path, name)
+    }
+    
     fn execute_setup_script(&self, script: &str, session_name: &str, branch_name: &str, worktree_path: &Path) -> Result<()> {
         use std::process::Command;
         

@@ -22,10 +22,10 @@ export function DraftContentView({ sessionName, editable = true, debounceMs = 10
     let mounted = true
     setLoading(true)
     setError(null)
-    invoke<any>('para_core_get_session', { name: sessionName })
-      .then((session) => {
+    invoke<[string | null, string | null]>('para_core_get_session_task_content', { name: sessionName })
+      .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
-        const text: string = session?.draft_content ?? session?.initial_prompt ?? ''
+        const text: string = draftContent ?? initialPrompt ?? ''
         setContent(text)
       })
       .catch((e) => {
