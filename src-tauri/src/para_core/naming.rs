@@ -12,6 +12,8 @@ pub struct SessionRenameContext<'a> {
     pub current_branch: &'a str,
     pub agent_type: &'a str,
     pub initial_prompt: Option<&'a str>,
+    pub cli_args: Option<&'a str>,
+    pub env_vars: &'a [(String, String)],
 }
 
 pub fn truncate_prompt(prompt: &str) -> String {
@@ -69,7 +71,15 @@ fn ansi_strip(input: &str) -> String {
 }
 
 pub async fn generate_display_name_and_rename_branch(ctx: SessionRenameContext<'_>) -> Result<Option<String>> {
-    let result = generate_display_name(ctx.db, ctx.session_id, ctx.worktree_path, ctx.agent_type, ctx.initial_prompt).await?;
+    let result = generate_display_name(
+        ctx.db,
+        ctx.session_id,
+        ctx.worktree_path,
+        ctx.agent_type,
+        ctx.initial_prompt,
+        ctx.cli_args,
+        ctx.env_vars,
+    ).await?;
     
     if let Some(ref new_name) = result {
         // Generate new branch name based on the display name
@@ -119,6 +129,8 @@ pub async fn generate_display_name(
     worktree_path: &Path,
     agent_type: &str,
     initial_prompt: Option<&str>,
+    cli_args: Option<&str>,
+    env_vars: &[(String, String)],
 ) -> Result<Option<String>> {
     log::info!("generate_display_name called: session_id={}, agent_type={}, prompt={:?}", 
         session_id, agent_type, initial_prompt.map(truncate_prompt));
@@ -248,6 +260,92 @@ Respond with just the short kebab-case name:"#
         
         // If we get here with cursor, we couldn't generate a name
         log::warn!("cursor-agent could not generate a name for session_id '{session_id}'");
+        return Ok(None);
+    }
+
+    // Handle Codex name generation
+    if agent_type == "codex" {
+        log::info!("Attempting to generate name with codex");
+        let mut args: Vec<String> = vec![
+            "exec".into(),
+            "--sandbox".into(), "workspace-write".into(),
+            "--skip-git-repo-check".into(),
+            "--json".into(),
+        ];
+        if let Some(cli) = cli_args {
+            let mut extra = shell_words::split(cli).unwrap_or_else(|_| vec![cli.to_string()]);
+            fix_codex_single_dash_long_flags(&mut extra);
+            reorder_codex_model_after_profile(&mut extra);
+            args.extend(extra);
+        }
+        // Capture only the last assistant message to a temp file for reliable parsing
+        let tmp_file = std::env::temp_dir().join(format!("schaltwerk_codex_name_{session_id}.txt"));
+        args.push("--output-last-message".into());
+        args.push(tmp_file.to_string_lossy().to_string());
+        args.push(prompt_plain.clone());
+
+        let timeout_duration = Duration::from_secs(45);
+        log::info!("codex exec args for namegen: {args:?}");
+        let fut = Command::new("codex")
+            .args(&args)
+            .current_dir(worktree_path)
+            .env("NO_COLOR", "1")
+            .env("CLICOLOR", "0")
+            .envs(env_vars.iter().cloned())
+            .output();
+
+        let output = match timeout(timeout_duration, fut).await {
+            Ok(Ok(output)) => output,
+            Ok(Err(e)) => {
+                log::warn!("Failed to execute codex for name generation: {e}");
+                return Ok(None);
+            }
+            Err(_) => {
+                log::warn!("codex timed out after 20 seconds during name generation");
+                return Ok(None);
+            }
+        };
+
+        if output.status.success() {
+            // Prefer the last message file if present
+            let candidate = std::fs::read_to_string(&tmp_file)
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
+                    log::debug!("codex stdout: {stdout}");
+                    stdout
+                        .lines()
+                        .map(|l| l.trim())
+                        .find(|line| !line.is_empty()
+                            && !line.contains(' ')
+                            && line.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+                            && line.len() <= 30)
+                        .map(|s| s.to_string())
+                        .or_else(|| {
+                            let raw = stdout.trim();
+                            if !raw.is_empty() { Some(raw.to_string()) } else { None }
+                        })
+                });
+
+            if let Some(result) = candidate {
+                log::info!("codex returned name candidate: {result}");
+                let name = sanitize_name(&result);
+                log::info!("Sanitized name: {name}");
+                if !name.is_empty() {
+                    db.update_session_display_name(session_id, &name)?;
+                    log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                    return Ok(Some(name));
+                }
+            } else {
+                log::warn!("codex produced no usable output for naming");
+            }
+        } else {
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            log::warn!("codex returned non-zero exit status: code={code}, stderr='{}'", stderr.trim());
+        }
         return Ok(None);
     }
 
@@ -463,6 +561,53 @@ fn cursor_namegen_args(prompt_plain: &str) -> Vec<String> {
     ]
 }
 
+// Codex helpers (keep in sync with para_core)
+fn fix_codex_single_dash_long_flags(args: &mut [String]) {
+    for a in args.iter_mut() {
+        if a.starts_with("--") { continue; }
+        if let Some(stripped) = a.strip_prefix('-') {
+            if stripped.len() == 1 { continue; }
+            let (name, value_opt) = match stripped.split_once('=') {
+                Some((n, v)) => (n, Some(v)),
+                None => (stripped, None),
+            };
+            if name == "model" || name == "profile" {
+                if let Some(v) = value_opt {
+                    *a = format!("--{name}={v}");
+                } else {
+                    *a = format!("--{name}");
+                }
+            }
+        }
+    }
+}
+
+fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
+    let mut without_model = Vec::with_capacity(args.len());
+    let mut model_flags = Vec::new();
+    let mut i = 0;
+    while i < args.len() {
+        let a = &args[i];
+        if a == "--model" || a == "-m" {
+            model_flags.push(a.clone());
+            if i + 1 < args.len() {
+                model_flags.push(args[i + 1].clone());
+                i += 2;
+            } else {
+                i += 1;
+            }
+        } else if a.starts_with("--model=") || a.starts_with("-m=") {
+            model_flags.push(a.clone());
+            i += 1;
+        } else {
+            without_model.push(a.clone());
+            i += 1;
+        }
+    }
+    without_model.extend(model_flags);
+    *args = without_model;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,5 +647,47 @@ mod tests {
         let result = truncate_prompt(long_prompt);
         assert!(result.lines().count() <= 4);
         assert!(result.len() <= 400);
+    }
+
+    #[test]
+    fn test_fix_codex_single_dash_long_flags() {
+        let mut v = vec!["-model=gpt-4o".to_string(), "-p".to_string(), "-profile=dev".to_string()];
+        fix_codex_single_dash_long_flags(&mut v);
+        assert!(v.contains(&"--model=gpt-4o".to_string()));
+        assert!(v.contains(&"-p".to_string()));
+        assert!(v.contains(&"--profile=dev".to_string()));
+    }
+
+    #[test]
+    fn test_reorder_codex_model_after_profile() {
+        let mut v = vec!["--model".to_string(), "gpt".to_string(), "--profile".to_string(), "work".to_string()];
+        reorder_codex_model_after_profile(&mut v);
+        // profile should come before model in final vector
+        let pos_profile = v.iter().position(|x| x == "--profile").unwrap();
+        let pos_model = v.iter().position(|x| x == "--model").unwrap();
+        assert!(pos_profile < pos_model);
+    }
+
+    #[test]
+    fn test_codex_args_with_custom_cli_model_profile() {
+        // Simulate our assembly: sandbox + normalized CLI args + prompt
+        let cli_args = "-m gpt-5 -p maibornwolff";
+        let mut args: Vec<String> = vec!["--sandbox".into(), "workspace-write".into()];
+        let mut extra = shell_words::split(cli_args).unwrap();
+        fix_codex_single_dash_long_flags(&mut extra);
+        reorder_codex_model_after_profile(&mut extra);
+        args.extend(extra);
+        args.push("name this task".into());
+
+        // Expect sandbox first, then profile before model, then prompt
+        assert_eq!(args[0], "--sandbox");
+        assert_eq!(args[1], "workspace-write");
+        let p = args.iter().position(|a| a == "-p" || a == "--profile").unwrap();
+        let m = args.iter().position(|a| a == "-m" || a.starts_with("--model")).unwrap();
+        assert!(p < m);
+        assert_eq!(args.last().unwrap(), "name this task");
+        // Values follow the short flags
+        assert_eq!(args[p + 1], "maibornwolff");
+        assert_eq!(args[m + 1], "gpt-5");
     }
 }

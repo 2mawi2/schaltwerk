@@ -191,6 +191,23 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
                     }
                 }));
             
+            // Build env vars and CLI args as used to start the session
+            let (mut env_vars, cli_args) = if let Some(settings_manager) = crate::SETTINGS_MANAGER.get() {
+                let manager = settings_manager.lock().await;
+                let env_vars = manager.get_agent_env_vars(&agent)
+                    .into_iter()
+                    .collect::<Vec<(String, String)>>();
+                let cli_args = manager.get_agent_cli_args(&agent);
+                (env_vars, cli_args)
+            } else {
+                (vec![], String::new())
+            };
+
+            // Add project-specific environment variables
+            if let Ok(project_env_vars) = db_clone.get_project_environment_variables(&repo_path) {
+                for (key, value) in project_env_vars { env_vars.push((key, value)); }
+            }
+
             let ctx = crate::para_core::naming::SessionRenameContext {
                 db: &db_clone,
                 session_id: &session_id,
@@ -199,6 +216,8 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
                 current_branch: &current_branch,
                 agent_type: &agent,
                 initial_prompt: initial_prompt.as_deref(),
+                cli_args: Some(&cli_args),
+                env_vars: &env_vars,
             };
             match crate::para_core::naming::generate_display_name_and_rename_branch(ctx).await {
                 Ok(Some(display_name)) => {
