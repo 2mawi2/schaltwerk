@@ -48,6 +48,7 @@ urlencoding = "2.1"
 rand = "0.9"
 shell-words = "1.1"
 futures = "0.3"
+clap = { version = "4", features = ["derive"] }
 
 [dev-dependencies]
 tokio-test = "0.4"

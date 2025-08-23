@@ -20,6 +20,7 @@ mod settings;
 mod mcp_api;
 mod commands;
 mod permissions;
+mod cli;
 
 use std::sync::Arc;
 use project_manager::ProjectManager;
@@ -537,61 +538,53 @@ fn main() {
     logging::init_logging();
     log::info!("Para UI starting...");
     
-    // Parse command line arguments for directory
-    let args: Vec<String> = std::env::args().collect();
-    log::info!("Application started with {} arguments", args.len());
-    for (i, arg) in args.iter().enumerate() {
-        log::info!("  Arg[{i}]: {arg}");
-    }
-    
-    // Also log current working directory
-    if let Ok(cwd) = std::env::current_dir() {
-        log::info!("Current working directory: {}", cwd.display());
-    } else {
-        log::warn!("Failed to get current working directory");
-    }
-    
-    let initial_directory = if args.len() > 1 {
-        // Skip the first argument (program name) and get the directory
-        let dir_path = &args[1];
-        log::info!("Attempting to open directory from argument: {dir_path}");
-        
-        // Validate that it's a valid directory
-        if std::path::Path::new(dir_path).is_dir() {
-            log::info!("Directory exists: {dir_path}");
-            
-            // Check if it's a Git repository
-            let git_check = std::process::Command::new("git")
-                .arg("-C")
-                .arg(dir_path)
-                .arg("rev-parse")
-                .arg("--git-dir")
-                .output();
-            
-            match git_check {
-                Ok(output) if output.status.success() => {
-                    log::info!("✅ Opening Schaltwerk with Git repository: {dir_path}");
-                    Some((dir_path.clone(), true))
-                }
-                Ok(output) => {
-                    let stderr = String::from_utf8_lossy(&output.stderr);
-                    log::warn!("Git check failed for {dir_path}: {stderr}");
-                    log::warn!("Directory {dir_path} is not a Git repository, will open at home screen");
-                    // Still pass the directory info but mark it as non-Git
-                    Some((dir_path.clone(), false))
-                }
-                Err(e) => {
-                    log::error!("Failed to run git command: {e}");
-                    log::warn!("Could not verify if {dir_path} is a Git repository");
-                    Some((dir_path.clone(), false))
-                }
+    // Parse command line arguments using Clap (positional DIR)
+    use clap::Parser;
+    let cli = crate::cli::Cli::parse();
+
+    // Determine effective directory: positional arg or current dir
+    let dir_path = match cli.dir {
+        Some(p) => p,
+        None => match std::env::current_dir() {
+            Ok(cwd) => cwd,
+            Err(e) => {
+                log::warn!("Failed to get current working directory: {e}");
+                std::path::PathBuf::from(".")
             }
-        } else {
-            log::warn!("❌ Invalid directory path: {dir_path}, opening at home");
-            None
+        },
+    };
+    log::info!("Startup directory: {}", dir_path.display());
+
+    let dir_str = dir_path.to_string_lossy().to_string();
+
+    let initial_directory = if dir_path.is_dir() {
+        // Check if it's a Git repository
+        let git_check = std::process::Command::new("git")
+            .arg("-C")
+            .arg(&dir_str)
+            .arg("rev-parse")
+            .arg("--git-dir")
+            .output();
+
+        match git_check {
+            Ok(output) if output.status.success() => {
+                log::info!("✅ Opening Schaltwerk with Git repository: {}", dir_path.display());
+                Some((dir_str.clone(), true))
+            }
+            Ok(output) => {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                log::warn!("Git check failed for {}: {}", dir_path.display(), stderr);
+                log::warn!("Directory {} is not a Git repository, will open at home screen", dir_path.display());
+                Some((dir_str.clone(), false))
+            }
+            Err(e) => {
+                log::error!("Failed to run git command: {e}");
+                log::warn!("Could not verify if {} is a Git repository", dir_path.display());
+                Some((dir_str.clone(), false))
+            }
         }
     } else {
-        log::info!("No directory argument provided, opening at home screen");
+        log::warn!("❌ Invalid directory path: {}, opening at home", dir_path.display());
         None
     };
     
@@ -673,6 +666,7 @@ fn main() {
             get_project_default_branch,
             list_project_branches,
             repository_is_empty,
+            get_active_project_path,
             // Settings commands
             get_project_default_base_branch,
             set_project_default_base_branch,
@@ -721,7 +715,22 @@ fn main() {
                 }
             }
             
-            // Pass initial directory to the frontend if provided
+            // If we have an initial Git directory, set it as the active project immediately to avoid race with frontend listener
+            if let Some((dir, is_git)) = initial_directory.clone() {
+                if is_git {
+                    let dir_path = std::path::PathBuf::from(&dir);
+                    tauri::async_runtime::block_on(async {
+                        let manager = get_project_manager().await;
+                        if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
+                            log::error!("Failed to set initial project: {e}");
+                        } else {
+                            log::info!("Initial project set to: {}", dir_path.display());
+                        }
+                    });
+                }
+            }
+
+            // Pass initial directory to the frontend if provided (UI sync)
             if let Some((dir, is_git)) = initial_directory.clone() {
                 let app_handle = app.handle().clone();
                 tauri::async_runtime::spawn(async move {

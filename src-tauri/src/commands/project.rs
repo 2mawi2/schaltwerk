@@ -95,6 +95,13 @@ pub async fn initialize_project(path: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn get_active_project_path() -> Result<Option<String>, String> {
+    let manager = get_project_manager().await;
+    let current = manager.current_project_path().await;
+    Ok(current.map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
 pub async fn get_project_default_branch() -> Result<String, String> {
     let manager = get_project_manager().await;
     if let Ok(project) = manager.current_project().await {
