@@ -82,6 +82,87 @@ pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> 
 }
 
 #[tauri::command]
+pub async fn create_terminal_with_size(app: tauri::AppHandle, id: String, cwd: String, cols: u16, rows: u16) -> Result<String, String> {
+    let manager = get_terminal_manager().await?;
+    manager.set_app_handle(app.clone()).await;
+    
+    // Get project environment variables if we have a project
+    let env_vars = if let Some(project_manager) = PROJECT_MANAGER.get() {
+        if let Ok(project) = project_manager.current_project().await {
+            let core = project.para_core.lock().await;
+            let db = core.database();
+            db.get_project_environment_variables(&project.path)
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<(String, String)>>()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+    
+    log::info!("Creating terminal {id} with initial size {cols}x{rows}");
+    
+    if !env_vars.is_empty() {
+        log::info!("Adding {} project environment variables to terminal {}", env_vars.len(), id);
+        manager.create_terminal_with_size_and_env(id.clone(), cwd, cols, rows, env_vars).await?;
+    } else {
+        manager.create_terminal_with_size(id.clone(), cwd, cols, rows).await?;
+    }
+    
+    let queue = get_message_queue().await;
+    let mut queue_lock = queue.lock().await;
+    if let Some(messages) = queue_lock.remove(&id) {
+        log::info!("Delivering {} queued messages to terminal {}", messages.len(), id);
+        drop(queue_lock);
+        
+        for queued_msg in messages {
+            let message = &queued_msg.message;
+            let formatted_message = match queued_msg.message_type.as_str() {
+                "system" => format!("\n📢 System: {message}\n"),
+                _ => format!("\n💬 Follow-up: {message}\n"),
+            };
+            
+            if let Err(e) = manager.write_terminal(id.clone(), formatted_message.as_bytes().to_vec()).await {
+                log::warn!("Failed to deliver queued message to terminal {id}: {e}");
+            } else {
+                log::info!("Successfully delivered queued message to terminal {id}");
+            }
+            
+            #[derive(serde::Serialize, Clone)]
+            struct FollowUpMessagePayload {
+                session_name: String,
+                message: String,
+                message_type: String,
+                timestamp: u64,
+                terminal_id: String,
+            }
+            
+            let session_name = if id.starts_with("session-") {
+                id.split('-').nth(1).unwrap_or("unknown").to_string()
+            } else {
+                "orchestrator".to_string()
+            };
+            
+            let message_payload = FollowUpMessagePayload {
+                session_name,
+                message: queued_msg.message,
+                message_type: queued_msg.message_type,
+                timestamp: queued_msg.timestamp,
+                terminal_id: id.clone(),
+            };
+            
+            if let Err(e) = app.emit("schaltwerk:follow-up-message", &message_payload) {
+                log::error!("Failed to emit queued follow-up-message event: {e}");
+            }
+        }
+    }
+    
+    Ok(id)
+}
+
+#[tauri::command]
 pub async fn write_terminal(id: String, data: String) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager.write_terminal(id, data.into_bytes()).await

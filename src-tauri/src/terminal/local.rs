@@ -63,14 +63,14 @@ impl LocalPtyAdapter {
         cmd
     }
 
-    fn setup_environment(cmd: &mut CommandBuilder) {
+    fn setup_environment(cmd: &mut CommandBuilder, cols: u16, rows: u16) {
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         
         // Set initial terminal size for TUI applications
         // These will be updated by resize commands but help with initial rendering
-        cmd.env("LINES", "48");
-        cmd.env("COLUMNS", "136");
+        cmd.env("LINES", rows.to_string());
+        cmd.env("COLUMNS", cols.to_string());
         
         // Ensure proper terminal behavior for TUI applications
         cmd.env("FORCE_COLOR", "1");
@@ -266,6 +266,12 @@ impl LocalPtyAdapter {
 #[async_trait::async_trait]
 impl TerminalBackend for LocalPtyAdapter {
     async fn create(&self, params: CreateParams) -> Result<(), String> {
+        // Use standard terminal defaults that will be immediately resized by frontend
+        // These are just fallback values for compatibility
+        self.create_with_size(params, 80, 24).await
+    }
+    
+    async fn create_with_size(&self, params: CreateParams, cols: u16, rows: u16) -> Result<(), String> {
         let id = params.id.clone();
         let start_time = Instant::now();
         
@@ -286,15 +292,14 @@ impl TerminalBackend for LocalPtyAdapter {
             return Ok(());
         }
         
-        info!("Creating terminal: id={id}, cwd={}", params.cwd);
+        info!("Creating terminal: id={id}, cwd={}, size={}x{}", params.cwd, cols, rows);
         
         let pty_system = NativePtySystem::default();
-        // Use larger initial size to better accommodate TUI applications like OpenCode
-        // This will be properly resized by the frontend after creation
+        // Use the provided size for initial PTY creation
         let pair = pty_system
             .openpty(PtySize {
-                rows: 48,
-                cols: 136,
+                rows,
+                cols,
                 pixel_width: 0,
                 pixel_height: 0,
             })
@@ -331,7 +336,7 @@ impl TerminalBackend for LocalPtyAdapter {
             Self::get_shell_command().await
         };
         
-        Self::setup_environment(&mut cmd);
+        Self::setup_environment(&mut cmd, cols, rows);
         cmd.cwd(params.cwd.clone());
         
         info!("Spawning terminal {id} with cwd: {}", params.cwd);
@@ -599,6 +604,7 @@ fn resolve_command(command: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::terminal::ApplicationSpec;
     use tokio::time::{sleep, Duration};
     use std::time::SystemTime;
     
@@ -728,5 +734,61 @@ mod tests {
         adapter.resize("no-such", 80, 24).await.unwrap();
         // Should not error when writing non-existing
         adapter.write("no-such", b"data").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_create_with_custom_size() {
+        let adapter = LocalPtyAdapter::new();
+        let params = CreateParams {
+            id: "test-custom-size".to_string(),
+            cwd: "/tmp".to_string(),
+            app: None,
+        };
+        
+        // Create terminal with custom size
+        adapter.create_with_size(params, 120, 40).await.unwrap();
+        assert!(adapter.exists("test-custom-size").await.unwrap());
+        
+        // Verify we can resize it
+        adapter.resize("test-custom-size", 100, 30).await.unwrap();
+        
+        // Clean up
+        adapter.close("test-custom-size").await.unwrap();
+        assert!(!adapter.exists("test-custom-size").await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn test_environment_variables_set_correctly() {
+        let adapter = LocalPtyAdapter::new();
+        
+        // Create a terminal that echoes environment variables then sleeps
+        // This ensures the terminal stays alive long enough to capture output
+        let params = CreateParams {
+            id: "test-env-vars".to_string(),
+            cwd: "/tmp".to_string(),
+            app: Some(ApplicationSpec {
+                command: "sh".to_string(),
+                args: vec!["-c".to_string(), "echo LINES=$LINES COLUMNS=$COLUMNS && sleep 0.5".to_string()],
+                env: vec![],
+                ready_timeout_ms: 1000,
+            }),
+        };
+        
+        // Create with specific size
+        adapter.create_with_size(params, 150, 50).await.unwrap();
+        
+        // Give it time to execute and capture output
+        sleep(Duration::from_millis(200)).await;
+        
+        // Get the output
+        let (_, data) = adapter.snapshot("test-env-vars", None).await.unwrap();
+        let output = String::from_utf8_lossy(&data);
+        
+        // Check that environment variables were set
+        // The output should contain the echoed values
+        assert!(output.contains("LINES=50"), "LINES not set correctly: {}", output);
+        assert!(output.contains("COLUMNS=150"), "COLUMNS not set correctly: {}", output);
+        
+        adapter.close("test-env-vars").await.unwrap();
     }
 }

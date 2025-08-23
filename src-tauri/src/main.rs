@@ -609,6 +609,7 @@ fn main() {
             permissions::ensure_folder_permission,
             // Terminal commands
             create_terminal,
+            create_terminal_with_size,
             write_terminal,
             resize_terminal,
             close_terminal,

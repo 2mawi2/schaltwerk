@@ -69,6 +69,43 @@ impl TerminalManager {
         Ok(())
     }
     
+    pub async fn create_terminal_with_size(&self, id: String, cwd: String, cols: u16, rows: u16) -> Result<(), String> {
+        self.create_terminal_with_size_and_env(id, cwd, cols, rows, vec![]).await
+    }
+    
+    pub async fn create_terminal_with_size_and_env(&self, id: String, cwd: String, cols: u16, rows: u16, env: Vec<(String, String)>) -> Result<(), String> {
+        info!("Creating terminal through manager with size: id={id}, cwd={cwd}, size={cols}x{rows}, env_count={}", env.len());
+        
+        let params = if env.is_empty() {
+            CreateParams {
+                id: id.clone(),
+                cwd,
+                app: None,
+            }
+        } else {
+            // Create a shell with environment variables set
+            let shell = get_shell_binary();
+            CreateParams {
+                id: id.clone(),
+                cwd,
+                app: Some(ApplicationSpec {
+                    command: shell,
+                    args: vec!["-i".to_string()],
+                    env,
+                    ready_timeout_ms: 5000,
+                }),
+            }
+        };
+        
+        self.backend.create_with_size(params, cols, rows).await?;
+        self.active_ids.write().await.insert(id.clone());
+        
+        // Start event bridge for this terminal
+        self.start_event_bridge(id).await;
+        
+        Ok(())
+    }
+    
     pub async fn create_terminal_with_app(
         &self,
         id: String,

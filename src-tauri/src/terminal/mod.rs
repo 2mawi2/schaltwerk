@@ -18,6 +18,7 @@ pub struct ApplicationSpec {
 #[async_trait::async_trait]
 pub trait TerminalBackend: Send + Sync {
     async fn create(&self, params: CreateParams) -> Result<(), String>;
+    async fn create_with_size(&self, params: CreateParams, cols: u16, rows: u16) -> Result<(), String>;
     async fn write(&self, id: &str, data: &[u8]) -> Result<(), String>;
     async fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String>;
     async fn close(&self, id: &str) -> Result<(), String>;
