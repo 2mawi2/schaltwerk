@@ -4,11 +4,12 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Mock dependencies
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn()
+  invoke: vi.fn(() => Promise.resolve())
 }))
 
 vi.mock('@tauri-apps/api/event', () => ({
@@ -166,13 +167,15 @@ export const sessionReducers = {
 function createTestWrapper() {
   return ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
-      <SessionsProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            {children}
-          </FocusProvider>
-        </SelectionProvider>
-      </SessionsProvider>
+      <FontSizeProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              {children}
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
+      </FontSizeProvider>
     </ProjectProvider>
   )
 }
@@ -205,6 +208,10 @@ describe('Sidebar', () => {
         case 'get_project_sessions_settings':
           return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
         case 'set_project_sessions_settings':
+          return Promise.resolve()
+        case 'para_core_get_font_sizes':
+          return Promise.resolve([13, 12])
+        case 'para_core_set_font_sizes':
           return Promise.resolve()
         default:
           return Promise.resolve()
@@ -241,6 +248,10 @@ describe('Sidebar', () => {
           case 'get_project_sessions_settings':
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
+            return Promise.resolve()
+          case 'para_core_get_font_sizes':
+            return Promise.resolve([13, 12])
+          case 'para_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -291,6 +302,10 @@ describe('Sidebar', () => {
           case 'get_project_sessions_settings':
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
+            return Promise.resolve()
+          case 'para_core_get_font_sizes':
+            return Promise.resolve([13, 12])
+          case 'para_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -548,6 +563,10 @@ describe('Sidebar', () => {
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
             return Promise.resolve()
+          case 'para_core_get_font_sizes':
+            return Promise.resolve([13, 12])
+          case 'para_core_set_font_sizes':
+            return Promise.resolve()
           default:
             return Promise.resolve()
         }
@@ -577,6 +596,10 @@ describe('Sidebar', () => {
           case 'get_project_sessions_settings':
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
+            return Promise.resolve()
+          case 'para_core_get_font_sizes':
+            return Promise.resolve([13, 12])
+          case 'para_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()

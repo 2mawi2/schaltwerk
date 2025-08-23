@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { mockEnrichedSession, mockDraftSession } from '../../test-utils/sessionMocks'
 
@@ -38,13 +39,15 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <ProjectProvider>
-        <SessionsProvider>
-            <SelectionProvider>
-                <FocusProvider>
-                    {children}
-                </FocusProvider>
-            </SelectionProvider>
-        </SessionsProvider>
+        <FontSizeProvider>
+            <SessionsProvider>
+                <SelectionProvider>
+                    <FocusProvider>
+                        {children}
+                    </FocusProvider>
+                </SelectionProvider>
+            </SessionsProvider>
+        </FontSizeProvider>
     </ProjectProvider>
 )
 

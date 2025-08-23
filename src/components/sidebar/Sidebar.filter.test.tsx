@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
@@ -69,13 +70,15 @@ const createSession = (id: string, readyToMerge = false, sessionState?: 'draft' 
 function renderWithProviders(ui: React.ReactElement) {
   return render(
     <ProjectProvider>
-      <SessionsProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            {ui}
-          </FocusProvider>
-        </SelectionProvider>
-      </SessionsProvider>
+      <FontSizeProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              {ui}
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
+      </FontSizeProvider>
     </ProjectProvider>
   )
 }

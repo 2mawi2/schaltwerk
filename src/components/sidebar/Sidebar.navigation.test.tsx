@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Do NOT mock useKeyboardShortcuts here; we want real keyboard behavior
@@ -40,13 +41,15 @@ const mockUnlisten = vi.fn()
 function createTestWrapper() {
   return ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
-      <SessionsProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            {children}
-          </FocusProvider>
-        </SelectionProvider>
-      </SessionsProvider>
+      <FontSizeProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              {children}
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
+      </FontSizeProvider>
     </ProjectProvider>
   )
 }

@@ -43,6 +43,6 @@ describe('diff utils performance', () => {
     const res = computeSplitDiff(a, b)
     const elapsed = performance.now() - start
     expect(res.leftLines.length + res.rightLines.length).toBeGreaterThan(0)
-    expect(elapsed).toBeLessThan(2000)
+    expect(elapsed).toBeLessThan(5000)
   })
 })

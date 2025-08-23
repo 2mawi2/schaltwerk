@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Use real keyboard hook behavior
@@ -29,13 +30,15 @@ import { listen } from '@tauri-apps/api/event'
 function renderWithProviders(ui: React.ReactElement) {
   return render(
     <ProjectProvider>
-      <SessionsProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            {ui}
-          </FocusProvider>
-        </SelectionProvider>
-      </SessionsProvider>
+      <FontSizeProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              {ui}
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
+      </FontSizeProvider>
     </ProjectProvider>
   )
 }
