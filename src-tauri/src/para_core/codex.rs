@@ -34,11 +34,18 @@ pub fn build_codex_command_with_config(
     } else {
         "codex"
     };
+    
+    // Build command with proper argument order: codex [OPTIONS] [PROMPT]
     let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
     
+    // Add sandbox mode first (this is an option)
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));
     
-    // Only pass the prompt if this is a new session (no session_id)
+    // NOTE: Additional CLI args will be inserted by the calling code in para_core.rs
+    // between the sandbox flag and the prompt. This ensures proper order:
+    // codex --sandbox MODE [ADDITIONAL_OPTIONS] [PROMPT]
+    
+    // Only add prompt at the end if this is a new session (no session_id)
     // If we have a session_id, we're reopening an existing session, so don't re-prompt
     if session_id.is_none() {
         if let Some(prompt) = initial_prompt {

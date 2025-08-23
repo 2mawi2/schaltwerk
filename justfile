@@ -124,6 +124,18 @@ run:
     #!/usr/bin/env bash
     set -euo pipefail
     
+    # Get the directory containing this justfile  
+    cd "{{justfile_directory()}}"
+    
+    # Verify we're in the correct directory
+    if [[ ! -f "package.json" ]]; then
+        echo "❌ Error: Not in project root directory (no package.json found)"
+        echo "Current directory: $(pwd)"
+        exit 1
+    fi
+    
+    echo "📂 Working from project root: $(pwd)"
+    
     # Get current git branch for display
     branch=$(git branch --show-current 2>/dev/null || echo "no-branch")
     
@@ -165,6 +177,10 @@ run:
     
     # Set trap to cleanup on exit
     trap cleanup EXIT
+    
+    # Set the application's starting directory to HOME
+    # This ensures when Schaltwerk starts, it opens in the user's home directory
+    export SCHALTWERK_START_DIR="$HOME"
     
     # Start with fast build mode and config override
     TAURI_SKIP_DEVSERVER_CHECK=true npm run tauri dev -- --config "$temp_config"
@@ -275,9 +291,11 @@ run-release:
     echo "🚀 Building Para UI (release bundle, no auto-reload)…"
     npm run build
     npm run tauri build
-    echo "✅ Build complete. Launching binary from CWD: $(pwd)…"
+    echo "✅ Build complete. Launching binary from HOME directory…"
+    # Always start from HOME directory when using 'just run' commands
     # Pass repository path explicitly so backend can discover it even from packaged runs
-    PARA_REPO_PATH="$(pwd)" ./src-tauri/target/release/schaltwerk
+    PROJECT_ROOT="$(pwd)"
+    cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
 
 # Build and run the application in release mode with a specific port
 # This builds fresh like 'just run' does, but creates a release build
@@ -303,10 +321,12 @@ run-port-release port:
     echo "🦀 Building Tauri app (with frontend embedded)..."
     npm run tauri build
     
-    echo "✅ Build complete. Launching release binary..."
+    echo "✅ Build complete. Launching release binary from HOME directory..."
+    # Always start from HOME directory when using 'just run' commands
     # The tauri build creates the binary with the productName from tauri.conf.json
     # Pass repository path explicitly so backend can discover it
-    VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$(pwd)" ./src-tauri/target/release/schaltwerk
+    PROJECT_ROOT="$(pwd)"
+    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
 
 # Install the application on macOS as a release build
 install-mac:

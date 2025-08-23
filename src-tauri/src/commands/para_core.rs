@@ -474,7 +474,6 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
     let is_opencode = (agent_name == "opencode") || agent_name.ends_with("/opencode");
-    let is_codex = agent_type == "codex";
     
     let mut final_args = agent_args.clone();
     
@@ -500,15 +499,7 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
         }
     }
     
-    if is_codex {
-        if let Ok(current_session) = manager.get_session(&session_name) {
-            if let Some(prompt) = current_session.initial_prompt.as_ref() {
-                if !prompt.trim().is_empty() {
-                    final_args.push(prompt.clone());
-                }
-            }
-        }
-    }
+    // Codex prompt ordering is now handled in the CLI args section above
     
     // Log the exact command that will be executed
     log::info!("FINAL COMMAND CONSTRUCTION for {agent_type}: command='{agent_name}', args={final_args:?}");
@@ -653,12 +644,28 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
         // For agents that need CLI args before prompts (Codex), we prepend.
         // This ensures correct argument order for all agent types.
         if agent_type == "codex" {
-            // Codex orchestrator: keep sandbox first, then CLI args
-            log::info!("Codex mode: keep --sandbox first, then CLI args");
+            // Codex requires specific order: codex [OPTIONS] [PROMPT]
+            // Extract any existing prompt first before adding CLI args
+            let mut extracted_prompt = None;
+            if let Some(last_arg) = final_args.last() {
+                // Check if the last argument looks like a prompt (doesn't start with -)
+                if !last_arg.starts_with('-') && final_args.len() > 1 {
+                    extracted_prompt = Some(final_args.pop().unwrap());
+                    log::info!("Extracted codex prompt for proper ordering: '{}'", extracted_prompt.as_ref().unwrap());
+                }
+            }
+            
+            log::info!("Codex mode: keep --sandbox first, then CLI args, then prompt at end");
             fix_codex_single_dash_long_flags(&mut additional_args);
             reorder_codex_model_after_profile(&mut additional_args);
-            let mut new_args = final_args; // starts with ["--sandbox", mode]
+            let mut new_args = final_args; // starts with ["--sandbox", mode] (minus extracted prompt)
             new_args.extend(additional_args);
+            
+            // Put prompt back at the very end
+            if let Some(prompt) = extracted_prompt {
+                new_args.push(prompt);
+            }
+            
             final_args = new_args;
         } else {
             // Other agents: Append CLI args after existing args

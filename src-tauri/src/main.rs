@@ -542,14 +542,22 @@ fn main() {
     use clap::Parser;
     let cli = crate::cli::Cli::parse();
 
-    // Determine effective directory: positional arg or current dir
+    // Determine effective directory: positional arg, SCHALTWERK_START_DIR env var, or current dir
     let dir_path = match cli.dir {
         Some(p) => p,
-        None => match std::env::current_dir() {
-            Ok(cwd) => cwd,
-            Err(e) => {
-                log::warn!("Failed to get current working directory: {e}");
-                std::path::PathBuf::from(".")
+        None => {
+            // Check for SCHALTWERK_START_DIR environment variable first (used by 'just run')
+            if let Ok(start_dir) = std::env::var("SCHALTWERK_START_DIR") {
+                log::info!("Using SCHALTWERK_START_DIR: {start_dir}");
+                std::path::PathBuf::from(start_dir)
+            } else {
+                match std::env::current_dir() {
+                    Ok(cwd) => cwd,
+                    Err(e) => {
+                        log::warn!("Failed to get current working directory: {e}");
+                        std::path::PathBuf::from(".")
+                    }
+                }
             }
         },
     };

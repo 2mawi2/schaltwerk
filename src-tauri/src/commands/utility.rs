@@ -2,6 +2,13 @@ use crate::get_project_manager;
 
 #[tauri::command]
 pub async fn get_current_directory() -> Result<String, String> {
+    // First check if a specific start directory was set via environment variable
+    // This is used by 'just run' to ensure the app always starts from HOME
+    if let Ok(start_dir) = std::env::var("SCHALTWERK_START_DIR") {
+        log::info!("Using SCHALTWERK_START_DIR: {start_dir}");
+        return Ok(start_dir);
+    }
+    
     let manager = get_project_manager().await;
     if let Ok(project) = manager.current_project().await {
         Ok(project.path.to_string_lossy().to_string())
