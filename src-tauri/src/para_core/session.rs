@@ -654,7 +654,7 @@ impl SessionManager {
         let command = match agent_type.as_str() {
             "cursor" => {
                 let session_id = crate::para_core::cursor::find_cursor_session(&session.worktree_path);
-                let prompt_to_use = if session_id.is_none() && !has_session_been_prompted(&session.worktree_path) {
+                let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
                         p.as_str()
@@ -677,23 +677,13 @@ impl SessionManager {
                 // 2. Session exists but has no history (empty session)
                 // AND we haven't prompted this session before
                 let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
-                    match &session_info {
-                        None => {
-                            // No session exists - can use initial prompt
-                            session.initial_prompt.as_ref().map(|p| {
-                                mark_session_prompted(&session.worktree_path);
-                                p.as_str()
-                            })
-                        }
-                        Some(info) if !info.has_history => {
-                            // Session exists but has no history - can use initial prompt
-                            session.initial_prompt.as_ref().map(|p| {
-                                mark_session_prompted(&session.worktree_path);
-                                p.as_str()
-                            })
-                        }
-                        _ => None // Session has history - don't pass prompt
-                    }
+                    // Always use initial prompt when session hasn't been prompted,
+                    // regardless of whether OpenCode session has history.
+                    // This allows draft->session transitions to work properly.
+                    session.initial_prompt.as_ref().map(|p| {
+                        mark_session_prompted(&session.worktree_path);
+                        p.as_str()
+                    })
                 } else {
                     None
                 };
@@ -707,7 +697,7 @@ impl SessionManager {
             }
             "gemini" => {
                 let session_id = crate::para_core::gemini::find_gemini_session(&session.worktree_path);
-                let prompt_to_use = if session_id.is_none() && !has_session_been_prompted(&session.worktree_path) {
+                let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
                         p.as_str()
@@ -725,7 +715,7 @@ impl SessionManager {
             }
             "codex" => {
                 let session_id = crate::para_core::codex::find_codex_session(&session.worktree_path);
-                let prompt_to_use = if session_id.is_none() && !has_session_been_prompted(&session.worktree_path) {
+                let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
                         p.as_str()
@@ -754,18 +744,29 @@ impl SessionManager {
             }
             _ => {
                 let session_id = crate::para_core::claude::find_claude_session(&session.worktree_path);
-                let prompt_to_use = if session_id.is_none() && !has_session_been_prompted(&session.worktree_path) {
+                log::debug!("Claude session lookup for '{}': session_id={:?}, initial_prompt={:?}, prompted={}", 
+                    session_name, session_id, session.initial_prompt, has_session_been_prompted(&session.worktree_path));
+                
+                let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
+                        log::info!("Using initial_prompt for Claude session '{session_name}': '{p}'");
                         mark_session_prompted(&session.worktree_path);
                         p.as_str()
                     })
                 } else {
+                    log::info!("Session '{session_name}' already prompted - not using initial_prompt");
                     None
                 };
                 
+                let session_id_to_use = if prompt_to_use.is_some() { None } else { session_id.as_deref() };
+                log::info!("Building Claude command for '{}': session_id={:?}, prompt={:?}", 
+                    session_name, session_id_to_use, prompt_to_use.is_some());
+                
                 crate::para_core::claude::build_claude_command(
                     &session.worktree_path,
-                    session_id.as_deref(),
+                    // Don't resume existing session if we have a prompt to pass
+                    // This ensures draft content creates a fresh conversation
+                    session_id_to_use,
                     prompt_to_use,
                     skip_permissions,
                 )
@@ -989,10 +990,13 @@ impl SessionManager {
         
         // Copy draft_content to initial_prompt so Claude/Cursor can use it
         if let Some(draft_content) = session.draft_content {
+            log::info!("Copying draft content to initial_prompt for session '{session_name}': '{draft_content}'");
             self.db.update_session_initial_prompt(&session.id, &draft_content)?;
             // Clear the prompted state so the initial_prompt will be used when agent starts
             clear_session_prompted(&session.worktree_path);
             log::info!("Cleared prompt state for session '{session_name}' to ensure draft content is used");
+        } else {
+            log::warn!("No draft_content found for session '{session_name}' - initial_prompt will not be set");
         }
         
         let global_agent = self.db.get_agent_type().unwrap_or_else(|_| "claude".to_string());

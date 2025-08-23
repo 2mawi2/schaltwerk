@@ -397,7 +397,7 @@ pub async fn para_core_cleanup_orphaned_worktrees() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn para_core_start_claude(session_name: String) -> Result<String, String> {
+pub async fn para_core_start_claude(app: tauri::AppHandle, session_name: String) -> Result<String, String> {
     log::info!("Starting Claude for session: {session_name}");
     
     let core = get_para_core().await?;
@@ -548,6 +548,23 @@ pub async fn para_core_start_claude(session_name: String) -> Result<String, Stri
     // Do not implement non-deterministic paste-based workarounds.
     
     log::info!("Successfully started Claude in terminal: {terminal_id}");
+    
+    // Emit event to mark terminal as started globally
+    #[derive(serde::Serialize)]
+    struct ClaudeStartedPayload {
+        terminal_id: String,
+        session_name: String,
+    }
+    
+    let payload = ClaudeStartedPayload {
+        terminal_id: terminal_id.clone(),
+        session_name: session_name.clone(),
+    };
+    
+    if let Err(e) = app.emit("schaltwerk:claude-started", &payload) {
+        log::warn!("Failed to emit claude-started event: {e}");
+    }
+    
     Ok(command)
 }
 
@@ -875,7 +892,7 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
     
     // Automatically start the AI agent for the newly started draft session
     log::info!("Auto-starting AI agent for draft session: {name}");
-    if let Err(e) = para_core_start_claude(name.clone()).await {
+    if let Err(e) = para_core_start_claude(app.clone(), name.clone()).await {
         log::warn!("Failed to auto-start AI agent for draft session {name}: {e}");
         // Don't fail the whole operation if agent start fails - session is already created
     }

@@ -129,6 +129,7 @@ mod tests {
         assert_eq!(cmd, r#"cd /path/to/worktree && claude -r "12345678-1234-1234-1234-123456789012""#);
     }
 
+
     #[test]
     fn test_sanitize_path_for_claude() {
         let path = Path::new("/Users/john.doe/my-project");

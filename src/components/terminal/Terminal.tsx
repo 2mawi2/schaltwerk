@@ -66,6 +66,33 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         hydratedRef.current = hydrated;
     }, [hydrated]);
 
+    // Listen for Claude auto-start events to prevent double-starting
+    useEffect(() => {
+        let unlistenClaudeStarted: UnlistenFn | null = null;
+        
+        const setupListener = async () => {
+            try {
+                unlistenClaudeStarted = await listen('schaltwerk:claude-started', (event) => {
+                    const payload = event.payload as { terminal_id: string; session_name: string };
+                    console.log(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
+                    
+                    // Mark the terminal as started globally to prevent auto-start
+                    startedGlobal.add(payload.terminal_id);
+                });
+            } catch (e) {
+                console.error('[Terminal] Failed to set up claude-started listener:', e);
+            }
+        };
+        
+        setupListener();
+        
+        return () => {
+            if (unlistenClaudeStarted) {
+                unlistenClaudeStarted();
+            }
+        };
+    }, []);
+
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
