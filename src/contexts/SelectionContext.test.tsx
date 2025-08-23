@@ -9,6 +9,7 @@ vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) })
 import { SelectionProvider, useSelection } from './SelectionContext'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { FocusProvider } from './FocusContext'
+import { FontSizeProvider } from './FontSizeContext'
 
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = vi.mocked(invoke)
@@ -29,9 +30,11 @@ function TestProjectInitializer({ children }: { children: ReactNode }) {
 const wrapper = ({ children }: { children: ReactNode }) => (
   <ProjectProvider>
     <TestProjectInitializer>
-      <FocusProvider>
-        <SelectionProvider>{children}</SelectionProvider>
-      </FocusProvider>
+      <FontSizeProvider>
+        <FocusProvider>
+          <SelectionProvider>{children}</SelectionProvider>
+        </FocusProvider>
+      </FontSizeProvider>
     </TestProjectInitializer>
   </ProjectProvider>
 )
