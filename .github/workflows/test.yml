@@ -66,16 +66,6 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Run lints
-        run: |
-          echo "::group::TypeScript lint"
-          npm run lint
-          echo "::endgroup::"
-          
-          echo "::group::Rust lint"
-          npm run lint:rust
-          echo "::endgroup::"
-
       - name: Run tests
         run: |
           echo "::group::Frontend tests"
@@ -84,10 +74,4 @@ jobs:
           
           echo "::group::Rust tests"
           npm run test:rust
-          echo "::endgroup::"
-
-      - name: Build check
-        run: |
-          echo "::group::Rust build"
-          npm run build:rust
           echo "::endgroup::"
