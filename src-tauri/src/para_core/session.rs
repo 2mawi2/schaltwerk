@@ -33,6 +33,12 @@ fn mark_session_prompted(worktree_path: &Path) {
     prompted.insert(worktree_path.to_path_buf());
 }
 
+fn clear_session_prompted(worktree_path: &Path) {
+    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
+    let mut prompted = set.lock().unwrap();
+    prompted.remove(worktree_path);
+}
+
 pub struct SessionManager {
     db: Database,
     repo_path: PathBuf,
@@ -964,6 +970,9 @@ impl SessionManager {
         // Copy draft_content to initial_prompt so Claude/Cursor can use it
         if let Some(draft_content) = session.draft_content {
             self.db.update_session_initial_prompt(&session.id, &draft_content)?;
+            // Clear the prompted state so the initial_prompt will be used when agent starts
+            clear_session_prompted(&session.worktree_path);
+            log::info!("Cleared prompt state for session '{session_name}' to ensure draft content is used");
         }
         
         let global_agent = self.db.get_agent_type().unwrap_or_else(|_| "claude".to_string());
