@@ -189,7 +189,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const cwd = sel.worktreePath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
             await createTerminal(ids.bottomBase, cwd)
-            return ids
+            // Return TerminalSet with the correct working directory
+            return {
+                ...ids,
+                workingDirectory: cwd
+            }
         }
 
         // Fallback: fetch session data if sessionState not provided (backward compatibility)
@@ -208,7 +212,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const cwd = worktreePath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
             await createTerminal(ids.bottomBase, cwd)
-            return ids
+            // Return TerminalSet with the correct working directory
+            return {
+                ...ids,
+                workingDirectory: cwd
+            }
         } catch (e) {
             console.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
             setIsDraft(false)
