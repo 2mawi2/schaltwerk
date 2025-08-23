@@ -12,6 +12,7 @@ import { ConvertToDraftConfirmation } from '../modals/ConvertToDraftConfirmation
 import { SessionButton } from './SessionButton'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
+import { FilterMode, SortMode, isValidFilterMode, isValidSortMode, getDefaultFilterMode, getDefaultSortMode } from '../../types/sessionFilters'
 
 interface DiffStats {
     files_changed: number
@@ -69,8 +70,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const [sessions, setSessions] = useState<EnrichedSession[]>([])
-    const [filterMode, setFilterMode] = useState<'all' | 'draft' | 'running' | 'reviewed'>('all')
-    const [sortMode, setSortMode] = useState<'name' | 'created' | 'last-edited'>('name')
+    const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
+    const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
     const [loading, setLoading] = useState(true)
     const [settingsLoaded, setSettingsLoaded] = useState(false)
     // Removed: stuckTerminals; idle is computed from last edit timestamps
@@ -98,16 +99,16 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
     
     // Extract sorting logic
-    const applySortMode = useCallback((sessionList: EnrichedSession[], mode: typeof sortMode) => {
+    const applySortMode = useCallback((sessionList: EnrichedSession[], mode: SortMode) => {
         switch (mode) {
-            case 'last-edited':
+            case SortMode.LastEdited:
                 // Sort by last modified time (most recent first)
                 return [...sessionList].sort((a, b) => {
                     const aTime = a.info.last_modified ? new Date(a.info.last_modified).getTime() : 0
                     const bTime = b.info.last_modified ? new Date(b.info.last_modified).getTime() : 0
                     return bTime - aTime // Most recent first
                 })
-            case 'created':
+            case SortMode.Created:
                 // Sort by creation time (newest first)
                 return [...sessionList].sort((a, b) => {
                     const aTime = a.info.created_at ? new Date(a.info.created_at).getTime() : 0
@@ -123,7 +124,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     // Otherwise alphabetical
                     return a.info.session_id.localeCompare(b.info.session_id)
                 })
-            case 'name':
+            case SortMode.Name:
             default:
                 // Alphabetical sort by session_id
                 return [...sessionList].sort((a, b) => 
@@ -148,11 +149,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     // Memoize displayed sessions (filter + sort) to prevent re-computation on every render
     const sortedSessions = useMemo(() => {
         let filtered = sessions
-        if (filterMode === 'draft') {
+        if (filterMode === FilterMode.Draft) {
             filtered = sessions.filter(s => s.info.session_state === 'draft' || s.info.status === 'draft')
-        } else if (filterMode === 'running') {
+        } else if (filterMode === FilterMode.Running) {
             filtered = sessions.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'draft' && s.info.status !== 'draft')
-        } else if (filterMode === 'reviewed') {
+        } else if (filterMode === FilterMode.Reviewed) {
             filtered = sessions.filter(s => !!s.info.ready_to_merge)
         }
         
@@ -162,7 +163,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         
         // Apply sorting to each group
         const sortedUnreviewed = applySortMode(unreviewed, sortMode)
-        const sortedReviewed = applySortMode(reviewed, 'name') // Always sort reviewed by name
+        const sortedReviewed = applySortMode(reviewed, SortMode.Name) // Always sort reviewed by name
         
         // Unreviewed on top, reviewed at bottom
         return [...sortedUnreviewed, ...sortedReviewed]
@@ -176,18 +177,16 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             try {
                 const settings = await invoke<{ filter_mode: string; sort_mode: string }>('get_project_sessions_settings')
                 if (settings) {
-                    // Validate and set filter mode with fallback to 'all'
-                    const validFilterModes = ['all', 'draft', 'running', 'reviewed'] as const
-                    const filterMode = validFilterModes.includes(settings.filter_mode as any) 
-                        ? settings.filter_mode as typeof validFilterModes[number]
-                        : 'all'
+                    // Validate and set filter mode with fallback
+                    const filterMode = isValidFilterMode(settings.filter_mode) 
+                        ? settings.filter_mode as FilterMode
+                        : getDefaultFilterMode()
                     setFilterMode(filterMode)
                     
-                    // Validate and set sort mode with fallback to 'name'
-                    const validSortModes = ['name', 'created', 'last-edited'] as const
-                    const sortMode = validSortModes.includes(settings.sort_mode as any)
-                        ? settings.sort_mode as typeof validSortModes[number]
-                        : 'name'
+                    // Validate and set sort mode with fallback
+                    const sortMode = isValidSortMode(settings.sort_mode)
+                        ? settings.sort_mode as SortMode
+                        : getDefaultSortMode()
                     setSortMode(sortMode)
                     
                     setSettingsLoaded(true)
@@ -520,8 +519,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
                     if (transitioned.length > 0) {
                         const t = transitioned[0]
-                        if (latestFilterModeRef.current === 'draft') {
-                            setFilterMode('running')
+                        if (latestFilterModeRef.current === FilterMode.Draft) {
+                            setFilterMode(FilterMode.Running)
                         }
                         setSelection({
                             kind: 'session',
@@ -678,8 +677,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     return [enriched, ...prev]
                 })
                 // Auto-select the newly created session tab immediately
-                if (latestFilterModeRef.current === 'draft') {
-                    setFilterMode('running')
+                if (latestFilterModeRef.current === FilterMode.Draft) {
+                    setFilterMode(FilterMode.Running)
                 }
                 setSelection({ 
                     kind: 'session', 
@@ -806,32 +805,32 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto">
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === 'all' ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
-                            onClick={() => setFilterMode('all')}
+                                filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all tasks"
                         >
                             All <span className="text-slate-400">({sessions.length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === 'draft' ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
-                            onClick={() => setFilterMode('draft')}
+                                filterMode === FilterMode.Draft ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            onClick={() => setFilterMode(FilterMode.Draft)}
                             title="Show draft tasks"
                         >
                             Drafts <span className="text-slate-400">({sessions.filter(s => s.info.session_state === 'draft' || s.info.status === 'draft').length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === 'running' ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
-                            onClick={() => setFilterMode('running')}
+                                filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running tasks"
                         >
                             Running <span className="text-slate-400">({sessions.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'draft' && s.info.status !== 'draft').length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === 'reviewed' ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
-                            onClick={() => setFilterMode('reviewed')}
+                                filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed tasks"
                         >
                             Reviewed <span className="text-slate-400">({sessions.filter(s => !!s.info.ready_to_merge).length})</span>
@@ -840,11 +839,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
                             onClick={() => {
                                 // Cycle through: name -> created -> last-edited -> name
-                                const nextMode = sortMode === 'name' ? 'created' : 
-                                               sortMode === 'created' ? 'last-edited' : 'name'
+                                const nextMode = sortMode === SortMode.Name ? SortMode.Created : 
+                                               sortMode === SortMode.Created ? SortMode.LastEdited : SortMode.Name
                                 setSortMode(nextMode)
                             }}
-                            title={`Sort: ${sortMode === 'name' ? 'Name (A-Z)' : sortMode === 'created' ? 'Creation Time' : 'Last Edited'}`}
+                            title={`Sort: ${sortMode === SortMode.Name ? 'Name (A-Z)' : sortMode === SortMode.Created ? 'Creation Time' : 'Last Edited'}`}
                         >
                             {/* Sort icon - compact */}
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -852,7 +851,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             </svg>
                             {/* Compact text indicator */}
                             <span className="text-[9px] font-medium leading-none w-6 text-left">
-                                {sortMode === 'name' ? 'A-Z' : sortMode === 'created' ? 'New' : 'Edit'}
+                                {sortMode === SortMode.Name ? 'A-Z' : sortMode === SortMode.Created ? 'New' : 'Edit'}
                             </span>
                         </button>
                     </div>

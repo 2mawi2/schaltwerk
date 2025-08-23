@@ -6,6 +6,7 @@ import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { invoke } from '@tauri-apps/api/core'
+import { FilterMode, SortMode } from '../../types/sessionFilters'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -96,7 +97,7 @@ describe('Sidebar filter functionality and persistence', () => {
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
-        return { filter_mode: 'all', sort_mode: 'name' }
+        return { filter_mode: FilterMode.All, sort_mode: SortMode.Name }
       }
       if (cmd === 'set_project_sessions_settings') {
         return undefined

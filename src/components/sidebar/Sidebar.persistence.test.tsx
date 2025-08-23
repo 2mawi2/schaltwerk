@@ -6,6 +6,7 @@ import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { invoke } from '@tauri-apps/api/core'
+import { FilterMode, SortMode } from '../../types/sessionFilters'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -75,8 +76,8 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
 })
 
 describe('Sidebar sort mode persistence', () => {
-  let savedFilterMode = 'all'
-  let savedSortMode = 'name'
+  let savedFilterMode: string = FilterMode.All
+  let savedSortMode: string = SortMode.Name
 
   // Helper function to wrap component with all required providers
   const renderWithProviders = (component: React.ReactElement) => {
@@ -95,8 +96,8 @@ describe('Sidebar sort mode persistence', () => {
     vi.clearAllMocks()
     
     // Reset backend settings
-    savedFilterMode = 'all'
-    savedSortMode = 'name'
+    savedFilterMode = FilterMode.All
+    savedSortMode = SortMode.Name
 
     const sessions = [
       createSession('test_session_a', '2024-01-15T10:00:00Z', '2024-01-01T10:00:00Z'),
@@ -115,8 +116,8 @@ describe('Sidebar sort mode persistence', () => {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       if (cmd === 'set_project_sessions_settings') {
-        savedFilterMode = args?.filterMode || 'all'
-        savedSortMode = args?.sortMode || 'name'
+        savedFilterMode = args?.filterMode || FilterMode.All
+        savedSortMode = args?.sortMode || SortMode.Name
         return undefined
       }
       return undefined
@@ -156,7 +157,7 @@ describe('Sidebar sort mode persistence', () => {
 
   it('should restore sort mode from backend on component mount', async () => {
     // Pre-populate backend with 'created' mode
-    savedSortMode = 'created'
+    savedSortMode = SortMode.Created
 
     renderWithProviders(<Sidebar />)
 
@@ -387,8 +388,8 @@ describe('Sidebar sort mode persistence', () => {
 
   it('should handle default fallback correctly', async () => {
     // Start with default backend values
-    savedFilterMode = 'all'
-    savedSortMode = 'name'
+    savedFilterMode = FilterMode.All
+    savedSortMode = SortMode.Name
 
     renderWithProviders(<Sidebar />)
 

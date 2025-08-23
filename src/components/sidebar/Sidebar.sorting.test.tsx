@@ -6,6 +6,7 @@ import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { invoke } from '@tauri-apps/api/core'
+import { FilterMode, SortMode } from '../../types/sessionFilters'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -75,8 +76,8 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
 })
 
 describe('Sidebar sorting functionality', () => {
-  let savedFilterMode = 'all'
-  let savedSortMode = 'name'
+  let savedFilterMode: string = FilterMode.All
+  let savedSortMode: string = SortMode.Name
   
   // Helper function to wrap component with all required providers
   const renderWithProviders = (component: React.ReactElement) => {
@@ -93,8 +94,8 @@ describe('Sidebar sorting functionality', () => {
   
   beforeEach(() => {
     vi.clearAllMocks()
-    savedFilterMode = 'all'
-    savedSortMode = 'name'
+    savedFilterMode = FilterMode.All
+    savedSortMode = SortMode.Name
   })
   
   const createInvokeMock = (sessions: any[]) => {
@@ -109,8 +110,8 @@ describe('Sidebar sorting functionality', () => {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       if (cmd === 'set_project_sessions_settings') {
-        savedFilterMode = args?.filterMode || 'all'
-        savedSortMode = args?.sortMode || 'name'
+        savedFilterMode = args?.filterMode || FilterMode.All
+        savedSortMode = args?.sortMode || SortMode.Name
         return undefined
       }
       return undefined
