@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TerminalGrid } from './components/terminal/TerminalGrid'
 import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
@@ -16,6 +16,7 @@ import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { PermissionPrompt } from './components/PermissionPrompt'
+import { KanbanModal } from './components/kanban/KanbanModal'
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -50,6 +51,13 @@ export default function App() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsDraft] = useState(false)
+  const [isKanbanOpen, setIsKanbanOpen] = useState(false)
+  const isKanbanOpenRef = useRef(false)
+  
+  // Keep ref in sync with state
+  useEffect(() => {
+    isKanbanOpenRef.current = isKanbanOpen
+  }, [isKanbanOpen])
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
@@ -195,12 +203,30 @@ export default function App() {
         resetFontSizes()
       }
       
+      // Kanban board shortcut: Cmd+Shift+K only
+      if (modifierKey && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
+        const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
+                               document.activeElement?.tagName === 'TEXTAREA' ||
+                               document.activeElement?.getAttribute('contenteditable') === 'true'
+        if (!isInputFocused && !isKanbanOpenRef.current) {
+          e.preventDefault()
+          setIsKanbanOpen(true)
+        }
+      }
+      
     }
 
     const handleGlobalNewSession = () => {
       // Handle ⌘N from terminal (custom event)
       if (!newSessionOpen && !cancelModalOpen) {
         setNewSessionOpen(true)
+      }
+    }
+
+    const handleGlobalKanban = () => {
+      // Handle ⌘⇧K from terminal (custom event)
+      if (!isKanbanOpenRef.current) {
+        setIsKanbanOpen(true)
       }
     }
 
@@ -212,14 +238,16 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('global-new-session-shortcut', handleGlobalNewSession)
+    window.addEventListener('global-kanban-shortcut', handleGlobalKanban)
     window.addEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('global-new-session-shortcut', handleGlobalNewSession)
+      window.removeEventListener('global-kanban-shortcut', handleGlobalKanban)
       window.removeEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
     }
-  }, [newSessionOpen, cancelModalOpen])
+  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
   // Open NewSessionModal directly in draft mode when requested
   useEffect(() => {
@@ -229,6 +257,16 @@ export default function App() {
     }
     window.addEventListener('schaltwerk:new-draft', handler as any)
     return () => window.removeEventListener('schaltwerk:new-draft', handler as any)
+  }, [])
+  
+  // Open NewSessionModal for new task when requested
+  useEffect(() => {
+    const handler = () => {
+      setOpenAsDraft(false)
+      setNewSessionOpen(true)
+    }
+    window.addEventListener('schaltwerk:new-session', handler as any)
+    return () => window.removeEventListener('schaltwerk:new-session', handler as any)
   }, [])
 
   // Open Start Task modal prefilled from an existing draft
@@ -498,6 +536,7 @@ export default function App() {
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenKanban={() => setIsKanbanOpen(true)}
       />
       
       {/* Show home screen if requested, or no active tab */}
@@ -511,45 +550,45 @@ export default function App() {
       {!showHome && activeTabPath && (
         <>
           <Split className="h-full w-full flex pt-[28px]" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
-            <div className="h-full bg-panel border-r border-slate-800 overflow-y-auto" data-testid="sidebar">
-              <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-y-auto">
-                  <Sidebar isDiffViewerOpen={isDiffViewerOpen} />
-                </div>
-                <div className="p-2 border-t border-slate-800 grid grid-cols-2 gap-2">
-                  <button 
-                    onClick={() => setNewSessionOpen(true)} 
-                    className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
-                    title="Start new task (⌘N)"
-                  >
-                    <span>Start new task</span>
-                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
-                  </button>
-                  <button 
-                    onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }} 
-                    className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
-                    title="Create draft (⇧⌘N)"
-                  >
-                    <span>New draft</span>
-                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
-                  </button>
+              <div className="h-full bg-panel border-r border-slate-800 overflow-y-auto" data-testid="sidebar">
+                <div className="h-full flex flex-col">
+                  <div className="flex-1 overflow-y-auto">
+                    <Sidebar isDiffViewerOpen={isDiffViewerOpen} />
+                  </div>
+                  <div className="p-2 border-t border-slate-800 grid grid-cols-2 gap-2">
+                    <button 
+                      onClick={() => setNewSessionOpen(true)} 
+                      className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
+                      title="Start new task (⌘N)"
+                    >
+                      <span>Start new task</span>
+                      <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
+                    </button>
+                    <button 
+                      onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }} 
+                      className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
+                      title="Create draft (⇧⌘N)"
+                    >
+                      <span>New draft</span>
+                      <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="relative h-full">
-              {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
-              <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
-              <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
-                <main className="bg-slate-950 h-full" data-testid="terminal-grid">
-                  <TerminalGrid />
-                </main>
-                <section className="overflow-hidden">
-                  <RightPanelTabs onFileSelect={handleFileSelect} />
-                </section>
-              </Split>
-            </div>
-          </Split>
+              <div className="relative h-full">
+                {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
+                <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
+                <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
+                  <main className="bg-slate-950 h-full" data-testid="terminal-grid">
+                    <TerminalGrid />
+                  </main>
+                  <section className="overflow-hidden">
+                    <RightPanelTabs onFileSelect={handleFileSelect} />
+                  </section>
+                </Split>
+              </div>
+            </Split>
           
           <NewSessionModal 
             open={newSessionOpen}
@@ -578,6 +617,12 @@ export default function App() {
               onClose={handleCloseDiffViewer}
             />
           )}
+          
+          {/* Kanban Modal - render only when open */}
+          <KanbanModal 
+            isOpen={isKanbanOpen}
+            onClose={() => setIsKanbanOpen(false)}
+          />
 
           {/* Settings Modal */}
           <SettingsModal

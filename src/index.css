@@ -203,6 +203,24 @@ body.is-split-dragging [class*="transition-"] {
   scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
 }
 
+/* Custom scrollbar styles for Kanban columns */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thumb-gray-700::-webkit-scrollbar-thumb {
+  background-color: rgb(55 65 81);
+  border-radius: 3px;
+}
+
+.scrollbar-thumb-gray-700::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(75 85 99);
+}
+
+.scrollbar-track-transparent::-webkit-scrollbar-track {
+  background: transparent;
+}
+
 /* Markdown Editor Scrollbar Styles */
 .markdown-editor-scroll {
   scrollbar-width: thin;
@@ -266,7 +284,10 @@ body.is-split-dragging {
 
 /* Session frame highlighting (use actual box-shadow on the element for better overflow handling) */
 .session-ring {
-  border-radius: 10px;
+  /* Keep smaller border-radius for reviewed cards to differentiate them */
+  border-radius: 0.375rem;
+  transform: scale(0.97);
+  transform-origin: center;
 }
 
 .session-ring-blue {

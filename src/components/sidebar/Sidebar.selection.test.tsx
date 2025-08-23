@@ -6,11 +6,24 @@ import { invoke } from '@tauri-apps/api/core'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 import { mockEnrichedSession, mockDraftSession } from '../../test-utils/sessionMocks'
 
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn()
 }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+    const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+    return {
+        ...actual,
+        useProject: () => ({
+            projectPath: '/test/project',
+            setProjectPath: vi.fn()
+        })
+    }
+})
 
 let sessionRefreshCallback: ((event: any) => void) | null = null
 
@@ -25,11 +38,13 @@ vi.mock('@tauri-apps/api/event', () => ({
 
 const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
     <ProjectProvider>
-        <SelectionProvider>
-            <FocusProvider>
-                {children}
-            </FocusProvider>
-        </SelectionProvider>
+        <SessionsProvider>
+            <SelectionProvider>
+                <FocusProvider>
+                    {children}
+                </FocusProvider>
+            </SelectionProvider>
+        </SessionsProvider>
     </ProjectProvider>
 )
 
@@ -47,12 +62,15 @@ describe('Sidebar - Selection on State Changes', () => {
         // Start with a draft and two running sessions
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'para_core_list_enriched_sessions') {
-                return [runningSession1, runningSession2]
+                return [draftSession, runningSession1, runningSession2]
             }
             if (cmd === 'para_core_list_sessions_by_state') {
-                return [draftSession]
+                return []
             }
-            return []
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
+            return undefined
         })
 
         render(
@@ -94,12 +112,15 @@ describe('Sidebar - Selection on State Changes', () => {
         // Start with only a draft session
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'para_core_list_enriched_sessions') {
-                return []
-            }
-            if (cmd === 'para_core_list_sessions_by_state') {
                 return [draftSession]
             }
-            return []
+            if (cmd === 'para_core_list_sessions_by_state') {
+                return []
+            }
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
+            return undefined
         })
 
         render(
@@ -138,7 +159,10 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'para_core_list_sessions_by_state') {
                 return []
             }
-            return []
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
+            return undefined
         })
 
         render(
@@ -164,7 +188,10 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'para_core_list_sessions_by_state') {
                 return []
             }
-            return []
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
+            return undefined
         })
 
         // Trigger session refresh event
@@ -188,12 +215,15 @@ describe('Sidebar - Selection on State Changes', () => {
         // Start with a draft and a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'para_core_list_enriched_sessions') {
-                return [runningTask]
+                return [draftTask, runningTask]
             }
             if (cmd === 'para_core_list_sessions_by_state') {
-                return [draftTask]
+                return []
             }
-            return []
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
+            return undefined
         })
 
         render(

@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Mock dependencies
 vi.mock('@tauri-apps/api/core', () => ({
@@ -14,6 +15,18 @@ vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(),
   UnlistenFn: vi.fn()
 }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -153,11 +166,13 @@ export const sessionReducers = {
 function createTestWrapper() {
   return ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
-      <SelectionProvider>
-        <FocusProvider>
-          {children}
-        </FocusProvider>
-      </SelectionProvider>
+      <SessionsProvider>
+        <SelectionProvider>
+          <FocusProvider>
+            {children}
+          </FocusProvider>
+        </SelectionProvider>
+      </SessionsProvider>
     </ProjectProvider>
   )
 }
@@ -187,6 +202,10 @@ describe('Sidebar', () => {
           })
         case 'para_core_list_sessions_by_state':
           return Promise.resolve([])
+        case 'get_project_sessions_settings':
+          return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+        case 'set_project_sessions_settings':
+          return Promise.resolve()
         default:
           return Promise.resolve()
       }
@@ -207,9 +226,26 @@ describe('Sidebar', () => {
   describe('session list rendering', () => {
     it('should show empty state when no sessions', async () => {
       // Mock both the regular sessions and drafts calls
-      mockInvoke
-        .mockResolvedValueOnce([]) // para_core_list_enriched_sessions
-        .mockResolvedValueOnce([]) // para_core_list_sessions_by_state
+      mockInvoke.mockImplementation((command: string) => {
+        switch (command) {
+          case 'para_core_list_enriched_sessions':
+            return Promise.resolve([])
+          case 'para_core_list_sessions_by_state':
+            return Promise.resolve([])
+          case 'get_current_directory':
+            return Promise.resolve('/test/cwd')
+          case 'terminal_exists':
+            return Promise.resolve(false)
+          case 'create_terminal':
+            return Promise.resolve()
+          case 'get_project_sessions_settings':
+            return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          case 'set_project_sessions_settings':
+            return Promise.resolve()
+          default:
+            return Promise.resolve()
+        }
+      })
 
       render(<Sidebar />, { wrapper: createTestWrapper() })
 
@@ -240,9 +276,26 @@ describe('Sidebar', () => {
       ]
 
       // Mock both the regular sessions and drafts calls
-      mockInvoke
-        .mockResolvedValueOnce(mockSessions) // para_core_list_enriched_sessions
-        .mockResolvedValueOnce([]) // para_core_list_sessions_by_state
+      mockInvoke.mockImplementation((command: string) => {
+        switch (command) {
+          case 'para_core_list_enriched_sessions':
+            return Promise.resolve(mockSessions)
+          case 'para_core_list_sessions_by_state':
+            return Promise.resolve([])
+          case 'get_current_directory':
+            return Promise.resolve('/test/cwd')
+          case 'terminal_exists':
+            return Promise.resolve(false)
+          case 'create_terminal':
+            return Promise.resolve()
+          case 'get_project_sessions_settings':
+            return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          case 'set_project_sessions_settings':
+            return Promise.resolve()
+          default:
+            return Promise.resolve()
+        }
+      })
 
       render(<Sidebar />, { wrapper: createTestWrapper() })
 
@@ -479,9 +532,26 @@ describe('Sidebar', () => {
       ]
 
       // Mock both the regular sessions and drafts calls
-      mockInvoke
-        .mockResolvedValueOnce(mockSessions) // para_core_list_enriched_sessions
-        .mockResolvedValueOnce([]) // para_core_list_sessions_by_state
+      mockInvoke.mockImplementation((command: string) => {
+        switch (command) {
+          case 'para_core_list_enriched_sessions':
+            return Promise.resolve(mockSessions)
+          case 'para_core_list_sessions_by_state':
+            return Promise.resolve([])
+          case 'get_current_directory':
+            return Promise.resolve('/test/cwd')
+          case 'terminal_exists':
+            return Promise.resolve(false)
+          case 'create_terminal':
+            return Promise.resolve()
+          case 'get_project_sessions_settings':
+            return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          case 'set_project_sessions_settings':
+            return Promise.resolve()
+          default:
+            return Promise.resolve()
+        }
+      })
 
       render(<Sidebar />, { wrapper: createTestWrapper() })
 
@@ -492,7 +562,26 @@ describe('Sidebar', () => {
 
     it('should handle loading failure gracefully', async () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
-      mockInvoke.mockRejectedValueOnce(new Error('Failed to load sessions'))
+      mockInvoke.mockImplementation((command: string) => {
+        switch (command) {
+          case 'para_core_list_enriched_sessions':
+            return Promise.reject(new Error('Failed to load sessions'))
+          case 'para_core_list_sessions_by_state':
+            return Promise.resolve([])
+          case 'get_current_directory':
+            return Promise.resolve('/test/cwd')
+          case 'terminal_exists':
+            return Promise.resolve(false)
+          case 'create_terminal':
+            return Promise.resolve()
+          case 'get_project_sessions_settings':
+            return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          case 'set_project_sessions_settings':
+            return Promise.resolve()
+          default:
+            return Promise.resolve()
+        }
+      })
 
       render(<Sidebar />, { wrapper: createTestWrapper() })
 

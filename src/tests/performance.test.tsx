@@ -4,6 +4,7 @@ import { Sidebar } from '../components/sidebar/Sidebar'
 import { SelectionProvider } from '../contexts/SelectionContext'
 import { FocusProvider } from '../contexts/FocusContext'
 import { ProjectProvider } from '../contexts/ProjectContext'
+import { SessionsProvider } from '../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -13,6 +14,18 @@ vi.mock('@tauri-apps/api/core', () => ({
 vi.mock('@tauri-apps/api/event', () => ({
     listen: vi.fn(() => Promise.resolve(() => {}))
 }))
+
+// Mock the useProject hook to provide a project path
+vi.mock('../contexts/ProjectContext', async () => {
+    const actual = await vi.importActual<typeof import('../contexts/ProjectContext')>('../contexts/ProjectContext')
+    return {
+        ...actual,
+        useProject: () => ({
+            projectPath: '/test/project',
+            setProjectPath: vi.fn()
+        })
+    }
+})
 
 function generateMockSessions(count: number) {
     return Array.from({ length: count }, (_, i) => ({
@@ -57,6 +70,9 @@ describe('Session Switching Performance', () => {
             if (cmd === 'get_current_directory') {
                 return '/test/dir'
             }
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
             if (cmd === 'list_available_open_apps') return [{ id: 'finder', name: 'Finder', kind: 'system' }]
             if (cmd === 'get_default_open_app') return 'finder'
             if (cmd === 'terminal_exists') {
@@ -70,11 +86,13 @@ describe('Session Switching Performance', () => {
 
         const TestWrapper = ({ children }: { children: React.ReactNode }) => (
             <ProjectProvider>
-                <SelectionProvider>
-                    <FocusProvider>
-                        {children}
-                    </FocusProvider>
-                </SelectionProvider>
+                <SessionsProvider>
+                    <SelectionProvider>
+                        <FocusProvider>
+                            {children}
+                        </FocusProvider>
+                    </SelectionProvider>
+                </SessionsProvider>
             </ProjectProvider>
         )
 
@@ -131,6 +149,9 @@ describe('Session Switching Performance', () => {
             if (cmd === 'get_current_directory') {
                 return '/test/dir'
             }
+            if (cmd === 'get_project_sessions_settings') {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
             if (cmd === 'list_available_open_apps') return [{ id: 'finder', name: 'Finder', kind: 'system' }]
             if (cmd === 'get_default_open_app') return 'finder'
             if (cmd === 'terminal_exists') {
@@ -141,11 +162,13 @@ describe('Session Switching Performance', () => {
 
         const { rerender } = render(
             <ProjectProvider>
-                <SelectionProvider>
-                    <FocusProvider>
-                        <Sidebar />
-                    </FocusProvider>
-                </SelectionProvider>
+                <SessionsProvider>
+                    <SelectionProvider>
+                        <FocusProvider>
+                            <Sidebar />
+                        </FocusProvider>
+                    </SelectionProvider>
+                </SessionsProvider>
             </ProjectProvider>
         )
 
@@ -156,15 +179,17 @@ describe('Session Switching Performance', () => {
         // Force re-render without changing data
         rerender(
             <ProjectProvider>
-                <SelectionProvider>
-                    <FocusProvider>
-                        <Sidebar />
-                    </FocusProvider>
-                </SelectionProvider>
+                <SessionsProvider>
+                    <SelectionProvider>
+                        <FocusProvider>
+                            <Sidebar />
+                        </FocusProvider>
+                    </SelectionProvider>
+                </SessionsProvider>
             </ProjectProvider>
         )
 
-        // Sessions should only be loaded once
+        // Sessions should only be loaded once - memoization should prevent reload on re-render
         expect(invokeCallCount).toBe(1)
         
         // All sessions should still be rendered

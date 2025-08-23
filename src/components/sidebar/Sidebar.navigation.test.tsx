@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Do NOT mock useKeyboardShortcuts here; we want real keyboard behavior
 
@@ -20,6 +21,18 @@ vi.mock('@tauri-apps/api/event', () => ({
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
+// Mock the useProject hook to provide a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+    const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+    return {
+        ...actual,
+        useProject: () => ({
+            projectPath: '/test/project',
+            setProjectPath: vi.fn()
+        })
+    }
+})
+
 const mockInvoke = vi.mocked(invoke)
 const mockListen = vi.mocked(listen)
 const mockUnlisten = vi.fn()
@@ -27,11 +40,13 @@ const mockUnlisten = vi.fn()
 function createTestWrapper() {
   return ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
-      <SelectionProvider>
-        <FocusProvider>
-          {children}
-        </FocusProvider>
-      </SelectionProvider>
+      <SessionsProvider>
+        <SelectionProvider>
+          <FocusProvider>
+            {children}
+          </FocusProvider>
+        </SelectionProvider>
+      </SessionsProvider>
     </ProjectProvider>
   )
 }
@@ -90,6 +105,8 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
           return Promise.resolve([])
         case 'get_current_directory':
           return Promise.resolve('/test/cwd')
+        case 'get_project_sessions_settings':
+          return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
         case 'terminal_exists':
           return Promise.resolve(false)
         case 'create_terminal':

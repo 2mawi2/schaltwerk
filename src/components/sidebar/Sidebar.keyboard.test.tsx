@@ -4,11 +4,24 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Use real keyboard hook behavior
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(), UnlistenFn: vi.fn() }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -16,11 +29,13 @@ import { listen } from '@tauri-apps/api/event'
 function renderWithProviders(ui: React.ReactElement) {
   return render(
     <ProjectProvider>
-      <SelectionProvider>
-        <FocusProvider>
-          {ui}
-        </FocusProvider>
-      </SelectionProvider>
+      <SessionsProvider>
+        <SelectionProvider>
+          <FocusProvider>
+            {ui}
+          </FocusProvider>
+        </SelectionProvider>
+      </SessionsProvider>
     </ProjectProvider>
   )
 }
@@ -49,6 +64,12 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'list_available_open_apps') return [{ id: 'finder', name: 'Finder', kind: 'system' }]
       if (cmd === 'get_default_open_app') return 'finder'
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
       return undefined as any
     })
 

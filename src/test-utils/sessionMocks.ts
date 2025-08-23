@@ -25,11 +25,22 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
 
 export const mockDraftSession = (name: string) => ({
     id: name,
-    name: name,
-    display_name: name,
-    branch: `branch-${name}`,
-    worktree_path: `/path/to/${name}`,
-    parent_branch: 'main',
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    info: {
+        session_id: name,
+        display_name: name,
+        branch: `branch-${name}`,
+        worktree_path: `/path/to/${name}`,
+        base_branch: 'main',
+        merge_mode: 'rebase' as const,
+        status: 'draft' as any,
+        session_state: 'draft',
+        created_at: new Date().toISOString(),
+        last_modified: new Date().toISOString(),
+        has_uncommitted_changes: false,
+        ready_to_merge: false,
+        diff_stats: undefined,
+        is_current: false,
+        session_type: 'worktree' as const,
+    },
+    terminals: []
 })

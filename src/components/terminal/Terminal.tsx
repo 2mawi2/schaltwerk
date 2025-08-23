@@ -239,6 +239,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
             
+            // Kanban board shortcut: Cmd+Shift+K
+            if (modifierKey && event.shiftKey && (event.key === 'k' || event.key === 'K')) {
+                window.dispatchEvent(new CustomEvent('global-kanban-shortcut'))
+                return false
+            }
             // Prefer Shift+Cmd/Ctrl+N as "New draft"
             if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
                 window.dispatchEvent(new CustomEvent('schaltwerk:new-draft'))

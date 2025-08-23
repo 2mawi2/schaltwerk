@@ -4,10 +4,23 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 
 // Mock tauri
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn() }))
+
+// Mock the useProject hook to always return a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -21,11 +34,13 @@ interface EnrichedSession {
 function renderWithProviders(ui: React.ReactElement) {
   return render(
     <ProjectProvider>
-      <SelectionProvider>
-        <FocusProvider>
-          {ui}
-        </FocusProvider>
-      </SelectionProvider>
+      <SessionsProvider>
+        <SelectionProvider>
+          <FocusProvider>
+            {ui}
+          </FocusProvider>
+        </SelectionProvider>
+      </SessionsProvider>
     </ProjectProvider>
   )
 }
@@ -49,6 +64,12 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === 'get_current_directory') return '/cwd'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
       return undefined as any
     })
 
@@ -112,13 +133,22 @@ describe('Sidebar status indicators and actions', () => {
     // Arrange sessions with last_modified timestamps
     const now = Date.now()
     const sessions: EnrichedSession[] = [
-      { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 6 * 60 * 1000).toISOString() }, terminals: [] },
-      { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 2 * 60 * 1000).toISOString() }, terminals: [] },
+      { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 6 * 60 * 1000).toISOString(), last_modified_ts: now - 6 * 60 * 1000 } as any, terminals: [] },
+      { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 2 * 60 * 1000).toISOString(), last_modified_ts: now - 2 * 60 * 1000 } as any, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
       if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'get_current_directory') return '/cwd'
+      if (cmd === 'terminal_exists') return false
+      if (cmd === 'create_terminal') return true
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
       return undefined as any
     })
 

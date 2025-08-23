@@ -275,6 +275,15 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
                 "schaltwerk:session-removed",
                 SessionRemovedPayload { session_name: name.clone() },
             );
+            
+            // Also emit sessions-refreshed for consistency
+            if let Ok(sessions) = manager.list_enriched_sessions() {
+                log::info!("Emitting sessions-refreshed event after canceling session");
+                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                    log::warn!("Could not emit sessions refreshed: {e}");
+                }
+            }
+            
             if let Ok(manager) = get_terminal_manager().await {
                 let ids = vec![
                     format!("session-{}-top", name),
@@ -728,15 +737,25 @@ pub async fn para_core_set_font_sizes(terminal_font_size: i32, ui_font_size: i32
 }
 
 #[tauri::command]
-pub async fn para_core_mark_session_ready(name: String, auto_commit: bool) -> Result<bool, String> {
+pub async fn para_core_mark_session_ready(app: tauri::AppHandle, name: String, auto_commit: bool) -> Result<bool, String> {
     log::info!("Marking session {name} as reviewed (auto_commit: {auto_commit})");
     
     let core = get_para_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
-    manager.mark_session_ready(&name, auto_commit)
-        .map_err(|e| format!("Failed to mark session as reviewed: {e}"))
+    let result = manager.mark_session_ready(&name, auto_commit)
+        .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
+    
+    // Emit event to notify frontend of the change
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        log::info!("Emitting sessions-refreshed event after marking session ready");
+        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
+    }
+    
+    Ok(result)
 }
 
 #[tauri::command]
@@ -754,7 +773,7 @@ pub async fn para_core_has_uncommitted_changes(name: String) -> Result<bool, Str
 }
 
 #[tauri::command]
-pub async fn para_core_unmark_session_ready(name: String) -> Result<(), String> {
+pub async fn para_core_unmark_session_ready(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Unmarking session {name} as reviewed");
     
     let core = get_para_core().await?;
@@ -762,7 +781,17 @@ pub async fn para_core_unmark_session_ready(name: String) -> Result<(), String> 
     let manager = core.session_manager();
     
     manager.unmark_session_ready(&name)
-        .map_err(|e| format!("Failed to unmark session as reviewed: {e}"))
+        .map_err(|e| format!("Failed to unmark session as reviewed: {e}"))?;
+    
+    // Emit event to notify frontend of the change
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        log::info!("Emitting sessions-refreshed event after unmarking session ready");
+        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -776,9 +805,12 @@ pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String,
     let session = manager.create_draft_session(&name, &draft_content)
         .map_err(|e| format!("Failed to create draft session: {e}"))?;
     
-    log::info!("Emitting sessions-refreshed event after creating draft session");
-    if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<EnrichedSession>::new()) {
-        log::warn!("Could not emit sessions refreshed: {e}");
+    // Emit event with actual sessions list
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        log::info!("Emitting sessions-refreshed event after creating draft session");
+        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
     }
     
     Ok(session)

@@ -5,6 +5,7 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 
@@ -83,11 +84,13 @@ describe('Sidebar sorting functionality', () => {
   const renderWithProviders = (component: React.ReactElement) => {
     return render(
       <ProjectProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            {component}
-          </FocusProvider>
-        </SelectionProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              {component}
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
       </ProjectProvider>
     )
   }

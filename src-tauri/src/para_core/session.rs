@@ -532,8 +532,8 @@ impl SessionManager {
         let mut enriched = Vec::new();
         
         for session in sessions {
-            // Skip cancelled and draft sessions - they should not appear in the main UI list
-            if session.status == SessionStatus::Cancelled || session.status == SessionStatus::Draft {
+            // Skip only cancelled sessions
+            if session.status == SessionStatus::Cancelled {
                 continue;
             }
             // Use cached git stats where fresh; compute only when stale
@@ -566,7 +566,7 @@ impl SessionManager {
             let status_type = match session.status {
                 SessionStatus::Active => SessionStatusType::Active,
                 SessionStatus::Cancelled => SessionStatusType::Archived,
-                SessionStatus::Draft => SessionStatusType::Active, // Won't reach here due to filter above
+                SessionStatus::Draft => SessionStatusType::Draft,
             };
             
             let info = SessionInfo {

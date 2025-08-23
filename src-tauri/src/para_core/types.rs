@@ -149,6 +149,7 @@ pub enum SessionStatusType {
     Dirty,
     Missing,
     Archived,
+    Draft,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

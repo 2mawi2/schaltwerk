@@ -1,4 +1,4 @@
-import { VscHome, VscSettingsGear } from 'react-icons/vsc'
+import { VscHome, VscSettingsGear, VscListFlat } from 'react-icons/vsc'
 import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
@@ -12,6 +12,7 @@ interface TopBarProps {
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
   onOpenSettings: () => void
+  onOpenKanban?: () => void
 }
 
 export function TopBar({
@@ -20,7 +21,8 @@ export function TopBar({
   onGoHome,
   onSelectTab,
   onCloseTab,
-  onOpenSettings
+  onOpenSettings,
+  onOpenKanban
 }: TopBarProps) {
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
@@ -119,6 +121,19 @@ export function TopBar({
               resolvePath={async () => activeTabPath}
             />
           </div>
+        )}
+        
+        {/* Task Board button - only show when a project is open */}
+        {activeTabPath && onOpenKanban && (
+          <button
+            onClick={onOpenKanban}
+            className="h-6 px-2 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors mr-2 text-xs gap-1"
+            title="Task Board (⌘⇧K)"
+            aria-label="Task Board"
+          >
+            <VscListFlat className="text-[14px]" />
+            <span>Board</span>
+          </button>
         )}
         
         {/* Settings button */}

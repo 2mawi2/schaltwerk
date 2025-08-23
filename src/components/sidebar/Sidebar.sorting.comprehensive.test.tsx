@@ -4,12 +4,25 @@ import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
   listen: vi.fn(() => Promise.resolve(() => {}))
 }))
+
+// Mock the useProject hook to provide a project path
+vi.mock('../../contexts/ProjectContext', async () => {
+  const actual = await vi.importActual<typeof import('../../contexts/ProjectContext')>('../../contexts/ProjectContext')
+  return {
+    ...actual,
+    useProject: () => ({
+      projectPath: '/test/project',
+      setProjectPath: vi.fn()
+    })
+  }
+})
 
 interface SessionInfo {
   session_id: string
@@ -66,11 +79,13 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
   const renderWithProviders = (component: React.ReactElement) => {
     return render(
       <ProjectProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            {component}
-          </FocusProvider>
-        </SelectionProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              {component}
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
       </ProjectProvider>
     )
   }
@@ -94,7 +109,13 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)
@@ -132,7 +153,13 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)
@@ -178,7 +205,13 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)
@@ -226,7 +259,13 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)
@@ -285,7 +324,13 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
       if (cmd === 'para_core_list_sessions_by_state') return []
-      throw new Error(`Unexpected command: ${cmd}`)
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)
