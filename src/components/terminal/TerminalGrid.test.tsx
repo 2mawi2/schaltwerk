@@ -224,8 +224,9 @@ describe('TerminalGrid', () => {
     // Terminal components should use the actual IDs from the context
     if (!bridge) throw new Error('Bridge not initialized')
     expect(screen.getByTestId(`terminal-${bridge.terminals.top}`)).toBeInTheDocument()
-    // Bottom terminal is now inside TerminalTabs with -0 suffix
-    expect(screen.getByTestId(`terminal-${bridge.terminals.bottomBase}-0`)).toBeInTheDocument()
+    // Bottom terminal is now inside TerminalTabs with -0 suffix for orchestrator
+    const bottomTerminalId = bridge.terminals.bottomBase.includes('orchestrator') ? `${bridge.terminals.bottomBase}-0` : bridge.terminals.bottomBase
+    expect(screen.getByTestId(`terminal-${bottomTerminalId}`)).toBeInTheDocument()
   })
 
   it('respects split view proportions and layout props', async () => {
@@ -269,7 +270,7 @@ describe('TerminalGrid', () => {
     fireEvent.click(screen.getByText('Terminal — main'))
     await new Promise(r => setTimeout(r, 120))
     const bottomFocusSpy = (await import('./Terminal')) as any
-    const bottomTerminalId = `${bridge!.terminals.bottomBase}-0`
+    const bottomTerminalId = bridge!.terminals.bottomBase.includes('orchestrator') ? `${bridge!.terminals.bottomBase}-0` : bridge!.terminals.bottomBase
     expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
 
     // Also clicking bodies should focus
@@ -307,7 +308,7 @@ describe('TerminalGrid', () => {
 
     // New terminal ids mounted (remounted due to key change)
     expect(screen.getByTestId('terminal-session-dev-top')).toBeInTheDocument()
-    // Bottom terminal is now in tabs with -0 suffix, wait for it to be created
+    // Bottom terminal is now in tabs, wait for it to be created
     await waitFor(() => {
       expect(screen.getByTestId('terminal-session-dev-bottom')).toBeInTheDocument()
     }, { timeout: 3000 })
@@ -316,7 +317,7 @@ describe('TerminalGrid', () => {
     const m = (await import('./Terminal')) as any
     fireEvent.click(screen.getByText('Terminal — dev'))
     await new Promise(r => setTimeout(r, 120))
-    // Focus is now on the bottom terminal (no -0 suffix for sessions)
+    // Focus is now on the bottom terminal
     expect(m.__getFocusSpy('session-dev-bottom')).toHaveBeenCalled()
     fireEvent.click(screen.getByText('Session — dev'))
     await new Promise(r => setTimeout(r, 120))
@@ -336,7 +337,7 @@ describe('TerminalGrid', () => {
 
     const m = (await import('./Terminal')) as any
     const topId = bridge!.terminals.top
-    const bottomId = bridge!.terminals.bottomBase + '-0' // Tab terminal has -0 suffix
+    const bottomId = bridge!.terminals.bottomBase.includes('orchestrator') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for orchestrator only
     
     expect(m.__getMountCount(topId)).toBe(1)
     
