@@ -976,3 +976,134 @@ pub async fn para_core_list_sessions_by_state(state: String) -> Result<Vec<Sessi
     manager.list_sessions_by_state(session_state)
         .map_err(|e| format!("Failed to list sessions by state: {e}"))
 }
+
+#[tauri::command]
+pub async fn para_core_reset_orchestrator(terminal_id: String) -> Result<String, String> {
+    log::info!("Resetting orchestrator for terminal: {terminal_id}");
+    
+    // Close the current terminal first
+    let manager = get_terminal_manager().await?;
+    if let Err(e) = manager.close_terminal(terminal_id.clone()).await {
+        log::warn!("Failed to close terminal {terminal_id}: {e}");
+        // Continue anyway, terminal might already be closed
+    }
+    
+    // Wait a brief moment to ensure cleanup
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    
+    // Start a FRESH orchestrator session (bypassing session discovery)
+    para_core_start_fresh_orchestrator(terminal_id).await
+}
+
+#[tauri::command]
+pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<String, String> {
+    log::info!("Starting FRESH Claude for orchestrator in terminal: {terminal_id}");
+    
+    // First check if we have a valid project initialized
+    let core = match get_para_core().await {
+        Ok(c) => c,
+        Err(e) => {
+            log::error!("Failed to get para_core for fresh orchestrator: {e}");
+            // If we can't get a para_core (no project), create a user-friendly error
+            if e.contains("No active project") {
+                return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
+            }
+            return Err(format!("Failed to initialize orchestrator: {e}"));
+        }
+    };
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    
+    // Build command for FRESH session (no session resume)
+    let command = manager.start_claude_in_orchestrator_fresh()
+        .map_err(|e| {
+            log::error!("Failed to build fresh orchestrator command: {e}");
+            format!("Failed to start fresh Claude in orchestrator: {e}")
+        })?;
+    
+    log::info!("Fresh Claude command for orchestrator: {command}");
+    
+    let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
+    
+    // Check if we have permission to access the working directory
+    log::info!("Checking permissions for orchestrator working directory: {cwd}");
+    match std::fs::read_dir(&cwd) {
+        Ok(_) => {
+            log::info!("Permissions verified for orchestrator directory: {cwd}");
+        }
+        Err(e) => {
+            log::error!("Permission denied for orchestrator directory {cwd}: {e}");
+            return Err(format!("Permission required for folder: {cwd}. Please grant folder access to continue."));
+        }
+    }
+    
+    let terminal_manager = get_terminal_manager().await?;
+    
+    let agent_type = if agent_name == "claude" || agent_name.ends_with("/claude") {
+        "claude"
+    } else if agent_name == "cursor-agent" || agent_name.ends_with("/cursor-agent") {
+        "cursor"
+    } else if agent_name.contains("opencode") {
+        "opencode"
+    } else if agent_name.contains("gemini") {
+        "gemini"
+    } else if agent_name == "codex" {
+        "codex"
+    } else {
+        "claude"
+    };
+    
+    let (mut env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let manager = settings_manager.lock().await;
+        let env_vars = manager.get_agent_env_vars(agent_type)
+            .into_iter()
+            .collect::<Vec<(String, String)>>();
+        let cli_args = manager.get_agent_cli_args(agent_type);
+        (env_vars, cli_args)
+    } else {
+        (vec![], String::new())
+    };
+    
+    // Add project-specific environment variables
+    if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
+        let count = project_env_vars.len();
+        if count > 0 {
+            log::info!("Adding {count} project-specific environment variables to fresh orchestrator");
+            for (key, value) in project_env_vars {
+                env_vars.push((key, value));
+            }
+        }
+    }
+    
+    let mut final_args = agent_args;
+    if !cli_args.is_empty() {
+        log::info!("Adding CLI args for {agent_type}: {cli_args}");
+        final_args.extend(cli_args.split_whitespace().map(|s| s.to_string()));
+    }
+    
+    let is_opencode = agent_name.contains("opencode");
+    
+    terminal_manager.create_terminal_with_app(
+        terminal_id.clone(),
+        cwd,
+        agent_name,
+        final_args,
+        env_vars,
+    ).await?;
+    
+    if is_opencode {
+        let terminal_manager_clone = terminal_manager.clone();
+        let terminal_id_clone = terminal_id.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
+            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
+            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone, 136, 48).await;
+        });
+    }
+    
+    log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
+    Ok(command)
+}

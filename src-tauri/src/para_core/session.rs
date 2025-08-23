@@ -827,6 +827,109 @@ impl SessionManager {
         self.start_claude_in_orchestrator_with_args(None)
     }
     
+    pub fn start_claude_in_orchestrator_fresh(&self) -> Result<String> {
+        self.start_claude_in_orchestrator_fresh_with_binary(&std::collections::HashMap::new())
+    }
+    
+    pub fn start_claude_in_orchestrator_fresh_with_binary(&self, binary_paths: &std::collections::HashMap<String, String>) -> Result<String> {
+        log::info!("Building FRESH orchestrator command (no session resume) for repo: {}", self.repo_path.display());
+        
+        // Validate that the repo path exists and is accessible
+        if !self.repo_path.exists() {
+            log::error!("Repository path does not exist: {}", self.repo_path.display());
+            return Err(anyhow!("Repository path does not exist: {}. Please open a valid project folder.", self.repo_path.display()));
+        }
+        
+        // Check if it's a git repository
+        if !self.repo_path.join(".git").exists() {
+            log::error!("Not a git repository: {}", self.repo_path.display());
+            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+        }
+        
+        let skip_permissions = self.db.get_skip_permissions()?;
+        let agent_type = self.db.get_agent_type()?;
+        
+        log::info!("Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        
+        let command = match agent_type.as_str() {
+            "cursor" => {
+                let binary_path = self.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
+                let config = crate::para_core::cursor::CursorConfig {
+                    binary_path: Some(binary_path),
+                };
+                crate::para_core::cursor::build_cursor_command_with_config(
+                    &self.repo_path,
+                    None, // No session resume - force fresh
+                    None,
+                    skip_permissions,
+                    Some(&config),
+                )
+            }
+            "opencode" => {
+                let binary_path = self.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
+                let config = crate::para_core::opencode::OpenCodeConfig {
+                    binary_path: Some(binary_path),
+                };
+                crate::para_core::opencode::build_opencode_command_with_config(
+                    &self.repo_path,
+                    None, // No session resume - force fresh
+                    None,
+                    skip_permissions,
+                    Some(&config),
+                )
+            }
+            "gemini" => {
+                let binary_path = self.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
+                let config = crate::para_core::gemini::GeminiConfig {
+                    binary_path: Some(binary_path),
+                };
+                crate::para_core::gemini::build_gemini_command_with_config(
+                    &self.repo_path,
+                    None, // No session resume - force fresh
+                    None,
+                    skip_permissions,
+                    Some(&config),
+                )
+            }
+            "codex" => {
+                // For Codex orchestrator, use workspace-write as default sandbox mode
+                let sandbox_mode = if skip_permissions {
+                    "danger-full-access"
+                } else {
+                    "workspace-write"
+                };
+                
+                let binary_path = self.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
+                let config = crate::para_core::codex::CodexConfig {
+                    binary_path: Some(binary_path),
+                };
+                crate::para_core::codex::build_codex_command_with_config(
+                    &self.repo_path,
+                    None, // No session resume - force fresh
+                    None,
+                    sandbox_mode,
+                    Some(&config),
+                )
+            }
+            _ => {
+                // For Claude, explicitly pass None to bypass session discovery
+                let binary_path = self.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
+                let config = crate::para_core::claude::ClaudeConfig {
+                    binary_path: Some(binary_path),
+                };
+                crate::para_core::claude::build_claude_command_with_config(
+                    &self.repo_path,
+                    None, // No session resume - force fresh
+                    None,
+                    skip_permissions,
+                    Some(&config),
+                )
+            }
+        };
+        
+        Ok(command)
+    }
+
     pub fn start_claude_in_orchestrator_with_binary(&self, binary_paths: &std::collections::HashMap<String, String>) -> Result<String> {
         self.start_claude_in_orchestrator_with_args_and_binary(None, binary_paths)
     }

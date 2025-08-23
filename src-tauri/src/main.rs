@@ -635,6 +635,8 @@ fn main() {
             para_core_cleanup_orphaned_worktrees,
             para_core_start_claude,
             para_core_start_claude_orchestrator,
+            para_core_start_fresh_orchestrator,
+            para_core_reset_orchestrator,
             para_core_set_skip_permissions,
             para_core_get_skip_permissions,
             para_core_mark_session_ready,

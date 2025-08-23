@@ -104,6 +104,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         hasUncommitted: false
     })
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
+    const [resettingOrchestrator, setResettingOrchestrator] = useState(false)
     const sidebarRef = useRef<HTMLDivElement>(null)
     const previousProjectPath = useRef<string | null>(null)
     const isProjectSwitching = useRef(false)
@@ -261,6 +262,32 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
+    }
+    
+    const handleResetOrchestrator = async () => {
+        if (resettingOrchestrator) return
+        
+        try {
+            setResettingOrchestrator(true)
+            
+            // Reset the orchestrator terminal (only the top terminal runs the orchestrator)
+            try {
+                await invoke('para_core_reset_orchestrator', { terminalId: terminals.top })
+            } catch (e) {
+                console.error(`Failed to reset orchestrator terminal ${terminals.top}:`, e)
+            }
+            
+            // Dispatch event to reset terminals UI
+            window.dispatchEvent(new Event('schaltwerk:reset-terminals'))
+            
+            // Small delay to ensure terminals are reset
+            await new Promise(resolve => setTimeout(resolve, 500))
+            
+        } catch (error) {
+            console.error('Failed to reset orchestrator:', error)
+        } finally {
+            setResettingOrchestrator(false)
+        }
     }
 
     const handleSelectSession = async (index: number) => {
@@ -562,18 +589,37 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     </div>
                     <div className="text-xs text-slate-500">Original repository from which sessions are created</div>
                 </button>
-                <button
-                    onClick={() => setSwitchOrchestratorModal(true)}
-                    className="w-full text-left px-3 py-1.5 rounded-md mb-2 hover:bg-slate-800/30 group"
-                    title="Switch orchestrator model"
-                >
-                    <div className="flex items-center gap-2 text-xs">
-                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                        </svg>
-                        <span className="text-slate-400">Switch Model</span>
-                    </div>
-                </button>
+                <div className="flex gap-1 mb-2">
+                    <button
+                        onClick={() => setSwitchOrchestratorModal(true)}
+                        className="flex-1 text-left px-3 py-1.5 rounded-md hover:bg-slate-800/30 group"
+                        title="Switch orchestrator model"
+                    >
+                        <div className="flex items-center gap-2 text-xs">
+                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                            </svg>
+                            <span className="text-slate-400">Switch Model</span>
+                        </div>
+                    </button>
+                    <button
+                        onClick={handleResetOrchestrator}
+                        disabled={resettingOrchestrator}
+                        className="px-3 py-1.5 rounded-md hover:bg-slate-800/30 group disabled:opacity-50"
+                        title="Reset orchestrator session"
+                    >
+                        <div className="flex items-center gap-1.5 text-xs">
+                            {resettingOrchestrator ? (
+                                <span className="w-3.5 h-3.5 animate-spin border border-slate-400 border-t-transparent rounded-full"></span>
+                            ) : (
+                                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                            )}
+                            <span className="text-slate-400">Reset</span>
+                        </div>
+                    </button>
+                </div>
             </div>
 
             <div className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center">
