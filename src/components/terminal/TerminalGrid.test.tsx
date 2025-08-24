@@ -49,6 +49,10 @@ vi.mock('./Terminal', () => {
 
     useImperativeHandle(ref, () => ({ focus }), [focus])
 
+    const handleClick = () => {
+      focus()
+    }
+
     return (
       <div
         data-testid={`terminal-${terminalId}`}
@@ -56,6 +60,7 @@ vi.mock('./Terminal', () => {
         data-session-name={sessionName || ''}
         data-orchestrator={isOrchestrator ? '1' : '0'}
         className={className}
+        onClick={handleClick}
       />
     )
   })
@@ -98,11 +103,16 @@ vi.mock('./TerminalTabs', () => {
 
     useImperativeHandle(ref, () => ({ focus }), [focus])
 
+    const handleClick = () => {
+      focus()
+    }
+
     return (
       <div data-testid={`terminal-tabs-${baseTerminalId}`}>
         <div
           data-testid={`terminal-${terminalId}`}
           className="h-full w-full"
+          onClick={handleClick}
         >
           Mock Terminal Tab {terminalId}
         </div>
@@ -273,13 +283,13 @@ describe('TerminalGrid', () => {
     const bottomTerminalId = bridge!.terminals.bottomBase.includes('orchestrator') ? `${bridge!.terminals.bottomBase}-0` : bridge!.terminals.bottomBase
     expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
 
-    // Also clicking bodies should focus
-    const topBody = screen.getByTestId(`terminal-${bridge!.terminals.top}`).parentElement as HTMLElement
-    const bottomBody = screen.getByTestId(`terminal-${bottomTerminalId}`).parentElement as HTMLElement
-    fireEvent.click(topBody)
+    // Also clicking terminals directly should focus
+    const topTerminal = screen.getByTestId(`terminal-${bridge!.terminals.top}`)
+    const bottomTerminal = screen.getByTestId(`terminal-${bottomTerminalId}`)
+    fireEvent.click(topTerminal)
     await new Promise(r => setTimeout(r, 120))
     expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
-    fireEvent.click(bottomBody)
+    fireEvent.click(bottomTerminal)
     await new Promise(r => setTimeout(r, 120))
     expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
   })

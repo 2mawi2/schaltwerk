@@ -117,7 +117,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             theme: {
                 background: '#0b1220', // Match bg-panel color from web-ui
                 foreground: '#e4e4e7',
-                cursor: isTuiAgent ? 'transparent' : '#e4e4e7',
+                cursor: '#e4e4e7',
+                cursorAccent: '#0b1220',
                 black: '#1e293b',
                 red: '#ef4444',
                 green: '#22c55e',
@@ -138,6 +139,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
             fontSize: terminalFontSize,
             cursorBlink: !isTuiAgent,
+            cursorStyle: isTuiAgent ? 'underline' : 'block',
+            cursorInactiveStyle: 'none',
             scrollback: 10000,
             // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
@@ -701,8 +704,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [hydrated, terminalId, isOrchestrator, sessionName]);
 
 
+    const handleTerminalClick = () => {
+        // Focus the terminal when clicked
+        if (terminal.current) {
+            terminal.current.focus()
+        }
+    }
+
     return (
-        <div className={`h-full w-full ${className}`}>
+        <div className={`h-full w-full ${className}`} onClick={handleTerminalClick}>
             <div ref={termRef} className="h-full w-full" />
             {/* Search UI opens via keyboard shortcut only (Cmd/Ctrl+F) */}
             {isSearchVisible && (

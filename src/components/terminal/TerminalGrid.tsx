@@ -102,15 +102,15 @@ export function TerminalGrid() {
         const focusArea = getFocusForSession(sessionKey)
         setLocalFocus(focusArea === 'claude' || focusArea === 'terminal' ? focusArea : null)
         
-        // Focus the appropriate terminal after a short delay to ensure it's rendered
-        setTimeout(() => {
+        // Focus the appropriate terminal after ensuring it's rendered
+        requestAnimationFrame(() => {
             if (focusArea === 'claude' && claudeTerminalRef.current) {
                 claudeTerminalRef.current.focus()
             } else if (focusArea === 'terminal' && terminalTabsRef.current) {
                 terminalTabsRef.current.focus()
             }
             // TODO: Add diff focus handling when we implement it
-        }, 150)
+        })
     }, [selection, getFocusForSession])
 
     // If global focus changes to claude/terminal, apply it immediately.
@@ -230,19 +230,26 @@ export function TerminalGrid() {
         localStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
     }, [isBottomCollapsed, selection])
 
-    const handleClaudeSessionClick = async () => {
+    const handleClaudeSessionClick = async (e?: React.MouseEvent) => {
+        // Prevent event from bubbling if called from child
+        e?.stopPropagation()
+        
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'claude')
         setLocalFocus('claude')
         
         // Only focus the terminal, don't restart Claude
         // Claude is already auto-started by the Terminal component when first mounted
-        setTimeout(() => {
+        // Use requestAnimationFrame for more reliable focus
+        requestAnimationFrame(() => {
             claudeTerminalRef.current?.focus()
-        }, 100)
+        })
     }
 
-    const handleTerminalClick = () => {
+    const handleTerminalClick = (e?: React.MouseEvent) => {
+        // Prevent event from bubbling if called from child
+        e?.stopPropagation()
+        
         const sessionKey = getSessionKey()
         setFocusForSession(sessionKey, 'terminal')
         setLocalFocus('terminal')
@@ -251,14 +258,14 @@ export function TerminalGrid() {
             const expanded = lastExpandedBottomPercent || 35
             setSizes([100 - expanded, expanded])
             setIsBottomCollapsed(false)
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 terminalTabsRef.current?.focus()
-            }, 120)
+            })
             return
         }
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             terminalTabsRef.current?.focus()
-        }, 100)
+        })
     }
 
 
@@ -333,7 +340,7 @@ export function TerminalGrid() {
                             ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
-                    <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`} onClick={handleClaudeSessionClick}>
+                    <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`}>
                         <Terminal 
                             key={`top-terminal-${terminalKey}`}
                             ref={claudeTerminalRef}
@@ -385,7 +392,7 @@ export function TerminalGrid() {
                             ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent'
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
-                    <div className={`flex-1 min-h-0 ${isBottomCollapsed ? 'hidden' : ''}`} onClick={handleTerminalClick}>
+                    <div className={`flex-1 min-h-0 ${isBottomCollapsed ? 'hidden' : ''}`}>
                         <TerminalTabs
                             key={`terminal-tabs-${terminalKey}`}
                             ref={terminalTabsRef}
