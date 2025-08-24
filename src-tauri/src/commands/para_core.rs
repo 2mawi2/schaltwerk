@@ -821,6 +821,32 @@ pub async fn para_core_set_agent_type(agent_type: String) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub async fn para_core_set_session_agent_type(session_name: String, agent_type: String) -> Result<(), String> {
+    let core = get_para_core().await?;
+    let core = core.lock().await;
+    
+    // Update global agent type
+    core.db.set_agent_type(&agent_type)
+        .map_err(|e| format!("Failed to set global agent type: {e}"))?;
+    
+    // Get the session to find its ID
+    let session = core.db.get_session_by_name(&core.repo_path, &session_name)
+        .map_err(|e| format!("Failed to find session {session_name}: {e}"))?;
+    
+    // Get current skip permissions setting
+    let skip_permissions = core.db.get_skip_permissions()
+        .map_err(|e| format!("Failed to get skip permissions: {e}"))?;
+    
+    // Update session's original settings to use the new agent type
+    core.db.set_session_original_settings(&session.id, &agent_type, skip_permissions)
+        .map_err(|e| format!("Failed to update session agent type: {e}"))?;
+    
+    log::info!("Updated agent type to '{}' for session '{}' (id: {})", agent_type, session_name, session.id);
+    
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn para_core_get_agent_type() -> Result<String, String> {
     let core = get_para_core().await?;
     let core = core.lock().await;

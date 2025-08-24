@@ -6,15 +6,20 @@ import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
+import { useSessionManagement } from '../../hooks/useSessionManagement'
+import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { clearTerminalStartedTracking } from './Terminal'
 import { useRef, useEffect, useState } from 'react'
 
 export function TerminalGrid() {
-    const { selection, terminals, isReady, isDraft } = useSelection()
+    const { selection, terminals, isReady, isDraft, clearTerminalTracking } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { getAgentType } = useClaudeSession()
+    const { isResetting, resetSession, switchModel } = useSessionManagement()
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
+    const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(6) // fallback ~ header height in %
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
@@ -268,6 +273,15 @@ export function TerminalGrid() {
         })
     }
 
+    const handleResetSession = async (e?: React.MouseEvent) => {
+        e?.stopPropagation()
+        try {
+            await resetSession(selection, terminals)
+        } catch (error) {
+            console.error('Failed to reset session:', error)
+        }
+    }
+
 
     // No prompt UI here anymore; moved to right panel dock
 
@@ -325,10 +339,53 @@ export function TerminalGrid() {
                         }`}
                         onClick={handleClaudeSessionClick}
                     >
+                        {/* Left side: Switch Model and Reset buttons */}
+                        <div className="flex items-center gap-1 pointer-events-auto">
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSwitchOrchestratorModal(true); }}
+                                className={`px-2 py-1 text-[10px] rounded hover:bg-slate-700/50 transition-colors ${
+                                    localFocus === 'claude'
+                                        ? 'hover:bg-blue-600/30 text-blue-300 hover:text-blue-200'
+                                        : 'text-slate-400 hover:text-slate-300'
+                                }`}
+                                title={selection.kind === 'orchestrator' ? 'Switch orchestrator model' : 'Switch session model'}
+                            >
+                                <div className="flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                                    </svg>
+                                    <span>Model</span>
+                                </div>
+                            </button>
+                            <button
+                                onClick={handleResetSession}
+                                disabled={isResetting}
+                                className={`px-2 py-1 text-[10px] rounded hover:bg-slate-700/50 transition-colors disabled:opacity-50 ${
+                                    localFocus === 'claude'
+                                        ? 'hover:bg-blue-600/30 text-blue-300 hover:text-blue-200'
+                                        : 'text-slate-400 hover:text-slate-300'
+                                }`}
+                                title={selection.kind === 'orchestrator' ? 'Reset orchestrator' : `Reset session ${selection.payload || ''}`}
+                            >
+                                <div className="flex items-center gap-1">
+                                    {isResetting ? (
+                                        <span className="w-3 h-3 animate-spin border border-current border-t-transparent rounded-full"></span>
+                                    ) : (
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                    )}
+                                    <span>Reset</span>
+                                </div>
+                            </button>
+                        </div>
+                        
                         {/* Absolute-centered title to avoid alignment shift */}
                         <span className="absolute left-0 right-0 text-center font-medium pointer-events-none">
                             {selection.kind === 'orchestrator' ? 'Orchestrator — main repo' : `Session — ${selection.payload ?? ''}`}
                         </span>
+                        
+                        {/* Right side: ⌘T indicator */}
                         <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded transition-colors duration-200 ${
                             localFocus === 'claude' 
                                 ? 'bg-blue-600/40 text-blue-200' 
@@ -408,6 +465,30 @@ export function TerminalGrid() {
             </Split>
 
             {/* Prompt dock moved to right diff panel */}
+            
+            <SwitchOrchestratorModal
+                open={switchOrchestratorModal}
+                onClose={() => setSwitchOrchestratorModal(false)}
+                onSwitch={async (agentType) => {
+                    try {
+                        await switchModel(
+                            agentType,
+                            selection,
+                            terminals,
+                            clearTerminalTracking,
+                            clearTerminalStartedTracking
+                        )
+                        
+                        // Update local agent type state
+                        setAgentType(agentType)
+                        
+                        // Close the modal
+                        setSwitchOrchestratorModal(false)
+                    } catch (error) {
+                        console.error('Failed to switch model:', error)
+                    }
+                }}
+            />
         </div>
     )
 }

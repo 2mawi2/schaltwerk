@@ -656,6 +656,7 @@ fn main() {
             para_core_has_uncommitted_changes,
             para_core_unmark_session_ready,
             para_core_set_agent_type,
+            para_core_set_session_agent_type,
             para_core_get_agent_type,
             para_core_get_font_sizes,
             para_core_set_font_sizes,
