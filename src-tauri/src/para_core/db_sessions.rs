@@ -24,6 +24,7 @@ pub trait SessionMethods {
     fn update_session_initial_prompt(&self, id: &str, prompt: &str) -> Result<()>;
     fn set_pending_name_generation(&self, id: &str, pending: bool) -> Result<()>;
     fn set_session_original_settings(&self, session_id: &str, agent_type: &str, skip_permissions: bool) -> Result<()>;
+    fn rename_draft_session(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()>;
 }
 
 impl SessionMethods for Database {
@@ -452,6 +453,31 @@ impl SessionMethods for Database {
             "UPDATE sessions SET original_agent_type = ?1, original_skip_permissions = ?2 WHERE id = ?3",
             params![agent_type, skip_permissions, session_id],
         )?;
+        Ok(())
+    }
+    
+    fn rename_draft_session(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        
+        // First check if the session exists and is a draft
+        let session = self.get_session_by_name(repo_path, old_name)?;
+        if session.session_state != SessionState::Draft {
+            return Err(anyhow::anyhow!("Can only rename draft sessions"));
+        }
+        
+        // Check if the new name is already taken
+        if self.get_session_by_name(repo_path, new_name).is_ok() {
+            return Err(anyhow::anyhow!("Session with name '{}' already exists", new_name));
+        }
+        
+        // Update the session name
+        conn.execute(
+            "UPDATE sessions 
+             SET name = ?1, updated_at = ?2 
+             WHERE repository_path = ?3 AND name = ?4",
+            params![new_name, Utc::now().timestamp(), repo_path.to_string_lossy(), old_name],
+        )?;
+        
         Ok(())
     }
 }

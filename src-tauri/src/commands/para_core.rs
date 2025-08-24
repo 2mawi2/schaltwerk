@@ -951,6 +951,27 @@ pub async fn para_core_update_draft_content(name: String, content: String) -> Re
 }
 
 #[tauri::command]
+pub async fn para_core_rename_draft_session(app: tauri::AppHandle, old_name: String, new_name: String) -> Result<(), String> {
+    log::info!("Renaming draft session from '{old_name}' to '{new_name}'");
+    
+    let core = get_para_core().await?;
+    let core_lock = core.lock().await;
+    let manager = core_lock.session_manager();
+    
+    manager.rename_draft_session(&old_name, &new_name)
+        .map_err(|e| format!("Failed to rename draft session: {e}"))?;
+    
+    // Emit sessions-refreshed event to update UI
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn para_core_append_draft_content(name: String, content: String) -> Result<(), String> {
     log::info!("Appending to draft content for session: {name}");
     

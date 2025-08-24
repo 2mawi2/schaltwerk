@@ -6,6 +6,7 @@ import { VscDiff, VscChevronLeft, VscNotebook } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { DraftContentView } from '../drafts/DraftContentView'
 import { DraftListView } from '../drafts/DraftListView'
+import { DraftInfoPanel } from '../drafts/DraftInfoPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -101,12 +102,16 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverrid
         ) : (
           // Task/Drafts tab content
           effectiveSelection.kind === 'session' ? (
-            // For sessions, show DraftContentView - editable for drafts, read-only for running
-            <DraftContentView 
-              sessionName={effectiveSelection.payload!} 
-              editable={effectiveIsDraft} 
-              debounceMs={1000} 
-            />
+            // For draft sessions, show the info panel; for running sessions, show the task content
+            effectiveIsDraft ? (
+              <DraftInfoPanel sessionName={effectiveSelection.payload!} />
+            ) : (
+              <DraftContentView 
+                sessionName={effectiveSelection.payload!} 
+                editable={false} 
+                debounceMs={1000} 
+              />
+            )
           ) : (
             previewDraftName ? (
               <DraftContentView sessionName={previewDraftName} editable debounceMs={1000} />

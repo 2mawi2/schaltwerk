@@ -73,13 +73,13 @@ describe('RightPanelTabs', () => {
       
       // Initially shows Changes tab for running session
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
-      expect(screen.getByRole('button', { name: /Task/i })).not.toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Task')).not.toHaveClass('bg-slate-800/50')
       
       // User clicks on Task tab
-      fireEvent.click(screen.getByRole('button', { name: /Task/i }))
+      fireEvent.click(screen.getByTitle('Task'))
       
       // Task tab should now be active
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Task')).toHaveClass('bg-slate-800/50')
       expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-slate-800/50')
       
       // Switch to a different session
@@ -97,7 +97,7 @@ describe('RightPanelTabs', () => {
       )
       
       // Task tab should still be active (user preference persisted)
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Task')).toHaveClass('bg-slate-800/50')
       expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-slate-800/50')
     })
     
@@ -116,8 +116,8 @@ describe('RightPanelTabs', () => {
       )
       
       // User selects Task tab explicitly
-      fireEvent.click(screen.getByRole('button', { name: /Task/i }))
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      fireEvent.click(screen.getByTitle('Task'))
+      expect(screen.getByTitle('Task')).toHaveClass('bg-slate-800/50')
       
       // Switch to orchestrator
       mockUseSelection.mockReturnValue({
@@ -170,7 +170,9 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      // Get the tab button specifically (has title="Task")
+      const taskTab = screen.getByTitle('Task')
+      expect(taskTab).toHaveClass('bg-slate-800/50')
       // Changes tab should not be present for drafts
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
       
@@ -189,7 +191,7 @@ describe('RightPanelTabs', () => {
       )
       
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
-      expect(screen.getByRole('button', { name: /Task/i })).not.toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Task')).not.toHaveClass('bg-slate-800/50')
     })
     
     it('should allow user to override smart defaults at any time', () => {
@@ -211,8 +213,8 @@ describe('RightPanelTabs', () => {
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
       
       // User clicks Task
-      fireEvent.click(screen.getByRole('button', { name: /Task/i }))
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      fireEvent.click(screen.getByTitle('Task'))
+      expect(screen.getByTitle('Task')).toHaveClass('bg-slate-800/50')
       
       // Switch to another session - Task should stay selected
       mockUseSelection.mockReturnValue({
@@ -228,7 +230,7 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Task')).toHaveClass('bg-slate-800/50')
       
       // User now clicks Changes
       fireEvent.click(screen.getByRole('button', { name: /Changes/i }))
@@ -274,7 +276,7 @@ describe('RightPanelTabs', () => {
       expect(screen.getByTestId('diff-panel')).toBeInTheDocument()
       
       // Click Task tab
-      fireEvent.click(screen.getByRole('button', { name: /Task/i }))
+      fireEvent.click(screen.getByTitle('Task'))
       
       // Should now show Task content (DraftContentView)
       expect(screen.queryByTestId('diff-panel')).not.toBeInTheDocument()
@@ -297,8 +299,8 @@ describe('RightPanelTabs', () => {
       // Changes tab should not be visible for drafts
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
       // Only Task tab should be visible
-      expect(screen.getByRole('button', { name: /Task/i })).toBeInTheDocument()
-      expect(screen.getByRole('button', { name: /Task/i })).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Task')).toBeInTheDocument()
+      expect(screen.getByTitle('Task')).toHaveClass('bg-slate-800/50')
     })
   })
 })

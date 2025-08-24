@@ -3,7 +3,6 @@ import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
 import { Extension } from '@codemirror/state'
-import { oneDark } from '@codemirror/theme-one-dark'
 import { EditorState } from '@codemirror/state'
 
 interface MarkdownEditorProps {
@@ -60,10 +59,17 @@ const createTheme = (): Extension => {
 const customTheme = EditorView.theme({
   '&': {
     color: '#e2e8f0',
-    backgroundColor: 'rgb(30 41 59 / 0.5)',
+    backgroundColor: '#0b1220',
+  },
+  '.cm-editor': {
+    backgroundColor: '#0b1220',
+  },
+  '.cm-editor.cm-focused': {
+    backgroundColor: '#0b1220',
   },
   '.cm-content': {
     caretColor: '#d4d4d4',
+    backgroundColor: '#0b1220',
   },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: '#d4d4d4',
@@ -75,13 +81,19 @@ const customTheme = EditorView.theme({
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
   },
   '.cm-gutters': {
-    backgroundColor: 'rgb(30 41 59 / 0.5)',
+    backgroundColor: '#0b1220',
     color: '#475569',
     border: 'none',
   },
   '.cm-lineNumbers .cm-activeLineGutter': {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     color: '#c6c6c6',
+  },
+  '.cm-panels': {
+    backgroundColor: '#0b1220',
+  },
+  '.cm-panels-bottom': {
+    backgroundColor: '#0b1220',
   },
 }, { dark: true })
 
@@ -168,7 +180,7 @@ const scrollableInnerStyles: React.CSSProperties = {
   overflowY: 'auto',
   overflowX: 'hidden',
   position: 'relative',
-  backgroundColor: 'rgb(30 41 59 / 0.5)',
+  backgroundColor: '#0b1220',
 }
 
 export const MarkdownEditor = memo(function MarkdownEditor({
@@ -200,7 +212,7 @@ export const MarkdownEditor = memo(function MarkdownEditor({
           value={value}
           onChange={handleChange}
           extensions={extensions}
-          theme={oneDark}
+          theme={undefined}
           placeholder={placeholder}
           editable={!readOnly}
           basicSetup={{

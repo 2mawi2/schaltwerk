@@ -1226,6 +1226,21 @@ impl SessionManager {
             .filter(|session| session.status != SessionStatus::Cancelled)
             .collect())
     }
+    
+    pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
+        // Validate the new name
+        if new_name.is_empty() {
+            return Err(anyhow!("Session name cannot be empty"));
+        }
+        
+        // Check for invalid characters (similar to branch name validation)
+        if new_name.contains(char::is_whitespace) || new_name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) {
+            return Err(anyhow!("Session name contains invalid characters"));
+        }
+        
+        self.db.rename_draft_session(&self.repo_path, old_name, new_name)?;
+        Ok(())
+    }
 
     #[cfg(test)]
     pub fn db_ref(&self) -> &Database {

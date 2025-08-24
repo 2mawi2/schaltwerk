@@ -652,6 +652,7 @@ fn main() {
             para_core_update_session_state,
             para_core_update_draft_content,
             para_core_append_draft_content,
+            para_core_rename_draft_session,
             para_core_list_sessions_by_state,
             // Open apps commands (from module)
             open_apps::get_default_open_app,
