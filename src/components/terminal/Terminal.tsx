@@ -158,6 +158,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Open terminal to DOM first (required before WebGL addon)
         terminal.current.open(termRef.current);
         
+        // Add OSC handler to prevent color query responses from showing up in terminal
+        terminal.current.parser.registerOscHandler(10, () => true); // foreground color
+        terminal.current.parser.registerOscHandler(11, () => true); // background color
+        terminal.current.parser.registerOscHandler(12, () => true); // cursor color
+        terminal.current.parser.registerOscHandler(13, () => true); // mouse foreground color
+        terminal.current.parser.registerOscHandler(14, () => true); // mouse background color
+        terminal.current.parser.registerOscHandler(15, () => true); // Tek foreground color
+        terminal.current.parser.registerOscHandler(16, () => true); // Tek background color
+        terminal.current.parser.registerOscHandler(17, () => true); // highlight background color
+        terminal.current.parser.registerOscHandler(19, () => true); // highlight foreground color
+        
         // Add WebGL addon AFTER terminal is opened to DOM
         // This is critical for proper rendering with TUI applications
         const setupWebGLAcceleration = () => {

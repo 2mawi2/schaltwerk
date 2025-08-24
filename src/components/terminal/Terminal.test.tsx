@@ -26,6 +26,9 @@ vi.mock('@xterm/xterm', () => {
         cursorY: 0
       }
     }
+    parser = {
+      registerOscHandler: vi.fn()
+    }
     constructor(options: any) {
       this.options = options
       instances.push(this)
