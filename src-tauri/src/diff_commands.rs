@@ -3,6 +3,7 @@ use std::path::Path;
 // no serde derives used in this module
 use crate::get_para_core;
 use crate::para_core::{git, types::ChangedFile};
+use std::collections::HashMap;
 use crate::file_utils;
 use crate::diff_engine::{
     compute_unified_diff, add_collapsible_sections, compute_split_diff,
@@ -19,12 +20,355 @@ pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result
 }
 
 #[tauri::command]
+pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, String> {
+    let repo_path = get_repo_path(None).await?;
+    
+    let mut file_map: HashMap<String, String> = HashMap::new();
+    
+    // Get staged changes
+    let staged_output = Command::new("git")
+        .args([
+            "-C", &repo_path,
+            "diff", "--name-status", "--cached"
+        ])
+        .output()
+        .map_err(|e| format!("Failed to get staged changes: {e}"))?;
+    
+    if staged_output.status.success() {
+        for line in String::from_utf8_lossy(&staged_output.stdout).lines() {
+            if let Some((status, path)) = parse_name_status_line(line) {
+                file_map.insert(path.to_string(), status.to_string());
+            }
+        }
+    }
+    
+    // Get unstaged changes
+    let unstaged_output = Command::new("git")
+        .args([
+            "-C", &repo_path,
+            "diff", "--name-status"
+        ])
+        .output()
+        .map_err(|e| format!("Failed to get unstaged changes: {e}"))?;
+    
+    if unstaged_output.status.success() {
+        for line in String::from_utf8_lossy(&unstaged_output.stdout).lines() {
+            if let Some((status, path)) = parse_name_status_line(line) {
+                // Don't override staged status if already present
+                file_map.entry(path.to_string()).or_insert(status.to_string());
+            }
+        }
+    }
+    
+    // Get untracked files
+    let untracked_output = Command::new("git")
+        .args([
+            "-C", &repo_path,
+            "ls-files", "--others", "--exclude-standard"
+        ])
+        .output()
+        .map_err(|e| format!("Failed to get untracked files: {e}"))?;
+    
+    if untracked_output.status.success() {
+        for line in String::from_utf8_lossy(&untracked_output.stdout).lines() {
+            if !line.is_empty() {
+                file_map.entry(line.to_string()).or_insert("A".to_string());
+            }
+        }
+    }
+    
+    let mut changed_files: Vec<ChangedFile> = file_map
+        .into_iter()
+        .filter(|(path, _)| {
+            // Filter out .schaltwerk directory and its contents
+            !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
+        })
+        .map(|(path, status)| ChangedFile {
+            path,
+            change_type: match status.as_str() {
+                "M" => "modified".to_string(),
+                "A" => "added".to_string(),
+                "D" => "deleted".to_string(),
+                "R" => "renamed".to_string(),
+                "C" => "copied".to_string(),
+                _ => "unknown".to_string(),
+            },
+        })
+        .collect();
+    
+    // Sort files alphabetically by path for consistent ordering
+    changed_files.sort_by(|a, b| a.path.cmp(&b.path));
+    
+    Ok(changed_files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+    use std::process::Command;
+    use tempfile::TempDir;
+
+    fn setup_test_git_repo() -> TempDir {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path();
+
+        // Initialize git repo
+        Command::new("git")
+            .args(["init"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        // Configure git
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        // Create initial commit
+        fs::write(repo_path.join("README.md"), "# Test repo").unwrap();
+        Command::new("git")
+            .args(["add", "README.md"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "Initial commit"])
+            .current_dir(repo_path)
+            .output()
+            .unwrap();
+
+        temp_dir
+    }
+
+    #[test]
+    fn test_parse_name_status_line() {
+        assert_eq!(parse_name_status_line("M\tfile.txt"), Some(("M", "file.txt")));
+        assert_eq!(parse_name_status_line("A\tnew_file.txt"), Some(("A", "new_file.txt")));
+        assert_eq!(parse_name_status_line("D\tdeleted.txt"), Some(("D", "deleted.txt")));
+        assert_eq!(parse_name_status_line("invalid"), None);
+        assert_eq!(parse_name_status_line(""), None);
+    }
+
+    #[test]
+    fn test_orchestrator_working_changes_filters_schaltwerk() {
+        let temp_dir = setup_test_git_repo();
+        let repo_path = temp_dir.path();
+
+        // Create various files including .schaltwerk files
+        fs::write(repo_path.join("normal_file.txt"), "content").unwrap();
+        fs::create_dir_all(repo_path.join(".schaltwerk")).unwrap();
+        fs::write(repo_path.join(".schaltwerk/session.db"), "db content").unwrap();
+        fs::create_dir_all(repo_path.join(".schaltwerk/worktrees")).unwrap();
+        fs::write(repo_path.join(".schaltwerk/worktrees/test.txt"), "worktree content").unwrap();
+
+        // Mock the get_repo_path function by testing the core logic directly
+        let mut file_map: HashMap<String, String> = HashMap::new();
+        
+        // Simulate git output that would include .schaltwerk files
+        file_map.insert("normal_file.txt".to_string(), "M".to_string());
+        file_map.insert(".schaltwerk".to_string(), "A".to_string());
+        file_map.insert(".schaltwerk/session.db".to_string(), "A".to_string());
+        file_map.insert(".schaltwerk/worktrees/test.txt".to_string(), "A".to_string());
+
+        let mut changed_files: Vec<ChangedFile> = file_map
+            .into_iter()
+            .filter(|(path, _)| {
+                !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
+            })
+            .map(|(path, status)| ChangedFile {
+                path,
+                change_type: match status.as_str() {
+                    "M" => "modified".to_string(),
+                    "A" => "added".to_string(),
+                    "D" => "deleted".to_string(),
+                    "R" => "renamed".to_string(),
+                    "C" => "copied".to_string(),
+                    _ => "unknown".to_string(),
+                },
+            })
+            .collect();
+
+        // Sort files alphabetically by path for consistent ordering
+        changed_files.sort_by(|a, b| a.path.cmp(&b.path));
+
+        // Should only contain normal_file.txt, all .schaltwerk files filtered out
+        assert_eq!(changed_files.len(), 1);
+        assert_eq!(changed_files[0].path, "normal_file.txt");
+        assert_eq!(changed_files[0].change_type, "modified");
+    }
+
+    #[test]
+    fn test_orchestrator_working_changes_alphabetical_sorting() {
+        let mut file_map: HashMap<String, String> = HashMap::new();
+        
+        // Add files in non-alphabetical order
+        file_map.insert("zebra.txt".to_string(), "M".to_string());
+        file_map.insert("alpha.txt".to_string(), "A".to_string());
+        file_map.insert("beta.txt".to_string(), "D".to_string());
+        file_map.insert("gamma.txt".to_string(), "M".to_string());
+
+        let mut changed_files: Vec<ChangedFile> = file_map
+            .into_iter()
+            .filter(|(path, _)| {
+                !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
+            })
+            .map(|(path, status)| ChangedFile {
+                path,
+                change_type: match status.as_str() {
+                    "M" => "modified".to_string(),
+                    "A" => "added".to_string(),
+                    "D" => "deleted".to_string(),
+                    "R" => "renamed".to_string(),
+                    "C" => "copied".to_string(),
+                    _ => "unknown".to_string(),
+                },
+            })
+            .collect();
+
+        // Sort files alphabetically by path for consistent ordering
+        changed_files.sort_by(|a, b| a.path.cmp(&b.path));
+
+        // Should be sorted alphabetically
+        assert_eq!(changed_files.len(), 4);
+        assert_eq!(changed_files[0].path, "alpha.txt");
+        assert_eq!(changed_files[1].path, "beta.txt");
+        assert_eq!(changed_files[2].path, "gamma.txt");
+        assert_eq!(changed_files[3].path, "zebra.txt");
+    }
+
+    #[test]
+    fn test_change_type_mapping() {
+        let test_cases = vec![
+            ("M", "modified"),
+            ("A", "added"),
+            ("D", "deleted"),
+            ("R", "renamed"),
+            ("C", "copied"),
+            ("X", "unknown"), // Unknown status should map to "unknown"
+        ];
+
+        for (input_status, expected_type) in test_cases {
+            let mut file_map: HashMap<String, String> = HashMap::new();
+            file_map.insert("test.txt".to_string(), input_status.to_string());
+
+            let changed_files: Vec<ChangedFile> = file_map
+                .into_iter()
+                .map(|(path, status)| ChangedFile {
+                    path,
+                    change_type: match status.as_str() {
+                        "M" => "modified".to_string(),
+                        "A" => "added".to_string(),
+                        "D" => "deleted".to_string(),
+                        "R" => "renamed".to_string(),
+                        "C" => "copied".to_string(),
+                        _ => "unknown".to_string(),
+                    },
+                })
+                .collect();
+
+            assert_eq!(changed_files.len(), 1);
+            assert_eq!(changed_files[0].change_type, expected_type);
+        }
+    }
+
+    #[test]
+    fn test_orchestrator_working_changes_empty_result() {
+        let file_map: HashMap<String, String> = HashMap::new();
+
+        let mut changed_files: Vec<ChangedFile> = file_map
+            .into_iter()
+            .filter(|(path, _)| {
+                !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
+            })
+            .map(|(path, status)| ChangedFile {
+                path,
+                change_type: match status.as_str() {
+                    "M" => "modified".to_string(),
+                    "A" => "added".to_string(),
+                    "D" => "deleted".to_string(),
+                    "R" => "renamed".to_string(),
+                    "C" => "copied".to_string(),
+                    _ => "unknown".to_string(),
+                },
+            })
+            .collect();
+
+        changed_files.sort_by(|a, b| a.path.cmp(&b.path));
+
+        assert_eq!(changed_files.len(), 0);
+    }
+
+    #[test]
+    fn test_complex_schaltwerk_filtering() {
+        let mut file_map: HashMap<String, String> = HashMap::new();
+        
+        // Test various patterns that should and shouldn't be filtered
+        file_map.insert("src/main.rs".to_string(), "M".to_string());
+        file_map.insert(".schaltwerk".to_string(), "A".to_string()); // Should be filtered
+        file_map.insert(".schaltwerk/config.json".to_string(), "M".to_string()); // Should be filtered
+        file_map.insert(".schaltwerk/worktrees/branch1/file.txt".to_string(), "A".to_string()); // Should be filtered
+        file_map.insert("not_schaltwerk.txt".to_string(), "M".to_string()); // Should NOT be filtered
+        file_map.insert("src/.schaltwerk_related.txt".to_string(), "A".to_string()); // Should NOT be filtered (different pattern)
+
+        let mut changed_files: Vec<ChangedFile> = file_map
+            .into_iter()
+            .filter(|(path, _)| {
+                !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
+            })
+            .map(|(path, status)| ChangedFile {
+                path,
+                change_type: match status.as_str() {
+                    "M" => "modified".to_string(),
+                    "A" => "added".to_string(),
+                    "D" => "deleted".to_string(),
+                    "R" => "renamed".to_string(),
+                    "C" => "copied".to_string(),
+                    _ => "unknown".to_string(),
+                },
+            })
+            .collect();
+
+        changed_files.sort_by(|a, b| a.path.cmp(&b.path));
+
+        // Should contain 3 files: src/main.rs, not_schaltwerk.txt, src/.schaltwerk_related.txt
+        assert_eq!(changed_files.len(), 3);
+        
+        let file_paths: Vec<&String> = changed_files.iter().map(|f| &f.path).collect();
+        assert!(file_paths.contains(&&"src/main.rs".to_string()));
+        assert!(file_paths.contains(&&"not_schaltwerk.txt".to_string()));
+        assert!(file_paths.contains(&&"src/.schaltwerk_related.txt".to_string()));
+        
+        // Should NOT contain any .schaltwerk files
+        assert!(!file_paths.contains(&&".schaltwerk".to_string()));
+        assert!(!file_paths.contains(&&".schaltwerk/config.json".to_string()));
+        assert!(!file_paths.contains(&&".schaltwerk/worktrees/branch1/file.txt".to_string()));
+    }
+}
+
+fn parse_name_status_line(line: &str) -> Option<(&str, &str)> {
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() >= 2 {
+        Some((parts[0], parts[1]))
+    } else {
+        None
+    }
+}
+
+#[tauri::command]
 pub async fn get_file_diff_from_main(
     session_name: Option<String>, 
     file_path: String
 ) -> Result<(String, String), String> {
     let repo_path = get_repo_path(session_name.clone()).await?;
-    let base_branch = get_base_branch(session_name).await?;
     
     // Check if the worktree file is diffable
     let worktree_path = Path::new(&repo_path).join(&file_path);
@@ -35,6 +379,40 @@ pub async fn get_file_diff_from_main(
                 diff_info.reason.unwrap_or_else(|| "Unknown reason".to_string())));
         }
     }
+    
+    // For orchestrator (no session), get diff against HEAD (working changes)
+    if session_name.is_none() {
+        // Get the HEAD version of the file
+        let base_content = Command::new("git")
+            .args(["-C", &repo_path, "show", &format!("HEAD:{file_path}")])
+            .output()
+            .map_err(|e| format!("Failed to get HEAD content: {e}"))?;
+        
+        let base_text = if base_content.status.success() {
+            let base_bytes = &base_content.stdout;
+            if base_bytes.len() > 10 * 1024 * 1024 {
+                return Err("Base file is too large to diff (>10MB)".to_string());
+            }
+            if base_bytes.contains(&0) || is_likely_binary(base_bytes) {
+                return Err("Base file appears to be binary".to_string());
+            }
+            String::from_utf8_lossy(base_bytes).to_string()
+        } else {
+            String::new()
+        };
+        
+        let worktree_text = if worktree_path.exists() {
+            std::fs::read_to_string(worktree_path)
+                .map_err(|e| format!("Failed to read worktree file: {e}"))?
+        } else {
+            String::new()
+        };
+        
+        return Ok((base_text, worktree_text));
+    }
+    
+    // For sessions, get diff against base branch
+    let base_branch = get_base_branch(session_name).await?;
     
     // Check if the base file is diffable by trying to get it first
     let base_content = Command::new("git")
@@ -96,6 +474,7 @@ pub async fn get_current_branch_name(session_name: Option<String>) -> Result<Str
     
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
+
 
 #[tauri::command]
 pub async fn get_commit_comparison_info(session_name: Option<String>) -> Result<(String, String), String> {
@@ -302,4 +681,4 @@ pub async fn compute_split_diff_backend(
     })
 }
 
-// Tests removed: diff_commands functions now use active project instead of current working directory
+

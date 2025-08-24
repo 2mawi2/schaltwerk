@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 use anyhow::{Result, anyhow};
@@ -144,11 +144,55 @@ impl ProjectManager {
             new_project
         };
         
+        // Ensure .schaltwerk is excluded from git
+        if let Err(e) = Self::ensure_schaltwerk_excluded(&path) {
+            log::warn!("Failed to ensure .schaltwerk exclusion: {e}");
+        }
+
         // Update current project
         *self.current_project.write().await = Some(path.clone());
         log::info!("✅ Current project set to: {}", path.display());
         
         Ok(project)
+    }
+    
+    /// Ensures .schaltwerk folder is excluded from git using .git/info/exclude
+    fn ensure_schaltwerk_excluded(project_path: &Path) -> Result<()> {
+        let git_dir = project_path.join(".git");
+        if !git_dir.exists() {
+            return Ok(()); // Not a git repository
+        }
+        
+        let exclude_file = git_dir.join("info").join("exclude");
+        
+        // Ensure the info directory exists
+        if let Some(parent) = exclude_file.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        
+        // Check if .schaltwerk is already excluded
+        let exclude_content = if exclude_file.exists() {
+            std::fs::read_to_string(&exclude_file)?
+        } else {
+            String::new()
+        };
+        
+        // Add .schaltwerk exclusion if not already present
+        if !exclude_content.lines().any(|line| {
+            let trimmed = line.trim();
+            trimmed == ".schaltwerk" || trimmed == ".schaltwerk/" || 
+            trimmed == "/.schaltwerk" || trimmed == "/.schaltwerk/"
+        }) {
+            let mut new_content = exclude_content;
+            if !new_content.is_empty() && !new_content.ends_with('\n') {
+                new_content.push('\n');
+            }
+            new_content.push_str(".schaltwerk/\n");
+            std::fs::write(&exclude_file, new_content)?;
+            log::info!("✅ Added .schaltwerk/ to {}", exclude_file.display());
+        }
+        
+        Ok(())
     }
     
     /// Get the current active project

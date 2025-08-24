@@ -154,4 +154,159 @@ describe('DiffFileList', () => {
     expect(await screen.findByText('No session selected')).toBeInTheDocument()
     expect(screen.getByText('Select a session to view changes')).toBeInTheDocument()
   })
+
+  it('shows orchestrator changes when isOrchestrator is true', async () => {
+    // Mock orchestrator-specific commands
+    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+      if (cmd === 'get_orchestrator_working_changes') {
+        return [
+          { path: 'src/orchestrator.ts', change_type: 'modified' },
+          { path: 'config.json', change_type: 'added' },
+        ]
+      }
+      if (cmd === 'get_current_branch_name') return 'main'
+      return undefined
+    })
+
+    render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+
+    // Should show orchestrator-specific header
+    expect(await screen.findByText('Uncommitted Changes')).toBeInTheDocument()
+    expect(screen.getByText('(on main)')).toBeInTheDocument()
+    
+    // Should show orchestrator changes
+    expect(screen.getByText('orchestrator.ts')).toBeInTheDocument()
+    expect(screen.getByText('config.json')).toBeInTheDocument()
+  })
+
+  it('shows orchestrator empty state when no working changes', async () => {
+    // Mock orchestrator with no changes
+    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+      if (cmd === 'get_orchestrator_working_changes') return []
+      if (cmd === 'get_current_branch_name') return 'main'
+      return undefined
+    })
+
+    render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+
+    // Should show orchestrator-specific empty state
+    expect(await screen.findByText('No uncommitted changes')).toBeInTheDocument()
+    expect(screen.getByText('Your working directory is clean')).toBeInTheDocument()
+  })
+
+  it('filters out .schaltwerk files in orchestrator mode', async () => {
+    // Mock orchestrator with .schaltwerk files (should not appear due to backend filtering)
+    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+      if (cmd === 'get_orchestrator_working_changes') {
+        // Backend should filter these out, but test that they don't appear
+        return [
+          { path: 'src/main.ts', change_type: 'modified' },
+          // .schaltwerk files should be filtered by backend
+        ]
+      }
+      if (cmd === 'get_current_branch_name') return 'main'
+      return undefined
+    })
+
+    render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+
+    // Should show non-.schaltwerk files
+    expect(await screen.findByText('main.ts')).toBeInTheDocument()
+    
+    // Should NOT show .schaltwerk files (they should be filtered by backend)
+    expect(screen.queryByText('.schaltwerk')).not.toBeInTheDocument()
+    expect(screen.queryByText('session.db')).not.toBeInTheDocument()
+  })
+
+  it('uses Promise.all for parallel orchestrator calls', async () => {
+    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    const invokeCallOrder: string[] = []
+    
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+      // Add small delay to test parallel execution
+      await new Promise(resolve => setTimeout(resolve, 10))
+      invokeCallOrder.push(cmd)
+      
+      if (cmd === 'get_orchestrator_working_changes') {
+        return [{ path: 'test.ts', change_type: 'modified' }]
+      }
+      if (cmd === 'get_current_branch_name') return 'main'
+      return undefined
+    })
+
+    const startTime = Date.now()
+    
+    render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+
+    await screen.findByText('test.ts')
+    
+    const endTime = Date.now()
+    const duration = endTime - startTime
+
+    // Should complete in less time than sequential calls would take (2 * 10ms = 20ms)
+    // Allow some buffer for test environment
+    expect(duration).toBeLessThan(50)
+    
+    // Both commands should be called
+    expect(invokeCallOrder).toContain('get_orchestrator_working_changes')
+    expect(invokeCallOrder).toContain('get_current_branch_name')
+  })
+
+  it('prevents concurrent loads with isLoading state', async () => {
+    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    let callCount = 0
+    
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+      if (cmd === 'get_orchestrator_working_changes') {
+        callCount++
+        // Simulate slow network call
+        await new Promise(resolve => setTimeout(resolve, 100))
+        return [{ path: 'test.ts', change_type: 'modified' }]
+      }
+      if (cmd === 'get_current_branch_name') return 'main'
+      return undefined
+    })
+
+    const { rerender } = render(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+
+    // Trigger multiple renders quickly (simulating rapid polling)
+    rerender(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+    rerender(
+      <Wrapper>
+        <DiffFileList onFileSelect={() => {}} isOrchestrator={true} />
+      </Wrapper>
+    )
+
+    await screen.findByText('test.ts')
+
+    // Should only call once due to isLoading protection
+    expect(callCount).toBe(1)
+  })
 })

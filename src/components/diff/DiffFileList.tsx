@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useSelection } from '../../contexts/SelectionContext'
@@ -33,12 +33,14 @@ interface FileChangeEvent {
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
   sessionNameOverride?: string
+  isOrchestrator?: boolean
 }
 
-export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileListProps) {
+export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator }: DiffFileListProps) {
   const { selection } = useSelection()
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
   const [branchInfo, setBranchInfo] = useState<{ 
     currentBranch: string, 
     baseBranch: string,
@@ -47,36 +49,73 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
   } | null>(null)
   
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+  const lastResultRef = useRef<string>('')
   
   const loadChangedFiles = useCallback(async () => {
-    // Use the current sessionName value from closure
-    const currentSession = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
-    if (!currentSession) return
+    if (isLoading) return // Prevent concurrent loads
+    
+    setIsLoading(true)
     
     try {
-      const changedFiles = await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName: currentSession })
-      setFiles(changedFiles)
+      // Use the current sessionName value from closure
+      const currentSession = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
       
-      const currentBranch = await invoke<string>('get_current_branch_name', { sessionName: currentSession })
-      const baseBranch = await invoke<string>('get_base_branch_name', { sessionName: currentSession })
-      const [baseCommit, headCommit] = await invoke<[string, string]>('get_commit_comparison_info', { sessionName: currentSession })
+      // For orchestrator mode (no session), get working changes
+      if (isOrchestrator && !currentSession) {
+        const [changedFiles, currentBranch] = await Promise.all([
+          invoke<ChangedFile[]>('get_orchestrator_working_changes'),
+          invoke<string>('get_current_branch_name', { sessionName: null })
+        ])
+        
+        // Check if results actually changed to avoid unnecessary re-renders
+        const resultSignature = `${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
+        if (resultSignature !== lastResultRef.current) {
+          lastResultRef.current = resultSignature
+          setFiles(changedFiles)
+          setBranchInfo({
+            currentBranch,
+            baseBranch: 'Working Directory',
+            baseCommit: 'HEAD',
+            headCommit: 'Working'
+          })
+        }
+        return
+      }
       
-      setBranchInfo({
-        currentBranch,
-        baseBranch,
-        baseCommit,
-        headCommit
-      })
+      // Regular session mode
+      if (!currentSession) return
+      
+      const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit]] = await Promise.all([
+        invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName: currentSession }),
+        invoke<string>('get_current_branch_name', { sessionName: currentSession }),
+        invoke<string>('get_base_branch_name', { sessionName: currentSession }),
+        invoke<[string, string]>('get_commit_comparison_info', { sessionName: currentSession })
+      ])
+      
+      // Check if results actually changed to avoid unnecessary re-renders
+      const resultSignature = `${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}-${baseBranch}`
+      if (resultSignature !== lastResultRef.current) {
+        lastResultRef.current = resultSignature
+        setFiles(changedFiles)
+        setBranchInfo({
+          currentBranch,
+          baseBranch,
+          baseCommit,
+          headCommit
+        })
+      }
     } catch (error) {
       console.error('Failed to load changed files:', error)
+    } finally {
+      setIsLoading(false)
     }
-  }, [sessionNameOverride, selection])
+  }, [sessionNameOverride, selection, isOrchestrator, isLoading])
 
   // Path resolver used by top bar now; no local button anymore
   
   useEffect(() => {
-    if (!sessionName) {
-      // Clear files when in orchestrator mode
+    if (!sessionName && !isOrchestrator) {
+      // Clear files when no session and not orchestrator
       setFiles([])
       setBranchInfo(null)
       return
@@ -90,7 +129,13 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
 
     // Setup async operations
     const setup = async () => {
-      // Try to start file watcher
+      // For orchestrator mode, poll less frequently since working directory changes are less frequent
+      if (isOrchestrator && !sessionName) {
+        pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for orchestrator
+        return
+      }
+      
+      // Try to start file watcher for session mode
       try {
         await invoke('start_file_watcher', { sessionName })
         console.log(`File watcher started for session: ${sessionName}`)
@@ -140,7 +185,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
         clearInterval(pollInterval)
       }
     }
-  }, [sessionName])  // Remove loadChangedFiles from dependencies!
+  }, [sessionName, isOrchestrator])  // Remove loadChangedFiles from dependencies!
   
   const handleFileClick = (file: ChangedFile) => {
     setSelectedFile(file.path)
@@ -161,10 +206,19 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
       <div className="px-3 py-2 border-b border-slate-800 relative">
         <div className="flex items-center justify-between pr-12">
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium">Changes from {branchInfo?.baseBranch || 'base'}</span>
-            {branchInfo && (
+            <span className="text-sm font-medium">
+              {isOrchestrator && !sessionName 
+                ? 'Uncommitted Changes' 
+                : `Changes from ${branchInfo?.baseBranch || 'base'}`}
+            </span>
+            {branchInfo && !isOrchestrator && (
               <span className="text-xs text-slate-500">
                 ({branchInfo.currentBranch} → {branchInfo.baseBranch})
+              </span>
+            )}
+            {branchInfo && isOrchestrator && (
+              <span className="text-xs text-slate-500">
+                (on {branchInfo.currentBranch})
               </span>
             )}
           </div>
@@ -176,7 +230,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
         </div>
       </div>
       
-      {sessionName === null ? (
+      {sessionName === null && !isOrchestrator ? (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center text-slate-500">
             <div className="text-sm">No session selected</div>
@@ -221,11 +275,17 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
         <div className="flex-1 flex items-center justify-center text-slate-500">
           <div className="text-center">
             <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
-            <div className="mb-1">No changes from {branchInfo?.baseBranch || 'base'}</div>
+            <div className="mb-1">
+              {isOrchestrator && !sessionName 
+                ? 'No uncommitted changes' 
+                : `No changes from ${branchInfo?.baseBranch || 'base'}`}
+            </div>
             <div className="text-xs">
-              {branchInfo?.currentBranch === branchInfo?.baseBranch 
-                ? `You are on the ${branchInfo?.baseBranch} branch` 
-                : `Your branch is up to date with ${branchInfo?.baseBranch || 'base'}`
+              {isOrchestrator && !sessionName 
+                ? 'Your working directory is clean'
+                : branchInfo?.currentBranch === branchInfo?.baseBranch 
+                  ? `You are on the ${branchInfo?.baseBranch} branch` 
+                  : `Your branch is up to date with ${branchInfo?.baseBranch || 'base'}`
               }
             </div>
           </div>

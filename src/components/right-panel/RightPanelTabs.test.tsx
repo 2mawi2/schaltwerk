@@ -153,8 +153,8 @@ describe('RightPanelTabs', () => {
       )
       
       expect(screen.getByRole('button', { name: /Drafts/i })).toHaveClass('bg-slate-800/50')
-      // Changes tab should not be present in orchestrator
-      expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
+      // Changes tab should be present in orchestrator
+      expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
       
       // Test draft session defaults to Task and changes tab is hidden
       mockUseSelection.mockReturnValue({
@@ -250,10 +250,9 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // In orchestrator, the persisted "changes" selection should show diff panel content
-      // but only Drafts tab is visible since orchestrator doesn't have changes tab
+      // In orchestrator, both Changes and Drafts tabs should be visible
       expect(screen.getByRole('button', { name: /Drafts/i })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
     })
   })
   

@@ -47,7 +47,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverrid
   const isOrchestrator = effectiveSelection.kind === 'orchestrator'
   const rightTabLabel = isOrchestrator ? 'Drafts' : 'Task'
   const showBackButton = isOrchestrator && !!previewDraftName
-  const showChangesTab = effectiveSelection.kind === 'session' && !effectiveIsDraft
+  const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsDraft) || isOrchestrator
 
   return (
     <div className="h-full flex flex-col bg-panel">
@@ -98,6 +98,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverrid
           <SimpleDiffPanel 
             onFileSelect={onFileSelect} 
             sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
+            isOrchestrator={effectiveSelection.kind === 'orchestrator'}
           />
         ) : (
           // Task/Drafts tab content
