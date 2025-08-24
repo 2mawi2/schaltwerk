@@ -384,8 +384,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         const saveSettings = async () => {
             try {
                 await invoke('set_project_sessions_settings', { 
-                    filterMode, 
-                    sortMode 
+                    settings: {
+                        filter_mode: filterMode,
+                        sort_mode: sortMode
+                    }
                 })
             } catch (error) {
                 console.warn('Failed to save sessions settings:', error)

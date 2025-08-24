@@ -494,27 +494,86 @@ schaltwerk_draft_delete(session_name: "old-draft")
       },
       {
         name: "schaltwerk_get_current_tasks",
-        description: `Get all current tasks (both active sessions and drafts).
+        description: `Get current tasks with flexible field selection to manage response size.
 
-🎯 PURPOSE: Retrieve a comprehensive list of all current work including both active sessions and drafts.
+🎯 PURPOSE: Retrieve task information with control over which fields to include, preventing large responses.
 
-📊 OUTPUT: Returns JSON array with essential task information:
-- name: Task identifier
+📊 FIELD SELECTION:
+Use the 'fields' parameter to specify which fields to include. This is critical for managing response size.
+
+🔧 AVAILABLE FIELDS:
+- name: Task identifier (always included)
 - display_name: Human-readable name
 - status: 'active' | 'draft' | 'cancelled' | 'paused'
 - session_state: 'Draft' | 'Running' | 'Reviewed'
 - created_at: ISO timestamp
-- last_activity: ISO timestamp or null
-- initial_prompt: Original task description
-- draft_content: Draft content (for drafts only)
+- last_activity: ISO timestamp
+- branch: Git branch name
+- worktree_path: Local directory path
+- ready_to_merge: Boolean for review status
+- initial_prompt: Original task description (can be large)
+- draft_content: Full draft content (can be VERY large)
 
-📋 USAGE:
+📋 USAGE PATTERNS:
+
+1️⃣ QUICK OVERVIEW (default - minimal fields):
 schaltwerk_get_current_tasks()
+Returns: name, status, session_state, branch only
 
-💡 Use this to get a complete overview of all current work items across the system.`,
+2️⃣ TASK MANAGEMENT (medium detail):
+schaltwerk_get_current_tasks(fields: ["name", "status", "session_state", "branch", "created_at", "last_activity"])
+Use when: Managing sessions, checking activity, organizing work
+
+3️⃣ DRAFT SELECTION (content preview):
+schaltwerk_get_current_tasks(
+  fields: ["name", "status", "session_state", "draft_content"],
+  status_filter: "draft",
+  content_preview_length: 200
+)
+Use when: Browsing drafts to find the right one to start
+
+4️⃣ FULL DETAILS (use sparingly):
+schaltwerk_get_current_tasks(fields: ["all"])
+Use when: Need complete information for specific analysis
+
+⚠️ PERFORMANCE TIPS:
+- Never request 'draft_content' or 'initial_prompt' unless needed
+- Use status_filter to reduce dataset size
+- Use content_preview_length for draft browsing
+- Default fields are optimized for common operations
+
+🎯 FILTERING:
+- status_filter: Filter by status ('draft', 'active', 'reviewed')
+- Reduces response size by excluding irrelevant tasks
+
+💡 BEST PRACTICES:
+- Start with minimal fields, add more if needed
+- Use filters to focus on relevant tasks
+- Request content fields only when examining specific tasks`,
         inputSchema: {
           type: "object",
-          properties: {},
+          properties: {
+            fields: {
+              type: "array",
+              items: {
+                type: "string",
+                enum: ["name", "display_name", "status", "session_state", "created_at", "last_activity", "branch", "worktree_path", "ready_to_merge", "initial_prompt", "draft_content", "all"]
+              },
+              description: "Fields to include in response. Defaults to ['name', 'status', 'session_state', 'branch']. Use 'all' for complete data.",
+              default: ["name", "status", "session_state", "branch"]
+            },
+            status_filter: {
+              type: "string",
+              enum: ["draft", "active", "reviewed", "all"],
+              description: "Filter tasks by status. 'reviewed' shows ready_to_merge sessions.",
+              default: "all"
+            },
+            content_preview_length: {
+              type: "number",
+              description: "When including draft_content or initial_prompt, limit to this many characters (default: no limit)",
+              minimum: 0
+            }
+          },
           additionalProperties: false
         }
       }
@@ -748,24 +807,87 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
       }
 
       case "schaltwerk_get_current_tasks": {
-        const tasks = await bridge.getCurrentTasks()
+        const taskArgs = args as {
+          fields?: string[],
+          status_filter?: 'draft' | 'active' | 'reviewed' | 'all',
+          content_preview_length?: number
+        }
         
-        // Return essential task information
-        const essentialTasks = tasks.map(t => ({
-          name: t.name,
-          display_name: t.display_name || t.name,
-          status: t.status,
-          session_state: t.session_state,
-          created_at: t.created_at ? new Date(t.created_at).toISOString() : null,
-          last_activity: t.last_activity ? new Date(t.last_activity).toISOString() : null,
-          initial_prompt: t.initial_prompt || null,
-          draft_content: t.draft_content || null,
-          ready_to_merge: t.ready_to_merge || false,
-          branch: t.branch,
-          worktree_path: t.worktree_path
-        }))
+        // Default to minimal fields if not specified
+        const requestedFields = taskArgs.fields || ['name', 'status', 'session_state', 'branch']
+        const includeAll = requestedFields.includes('all')
         
-        result = JSON.stringify(essentialTasks, null, 2)
+        let tasks = await bridge.getCurrentTasks()
+        
+        // Apply status filter
+        if (taskArgs.status_filter && taskArgs.status_filter !== 'all') {
+          tasks = tasks.filter(t => {
+            switch (taskArgs.status_filter) {
+              case 'draft':
+                return t.status === 'draft'
+              case 'active':
+                return t.status !== 'draft' && !t.ready_to_merge
+              case 'reviewed':
+                return t.ready_to_merge === true
+              default:
+                return true
+            }
+          })
+        }
+        
+        // Build response with only requested fields
+        const formattedTasks = tasks.map(t => {
+          const task: any = {
+            name: t.name // Always include name
+          }
+          
+          // Add requested fields
+          if (includeAll || requestedFields.includes('display_name')) {
+            task.display_name = t.display_name || t.name
+          }
+          if (includeAll || requestedFields.includes('status')) {
+            task.status = t.status
+          }
+          if (includeAll || requestedFields.includes('session_state')) {
+            task.session_state = t.session_state
+          }
+          if (includeAll || requestedFields.includes('created_at')) {
+            task.created_at = t.created_at ? new Date(t.created_at).toISOString() : null
+          }
+          if (includeAll || requestedFields.includes('last_activity')) {
+            task.last_activity = t.last_activity ? new Date(t.last_activity).toISOString() : null
+          }
+          if (includeAll || requestedFields.includes('branch')) {
+            task.branch = t.branch
+          }
+          if (includeAll || requestedFields.includes('worktree_path')) {
+            task.worktree_path = t.worktree_path
+          }
+          if (includeAll || requestedFields.includes('ready_to_merge')) {
+            task.ready_to_merge = t.ready_to_merge || false
+          }
+          
+          // Handle content fields with optional preview
+          if (includeAll || requestedFields.includes('initial_prompt')) {
+            let prompt = t.initial_prompt || null
+            if (prompt && taskArgs.content_preview_length && prompt.length > taskArgs.content_preview_length) {
+              prompt = prompt.substring(0, taskArgs.content_preview_length) + '...'
+            }
+            task.initial_prompt = prompt
+          }
+          
+          if (includeAll || requestedFields.includes('draft_content')) {
+            let content = t.draft_content || null
+            if (content && taskArgs.content_preview_length && content.length > taskArgs.content_preview_length) {
+              content = content.substring(0, taskArgs.content_preview_length) + '...'
+            }
+            task.draft_content = content
+          }
+          
+          return task
+        })
+        
+        result = JSON.stringify(formattedTasks, null, 2)
         break
       }
 

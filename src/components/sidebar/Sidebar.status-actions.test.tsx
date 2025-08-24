@@ -62,6 +62,7 @@ describe('Sidebar status indicators and actions', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'para_core_list_sessions_by_state') return []
       if (cmd === 'para_core_unmark_session_ready') return undefined
       if (cmd === 'get_current_directory') return '/cwd'
@@ -142,6 +143,7 @@ describe('Sidebar status indicators and actions', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'para_core_list_sessions_by_state') return []
       if (cmd === 'get_current_directory') return '/cwd'
       if (cmd === 'terminal_exists') return false

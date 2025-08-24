@@ -67,6 +67,9 @@ describe('Session Switching Performance', () => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return mockSessions
             }
+            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+                return mockSessions
+            }
             if (cmd === 'para_core_list_sessions_by_state') return []
             if (cmd === 'get_current_directory') {
                 return '/test/dir'
@@ -145,6 +148,10 @@ describe('Session Switching Performance', () => {
         
         vi.mocked(invoke).mockImplementation(async (cmd) => {
             if (cmd === 'para_core_list_enriched_sessions') {
+                invokeCallCount++
+                return mockSessions
+            }
+            if (cmd === 'para_core_list_enriched_sessions_sorted') {
                 invokeCallCount++
                 return mockSessions
             }

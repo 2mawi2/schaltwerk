@@ -107,6 +107,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -151,6 +152,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -203,6 +205,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -257,6 +260,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -322,6 +326,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
+            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true

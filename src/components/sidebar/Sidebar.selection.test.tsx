@@ -67,6 +67,9 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return [draftSession, runningSession1, runningSession2]
             }
+            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+                return [draftSession, runningSession1, runningSession2]
+            }
             if (cmd === 'para_core_list_sessions_by_state') {
                 return []
             }
