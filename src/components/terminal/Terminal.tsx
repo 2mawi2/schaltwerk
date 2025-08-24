@@ -140,7 +140,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             fontSize: terminalFontSize,
             cursorBlink: !isTuiAgent,
             cursorStyle: isTuiAgent ? 'underline' : 'block',
-            cursorInactiveStyle: 'none',
+            cursorInactiveStyle: 'outline',
             scrollback: 10000,
             // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
