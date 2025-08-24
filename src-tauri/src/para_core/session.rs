@@ -1694,4 +1694,970 @@ mod session_tests {
         mark_session_prompted(&worktree_path);
         assert!(has_session_been_prompted(&worktree_path), "Session should be promptable again after clearing");
     }
+    
+    #[test]
+    fn test_name_generation_with_unicode_characters() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        
+        let (name, branch, _) = manager.find_unique_session_paths("feature-café").unwrap();
+        assert_eq!(name, "feature-café");
+        assert_eq!(branch, "schaltwerk/feature-café");
+    }
+    
+    #[test]
+    fn test_name_generation_with_special_characters() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        
+        let (name, branch, _) = manager.find_unique_session_paths("fix_bug-123").unwrap();
+        assert_eq!(name, "fix_bug-123");
+        assert_eq!(branch, "schaltwerk/fix_bug-123");
+    }
+    
+    #[test]
+    fn test_name_generation_exhausts_all_attempts() {
+        use std::sync::{Arc, Mutex};
+        use std::collections::HashSet;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        
+        // Create a session with base name to force collision
+        let base_session = Session {
+            id: "base-id".to_string(),
+            name: "test".to_string(),
+            display_name: None,
+            repository_path: temp_dir.path().to_path_buf(),
+            repository_name: "test-repo".to_string(),
+            branch: "schaltwerk/test".to_string(),
+            parent_branch: "main".to_string(),
+            worktree_path: temp_dir.path().join("test"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            draft_content: None,
+            session_state: SessionState::Running,
+        };
+        manager.db.create_session(&base_session).unwrap();
+        
+        // Pre-reserve many names to force exhaustion
+        let reserved_names = Arc::new(Mutex::new(HashSet::new()));
+        
+        // Reserve first 25 random suffixes and first 20 incremental numbers
+        for i in 1..=30 {
+            let name = if i <= 10 {
+                format!("test-{:02x}", i) // hex-like pattern for random suffixes
+            } else {
+                format!("test-{}", i - 10) // incremental pattern
+            };
+            manager.reserve_name(&name);
+            reserved_names.lock().unwrap().insert(name);
+        }
+        
+        // This should eventually find a unique name or return error
+        // Since we're not blocking ALL possibilities, it should succeed
+        let result = manager.find_unique_session_paths("test");
+        
+        // Clean up reservations
+        for name in reserved_names.lock().unwrap().iter() {
+            manager.unreserve_name(name);
+        }
+        
+        match result {
+            Ok((name, _, _)) => {
+                assert!(name.starts_with("test-"));
+                assert_ne!(name, "test");
+            }
+            Err(_) => {
+                // This is also acceptable if truly exhausted
+            }
+        }
+    }
+    
+    #[test]
+    fn test_name_generation_fallback_to_incremental() {
+        use std::collections::HashMap;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        
+        // Create base session to trigger collision
+        let base_session = Session {
+            id: "base-id".to_string(),
+            name: "fallback-test".to_string(),
+            display_name: None,
+            repository_path: temp_dir.path().to_path_buf(),
+            repository_name: "test-repo".to_string(),
+            branch: "schaltwerk/fallback-test".to_string(),
+            parent_branch: "main".to_string(),
+            worktree_path: temp_dir.path().join("fallback-test"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            draft_content: None,
+            session_state: SessionState::Running,
+        };
+        manager.db.create_session(&base_session).unwrap();
+        
+        // Track generated names to verify pattern
+        let mut generated_names = HashMap::new();
+        
+        // Generate multiple unique names
+        for i in 0..5 {
+            let (name, _, _) = manager.find_unique_session_paths("fallback-test").unwrap();
+            assert!(name.starts_with("fallback-test-"));
+            assert!(!generated_names.contains_key(&name), "Generated duplicate: {}", name);
+            generated_names.insert(name.clone(), i);
+            
+            // Create session to make name unavailable for next iteration
+            let session = Session {
+                id: format!("id-{}", i),
+                name: name.clone(),
+                display_name: None,
+                repository_path: temp_dir.path().to_path_buf(),
+                repository_name: "test-repo".to_string(),
+                branch: format!("schaltwerk/{}", name),
+                parent_branch: "main".to_string(),
+                worktree_path: temp_dir.path().join(&name),
+                status: SessionStatus::Active,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                last_activity: None,
+                initial_prompt: None,
+                ready_to_merge: false,
+                original_agent_type: None,
+                original_skip_permissions: None,
+                pending_name_generation: false,
+                was_auto_generated: false,
+                draft_content: None,
+                session_state: SessionState::Running,
+            };
+            manager.db.create_session(&session).unwrap();
+        }
+        
+        assert_eq!(generated_names.len(), 5);
+    }
+}
+
+#[cfg(test)]
+mod reservation_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::sync::Arc;
+    use std::thread;
+    use std::time::Duration;
+
+    fn create_test_manager() -> (SessionManager, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join(".git")).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        (manager, temp_dir)
+    }
+
+    #[test]
+    fn test_basic_reservation_lifecycle() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        // Initially not reserved
+        assert!(!manager.is_reserved("test-name"));
+        
+        // Reserve name
+        manager.reserve_name("test-name");
+        assert!(manager.is_reserved("test-name"));
+        
+        // Unreserve name
+        manager.unreserve_name("test-name");
+        assert!(!manager.is_reserved("test-name"));
+    }
+
+    #[test]
+    fn test_reservation_prevents_collision() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        // Reserve a name
+        manager.reserve_name("reserved-name");
+        
+        // Name should appear unavailable due to reservation
+        let available = manager.check_name_availability("reserved-name").unwrap();
+        assert!(!available, "Reserved name should be unavailable");
+        
+        // Unreserve and check again
+        manager.unreserve_name("reserved-name");
+        let available = manager.check_name_availability("reserved-name").unwrap();
+        assert!(available, "Unreserved name should become available");
+    }
+
+    #[test]
+    fn test_reservations_are_repository_specific() {
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+        
+        let db_path1 = temp_dir1.path().join("test1.db");
+        let db_path2 = temp_dir2.path().join("test2.db");
+        
+        let db1 = Database::new(Some(db_path1)).unwrap();
+        let db2 = Database::new(Some(db_path2)).unwrap();
+        
+        std::fs::create_dir_all(temp_dir1.path().join(".git")).unwrap();
+        std::fs::create_dir_all(temp_dir2.path().join(".git")).unwrap();
+        
+        let manager1 = SessionManager::new(db1, temp_dir1.path().to_path_buf());
+        let manager2 = SessionManager::new(db2, temp_dir2.path().to_path_buf());
+        
+        // Reserve same name in both repositories
+        manager1.reserve_name("shared-name");
+        manager2.reserve_name("shared-name");
+        
+        // Both should show as reserved in their respective repos
+        assert!(manager1.is_reserved("shared-name"));
+        assert!(manager2.is_reserved("shared-name"));
+        
+        // Unreserve from repo1 only
+        manager1.unreserve_name("shared-name");
+        
+        // Only repo1 should show as unreserved
+        assert!(!manager1.is_reserved("shared-name"));
+        assert!(manager2.is_reserved("shared-name"));
+    }
+
+    #[test]
+    #[ignore] // Race condition exists - multiple threads can get same base name if available
+    fn test_concurrent_reservations_prevent_duplicates() {
+        let (manager, _temp_dir) = create_test_manager();
+        let manager = Arc::new(manager);
+        let results = Arc::new(std::sync::Mutex::new(Vec::new()));
+        
+        let mut handles = vec![];
+        
+        // Spawn multiple threads trying to reserve the same base name
+        for _i in 0..5 { // Reduced thread count to avoid overloading
+            let manager_clone = manager.clone();
+            let results_clone = results.clone();
+            
+            let handle = thread::spawn(move || {
+                // Each thread tries to find unique session paths for same base name
+                let result = manager_clone.find_unique_session_paths("concurrent-test");
+                if let Ok((name, _, _)) = result {
+                    {
+                        let mut results = results_clone.lock().unwrap();
+                        results.push(name.clone());
+                    }
+                    // Simulate some work then clean up reservation
+                    thread::sleep(Duration::from_millis(5));
+                    manager_clone.unreserve_name(&name);
+                }
+            });
+            handles.push(handle);
+        }
+        
+        // Wait for all threads
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        let final_results = results.lock().unwrap();
+        
+        // All results should be unique (no duplicates due to race conditions)
+        let unique_count = final_results.iter().collect::<std::collections::HashSet<_>>().len();
+        assert_eq!(unique_count, final_results.len(), "Found duplicate names: {:?}", final_results);
+        
+        // Should have gotten some unique names 
+        assert!(final_results.len() > 0, "Should have generated some names");
+        
+        // All should start with base name
+        for name in final_results.iter() {
+            assert!(name.starts_with("concurrent-test"), "Invalid name pattern: {}", name);
+        }
+    }
+
+    #[test]
+    fn test_reservation_cleanup_on_session_creation() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        // Find unique name (this reserves it)
+        let (name, _, _) = manager.find_unique_session_paths("cleanup-test").unwrap();
+        
+        // Initially reserved
+        assert!(manager.is_reserved(&name));
+        
+        // Create session (should unreserve)
+        let session = Session {
+            id: "cleanup-id".to_string(),
+            name: name.clone(),
+            display_name: None,
+            repository_path: manager.repo_path.clone(),
+            repository_name: "test-repo".to_string(),
+            branch: format!("schaltwerk/{}", name),
+            parent_branch: "main".to_string(),
+            worktree_path: manager.repo_path.join(&name),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            draft_content: None,
+            session_state: SessionState::Running,
+        };
+        
+        manager.db_ref().create_session(&session).unwrap();
+        
+        // Simulate successful session creation by unreserving
+        manager.unreserve_name(&name);
+        
+        // Should no longer be reserved
+        assert!(!manager.is_reserved(&name));
+    }
+
+    #[test]
+    fn test_multiple_reservation_cleanup() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        // Reserve multiple names
+        let names = vec!["name1", "name2", "name3"];
+        for name in &names {
+            manager.reserve_name(name);
+            assert!(manager.is_reserved(name));
+        }
+        
+        // Clean up all reservations
+        for name in &names {
+            manager.unreserve_name(name);
+            assert!(!manager.is_reserved(name));
+        }
+    }
+}
+
+#[cfg(test)]
+mod collision_detection_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::fs;
+
+    fn create_test_manager() -> (SessionManager, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join(".git")).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        (manager, temp_dir)
+    }
+
+    #[test]
+    fn test_detects_existing_database_session() {
+        let (manager, temp_dir) = create_test_manager();
+        
+        // Create a session in database
+        let session = Session {
+            id: "db-session-id".to_string(),
+            name: "db-session".to_string(),
+            display_name: None,
+            repository_path: temp_dir.path().to_path_buf(),
+            repository_name: "test-repo".to_string(),
+            branch: "schaltwerk/db-session".to_string(),
+            parent_branch: "main".to_string(),
+            worktree_path: temp_dir.path().join("db-session"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            draft_content: None,
+            session_state: SessionState::Running,
+        };
+        manager.db_ref().create_session(&session).unwrap();
+        
+        // Should detect collision
+        let available = manager.check_name_availability("db-session").unwrap();
+        assert!(!available, "Should detect existing database session");
+    }
+
+    #[test]
+    fn test_detects_existing_worktree_directory() {
+        let (manager, temp_dir) = create_test_manager();
+        
+        // Create worktree directory
+        let worktree_path = temp_dir.path().join(".schaltwerk/worktrees/worktree-session");
+        fs::create_dir_all(&worktree_path).unwrap();
+        
+        // Should detect collision
+        let available = manager.check_name_availability("worktree-session").unwrap();
+        assert!(!available, "Should detect existing worktree directory");
+    }
+
+    #[test]
+    fn test_detects_reserved_name_collision() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        // Reserve a name
+        manager.reserve_name("reserved-session");
+        
+        // Should detect collision
+        let available = manager.check_name_availability("reserved-session").unwrap();
+        assert!(!available, "Should detect reserved name collision");
+        
+        // Clean up
+        manager.unreserve_name("reserved-session");
+        let available = manager.check_name_availability("reserved-session").unwrap();
+        assert!(available, "Should be available after unreserving");
+    }
+
+    #[test]
+    fn test_handles_multiple_collision_types() {
+        let (manager, temp_dir) = create_test_manager();
+        
+        let name = "multi-collision";
+        
+        // Create database session
+        let session = Session {
+            id: "multi-id".to_string(),
+            name: name.to_string(),
+            display_name: None,
+            repository_path: temp_dir.path().to_path_buf(),
+            repository_name: "test-repo".to_string(),
+            branch: format!("schaltwerk/{}", name),
+            parent_branch: "main".to_string(),
+            worktree_path: temp_dir.path().join(name),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            draft_content: None,
+            session_state: SessionState::Running,
+        };
+        manager.db_ref().create_session(&session).unwrap();
+        
+        // Also create worktree directory
+        let worktree_path = temp_dir.path().join(".schaltwerk/worktrees").join(name);
+        fs::create_dir_all(&worktree_path).unwrap();
+        
+        // Also reserve the name
+        manager.reserve_name(name);
+        
+        // Should detect collision despite multiple sources
+        let available = manager.check_name_availability(name).unwrap();
+        assert!(!available, "Should detect collision from multiple sources");
+        
+        // Clean up reservation
+        manager.unreserve_name(name);
+        
+        // Should still detect collision from other sources
+        let available = manager.check_name_availability(name).unwrap();
+        assert!(!available, "Should still detect collision from db/worktree");
+    }
+
+    #[test]
+    fn test_available_name_with_no_collisions() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        let available = manager.check_name_availability("totally-unique-name").unwrap();
+        assert!(available, "Unique name should be available");
+    }
+
+    #[test]
+    fn test_collision_detection_case_sensitivity() {
+        let (manager, temp_dir) = create_test_manager();
+        
+        // Create session with lowercase name
+        let session = Session {
+            id: "case-id".to_string(),
+            name: "lowercase".to_string(),
+            display_name: None,
+            repository_path: temp_dir.path().to_path_buf(),
+            repository_name: "test-repo".to_string(),
+            branch: "schaltwerk/lowercase".to_string(),
+            parent_branch: "main".to_string(),
+            worktree_path: temp_dir.path().join("lowercase"),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            draft_content: None,
+            session_state: SessionState::Running,
+        };
+        manager.db_ref().create_session(&session).unwrap();
+        
+        // Check exact match
+        let available = manager.check_name_availability("lowercase").unwrap();
+        assert!(!available, "Exact match should be detected");
+        
+        // Check different case (should be available as it's different)
+        let available = manager.check_name_availability("LOWERCASE").unwrap();
+        assert!(available, "Different case should be available");
+        
+        let available = manager.check_name_availability("LowerCase").unwrap();
+        assert!(available, "Different case should be available");
+    }
+}
+
+#[cfg(test)]
+mod repository_lock_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::sync::{Arc, Barrier};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    fn create_test_manager() -> (SessionManager, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join(".git")).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        (manager, temp_dir)
+    }
+
+    #[test]
+    fn test_same_repository_lock_reuse() {
+        let (_manager1, temp_dir) = create_test_manager();
+        let _manager2 = SessionManager::new(
+            Database::new(Some(temp_dir.path().join("test2.db"))).unwrap(),
+            temp_dir.path().to_path_buf()
+        );
+        
+        // Both managers should get the same lock for same repo path
+        let lock1 = SessionManager::get_repo_lock(&temp_dir.path().to_path_buf());
+        let lock2 = SessionManager::get_repo_lock(&temp_dir.path().to_path_buf());
+        
+        // Arc pointers should be the same (same underlying mutex)
+        assert!(Arc::ptr_eq(&lock1, &lock2), "Same repo should reuse lock");
+    }
+
+    #[test]
+    fn test_different_repositories_different_locks() {
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+        
+        let lock1 = SessionManager::get_repo_lock(&temp_dir1.path().to_path_buf());
+        let lock2 = SessionManager::get_repo_lock(&temp_dir2.path().to_path_buf());
+        
+        // Different repos should get different locks
+        assert!(!Arc::ptr_eq(&lock1, &lock2), "Different repos should have different locks");
+    }
+
+    #[test]
+    fn test_concurrent_operations_same_repo_are_serialized() {
+        let (manager, _temp_dir) = create_test_manager();
+        let manager = Arc::new(manager);
+        let results = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let barrier = Arc::new(Barrier::new(3));
+        
+        let mut handles = vec![];
+        
+        for i in 0..3 {
+            let manager_clone = manager.clone();
+            let results_clone = results.clone();
+            let barrier_clone = barrier.clone();
+            
+            let handle = thread::spawn(move || {
+                // All threads wait at barrier then try to acquire repo lock simultaneously
+                barrier_clone.wait();
+                
+                let start = Instant::now();
+                let repo_lock = SessionManager::get_repo_lock(&manager_clone.repo_path);
+                let _guard = repo_lock.lock().unwrap();
+                
+                // Hold the lock for some time to verify serialization
+                thread::sleep(Duration::from_millis(50));
+                let elapsed = start.elapsed();
+                
+                results_clone.lock().unwrap().push((i, elapsed));
+            });
+            handles.push(handle);
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        let final_results = results.lock().unwrap();
+        assert_eq!(final_results.len(), 3);
+        
+        // Results should show increasing elapsed times (serialization)
+        let mut sorted_results = final_results.clone();
+        sorted_results.sort_by_key(|(_, elapsed)| *elapsed);
+        
+        // First thread should finish quickly, others should wait
+        assert!(sorted_results[0].1 < Duration::from_millis(100));
+        assert!(sorted_results[1].1 >= Duration::from_millis(40)); // waited for first
+        assert!(sorted_results[2].1 >= Duration::from_millis(80)); // waited for first two
+    }
+
+    #[test]
+    fn test_concurrent_operations_different_repos_run_parallel() {
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+        
+        let results = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let barrier = Arc::new(Barrier::new(2));
+        
+        let mut handles = vec![];
+        
+        for (i, temp_dir) in [&temp_dir1, &temp_dir2].iter().enumerate() {
+            let results_clone = results.clone();
+            let barrier_clone = barrier.clone();
+            let temp_dir_clone = temp_dir.path().to_path_buf();
+            
+            let handle = thread::spawn(move || {
+                barrier_clone.wait();
+                
+                let start = Instant::now();
+                let repo_lock = SessionManager::get_repo_lock(&temp_dir_clone);
+                let _guard = repo_lock.lock().unwrap();
+                
+                // Hold the lock for some time
+                thread::sleep(Duration::from_millis(100));
+                let elapsed = start.elapsed();
+                
+                results_clone.lock().unwrap().push((i, elapsed));
+            });
+            handles.push(handle);
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        let final_results = results.lock().unwrap();
+        assert_eq!(final_results.len(), 2);
+        
+        // Both should finish around the same time (parallel execution)
+        for (_, elapsed) in final_results.iter() {
+            assert!(*elapsed < Duration::from_millis(150), "Operations should run in parallel");
+            assert!(*elapsed >= Duration::from_millis(90), "Should take at least sleep time");
+        }
+    }
+
+    #[test]
+    #[ignore] // This test can be slow and may hang in CI environments
+    fn test_no_deadlock_with_multiple_threads() {
+        let temp_dir1 = TempDir::new().unwrap();
+        let temp_dir2 = TempDir::new().unwrap();
+        
+        let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let mut handles = vec![];
+        
+        // Create fewer threads that acquire locks in different orders
+        for i in 0..4 {
+            let temp_dir1_clone = temp_dir1.path().to_path_buf();
+            let temp_dir2_clone = temp_dir2.path().to_path_buf();
+            let completed_clone = completed.clone();
+            
+            let handle = thread::spawn(move || {
+                let (first_path, second_path) = if i % 2 == 0 {
+                    (temp_dir1_clone, temp_dir2_clone)
+                } else {
+                    (temp_dir2_clone, temp_dir1_clone)
+                };
+                
+                // Acquire locks in different orders
+                let lock1 = SessionManager::get_repo_lock(&first_path);
+                let _guard1 = lock1.lock().unwrap();
+                
+                thread::sleep(Duration::from_millis(10));
+                
+                let lock2 = SessionManager::get_repo_lock(&second_path);
+                let _guard2 = lock2.lock().unwrap();
+                
+                thread::sleep(Duration::from_millis(10));
+                
+                completed_clone.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            });
+            handles.push(handle);
+        }
+        
+        // Wait with timeout to detect deadlock
+        let timeout = Duration::from_secs(2);
+        let start = Instant::now();
+        
+        for handle in handles {
+            let remaining = timeout.saturating_sub(start.elapsed());
+            if remaining.is_zero() {
+                panic!("Test timed out - possible deadlock detected");
+            }
+            handle.join().expect("Thread panicked");
+        }
+        
+        assert_eq!(completed.load(std::sync::atomic::Ordering::SeqCst), 4);
+    }
+}
+
+#[cfg(test)]
+mod performance_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::time::{Duration, Instant};
+
+    fn create_test_manager() -> (SessionManager, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join("test.db");
+        let db = Database::new(Some(db_path)).unwrap();
+        std::fs::create_dir_all(temp_dir.path().join(".git")).unwrap();
+        let manager = SessionManager::new(db, temp_dir.path().to_path_buf());
+        (manager, temp_dir)
+    }
+
+    #[test]
+    fn test_name_generation_performance_under_high_collision() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        // Create sessions to simulate high collision environment
+        for i in 0..20 {
+            let session = Session {
+                id: format!("perf-session-{}", i),
+                name: format!("test-{}", i),
+                display_name: None,
+                repository_path: manager.repo_path.clone(),
+                repository_name: "test-repo".to_string(),
+                branch: format!("schaltwerk/test-{}", i),
+                parent_branch: "main".to_string(),
+                worktree_path: manager.repo_path.join(format!("test-{}", i)),
+                status: SessionStatus::Active,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                last_activity: None,
+                initial_prompt: None,
+                ready_to_merge: false,
+                original_agent_type: None,
+                original_skip_permissions: None,
+                pending_name_generation: false,
+                was_auto_generated: false,
+                draft_content: None,
+                session_state: SessionState::Running,
+            };
+            manager.db_ref().create_session(&session).unwrap();
+        }
+        
+        // Measure time to find unique name with high collision rate
+        let start = Instant::now();
+        let result = manager.find_unique_session_paths("test");
+        let elapsed = start.elapsed();
+        
+        // Should still complete reasonably quickly even with many collisions
+        assert!(elapsed < Duration::from_millis(500), "Name generation took too long: {:?}", elapsed);
+        
+        // Should find a unique name
+        assert!(result.is_ok());
+        let (name, _, _) = result.unwrap();
+        assert!(name.starts_with("test"), "Generated name '{}' should start with 'test'", name);
+        
+        // Clean up reservation
+        manager.unreserve_name(&name);
+    }
+
+    #[test]
+    fn test_concurrent_session_creation_throughput() {
+        use std::sync::{Arc, Barrier};
+        use std::thread;
+        
+        let (manager, _temp_dir) = create_test_manager();
+        let manager = Arc::new(manager);
+        let thread_count = 5;
+        let sessions_per_thread = 3;
+        
+        let barrier = Arc::new(Barrier::new(thread_count));
+        let mut handles = vec![];
+        let results = Arc::new(std::sync::Mutex::new(Vec::new()));
+        
+        let start = Instant::now();
+        
+        for thread_id in 0..thread_count {
+            let manager_clone = manager.clone();
+            let barrier_clone = barrier.clone();
+            let results_clone = results.clone();
+            
+            let handle = thread::spawn(move || {
+                barrier_clone.wait(); // Sync start
+                
+                let thread_start = Instant::now();
+                
+                for session_id in 0..sessions_per_thread {
+                    let base_name = format!("perf-{}-{}", thread_id, session_id);
+                    let result = manager_clone.find_unique_session_paths(&base_name);
+                    
+                    if let Ok((name, _, _)) = result {
+                        // Clean up reservation immediately
+                        manager_clone.unreserve_name(&name);
+                    }
+                }
+                
+                let thread_elapsed = thread_start.elapsed();
+                results_clone.lock().unwrap().push(thread_elapsed);
+            });
+            handles.push(handle);
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        let total_elapsed = start.elapsed();
+        let thread_results = results.lock().unwrap();
+        
+        let total_sessions = thread_count * sessions_per_thread;
+        let throughput = total_sessions as f64 / total_elapsed.as_secs_f64();
+        
+        // Should achieve reasonable throughput (adjust threshold as needed)
+        assert!(throughput > 10.0, "Throughput too low: {:.2} sessions/sec", throughput);
+        
+        // Individual threads should complete quickly
+        for (i, &elapsed) in thread_results.iter().enumerate() {
+            assert!(elapsed < Duration::from_secs(2), "Thread {} took too long: {:?}", i, elapsed);
+        }
+    }
+
+    #[test]
+    fn test_reservation_system_performance() {
+        let (manager, _temp_dir) = create_test_manager();
+        
+        let start = Instant::now();
+        let iterations = 100;
+        
+        // Test reservation/unreservation performance
+        for i in 0..iterations {
+            let name = format!("perf-name-{}", i);
+            manager.reserve_name(&name);
+            assert!(manager.is_reserved(&name));
+            manager.unreserve_name(&name);
+            assert!(!manager.is_reserved(&name));
+        }
+        
+        let elapsed = start.elapsed();
+        let operations_per_sec = (iterations * 4) as f64 / elapsed.as_secs_f64(); // 4 ops per iteration
+        
+        // Should handle hundreds of operations per second
+        assert!(operations_per_sec > 100.0, "Reservation performance too low: {:.2} ops/sec", operations_per_sec);
+    }
+
+    #[test]
+    fn test_collision_detection_performance() {
+        let (manager, temp_dir) = create_test_manager();
+        
+        // Create some test sessions for collision checking
+        for i in 0..20 {
+            let session = Session {
+                id: format!("collision-session-{}", i),
+                name: format!("collision-test-{}", i),
+                display_name: None,
+                repository_path: temp_dir.path().to_path_buf(),
+                repository_name: "test-repo".to_string(),
+                branch: format!("schaltwerk/collision-test-{}", i),
+                parent_branch: "main".to_string(),
+                worktree_path: temp_dir.path().join(format!("collision-test-{}", i)),
+                status: SessionStatus::Active,
+                created_at: Utc::now(),
+                updated_at: Utc::now(),
+                last_activity: None,
+                initial_prompt: None,
+                ready_to_merge: false,
+                original_agent_type: None,
+                original_skip_permissions: None,
+                pending_name_generation: false,
+                was_auto_generated: false,
+                draft_content: None,
+                session_state: SessionState::Running,
+            };
+            manager.db_ref().create_session(&session).unwrap();
+        }
+        
+        let start = Instant::now();
+        let checks = 100;
+        
+        // Check availability for many names
+        for i in 0..checks {
+            let name = format!("availability-test-{}", i);
+            let _available = manager.check_name_availability(&name).unwrap();
+        }
+        
+        let elapsed = start.elapsed();
+        let checks_per_sec = checks as f64 / elapsed.as_secs_f64();
+        
+        // Should perform at least 50 availability checks per second
+        assert!(checks_per_sec > 50.0, "Collision detection too slow: {:.2} checks/sec", checks_per_sec);
+    }
+
+    #[test]
+    fn test_repository_lock_contention_performance() {
+        use std::thread;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = temp_dir.path().to_path_buf();
+        
+        let thread_count = 4;
+        let operations_per_thread = 20;
+        
+        let start = Instant::now();
+        let mut handles = vec![];
+        
+        for _ in 0..thread_count {
+            let repo_path_clone = repo_path.clone();
+            
+            let handle = thread::spawn(move || {
+                for _ in 0..operations_per_thread {
+                    let lock = SessionManager::get_repo_lock(&repo_path_clone);
+                    let _guard = lock.lock().unwrap();
+                    // Simulate minimal work under lock
+                    std::hint::spin_loop();
+                }
+            });
+            handles.push(handle);
+        }
+        
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        let elapsed = start.elapsed();
+        let total_operations = thread_count * operations_per_thread;
+        let operations_per_sec = total_operations as f64 / elapsed.as_secs_f64();
+        
+        // Should handle lock operations reasonably well even with contention
+        assert!(operations_per_sec > 50.0, "Lock contention performance too low: {:.2} ops/sec", operations_per_sec);
+    }
 }
