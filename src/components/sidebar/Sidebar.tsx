@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { clsx } from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -6,6 +6,7 @@ import { useFocus } from '../../contexts/FocusContext'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
+import { useSortedSessions } from '../../hooks/useSortedSessions'
 import { useProject } from '../../contexts/ProjectContext'
 import { computeNextSelectedSessionId } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
@@ -80,9 +81,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const { selection, setSelection, clearTerminalTracking, terminals } = useSelection()
     const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
-    const { sessions, loading, reloadSessions } = useSessions()
     const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
+    const { sessions: contextSessions, reloadSessions } = useSessions()
+    const { sessions: sortedSessions, loading: sortedLoading } = useSortedSessions({ sortMode, filterMode })
     // loading is provided by SessionsContext
     const [settingsLoaded, setSettingsLoaded] = useState(false)
     // Removed: stuckTerminals; idle is computed from last edit timestamps
@@ -106,80 +108,12 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const [resettingOrchestrator, setResettingOrchestrator] = useState(false)
     const sidebarRef = useRef<HTMLDivElement>(null)
-    const previousProjectPath = useRef<string | null>(null)
     const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
     
-    // Extract sorting logic
-    const applySortMode = useCallback((sessionList: EnrichedSession[], mode: SortMode) => {
-        switch (mode) {
-            case SortMode.LastEdited:
-                // Sort by last modified time (most recent first)
-                return [...sessionList].sort((a, b) => {
-                    const aTime = a.info.last_modified ? new Date(a.info.last_modified).getTime() : 0
-                    const bTime = b.info.last_modified ? new Date(b.info.last_modified).getTime() : 0
-                    return bTime - aTime // Most recent first
-                })
-            case SortMode.Created:
-                // Sort by creation time (newest first)
-                return [...sessionList].sort((a, b) => {
-                    const aTime = a.info.created_at ? new Date(a.info.created_at).getTime() : 0
-                    const bTime = b.info.created_at ? new Date(b.info.created_at).getTime() : 0
-                    
-                    // If both have creation times, sort newest first
-                    if (aTime && bTime) {
-                        return bTime - aTime
-                    }
-                    // If only one has creation time, it comes first
-                    if (aTime) return -1
-                    if (bTime) return 1
-                    // Otherwise alphabetical
-                    return a.info.session_id.localeCompare(b.info.session_id)
-                })
-            case SortMode.Name:
-            default:
-                // Alphabetical sort by session_id
-                return [...sessionList].sort((a, b) => 
-                    a.info.session_id.localeCompare(b.info.session_id)
-                )
-        }
-    }, [])
-    
-    // Detect project changes
-    useEffect(() => {
-        if (previousProjectPath.current !== null && previousProjectPath.current !== projectPath) {
-            // Project is changing
-            isProjectSwitching.current = true
-            // Reset flag after a short delay to allow restoration to complete
-            setTimeout(() => {
-                isProjectSwitching.current = false
-            }, 500)
-        }
-        previousProjectPath.current = projectPath
-    }, [projectPath])
-    
-    // Memoize displayed sessions (filter + sort) to prevent re-computation on every render
-    const sortedSessions = useMemo(() => {
-        let filtered = sessions
-        if (filterMode === FilterMode.Draft) {
-            filtered = sessions.filter(s => isDraft(s.info))
-        } else if (filterMode === FilterMode.Running) {
-            filtered = sessions.filter(s => !isReviewed(s.info) && !isDraft(s.info))
-        } else if (filterMode === FilterMode.Reviewed) {
-            filtered = sessions.filter(s => isReviewed(s.info))
-        }
-
-        // Separate reviewed and unreviewed using normalized mapping
-        const reviewed = filtered.filter(s => isReviewed(s.info))
-        const unreviewed = filtered.filter(s => !isReviewed(s.info))
-
-        // Apply sorting to each group
-        const sortedUnreviewed = applySortMode(unreviewed, sortMode)
-        const sortedReviewed = applySortMode(reviewed, SortMode.Name) // Always sort reviewed by name
-
-        // Unreviewed on top, reviewed at bottom
-        return [...sortedUnreviewed, ...sortedReviewed]
-    }, [sessions, filterMode, sortMode, applySortMode])
+    // Use backend-sorted sessions directly
+    const sessions = sortedSessions
+    const loading = sortedLoading
     
     // Load settings when project changes
     useEffect(() => {
@@ -219,12 +153,12 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         
         if (selection.kind !== 'session') return
         
-        const currentSessionVisible = sortedSessions.some(s => s.info.session_id === selection.payload)
+        const currentSessionVisible = sessions.some(s => s.info.session_id === selection.payload)
         
         if (!currentSessionVisible) {
-            if (sortedSessions.length > 0) {
+            if (sessions.length > 0) {
                 // Current selection is not visible anymore, select the first visible session
-                const firstSession = sortedSessions[0]
+                const firstSession = sessions[0]
                 setSelection({
                     kind: 'session',
                     payload: firstSession.info.session_id,
@@ -236,14 +170,14 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional
             }
         }
-    }, [sortedSessions, selection, setSelection])
+    }, [sessions, selection, setSelection])
 
     // Compute time-based idle sessions from last activity
     useEffect(() => {
         const recomputeIdle = () => {
             const now = Date.now()
             const next = new Set<string>()
-            for (const s of sessions) {
+            for (const s of contextSessions) {
                 const ts: number | undefined = (s.info as any).last_modified_ts
                 const draft = isDraft(s.info)
                 const reviewed = isReviewed(s.info)
@@ -258,7 +192,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         recomputeIdle()
         const t = setInterval(recomputeIdle, 30_000)
         return () => clearInterval(t)
-    }, [sessions])
+    }, [contextSessions])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
@@ -291,7 +225,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     }
 
     const handleSelectSession = async (index: number) => {
-        const session = sortedSessions[index]
+        const session = sessions[index]
         if (session) {
             const s = session.info
             
@@ -314,7 +248,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     const handleCancelSelectedSession = (immediate: boolean) => {
         if (selection.kind === 'session') {
-            const selectedSession = sortedSessions.find(s => s.info.session_id === selection.payload)
+            const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession) {
                 // Check if it's a draft
                 if (isDraft(selectedSession.info)) {
@@ -361,9 +295,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     }
 
     const selectPrev = async () => {
-        if (sortedSessions.length === 0) return
+        if (sessions.length === 0) return
         if (selection.kind === 'session') {
-            const currentIndex = sortedSessions.findIndex(s => s.info.session_id === selection.payload)
+            const currentIndex = sessions.findIndex(s => s.info.session_id === selection.payload)
             // If at the first session, go to orchestrator
             if (currentIndex <= 0) {
                 await handleSelectOrchestrator()
@@ -376,15 +310,15 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     }
 
     const selectNext = async () => {
-        if (sortedSessions.length === 0) return
+        if (sessions.length === 0) return
         if (selection.kind === 'orchestrator') {
             // From orchestrator, go to the first session
             await handleSelectSession(0)
             return
         }
         if (selection.kind === 'session') {
-            const currentIndex = sortedSessions.findIndex(s => s.info.session_id === selection.payload)
-            const nextIndex = Math.min(currentIndex + 1, sortedSessions.length - 1)
+            const currentIndex = sessions.findIndex(s => s.info.session_id === selection.payload)
+            const nextIndex = Math.min(currentIndex + 1, sessions.length - 1)
             if (nextIndex !== currentIndex) {
                 await handleSelectSession(nextIndex)
             }
@@ -394,7 +328,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     const handleMarkSelectedSessionReady = () => {
         if (selection.kind === 'session') {
-            const selectedSession = sortedSessions.find(s => s.info.session_id === selection.payload)
+            const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession && !selectedSession.info.ready_to_merge) {
                 setMarkReadyModal({
                     open: true,
@@ -410,7 +344,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         onSelectSession: handleSelectSession,
         onCancelSelectedSession: handleCancelSelectedSession,
         onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
-        sessionCount: sortedSessions.length,
+        sessionCount: sessions.length,
         onSelectPrevSession: selectPrev,
         onSelectNextSession: selectNext,
         onFocusSidebar: () => {
@@ -470,7 +404,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         const handler = () => handleMarkSelectedSessionReady()
         window.addEventListener('global-mark-ready-shortcut', handler as any)
         return () => window.removeEventListener('global-mark-ready-shortcut', handler as any)
-    }, [selection, sortedSessions])
+    }, [selection, sessions])
 
     // Selection is now restored by SelectionContext itself
 
@@ -478,14 +412,14 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     // Keep latest values in refs for use in event handlers without re-attaching listeners
     const latestSelectionRef = useRef(selection)
-    const latestSortedSessionsRef = useRef(sortedSessions)
+    const latestSortedSessionsRef = useRef(sessions)
     const latestFilterModeRef = useRef(filterMode)
-    const latestSessionsRef = useRef(sessions)
+    const latestSessionsRef = useRef(contextSessions)
 
     useEffect(() => { latestSelectionRef.current = selection }, [selection])
-    useEffect(() => { latestSortedSessionsRef.current = sortedSessions }, [sortedSessions])
+    useEffect(() => { latestSortedSessionsRef.current = sessions }, [sessions])
     useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
-    useEffect(() => { latestSessionsRef.current = sessions }, [sessions])
+    useEffect(() => { latestSessionsRef.current = contextSessions }, [contextSessions])
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
@@ -525,7 +459,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
                 if (currentSelectedId === session_name) {
                     if (nextSelectionId) {
-                        const nextSession = sortedSessions.find(s => s.info.session_id === nextSelectionId)
+                        const nextSession = sessions.find(s => s.info.session_id === nextSelectionId)
                         await setSelection({ 
                             kind: 'session', 
                             payload: nextSelectionId,
@@ -648,7 +582,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all tasks"
                         >
-                            All <span className="text-slate-400">({sessions.length})</span>
+                            All <span className="text-slate-400">({contextSessions.length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -656,7 +590,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.Draft)}
                             title="Show draft tasks"
                         >
-                            Drafts <span className="text-slate-400">({sessions.filter(s => isDraft(s.info)).length})</span>
+                            Drafts <span className="text-slate-400">({contextSessions.filter(s => isDraft(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -664,7 +598,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running tasks"
                         >
-                            Running <span className="text-slate-400">({sessions.filter(s => !isReviewed(s.info) && !isDraft(s.info)).length})</span>
+                            Running <span className="text-slate-400">({contextSessions.filter(s => !isReviewed(s.info) && !isDraft(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -672,7 +606,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed tasks"
                         >
-                            Reviewed <span className="text-slate-400">({sessions.filter(s => isReviewed(s.info)).length})</span>
+                            Reviewed <span className="text-slate-400">({contextSessions.filter(s => isReviewed(s.info)).length})</span>
                         </button>
                         <button
                             className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
@@ -699,10 +633,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             <div className="flex-1 overflow-y-auto px-2 pt-2">
                 {loading ? (
                     <div className="text-center text-slate-500 py-4">Loading tasks...</div>
-                ) : sortedSessions.length === 0 ? (
+                ) : sessions.length === 0 ? (
                     <div className="text-center text-slate-500 py-4">No active tasks</div>
                 ) : (
-                    sortedSessions.map((session, i) => {
+                    sessions.map((session, i) => {
                         const isSelected = selection.kind === 'session' && selection.payload === session.info.session_id
                         const hasStuckTerminals = idleByTime.has(session.info.session_id)
                         const hasFollowUpMessage = sessionsWithNotifications.has(session.info.session_id)

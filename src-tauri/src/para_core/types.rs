@@ -3,6 +3,48 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use chrono::{DateTime, Utc};
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum SortMode {
+    Name,
+    Created,
+    LastEdited,
+}
+
+impl FromStr for SortMode {
+    type Err = String;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "name" => Ok(SortMode::Name),
+            "created" => Ok(SortMode::Created),
+            "last-edited" => Ok(SortMode::LastEdited),
+            _ => Err(format!("Invalid sort mode: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub enum FilterMode {
+    All,
+    Draft,
+    Running,
+    Reviewed,
+}
+
+impl FromStr for FilterMode {
+    type Err = String;
+    
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "all" => Ok(FilterMode::All),
+            "draft" => Ok(FilterMode::Draft),
+            "running" => Ok(FilterMode::Running),
+            "reviewed" => Ok(FilterMode::Reviewed),
+            _ => Err(format!("Invalid filter mode: {s}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ChangedFile {
     pub path: String,

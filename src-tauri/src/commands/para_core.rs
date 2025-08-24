@@ -1,5 +1,5 @@
 use tauri::Emitter;
-use crate::para_core::{SessionState, EnrichedSession, Session};
+use crate::para_core::{SessionState, EnrichedSession, Session, SortMode, FilterMode};
 use crate::para_core::db_sessions::SessionMethods;
 use crate::para_core::db_app_config::AppConfigMethods;
 use crate::para_core::db_project_config::ProjectConfigMethods;
@@ -96,6 +96,36 @@ pub async fn para_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, 
         Err(e) => {
             log::error!("Failed to list enriched sessions: {e}");
             Err(format!("Failed to get sessions: {e}"))
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn para_core_list_enriched_sessions_sorted(
+    sort_mode: String,
+    filter_mode: String,
+) -> Result<Vec<EnrichedSession>, String> {
+    log::debug!("Listing sorted enriched sessions: sort={sort_mode}, filter={filter_mode}");
+    
+    let sort_mode_str = sort_mode.clone();
+    let filter_mode_str = filter_mode.clone();
+    let sort_mode = sort_mode.parse::<SortMode>()
+        .map_err(|e| format!("Invalid sort mode '{sort_mode_str}': {e}"))?;
+    let filter_mode = filter_mode_str.parse::<FilterMode>()
+        .map_err(|e| format!("Invalid filter mode '{filter_mode_str}': {e}"))?;
+    
+    let core = get_para_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    
+    match manager.list_enriched_sessions_sorted(sort_mode, filter_mode) {
+        Ok(sessions) => {
+            log::debug!("Found {} sorted/filtered sessions", sessions.len());
+            Ok(sessions)
+        },
+        Err(e) => {
+            log::error!("Failed to list sorted enriched sessions: {e}");
+            Err(format!("Failed to get sorted sessions: {e}"))
         }
     }
 }
@@ -232,6 +262,8 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
                     };
                     let core = core.lock().await;
                     let manager = core.session_manager();
+                    // Invalidate cache before emitting refreshed event
+                    manager.invalidate_session_cache(false);
                     if let Ok(sessions) = manager.list_enriched_sessions() {
                         log::info!("Emitting sessions-refreshed event after name generation");
                         if let Err(e) = app_handle.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -306,6 +338,8 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
             );
             
             // Also emit sessions-refreshed for consistency
+            // Invalidate cache before emitting refreshed event
+            manager.invalidate_session_cache(false);
             if let Ok(sessions) = manager.list_enriched_sessions() {
                 log::info!("Emitting sessions-refreshed event after canceling session");
                 if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -363,6 +397,8 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
             }
             
             // Emit event to notify frontend of the change
+            // Invalidate cache before emitting refreshed event
+            manager.invalidate_session_cache(false);
             if let Ok(sessions) = manager.list_enriched_sessions() {
                 let _ = app.emit("schaltwerk:sessions-refreshed", &sessions);
             }
@@ -824,6 +860,8 @@ pub async fn para_core_mark_session_ready(app: tauri::AppHandle, name: String, a
         .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
     
     // Emit event to notify frontend of the change
+    // Invalidate cache before emitting refreshed event
+    manager.invalidate_session_cache(false);
     if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after marking session ready");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -860,6 +898,8 @@ pub async fn para_core_unmark_session_ready(app: tauri::AppHandle, name: String)
         .map_err(|e| format!("Failed to unmark session as reviewed: {e}"))?;
     
     // Emit event to notify frontend of the change
+    // Invalidate cache before emitting refreshed event
+    manager.invalidate_session_cache(false);
     if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after unmarking session ready");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -882,6 +922,8 @@ pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String,
         .map_err(|e| format!("Failed to create draft session: {e}"))?;
     
     // Emit event with actual sessions list
+    // Invalidate cache before emitting refreshed event
+    manager.invalidate_session_cache(false);
     if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after creating draft session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -903,6 +945,8 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
     manager.start_draft_session(&name, base_branch.as_deref())
         .map_err(|e| format!("Failed to start draft session: {e}"))?;
     
+    // Invalidate cache before emitting refreshed event
+    manager.invalidate_session_cache(false);
     if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after starting draft session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {

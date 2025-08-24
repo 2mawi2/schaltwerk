@@ -628,6 +628,7 @@ fn main() {
             para_core_create_session,
             para_core_list_sessions,
             para_core_list_enriched_sessions,
+            para_core_list_enriched_sessions_sorted,
             para_core_get_session,
             para_core_get_session_task_content,
             para_core_cancel_session,

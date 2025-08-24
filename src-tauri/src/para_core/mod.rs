@@ -17,10 +17,12 @@ pub mod codex;
 pub mod naming;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod session_sorting;
 
 pub use database::Database;
 pub use session::SessionManager;
-pub use types::{Session, SessionState, EnrichedSession};
+pub use types::{Session, SessionState, EnrichedSession, SortMode, FilterMode};
 
 use std::path::PathBuf;
 use anyhow::Result;

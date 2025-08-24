@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::collections::{HashMap, HashSet};
 use std::sync::{OnceLock, Mutex as StdMutex, Arc};
+use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow};
 use uuid::Uuid;
 use chrono::{Utc, TimeZone};
@@ -12,7 +13,7 @@ use crate::para_core::{
     db_app_config::AppConfigMethods,
     db_project_config::ProjectConfigMethods,
     git,
-    types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats},
+    types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
 };
 
 // Track which sessions have already had their initial prompt sent
@@ -20,6 +21,23 @@ use crate::para_core::{
 static PROMPTED_SESSIONS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new();
 // Reserve generated names per repository path to avoid duplicates across rapid successive calls
 static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
+
+// Session sorting cache
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+struct CacheKey {
+    repo_path: PathBuf,
+    sort_mode: SortMode,
+    filter_mode: FilterMode,
+}
+
+#[derive(Debug, Clone)]
+struct CachedSessions {
+    sessions: Vec<EnrichedSession>,
+    cached_at: Instant,
+}
+
+static SESSION_CACHE: OnceLock<StdMutex<HashMap<CacheKey, CachedSessions>>> = OnceLock::new();
+const CACHE_TTL: Duration = Duration::from_secs(30);
 
 #[cfg(test)]
 pub(crate) fn has_session_been_prompted(worktree_path: &Path) -> bool {
@@ -56,7 +74,7 @@ fn clear_session_prompted(worktree_path: &Path) {
 }
 
 pub struct SessionManager {
-    db: Database,
+    pub db: Database,
     repo_path: PathBuf,
 }
 
@@ -653,6 +671,119 @@ impl SessionManager {
         }
         
         Ok(enriched)
+    }
+
+    pub fn invalidate_session_cache(&self, invalidate_all: bool) {
+        let cache = SESSION_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+        let mut cache_lock = cache.lock().unwrap();
+        
+        if invalidate_all {
+            cache_lock.clear();
+            log::debug!("Invalidated entire session cache");
+        } else {
+            // Remove entries for this repository
+            cache_lock.retain(|key, _| key.repo_path != self.repo_path);
+            log::debug!("Invalidated session cache for repo: {}", self.repo_path.display());
+        }
+    }
+
+    pub fn list_enriched_sessions_sorted(&self, sort_mode: SortMode, filter_mode: FilterMode) -> Result<Vec<EnrichedSession>> {
+        let cache_key = CacheKey {
+            repo_path: self.repo_path.clone(),
+            sort_mode: sort_mode.clone(),
+            filter_mode: filter_mode.clone(),
+        };
+
+        // Check cache first
+        let cache = SESSION_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+        {
+            let cache_lock = cache.lock().unwrap();
+            if let Some(cached) = cache_lock.get(&cache_key) {
+                if cached.cached_at.elapsed() < CACHE_TTL {
+                    log::debug!("Cache hit for sorted sessions: {sort_mode:?}/{filter_mode:?}");
+                    return Ok(cached.sessions.clone());
+                }
+            }
+        }
+
+        // Cache miss or expired - compute fresh results
+        log::debug!("Cache miss for sorted sessions: {sort_mode:?}/{filter_mode:?}");
+        let all_sessions = self.list_enriched_sessions()?;
+        
+        // Apply filtering first
+        let filtered_sessions = self.apply_session_filter(all_sessions, &filter_mode);
+        
+        // Apply sorting
+        let sorted_sessions = self.apply_session_sort(filtered_sessions, &sort_mode);
+        
+        // Update cache
+        {
+            let mut cache_lock = cache.lock().unwrap();
+            cache_lock.insert(cache_key, CachedSessions {
+                sessions: sorted_sessions.clone(),
+                cached_at: Instant::now(),
+            });
+        }
+        
+        Ok(sorted_sessions)
+    }
+
+    fn apply_session_filter(&self, sessions: Vec<EnrichedSession>, filter_mode: &FilterMode) -> Vec<EnrichedSession> {
+        match filter_mode {
+            FilterMode::All => sessions,
+            FilterMode::Draft => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Draft).collect(),
+            FilterMode::Running => sessions.into_iter().filter(|s| {
+                s.info.session_state != SessionState::Draft && !s.info.ready_to_merge
+            }).collect(),
+            FilterMode::Reviewed => sessions.into_iter().filter(|s| s.info.ready_to_merge).collect(),
+        }
+    }
+
+    fn apply_session_sort(&self, sessions: Vec<EnrichedSession>, sort_mode: &SortMode) -> Vec<EnrichedSession> {
+        // Separate reviewed and unreviewed sessions
+        let mut reviewed: Vec<EnrichedSession> = sessions.iter().filter(|s| s.info.ready_to_merge).cloned().collect();
+        let mut unreviewed: Vec<EnrichedSession> = sessions.iter().filter(|s| !s.info.ready_to_merge).cloned().collect();
+
+        // Apply sorting to each group
+        self.sort_sessions_by_mode(&mut unreviewed, sort_mode);
+        self.sort_sessions_by_mode(&mut reviewed, &SortMode::Name); // Always sort reviewed by name
+
+        // Combine: unreviewed first, then reviewed
+        let mut result = unreviewed;
+        result.extend(reviewed);
+        result
+    }
+
+    fn sort_sessions_by_mode(&self, sessions: &mut [EnrichedSession], sort_mode: &SortMode) {
+        match sort_mode {
+            SortMode::Name => {
+                sessions.sort_by(|a, b| {
+                    a.info.session_id.to_lowercase().cmp(&b.info.session_id.to_lowercase())
+                });
+            }
+            SortMode::Created => {
+                sessions.sort_by(|a, b| {
+                    match (a.info.created_at, b.info.created_at) {
+                        (Some(a_time), Some(b_time)) => b_time.cmp(&a_time), // Newest first
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.info.session_id.cmp(&b.info.session_id), // Fallback to name
+                    }
+                });
+            }
+            SortMode::LastEdited => {
+                sessions.sort_by(|a, b| {
+                    let a_time = a.info.last_modified.or(a.info.created_at);
+                    let b_time = b.info.last_modified.or(b.info.created_at);
+                    match (a_time, b_time) {
+                        (Some(a_time), Some(b_time)) => b_time.cmp(&a_time), // Most recent first
+                        (Some(_), None) => std::cmp::Ordering::Less,
+                        (None, Some(_)) => std::cmp::Ordering::Greater,
+                        (None, None) => a.info.session_id.cmp(&b.info.session_id), // Fallback to name
+                    }
+                });
+            }
+        }
     }
     
     pub fn start_claude_in_session(&self, session_name: &str) -> Result<String> {
