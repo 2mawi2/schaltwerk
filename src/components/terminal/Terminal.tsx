@@ -499,6 +499,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
 
+            // Check if at bottom before resize to maintain position
+            let wasAtBottom = false;
+            try {
+                if (terminal.current.buffer && terminal.current.buffer.active) {
+                    const buffer = terminal.current.buffer.active;
+                    const viewport = buffer.viewportY;
+                    const totalLines = buffer.length;
+                    wasAtBottom = viewport >= totalLines - terminal.current.rows - 2;
+                }
+            } catch (e) {
+                // Buffer API might not be available
+            }
+
             try {
                 fitAddon.current.fit();
             } catch (e) {
@@ -522,6 +535,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 
                 lastSize.current = { cols, rows };
                 invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                
+                // If was at bottom before resize, keep at bottom after resize
+                if (wasAtBottom) {
+                    requestAnimationFrame(() => {
+                        try {
+                            terminal.current?.scrollToBottom();
+                        } catch (e) {
+                            // Scroll API might not be available
+                        }
+                    });
+                }
             }
         };
 

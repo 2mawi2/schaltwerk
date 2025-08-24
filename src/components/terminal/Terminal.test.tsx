@@ -18,6 +18,14 @@ vi.mock('@xterm/xterm', () => {
     keyHandler: ((e: any) => boolean) | null = null
     dataHandler: ((d: string) => void) | null = null
     loadAddon = vi.fn()
+    buffer = {
+      active: {
+        viewportY: 0,
+        length: 100,
+        baseY: 0,
+        cursorY: 0
+      }
+    }
     constructor(options: any) {
       this.options = options
       instances.push(this)
@@ -30,6 +38,7 @@ vi.mock('@xterm/xterm', () => {
     onData(fn: (d: string) => void) {
       this.dataHandler = fn
     }
+    scrollToBottom() {}
     focus() {}
     dispose() {}
     __triggerData(d: string) {
