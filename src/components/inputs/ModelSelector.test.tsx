@@ -45,7 +45,7 @@ describe('ModelSelector', () => {
     expect(screen.queryByRole('button', { name: 'Cursor' })).not.toBeInTheDocument()
   })
 
-  test('keyboard navigation: Enter opens menu, Tab to option, Enter selects', async () => {
+  test('keyboard navigation: Enter opens menu, ArrowDown navigates, Enter selects', async () => {
     const user = userEvent.setup()
     const { onChange } = setup('claude')
 
@@ -53,9 +53,8 @@ describe('ModelSelector', () => {
     toggle.focus()
     await user.keyboard('{Enter}')
 
-    // Move focus to first option (Claude), then to second (Cursor)
-    await user.tab()
-    await user.tab()
+    // Move to second option (Cursor) using arrow down
+    await user.keyboard('{ArrowDown}')
     await user.keyboard('{Enter}')
 
     expect(onChange).toHaveBeenCalledWith('cursor')
@@ -115,5 +114,71 @@ describe('ModelSelector', () => {
     const toggle = screen.getByRole('button', { name: /Gemini/i })
     expect(toggle).toBeInTheDocument()
     expect(toggle.querySelector('.bg-orange-500')).toBeTruthy()
+  })
+
+  test('keyboard navigation: ArrowDown moves focus to next option', async () => {
+    const user = userEvent.setup()
+    const { onChange } = setup('claude')
+
+    const toggle = screen.getByRole('button', { name: /Claude/i })
+    await user.click(toggle)
+
+    await user.keyboard('{ArrowDown}')
+    await user.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('cursor')
+  })
+
+  test('keyboard navigation: ArrowUp moves focus to previous option', async () => {
+    const user = userEvent.setup()
+    const { onChange } = setup('cursor')
+
+    const toggle = screen.getByRole('button', { name: /Cursor/i })
+    await user.click(toggle)
+
+    await user.keyboard('{ArrowUp}')
+    await user.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('claude')
+  })
+
+  test('keyboard navigation: wraps around when reaching boundaries', async () => {
+    const user = userEvent.setup()
+    const { onChange } = setup('claude')
+
+    const toggle = screen.getByRole('button', { name: /Claude/i })
+    await user.click(toggle)
+
+    await user.keyboard('{ArrowUp}')
+    await user.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith('codex')
+  })
+
+  test('keyboard navigation: Escape closes dropdown', async () => {
+    const user = userEvent.setup()
+    setup('claude')
+
+    const toggle = screen.getByRole('button', { name: /Claude/i })
+    await user.click(toggle)
+
+    expect(screen.getByRole('button', { name: 'Cursor' })).toBeInTheDocument()
+
+    await user.keyboard('{Escape}')
+
+    expect(screen.queryByRole('button', { name: 'Cursor' })).not.toBeInTheDocument()
+  })
+
+  test('keyboard navigation: highlights focused option visually', async () => {
+    const user = userEvent.setup()
+    setup('claude')
+
+    const toggle = screen.getByRole('button', { name: /Claude/i })
+    await user.click(toggle)
+
+    await user.keyboard('{ArrowDown}')
+
+    const cursorOption = screen.getByRole('button', { name: 'Cursor' })
+    expect(cursorOption.className).toContain('bg-slate-600')
   })
 })
