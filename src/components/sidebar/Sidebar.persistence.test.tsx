@@ -187,13 +187,22 @@ describe('Sidebar sort mode persistence', () => {
 
     renderWithProviders(<Sidebar />)
 
-    // Wait until sort mode indicates Creation Time
+    // Wait until sort mode indicates Creation Time AND sessions are in correct order
     await waitFor(() => {
       const sortButton = screen.getByTitle(/^Sort:/i)
       expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
-    })
+      
+      // Also wait for sessions to be sorted correctly
+      const sessionButtons = screen.getAllByRole('button').filter(btn => {
+        const text = btn.textContent || ''
+        return text.includes('para/') && !text.includes('main (orchestrator)')
+      })
+      
+      // Check first session is test_session_b (newest)
+      expect(sessionButtons[0]).toHaveTextContent('test_session_b')
+    }, { timeout: 3000 })
 
-    // Should be in creation time order (newest first)
+    // Now verify full order
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
       return text.includes('para/') && !text.includes('main (orchestrator)')
