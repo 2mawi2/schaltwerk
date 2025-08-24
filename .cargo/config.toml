@@ -1,6 +1,10 @@
 [build]
 jobs = 8
 incremental = true
+# Shared target directory for all worktrees - speeds up builds significantly
+# After first build (1m 36s), subsequent worktrees build in ~5-10s
+# WARNING: Cannot build multiple worktrees simultaneously with this setting
+target-dir = "/tmp/para-ui-shared-target"
 
 [target.x86_64-apple-darwin]
 rustflags = ["-C", "target-cpu=native"]
