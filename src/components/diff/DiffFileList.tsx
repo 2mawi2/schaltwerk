@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { useSelection } from '../../contexts/SelectionContext'
 import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved } from 'react-icons/vsc'
 // Open button moved to global top bar
@@ -8,6 +9,25 @@ import clsx from 'clsx'
 interface ChangedFile {
   path: string
   change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
+}
+
+interface FileChangeEvent {
+  session_name: string
+  changed_files: ChangedFile[]
+  change_summary: {
+    files_changed: number
+    lines_added: number
+    lines_removed: number
+    has_staged: boolean
+    has_unstaged: boolean
+  }
+  branch_info: {
+    current_branch: string
+    base_branch: string
+    base_commit: string
+    head_commit: string
+  }
+  timestamp: number
 }
 
 interface DiffFileListProps {
@@ -29,13 +49,17 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   
   const loadChangedFiles = useCallback(async () => {
+    // Use the current sessionName value from closure
+    const currentSession = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+    if (!currentSession) return
+    
     try {
-      const changedFiles = await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
+      const changedFiles = await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName: currentSession })
       setFiles(changedFiles)
       
-      const currentBranch = await invoke<string>('get_current_branch_name', { sessionName })
-      const baseBranch = await invoke<string>('get_base_branch_name', { sessionName })
-      const [baseCommit, headCommit] = await invoke<[string, string]>('get_commit_comparison_info', { sessionName })
+      const currentBranch = await invoke<string>('get_current_branch_name', { sessionName: currentSession })
+      const baseBranch = await invoke<string>('get_base_branch_name', { sessionName: currentSession })
+      const [baseCommit, headCommit] = await invoke<[string, string]>('get_commit_comparison_info', { sessionName: currentSession })
       
       setBranchInfo({
         currentBranch,
@@ -46,23 +70,77 @@ export function DiffFileList({ onFileSelect, sessionNameOverride }: DiffFileList
     } catch (error) {
       console.error('Failed to load changed files:', error)
     }
-  }, [sessionName])
+  }, [sessionNameOverride, selection])
 
   // Path resolver used by top bar now; no local button anymore
   
   useEffect(() => {
-    // Only load and poll for changes if we have a session
-    // Orchestrator mode doesn't need to show diffs
-    if (sessionName) {
-      loadChangedFiles()
-      const interval = setInterval(loadChangedFiles, 3000)
-      return () => clearInterval(interval)
-    } else {
+    if (!sessionName) {
       // Clear files when in orchestrator mode
       setFiles([])
       setBranchInfo(null)
+      return
     }
-  }, [loadChangedFiles, sessionName])
+
+    // Initial load
+    loadChangedFiles()
+
+    let pollInterval: NodeJS.Timeout | null = null
+    let eventUnlisten: (() => void) | null = null
+
+    // Setup async operations
+    const setup = async () => {
+      // Try to start file watcher
+      try {
+        await invoke('start_file_watcher', { sessionName })
+        console.log(`File watcher started for session: ${sessionName}`)
+      } catch (error) {
+        console.error('Failed to start file watcher, falling back to polling:', error)
+        // Fallback to polling if file watcher fails
+        pollInterval = setInterval(loadChangedFiles, 3000)
+      }
+
+      // Always set up event listener (even if watcher failed, in case it recovers)
+      try {
+        eventUnlisten = await listen<FileChangeEvent>('schaltwerk:file-changes', (event) => {
+          if (event.payload.session_name === sessionName) {
+            setFiles(event.payload.changed_files)
+            setBranchInfo({
+              currentBranch: event.payload.branch_info.current_branch,
+              baseBranch: event.payload.branch_info.base_branch,
+              baseCommit: event.payload.branch_info.base_commit,
+              headCommit: event.payload.branch_info.head_commit
+            })
+            
+            // If we receive events, we can stop polling
+            if (pollInterval) {
+              clearInterval(pollInterval)
+              pollInterval = null
+            }
+          }
+        })
+      } catch (error) {
+        console.error('Failed to set up event listener:', error)
+      }
+    }
+    
+    setup()
+    
+    return () => {
+      // Stop file watcher
+      if (sessionName) {
+        invoke('stop_file_watcher', { sessionName }).catch(console.error)
+      }
+      // Clean up event listener
+      if (eventUnlisten) {
+        eventUnlisten()
+      }
+      // Clean up polling if active
+      if (pollInterval) {
+        clearInterval(pollInterval)
+      }
+    }
+  }, [sessionName])  // Remove loadChangedFiles from dependencies!
   
   const handleFileClick = (file: ChangedFile) => {
     setSelectedFile(file.path)

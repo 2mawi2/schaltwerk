@@ -50,6 +50,8 @@ shell-words = "1.1"
 once_cell = "1.19"
 futures = "0.3"
 clap = { version = "4", features = ["derive"] }
+notify = "6.1"
+notify-debouncer-mini = "0.4"
 
 [dev-dependencies]
 tokio-test = "0.4"

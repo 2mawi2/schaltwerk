@@ -10,6 +10,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 mod cleanup;
 mod diff_commands;
 mod file_utils;
+mod file_watcher;
 mod logging;
 mod terminal;
 mod para_core;
@@ -65,6 +66,7 @@ fn get_development_info() -> Result<serde_json::Value, String> {
 
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
 pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::const_new();
+pub static FILE_WATCHER_MANAGER: OnceCell<Arc<file_watcher::FileWatcherManager>> = OnceCell::const_new();
 
 #[derive(Clone, Debug)]
 pub struct QueuedMessage {
@@ -181,6 +183,52 @@ pub async fn get_message_queue() -> MessageQueue {
     QUEUED_MESSAGES.get_or_init(|| async {
         Arc::new(Mutex::new(HashMap::new()))
     }).await.clone()
+}
+
+pub async fn get_file_watcher_manager() -> Result<Arc<file_watcher::FileWatcherManager>, String> {
+    FILE_WATCHER_MANAGER.get()
+        .ok_or_else(|| "File watcher manager not initialized".to_string())
+        .cloned()
+}
+
+#[tauri::command]
+async fn start_file_watcher(session_name: String) -> Result<(), String> {
+    let para_core = get_para_core().await?;
+    let core = para_core.lock().await;
+    let session_manager = core.session_manager();
+    
+    let sessions = session_manager.list_enriched_sessions()
+        .map_err(|e| format!("Failed to get sessions: {e}"))?;
+    
+    let session = sessions.into_iter()
+        .find(|s| s.info.session_id == session_name)
+        .ok_or_else(|| format!("Session '{session_name}' not found"))?;
+
+    let watcher_manager = get_file_watcher_manager().await?;
+    
+    watcher_manager.start_watching_session(
+        session_name,
+        std::path::PathBuf::from(session.info.worktree_path),
+        session.info.base_branch,
+    ).await
+}
+
+#[tauri::command]
+async fn stop_file_watcher(session_name: String) -> Result<(), String> {
+    let watcher_manager = get_file_watcher_manager().await?;
+    watcher_manager.stop_watching_session(&session_name).await
+}
+
+#[tauri::command]
+async fn is_file_watcher_active(session_name: String) -> Result<bool, String> {
+    let watcher_manager = get_file_watcher_manager().await?;
+    Ok(watcher_manager.is_watching(&session_name).await)
+}
+
+#[tauri::command]
+async fn get_active_file_watchers() -> Result<Vec<String>, String> {
+    let watcher_manager = get_file_watcher_manager().await?;
+    Ok(watcher_manager.get_active_watchers().await)
 }
 
 async fn start_terminal_monitoring(app: tauri::AppHandle) {
@@ -706,7 +754,12 @@ fn main() {
             get_effective_agent_binary_path,
             get_all_agent_binary_configs,
             detect_all_agent_binaries,
-            refresh_agent_binary_detection
+            refresh_agent_binary_detection,
+            // File watcher commands
+            start_file_watcher,
+            stop_file_watcher,
+            is_file_watcher_active,
+            get_active_file_watchers
         ])
         .setup(move |app| {
             // Get current git branch and update window title
@@ -785,6 +838,10 @@ fn main() {
                 }
             });
             
+            // Initialize file watcher manager
+            let file_watcher_handle = app.handle().clone();
+            let _ = FILE_WATCHER_MANAGER.set(Arc::new(file_watcher::FileWatcherManager::new(file_watcher_handle)));
+            
             // Start activity tracking for para_core sessions
             let app_handle = app.handle().clone();
             
@@ -831,6 +888,13 @@ fn main() {
                 tauri::async_runtime::block_on(async {
                     let manager = get_project_manager().await;
                     manager.cleanup_all().await;
+                });
+                
+                // Stop all file watchers
+                tauri::async_runtime::block_on(async {
+                    if let Ok(watcher_manager) = get_file_watcher_manager().await {
+                        watcher_manager.stop_all_watchers().await;
+                    }
                 });
                 
                 // Stop MCP server if running
