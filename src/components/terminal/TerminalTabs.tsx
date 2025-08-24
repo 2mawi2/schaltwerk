@@ -9,6 +9,7 @@ interface TerminalTabsProps {
   sessionName?: string
   isOrchestrator?: boolean
   maxTabs?: number
+  agentType?: string
 }
 
 export interface TerminalTabsHandle {
@@ -21,7 +22,8 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   className = '',
   sessionName,
   isOrchestrator = false,
-  maxTabs = 6
+  maxTabs = 6,
+  agentType
 }, ref) => {
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
@@ -129,6 +131,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
               className="h-full w-full"
               sessionName={sessionName}
               isOrchestrator={isOrchestrator}
+              agentType={agentType}
             />
           </div>
         ))}

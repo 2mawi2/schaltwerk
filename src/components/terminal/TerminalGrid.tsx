@@ -5,13 +5,16 @@ import Split from 'react-split'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
+import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useRef, useEffect, useState } from 'react'
 
 export function TerminalGrid() {
     const { selection, terminals, isReady, isDraft } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
+    const { getAgentType } = useClaudeSession()
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
+    const [agentType, setAgentType] = useState<string>('claude')
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(6) // fallback ~ header height in %
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
@@ -85,6 +88,11 @@ export function TerminalGrid() {
             window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal)
         }
     }, [isBottomCollapsed, lastExpandedBottomPercent])
+
+    // Fetch agent type when component mounts
+    useEffect(() => {
+        getAgentType().then(setAgentType).catch(console.error)
+    }, [getAgentType])
 
     // Focus appropriate terminal when selection changes
     useEffect(() => {
@@ -333,6 +341,7 @@ export function TerminalGrid() {
                             className="h-full w-full" 
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                             isOrchestrator={selection.kind === 'orchestrator'}
+                            agentType={agentType}
                         />
                     </div>
                 </div>
@@ -385,6 +394,7 @@ export function TerminalGrid() {
                             className="h-full"
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                             isOrchestrator={selection.kind === 'orchestrator'}
+                            agentType={agentType}
                         />
                     </div>
                 </div>

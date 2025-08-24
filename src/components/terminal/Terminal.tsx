@@ -20,6 +20,7 @@ interface TerminalProps {
     className?: string;
     sessionName?: string;
     isOrchestrator?: boolean;
+    agentType?: string;
 }
 
 export interface TerminalHandle {
@@ -27,7 +28,7 @@ export interface TerminalHandle {
     showSearch: () => void;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isOrchestrator = false }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isOrchestrator = false, agentType }, ref) => {
     const { terminalFontSize } = useFontSize();
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
@@ -108,11 +109,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
         if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
 
+        // Disable cursor for TUI-based agents to avoid duplicate cursors
+        // TUI agents (cursor, opencode, gemini, etc.) show their own cursor, so we hide xterm's cursor to prevent visual conflict
+        const isTuiAgent = agentType === 'cursor' || agentType === 'cursor-agent' || agentType === 'opencode' || agentType === 'gemini'
+
         terminal.current = new XTerm({
             theme: {
                 background: '#0b1220', // Match bg-panel color from web-ui
                 foreground: '#e4e4e7',
-                cursor: '#e4e4e7',
+                cursor: isTuiAgent ? 'transparent' : '#e4e4e7',
                 black: '#1e293b',
                 red: '#ef4444',
                 green: '#22c55e',
@@ -132,7 +137,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             },
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
             fontSize: terminalFontSize,
-            cursorBlink: true,
+            cursorBlink: !isTuiAgent,
             scrollback: 10000,
             // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
