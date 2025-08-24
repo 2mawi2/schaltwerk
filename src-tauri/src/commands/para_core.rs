@@ -742,8 +742,10 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
             if let Some(last_arg) = final_args.last() {
                 // Check if the last argument looks like a prompt (doesn't start with -)
                 if !last_arg.starts_with('-') && final_args.len() > 1 {
-                    extracted_prompt = Some(final_args.pop().unwrap());
-                    log::info!("Extracted codex prompt for proper ordering: '{}'", extracted_prompt.as_ref().unwrap());
+                    if let Some(prompt) = final_args.pop() {
+                        log::info!("Extracted codex prompt for proper ordering: '{prompt}'");
+                        extracted_prompt = Some(prompt);
+                    }
                 }
             }
             

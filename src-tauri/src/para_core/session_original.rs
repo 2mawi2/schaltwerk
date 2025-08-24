@@ -6,6 +6,7 @@ use anyhow::{Result, anyhow};
 use uuid::Uuid;
 use chrono::{Utc, TimeZone};
 use rand::Rng;
+use log::{warn, error};
 use crate::para_core::{
     database::Database,
     db_sessions::SessionMethods,
@@ -31,38 +32,84 @@ type BranchExistenceCache = HashMap<PathBuf, RepoBranchExistence>;
 static BRANCH_CACHE: OnceLock<StdMutex<BranchExistenceCache>> = OnceLock::new();
 const BRANCH_CACHE_TTL: Duration = Duration::from_secs(30);
 
+fn with_prompted_sessions<F, R>(f: F) -> Result<R>
+where
+    F: FnOnce(&mut HashSet<PathBuf>) -> R,
+{
+    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
+    let mut prompted = set.lock().map_err(|e| {
+        error!("Prompted sessions mutex poisoned: {e}");
+        anyhow!("Internal state error: prompted sessions lock failed")
+    })?;
+    Ok(f(&mut prompted))
+}
+
+fn with_reserved_names<F, R>(f: F) -> Result<R>
+where
+    F: FnOnce(&mut HashMap<PathBuf, HashSet<String>>) -> R,
+{
+    let map_mutex = RESERVED_NAMES.get_or_init(|| StdMutex::new(HashMap::new()));
+    let mut map = map_mutex.lock().map_err(|e| {
+        error!("Reserved names mutex poisoned: {e}");
+        anyhow!("Internal state error: reserved names lock failed")
+    })?;
+    Ok(f(&mut map))
+}
+
+fn with_branch_cache<F, R>(f: F) -> Result<R>
+where
+    F: FnOnce(&mut BranchExistenceCache) -> R,
+{
+    let cache_mutex = BRANCH_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    let mut cache = cache_mutex.lock().map_err(|e| {
+        error!("Branch cache mutex poisoned: {e}");
+        anyhow!("Internal state error: branch cache lock failed")
+    })?;
+    Ok(f(&mut cache))
+}
+
 #[cfg(test)]
 pub(crate) fn has_session_been_prompted(worktree_path: &Path) -> bool {
-    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-    let prompted = set.lock().unwrap();
-    prompted.contains(worktree_path)
+    with_prompted_sessions(|prompted| prompted.contains(worktree_path))
+        .unwrap_or_else(|e| {
+            warn!("Failed to check prompted sessions: {e}");
+            false
+        })
 }
 
 #[cfg(not(test))]
 fn has_session_been_prompted(worktree_path: &Path) -> bool {
-    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-    let prompted = set.lock().unwrap();
-    prompted.contains(worktree_path)
+    with_prompted_sessions(|prompted| prompted.contains(worktree_path))
+        .unwrap_or_else(|e| {
+            warn!("Failed to check prompted sessions: {e}");
+            false
+        })
 }
 
 #[cfg(test)]
 pub(crate) fn mark_session_prompted(worktree_path: &Path) {
-    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-    let mut prompted = set.lock().unwrap();
-    prompted.insert(worktree_path.to_path_buf());
+    if let Err(e) = with_prompted_sessions(|prompted| {
+        prompted.insert(worktree_path.to_path_buf())
+    }) {
+        warn!("Failed to mark session as prompted: {e}");
+    }
 }
 
 #[cfg(not(test))]
 fn mark_session_prompted(worktree_path: &Path) {
-    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-    let mut prompted = set.lock().unwrap();
-    prompted.insert(worktree_path.to_path_buf());
+    if let Err(e) = with_prompted_sessions(|prompted| {
+        prompted.insert(worktree_path.to_path_buf())
+    }) {
+        warn!("Failed to mark session as prompted: {e}");
+    }
 }
 
 fn clear_session_prompted(worktree_path: &Path) {
-    let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-    let mut prompted = set.lock().unwrap();
-    prompted.remove(worktree_path);
+    if let Err(e) = with_prompted_sessions(|prompted| {
+        prompted.remove(worktree_path)
+    }) {
+        warn!("Failed to clear prompted session: {e}");
+    }
 }
 
 pub struct SessionManager {
@@ -94,13 +141,21 @@ impl SessionManager {
     fn get_repo_lock(repo_path: &PathBuf) -> Arc<StdMutex<()>> {
         static REPO_LOCKS: OnceLock<StdMutex<HashMap<PathBuf, Arc<StdMutex<()>>>>> = OnceLock::new();
         let map_mutex = REPO_LOCKS.get_or_init(|| StdMutex::new(HashMap::new()));
-        let mut map = map_mutex.lock().unwrap();
-        if let Some(lock) = map.get(repo_path) {
-            return lock.clone();
+        match map_mutex.lock() {
+            Ok(mut map) => {
+                if let Some(lock) = map.get(repo_path) {
+                    return lock.clone();
+                }
+                let lock = Arc::new(StdMutex::new(()));
+                map.insert(repo_path.clone(), lock.clone());
+                lock
+            }
+            Err(e) => {
+                error!("Repository locks mutex poisoned: {e}");
+                // Return a new mutex instead of panicking - operations may still work
+                Arc::new(StdMutex::new(()))
+            }
         }
-        let lock = Arc::new(StdMutex::new(()));
-        map.insert(repo_path.clone(), lock.clone());
-        lock
     }
     
     fn generate_random_suffix(len: usize) -> String {
@@ -111,48 +166,56 @@ impl SessionManager {
     }
     
     fn is_reserved(&self, name: &str) -> bool {
-        let map_mutex = RESERVED_NAMES.get_or_init(|| StdMutex::new(HashMap::new()));
-        let map = map_mutex.lock().unwrap();
-        if let Some(set) = map.get(&self.repo_path) {
-            set.contains(name)
-        } else {
+        with_reserved_names(|map| {
+            if let Some(set) = map.get(&self.repo_path) {
+                set.contains(name)
+            } else {
+                false
+            }
+        }).unwrap_or_else(|e| {
+            warn!("Failed to check reserved names: {e}");
             false
-        }
+        })
     }
 
     fn reserve_name(&self, name: &str) {
-        let map_mutex = RESERVED_NAMES.get_or_init(|| StdMutex::new(HashMap::new()));
-        let mut map = map_mutex.lock().unwrap();
-        let set = map.entry(self.repo_path.clone()).or_default();
-        set.insert(name.to_string());
+        if let Err(e) = with_reserved_names(|map| {
+            let set = map.entry(self.repo_path.clone()).or_default();
+            set.insert(name.to_string())
+        }) {
+            warn!("Failed to reserve name '{name}': {e}");
+        }
     }
 
     fn unreserve_name(&self, name: &str) {
-        let map_mutex = RESERVED_NAMES.get_or_init(|| StdMutex::new(HashMap::new()));
-        let mut map = map_mutex.lock().unwrap();
-        if let Some(set) = map.get_mut(&self.repo_path) {
-            set.remove(name);
+        if let Err(e) = with_reserved_names(|map| {
+            if let Some(set) = map.get_mut(&self.repo_path) {
+                set.remove(name)
+            } else {
+                false
+            }
+        }) {
+            warn!("Failed to unreserve name '{name}': {e}");
         }
     }
 
     // Fast branch existence using per-branch cached results with TTL
     fn branch_exists_fast(&self, short_branch: &str) -> Result<bool> {
-        let cache_mutex = BRANCH_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
-        let mut cache = cache_mutex.lock().unwrap();
+        with_branch_cache(|cache| {
+            let now = Instant::now();
+            let repo_cache = cache.entry(self.repo_path.clone()).or_default();
 
-        let now = Instant::now();
-        let repo_cache = cache.entry(self.repo_path.clone()).or_default();
-
-        if let Some((ts, exists)) = repo_cache.get(short_branch) {
-            if now.duration_since(*ts) <= BRANCH_CACHE_TTL {
-                return Ok(*exists);
+            if let Some((ts, exists)) = repo_cache.get(short_branch) {
+                if now.duration_since(*ts) <= BRANCH_CACHE_TTL {
+                    return Ok(*exists);
+                }
             }
-        }
 
-        // Miss or stale: query git for this single branch and cache the result
-        let exists = crate::para_core::git::branch_exists(&self.repo_path, short_branch)?;
-        repo_cache.insert(short_branch.to_string(), (now, exists));
-        Ok(exists)
+            // Miss or stale: query git for this single branch and cache the result
+            let exists = crate::para_core::git::branch_exists(&self.repo_path, short_branch)?;
+            repo_cache.insert(short_branch.to_string(), (now, exists));
+            Ok(exists)
+        })?
     }
 
     fn check_name_availability(&self, name: &str) -> Result<bool> {
@@ -268,7 +331,10 @@ impl SessionManager {
         
         // Serialize session creation per repository to avoid git worktree races
         let repo_lock = Self::get_repo_lock(&self.repo_path);
-        let _guard = repo_lock.lock().unwrap();
+        let _guard = repo_lock.lock().map_err(|e| {
+            error!("Repository lock poisoned: {e}");
+            anyhow!("Failed to acquire repository lock for session creation")
+        })?;
         if !git::is_valid_session_name(name) {
             return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
         }
@@ -298,7 +364,7 @@ impl SessionManager {
         };
         let repo_name = self.repo_path
             .file_name()
-            .unwrap()
+            .ok_or_else(|| anyhow!("Invalid repository path: no filename component"))?
             .to_string_lossy()
             .to_string();
         
@@ -1182,7 +1248,10 @@ impl SessionManager {
         log::info!("Creating draft session '{}' in repository: {}", name, self.repo_path.display());
         
         let repo_lock = Self::get_repo_lock(&self.repo_path);
-        let _guard = repo_lock.lock().unwrap();
+        let _guard = repo_lock.lock().map_err(|e| {
+            error!("Repository lock poisoned during draft creation: {e}");
+            anyhow!("Failed to acquire repository lock for draft creation")
+        })?;
         
         if !git::is_valid_session_name(name) {
             return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
@@ -1193,7 +1262,7 @@ impl SessionManager {
         let session_id = Uuid::new_v4().to_string();
         let repo_name = self.repo_path
             .file_name()
-            .unwrap()
+            .ok_or_else(|| anyhow!("Invalid repository path: no filename component"))?
             .to_string_lossy()
             .to_string();
         
@@ -1237,7 +1306,10 @@ impl SessionManager {
         log::info!("Starting draft session '{}' in repository: {}", session_name, self.repo_path.display());
         
         let repo_lock = Self::get_repo_lock(&self.repo_path);
-        let _guard = repo_lock.lock().unwrap();
+        let _guard = repo_lock.lock().map_err(|e| {
+            error!("Repository lock poisoned during draft start: {e}");
+            anyhow!("Failed to acquire repository lock for starting draft session")
+        })?;
         
         let session = self.db.get_session_by_name(&self.repo_path, session_name)?;
         
