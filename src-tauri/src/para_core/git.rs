@@ -10,7 +10,10 @@ pub use repository::{discover_repository, get_default_branch, init_repository, r
 #[cfg(test)]
 pub use repository::{get_current_branch, get_commit_hash};
 pub use branches::{list_branches, delete_branch, branch_exists, rename_branch, archive_branch};
-pub use worktrees::{create_worktree_from_base, remove_worktree, list_worktrees, prune_worktrees, is_worktree_registered, update_worktree_branch};
+pub use worktrees::{create_worktree_from_base, remove_worktree, list_worktrees, prune_worktrees, update_worktree_branch};
+
+#[cfg(test)]
+pub use worktrees::is_worktree_registered;
 pub use stats::{calculate_git_stats_fast, get_changed_files};
 pub use operations::{has_uncommitted_changes, commit_all_changes, is_valid_session_name};
 

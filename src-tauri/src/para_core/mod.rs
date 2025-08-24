@@ -6,7 +6,10 @@ pub mod db_app_config;
 pub mod db_project_config;
 pub mod git;
 // pub mod mcp;  // Temporarily disabled - will be used for MCP server later
-pub mod session;
+pub mod session_core;
+pub mod session_db;
+pub mod session_cache;
+pub mod session_utils;
 pub mod activity;
 pub mod types;
 pub mod claude;
@@ -21,7 +24,7 @@ mod tests;
 mod session_sorting;
 
 pub use database::Database;
-pub use session::SessionManager;
+pub use session_core::SessionManager;
 pub use types::{Session, SessionState, EnrichedSession, SortMode, FilterMode};
 
 use std::path::PathBuf;

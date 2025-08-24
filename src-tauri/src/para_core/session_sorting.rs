@@ -232,7 +232,7 @@ mod session_sorting_tests {
 
         // Create a new session
         let new_session = create_test_session_with_repo("new-session", SessionStatus::Active, SessionState::Running, false, 1, Some(1), &temp_dir.path().to_path_buf());
-        manager.db.create_session(&new_session).unwrap();
+        manager.db_ref().create_session(&new_session).unwrap();
         
         // Should immediately reflect the new session (no cache)
         let updated_sessions = manager.list_enriched_sessions_sorted(

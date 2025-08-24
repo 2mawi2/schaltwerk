@@ -115,6 +115,7 @@ pub fn prune_worktrees(repo_path: &Path) -> Result<()> {
     Ok(())
 }
 
+#[allow(dead_code)]
 pub fn is_worktree_registered(repo_path: &Path, worktree_path: &Path) -> Result<bool> {
     let output = Command::new("git")
         .args([
