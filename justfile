@@ -295,7 +295,19 @@ run-release:
     # Always start from HOME directory when using 'just run' commands
     # Pass repository path explicitly so backend can discover it even from packaged runs
     PROJECT_ROOT="$(pwd)"
-    cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
+    
+    # Check for binary in shared target directory first, then fallback to local
+    BINARY_PATH="/tmp/para-ui-shared-target/release/schaltwerk"
+    if [ ! -f "$BINARY_PATH" ]; then
+        BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
+    fi
+    
+    if [ ! -f "$BINARY_PATH" ]; then
+        echo "❌ Error: Binary not found at $BINARY_PATH"
+        exit 1
+    fi
+    
+    cd "$HOME" && PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
 # Build and run the application in release mode with a specific port
 # This builds fresh like 'just run' does, but creates a release build
@@ -308,10 +320,11 @@ run-port-release port:
     export VITE_PORT={{port}}
     export PORT={{port}}
     
-    # Clean old binaries to force rebuild
+    # Clean old binaries to force rebuild (check both shared and local target dirs)
     echo "🧹 Cleaning old release binaries..."
     rm -f ./src-tauri/target/release/schaltwerk
     rm -f ./src-tauri/target/release/ui
+    rm -f /tmp/para-ui-shared-target/release/schaltwerk
     
     # Build frontend
     echo "📦 Building frontend..."
@@ -326,7 +339,19 @@ run-port-release port:
     # The tauri build creates the binary with the productName from tauri.conf.json
     # Pass repository path explicitly so backend can discover it
     PROJECT_ROOT="$(pwd)"
-    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
+    
+    # Check for binary in shared target directory first, then fallback to local
+    BINARY_PATH="/tmp/para-ui-shared-target/release/schaltwerk"
+    if [ ! -f "$BINARY_PATH" ]; then
+        BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
+    fi
+    
+    if [ ! -f "$BINARY_PATH" ]; then
+        echo "❌ Error: Binary not found at $BINARY_PATH"
+        exit 1
+    fi
+    
+    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
 # Install the application on macOS as a release build
 install-mac:
