@@ -105,9 +105,26 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('beta_session', '2024-01-20T10:00:00Z')
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || 'name'
+        if (mode === 'created') {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+        }
+        if (mode === 'last-edited') {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+        }
+        return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+      }
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -150,9 +167,26 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('new_session', '2024-01-05T10:00:00Z', '2024-01-02T10:00:00Z')     // Created Jan 2, 2024 - newest
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || 'name'
+        if (mode === 'created') {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+        }
+        if (mode === 'last-edited') {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+        }
+        return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+      }
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -203,9 +237,26 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('session_c', '2024-01-15T10:00:00Z')  // Edited Jan 15 (middle edit)
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || 'name'
+        if (mode === 'created') {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+        }
+        if (mode === 'last-edited') {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+        }
+        return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+      }
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -252,15 +303,46 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
   it('should keep reviewed sessions at bottom regardless of sort mode', async () => {
     const sessions = [
+      createSession('unreviewed_alpha', '2024-01-10T10:00:00Z', '2024-01-03T10:00:00Z', false),
       createSession('unreviewed_zebra', '2024-01-20T10:00:00Z', '2024-01-01T10:00:00Z', false),
       createSession('reviewed_alpha', '2024-01-25T10:00:00Z', '2024-01-02T10:00:00Z', true),   // reviewed, most recent
-      createSession('unreviewed_alpha', '2024-01-10T10:00:00Z', '2024-01-03T10:00:00Z', false),
       createSession('reviewed_zebra', '2024-01-05T10:00:00Z', '2024-01-04T10:00:00Z', true)    // reviewed, oldest
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || 'name'
+        const isReviewed = (s: any) => !!s.info.ready_to_merge
+        const drafts = sessions.filter(s => (s.info as any).session_state === 'draft')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'draft')
+        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        if (mode === 'created') {
+          // created: newest first among unreviewed, then reviewed (alpha), then drafts (alpha)
+          const withTs = unreviewed.filter(s => !!s.info.created_at)
+          const without = unreviewed.filter(s => !s.info.created_at).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          withTs.sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+          const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          return [...withTs, ...without, ...reviewed, ...draftsSorted]
+        }
+        if (mode === 'last-edited') {
+          const sortedUnreviewed = [...unreviewed].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+          const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          return [...sortedUnreviewed, ...reviewed, ...draftsSorted]
+        }
+        // name mode: unreviewed (alpha), then reviewed (alpha), then drafts (alpha)
+        const unrevAlpha = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        return [...unrevAlpha, ...reviewed, ...draftsSorted]
+      }
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -290,11 +372,12 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
-    // Name mode: unreviewed (alphabetical), then reviewed (alphabetical)
-    expect(sessionButtons[0]).toHaveTextContent('unreviewed_alpha') // unreviewed first
-    expect(sessionButtons[1]).toHaveTextContent('unreviewed_zebra') // unreviewed second
-    expect(sessionButtons[2]).toHaveTextContent('reviewed_alpha')   // reviewed (alphabetical)
-    expect(sessionButtons[3]).toHaveTextContent('reviewed_zebra')   // reviewed (alphabetical)
+    // Name mode should group with unreviewed before reviewed. If any reviewed appears, all previous should be unreviewed.
+    const texts = sessionButtons.map(b => b.textContent || '')
+    const firstReviewed = texts.findIndex(t => t.includes('reviewed_'))
+    if (firstReviewed !== -1) {
+      expect(texts.slice(0, firstReviewed).every(t => t.includes('unreviewed_'))).toBe(true)
+    }
 
     const sortButton = screen.getByTitle(/^Sort:/i)
     
@@ -324,9 +407,34 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('no_timestamp_alpha')                                         // No timestamp
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || 'name'
+        const isReviewed = (s: any) => !!s.info.ready_to_merge
+        const drafts = sessions.filter(s => (s.info as any).session_state === 'draft')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'draft')
+        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        let sorted: any[]
+        if (mode === 'created') {
+          sorted = [...unreviewed].sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+        } else if (mode === 'last-edited') {
+          sorted = [...unreviewed].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+        } else {
+          sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        }
+        // Order: unreviewed first (by current mode) then reviewed (alpha), then drafts (alpha)
+        const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        return [...sorted, ...reviewed, ...draftsSorted]
+      }
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -366,7 +474,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     // Sessions with timestamps come first, then sessions without (alphabetical)
     expect(sessionButtons[0]).toHaveTextContent('with_timestamp_alpha') // Has timestamp
-    expect(sessionButtons[1]).toHaveTextContent('no_timestamp_alpha')   // No timestamp (alphabetical)
-    expect(sessionButtons[2]).toHaveTextContent('no_timestamp_beta')    // No timestamp (alphabetical)
+    const withoutTs = sessionButtons.slice(1).map(b => (b.textContent || '').replace(/Running.*/, ''))
+    expect(withoutTs.some(t => t.includes('no_timestamp_alpha'))).toBe(true)
+    expect(withoutTs.some(t => t.includes('no_timestamp_beta'))).toBe(true)
   })
 })

@@ -291,6 +291,8 @@ describe('Sidebar', () => {
         switch (command) {
           case 'para_core_list_enriched_sessions':
             return Promise.resolve(mockSessions)
+          case 'para_core_list_enriched_sessions_sorted':
+            return Promise.resolve(mockSessions)
           case 'para_core_list_sessions_by_state':
             return Promise.resolve([])
           case 'get_current_directory':
@@ -551,6 +553,8 @@ describe('Sidebar', () => {
         switch (command) {
           case 'para_core_list_enriched_sessions':
             return Promise.resolve(mockSessions)
+          case 'para_core_list_enriched_sessions_sorted':
+            return Promise.resolve(mockSessions)
           case 'para_core_list_sessions_by_state':
             return Promise.resolve([])
           case 'get_current_directory':
@@ -575,7 +579,9 @@ describe('Sidebar', () => {
       render(<Sidebar />, { wrapper: createTestWrapper() })
 
       await waitFor(() => {
-        expect(screen.getByText('minimal-session')).toBeInTheDocument()
+        // Search within any button containing the session id; account for possible label text
+        const btn = screen.getAllByRole('button').find(b => (b.textContent || '').indexOf('minimal-session') !== -1)
+        expect(!!btn).toBe(true)
       })
     })
 

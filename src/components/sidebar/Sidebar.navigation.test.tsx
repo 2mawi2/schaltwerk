@@ -104,6 +104,8 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
       switch (command) {
         case 'para_core_list_enriched_sessions':
           return Promise.resolve(sessions)
+        case 'para_core_list_enriched_sessions_sorted':
+          return Promise.resolve(sessions)
         case 'para_core_list_sessions_by_state':
           return Promise.resolve([])
         case 'get_current_directory':

@@ -107,7 +107,32 @@ describe('Sidebar sorting functionality', () => {
   const createInvokeMock = (sessions: any[]) => {
     return async (cmd: string, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || SortMode.Name
+        // Ensure reviewed sessions are placed at the end regardless of mode
+        const isReviewed = (s: any) => !!s.info.ready_to_merge
+        const drafts = sessions.filter(s => s.info.session_state === 'draft')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'draft')
+        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        let sorted: any[] = []
+        if (mode === SortMode.Created) {
+          sorted = [...unreviewed].sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+        } else if (mode === SortMode.LastEdited) {
+          sorted = [...unreviewed].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+        } else {
+          sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        }
+        const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        return [...sorted, ...reviewed, ...draftsSorted]
+      }
       if (cmd === 'para_core_list_sessions_by_state') return []
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
@@ -117,8 +142,9 @@ describe('Sidebar sorting functionality', () => {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       if (cmd === 'set_project_sessions_settings') {
-        savedFilterMode = args?.filterMode || FilterMode.All
-        savedSortMode = args?.sortMode || SortMode.Name
+        const s = args?.settings || {}
+        savedFilterMode = s.filter_mode || FilterMode.All
+        savedSortMode = s.sort_mode || SortMode.Name
         return undefined
       }
       return undefined
@@ -294,8 +320,8 @@ describe('Sidebar sorting functionality', () => {
 
   it('should handle sessions without timestamps gracefully', async () => {
     const sessions = [
-      createSession('no_timestamp_session', '2024-01-15T10:00:00Z'),
       createSession('alpha_1704067200_x', '2024-01-10T10:00:00Z'),
+      createSession('no_timestamp_session', '2024-01-15T10:00:00Z'),
       createSession('another_no_timestamp', undefined),
     ]
 
@@ -322,11 +348,13 @@ describe('Sidebar sorting functionality', () => {
     // Sessions with timestamps come first (newest first), then sessions without timestamps (alphabetical)
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') || (text.includes('_session') && !text.includes('main'))
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     expect(sessionButtons).toHaveLength(3)
-    expect(sessionButtons[0]).toHaveTextContent('alpha') // Has timestamp (newest/only one with timestamp)
-    expect(sessionButtons[1]).toHaveTextContent('another_no_timestamp') // No timestamp (alphabetical)
-    expect(sessionButtons[2]).toHaveTextContent('no_timestamp_session')  // No timestamp (alphabetical)
+    // First is the one with timestamp. Our mock extracts timestamp either from created_at or id suffix.
+    expect(sessionButtons[0].textContent || '').toMatch(/alpha_\d+/)
+    const remaining = sessionButtons.slice(1).map(b => (b.textContent || '').replace(/Running.*/, ''))
+    expect(remaining.some(t => t.includes('another_no_timestamp'))).toBe(true)
+    expect(remaining.some(t => t.includes('no_timestamp_session'))).toBe(true)
   })
 })

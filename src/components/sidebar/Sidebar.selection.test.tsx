@@ -63,12 +63,17 @@ describe('Sidebar - Selection on State Changes', () => {
         const runningSession2 = mockEnrichedSession('running-task-2', 'active', false)
 
         // Start with a draft and two running sessions
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return [draftSession, runningSession1, runningSession2]
             }
             if (cmd === 'para_core_list_enriched_sessions_sorted') {
-                return [draftSession, runningSession1, runningSession2]
+                const fm = args?.filterMode || 'all'
+                const all = [draftSession, runningSession1, runningSession2]
+                if (fm === 'draft') return [draftSession]
+                if (fm === 'reviewed') return all.filter(s => s.info.ready_to_merge)
+                if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'draft')
+                return all
             }
             if (cmd === 'para_core_list_sessions_by_state') {
                 return []
@@ -116,9 +121,17 @@ describe('Sidebar - Selection on State Changes', () => {
         const draftSession = mockDraftSession('draft-task')
 
         // Start with only a draft session
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return [draftSession]
+            }
+            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+                const fm = args?.filterMode || 'all'
+                const all = [draftSession]
+                if (fm === 'draft') return all
+                if (fm === 'running') return []
+                if (fm === 'reviewed') return []
+                return all
             }
             if (cmd === 'para_core_list_sessions_by_state') {
                 return []
@@ -160,6 +173,9 @@ describe('Sidebar - Selection on State Changes', () => {
         // Start with a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'para_core_list_enriched_sessions') {
+                return [runningSession]
+            }
+            if (cmd === 'para_core_list_enriched_sessions_sorted') {
                 return [runningSession]
             }
             if (cmd === 'para_core_list_sessions_by_state') {
@@ -219,9 +235,17 @@ describe('Sidebar - Selection on State Changes', () => {
         const runningTask = mockEnrichedSession('running-task', 'active', false)
 
         // Start with a draft and a running session
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return [draftTask, runningTask]
+            }
+            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+                const fm = args?.filterMode || 'all'
+                const all = [draftTask, runningTask]
+                if (fm === 'draft') return [draftTask]
+                if (fm === 'running') return [runningTask]
+                if (fm === 'reviewed') return []
+                return all
             }
             if (cmd === 'para_core_list_sessions_by_state') {
                 return []

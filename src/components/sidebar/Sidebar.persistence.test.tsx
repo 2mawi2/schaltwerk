@@ -113,7 +113,25 @@ describe('Sidebar sort mode persistence', () => {
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
       if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+        const mode = args?.sortMode || SortMode.Name
+        if (mode === SortMode.Created) {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            return bT - aT
+          })
+        }
+        if (mode === SortMode.LastEdited) {
+          return [...sessions].sort((a, b) => {
+            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            return bT - aT
+          })
+        }
+        // Name
+        return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+      }
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -123,8 +141,9 @@ describe('Sidebar sort mode persistence', () => {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       if (cmd === 'set_project_sessions_settings') {
-        savedFilterMode = args?.filterMode || FilterMode.All
-        savedSortMode = args?.sortMode || SortMode.Name
+        const s = args?.settings || {}
+        savedFilterMode = s.filter_mode || FilterMode.All
+        savedSortMode = s.sort_mode || SortMode.Name
         return undefined
       }
       return undefined
@@ -168,12 +187,10 @@ describe('Sidebar sort mode persistence', () => {
 
     renderWithProviders(<Sidebar />)
 
+    // Wait until sort mode indicates Creation Time
     await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
-      })
-      expect(sessionButtons).toHaveLength(3)
+      const sortButton = screen.getByTitle(/^Sort:/i)
+      expect(sortButton).toHaveAttribute('title', expect.stringContaining('Creation Time'))
     })
 
     // Should be in creation time order (newest first)
@@ -377,6 +394,12 @@ describe('Sidebar sort mode persistence', () => {
         return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
+    })
+
+    // Wait until sort mode is restored to last-edited
+    await waitFor(() => {
+      const sb = screen.getByTitle(/^Sort:/i)
+      expect(sb).toHaveAttribute('title', expect.stringContaining('Last Edited'))
     })
 
     // Should be in last-edited order (most recent first)

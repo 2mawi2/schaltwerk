@@ -272,6 +272,9 @@ mod tests {
             session_id: "session1".to_string(),
             session_name: "feature".to_string(),
             last_activity_ts: 1704067200,
+            current_task: None,
+            todo_percentage: None,
+            is_blocked: None,
         };
         
         let stats_payload = SessionGitStatsUpdated {
