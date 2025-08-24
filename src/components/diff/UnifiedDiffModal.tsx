@@ -4,14 +4,14 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection } from '../../hooks/useLineSelection'
-import { getFileLanguage } from '../../utils/diff'
-import { loadAllFileDiffs, loadFileDiff, type FileDiffData } from './loadDiffs'
+// getFileLanguage now comes from Rust backend via fileInfo in diff responses
+import { loadFileDiff, type FileDiffData } from './loadDiffs'
 import { DiffLineRow } from './DiffLineRow'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { 
   VscClose, VscComment, VscSend, VscCheck, VscFile,
-  VscDiffAdded, VscDiffModified, VscDiffRemoved
+  VscDiffAdded, VscDiffModified, VscDiffRemoved, VscListFlat, VscListSelection
 } from 'react-icons/vsc'
 import clsx from 'clsx'
 import hljs from 'highlight.js'
@@ -49,8 +49,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   } | null>(null)
   const [selectedFileIndex, setSelectedFileIndex] = useState<number>(0)
   const [allFileDiffs, setAllFileDiffs] = useState<Map<string, FileDiffData>>(new Map())
-  const [loadingAllFiles, setLoadingAllFiles] = useState(true)
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  // Removed bulk loading states - now using lazy loading for better performance
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const fileRefs = useRef<Map<string, HTMLDivElement>>(new Map())
   const suppressAutoSelectRef = useRef(false)
@@ -64,19 +63,24 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [expandedSections, setExpandedSections] = useState<Set<string | number>>(new Set())
   const [commentFormPosition, setCommentFormPosition] = useState<{ x: number, y: number } | null>(null)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
-  const LARGE_FILES_THRESHOLD = 30
-  const LARGE_CHANGED_LINES_THRESHOLD = 10000
+  const [continuousScroll, setContinuousScroll] = useState(false)
+  
+  // Virtual scrolling state for continuous mode
+  const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
+  const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set())
+  const observerRef = useRef<IntersectionObserver | null>(null)
+  const visibilityUpdateTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map())
+  const idleCallbackIdRef = useRef<number | null>(null)
 
-  // Decide large diff mode early so downstream hooks can use it
+  // Use single file view mode when continuousScroll is disabled
   const isLargeDiffMode = useMemo(() => {
-    if (files.length >= LARGE_FILES_THRESHOLD) return true
-    let totalChanged = 0
-    allFileDiffs.forEach((d) => {
-      const count = (d as any).changedLinesCount as number | undefined
-      if (typeof count === 'number') totalChanged += count
-    })
-    return totalChanged > LARGE_CHANGED_LINES_THRESHOLD
-  }, [files.length, allFileDiffs])
+    // When continuousScroll is false, always use single file view
+    if (!continuousScroll) return true
+    
+    // When continuousScroll is true, never use single file view - show all files
+    return false
+  }, [continuousScroll])
 
   // Removed virtualization to prevent jumping when diffs load
 
@@ -125,25 +129,42 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [isOpen, sessionName, currentReview, startReview])
 
-  const loadAll = useCallback(async (fileList: ChangedFile[]) => {
-    if (!hasLoadedOnce) setLoadingAllFiles(true)
-    try {
-      const newDiffs = await loadAllFileDiffs(sessionName, fileList, 'unified', 4)
-      // Merge new diffs with existing ones to avoid clearing already loaded diffs
-      setAllFileDiffs(prev => {
-        const merged = new Map(prev)
-        newDiffs.forEach((value, key) => {
-          merged.set(key, value)
-        })
-        return merged
-      })
-      setHasLoadedOnce(true)
-    } catch (error) {
-      console.error('Failed to load all file diffs:', error)
-    } finally {
-      setLoadingAllFiles(false)
+  
+  const toggleContinuousScroll = useCallback(async () => {
+    const newValue = !continuousScroll
+    
+    // Reset state when switching modes
+    setAllFileDiffs(new Map())  // Clear all loaded diffs
+    setVisibleFilePath(null)    // Reset visible file tracking
+    
+    // Reset scroll position
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTop = 0
     }
-  }, [sessionName, hasLoadedOnce])
+    
+    setContinuousScroll(newValue)
+    
+    // Re-load the currently selected file after mode switch
+    if (selectedFile) {
+      const file = files.find(f => f.path === selectedFile)
+      if (file) {
+        try {
+          const diff = await loadFileDiff(sessionName, file, 'unified')
+          setAllFileDiffs(new Map([[selectedFile, diff]]))
+        } catch (e) {
+          console.error('Failed to reload selected file:', e)
+        }
+      }
+    }
+    
+    try {
+      await invoke('set_diff_view_preferences', { 
+        preferences: { continuous_scroll: newValue } 
+      })
+    } catch (err) {
+      console.error('Failed to save diff view preference:', err)
+    }
+  }, [continuousScroll, selectedFile, files, sessionName])
 
   const loadChangedFiles = useCallback(async () => {
     try {
@@ -176,13 +197,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         }
       }
 
-      // Load remaining diffs in the background with concurrency
-      loadAll(changedFiles).then(() => {
-        // loadAll already sets state, nothing to do here
-      })
-      
-      // Auto-select first file when opening
-      // handled above
+      // Note: We now use lazy loading - diffs are loaded on-demand when user navigates to them
+      // This provides instant modal opening and smooth performance
       
       const currentBranch = await invoke<string>('get_current_branch_name', { sessionName })
       const baseBranch = await invoke<string>('get_base_branch_name', { sessionName })
@@ -192,15 +208,34 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     } catch (error) {
       console.error('Failed to load changed files:', error)
     }
-  }, [sessionName, filePath, loadAll])
+  }, [sessionName, filePath])
 
-  const scrollToFile = useCallback((path: string, index?: number) => {
+  const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
     suppressAutoSelectRef.current = true
     setSelectedFile(path)
+    setVisibleFilePath(path) // Ensure sidebar highlights correct file
     setFileError(null)
     if (index !== undefined) {
       setSelectedFileIndex(index)
+    }
+    
+    // Lazy load the diff if not already loaded
+    if (!allFileDiffs.has(path)) {
+      const file = files.find(f => f.path === path)
+      if (file) {
+        try {
+          const diff = await loadFileDiff(sessionName, file, 'unified')
+          setAllFileDiffs(prev => {
+            const merged = new Map(prev)
+            merged.set(path, diff)
+            return merged
+          })
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e)
+          setFileError(msg)
+        }
+      }
     }
     
     // Scroll to the file section with proper sticky offsets
@@ -229,7 +264,232 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     window.setTimeout(() => {
       suppressAutoSelectRef.current = false
     }, 250)
-  }, [isLargeDiffMode])
+  }, [isLargeDiffMode, files, sessionName, allFileDiffs])
+
+  // Set up Intersection Observer for virtual scrolling in continuous mode
+  useEffect(() => {
+    if (!isOpen || isLargeDiffMode) {
+      // Clean up observer if not needed
+      if (observerRef.current) {
+        observerRef.current.disconnect()
+        observerRef.current = null
+      }
+      return
+    }
+
+    // Create observer for continuous scroll mode with debouncing
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Collect updates without immediately applying them
+        entries.forEach(entry => {
+          const filePath = entry.target.getAttribute('data-file-path')
+          if (filePath) {
+            pendingVisibilityUpdatesRef.current.set(filePath, entry.isIntersecting)
+          }
+        })
+        
+        // Debounce visibility updates to avoid stuttering
+        if (visibilityUpdateTimerRef.current) {
+          clearTimeout(visibilityUpdateTimerRef.current)
+        }
+        
+        visibilityUpdateTimerRef.current = setTimeout(() => {
+          // Apply all pending updates at once
+          const updates = new Map(pendingVisibilityUpdatesRef.current)
+          pendingVisibilityUpdatesRef.current.clear()
+          
+          // Use requestIdleCallback for non-blocking update
+          const updateVisibility = () => {
+            setVisibleFileSet(prev => {
+              const next = new Set(prev)
+              updates.forEach((isVisible, path) => {
+                if (isVisible) {
+                  next.add(path)
+                } else {
+                  next.delete(path)
+                }
+              })
+              return next
+            })
+          }
+          
+          if ('requestIdleCallback' in window) {
+            idleCallbackIdRef.current = requestIdleCallback(updateVisibility, { timeout: 50 })
+          } else {
+            updateVisibility()
+          }
+        }, 100) // 100ms debounce
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '500px 0px', // Load files 500px before they come into view
+        threshold: 0
+      }
+    )
+
+    observerRef.current = observer
+
+    // Defer observing to next tick to ensure DOM is ready
+    setTimeout(() => {
+      const fileElements = document.querySelectorAll('[data-file-path]')
+      fileElements.forEach(el => observer.observe(el))
+    }, 0)
+
+    return () => {
+      observer.disconnect()
+      if (visibilityUpdateTimerRef.current) {
+        clearTimeout(visibilityUpdateTimerRef.current)
+        visibilityUpdateTimerRef.current = null
+      }
+      if (idleCallbackIdRef.current) {
+        cancelIdleCallback(idleCallbackIdRef.current)
+        idleCallbackIdRef.current = null
+      }
+    }
+  }, [isOpen, isLargeDiffMode, files])
+
+  // Load diffs for visible files with buffer zones
+  useEffect(() => {
+    if (isLargeDiffMode || !isOpen) return
+
+    // Create a file index map for O(1) lookups instead of O(n) finds
+    const fileIndexMap = new Map<string, number>()
+    const filesByPath = new Map<string, typeof files[0]>()
+    files.forEach((file, index) => {
+      fileIndexMap.set(file.path, index)
+      filesByPath.set(file.path, file)
+    })
+
+    const loadQueue = new Set<string>()
+    
+    // Add visible files to load queue
+    visibleFileSet.forEach(path => {
+      if (!allFileDiffs.has(path) && !loadingFiles.has(path)) {
+        loadQueue.add(path)
+      }
+    })
+    
+    // Add buffer files (neighbors of visible files)
+    visibleFileSet.forEach(path => {
+      const index = fileIndexMap.get(path)
+      if (index === undefined) return
+      
+      // Load previous file
+      if (index > 0) {
+        const prevPath = files[index - 1].path
+        if (!allFileDiffs.has(prevPath) && !loadingFiles.has(prevPath)) {
+          loadQueue.add(prevPath)
+        }
+      }
+      // Load next file
+      if (index < files.length - 1) {
+        const nextPath = files[index + 1].path
+        if (!allFileDiffs.has(nextPath) && !loadingFiles.has(nextPath)) {
+          loadQueue.add(nextPath)
+        }
+      }
+    })
+    
+    if (loadQueue.size === 0) return
+    
+    // Batch load files asynchronously to avoid blocking
+    const loadNextBatch = async () => {
+      const batch = Array.from(loadQueue).slice(0, 3) // Load max 3 files at once
+      const loadPromises = batch.map(async path => {
+        const file = filesByPath.get(path)
+        if (!file) return null
+        
+        try {
+          const diff = await loadFileDiff(sessionName, file, 'unified')
+          return { path, diff }
+        } catch (e) {
+          console.error(`Failed to load diff for ${path}:`, e)
+          return null
+        }
+      })
+      
+      // Mark files as loading
+      setLoadingFiles(prev => {
+        const next = new Set(prev)
+        batch.forEach(path => next.add(path))
+        return next
+      })
+      
+      const results = await Promise.all(loadPromises)
+      
+      // Batch update all diffs at once
+      setAllFileDiffs(prev => {
+        const next = new Map(prev)
+        results.forEach(result => {
+          if (result) {
+            next.set(result.path, result.diff)
+          }
+        })
+        return next
+      })
+      
+      // Clear loading state
+      setLoadingFiles(prev => {
+        const next = new Set(prev)
+        batch.forEach(path => next.delete(path))
+        return next
+      })
+    }
+    
+    // Use requestIdleCallback to load without blocking UI
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => loadNextBatch(), { timeout: 200 })
+    } else {
+      setTimeout(loadNextBatch, 0)
+    }
+    
+  }, [visibleFileSet, files, allFileDiffs, loadingFiles, isLargeDiffMode, isOpen, sessionName])
+
+  // Separate memory management into its own effect with less frequent runs
+  useEffect(() => {
+    if (isLargeDiffMode || !isOpen) return
+    
+    const cleanupTimer = setTimeout(() => {
+      // Memory management: unload far-away diffs
+      const MAX_LOADED_DIFFS = 20
+      if (allFileDiffs.size <= MAX_LOADED_DIFFS) return
+      
+      const keepSet = new Set<string>()
+      
+      // Keep visible files and their neighbors
+      visibleFileSet.forEach(path => {
+        keepSet.add(path)
+        const index = files.findIndex(f => f.path === path)
+        if (index > 0) keepSet.add(files[index - 1].path)
+        if (index < files.length - 1) keepSet.add(files[index + 1].path)
+      })
+      
+      // Also keep the selected file
+      if (selectedFile) keepSet.add(selectedFile)
+      
+      // Remove diffs that are far from viewport
+      const toRemove: string[] = []
+      allFileDiffs.forEach((_, path) => {
+        if (!keepSet.has(path)) {
+          toRemove.push(path)
+        }
+      })
+      
+      // Only remove if we're over the limit
+      const removeCount = allFileDiffs.size - MAX_LOADED_DIFFS
+      if (removeCount > 0) {
+        toRemove.slice(0, removeCount).forEach(path => {
+          setAllFileDiffs(prev => {
+            const next = new Map(prev)
+            next.delete(path)
+            return next
+          })
+        })
+      }
+    }, 2000) // Run cleanup every 2 seconds, not on every visibility change
+    
+    return () => clearTimeout(cleanupTimer)
+  }, [allFileDiffs, visibleFileSet, files, selectedFile, isLargeDiffMode, isOpen])
 
   // Auto-select file while user scrolls without affecting scroll position
   useEffect(() => {
@@ -288,10 +548,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   useEffect(() => {
     if (isOpen) {
       loadChangedFiles()
-    } else {
-      setHasLoadedOnce(false)
-      setLoadingAllFiles(true)
+      // Load user's diff view preference
+      invoke<{ continuous_scroll: boolean }>('get_diff_view_preferences')
+        .then(prefs => {
+          setContinuousScroll(prefs.continuous_scroll)
+          // If continuous scroll is enabled, load all diffs
+          // No need to load all diffs - using lazy loading with viewport detection
+        })
+        .catch(err => console.error('Failed to load diff view preferences:', err))
     }
+    // No need to reset loading states - using lazy loading now
   }, [isOpen, loadChangedFiles])
 
 
@@ -300,6 +566,17 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (!isOpen) {
       didInitialScrollRef.current = false
       lastInitialFilePathRef.current = null
+      
+      // Clean up any remaining timers when modal closes
+      if (visibilityUpdateTimerRef.current) {
+        clearTimeout(visibilityUpdateTimerRef.current)
+        visibilityUpdateTimerRef.current = null
+      }
+      if (idleCallbackIdRef.current) {
+        cancelIdleCallback(idleCallbackIdRef.current)
+        idleCallbackIdRef.current = null
+      }
+      
       return
     }
     if (filePath !== lastInitialFilePathRef.current) {
@@ -328,7 +605,32 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // Keyboard handler moved below after handleFinishReview is defined
 
 
-  const language = useMemo(() => getFileLanguage(selectedFile || ''), [selectedFile])
+  const language = useMemo(() => {
+    if (!selectedFile) return undefined
+    const diffData = allFileDiffs.get(selectedFile)
+    // Get language from Rust backend fileInfo, fallback to path-based detection
+    return diffData?.fileInfo?.language || getFileLanguageFromPath(selectedFile)
+  }, [selectedFile, allFileDiffs])
+
+  // Fallback function for language detection from file path
+  function getFileLanguageFromPath(filePath: string): string | undefined {
+    if (!filePath) return undefined
+    const ext = filePath.split('.').pop()?.toLowerCase()
+    const languageMap: Record<string, string> = {
+      'ts': 'typescript', 'tsx': 'typescript',
+      'js': 'javascript', 'jsx': 'javascript',
+      'rs': 'rust', 'py': 'python', 'go': 'go',
+      'java': 'java', 'kt': 'kotlin', 'swift': 'swift',
+      'c': 'c', 'h': 'c',
+      'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp',
+      'cs': 'csharp', 'rb': 'ruby', 'php': 'php',
+      'sh': 'bash', 'bash': 'bash', 'zsh': 'bash',
+      'json': 'json', 'yml': 'yaml', 'yaml': 'yaml',
+      'toml': 'toml', 'md': 'markdown',
+      'css': 'css', 'scss': 'scss', 'less': 'less'
+    }
+    return languageMap[ext || '']
+  }
   const HIGHLIGHT_LINE_CAP = 3000
 
   const highlightCacheRef = useRef<Map<string, string>>(new Map())
@@ -432,15 +734,21 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [])
 
 
-  const handleSubmitComment = useCallback((text: string) => {
+  const handleSubmitComment = useCallback(async (text: string) => {
     if (!lineSelection.selection || !selectedFile) return
     
     const fileDiff = allFileDiffs.get(selectedFile)
     if (!fileDiff) return
     
+    // Get original file content for comment context
+    const [mainText, worktreeText] = await invoke<[string, string]>('get_file_diff_from_main', {
+      sessionName,
+      filePath: selectedFile,
+    })
+    
     const lines = lineSelection.selection.side === 'old' 
-      ? fileDiff.mainContent.split('\n')
-      : fileDiff.worktreeContent.split('\n')
+      ? mainText.split('\n')
+      : worktreeText.split('\n')
     
     const selectedText = lines
       .slice(lineSelection.selection.startLine - 1, lineSelection.selection.endLine)
@@ -578,6 +886,17 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={toggleContinuousScroll}
+                className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+                title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
+              >
+                {continuousScroll ? (
+                  <VscListFlat className="text-xl" />
+                ) : (
+                  <VscListSelection className="text-xl" />
+                )}
+              </button>
+              <button
                 onClick={onClose}
                 className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
               >
@@ -663,9 +982,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
             {/* Diff viewer */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {loadingAllFiles && allFileDiffs.size === 0 ? (
+              {!selectedFile && files.length === 0 ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <div className="text-slate-500">Loading diffs...</div>
+                  <div className="text-slate-500">Loading files...</div>
                 </div>
               ) : fileError ? (
                 <div className="flex-1 flex items-center justify-center">
@@ -683,9 +1002,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
               {branchInfo && (
                 <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-800 bg-slate-900/30">
                   {branchInfo.baseBranch} ({branchInfo.baseCommit.slice(0, 7)}) → {branchInfo.currentBranch} ({branchInfo.headCommit.slice(0, 7)})
-                  {isLargeDiffMode && (
-                    <span className="ml-2 text-amber-400">Large diff mode: highlighting reduced, background loading active</span>
-                  )}
                 </div>
               )}
                   {/* Skeleton placeholder for initial frame to avoid flash of empty content */}
@@ -815,19 +1131,31 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                         )
                       })
                     ) : (
-                      /* For normal mode, render all files */
+                      /* For continuous scroll mode, render all files with placeholders */
                       files.map((file) => {
                         const fileDiff = allFileDiffs.get(file.path)
                         const commentCount = getCommentsForFile(file.path).length
                         const isCurrentFile = file.path === selectedFile
+                        const isLoading = loadingFiles.has(file.path)
+                        const isVisible = visibleFileSet.has(file.path)
+                        // Only highlight syntax for visible files to avoid blocking
+                        const shouldHighlight = isVisible || isCurrentFile
                       
                       return (
                         <div 
                           key={file.path} 
+                          data-file-path={file.path}
                           ref={(el) => {
-                            if (el) fileRefs.current.set(file.path, el)
+                            if (el) {
+                              fileRefs.current.set(file.path, el)
+                              // Observe element for intersection if observer exists
+                              if (observerRef.current && !isLargeDiffMode) {
+                                observerRef.current.observe(el)
+                              }
+                            }
                           }}
                           className="border-b border-slate-800 last:border-b-0"
+                          style={{ minHeight: '200px' }}
                         >
                           {/* File header */}
                           <div 
@@ -856,10 +1184,17 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                             )}
                           </div>
                           
-                          {/* File diff content or loading placeholder */}
+                          {/* File diff content with smart loading */}
                           {!fileDiff ? (
                             <div className="px-4 py-8 text-center text-slate-500">
-                              <div className="animate-pulse">Loading diff...</div>
+                              {isLoading ? (
+                                <div className="animate-pulse">Loading diff...</div>
+                              ) : (
+                                <div className="text-slate-600">
+                                  {/* Placeholder maintains scroll position */}
+                                  <div className="h-20" />
+                                </div>
+                              )}
                             </div>
                           ) : (
                           <table className="w-full" style={{ tableLayout: 'fixed' }}>
@@ -901,7 +1236,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                           onLineMouseDown={handleLineMouseDown}
                                           onLineMouseEnter={handleLineMouseEnter}
                                           onLineMouseUp={handleLineMouseUp}
-                                           highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
+                                           highlightedContent={shouldHighlight && collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
                                           hasComment={!!collapsedComment}
                                           commentText={collapsedComment?.comment}
                                         />
@@ -922,7 +1257,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                                     onLineMouseDown={handleLineMouseDown}
                                     onLineMouseEnter={handleLineMouseEnter}
                                     onLineMouseUp={handleLineMouseUp}
-                                    highlightedContent={line.content ? highlightCode(line.content) : undefined}
+                                    highlightedContent={shouldHighlight && line.content ? highlightCode(line.content) : undefined}
                                     hasComment={!!comment}
                                     commentText={comment?.comment}
                                   />

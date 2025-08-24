@@ -30,6 +30,11 @@ pub struct TerminalUIPreferences {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct DiffViewPreferences {
+    pub continuous_scroll: bool,  // false = single file view, true = continuous scroll
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSettings {
     pub shell: Option<String>,
@@ -60,6 +65,7 @@ pub struct Settings {
     pub terminal_ui: TerminalUIPreferences,
     pub terminal: TerminalSettings,
     pub agent_binaries: AgentBinaryConfigs,
+    pub diff_view: DiffViewPreferences,
 }
 
 pub struct SettingsManager {
@@ -204,6 +210,15 @@ impl SettingsManager {
     
     pub fn set_terminal_settings(&mut self, terminal: TerminalSettings) -> Result<(), String> {
         self.settings.terminal = terminal;
+        self.save()
+    }
+    
+    pub fn get_diff_view_preferences(&self) -> DiffViewPreferences {
+        self.settings.diff_view.clone()
+    }
+    
+    pub fn set_diff_view_preferences(&mut self, preferences: DiffViewPreferences) -> Result<(), String> {
+        self.settings.diff_view = preferences;
         self.save()
     }
     

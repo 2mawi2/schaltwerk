@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight, VscComment } from 'react-icons/vsc'
 import clsx from 'clsx'
-import { LineInfo } from '../../utils/diff'
+import { LineInfo } from '../../types/diff'
 
 interface DiffLineRowProps {
   line: LineInfo

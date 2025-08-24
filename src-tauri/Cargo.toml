@@ -48,10 +48,12 @@ urlencoding = "2.1"
 rand = "0.9"
 shell-words = "1.1"
 once_cell = "1.19"
+imara-diff = "0.1"
 futures = "0.3"
 clap = { version = "4", features = ["derive"] }
 notify = "6.1"
 notify-debouncer-mini = "0.4"
+similar = "2.6"
 
 [dev-dependencies]
 tokio-test = "0.4"

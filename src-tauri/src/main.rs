@@ -9,6 +9,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 mod cleanup;
 mod diff_commands;
+mod diff_engine;
 mod file_utils;
 mod file_watcher;
 mod logging;
@@ -714,6 +715,8 @@ fn main() {
             diff_commands::get_current_branch_name,
             diff_commands::get_base_branch_name,
             diff_commands::get_commit_comparison_info,
+            diff_commands::compute_unified_diff_backend,
+            diff_commands::compute_split_diff_backend,
             // Project commands
             get_recent_projects,
             add_recent_project,
@@ -739,6 +742,8 @@ fn main() {
             set_terminal_divider_position,
             get_terminal_settings,
             set_terminal_settings,
+            get_diff_view_preferences,
+            set_diff_view_preferences,
             get_project_settings,
             set_project_settings,
             get_project_selection,

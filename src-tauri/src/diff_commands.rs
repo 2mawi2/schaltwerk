@@ -4,6 +4,11 @@ use std::path::Path;
 use crate::get_para_core;
 use crate::para_core::{git, types::ChangedFile};
 use crate::file_utils;
+use crate::diff_engine::{
+    compute_unified_diff, add_collapsible_sections, compute_split_diff,
+    calculate_diff_stats, calculate_split_diff_stats, get_file_language,
+    DiffResponse, SplitDiffResponse, FileInfo
+};
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
@@ -182,6 +187,119 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         }
     }
+}
+
+#[tauri::command]
+pub async fn compute_unified_diff_backend(
+    session_name: Option<String>,
+    file_path: String
+) -> Result<DiffResponse, String> {
+    use std::time::Instant;
+    let start_total = Instant::now();
+    
+    // Profile file content loading
+    let start_load = Instant::now();
+    let (old_content, new_content) = get_file_diff_from_main(session_name, file_path.clone()).await?;
+    let load_duration = start_load.elapsed();
+    
+    // Profile diff computation
+    let start_diff = Instant::now();
+    let diff_lines = compute_unified_diff(&old_content, &new_content);
+    let diff_duration = start_diff.elapsed();
+    
+    // Profile collapsible sections
+    let start_collapse = Instant::now();
+    let lines_with_collapsible = add_collapsible_sections(diff_lines);
+    let collapse_duration = start_collapse.elapsed();
+    
+    // Profile stats calculation
+    let start_stats = Instant::now();
+    let stats = calculate_diff_stats(&lines_with_collapsible);
+    let stats_duration = start_stats.elapsed();
+    
+    let file_info = FileInfo {
+        language: get_file_language(&file_path),
+        size_bytes: new_content.len(),
+    };
+    
+    let is_large_file = new_content.len() > 5 * 1024 * 1024;
+    let total_duration = start_total.elapsed();
+    
+    // Log performance metrics
+    if total_duration.as_millis() > 100 || is_large_file {
+        log::info!(
+            "Diff performance for {}: total={}ms (load={}ms, diff={}ms, collapse={}ms, stats={}ms), size={}KB, lines={}",
+            file_path,
+            total_duration.as_millis(),
+            load_duration.as_millis(),
+            diff_duration.as_millis(),
+            collapse_duration.as_millis(),
+            stats_duration.as_millis(),
+            new_content.len() / 1024,
+            lines_with_collapsible.len()
+        );
+    }
+    
+    Ok(DiffResponse {
+        lines: lines_with_collapsible,
+        stats,
+        file_info,
+        is_large_file,
+    })
+}
+
+#[tauri::command]
+pub async fn compute_split_diff_backend(
+    session_name: Option<String>,
+    file_path: String
+) -> Result<SplitDiffResponse, String> {
+    use std::time::Instant;
+    let start_total = Instant::now();
+    
+    // Profile file content loading
+    let start_load = Instant::now();
+    let (old_content, new_content) = get_file_diff_from_main(session_name, file_path.clone()).await?;
+    let load_duration = start_load.elapsed();
+    
+    // Profile diff computation
+    let start_diff = Instant::now();
+    let split_result = compute_split_diff(&old_content, &new_content);
+    let diff_duration = start_diff.elapsed();
+    
+    // Profile stats calculation
+    let start_stats = Instant::now();
+    let stats = calculate_split_diff_stats(&split_result);
+    let stats_duration = start_stats.elapsed();
+    
+    let file_info = FileInfo {
+        language: get_file_language(&file_path),
+        size_bytes: new_content.len(),
+    };
+    
+    let is_large_file = new_content.len() > 5 * 1024 * 1024;
+    let total_duration = start_total.elapsed();
+    
+    // Log performance metrics
+    if total_duration.as_millis() > 100 || is_large_file {
+        log::info!(
+            "Split diff performance for {}: total={}ms (load={}ms, diff={}ms, stats={}ms), size={}KB, lines={}+{}",
+            file_path,
+            total_duration.as_millis(),
+            load_duration.as_millis(),
+            diff_duration.as_millis(),
+            stats_duration.as_millis(),
+            new_content.len() / 1024,
+            split_result.left_lines.len(),
+            split_result.right_lines.len()
+        );
+    }
+    
+    Ok(SplitDiffResponse {
+        split_result,
+        stats,
+        file_info,
+        is_large_file,
+    })
 }
 
 // Tests removed: diff_commands functions now use active project instead of current working directory

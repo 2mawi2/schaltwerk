@@ -5,7 +5,7 @@ use crate::{
     get_para_core,
     PROJECT_MANAGER,
 };
-use crate::settings::{TerminalUIPreferences, TerminalSettings};
+use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences};
 use crate::para_core::db_app_config::AppConfigMethods;
 use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings};
 
@@ -274,6 +274,26 @@ pub async fn set_terminal_settings(terminal: TerminalSettings) -> Result<(), Str
     
     let mut manager = settings_manager.lock().await;
     manager.set_terminal_settings(terminal)
+}
+
+#[tauri::command]
+pub async fn get_diff_view_preferences() -> Result<DiffViewPreferences, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_diff_view_preferences())
+}
+
+#[tauri::command]
+pub async fn set_diff_view_preferences(preferences: DiffViewPreferences) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let mut manager = settings_manager.lock().await;
+    manager.set_diff_view_preferences(preferences)
 }
 
 #[cfg(test)]

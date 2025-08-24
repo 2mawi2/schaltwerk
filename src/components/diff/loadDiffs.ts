@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { addCollapsibleSections, computeSplitDiff, computeUnifiedDiff } from '../../utils/diff'
+import { DiffResponse, SplitDiffResponse, LineInfo, SplitDiffResult, FileInfo } from '../../types/diff'
 
 export type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
 
@@ -14,65 +14,60 @@ export interface FileDiffDataUnified {
   file: ChangedFile
   mainContent: string
   worktreeContent: string
-  diffResult: ReturnType<typeof addCollapsibleSections>
+  diffResult: LineInfo[]
   changedLinesCount: number
+  fileInfo: FileInfo
 }
 
 export interface FileDiffDataSplit {
   file: ChangedFile
   mainContent: string
   worktreeContent: string
-  splitDiffResult: ReturnType<typeof computeSplitDiff>
+  splitDiffResult: SplitDiffResult
   changedLinesCount: number
+  fileInfo: FileInfo
 }
 
 export type FileDiffData = FileDiffDataUnified | FileDiffDataSplit
 
-function countChangedLinesUnified(lines: ReturnType<typeof addCollapsibleSections>): number {
-  let count = 0
-  for (const line of lines) {
-    if (line.isCollapsible && line.collapsedLines) {
-      // Only added/removed lines are considered changed
-      for (const cl of line.collapsedLines) {
-        if (cl.type !== 'unchanged') count++
-      }
-    } else if (line.type !== 'unchanged') {
-      count++
-    }
-  }
-  return count
-}
-
-function countChangedLinesSplit(split: ReturnType<typeof computeSplitDiff>): number {
-  let count = 0
-  const left = split.leftLines
-  const right = split.rightLines
-  for (let i = 0; i < Math.max(left.length, right.length); i++) {
-    if (left[i]?.type === 'removed') count++
-    if (right[i]?.type === 'added') count++
-  }
-  return count
-}
+// Legacy helper functions - no longer used since we get stats from Rust backend
 
 export async function loadFileDiff(
   sessionName: string | null,
   file: ChangedFile,
   viewMode: ViewMode
 ): Promise<FileDiffData> {
-  const [mainText, worktreeText] = await invoke<[string, string]>('get_file_diff_from_main', {
-    sessionName,
-    filePath: file.path,
-  })
-
+  // PERFORMANCE FIX: Only call the Rust backend once, it handles file loading internally
+  // This eliminates the double file loading that was killing performance
+  
   if (viewMode === 'unified') {
-    const diffLines = computeUnifiedDiff(mainText, worktreeText)
-    const diffResult = addCollapsibleSections(diffLines)
-    const changedLinesCount = countChangedLinesUnified(diffResult)
-    return { file, mainContent: mainText, worktreeContent: worktreeText, diffResult, changedLinesCount }
+    const diffResponse = await invoke<DiffResponse>('compute_unified_diff_backend', {
+      sessionName,
+      filePath: file.path,
+    })
+    const changedLinesCount = diffResponse.stats.additions + diffResponse.stats.deletions
+    return { 
+      file, 
+      mainContent: '', // No longer needed since diff computation happens in backend
+      worktreeContent: '', // No longer needed since diff computation happens in backend
+      diffResult: diffResponse.lines, 
+      changedLinesCount,
+      fileInfo: diffResponse.fileInfo
+    }
   } else {
-    const splitDiffResult = computeSplitDiff(mainText, worktreeText)
-    const changedLinesCount = countChangedLinesSplit(splitDiffResult)
-    return { file, mainContent: mainText, worktreeContent: worktreeText, splitDiffResult, changedLinesCount }
+    const splitResponse = await invoke<SplitDiffResponse>('compute_split_diff_backend', {
+      sessionName,
+      filePath: file.path,
+    })
+    const changedLinesCount = splitResponse.stats.additions + splitResponse.stats.deletions
+    return { 
+      file, 
+      mainContent: '', // No longer needed since diff computation happens in backend
+      worktreeContent: '', // No longer needed since diff computation happens in backend
+      splitDiffResult: splitResponse.splitResult, 
+      changedLinesCount,
+      fileInfo: splitResponse.fileInfo
+    }
   }
 }
 
