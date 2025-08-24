@@ -586,7 +586,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (isOpen && filePath && !didInitialScrollRef.current) {
       const targetPath = filePath
       suppressAutoSelectRef.current = true
-      setTimeout(() => {
+      
+      let suppressTimeoutId: NodeJS.Timeout
+      const scrollTimeoutId = setTimeout(() => {
         const fileElement = fileRefs.current.get(targetPath)
         const container = scrollContainerRef.current
         if (fileElement && container) {
@@ -596,10 +598,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
           const delta = elementRect.top - containerRect.top
           container.scrollTop += delta - stickyOffsetPx
         }
-        window.setTimeout(() => { suppressAutoSelectRef.current = false }, 250)
+        suppressTimeoutId = setTimeout(() => { suppressAutoSelectRef.current = false }, 250)
       }, 100)
+      
       didInitialScrollRef.current = true
       lastInitialFilePathRef.current = filePath
+      
+      return () => {
+        clearTimeout(scrollTimeoutId)
+        if (suppressTimeoutId) clearTimeout(suppressTimeoutId)
+      }
     }
   }, [isOpen, filePath])
 
