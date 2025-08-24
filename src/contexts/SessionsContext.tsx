@@ -205,8 +205,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             unlisteners.push(uRefresh)
 
             // Activity updates
-            const uActivity = await listen<{ session_name: string; last_activity_ts: number }>('schaltwerk:session-activity', (event) => {
-                const { session_name, last_activity_ts } = event.payload
+            const uActivity = await listen<{ 
+                session_name: string; 
+                last_activity_ts: number;
+                current_task?: string;
+                todo_percentage?: number;
+                is_blocked?: boolean;
+            }>('schaltwerk:session-activity', (event) => {
+                const { session_name, last_activity_ts, current_task, todo_percentage, is_blocked } = event.payload
                 setSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     return {
@@ -215,6 +221,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             ...s.info,
                             last_modified: new Date(last_activity_ts * 1000).toISOString(),
                             last_modified_ts: last_activity_ts * 1000,
+                            current_task: current_task || s.info.current_task,
+                            todo_percentage: todo_percentage || s.info.todo_percentage,
+                            is_blocked: is_blocked || s.info.is_blocked,
                         }
                     }
                 }))

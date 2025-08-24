@@ -103,10 +103,14 @@ impl<E: EventEmitter> ActivityTracker<E> {
                         if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
                             // Use strict set to ensure UI reflects the new diff-aware time (even if earlier/later)
                             self.db.set_session_activity(&session.id, dt)?;
+                            let session_info = self.db.get_session_by_id(&session.id)?;
                             let payload = SessionActivityUpdated {
                                 session_id: session.id.clone(),
                                 session_name: session.name.clone(),
-                                last_activity_ts: ts,
+                                last_activity_ts: dt.timestamp(),
+                                current_task: session_info.initial_prompt.clone(),
+                                todo_percentage: None, // Not available in Session
+                                is_blocked: None, // Not available in Session
                             };
                             let _ = self.emitter.emit_session_activity(payload);
                             emitted_activity = true;
@@ -170,6 +174,9 @@ pub struct SessionActivityUpdated {
     pub session_id: String,
     pub session_name: String,
     pub last_activity_ts: i64,
+    pub current_task: Option<String>,
+    pub todo_percentage: Option<f64>,
+    pub is_blocked: Option<bool>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -244,11 +251,17 @@ mod tests {
             session_id: "test-session-123".to_string(),
             session_name: "my-feature-branch".to_string(),
             last_activity_ts: 1704067200,
+            current_task: Some("implement feature".to_string()),
+            todo_percentage: Some(50.0),
+            is_blocked: Some(true),
         };
         
         assert_eq!(payload.session_id, "test-session-123");
         assert_eq!(payload.session_name, "my-feature-branch");
         assert_eq!(payload.last_activity_ts, 1704067200);
+        assert_eq!(payload.current_task, Some("implement feature".to_string()));
+        assert_eq!(payload.todo_percentage, Some(50.0));
+        assert_eq!(payload.is_blocked, Some(true));
     }
     
     #[test]
