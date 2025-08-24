@@ -17,6 +17,8 @@ export interface FileDiffDataUnified {
   diffResult: LineInfo[]
   changedLinesCount: number
   fileInfo: FileInfo
+  isBinary?: boolean
+  unsupportedReason?: string
 }
 
 export interface FileDiffDataSplit {
@@ -26,6 +28,8 @@ export interface FileDiffDataSplit {
   splitDiffResult: SplitDiffResult
   changedLinesCount: number
   fileInfo: FileInfo
+  isBinary?: boolean
+  unsupportedReason?: string
 }
 
 export type FileDiffData = FileDiffDataUnified | FileDiffDataSplit
@@ -52,7 +56,9 @@ export async function loadFileDiff(
       worktreeContent: '', // No longer needed since diff computation happens in backend
       diffResult: diffResponse.lines, 
       changedLinesCount,
-      fileInfo: diffResponse.fileInfo
+      fileInfo: diffResponse.fileInfo,
+      isBinary: diffResponse.isBinary,
+      unsupportedReason: diffResponse.unsupportedReason
     }
   } else {
     const splitResponse = await invoke<SplitDiffResponse>('compute_split_diff_backend', {
@@ -66,7 +72,9 @@ export async function loadFileDiff(
       worktreeContent: '', // No longer needed since diff computation happens in backend
       splitDiffResult: splitResponse.splitResult, 
       changedLinesCount,
-      fileInfo: splitResponse.fileInfo
+      fileInfo: splitResponse.fileInfo,
+      isBinary: splitResponse.isBinary,
+      unsupportedReason: splitResponse.unsupportedReason
     }
   }
 }

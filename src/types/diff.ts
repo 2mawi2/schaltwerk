@@ -28,6 +28,8 @@ export interface DiffResponse {
   stats: DiffStats
   fileInfo: FileInfo
   isLargeFile: boolean
+  isBinary?: boolean
+  unsupportedReason?: string
 }
 
 export interface SplitDiffResponse {
@@ -35,4 +37,6 @@ export interface SplitDiffResponse {
   stats: DiffStats
   fileInfo: FileInfo
   isLargeFile: boolean
+  isBinary?: boolean
+  unsupportedReason?: string
 }

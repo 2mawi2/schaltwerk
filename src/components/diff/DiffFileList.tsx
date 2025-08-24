@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useSelection } from '../../contexts/SelectionContext'
-import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved } from 'react-icons/vsc'
+import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary } from 'react-icons/vsc'
 // Open button moved to global top bar
 import clsx from 'clsx'
+import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 
 interface ChangedFile {
   path: string
@@ -192,7 +193,11 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
     onFileSelect(file.path)
   }
   
-  const getFileIcon = (changeType: string) => {
+  const getFileIcon = (changeType: string, filePath: string) => {
+    if (isBinaryFileByExtension(filePath)) {
+      return <VscFileBinary className="text-slate-400" />
+    }
+    
     switch (changeType) {
       case 'added': return <VscDiffAdded className="text-green-500" />
       case 'modified': return <VscDiffModified className="text-yellow-500" />
@@ -250,7 +255,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
                 )}
                 onClick={() => handleFileClick(file)}
               >
-                {getFileIcon(file.change_type)}
+                {getFileIcon(file.change_type, file.path)}
                 <div className="flex-1 min-w-0">
                   <div className="text-sm truncate font-medium">
                     {file.path.split('/').pop()}

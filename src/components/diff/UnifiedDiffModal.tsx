@@ -11,10 +11,11 @@ import { ReviewCommentsList } from './ReviewCommentsList'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { 
   VscClose, VscComment, VscSend, VscCheck, VscFile,
-  VscDiffAdded, VscDiffModified, VscDiffRemoved, VscListFlat, VscListSelection
+  VscDiffAdded, VscDiffModified, VscDiffRemoved, VscListFlat, VscListSelection, VscFileBinary
 } from 'react-icons/vsc'
 import clsx from 'clsx'
 import hljs from 'highlight.js'
+import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import '../../styles/vscode-dark-theme.css'
 
 interface ChangedFile {
@@ -854,7 +855,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [isOpen, showCommentForm, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview])
 
-  const getFileIcon = (changeType: string) => {
+  const getFileIcon = (changeType: string, filePath: string) => {
+    if (isBinaryFileByExtension(filePath)) {
+      return <VscFileBinary className="text-slate-400" />
+    }
+    
     switch (changeType) {
       case 'added': return <VscDiffAdded className="text-green-500" />
       case 'modified': return <VscDiffModified className="text-yellow-500" />
@@ -926,7 +931,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                       )}
                       onClick={() => scrollToFile(file.path, files.indexOf(file))}
                     >
-                      {getFileIcon(file.change_type)}
+                      {getFileIcon(file.change_type, file.path)}
                       <div className="flex-1 min-w-0">
                         <div className="text-sm truncate">{file.path.split('/').pop()}</div>
                         <div className="text-xs text-slate-500 truncate">
@@ -997,6 +1002,19 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                     </div>
                   </div>
                 </div>
+              ) : selectedFile && allFileDiffs.get(selectedFile)?.isBinary ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <div className="text-center px-8">
+                    <div className="text-6xl mb-4 text-slate-500">📄</div>
+                    <div className="text-lg font-medium text-slate-300 mb-2">Binary File</div>
+                    <div className="text-sm text-slate-400 mb-4">
+                      {allFileDiffs.get(selectedFile)?.unsupportedReason || "This file cannot be displayed in the diff viewer"}
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Binary files are not shown to prevent performance issues.
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <>
               {branchInfo && (
@@ -1033,7 +1051,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                               )}
                             >
                               <div className="flex items-center gap-3">
-                                {getFileIcon(file.change_type)}
+                                {getFileIcon(file.change_type, file.path)}
                                 <div>
                                   <div className="font-medium text-sm">{file.path}</div>
                                   <div className="text-xs text-slate-500">
@@ -1165,7 +1183,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                             )}
                           >
                             <div className="flex items-center gap-3">
-                              {getFileIcon(file.change_type)}
+                              {getFileIcon(file.change_type, file.path)}
                               <div>
                                 <div className="font-medium text-sm">{file.path}</div>
                                 <div className="text-xs text-slate-500">

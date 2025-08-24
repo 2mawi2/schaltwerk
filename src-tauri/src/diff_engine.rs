@@ -58,6 +58,10 @@ pub struct DiffResponse {
     pub file_info: FileInfo,
     #[serde(rename = "isLargeFile")]
     pub is_large_file: bool,
+    #[serde(rename = "isBinary")]
+    pub is_binary: Option<bool>,
+    #[serde(rename = "unsupportedReason")]
+    pub unsupported_reason: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -69,6 +73,10 @@ pub struct SplitDiffResponse {
     pub file_info: FileInfo,
     #[serde(rename = "isLargeFile")]
     pub is_large_file: bool,
+    #[serde(rename = "isBinary")]
+    pub is_binary: Option<bool>,
+    #[serde(rename = "unsupportedReason")]
+    pub unsupported_reason: Option<String>,
 }
 
 pub fn compute_unified_diff(old_content: &str, new_content: &str) -> Vec<DiffLine> {
@@ -384,6 +392,7 @@ pub fn get_file_language(file_path: &str) -> Option<String> {
         _ => None,
     }
 }
+
 
 fn ensure_trailing_newline(content: &str) -> String {
     if content.is_empty() {

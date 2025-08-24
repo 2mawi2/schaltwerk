@@ -7,6 +7,7 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
+mod binary_detection;
 mod cleanup;
 mod diff_commands;
 mod diff_engine;

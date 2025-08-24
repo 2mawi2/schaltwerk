@@ -10,6 +10,7 @@ use crate::diff_engine::{
     calculate_diff_stats, calculate_split_diff_stats, get_file_language,
     DiffResponse, SplitDiffResponse, FileInfo
 };
+use crate::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
@@ -576,10 +577,42 @@ pub async fn compute_unified_diff_backend(
     use std::time::Instant;
     let start_total = Instant::now();
     
+    // Check for binary file by extension first (fast check)
+    if is_binary_file_by_extension(&file_path) {
+        let reason = get_unsupported_reason(&file_path, None);
+        return Ok(DiffResponse {
+            lines: vec![],
+            stats: calculate_diff_stats(&[]),
+            file_info: FileInfo {
+                language: None,
+                size_bytes: 0,
+            },
+            is_large_file: false,
+            is_binary: Some(true),
+            unsupported_reason: reason,
+        });
+    }
+    
     // Profile file content loading
     let start_load = Instant::now();
     let (old_content, new_content) = get_file_diff_from_main(session_name, file_path.clone()).await?;
     let load_duration = start_load.elapsed();
+    
+    // Check for binary content after loading
+    let new_content_bytes = new_content.as_bytes();
+    if let Some(reason) = get_unsupported_reason(&file_path, Some(new_content_bytes)) {
+        return Ok(DiffResponse {
+            lines: vec![],
+            stats: calculate_diff_stats(&[]),
+            file_info: FileInfo {
+                language: get_file_language(&file_path),
+                size_bytes: new_content_bytes.len(),
+            },
+            is_large_file: new_content_bytes.len() > 5 * 1024 * 1024,
+            is_binary: Some(true),
+            unsupported_reason: Some(reason),
+        });
+    }
     
     // Profile diff computation
     let start_diff = Instant::now();
@@ -624,6 +657,8 @@ pub async fn compute_unified_diff_backend(
         stats,
         file_info,
         is_large_file,
+        is_binary: Some(false),
+        unsupported_reason: None,
     })
 }
 
@@ -635,10 +670,42 @@ pub async fn compute_split_diff_backend(
     use std::time::Instant;
     let start_total = Instant::now();
     
+    // Check for binary file by extension first (fast check)
+    if is_binary_file_by_extension(&file_path) {
+        let reason = get_unsupported_reason(&file_path, None);
+        return Ok(SplitDiffResponse {
+            split_result: compute_split_diff("", ""),
+            stats: calculate_split_diff_stats(&compute_split_diff("", "")),
+            file_info: FileInfo {
+                language: None,
+                size_bytes: 0,
+            },
+            is_large_file: false,
+            is_binary: Some(true),
+            unsupported_reason: reason,
+        });
+    }
+    
     // Profile file content loading
     let start_load = Instant::now();
     let (old_content, new_content) = get_file_diff_from_main(session_name, file_path.clone()).await?;
     let load_duration = start_load.elapsed();
+    
+    // Check for binary content after loading
+    let new_content_bytes = new_content.as_bytes();
+    if let Some(reason) = get_unsupported_reason(&file_path, Some(new_content_bytes)) {
+        return Ok(SplitDiffResponse {
+            split_result: compute_split_diff("", ""),
+            stats: calculate_split_diff_stats(&compute_split_diff("", "")),
+            file_info: FileInfo {
+                language: get_file_language(&file_path),
+                size_bytes: new_content_bytes.len(),
+            },
+            is_large_file: new_content_bytes.len() > 5 * 1024 * 1024,
+            is_binary: Some(true),
+            unsupported_reason: Some(reason),
+        });
+    }
     
     // Profile diff computation
     let start_diff = Instant::now();
@@ -678,6 +745,8 @@ pub async fn compute_split_diff_backend(
         stats,
         file_info,
         is_large_file,
+        is_binary: Some(false),
+        unsupported_reason: None,
     })
 }
 
