@@ -274,6 +274,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
             
+            // Cmd+Enter for new line (like Claude Code)
+            if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
+                // Send a newline character without submitting the command
+                // This allows multiline input in shells that support it
+                invoke('write_terminal', { id: terminalId, data: '\n' }).catch(console.error);
+                return false; // Prevent default Enter behavior
+            }
+            
             // Kanban board shortcut: Cmd+Shift+K
             if (modifierKey && event.shiftKey && (event.key === 'k' || event.key === 'K')) {
                 window.dispatchEvent(new CustomEvent('global-kanban-shortcut'))
