@@ -337,6 +337,13 @@ impl TerminalBackend for LocalPtyAdapter {
         };
         
         Self::setup_environment(&mut cmd, cols, rows);
+        
+        // Validate working directory exists before setting it
+        if !std::path::Path::new(&params.cwd).exists() {
+            error!("Working directory does not exist: {}", params.cwd);
+            return Err(format!("Working directory does not exist: {}", params.cwd));
+        }
+        
         cmd.cwd(params.cwd.clone());
         
         info!("Spawning terminal {id} with cwd: {}", params.cwd);
