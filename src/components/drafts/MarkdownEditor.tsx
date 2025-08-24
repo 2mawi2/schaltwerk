@@ -2,7 +2,6 @@ import { useMemo, useCallback, memo } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
-import { Extension } from '@codemirror/state'
 import { EditorState } from '@codemirror/state'
 
 interface MarkdownEditorProps {
@@ -13,69 +12,49 @@ interface MarkdownEditorProps {
   className?: string
 }
 
-const createTheme = (): Extension => {
-  return EditorView.theme({
-    '&': {
-      fontSize: '14px',
-    },
-    '.cm-editor': {
-      height: 'auto',
-      minHeight: '100%',
-    },
-    '.cm-editor.cm-focused': {
-      outline: 'none',
-    },
-    '.cm-scroller': {
-      fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
-      lineHeight: '1.5',
-      minHeight: '100%',
-    },
-    '.cm-content': {
-      padding: '12px',
-      minHeight: '100%',
-    },
-    '.cm-line': {
-      padding: '0 2px',
-    },
-    '.cm-gutters': {
-      backgroundColor: 'transparent',
-      borderRight: 'none',
-    },
-    '.cm-activeLineGutter': {
-      backgroundColor: 'transparent',
-    },
-    '.cm-cursor': {
-      borderLeftColor: '#e4e4e7',
-    },
-    '.cm-selectionBackground': {
-      backgroundColor: 'rgba(59, 130, 246, 0.3)',
-    },
-    '&.cm-focused .cm-selectionBackground': {
-      backgroundColor: 'rgba(59, 130, 246, 0.4)',
-    },
-  }, { dark: true })
-}
-
 const customTheme = EditorView.theme({
   '&': {
     color: '#e2e8f0',
     backgroundColor: '#0b1220',
+    fontSize: '14px',
   },
   '.cm-editor': {
     backgroundColor: '#0b1220',
+    height: 'auto',
+    minHeight: '100%',
   },
   '.cm-editor.cm-focused': {
     backgroundColor: '#0b1220',
+    outline: 'none',
   },
   '.cm-content': {
     caretColor: '#d4d4d4',
     backgroundColor: '#0b1220',
+    padding: '12px',
+    minHeight: '100%',
+  },
+  '.cm-scroller': {
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace',
+    lineHeight: '1.5',
+    minHeight: '100%',
+  },
+  '.cm-line': {
+    padding: '0 2px',
   },
   '.cm-cursor, .cm-dropCursor': {
     borderLeftColor: '#d4d4d4',
   },
-  '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
-    backgroundColor: 'rgba(38, 79, 120, 0.6)',
+  '.cm-selectionBackground': {
+    backgroundColor: 'rgba(59, 130, 246, 0.3) !important',
+  },
+  '&.cm-focused .cm-selectionBackground': {
+    backgroundColor: 'rgba(59, 130, 246, 0.4) !important',
+  },
+  '&.cm-focused .cm-content ::selection': {
+    backgroundColor: 'rgba(59, 130, 246, 0.3) !important',
+  },
+  '.cm-content ::selection': {
+    backgroundColor: 'rgba(59, 130, 246, 0.3) !important',
   },
   '.cm-activeLine': {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
@@ -84,10 +63,14 @@ const customTheme = EditorView.theme({
     backgroundColor: '#0b1220',
     color: '#475569',
     border: 'none',
+    borderRight: 'none',
   },
   '.cm-lineNumbers .cm-activeLineGutter': {
     backgroundColor: 'rgba(255, 255, 255, 0.04)',
     color: '#c6c6c6',
+  },
+  '.cm-activeLineGutter': {
+    backgroundColor: 'transparent',
   },
   '.cm-panels': {
     backgroundColor: '#0b1220',
@@ -194,7 +177,6 @@ export const MarkdownEditor = memo(function MarkdownEditor({
 
   const extensions = useMemo(() => [
     markdown(),
-    createTheme(),
     customTheme,
     syntaxHighlighting,
     EditorView.lineWrapping,
