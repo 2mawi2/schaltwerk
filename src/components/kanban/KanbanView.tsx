@@ -4,6 +4,7 @@ import { useSessions } from '../../contexts/SessionsContext'
 import { SessionCard } from '../shared/SessionCard'
 import { invoke } from '@tauri-apps/api/core'
 import { RightPanelTabs } from '../right-panel/RightPanelTabs'
+import { DraftEditor } from '../drafts/DraftEditor'
 import { Component, ReactNode } from 'react'
 import { useState, useCallback } from 'react'
 
@@ -325,6 +326,7 @@ export function KanbanView() {
         )
     }
 
+    // Unified view for all sessions
     return (
         <div className="h-full w-full flex">
           <div className="flex-1 flex gap-3 p-6 h-full overflow-x-auto">
@@ -372,16 +374,23 @@ export function KanbanView() {
                 onDeleteDraft={handleDeleteDraft}
             />
           </div>
-          <div className="w-[360px] min-w-[320px] max-w-[480px] overflow-hidden border-l border-slate-800 bg-panel flex flex-col">
+          <div className="w-[480px] min-w-[400px] max-w-[600px] overflow-hidden border-l border-slate-800 bg-panel flex flex-col">
             <div className="flex-1 overflow-hidden">
               {selectedForDetails ? (
-                <SilentErrorBoundary>
-                  <RightPanelTabs 
-                    onFileSelect={handleOpenDiff}
-                    selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
-                    isDraftOverride={selectedForDetails.isDraft}
+                selectedForDetails.isDraft === true ? (
+                  <DraftEditor 
+                    sessionName={selectedForDetails.payload}
+                    onStart={() => handleRunDraft(selectedForDetails.payload)}
                   />
-                </SilentErrorBoundary>
+                ) : (
+                  <SilentErrorBoundary>
+                    <RightPanelTabs 
+                      onFileSelect={handleOpenDiff}
+                      selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
+                      isDraftOverride={false}
+                    />
+                  </SilentErrorBoundary>
+                )
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-slate-400">
                   Select a task to view details
