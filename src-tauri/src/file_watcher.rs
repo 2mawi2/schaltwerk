@@ -369,6 +369,25 @@ mod tests {
             .current_dir(&repo_path)
             .output()
             .expect("Failed to set git user.email");
+        
+        Command::new("git")
+            .args(["config", "init.defaultBranch", "main"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to set default branch");
+        
+        let create_main_branch = Command::new("git")
+            .args(["checkout", "-b", "main"])
+            .current_dir(&repo_path)
+            .output();
+        
+        if create_main_branch.is_err() {
+            Command::new("git")
+                .args(["branch", "-M", "main"])
+                .current_dir(&repo_path)
+                .output()
+                .expect("Failed to rename default branch to main");
+        }
             
         fs::write(repo_path.join("initial.txt"), "initial content").unwrap();
         
