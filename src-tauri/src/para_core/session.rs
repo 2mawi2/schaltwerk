@@ -22,27 +22,13 @@ static PROMPTED_SESSIONS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new()
 // Reserve generated names per repository path to avoid duplicates across rapid successive calls
 static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
 
-// Session sorting cache
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-struct CacheKey {
-    repo_path: PathBuf,
-    sort_mode: SortMode,
-    filter_mode: FilterMode,
-}
+// Session sorting cache removed - was causing delays
 
-#[derive(Debug, Clone)]
-struct CachedSessions {
-    sessions: Vec<EnrichedSession>,
-    cached_at: Instant,
-}
-
-static SESSION_CACHE: OnceLock<StdMutex<HashMap<CacheKey, CachedSessions>>> = OnceLock::new();
-const CACHE_TTL: Duration = Duration::from_secs(30);
-
-// Cached branch listings per repository to avoid repeated git invocations
-type BranchSet = HashSet<String>;
-type BranchCacheMap = HashMap<PathBuf, (Instant, BranchSet)>;
-static BRANCH_CACHE: OnceLock<StdMutex<BranchCacheMap>> = OnceLock::new();
+// Cached branch existence per repository and branch to avoid repeated git invocations
+type BranchExistenceEntry = (Instant, bool);
+type RepoBranchExistence = HashMap<String, BranchExistenceEntry>;
+type BranchExistenceCache = HashMap<PathBuf, RepoBranchExistence>;
+static BRANCH_CACHE: OnceLock<StdMutex<BranchExistenceCache>> = OnceLock::new();
 const BRANCH_CACHE_TTL: Duration = Duration::from_secs(30);
 
 #[cfg(test)]
@@ -149,26 +135,24 @@ impl SessionManager {
         }
     }
 
-    // Fast branch existence using cached branch list with TTL
+    // Fast branch existence using per-branch cached results with TTL
     fn branch_exists_fast(&self, short_branch: &str) -> Result<bool> {
         let cache_mutex = BRANCH_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
         let mut cache = cache_mutex.lock().unwrap();
 
         let now = Instant::now();
-        let entry = cache.get(&self.repo_path).cloned();
+        let repo_cache = cache.entry(self.repo_path.clone()).or_default();
 
-        let branches: BranchSet = match entry {
-            Some((ts, set)) if now.duration_since(ts) <= BRANCH_CACHE_TTL => set,
-            _ => {
-                // Refresh from git once per TTL window
-                let list = crate::para_core::git::list_branches(&self.repo_path)?;
-                let set: BranchSet = list.into_iter().collect();
-                cache.insert(self.repo_path.clone(), (now, set.clone()));
-                set
+        if let Some((ts, exists)) = repo_cache.get(short_branch) {
+            if now.duration_since(*ts) <= BRANCH_CACHE_TTL {
+                return Ok(*exists);
             }
-        };
+        }
 
-        Ok(branches.contains(short_branch))
+        // Miss or stale: query git for this single branch and cache the result
+        let exists = crate::para_core::git::branch_exists(&self.repo_path, short_branch)?;
+        repo_cache.insert(short_branch.to_string(), (now, exists));
+        Ok(exists)
     }
 
     fn check_name_availability(&self, name: &str) -> Result<bool> {
@@ -702,41 +686,9 @@ impl SessionManager {
         Ok(enriched)
     }
 
-    pub fn invalidate_session_cache(&self, invalidate_all: bool) {
-        let cache = SESSION_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
-        let mut cache_lock = cache.lock().unwrap();
-        
-        if invalidate_all {
-            cache_lock.clear();
-            log::debug!("Invalidated entire session cache");
-        } else {
-            // Remove entries for this repository
-            cache_lock.retain(|key, _| key.repo_path != self.repo_path);
-            log::debug!("Invalidated session cache for repo: {}", self.repo_path.display());
-        }
-    }
-
     pub fn list_enriched_sessions_sorted(&self, sort_mode: SortMode, filter_mode: FilterMode) -> Result<Vec<EnrichedSession>> {
-        let cache_key = CacheKey {
-            repo_path: self.repo_path.clone(),
-            sort_mode: sort_mode.clone(),
-            filter_mode: filter_mode.clone(),
-        };
-
-        // Check cache first
-        let cache = SESSION_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
-        {
-            let cache_lock = cache.lock().unwrap();
-            if let Some(cached) = cache_lock.get(&cache_key) {
-                if cached.cached_at.elapsed() < CACHE_TTL {
-                    log::debug!("Cache hit for sorted sessions: {sort_mode:?}/{filter_mode:?}");
-                    return Ok(cached.sessions.clone());
-                }
-            }
-        }
-
-        // Cache miss or expired - compute fresh results
-        log::debug!("Cache miss for sorted sessions: {sort_mode:?}/{filter_mode:?}");
+        // Directly compute results without caching
+        log::debug!("Computing sorted sessions: {sort_mode:?}/{filter_mode:?}");
         let all_sessions = self.list_enriched_sessions()?;
         
         // Apply filtering first
@@ -744,15 +696,6 @@ impl SessionManager {
         
         // Apply sorting
         let sorted_sessions = self.apply_session_sort(filtered_sessions, &sort_mode);
-        
-        // Update cache
-        {
-            let mut cache_lock = cache.lock().unwrap();
-            cache_lock.insert(cache_key, CachedSessions {
-                sessions: sorted_sessions.clone(),
-                cached_at: Instant::now(),
-            });
-        }
         
         Ok(sorted_sessions)
     }

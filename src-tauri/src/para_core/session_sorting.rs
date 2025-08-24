@@ -220,34 +220,10 @@ mod session_sorting_tests {
     }
 
     #[tokio::test]
-    async fn test_cache_behavior() {
-        let (_temp_dir, manager, _sessions) = setup_test_sessions();
-        
-        // First call should hit database
-        let start_time = std::time::Instant::now();
-        let _first_call = manager.list_enriched_sessions_sorted(
-            SortMode::Name,
-            FilterMode::All
-        ).unwrap();
-        let first_duration = start_time.elapsed();
-
-        // Second call should hit cache (should be faster)
-        let start_time = std::time::Instant::now();
-        let _second_call = manager.list_enriched_sessions_sorted(
-            SortMode::Name,
-            FilterMode::All
-        ).unwrap();
-        let second_duration = start_time.elapsed();
-
-        // Cache hit should be faster (though this might be flaky in CI)
-        assert!(second_duration <= first_duration);
-    }
-
-    #[tokio::test]
-    async fn test_cache_invalidation() {
+    async fn test_no_cache_consistency() {
         let (temp_dir, manager, _sessions) = setup_test_sessions();
         
-        // Load sessions into cache
+        // Get initial sessions
         let initial_sessions = manager.list_enriched_sessions_sorted(
             SortMode::Name,
             FilterMode::All
@@ -258,10 +234,7 @@ mod session_sorting_tests {
         let new_session = create_test_session_with_repo("new-session", SessionStatus::Active, SessionState::Running, false, 1, Some(1), &temp_dir.path().to_path_buf());
         manager.db.create_session(&new_session).unwrap();
         
-        // Invalidate cache
-        manager.invalidate_session_cache(false);
-
-        // Should get updated list
+        // Should immediately reflect the new session (no cache)
         let updated_sessions = manager.list_enriched_sessions_sorted(
             SortMode::Name,
             FilterMode::All

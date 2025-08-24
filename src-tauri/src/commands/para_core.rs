@@ -263,8 +263,7 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
                     let core = core.lock().await;
                     let manager = core.session_manager();
                     // Invalidate cache before emitting refreshed event
-                    manager.invalidate_session_cache(false);
-                    if let Ok(sessions) = manager.list_enriched_sessions() {
+                                        if let Ok(sessions) = manager.list_enriched_sessions() {
                         log::info!("Emitting sessions-refreshed event after name generation");
                         if let Err(e) = app_handle.emit("schaltwerk:sessions-refreshed", &sessions) {
                             log::warn!("Could not emit sessions refreshed: {e}");
@@ -339,8 +338,7 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
             
             // Also emit sessions-refreshed for consistency
             // Invalidate cache before emitting refreshed event
-            manager.invalidate_session_cache(false);
-            if let Ok(sessions) = manager.list_enriched_sessions() {
+                        if let Ok(sessions) = manager.list_enriched_sessions() {
                 log::info!("Emitting sessions-refreshed event after canceling session");
                 if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
                     log::warn!("Could not emit sessions refreshed: {e}");
@@ -398,8 +396,7 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
             
             // Emit event to notify frontend of the change
             // Invalidate cache before emitting refreshed event
-            manager.invalidate_session_cache(false);
-            if let Ok(sessions) = manager.list_enriched_sessions() {
+                        if let Ok(sessions) = manager.list_enriched_sessions() {
                 let _ = app.emit("schaltwerk:sessions-refreshed", &sessions);
             }
             
@@ -861,8 +858,7 @@ pub async fn para_core_mark_session_ready(app: tauri::AppHandle, name: String, a
     
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event
-    manager.invalidate_session_cache(false);
-    if let Ok(sessions) = manager.list_enriched_sessions() {
+        if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after marking session ready");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
@@ -899,8 +895,7 @@ pub async fn para_core_unmark_session_ready(app: tauri::AppHandle, name: String)
     
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event
-    manager.invalidate_session_cache(false);
-    if let Ok(sessions) = manager.list_enriched_sessions() {
+        if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after unmarking session ready");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
@@ -923,8 +918,7 @@ pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String,
     
     // Emit event with actual sessions list
     // Invalidate cache before emitting refreshed event
-    manager.invalidate_session_cache(false);
-    if let Ok(sessions) = manager.list_enriched_sessions() {
+        if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after creating draft session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
@@ -946,8 +940,7 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
         .map_err(|e| format!("Failed to start draft session: {e}"))?;
     
     // Invalidate cache before emitting refreshed event
-    manager.invalidate_session_cache(false);
-    if let Ok(sessions) = manager.list_enriched_sessions() {
+        if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after starting draft session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
