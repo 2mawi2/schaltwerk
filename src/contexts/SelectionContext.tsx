@@ -304,8 +304,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Get the new terminal IDs to check if they're changing
         const newTerminalIds = getTerminalIds(newSelection)
         
-        // Check if we're actually changing selection or terminals (but allow initial setup or force recreate)
-        if (!forceRecreate && isReady && 
+        // Check if session state is changing from draft to running (or vice versa)
+        const isStateTransition = selection.kind === 'session' && 
+            newSelection.kind === 'session' && 
+            selection.payload === newSelection.payload &&
+            isDraft !== (newSelection.sessionState === 'draft')
+        
+        // Check if we're actually changing selection or terminals (but allow initial setup, force recreate, or state transitions)
+        if (!forceRecreate && !isStateTransition && isReady && 
             selection.kind === newSelection.kind && 
             selection.payload === newSelection.payload &&
             terminals.top === newTerminalIds.top) {

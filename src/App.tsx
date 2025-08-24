@@ -411,11 +411,14 @@ export default function App() {
         setNewSessionOpen(false)
         setStartFromDraftName(null)
 
+        // Small delay to ensure sessions list is updated
+        await new Promise(resolve => setTimeout(resolve, 200))
+
         // Get the started session to get correct worktree path and state
         const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
 
-        // Switch to the session - backend will handle agent start
-        // Important: pass sessionState as 'running' since we just started the draft
+        // Switch to the now-running session - the SelectionContext will handle the state transition
+        // Backend will handle agent start automatically
         await setSelection({
           kind: 'session',
           payload: data.name,
