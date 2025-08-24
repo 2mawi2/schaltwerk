@@ -1,5 +1,4 @@
-use crate::{get_terminal_manager, get_message_queue, PROJECT_MANAGER};
-use tauri::Emitter;
+use crate::{get_terminal_manager, PROJECT_MANAGER};
 use crate::para_core::db_project_config::ProjectConfigMethods;
 
 #[tauri::command]
@@ -30,53 +29,6 @@ pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> 
         manager.create_terminal(id.clone(), cwd).await?;
     }
     
-    let queue = get_message_queue().await;
-    let mut queue_lock = queue.lock().await;
-    if let Some(messages) = queue_lock.remove(&id) {
-        log::info!("Delivering {} queued messages to terminal {}", messages.len(), id);
-        drop(queue_lock);
-        
-        for queued_msg in messages {
-            let message = &queued_msg.message;
-            let formatted_message = match queued_msg.message_type.as_str() {
-                "system" => format!("\n📢 System: {message}\n"),
-                _ => format!("\n💬 Follow-up: {message}\n"),
-            };
-            
-            if let Err(e) = manager.write_terminal(id.clone(), formatted_message.as_bytes().to_vec()).await {
-                log::warn!("Failed to deliver queued message to terminal {id}: {e}");
-            } else {
-                log::info!("Successfully delivered queued message to terminal {id}");
-            }
-            
-            #[derive(serde::Serialize, Clone)]
-            struct FollowUpMessagePayload {
-                session_name: String,
-                message: String,
-                message_type: String,
-                timestamp: u64,
-                terminal_id: String,
-            }
-            
-            let session_name = if id.starts_with("session-") {
-                id.split('-').nth(1).unwrap_or("unknown").to_string()
-            } else {
-                "orchestrator".to_string()
-            };
-            
-            let message_payload = FollowUpMessagePayload {
-                session_name,
-                message: queued_msg.message,
-                message_type: queued_msg.message_type,
-                timestamp: queued_msg.timestamp,
-                terminal_id: id.clone(),
-            };
-            
-            if let Err(e) = app.emit("schaltwerk:follow-up-message", &message_payload) {
-                log::error!("Failed to emit queued follow-up-message event: {e}");
-            }
-        }
-    }
     
     Ok(id)
 }
@@ -111,53 +63,6 @@ pub async fn create_terminal_with_size(app: tauri::AppHandle, id: String, cwd: S
         manager.create_terminal_with_size(id.clone(), cwd, cols, rows).await?;
     }
     
-    let queue = get_message_queue().await;
-    let mut queue_lock = queue.lock().await;
-    if let Some(messages) = queue_lock.remove(&id) {
-        log::info!("Delivering {} queued messages to terminal {}", messages.len(), id);
-        drop(queue_lock);
-        
-        for queued_msg in messages {
-            let message = &queued_msg.message;
-            let formatted_message = match queued_msg.message_type.as_str() {
-                "system" => format!("\n📢 System: {message}\n"),
-                _ => format!("\n💬 Follow-up: {message}\n"),
-            };
-            
-            if let Err(e) = manager.write_terminal(id.clone(), formatted_message.as_bytes().to_vec()).await {
-                log::warn!("Failed to deliver queued message to terminal {id}: {e}");
-            } else {
-                log::info!("Successfully delivered queued message to terminal {id}");
-            }
-            
-            #[derive(serde::Serialize, Clone)]
-            struct FollowUpMessagePayload {
-                session_name: String,
-                message: String,
-                message_type: String,
-                timestamp: u64,
-                terminal_id: String,
-            }
-            
-            let session_name = if id.starts_with("session-") {
-                id.split('-').nth(1).unwrap_or("unknown").to_string()
-            } else {
-                "orchestrator".to_string()
-            };
-            
-            let message_payload = FollowUpMessagePayload {
-                session_name,
-                message: queued_msg.message,
-                message_type: queued_msg.message_type,
-                timestamp: queued_msg.timestamp,
-                terminal_id: id.clone(),
-            };
-            
-            if let Err(e) = app.emit("schaltwerk:follow-up-message", &message_payload) {
-                log::error!("Failed to emit queued follow-up-message event: {e}");
-            }
-        }
-    }
     
     Ok(id)
 }

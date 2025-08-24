@@ -39,7 +39,6 @@ interface SchaltwerkListArgs {
 interface SchaltwerkSendMessageArgs {
   session_name: string
   message: string
-  message_type?: 'user' | 'system'
 }
 
 interface SchaltwerkDraftCreateArgs {
@@ -183,24 +182,17 @@ Use json: true for programmatic access with clean, essential data only.`,
         name: "schaltwerk_send_message",
         description: `Send a follow-up message to an existing Schaltwerk session.
 
-🎯 PURPOSE: Send messages to agents already working in sessions for updates, clarifications, or new instructions.
+PURPOSE: Send messages to agents already working in sessions for updates, clarifications, or new instructions.
 
-📋 USAGE:
-- Basic: schaltwerk_send_message(session_name: "feature-auth", message: "Please also add email validation")
-- System message: schaltwerk_send_message(session_name: "api-feature", message: "Build completed successfully", message_type: "system")
-- User message: schaltwerk_send_message(session_name: "fix-bug", message: "The issue also affects Safari browser", message_type: "user")
+USAGE:
+schaltwerk_send_message(session_name: "feature-auth", message: "Please also add email validation")
 
-💬 MESSAGE TYPES:
-- 'user': Message appears as if sent by the user (default)
-- 'system': Message appears as a system notification
-
-⚡ FEATURES:
-- Messages are delivered to the active terminal in the session
-- Visual notifications appear in the UI when sessions receive messages
+FEATURES:
+- Messages are pasted and submitted to the active terminal in the session
 - Messages are queued if the terminal is not yet active
 - Validates that the target session exists before sending
 
-⚠️ REQUIREMENTS: Target session must exist and be active.`,
+REQUIREMENTS: Target session must exist and be active.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -211,11 +203,6 @@ Use json: true for programmatic access with clean, essential data only.`,
             message: {
               type: "string",
               description: "The message content to send to the session"
-            },
-            message_type: {
-              type: "string",
-              enum: ["user", "system"],
-              description: "Type of message - 'user' for user messages, 'system' for system notifications (default: user)"
             }
           },
           required: ["session_name", "message"]
@@ -678,8 +665,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         
         await bridge.sendFollowUpMessage(
           sendMessageArgs.session_name,
-          sendMessageArgs.message,
-          sendMessageArgs.message_type || 'user'
+          sendMessageArgs.message
         )
         
         result = `Message sent to session '${sendMessageArgs.session_name}': ${sendMessageArgs.message}`

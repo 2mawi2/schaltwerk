@@ -152,14 +152,13 @@ export class SchaltwerkBridge {
     }
   }
 
-  async sendFollowUpMessage(sessionName: string, message: string, messageType: 'user' | 'system' = 'user'): Promise<void> {
+  async sendFollowUpMessage(sessionName: string, message: string): Promise<void> {
     const session = await this.getSession(sessionName)
     if (!session) {
       throw new Error(`Session '${sessionName}' not found`)
     }
     
-    // Notify Schaltwerk UI about the follow-up message
-    await this.notifyFollowUpMessage(sessionName, message, messageType)
+    await this.notifyFollowUpMessage(sessionName, message)
   }
 
   async cancelSession(name: string, force: boolean = false): Promise<void> {
@@ -437,12 +436,11 @@ export class SchaltwerkBridge {
     }
   }
 
-  private async notifyFollowUpMessage(sessionName: string, message: string, messageType: 'user' | 'system'): Promise<void> {
+  private async notifyFollowUpMessage(sessionName: string, message: string): Promise<void> {
     try {
       const payload = {
         session_name: sessionName,
         message: message,
-        message_type: messageType,
         timestamp: Date.now()
       }
       
