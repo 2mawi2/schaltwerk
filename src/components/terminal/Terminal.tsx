@@ -427,7 +427,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 if (snapshot) {
                     // Check if the snapshot contains enough data to have scrollback
                     const lineCount = (snapshot.match(/\n/g) || []).length;
-                    const hasSignificantContent = lineCount > terminal.current!.rows;
+                    const hasSignificantContent = lineCount > terminal.current!.rows * 2;
                     
                     writeQueueRef.current.push(snapshot);
                     
@@ -525,7 +525,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const buffer = terminal.current.buffer.active;
                     const viewport = buffer.viewportY;
                     const totalLines = buffer.length;
-                    wasAtBottom = viewport >= totalLines - terminal.current.rows - 2;
+                    wasAtBottom = viewport === totalLines - terminal.current.rows;
                 }
             } catch (e) {
                 // Buffer API might not be available
