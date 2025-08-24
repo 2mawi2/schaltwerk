@@ -342,64 +342,75 @@ describe('SelectionContext', () => {
 
   describe('State Transitions', () => {
     it('should detect state transitions from draft to running', () => {
-      // Unit test the logic without full context setup
-      // This tests the core logic that was implemented to detect state transitions
-      const currentSelection = { kind: 'session' as const, payload: 'test-session' }
-      const newSelection = { 
-        kind: 'session' as const, 
-        payload: 'test-session', 
-        sessionState: 'running' as const 
+      // Function to test the state transition logic
+      const testStateTransition = (
+        currentPayload: string,
+        newPayload: string, 
+        oldIsDraft: boolean,
+        newIsDraft: boolean
+      ) => {
+        const currentSelection = { kind: 'session' as const, payload: currentPayload }
+        const newSelection = { 
+          kind: 'session' as const, 
+          payload: newPayload, 
+          sessionState: newIsDraft ? 'draft' : 'running' as const 
+        }
+
+        return currentSelection.kind === 'session' && 
+          newSelection.kind === 'session' && 
+          currentSelection.payload === newSelection.payload &&
+          oldIsDraft !== newIsDraft
       }
-      const currentIsDraft = true
-      const newIsDraft = false
 
-      // Test the condition logic from SelectionContext
-      const isStateTransition = currentSelection.kind === 'session' && 
-        newSelection.kind === 'session' && 
-        currentSelection.payload === newSelection.payload &&
-        currentIsDraft !== newIsDraft
-
-      expect(isStateTransition).toBe(true)
+      expect(testStateTransition('test-session', 'test-session', true, false)).toBe(true)
     })
 
     it('should detect state transitions from running to draft', () => {
-      // Unit test the logic without full context setup
-      const currentSelection = { kind: 'session' as const, payload: 'test-session' }
-      const newSelection = { 
-        kind: 'session' as const, 
-        payload: 'test-session', 
-        sessionState: 'draft' as const 
+      // Function to test the state transition logic
+      const testStateTransition = (
+        currentPayload: string,
+        newPayload: string, 
+        oldIsDraft: boolean,
+        newIsDraft: boolean
+      ) => {
+        const currentSelection = { kind: 'session' as const, payload: currentPayload }
+        const newSelection = { 
+          kind: 'session' as const, 
+          payload: newPayload, 
+          sessionState: newIsDraft ? 'draft' : 'running' as const 
+        }
+
+        return currentSelection.kind === 'session' && 
+          newSelection.kind === 'session' && 
+          currentSelection.payload === newSelection.payload &&
+          oldIsDraft !== newIsDraft
       }
-      const currentIsDraft = false
-      const newIsDraft = true
 
-      // Test the condition logic from SelectionContext
-      const isStateTransition = currentSelection.kind === 'session' && 
-        newSelection.kind === 'session' && 
-        currentSelection.payload === newSelection.payload &&
-        currentIsDraft !== newIsDraft
-
-      expect(isStateTransition).toBe(true)
+      expect(testStateTransition('test-session', 'test-session', false, true)).toBe(true)
     })
 
     it('should not detect state transitions when session payload changes', () => {
-      // Unit test that different sessions don't trigger state transitions
-      const currentSelection = { kind: 'session' as const, payload: 'session-1' }
-      const newSelection = { 
-        kind: 'session' as const, 
-        payload: 'session-2', 
-        sessionState: 'running' as const 
+      // Function to test the state transition logic
+      const testStateTransition = (
+        currentPayload: string,
+        newPayload: string, 
+        oldIsDraft: boolean,
+        newIsDraft: boolean
+      ) => {
+        const currentSelection = { kind: 'session' as const, payload: currentPayload }
+        const newSelection = { 
+          kind: 'session' as const, 
+          payload: newPayload, 
+          sessionState: newIsDraft ? 'draft' : 'running' as const 
+        }
+
+        return currentSelection.kind === 'session' && 
+          newSelection.kind === 'session' && 
+          currentSelection.payload === newSelection.payload &&
+          oldIsDraft !== newIsDraft
       }
-      const currentIsDraft = true
-      const newIsDraft = false
 
-      // Test the condition logic from SelectionContext
-      const isStateTransition = currentSelection.kind === 'session' && 
-        newSelection.kind === 'session' && 
-        currentSelection.payload === newSelection.payload &&
-        currentIsDraft !== newIsDraft
-
-      expect(isStateTransition).toBe(false)
+      expect(testStateTransition('session-1', 'session-2', true, false)).toBe(false)
     })
   })
 })
