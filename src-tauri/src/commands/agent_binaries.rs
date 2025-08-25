@@ -55,6 +55,46 @@ pub async fn get_agent_binary_config(agent_name: String) -> Result<AgentBinaryCo
 pub async fn set_agent_binary_path(agent_name: String, path: Option<String>) -> Result<(), String> {
     info!("Setting binary path for agent {agent_name}: {path:?}");
     
+    // Validate and process the path
+    let processed_path = if let Some(p) = &path {
+        // Check if this looks like a resolved symlink to a .js file
+        if p.ends_with(".js") || p.ends_with(".mjs") {
+            // Try to find the original executable wrapper
+            log::warn!("Detected JavaScript file path, may be resolved symlink: {p}");
+            
+            // Check if there's a binary wrapper in common locations
+            let possible_locations = vec![
+                format!("/opt/homebrew/bin/{}", agent_name),
+                format!("/usr/local/bin/{}", agent_name),
+                format!("/opt/homebrew/Cellar/node/24.4.0/bin/{}", agent_name),
+                format!("{}/.local/bin/{}", std::env::var("HOME").unwrap_or_default(), agent_name),
+            ];
+            
+            let mut found_wrapper = None;
+            for location in &possible_locations {
+                if std::path::Path::new(location).exists() {
+                    log::info!("Found binary wrapper at {location}, using that instead of .js file");
+                    found_wrapper = Some(location.clone());
+                    break;
+                }
+            }
+            
+            if let Some(wrapper) = found_wrapper {
+                Some(wrapper)
+            } else {
+                // If we can't find a wrapper, return error
+                return Err(format!(
+                    "The selected file appears to be a JavaScript file. Please select the executable wrapper instead. \
+                    Try looking in /opt/homebrew/bin/{agent_name} or /usr/local/bin/{agent_name}"
+                ));
+            }
+        } else {
+            Some(p.clone())
+        }
+    } else {
+        None
+    };
+    
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
@@ -68,7 +108,7 @@ pub async fn set_agent_binary_path(agent_name: String, path: Option<String>) -> 
     
     let config = AgentBinaryConfig {
         agent_name,
-        custom_path: path.clone(),
+        custom_path: processed_path,
         auto_detect: path.is_none(),
         detected_binaries,
     };

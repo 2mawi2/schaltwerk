@@ -87,7 +87,7 @@ impl SettingsManager {
         
         let settings_path = config_dir.join("settings.json");
         
-        let settings = if settings_path.exists() {
+        let mut settings = if settings_path.exists() {
             let contents = fs::read_to_string(&settings_path)
                 .map_err(|e| format!("Failed to read settings file: {e}"))?;
             serde_json::from_str(&contents)
@@ -96,10 +96,58 @@ impl SettingsManager {
             Settings::default()
         };
         
+        // Clean up any invalid JavaScript file paths in binary configs
+        Self::clean_invalid_binary_paths(&mut settings);
+        
         Ok(Self {
             settings_path,
             settings,
         })
+    }
+    
+    fn clean_invalid_binary_paths(settings: &mut Settings) {
+        // Helper to check if a path is invalid (points to .js file) and try to fix it
+        let fix_config = |config: &mut Option<AgentBinaryConfig>| {
+            if let Some(cfg) = config {
+                if let Some(ref path) = cfg.custom_path.clone() {
+                    if path.ends_with(".js") || path.ends_with(".mjs") {
+                        log::warn!("Found JS file path for {}: {}, attempting to fix", cfg.agent_name, path);
+                        
+                        // Try to find the correct binary wrapper
+                        let possible_locations = vec![
+                            format!("/opt/homebrew/bin/{}", cfg.agent_name),
+                            format!("/usr/local/bin/{}", cfg.agent_name),
+                            format!("/opt/homebrew/Cellar/node/24.4.0/bin/{}", cfg.agent_name),
+                            format!("{}/.local/bin/{}", std::env::var("HOME").unwrap_or_default(), cfg.agent_name),
+                        ];
+                        
+                        let mut found_wrapper = None;
+                        for location in &possible_locations {
+                            if std::path::Path::new(location).exists() {
+                                log::info!("Found correct binary wrapper at {location}, replacing JS path");
+                                found_wrapper = Some(location.clone());
+                                break;
+                            }
+                        }
+                        
+                        if let Some(wrapper) = found_wrapper {
+                            cfg.custom_path = Some(wrapper);
+                        } else {
+                            // If we can't find a wrapper, revert to auto-detect
+                            log::warn!("Could not find binary wrapper for {}, reverting to auto-detect", cfg.agent_name);
+                            cfg.custom_path = None;
+                            cfg.auto_detect = true;
+                        }
+                    }
+                }
+            }
+        };
+        
+        fix_config(&mut settings.agent_binaries.claude);
+        fix_config(&mut settings.agent_binaries.cursor_agent);
+        fix_config(&mut settings.agent_binaries.opencode);
+        fix_config(&mut settings.agent_binaries.gemini);
+        fix_config(&mut settings.agent_binaries.codex);
     }
     
     pub fn save(&mut self) -> Result<(), String> {

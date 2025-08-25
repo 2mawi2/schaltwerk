@@ -322,6 +322,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             }))
         } catch (error) {
             console.error(`Failed to update binary path for ${agent}:`, error)
+            showNotification(`Failed to update binary path: ${error}`, 'error')
         }
     }
 

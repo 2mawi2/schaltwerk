@@ -283,11 +283,7 @@ impl SessionUtils {
             return override_path.to_string();
         }
         
-        if cfg!(not(test)) {
-            log::info!("Binary resolution not implemented yet, using agent name as fallback: {agent_name}");
-        }
-        
-        log::debug!("Using agent name as fallback for {agent_name}");
+        log::debug!("No override provided for {agent_name}, will be resolved from settings at command level");
         agent_name.to_string()
     }
 }

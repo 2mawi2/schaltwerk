@@ -1100,8 +1100,28 @@ pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<S
     let core = core.lock().await;
     let manager = core.session_manager();
     
+    // Resolve binary paths at command level (with caching)
+    let binary_paths = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let settings = settings_manager.lock().await;
+        let mut paths = std::collections::HashMap::new();
+        
+        // Get resolved binary paths for all agents
+        for agent in ["claude", "cursor-agent", "codex", "opencode", "gemini"] {
+            match settings.get_effective_binary_path(agent) {
+                Ok(path) => {
+                    log::debug!("Cached binary path for {agent}: {path}");
+                    paths.insert(agent.to_string(), path);
+                },
+                Err(e) => log::warn!("Failed to get cached binary path for {agent}: {e}"),
+            }
+        }
+        paths
+    } else {
+        std::collections::HashMap::new()
+    };
+    
     // Build command for FRESH session (no session resume)
-    let command = manager.start_claude_in_orchestrator_fresh()
+    let command = manager.start_claude_in_orchestrator_fresh_with_binary(&binary_paths)
         .map_err(|e| {
             log::error!("Failed to build fresh commander command: {e}");
             format!("Failed to start fresh Claude in commander: {e}")
