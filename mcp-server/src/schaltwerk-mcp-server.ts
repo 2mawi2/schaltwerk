@@ -1015,6 +1015,7 @@ async function main(): Promise<void> {
   await server.connect(transport)
   
   console.error("Schaltwerk MCP server running")
+  console.error(`Project path: ${process.env.SCHALTWERK_PROJECT_PATH || 'auto-detected from git root'}`)
   console.error("Connected to database, ready to manage sessions")
   
   // Graceful shutdown
