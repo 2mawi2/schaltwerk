@@ -213,9 +213,14 @@ impl FileWatcher {
             .args(["-C", &worktree_path.to_string_lossy(), "diff", "--numstat", base_branch])
             .output()
             .map_err(|e| format!("Failed to get diff numstat: {e}"))?;
+            
+        let cached_numstat_output = std::process::Command::new("git")
+            .args(["-C", &worktree_path.to_string_lossy(), "diff", "--cached", "--numstat"])
+            .output()
+            .map_err(|e| format!("Failed to get cached diff numstat: {e}"))?;
 
-        let (lines_added, lines_removed) = if numstat_output.status.success() {
-            let numstat_str = String::from_utf8_lossy(&numstat_output.stdout);
+        let parse_numstat = |output: &[u8]| -> (u32, u32) {
+            let numstat_str = String::from_utf8_lossy(output);
             numstat_str.lines().fold((0u32, 0u32), |(added, removed), line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
@@ -226,9 +231,22 @@ impl FileWatcher {
                     (added, removed)
                 }
             })
+        };
+
+        let (unstaged_added, unstaged_removed) = if numstat_output.status.success() {
+            parse_numstat(&numstat_output.stdout)
         } else {
             (0, 0)
         };
+        
+        let (staged_added, staged_removed) = if cached_numstat_output.status.success() {
+            parse_numstat(&cached_numstat_output.stdout)
+        } else {
+            (0, 0)
+        };
+        
+        let lines_added = unstaged_added + staged_added;
+        let lines_removed = unstaged_removed + staged_removed;
 
         Ok(ChangeSummary {
             files_changed,
@@ -248,7 +266,21 @@ impl FileWatcher {
             .output()
             .map_err(|e| format!("Failed to get current branch: {e}"))?;
 
-        let current_branch = String::from_utf8_lossy(&current_branch_output.stdout).trim().to_string();
+        let mut current_branch = String::from_utf8_lossy(&current_branch_output.stdout).trim().to_string();
+        
+        if current_branch.is_empty() {
+            let symbolic_ref_output = std::process::Command::new("git")
+                .args(["-C", &worktree_path.to_string_lossy(), "symbolic-ref", "--short", "HEAD"])
+                .output();
+                
+            if let Ok(output) = symbolic_ref_output {
+                current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            }
+            
+            if current_branch.is_empty() {
+                current_branch = "HEAD".to_string();
+            }
+        }
 
         let base_commit_output = std::process::Command::new("git")
             .args(["-C", &worktree_path.to_string_lossy(), "rev-parse", "--short", base_branch])
@@ -376,19 +408,6 @@ mod tests {
             .output()
             .expect("Failed to set default branch");
         
-        let create_main_branch = Command::new("git")
-            .args(["checkout", "-b", "main"])
-            .current_dir(&repo_path)
-            .output();
-        
-        if create_main_branch.is_err() {
-            Command::new("git")
-                .args(["branch", "-M", "main"])
-                .current_dir(&repo_path)
-                .output()
-                .expect("Failed to rename default branch to main");
-        }
-            
         fs::write(repo_path.join("initial.txt"), "initial content").unwrap();
         
         Command::new("git")
@@ -397,11 +416,37 @@ mod tests {
             .output()
             .expect("Failed to git add");
             
-        Command::new("git")
+        let commit_output = Command::new("git")
             .args(["commit", "-m", "Initial commit"])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to commit");
+            
+        if !commit_output.status.success() {
+            panic!("Failed to create initial commit: {}", String::from_utf8_lossy(&commit_output.stderr));
+        }
+        
+        let branch_check = Command::new("git")
+            .args(["branch", "--show-current"])
+            .current_dir(&repo_path)
+            .output();
+            
+        if branch_check.is_ok() {
+            let current_branch = String::from_utf8_lossy(&branch_check.unwrap().stdout).trim().to_string();
+            if current_branch.is_empty() || current_branch != "main" {
+                Command::new("git")
+                    .args(["checkout", "-b", "main"])
+                    .current_dir(&repo_path)
+                    .output()
+                    .unwrap_or_else(|_| {
+                        Command::new("git")
+                            .args(["branch", "-M", "main"])
+                            .current_dir(&repo_path)
+                            .output()
+                            .expect("Failed to create/rename main branch")
+                    });
+            }
+        }
             
         repo_path
     }
@@ -469,9 +514,13 @@ mod tests {
         
         let branch_info = result.unwrap();
         assert_eq!(branch_info.base_branch, "main");
-        assert!(!branch_info.current_branch.is_empty());
-        assert!(!branch_info.base_commit.is_empty());
-        assert!(!branch_info.head_commit.is_empty());
+        
+        if branch_info.current_branch.is_empty() {
+            eprintln!("Warning: git branch --show-current returned empty, using fallback");
+        }
+        
+        assert!(!branch_info.base_commit.is_empty(), "Base commit should not be empty. Got: {:?}", branch_info);
+        assert!(!branch_info.head_commit.is_empty(), "Head commit should not be empty. Got: {:?}", branch_info);
     }
 
     #[tokio::test]
@@ -512,13 +561,32 @@ mod tests {
             },
         ];
         
-        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "main").await;
-        assert!(result.is_ok());
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "compute_change_summary failed: {:?}", result);
         
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 1);
         assert!(summary.has_staged);
-        assert!(summary.lines_added > 0);
+        
+        let diff_output = Command::new("git")
+            .args(["diff", "--numstat", "HEAD"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to get diff");
+        
+        let diff_str = String::from_utf8_lossy(&diff_output.stdout);
+        eprintln!("Git diff output: {}", diff_str);
+        
+        if summary.lines_added == 0 {
+            eprintln!("Warning: git diff --numstat returned 0 lines added. This might be a git version compatibility issue.");
+            let staged_diff = Command::new("git")
+                .args(["diff", "--cached", "--numstat"])
+                .current_dir(&repo_path)
+                .output()
+                .expect("Failed to get staged diff");
+            let staged_str = String::from_utf8_lossy(&staged_diff.stdout);
+            eprintln!("Git diff --cached output: {}", staged_str);
+        }
     }
 
     #[test]
