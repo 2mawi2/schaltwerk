@@ -1,13 +1,13 @@
 import { Terminal, TerminalHandle } from './Terminal'
 import { TerminalTabs, TerminalTabsHandle } from './TerminalTabs'
-import { DraftPlaceholder } from '../drafts/DraftPlaceholder'
+import { PlanPlaceholder } from '../plans/PlanPlaceholder'
 import Split from 'react-split'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
-import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { SwitchCommanderModal } from '../modals/SwitchCommanderModal'
 import { clearTerminalStartedTracking } from './Terminal'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
@@ -15,23 +15,23 @@ import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { useRef, useEffect, useState } from 'react'
 
 export function TerminalGrid() {
-    const { selection, terminals, isReady, isDraft, clearTerminalTracking } = useSelection()
+    const { selection, terminals, isReady, isPlan, clearTerminalTracking } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { getAgentType } = useClaudeSession()
     const { isResetting, resetSession, switchModel } = useSessionManagement()
     const { actionButtons } = useActionButtons()
     
-    // Show action buttons for both orchestrator and sessions
-    const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
+    // Show action buttons for both commander and sessions
+    const shouldShowActionButtons = (selection.kind === 'commander' || selection.kind === 'session') && actionButtons.length > 0
     
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
-    const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
+    const [switchCommanderModal, setSwitchCommanderModal] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(6) // fallback ~ header height in %
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
-    const initialPersistKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
+    const initialPersistKey = selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown'
     const initialIsCollapsed = (localStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
     const initialExpanded = (() => {
         const rawExpanded = localStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
@@ -59,7 +59,7 @@ export function TerminalGrid() {
     
 
     const getSessionKey = () => {
-        return selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
+        return selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown'
     }
 
     const toggleTerminalCollapsed = () => {
@@ -189,7 +189,7 @@ export function TerminalGrid() {
     }, [isBottomCollapsed, collapsedPercent])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
-    const sessionKey = () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown')
+    const sessionKey = () => (selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown')
     useEffect(() => {
         const key = sessionKey()
         const raw = localStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
@@ -302,12 +302,12 @@ export function TerminalGrid() {
         )
     }
 
-    // Draft sessions show placeholder instead of terminals
-    if (selection.kind === 'session' && isDraft) {
+    // Plan sessions show placeholder instead of terminals
+    if (selection.kind === 'session' && isPlan) {
         return (
             <div className="h-full p-2 relative">
                 <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">
-                    <DraftPlaceholder />
+                    <PlanPlaceholder />
                 </div>
             </div>
         )
@@ -350,13 +350,13 @@ export function TerminalGrid() {
                         {/* Left side: Switch Model and Reset buttons */}
                         <div className="flex items-center gap-1 pointer-events-auto">
                             <button
-                                onClick={(e) => { e.stopPropagation(); setSwitchOrchestratorModal(true); }}
+                                onClick={(e) => { e.stopPropagation(); setSwitchCommanderModal(true); }}
                                 className={`px-2 py-1 text-[10px] rounded hover:bg-slate-700/50 transition-colors ${
                                     localFocus === 'claude'
                                         ? 'hover:bg-blue-600/30 text-blue-300 hover:text-blue-200'
                                         : 'text-slate-400 hover:text-slate-300'
                                 }`}
-                                title={selection.kind === 'orchestrator' ? 'Switch orchestrator model' : 'Switch session model'}
+                                title={selection.kind === 'commander' ? 'Switch commander model' : 'Switch agent model'}
                             >
                                 <div className="flex items-center gap-1">
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -373,7 +373,7 @@ export function TerminalGrid() {
                                         ? 'hover:bg-blue-600/30 text-blue-300 hover:text-blue-200'
                                         : 'text-slate-400 hover:text-slate-300'
                                 }`}
-                                title={selection.kind === 'orchestrator' ? 'Reset orchestrator' : `Reset session ${selection.payload || ''}`}
+                                title={selection.kind === 'commander' ? 'Reset commander' : `Reset agent ${selection.payload || ''}`}
                             >
                                 <div className="flex items-center gap-1">
                                     {isResetting ? (
@@ -387,7 +387,7 @@ export function TerminalGrid() {
                                 </div>
                             </button>
                             
-                            {/* Action Buttons - only show for orchestrator */}
+                            {/* Action Buttons - only show for commander */}
                             {shouldShowActionButtons && (
                                 <>
                                     <div className="w-px h-3 bg-slate-600 mx-1" />
@@ -418,7 +418,7 @@ export function TerminalGrid() {
                         
                         {/* Absolute-centered title to avoid alignment shift */}
                         <span className="absolute left-0 right-0 text-center font-medium pointer-events-none">
-                            {selection.kind === 'orchestrator' ? 'Orchestrator — main repo' : `Session — ${selection.payload ?? ''}`}
+                            {selection.kind === 'commander' ? 'Commander — main repo' : `Session — ${selection.payload ?? ''}`}
                         </span>
                         
                         {/* Right side: ⌘T indicator */}
@@ -440,7 +440,7 @@ export function TerminalGrid() {
                             terminalId={terminals.top} 
                             className="h-full w-full" 
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                            isOrchestrator={selection.kind === 'orchestrator'}
+                            isCommander={selection.kind === 'commander'}
                             agentType={agentType}
                         />
                     </div>
@@ -456,7 +456,7 @@ export function TerminalGrid() {
                         onClick={handleTerminalClick}
                     >
                         <span className="absolute left-0 right-0 text-center pointer-events-none">
-                            Terminal — {selection.kind === 'orchestrator' ? 'main' : selection.payload}
+                            Terminal — {selection.kind === 'commander' ? 'main' : selection.payload}
                         </span>
                         <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded mr-1 transition-colors duration-200 ${
                             localFocus === 'terminal'
@@ -493,7 +493,7 @@ export function TerminalGrid() {
                             workingDirectory={terminals.workingDirectory}
                             className="h-full"
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                            isOrchestrator={selection.kind === 'orchestrator'}
+                            isCommander={selection.kind === 'commander'}
                             agentType={agentType}
                         />
                     </div>
@@ -502,9 +502,9 @@ export function TerminalGrid() {
 
             {/* Prompt dock moved to right diff panel */}
             
-            <SwitchOrchestratorModal
-                open={switchOrchestratorModal}
-                onClose={() => setSwitchOrchestratorModal(false)}
+            <SwitchCommanderModal
+                open={switchCommanderModal}
+                onClose={() => setSwitchCommanderModal(false)}
                 onSwitch={async (agentType) => {
                     try {
                         await switchModel(
@@ -519,7 +519,7 @@ export function TerminalGrid() {
                         setAgentType(agentType)
                         
                         // Close the modal
-                        setSwitchOrchestratorModal(false)
+                        setSwitchCommanderModal(false)
                     } catch (error) {
                         console.error('Failed to switch model:', error)
                     }

@@ -1,11 +1,11 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-/// Schaltwerk - An orchestrator for your agents
+/// Schaltwerk - An commander for your agents
 #[derive(Debug, Parser)]
 #[command(
     name = "schaltwerk",
-    about = "Schaltwerk - An orchestrator for your agents"
+    about = "Schaltwerk - An commander for your agents"
 )]
 pub struct Cli {
     /// Optional project directory to open. Defaults to current working directory if omitted.

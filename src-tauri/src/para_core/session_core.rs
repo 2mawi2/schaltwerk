@@ -93,7 +93,7 @@ impl SessionManager {
             original_skip_permissions: None,
             pending_name_generation: was_auto_generated,
             was_auto_generated,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         
@@ -195,7 +195,7 @@ impl SessionManager {
             return Err(anyhow!("Session '{}' is not in running state", name));
         }
         
-        log::info!("Converting session '{name}' from running to draft");
+        log::info!("Converting session '{name}' from running to plan");
         
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
@@ -204,12 +204,12 @@ impl SessionManager {
         };
         
         if has_uncommitted {
-            log::warn!("Converting session '{name}' to draft with uncommitted changes");
+            log::warn!("Converting session '{name}' to plan with uncommitted changes");
         }
         
         if session.worktree_path.exists() {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
-                return Err(anyhow!("Failed to remove worktree when converting to draft: {}", e));
+                return Err(anyhow!("Failed to remove worktree when converting to plan: {}", e));
             }
         }
         
@@ -219,8 +219,8 @@ impl SessionManager {
             }
         }
         
-        self.db_manager.update_session_status(&session.id, SessionStatus::Draft)?;
-        self.db_manager.update_session_state(&session.id, SessionState::Draft)?;
+        self.db_manager.update_session_status(&session.id, SessionStatus::Plan)?;
+        self.db_manager.update_session_state(&session.id, SessionState::Plan)?;
         
         clear_session_prompted_non_test(&session.worktree_path);
         
@@ -269,7 +269,7 @@ impl SessionManager {
             let status_type = match session.status {
                 SessionStatus::Active => SessionStatusType::Active,
                 SessionStatus::Cancelled => SessionStatusType::Archived,
-                SessionStatus::Draft => SessionStatusType::Draft,
+                SessionStatus::Plan => SessionStatusType::Plan,
             };
             
             let original_agent_type = session
@@ -295,7 +295,7 @@ impl SessionManager {
                 current_task: session.initial_prompt.clone(),
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
-                draft_content: session.draft_content.clone(),
+                plan_content: session.plan_content.clone(),
                 session_state: session.session_state.clone(),
             };
 
@@ -488,7 +488,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_fresh_with_binary(&self, binary_paths: &HashMap<String, String>) -> Result<String> {
-        log::info!("Building FRESH orchestrator command (no session resume) for repo: {}", self.repo_path.display());
+        log::info!("Building FRESH commander command (no session resume) for repo: {}", self.repo_path.display());
         
         if !self.repo_path.exists() {
             log::error!("Repository path does not exist: {}", self.repo_path.display());
@@ -497,13 +497,13 @@ impl SessionManager {
         
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!("The folder '{}' is not a git repository. The commander requires a git repository to function.", self.repo_path.display()));
         }
         
         let skip_permissions = self.db_manager.get_skip_permissions()?;
         let agent_type = self.db_manager.get_agent_type()?;
         
-        log::info!("Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Fresh commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, false)
     }
@@ -517,7 +517,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_with_args_and_binary(&self, _cli_args: Option<&str>, binary_paths: &HashMap<String, String>) -> Result<String> {
-        log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
+        log::info!("Building commander command for repo: {}", self.repo_path.display());
         
         if !self.repo_path.exists() {
             return Err(anyhow!("Repository path does not exist: {}", self.repo_path.display()));
@@ -530,7 +530,7 @@ impl SessionManager {
         let skip_permissions = self.db_manager.get_skip_permissions()?;
         let agent_type = self.db_manager.get_agent_type()?;
         
-        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, true)
     }
@@ -669,8 +669,8 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn create_draft_session(&self, name: &str, draft_content: &str) -> Result<Session> {
-        log::info!("Creating draft session '{}' in repository: {}", name, self.repo_path.display());
+    pub fn create_draft_session(&self, name: &str, plan_content: &str) -> Result<Session> {
+        log::info!("Creating plan session '{}' in repository: {}", name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
@@ -694,7 +694,7 @@ impl SessionManager {
             branch: branch.clone(),
             parent_branch: "main".to_string(),
             worktree_path: worktree_path.clone(),
-            status: SessionStatus::Draft,
+            status: SessionStatus::Plan,
             created_at: now,
             updated_at: now,
             last_activity: None,
@@ -704,13 +704,13 @@ impl SessionManager {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: Some(draft_content.to_string()),
-            session_state: SessionState::Draft,
+            plan_content: Some(plan_content.to_string()),
+            session_state: SessionState::Plan,
         };
         
         if let Err(e) = self.db_manager.create_session(&session) {
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save draft session to database: {}", e));
+            return Err(anyhow!("Failed to save plan session to database: {}", e));
         }
         
         self.cache_manager.unreserve_name(&unique_name);
@@ -718,15 +718,15 @@ impl SessionManager {
     }
 
     pub fn start_draft_session(&self, session_name: &str, base_branch: Option<&str>) -> Result<()> {
-        log::info!("Starting draft session '{}' in repository: {}", session_name, self.repo_path.display());
+        log::info!("Starting plan session '{}' in repository: {}", session_name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
         
         let session = self.db_manager.get_session_by_name(session_name)?;
         
-        if session.session_state != SessionState::Draft {
-            return Err(anyhow!("Session '{}' is not in draft state", session_name));
+        if session.session_state != SessionState::Plan {
+            return Err(anyhow!("Session '{}' is not in plan state", session_name));
         }
         
         let parent_branch = if let Some(base) = base_branch {
@@ -761,13 +761,13 @@ impl SessionManager {
         self.db_manager.update_session_status(&session.id, SessionStatus::Active)?;
         self.db_manager.update_session_state(&session.id, SessionState::Running)?;
         
-        if let Some(draft_content) = session.draft_content {
-            log::info!("Copying draft content to initial_prompt for session '{session_name}': '{draft_content}'");
-            self.db_manager.update_session_initial_prompt(&session.id, &draft_content)?;
+        if let Some(plan_content) = session.plan_content {
+            log::info!("Copying plan content to initial_prompt for session '{session_name}': '{plan_content}'");
+            self.db_manager.update_session_initial_prompt(&session.id, &plan_content)?;
             clear_session_prompted_non_test(&session.worktree_path);
-            log::info!("Cleared prompt state for session '{session_name}' to ensure draft content is used");
+            log::info!("Cleared prompt state for session '{session_name}' to ensure plan content is used");
         } else {
-            log::warn!("No draft_content found for session '{session_name}' - initial_prompt will not be set");
+            log::warn!("No plan_content found for session '{session_name}' - initial_prompt will not be set");
         }
         
         let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
@@ -792,15 +792,15 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn update_draft_content(&self, session_name: &str, content: &str) -> Result<()> {
+    pub fn update_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager.update_draft_content(&session.id, content)?;
+        self.db_manager.update_plan_content(&session.id, content)?;
         Ok(())
     }
 
-    pub fn append_draft_content(&self, session_name: &str, content: &str) -> Result<()> {
+    pub fn append_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager.append_draft_content(&session.id, content)?;
+        self.db_manager.append_plan_content(&session.id, content)?;
         Ok(())
     }
 

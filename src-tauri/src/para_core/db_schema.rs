@@ -178,14 +178,21 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         "ALTER TABLE sessions ADD COLUMN was_auto_generated BOOLEAN DEFAULT FALSE",
         [],
     );
-    // Add draft_content column if it doesn't exist (migration)
+    // Add plan_content column if it doesn't exist (migration)
     let _ = conn.execute(
-        "ALTER TABLE sessions ADD COLUMN draft_content TEXT",
+        "ALTER TABLE sessions ADD COLUMN plan_content TEXT",
         [],
     );
+    
     // Add session_state column if it doesn't exist (migration), default to 'running' for backward compatibility
     let _ = conn.execute(
         "ALTER TABLE sessions ADD COLUMN session_state TEXT DEFAULT 'running'",
+        [],
+    );
+    
+    // Migrate old "draft" session_state values to "plan"
+    let _ = conn.execute(
+        "UPDATE sessions SET session_state = 'plan' WHERE session_state = 'draft'",
         [],
     );
     
@@ -227,7 +234,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
-    // Migration: Add action_buttons column for storing orchestrator action button configurations
+    // Migration: Add action_buttons column for storing commander action button configurations
     let _ = conn.execute(
         "ALTER TABLE project_config ADD COLUMN action_buttons TEXT",
         [],

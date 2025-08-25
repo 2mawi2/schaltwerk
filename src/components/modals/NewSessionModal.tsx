@@ -14,7 +14,7 @@ interface Props {
         prompt?: string
         baseBranch: string
         userEditedName?: boolean
-        isDraft?: boolean
+        isPlan?: boolean
         draftContent?: string
     }) => void | Promise<void>
 }
@@ -53,13 +53,13 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
     const validateSessionName = useCallback((sessionName: string): string | null => {
         if (!sessionName.trim()) {
-            return 'Task name is required'
+            return 'Agent name is required'
         }
         if (sessionName.length > 100) {
-            return 'Task name must be 100 characters or less'
+            return 'Agent name must be 100 characters or less'
         }
         if (!/^[a-zA-Z0-9_\- ]+$/.test(sessionName)) {
-            return 'Task name can only contain letters, numbers, hyphens, and underscores'
+            return 'Agent name can only contain letters, numbers, hyphens, and underscores'
         }
         return null
     }, [])
@@ -103,9 +103,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             }
         }
         
-        // Validate task content if creating as draft
+        // Validate agent content if creating as plan
         if (createAsDraft && !taskContent.trim()) {
-            setValidationError('Please enter task content')
+            setValidationError('Please enter agent content')
             return
         }
         
@@ -131,7 +131,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 baseBranch: createAsDraft ? '' : baseBranch,
                 // If user touched the input, treat name as manually edited
                 userEditedName: !!userEdited,
-                isDraft: createAsDraft,
+                isPlan: createAsDraft,
                 draftContent: createAsDraft ? taskContent : undefined,
             }))
             // On success the parent will close the modal; no need to reset creating here
@@ -235,16 +235,16 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             if (typeof taskContentFromDraft === 'string') {
                 setTaskContent(taskContentFromDraft)
             }
-            // If running from an existing draft, don't create another draft
+            // If running from an existing plan, don't create another plan
             if (fromDraft) {
                 setCreateAsDraft(false)
             }
         }
-        window.addEventListener('schaltwerk:new-session:set-draft' as any, setDraftHandler)
+        window.addEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
         window.addEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)
-            window.removeEventListener('schaltwerk:new-session:set-draft' as any, setDraftHandler)
+            window.removeEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
             window.removeEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
         }
     }, [open, onClose])
@@ -254,10 +254,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     return (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
             <div className="w-[720px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl">
-                <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">Start new task</div>
+                <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">{createAsDraft ? "Create new plan" : "Start new agent"}</div>
                 <div className="p-4 space-y-4">
                     <div>
-                        <label className="block text-sm text-slate-300 mb-1">Task name</label>
+                        <label className="block text-sm text-slate-300 mb-1">Agent name</label>
                         <input 
                             ref={nameInputRef}
                             value={name} 
@@ -289,12 +289,12 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                             onChange={e => setCreateAsDraft(e.target.checked)} 
                             className="text-blue-600"
                         />
-                        <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as draft (no agent will start)</label>
+                        <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as plan (no agent will start)</label>
                     </div>
 
                     <div>
                         <label className="block text-sm text-slate-300 mb-1">
-                            {createAsDraft ? 'Task content' : 'Initial prompt (optional)'}
+                            {createAsDraft ? 'Agent content' : 'Initial prompt (optional)'}
                         </label>
                         <textarea 
                             ref={promptTextareaRef}
@@ -307,7 +307,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                 }
                             }} 
                             className="w-full h-32 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm" 
-                            placeholder={createAsDraft ? "Enter task description in markdown..." : "Describe the task for the Claude session"} 
+                            placeholder={createAsDraft ? "Enter agent description in markdown..." : "Describe the agent for the Claude session"} 
                         />
                         <p className="text-xs text-slate-400 mt-1">
                             {createAsDraft ? (
@@ -315,7 +315,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                     <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                                     </svg>
-                                    Draft tasks are saved for later. You can start them when ready.
+                                    Plan agents are saved for later. You can start them when ready.
                                 </>
                             ) : (
                                 <>Equivalent to: schaltwerk start &lt;name&gt; -p "&lt;prompt&gt;"</>
@@ -331,7 +331,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                             <div className="text-sm text-amber-200">
                                 <p className="font-medium mb-1">New repository detected</p>
                                 <p className="text-xs text-amber-300">
-                                    This repository has no commits yet. An initial commit will be created automatically when you start the task.
+                                    This repository has no commits yet. An initial commit will be created automatically when you start the agent.
                                 </p>
                             </div>
                         </div>
@@ -400,7 +400,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         onClick={handleCreate} 
                         disabled={!name.trim() || (!createAsDraft && (!baseBranch || !isValidBranch)) || creating || (createAsDraft && !taskContent.trim())}
                         className={`px-3 py-1.5 ${createAsDraft ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2`}
-                        title={!isValidBranch ? "Please select a valid branch" : createAsDraft ? "Create draft (Cmd+Enter)" : "Create task (Cmd+Enter)"}
+                        title={!isValidBranch ? "Please select a valid branch" : createAsDraft ? "Create plan (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
                     >
                         {creating && (
                             <span
@@ -408,7 +408,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                 aria-hidden="true"
                             />
                         )}
-                        <span>{createAsDraft ? 'Create Draft' : 'Create'}</span>
+                        <span>{createAsDraft ? "Create Plan" : "Start Agent"}</span>
                         {!creating && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">⌘↵</span>}
                     </button>
                 </div>

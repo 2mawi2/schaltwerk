@@ -35,13 +35,13 @@ global.prompt = vi.fn()
 const mockSessions = [
     {
         info: {
-            session_id: 'draft-1',
-            display_name: 'Draft Session 1',
-            branch: 'feature/draft-1',
-            worktree_path: '/path/to/draft-1',
+            session_id: 'plan-1',
+            display_name: 'Plan Session 1',
+            branch: 'feature/plan-1',
+            worktree_path: '/path/to/plan-1',
             base_branch: 'main',
             merge_mode: 'rebase',
-            status: 'draft',
+            status: 'plan',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: false,
@@ -104,7 +104,7 @@ describe('KanbanView', () => {
         expect(screen.getByText('Loading sessions...')).toBeInTheDocument()
     })
 
-    it('should display three columns: Draft, Running, and Reviewed', async () => {
+    it('should display three columns: Plan, Running, and Reviewed', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
 
@@ -114,7 +114,7 @@ describe('KanbanView', () => {
             // Look for column headings specifically
             const headings = screen.getAllByRole('heading', { level: 3 })
             const headingTexts = headings.map(h => h.textContent)
-            expect(headingTexts).toContain('Draft')
+            expect(headingTexts).toContain('Plan')
             expect(headingTexts).toContain('Running')
             expect(headingTexts).toContain('Reviewed')
         })
@@ -127,8 +127,8 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            // Draft column
-            expect(screen.getByText('Draft Session 1')).toBeInTheDocument()
+            // Plan column
+            expect(screen.getByText('Plan Session 1')).toBeInTheDocument()
             
             // Running column
             expect(screen.getByText('Active Session 1')).toBeInTheDocument()
@@ -147,7 +147,7 @@ describe('KanbanView', () => {
         await waitFor(() => {
             // Find the count badges
             const counts = screen.getAllByText(/^[0-9]+$/)
-            // Should have 1 draft, 1 running, 1 reviewed
+            // Should have 1 plan, 1 running, 1 reviewed
             expect(counts).toHaveLength(3)
             expect(counts.some(el => el.textContent === '1')).toBe(true)
         })
@@ -166,42 +166,19 @@ describe('KanbanView', () => {
         })
     })
 
-    it('should show "New draft" button in Draft column and "Start new task" in Running column', async () => {
+    it('should show "Create plan" button in Plan column and "Start agent" in Running column', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
 
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('New draft')).toBeInTheDocument()
-            expect(screen.getByText('Start new task')).toBeInTheDocument()
+            expect(screen.getByText('Create plan')).toBeInTheDocument()
+            expect(screen.getByText('Start agent')).toBeInTheDocument()
         })
     })
 
-    it('should handle creating a new draft', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockResolvedValue(mockSessions)
-        
-        const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
-
-        render(<KanbanView />, { wrapper })
-
-        await waitFor(() => {
-            expect(screen.getByText('New draft')).toBeInTheDocument()
-        })
-
-        const createButton = screen.getByText('New draft')
-        await userEvent.click(createButton)
-        
-        // Should dispatch event to open new session modal in draft mode
-        expect(dispatchEventSpy).toHaveBeenCalledWith(
-            expect.objectContaining({
-                type: 'schaltwerk:new-draft'
-            })
-        )
-    })
-
-    it('should dispatch event when create draft button is clicked', async () => {
+    it('should handle creating a new plan', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
         
@@ -210,34 +187,57 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('New draft')).toBeInTheDocument()
+            expect(screen.getByText('Create plan')).toBeInTheDocument()
         })
 
-        const createButton = screen.getByText('New draft')
+        const createButton = screen.getByText('Create plan')
         await userEvent.click(createButton)
         
-        // Should dispatch the new-draft event
+        // Should dispatch event to open new session modal in plan mode
         expect(dispatchEventSpy).toHaveBeenCalledWith(
             expect.objectContaining({
-                type: 'schaltwerk:new-draft'
+                type: 'schaltwerk:new-plan'
             })
         )
     })
 
-    it('should show "No sessions found" when there are no sessions', async () => {
+    it('should dispatch event when create plan button is clicked', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockResolvedValue(mockSessions)
+        
+        const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
+
+        render(<KanbanView />, { wrapper })
+
+        await waitFor(() => {
+            expect(screen.getByText('Create plan')).toBeInTheDocument()
+        })
+
+        const createButton = screen.getByText('Create plan')
+        await userEvent.click(createButton)
+        
+        // Should dispatch the new-plan event
+        expect(dispatchEventSpy).toHaveBeenCalledWith(
+            expect.objectContaining({
+                type: 'schaltwerk:new-plan'
+            })
+        )
+    })
+
+    it('should show "No agents or plans found" when there are no sessions', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue([])
 
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('No sessions found')).toBeInTheDocument()
-            expect(screen.getByText('Start new task')).toBeInTheDocument()
-            expect(screen.getByText('New draft')).toBeInTheDocument()
+            expect(screen.getByText('No agents or plans found')).toBeInTheDocument()
+            expect(screen.getByText('Start agent')).toBeInTheDocument()
+            expect(screen.getByText('Create plan')).toBeInTheDocument()
         })
     })
 
-    it('should dispatch event when create first draft button is clicked', async () => {
+    it('should dispatch event when create first plan button is clicked', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue([])
         
@@ -246,16 +246,16 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('New draft')).toBeInTheDocument()
+            expect(screen.getByText('Create plan')).toBeInTheDocument()
         })
 
-        const createButton = screen.getByText('New draft')
+        const createButton = screen.getByText('Create plan')
         await userEvent.click(createButton)
         
-        // Should dispatch the new-draft event
+        // Should dispatch the new-plan event
         expect(dispatchEventSpy).toHaveBeenCalledWith(
             expect.objectContaining({
-                type: 'schaltwerk:new-draft'
+                type: 'schaltwerk:new-plan'
             })
         )
     })

@@ -6,7 +6,7 @@ import { UnifiedDiffModal } from './components/diff/UnifiedDiffModal'
 import Split from 'react-split'
 import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
-import { DeleteDraftConfirmation } from './components/modals/DeleteDraftConfirmation'
+import { DeletePlanConfirmation } from './components/modals/DeletePlanConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -44,7 +44,7 @@ export default function App() {
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
-  const [deleteDraftModalOpen, setDeleteDraftModalOpen] = useState(false)
+  const [deletePlanModalOpen, setDeletePlanModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [currentSession, setCurrentSession] = useState<{ id: string; name: string; displayName: string; branch: string; hasUncommittedChanges: boolean } | null>(null)
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
@@ -184,8 +184,8 @@ export default function App() {
         // perform cancel directly
         setCancelModalOpen(false)
         void handleCancelSession(hasUncommittedChanges)
-      } else if (action === 'delete-draft') {
-        setDeleteDraftModalOpen(true)
+      } else if (action === 'delete-plan') {
+        setDeletePlanModalOpen(true)
       }
     }
 
@@ -209,7 +209,7 @@ export default function App() {
           setNewSessionOpen(true)
         }
       }
-      // New Draft shortcut: Cmd+Shift+N (deterministic open-as-draft)
+      // New Plan shortcut: Cmd+Shift+N (deterministic open-as-plan)
       if (modifierKey && e.shiftKey && (e.key === 'n' || e.key === 'N')) {
         const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                                document.activeElement?.tagName === 'TEXTAREA' ||
@@ -286,17 +286,17 @@ export default function App() {
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
-  // Open NewSessionModal directly in draft mode when requested
+  // Open NewSessionModal directly in plan mode when requested
   useEffect(() => {
     const handler = () => {
       setOpenAsDraft(true)
       setNewSessionOpen(true)
     }
-    window.addEventListener('schaltwerk:new-draft', handler as any)
-    return () => window.removeEventListener('schaltwerk:new-draft', handler as any)
+    window.addEventListener('schaltwerk:new-plan', handler as any)
+    return () => window.removeEventListener('schaltwerk:new-plan', handler as any)
   }, [])
   
-  // Open NewSessionModal for new task when requested
+  // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
       setOpenAsDraft(false)
@@ -306,7 +306,7 @@ export default function App() {
     return () => window.removeEventListener('schaltwerk:new-session', handler as any)
   }, [])
 
-  // Open Start Task modal prefilled from an existing draft
+  // Open Start Agent modal prefilled from an existing plan
   useEffect(() => {
     const handler = (event: any) => {
       const name = event?.detail?.name as string | undefined
@@ -314,7 +314,7 @@ export default function App() {
       // Open modal first
       setNewSessionOpen(true)
       setStartFromDraftName(name)
-      // Fetch draft content and parent branch, then prefill modal
+      // Fetch plan content and parent branch, then prefill modal
       ;(async () => {
         try {
           const sessionData = await invoke<any>('para_core_get_session', { name })
@@ -332,12 +332,12 @@ export default function App() {
             }))
           }, 0)
         } catch (error) {
-          console.error('Failed to prefill from draft:', error)
+          console.error('Failed to prefill from plan:', error)
         }
       })()
     }
-    window.addEventListener('schaltwerk:start-task-from-draft' as any, handler)
-    return () => window.removeEventListener('schaltwerk:start-task-from-draft' as any, handler)
+    window.addEventListener('schaltwerk:start-agent-from-plan' as any, handler)
+    return () => window.removeEventListener('schaltwerk:start-agent-from-plan' as any, handler)
   }, [])
 
 
@@ -359,7 +359,7 @@ export default function App() {
     }
   }
 
-  const handleDeleteDraft = async () => {
+  const handleDeletePlan = async () => {
     if (!currentSession) return
 
     try {
@@ -367,12 +367,12 @@ export default function App() {
       await invoke('para_core_cancel_session', {
         name: currentSession.name
       })
-      setDeleteDraftModalOpen(false)
+      setDeletePlanModalOpen(false)
       // Reload sessions to update the list
       await invoke('para_core_list_enriched_sessions')
     } catch (error) {
-      console.error('Failed to delete draft:', error)
-      alert(`Failed to delete draft: ${error}`)
+      console.error('Failed to delete plan:', error)
+      alert(`Failed to delete plan: ${error}`)
     } finally {
       setIsCancelling(false)
     }
@@ -392,13 +392,13 @@ export default function App() {
     prompt?: string
     baseBranch: string
     userEditedName?: boolean
-    isDraft?: boolean
+    isPlan?: boolean
     draftContent?: string
   }) => {
     try {
-      // If starting from an existing draft via the modal, convert that draft to active
-      if (!data.isDraft && startFromDraftName && startFromDraftName === data.name) {
-        // Ensure the draft content reflects latest prompt before starting
+      // If starting from an existing plan via the modal, convert that plan to active
+      if (!data.isPlan && startFromDraftName && startFromDraftName === data.name) {
+        // Ensure the plan content reflects latest prompt before starting
         const contentToUse = data.prompt || ''
         if (contentToUse.trim().length > 0) {
           await invoke('para_core_update_draft_content', {
@@ -406,7 +406,7 @@ export default function App() {
             content: contentToUse,
           })
         }
-        // Start the draft session (transitions draft -> active and creates worktree)
+        // Start the plan session (transitions plan -> active and creates worktree)
         await invoke('para_core_start_draft_session', {
           name: data.name,
           baseBranch: data.baseBranch || null,
@@ -426,13 +426,13 @@ export default function App() {
           kind: 'session',
           payload: data.name,
           worktreePath: sessionData.worktree_path,
-          sessionState: 'running' // Draft has been started, it's now running
+          sessionState: 'running' // Plan has been started, it's now running
         })
         return
       }
 
-      if (data.isDraft) {
-        // Create draft session
+      if (data.isPlan) {
+        // Create plan session
         await invoke('para_core_create_draft_session', {
           name: data.name,
           draftContent: data.draftContent || '',
@@ -442,7 +442,7 @@ export default function App() {
         // Get the created session to get the correct worktree path
         const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
 
-        // Switch to the new draft session - no agent will start
+        // Switch to the new plan session - no agent will start
         await setSelection({
           kind: 'session',
           payload: data.name,
@@ -501,7 +501,7 @@ export default function App() {
       setActiveTabPath(path)
       setProjectPath(path)
       setShowHome(false)
-      // SelectionContext will automatically update orchestrator when projectPath changes
+      // SelectionContext will automatically update commander when projectPath changes
     } catch (error) {
       console.error('Failed to open project:', error)
       alert(`Failed to open project: ${error}`)
@@ -620,17 +620,17 @@ export default function App() {
                   <button
                     onClick={() => setNewSessionOpen(true)}
                     className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
-                    title="Start new task (⌘N)"
+                    title="Start agent (⌘N)"
                   >
-                    <span>Start new task</span>
+                    <span>Start Agent</span>
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
                   </button>
                   <button
                     onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }}
                     className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
-                    title="Create draft (⇧⌘N)"
+                    title="Create plan (⇧⌘N)"
                   >
-                    <span>New draft</span>
+                    <span>Create Plan</span>
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
                   </button>
                 </div>
@@ -669,11 +669,11 @@ export default function App() {
                 onCancel={() => setCancelModalOpen(false)}
                 loading={isCancelling}
               />
-              <DeleteDraftConfirmation
-                open={deleteDraftModalOpen}
+              <DeletePlanConfirmation
+                open={deletePlanModalOpen}
                 displayName={currentSession.displayName}
-                onConfirm={handleDeleteDraft}
-                onCancel={() => setDeleteDraftModalOpen(false)}
+                onConfirm={handleDeletePlan}
+                onCancel={() => setDeletePlanModalOpen(false)}
                 loading={isCancelling}
               />
             </>

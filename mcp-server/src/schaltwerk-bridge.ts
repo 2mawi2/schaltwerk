@@ -13,8 +13,8 @@ export interface Session {
   branch: string
   parent_branch: string
   worktree_path: string
-  status: 'active' | 'cancelled' | 'paused' | 'draft'
-  session_state?: 'Draft' | 'Running' | 'Reviewed'
+  status: 'active' | 'cancelled' | 'paused' | 'plan'
+  session_state?: 'Plan' | 'Running' | 'Reviewed'
   created_at: number
   updated_at: number
   last_activity?: number
@@ -75,7 +75,7 @@ export class SchaltwerkBridge {
         branch: es.info.branch,
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
-        status: es.info.session_state === 'Draft' ? 'draft' as const : 'active' as const,
+        status: es.info.session_state === 'Plan' ? 'plan' as const : 'active' as const,
         session_state: es.info.session_state,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
@@ -89,7 +89,7 @@ export class SchaltwerkBridge {
         was_auto_generated: false
       }))
       
-      return sessions.filter(s => s.status !== 'draft')
+      return sessions.filter(s => s.status !== 'plan')
     } catch (error) {
       console.error('Failed to list sessions via API:', error)
       return []
@@ -403,10 +403,10 @@ export class SchaltwerkBridge {
         session_name: session.name,
         draft_content: session.draft_content,
         parent_branch: session.parent_branch,
-        status: 'draft'
+        status: 'plan'
       }
       
-      await fetch(`${this.webhookUrl}/webhook/draft-created`, {
+      await fetch(`${this.webhookUrl}/webhook/plan-created`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -414,7 +414,7 @@ export class SchaltwerkBridge {
         body: JSON.stringify(payload),
       })
     } catch (error) {
-      console.warn('Failed to notify draft created:', error)
+      console.warn('Failed to notify plan created:', error)
     }
   }
 
@@ -458,7 +458,7 @@ export class SchaltwerkBridge {
 
   async createDraftSession(name: string, content?: string, baseBranch?: string): Promise<Session> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/drafts`, {
+      const response = await fetch(`${this.apiUrl}/api/plans`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -476,14 +476,14 @@ export class SchaltwerkBridge {
       await this.notifyDraftCreated(session)
       return session
     } catch (error) {
-      console.error('Failed to create draft via API:', error)
+      console.error('Failed to create plan via API:', error)
       throw error
     }
   }
 
   async updateDraftContent(sessionName: string, content: string, append: boolean = false): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/drafts/${encodeURIComponent(sessionName)}`, {
+      const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -493,17 +493,17 @@ export class SchaltwerkBridge {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to update draft content: ${response.statusText}`)
+        throw new Error(`Failed to update plan content: ${response.statusText}`)
       }
     } catch (error) {
-      console.error('Failed to update draft content via API:', error)
+      console.error('Failed to update plan content via API:', error)
       throw error
     }
   }
 
   async startDraftSession(sessionName: string, agentType?: string, skipPermissions?: boolean, baseBranch?: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/drafts/${encodeURIComponent(sessionName)}/start`, {
+      const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -514,7 +514,7 @@ export class SchaltwerkBridge {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to start draft session: ${response.statusText}`)
+        throw new Error(`Failed to start plan session: ${response.statusText}`)
       }
       
       const updatedSession = await this.getSession(sessionName)
@@ -522,49 +522,49 @@ export class SchaltwerkBridge {
         await this.notifySessionAdded(updatedSession)
       }
     } catch (error) {
-      console.error('Failed to start draft session via API:', error)
+      console.error('Failed to start plan session via API:', error)
       throw error
     }
   }
 
   async deleteDraftSession(sessionName: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/drafts/${encodeURIComponent(sessionName)}`, {
+      const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}`, {
         method: 'DELETE'
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to delete draft: ${response.statusText}`)
+        throw new Error(`Failed to delete plan: ${response.statusText}`)
       }
       
       await this.notifySessionRemoved(sessionName)
     } catch (error) {
-      console.error('Failed to delete draft session via API:', error)
+      console.error('Failed to delete plan session via API:', error)
       throw error
     }
   }
 
   async listDraftSessions(): Promise<Session[]> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/drafts`, {
+      const response = await fetch(`${this.apiUrl}/api/plans`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to list drafts: ${response.statusText}`)
+        throw new Error(`Failed to list plans: ${response.statusText}`)
       }
       
       return await response.json() as Session[]
     } catch (error) {
-      console.error('Failed to list draft sessions via API:', error)
+      console.error('Failed to list plan sessions via API:', error)
       return []
     }
   }
 
-  async listSessionsByState(filter?: 'all' | 'active' | 'draft' | 'reviewed'): Promise<Session[]> {
+  async listSessionsByState(filter?: 'all' | 'active' | 'plan' | 'reviewed'): Promise<Session[]> {
     try {
-      if (filter === 'draft') {
+      if (filter === 'plan') {
         return this.listDraftSessions()
       }
       
@@ -599,7 +599,7 @@ export class SchaltwerkBridge {
         branch: es.info.branch,
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
-        status: es.info.status === 'active' ? 'active' as const : 'draft' as const,
+        status: es.info.status === 'active' ? 'active' as const : 'plan' as const,
         session_state: es.info.session_state,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
@@ -613,10 +613,10 @@ export class SchaltwerkBridge {
         was_auto_generated: false
       }))
       
-      // For 'all' filter, also include drafts
+      // For 'all' filter, also include plans
       if (filter === 'all' || !filter) {
-        const drafts = await this.listDraftSessions()
-        sessions = [...sessions, ...drafts]
+        const plans = await this.listDraftSessions()
+        sessions = [...sessions, ...plans]
       }
       
       return sessions
@@ -628,16 +628,16 @@ export class SchaltwerkBridge {
 
   async getCurrentTasks(): Promise<Session[]> {
     try {
-      // Get all sessions and drafts
+      // Get all sessions and plans
       const [activeSessions, draftSessions] = await Promise.all([
         this.listSessions(),
         this.listDraftSessions()
       ])
       
-      // Combine and return all current tasks
+      // Combine and return all current agents
       return [...activeSessions, ...draftSessions]
     } catch (error) {
-      console.error('Failed to get current tasks via API:', error)
+      console.error('Failed to get current agents via API:', error)
       return []
     }
   }

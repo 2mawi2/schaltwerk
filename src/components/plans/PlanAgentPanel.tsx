@@ -7,16 +7,16 @@ import clsx from 'clsx'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
-interface DraftSession {
+interface PlanSession {
   name: string
   created_at: string
   initial_prompt?: string
   draft_content?: string
-  state: 'draft'
+  state: 'plan'
 }
 
-export function DraftTaskPanel() {
-  const [drafts, setDrafts] = useState<DraftSession[]>([])
+export function PlanAgentPanel() {
+  const [plans, setDrafts] = useState<PlanSession[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [editingDraft, setEditingDraft] = useState<string | null>(null)
@@ -31,11 +31,11 @@ export function DraftTaskPanel() {
     try {
       setLoading(true)
       setError(null)
-      const sessions = await invoke<DraftSession[]>('para_core_list_sessions_by_state', { state: 'draft' })
+      const sessions = await invoke<PlanSession[]>('para_core_list_sessions_by_state', { state: 'plan' })
       setDrafts(sessions || [])
     } catch (err) {
-      console.error('[DraftTaskPanel] Failed to fetch drafts:', err)
-      setError('Failed to load draft tasks')
+      console.error('[PlanAgentPanel] Failed to fetch plans:', err)
+      setError('Failed to load plan agents')
     } finally {
       setLoading(false)
     }
@@ -61,9 +61,9 @@ export function DraftTaskPanel() {
     }
   }, [fetchDrafts])
 
-  const handleEdit = (draft: DraftSession) => {
-    setEditingDraft(draft.name)
-    setEditContent(draft.draft_content || draft.initial_prompt || '')
+  const handleEdit = (plan: PlanSession) => {
+    setEditingDraft(plan.name)
+    setEditContent(plan.draft_content || plan.initial_prompt || '')
   }
 
   const handleCancelEdit = () => {
@@ -84,8 +84,8 @@ export function DraftTaskPanel() {
       setEditingDraft(null)
       setEditContent('')
     } catch (err) {
-      console.error('[DraftTaskPanel] Failed to save draft:', err)
-      setError('Failed to save draft changes')
+      console.error('[PlanAgentPanel] Failed to save plan:', err)
+      setError('Failed to save plan changes')
     } finally {
       setSaving(false)
     }
@@ -95,10 +95,10 @@ export function DraftTaskPanel() {
     try {
       setStarting(sessionName)
       setError(null)
-      // Open Start new task modal prefilled from draft instead of starting directly
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-task-from-draft', { detail: { name: sessionName } }))
+      // Open Start new agent modal prefilled from plan instead of starting directly
+      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionName } }))
     } catch (err) {
-      console.error('[DraftTaskPanel] Failed to open start modal from draft:', err)
+      console.error('[PlanAgentPanel] Failed to open start modal from plan:', err)
       setError('Failed to open start modal')
     } finally {
       setStarting(null)
@@ -114,20 +114,20 @@ export function DraftTaskPanel() {
       await fetchDrafts()
       setDeleteConfirm(null)
     } catch (err) {
-      console.error('[DraftTaskPanel] Failed to delete draft:', err)
-      setError('Failed to delete draft')
+      console.error('[PlanAgentPanel] Failed to delete plan:', err)
+      setError('Failed to delete plan')
     } finally {
       setDeleting(false)
     }
   }
 
-  const handleCopy = async (draft: DraftSession) => {
+  const handleCopy = async (plan: PlanSession) => {
     try {
-      setCopying(draft.name)
-      const contentToCopy = draft.draft_content || draft.initial_prompt || ''
+      setCopying(plan.name)
+      const contentToCopy = plan.draft_content || plan.initial_prompt || ''
       await navigator.clipboard.writeText(contentToCopy)
     } catch (err) {
-      console.error('[DraftTaskPanel] Failed to copy content:', err)
+      console.error('[PlanAgentPanel] Failed to copy content:', err)
       setError('Failed to copy content')
     } finally {
       setTimeout(() => setCopying(null), 1000)
@@ -160,7 +160,7 @@ export function DraftTaskPanel() {
       <div className="h-full flex items-center justify-center text-slate-400">
         <div className="text-center">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-transparent mb-2" />
-          <p>Loading draft tasks...</p>
+          <p>Loading plan agents...</p>
         </div>
       </div>
     )
@@ -182,12 +182,12 @@ export function DraftTaskPanel() {
     )
   }
 
-  if (drafts.length === 0) {
+  if (plans.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-slate-400">
         <div className="text-center">
           <VscAdd className="text-4xl mx-auto mb-3 opacity-50" />
-          <p className="mb-1">No draft tasks</p>
+          <p className="mb-1">No plan agents</p>
           <p className="text-sm text-slate-500">Create one to get started!</p>
         </div>
       </div>
@@ -197,20 +197,20 @@ export function DraftTaskPanel() {
   return (
     <div className="h-full flex flex-col">
       <div className="px-4 py-3 border-b border-slate-800">
-        <h2 className="text-sm font-semibold text-slate-200">Draft Tasks</h2>
-        <p className="text-xs text-slate-400 mt-0.5">{drafts.length} draft{drafts.length !== 1 ? 's' : ''}</p>
+        <h2 className="text-sm font-semibold text-slate-200">Plan Agents</h2>
+        <p className="text-xs text-slate-400 mt-0.5">{plans.length} plan{plans.length !== 1 ? 's' : ''}</p>
       </div>
       
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {drafts.map((draft) => (
+        {plans.map((plan) => (
           <div
-            key={draft.name}
+            key={plan.name}
             className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 hover:border-slate-600 transition-colors"
           >
-            {editingDraft === draft.name ? (
+            {editingDraft === plan.name ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-slate-200">{draft.name}</h3>
+                  <h3 className="text-sm font-medium text-slate-200">{plan.name}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={handleSaveEdit}
@@ -245,7 +245,7 @@ export function DraftTaskPanel() {
                     <MarkdownEditor
                       value={editContent}
                       onChange={setEditContent}
-                      placeholder="Enter task description in markdown..."
+                      placeholder="Enter agent description in markdown..."
                       className="h-full"
                     />
                   </Suspense>
@@ -255,19 +255,19 @@ export function DraftTaskPanel() {
               <>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-slate-200 truncate">{draft.name}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(draft.created_at)}</p>
+                    <h3 className="text-sm font-medium text-slate-200 truncate">{plan.name}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(plan.created_at)}</p>
                   </div>
                 </div>
                 
                 <div className="mb-3">
-                  {(draft.draft_content || draft.initial_prompt) ? (
+                  {(plan.draft_content || plan.initial_prompt) ? (
                     <div className="text-xs text-slate-300 bg-slate-800/50 rounded overflow-hidden max-h-20">
                       <Suspense fallback={
                         <div className="p-2 text-slate-400">Loading preview...</div>
                       }>
                         <MarkdownEditor
-                          value={getPreview(draft.draft_content || draft.initial_prompt)}
+                          value={getPreview(plan.draft_content || plan.initial_prompt)}
                           onChange={() => {}}
                           readOnly={true}
                           className="h-20"
@@ -281,35 +281,35 @@ export function DraftTaskPanel() {
                 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleStart(draft.name)}
-                    disabled={starting === draft.name}
+                    onClick={() => handleStart(plan.name)}
+                    disabled={starting === plan.name}
                     className="px-2 py-1 text-xs rounded bg-green-700 hover:bg-green-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Start this task"
+                    title="Start this agent"
                   >
                     <VscPlay />
-                    {starting === draft.name ? 'Starting...' : 'Start'}
+                    {starting === plan.name ? 'Starting...' : 'Start'}
                   </button>
                   <button
-                    onClick={() => handleEdit(draft)}
+                    onClick={() => handleEdit(plan)}
                     className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center gap-1"
-                    title="Edit draft content"
+                    title="Edit plan content"
                   >
                     <VscEdit />
                     Edit
                   </button>
                   <button
-                    onClick={() => handleCopy(draft)}
-                    disabled={copying === draft.name}
+                    onClick={() => handleCopy(plan)}
+                    disabled={copying === plan.name}
                     className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Copy task content"
+                    title="Copy agent content"
                   >
                     <VscCopy />
-                    {copying === draft.name ? 'Copied!' : 'Copy'}
+                    {copying === plan.name ? 'Copied!' : 'Copy'}
                   </button>
                   <button
-                    onClick={() => setDeleteConfirm(draft.name)}
+                    onClick={() => setDeleteConfirm(plan.name)}
                     className="px-2 py-1 text-xs rounded bg-red-700 hover:bg-red-600 text-white flex items-center gap-1"
-                    title="Delete draft"
+                    title="Delete plan"
                   >
                     <VscTrash />
                     Delete
@@ -323,7 +323,7 @@ export function DraftTaskPanel() {
 
       <ConfirmModal
         open={!!deleteConfirm}
-        title="Delete Draft Task"
+        title="Delete Plan Agent"
         body={
           <p className="text-sm text-slate-300">
             Are you sure you want to delete <strong className="text-slate-100">{deleteConfirm}</strong>? 

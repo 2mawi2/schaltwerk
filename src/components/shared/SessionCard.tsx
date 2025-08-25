@@ -16,7 +16,7 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'draft'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'plan'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
@@ -46,9 +46,9 @@ export interface SessionCardProps {
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady?: (sessionId: string) => void
     onCancel?: (sessionId: string, hasUncommitted: boolean) => void
-    onConvertToDraft?: (sessionId: string) => void
+    onConvertToPlan?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
-    onDeleteDraft?: (sessionId: string) => void
+    onDeletePlan?: (sessionId: string) => void
     className?: string
     index?: number
 }
@@ -63,15 +63,15 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     onMarkReady,
     onUnmarkReady,
     onCancel,
-    onConvertToDraft,
+    onConvertToPlan,
     onRunDraft,
-    onDeleteDraft,
+    onDeletePlan,
     className,
     index
 }, ref) => {
     const s = session.info
     const sessionName = s.display_name || s.session_id
-    const task = s.current_task || `Working on ${sessionName}`
+    const currentAgent = s.current_task || `Working on ${sessionName}`
     const progressPercent = s.todo_percentage || 0
     const additions = s.diff_stats?.insertions || s.diff_stats?.additions || 0
     const deletions = s.diff_stats?.deletions || 0
@@ -82,8 +82,8 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     
     // Determine session state
     const sessionState = isReadyToMerge ? 'reviewed' : 
-                        s.status === 'draft' ? 'draft' :
-                        s.session_state === 'draft' ? 'draft' : 'running'
+                        s.status === 'plan' ? 'plan' :
+                        s.session_state === 'plan' ? 'plan' : 'running'
     
     // Get background color based on state
     const getStateBackground = () => {
@@ -91,12 +91,12 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
         if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
-        if (sessionState === 'draft') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
+        if (sessionState === 'plan') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
         return 'border-slate-800 bg-slate-900/40 hover:bg-slate-800/30'
     }
 
-    const agent = s.original_agent_type as (SessionInfo['original_agent_type'])
-    const agentKey = (agent || '').toLowerCase()
+    const agentType = s.original_agent_type as (SessionInfo['original_agent_type'])
+    const agentKey = (agentType || '').toLowerCase()
     const agentLabel = agentKey
     const agentColor = agentKey === 'claude' ? 'blue' : agentKey === 'cursor' ? 'purple' : agentKey === 'opencode' ? 'green' : agentKey === 'gemini' ? 'orange' : agentKey === 'codex' ? 'red' : ''
 
@@ -120,7 +120,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                         : 'bg-amber-900/30 text-amber-300 border-amber-700/50'
                                 )}
                             >
-                                {sessionState === 'running' ? 'Running' : 'Draft'}
+                                {sessionState === 'running' ? 'Running' : 'Plan'}
                             </span>
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
@@ -138,7 +138,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
             
             {!hideActions && (
                 <div className="-mt-4 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity whitespace-nowrap">
-                    {sessionState === 'draft' ? (
+                    {sessionState === 'plan' ? (
                         <span 
                             onClick={(e) => {
                                 e.stopPropagation()
@@ -147,7 +147,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                 }
                             }}
                             className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-green-800/60 hover:bg-green-700/60"
-                            title="Run task"
+                            title="Run agent"
                         >
                             Run
                         </span>
@@ -179,12 +179,12 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                             <span 
                                 onClick={(e) => {
                                     e.stopPropagation()
-                                    onConvertToDraft?.(s.session_id)
+                                    onConvertToPlan?.(s.session_id)
                                 }}
                                 className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/60"
-                                title="Convert back to draft"
+                                title="Convert back to plan"
                             >
-                                Draft
+                                Plan
                             </span>
                             <span 
                                 onClick={(e) => {
@@ -198,14 +198,14 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                             </span>
                         </>
                     )}
-                    {sessionState === 'draft' && (
+                    {sessionState === 'plan' && (
                         <span
                             onClick={(e) => {
                                 e.stopPropagation()
-                                onDeleteDraft?.(s.session_id)
+                                onDeletePlan?.(s.session_id)
                             }}
                             className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800/60"
-                            title="Delete draft"
+                            title="Delete plan"
                         >
                             Delete
                         </span>
@@ -213,7 +213,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                 </div>
             )}
             
-            <div className="mt-1 text-[12px] text-slate-400 truncate">{task}</div>
+            <div className="mt-1 text-[12px] text-slate-400 truncate">{currentAgent}</div>
             
             {progressPercent > 0 && (
                 <>
@@ -233,7 +233,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                     <span className="text-red-400">-{deletions}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                    {agent && sessionState !== 'draft' && (
+                    {agentType && sessionState !== 'plan' && (
                         <span
                             className={clsx(
                                 'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',

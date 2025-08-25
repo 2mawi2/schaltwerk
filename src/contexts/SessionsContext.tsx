@@ -17,7 +17,7 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'draft'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'plan'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
@@ -56,18 +56,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null)
 
     // Normalize backend info into UI categories
-    const mapSessionUiState = (info: SessionInfo): 'draft' | 'running' | 'reviewed' => {
-        if (info.session_state === 'draft' || info.status === 'draft') return 'draft'
+    const mapSessionUiState = (info: SessionInfo): 'plan' | 'running' | 'reviewed' => {
+        if (info.session_state === 'plan' || info.status === 'plan') return 'plan'
         if (info.ready_to_merge) return 'reviewed'
         return 'running'
     }
 
-    const mergeSessionsPreferDraft = (base: EnrichedSession[], drafts: EnrichedSession[]): EnrichedSession[] => {
+    const mergeSessionsPreferDraft = (base: EnrichedSession[], plans: EnrichedSession[]): EnrichedSession[] => {
         const byId = new Map<string, EnrichedSession>()
         for (const s of base) byId.set(s.info.session_id, s)
-        for (const d of drafts) {
+        for (const d of plans) {
             const existing = byId.get(d.info.session_id)
-            if (!existing || mapSessionUiState(existing.info) !== 'draft') byId.set(d.info.session_id, d)
+            if (!existing || mapSessionUiState(existing.info) !== 'plan') byId.set(d.info.session_id, d)
         }
         return Array.from(byId.values())
     }
@@ -83,38 +83,38 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setLoading(true)
             const enrichedSessions = await invoke<EnrichedSession[]>('para_core_list_enriched_sessions')
             const enriched = enrichedSessions || []
-            // If enriched already contains drafts, use it as-is
-            if (enriched.some(s => mapSessionUiState(s.info) === 'draft')) {
+            // If enriched already contains plans, use it as-is
+            if (enriched.some(s => mapSessionUiState(s.info) === 'plan')) {
                 setSessions(enriched)
                 const nextStates = new Map<string, string>()
                 for (const s of enriched) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
                 prevStatesRef.current = nextStates
             } else {
-                // Try to fetch explicit drafts; if shape is unexpected, ignore
+                // Try to fetch explicit plans; if shape is unexpected, ignore
                 let all = enriched
                 try {
-                    const draftSessions = await invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
+                    const draftSessions = await invoke<any[]>('para_core_list_sessions_by_state', { state: 'plan' })
                     if (Array.isArray(draftSessions) && draftSessions.some(d => d && (d.name || d.id))) {
-                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(draft => ({
-                            id: draft.id,
+                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(plan => ({
+                            id: plan.id,
                             info: {
-                                session_id: draft.name,
-                                display_name: draft.display_name || draft.name,
-                                branch: draft.branch,
-                                worktree_path: draft.worktree_path || '',
-                                base_branch: draft.parent_branch,
+                                session_id: plan.name,
+                                display_name: plan.display_name || plan.name,
+                                branch: plan.branch,
+                                worktree_path: plan.worktree_path || '',
+                                base_branch: plan.parent_branch,
                                 merge_mode: 'rebase',
-                                status: 'draft' as any,
-                                session_state: 'draft',
-                                created_at: draft.created_at ? new Date(draft.created_at).toISOString() : undefined,
-                                last_modified: draft.updated_at ? new Date(draft.updated_at).toISOString() : undefined,
+                                status: 'plan' as any,
+                                session_state: 'plan',
+                                created_at: plan.created_at ? new Date(plan.created_at).toISOString() : undefined,
+                                last_modified: plan.updated_at ? new Date(plan.updated_at).toISOString() : undefined,
                                 has_uncommitted_changes: false,
                                 ready_to_merge: false,
                                 diff_stats: undefined,
                                 is_current: false,
                                 session_type: 'worktree' as any,
                             },
-                            terminals: [`session-${draft.name}-top`, `session-${draft.name}-bottom`]
+                            terminals: [`session-${plan.name}-top`, `session-${plan.name}-bottom`]
                         }))
                         all = mergeSessionsPreferDraft(enriched, enrichedDrafts)
                     }
@@ -143,10 +143,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 return
             }
 
-            if (newStatus === 'draft') {
+            if (newStatus === 'plan') {
                 await invoke('para_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
-                if (session.info.status === 'draft') {
+                if (session.info.status === 'plan') {
                     await invoke('para_core_start_draft_session', { name: sessionId })
                 } else if (session.info.ready_to_merge) {
                     await invoke('para_core_unmark_ready', { name: sessionId })
@@ -166,7 +166,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             await invoke('para_core_create_draft_session', { name, content })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to create draft:', error)
+            console.error('Failed to create plan:', error)
             throw error
         }
     }, [reloadSessions])
@@ -186,7 +186,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         let unlisteners: UnlistenFn[] = []
 
         const setupListeners = async () => {
-            // Full refresh (authoritative list) + drafts merge
+            // Full refresh (authoritative list) + plans merge
             const uRefresh = await listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
                 try {
                     if (event.payload && event.payload.length > 0) {

@@ -144,7 +144,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
+        return text.includes('para/') && !text.includes('main (commander)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -152,7 +152,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     // Default should be name sorting (A-Z)
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('alpha_session')
@@ -206,7 +206,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
+        return text.includes('para/') && !text.includes('main (commander)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -221,7 +221,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
 
     // Should be sorted newest first
@@ -276,7 +276,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
+        return text.includes('para/') && !text.includes('main (commander)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -292,7 +292,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
 
     // Should be sorted by last modified (most recent first)
@@ -314,11 +314,11 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'para_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const drafts = sessions.filter(s => (s.info as any).session_state === 'draft')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'draft')
+        const plans = sessions.filter(s => (s.info as any).session_state === 'plan')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'plan')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         if (mode === 'created') {
-          // created: newest first among unreviewed, then reviewed (alpha), then drafts (alpha)
+          // created: newest first among unreviewed, then reviewed (alpha), then plans (alpha)
           const withTs = unreviewed.filter(s => !!s.info.created_at)
           const without = unreviewed.filter(s => !s.info.created_at).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
           withTs.sort((a, b) => {
@@ -326,7 +326,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
             const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
-          const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
           return [...withTs, ...without, ...reviewed, ...draftsSorted]
         }
         if (mode === 'last-edited') {
@@ -335,12 +335,12 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
             const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
-          const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
           return [...sortedUnreviewed, ...reviewed, ...draftsSorted]
         }
-        // name mode: unreviewed (alpha), then reviewed (alpha), then drafts (alpha)
+        // name mode: unreviewed (alpha), then reviewed (alpha), then plans (alpha)
         const unrevAlpha = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...unrevAlpha, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -362,14 +362,14 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
+        return text.includes('para/') && !text.includes('main (commander)')
       })
       expect(sessionButtons).toHaveLength(4)
     })
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
 
     // Name mode should group with unreviewed before reviewed. If any reviewed appears, all previous should be unreviewed.
@@ -390,7 +390,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sortedButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
 
     // Last-edited mode: unreviewed by last edit time, then reviewed alphabetically
@@ -412,8 +412,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'para_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const drafts = sessions.filter(s => (s.info as any).session_state === 'draft')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'draft')
+        const plans = sessions.filter(s => (s.info as any).session_state === 'plan')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'plan')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         let sorted: any[]
         if (mode === 'created') {
@@ -431,8 +431,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         } else {
           sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         }
-        // Order: unreviewed first (by current mode) then reviewed (alpha), then drafts (alpha)
-        const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        // Order: unreviewed first (by current mode) then reviewed (alpha), then plans (alpha)
+        const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -454,7 +454,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (orchestrator)')
+        return text.includes('para/') && !text.includes('main (commander)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -469,7 +469,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
 
     // Sessions with timestamps come first, then sessions without (alphabetical)

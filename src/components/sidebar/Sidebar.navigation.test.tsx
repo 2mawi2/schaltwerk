@@ -59,7 +59,7 @@ function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = fa
   window.dispatchEvent(event)
 }
 
-describe('Sidebar navigation with arrow keys including orchestrator', () => {
+describe('Sidebar navigation with arrow keys including commander', () => {
   let eventListeners: Map<string, (event: any) => void>
 
   beforeEach(() => {
@@ -132,14 +132,14 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     eventListeners.clear()
   })
 
-  it('ArrowDown from orchestrator selects the first session', async () => {
+  it('ArrowDown from commander selects the first session', async () => {
     const { getByTitle, queryByTitle, findAllByTitle } = render(<Sidebar />, { wrapper: createTestWrapper() })
 
     // Wait for sessions to load and render buttons
     await findAllByTitle(/Select session \(⌘/i)
 
-    // Orchestrator initially selected
-    const orchestratorBtn = getByTitle(/Select orchestrator/i)
+    // Commander initially selected
+    const orchestratorBtn = getByTitle(/Select commander/i)
     await waitFor(() => {
       expect(orchestratorBtn.className).toContain('session-ring-blue')
     })
@@ -152,13 +152,13 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
       expect(getByTitle(/Selected session/i)).toBeTruthy()
     })
 
-    // Orchestrator not selected anymore
+    // Commander not selected anymore
     await waitFor(() => {
-      expect(queryByTitle(/Select orchestrator/i)?.className || '').not.toContain('session-ring-blue')
+      expect(queryByTitle(/Select commander/i)?.className || '').not.toContain('session-ring-blue')
     })
   })
 
-  it('ArrowUp from first session selects orchestrator', async () => {
+  it('ArrowUp from first session selects commander', async () => {
     const { getByTitle, findAllByTitle } = render(<Sidebar />, { wrapper: createTestWrapper() })
 
     // Wait for sessions to load
@@ -174,7 +174,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     // Press Cmd+ArrowUp
     pressKey('ArrowUp', { metaKey: true })
 
-    const orchestratorBtn = getByTitle(/Select orchestrator/i)
+    const orchestratorBtn = getByTitle(/Select commander/i)
     await waitFor(() => {
       expect(orchestratorBtn.className).toContain('session-ring-blue')
     })

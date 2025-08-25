@@ -169,7 +169,7 @@ const scrollableInnerStyles: React.CSSProperties = {
 export const MarkdownEditor = memo(function MarkdownEditor({
   value,
   onChange,
-  placeholder = 'Enter task description in markdown…',
+  placeholder = 'Enter agent description in markdown…',
   readOnly = false,
   className = '',
 }: MarkdownEditorProps) {

@@ -57,21 +57,21 @@ mod draft_fixed_tests {
     fn test_draft_sessions_have_draft_status() {
         let (_temp_dir, manager) = setup_test_env();
         
-        // Create a draft session
-        let draft_session = manager.create_draft_session("test-draft", "Draft content").unwrap();
+        // Create a plan session
+        let draft_session = manager.create_draft_session("test-plan", "Plan content").unwrap();
         
-        // FIX VERIFIED: Draft sessions now have SessionStatus::Draft
+        // FIX VERIFIED: Plan sessions now have SessionStatus::Plan
         assert_eq!(
             draft_session.status, 
-            SessionStatus::Draft,
-            "Draft sessions should have SessionStatus::Draft"
+            SessionStatus::Plan,
+            "Plan sessions should have SessionStatus::Plan"
         );
         
-        // Also verify session_state is Draft
+        // Also verify session_state is Plan
         assert_eq!(
             draft_session.session_state,
-            SessionState::Draft,
-            "Draft sessions should have SessionState::Draft"
+            SessionState::Plan,
+            "Plan sessions should have SessionState::Plan"
         );
     }
 
@@ -79,8 +79,8 @@ mod draft_fixed_tests {
     fn test_draft_sessions_separate_from_active() {
         let (_temp_dir, manager) = setup_test_env();
         
-        // Create a draft session
-        let draft = manager.create_draft_session("test-draft", "Draft content").unwrap();
+        // Create a plan session
+        let plan = manager.create_draft_session("test-plan", "Plan content").unwrap();
         
         // Create an active session
         let active = manager.create_session("test-active", Some("Active prompt"), None).unwrap();
@@ -90,17 +90,17 @@ mod draft_fixed_tests {
         
         // FIX VERIFIED: Can now distinguish by SessionStatus
         let draft_count = all_sessions.iter()
-            .filter(|s| s.status == SessionStatus::Draft)
+            .filter(|s| s.status == SessionStatus::Plan)
             .count();
         let active_count = all_sessions.iter()
             .filter(|s| s.status == SessionStatus::Active)
             .count();
         
-        assert_eq!(draft_count, 1, "Should have exactly 1 draft session");
+        assert_eq!(draft_count, 1, "Should have exactly 1 plan session");
         assert_eq!(active_count, 1, "Should have exactly 1 active session");
         
         // Verify the specific sessions have correct status
-        assert_eq!(draft.status, SessionStatus::Draft);
+        assert_eq!(plan.status, SessionStatus::Plan);
         assert_eq!(active.status, SessionStatus::Active);
     }
 
@@ -109,33 +109,33 @@ mod draft_fixed_tests {
         let (_temp_dir, manager) = setup_test_env();
         
         // Create sessions
-        manager.create_draft_session("ui-draft", "UI Draft").unwrap();
+        manager.create_draft_session("ui-plan", "UI Plan").unwrap();
         manager.create_session("ui-active", Some("UI Active"), None).unwrap();
         
         let all_sessions = manager.list_sessions().unwrap();
         
         // FIX VERIFIED: UI can now properly filter by SessionStatus
-        let drafts: Vec<_> = all_sessions.iter()
-            .filter(|s| s.status == SessionStatus::Draft)
+        let plans: Vec<_> = all_sessions.iter()
+            .filter(|s| s.status == SessionStatus::Plan)
             .collect();
         
         let actives: Vec<_> = all_sessions.iter()
             .filter(|s| s.status == SessionStatus::Active)
             .collect();
         
-        assert_eq!(drafts.len(), 1, "UI can filter exactly 1 draft");
+        assert_eq!(plans.len(), 1, "UI can filter exactly 1 plan");
         assert_eq!(actives.len(), 1, "UI can filter exactly 1 active");
         
-        // Draft should NOT appear in active sessions
+        // Plan should NOT appear in active sessions
         assert!(
-            !actives.iter().any(|s| s.name == "ui-draft"),
-            "Draft session should not appear in active sessions list"
+            !actives.iter().any(|s| s.name == "ui-plan"),
+            "Plan session should not appear in active sessions list"
         );
         
-        // Draft should appear in draft sessions
+        // Plan should appear in plan sessions
         assert!(
-            drafts.iter().any(|s| s.name == "ui-draft"),
-            "Draft session should appear in draft sessions list"
+            plans.iter().any(|s| s.name == "ui-plan"),
+            "Plan session should appear in plan sessions list"
         );
     }
 
@@ -143,30 +143,30 @@ mod draft_fixed_tests {
     fn test_draft_transitions_to_active_when_started() {
         let (_temp_dir, manager) = setup_test_env();
         
-        // Create a draft
-        let draft = manager.create_draft_session("transition-draft", "Draft to start").unwrap();
-        assert_eq!(draft.status, SessionStatus::Draft);
-        assert_eq!(draft.session_state, SessionState::Draft);
+        // Create a plan
+        let plan = manager.create_draft_session("transition-plan", "Plan to start").unwrap();
+        assert_eq!(plan.status, SessionStatus::Plan);
+        assert_eq!(plan.session_state, SessionState::Plan);
         
-        // Start the draft session
-        manager.start_draft_session("transition-draft", None).unwrap();
+        // Start the plan session
+        manager.start_draft_session("transition-plan", None).unwrap();
         
         // Get the updated session - retrieve via list_sessions
         let sessions = manager.list_sessions().unwrap();
         let started = sessions.into_iter()
-            .find(|s| s.name == "transition-draft")
-            .expect("Should find the started draft session");
+            .find(|s| s.name == "transition-plan")
+            .expect("Should find the started plan session");
         
         // FIX VERIFIED: After starting, status changes to Active
         assert_eq!(
             started.status,
             SessionStatus::Active,
-            "Started draft should have Active status"
+            "Started plan should have Active status"
         );
         assert_eq!(
             started.session_state,
             SessionState::Running,
-            "Started draft should have Running state"
+            "Started plan should have Running state"
         );
     }
 }

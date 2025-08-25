@@ -114,21 +114,21 @@ function getHintsForSelection(selection: any): HintMessage[] {
     if (!selection) {
         return [{
             id: 'no-selection',
-            message: 'Select a session or the orchestrator from the sidebar to get started. Use ⌘N to create a new session.',
+            message: 'Select a session or the commander from the sidebar to get started. Use ⌘N to create a new session.',
             type: 'info'
         }]
     }
 
-    if (selection.kind === 'orchestrator') {
+    if (selection.kind === 'commander') {
         return [
             {
-                id: 'orchestrator-help',
-                message: 'You\'re in the Orchestrator. This is your main workspace for project management, git operations, and switching between sessions.',
+                id: 'commander-help',
+                message: 'You\'re in the Commander. This is your main workspace for project management, git operations, and switching between sessions.',
                 type: 'info'
             },
             {
-                id: 'orchestrator-create-session',
-                message: 'Ready to start working? Create a new session with ⌘N or a draft with ⇧⌘N to begin an AI-assisted task.',
+                id: 'commander-create-session',
+                message: 'Ready to start working? Create a new session with ⌘N or a plan with ⇧⌘N to begin an AI-assisted agent.',
                 type: 'tip'
             }
         ]
@@ -137,21 +137,21 @@ function getHintsForSelection(selection: any): HintMessage[] {
     if (selection.kind === 'session') {
         const hints: HintMessage[] = []
 
-        if (selection.sessionState === 'draft') {
+        if (selection.sessionState === 'plan') {
             hints.push({
-                id: 'draft-help',
-                message: 'This is a draft session. Use it to plan your task and gather requirements before starting the AI agent.',
+                id: 'plan-help',
+                message: 'This is a plan session. Use it to plan your agent and gather requirements before starting the AI agent.',
                 type: 'info'
             })
             hints.push({
-                id: 'draft-start',
-                message: 'When you\'re ready, click "Start Task" or press ⌘Enter to begin working with the AI agent.',
+                id: 'plan-start',
+                message: 'When you\'re ready, click "Start Agent" or press ⌘Enter to begin working with the AI agent.',
                 type: 'tip'
             })
         } else if (selection.sessionState === 'running') {
             hints.push({
                 id: 'session-running',
-                message: 'Your AI agent is working on this task. You can interact with it and monitor progress in real-time.',
+                message: 'Your AI agent is working on this agent. You can interact with it and monitor progress in real-time.',
                 type: 'success'
             })
             hints.push({

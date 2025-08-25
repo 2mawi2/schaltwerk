@@ -10,19 +10,19 @@ import { useSortedSessions } from '../../hooks/useSortedSessions'
 import { useProject } from '../../contexts/ProjectContext'
 import { computeNextSelectedSessionId } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
-import { ConvertToDraftConfirmation } from '../modals/ConvertToDraftConfirmation'
+import { ConvertToPlanConfirmation } from '../modals/ConvertToPlanConfirmation'
 import { SessionButton } from './SessionButton'
 import { FilterMode, SortMode, isValidFilterMode, isValidSortMode, getDefaultFilterMode, getDefaultSortMode } from '../../types/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
 
 // Normalize backend states to UI categories
-function mapSessionUiState(info: SessionInfo): 'draft' | 'running' | 'reviewed' {
-    if (info.session_state === 'draft' || info.status === 'draft') return 'draft'
+function mapSessionUiState(info: SessionInfo): 'plan' | 'running' | 'reviewed' {
+    if (info.session_state === 'plan' || info.status === 'plan') return 'plan'
     if (info.ready_to_merge) return 'reviewed'
     return 'running'
 }
 
-function isDraft(info: SessionInfo): boolean { return mapSessionUiState(info) === 'draft' }
+function isPlan(info: SessionInfo): boolean { return mapSessionUiState(info) === 'plan' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
 interface DiffStats {
@@ -39,7 +39,7 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'draft'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'plan'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
@@ -89,12 +89,13 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
+    const [commanderBranch, setCommanderBranch] = useState<string>("main")
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
         sessionName: '',
         hasUncommitted: false
     })
-    const [convertToDraftModal, setConvertToDraftModal] = useState<{ 
+    const [convertToPlanModal, setConvertToDraftModal] = useState<{ 
         open: boolean; 
         sessionName: string; 
         sessionDisplayName?: string;
@@ -163,11 +164,18 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     sessionState: mapSessionUiState(firstSession.info)
                 }, false, false) // Auto-selection - not intentional
             } else {
-                // No sessions visible, select orchestrator
-                setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional
+                // No sessions visible, select commander
+                setSelection({ kind: 'commander' }, false, false) // Auto-selection - not intentional
             }
         }
     }, [sessions, selection, setSelection])
+
+    // Fetch current branch for commander
+    useEffect(() => {
+        invoke<string>("get_current_branch_name", { sessionName: null })
+            .then(branch => setCommanderBranch(branch))
+            .catch(() => setCommanderBranch("main"))
+    }, [])
 
     // Compute time-based idle sessions from last activity
     useEffect(() => {
@@ -176,9 +184,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             const next = new Set<string>()
             for (const s of contextSessions) {
                 const ts: number | undefined = (s.info as any).last_modified_ts
-                const draft = isDraft(s.info)
+                const plan = isPlan(s.info)
                 const reviewed = isReviewed(s.info)
-                if (typeof ts === 'number' && !draft && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
+                if (typeof ts === 'number' && !plan && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
                     next.add(s.info.session_id)
                 }
             }
@@ -192,7 +200,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     }, [contextSessions])
 
     const handleSelectOrchestrator = async () => {
-        await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
+        await setSelection({ kind: 'commander' }, false, true) // User clicked - intentional
     }
     
 
@@ -222,17 +230,17 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession) {
-                // Check if it's a draft
-                if (isDraft(selectedSession.info)) {
-                    // For drafts, always show confirmation dialog (ignore immediate flag)
+                // Check if it's a plan
+                if (isPlan(selectedSession.info)) {
+                    // For plans, always show confirmation dialog (ignore immediate flag)
                     window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
                         detail: {
-                            action: 'delete-draft',
+                            action: 'delete-plan',
                             sessionId: selectedSession.info.session_id,
                             sessionName: selectedSession.info.session_id,
                             sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
                             branch: selectedSession.info.branch,
-                            hasUncommittedChanges: false // Drafts don't have uncommitted changes
+                            hasUncommittedChanges: false // Plans don't have uncommitted changes
                         }
                     }))
                 } else {
@@ -270,7 +278,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         if (sessions.length === 0) return
         if (selection.kind === 'session') {
             const currentIndex = sessions.findIndex(s => s.info.session_id === selection.payload)
-            // If at the first session, go to orchestrator
+            // If at the first session, go to commander
             if (currentIndex <= 0) {
                 await handleSelectOrchestrator()
                 return
@@ -278,13 +286,13 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             await handleSelectSession(currentIndex - 1)
             return
         }
-        // If orchestrator is selected, do nothing on ArrowUp
+        // If commander is selected, do nothing on ArrowUp
     }
 
     const selectNext = async () => {
         if (sessions.length === 0) return
-        if (selection.kind === 'orchestrator') {
-            // From orchestrator, go to the first session
+        if (selection.kind === 'commander') {
+            // From commander, go to the first session
             await handleSelectSession(0)
             return
         }
@@ -330,7 +338,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             }, 50)
         },
         onFocusClaude: () => {
-            const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
+            const sessionKey = selection.kind === 'commander' ? 'commander' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'claude')
             setCurrentFocus('claude')
             // This will trigger TerminalGrid's currentFocus effect immediately
@@ -341,7 +349,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-view'))
         },
         onFocusTerminal: () => {
-            const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
+            const sessionKey = selection.kind === 'commander' ? 'commander' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'terminal')
             setCurrentFocus('terminal')
             window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal'))
@@ -411,14 +419,14 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             }>('schaltwerk:session-added', (event) => {
                 const { session_name, worktree_path } = event.payload
                 // Auto-select the newly created session tab immediately
-                if (latestFilterModeRef.current === FilterMode.Draft) {
+                if (latestFilterModeRef.current === FilterMode.Plan) {
                     setFilterMode(FilterMode.Running)
                 }
                 setSelection({ 
                     kind: 'session', 
                     payload: session_name,
                     worktreePath: worktree_path,
-                    sessionState: 'running' // New sessions are always running, not draft
+                    sessionState: 'running' // New sessions are always running, not plan
                 }, false, true) // Backend requested - intentional
             })
             unlisteners.push(u3)
@@ -441,7 +449,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             sessionState: nextSession ? mapSessionUiState(nextSession.info) : undefined
                         }, false, false) // Fallback - not intentional
                     } else {
-                        await setSelection({ kind: 'orchestrator' }, false, false) // Fallback - not intentional
+                        await setSelection({ kind: 'commander' }, false, false) // Fallback - not intentional
                     }
                 }
             })
@@ -497,57 +505,57 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     return (
         <div ref={sidebarRef} className="h-full flex flex-col">
-            <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
+            <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Commander)</div>
             <div className="px-2 pt-2">
                 <button
                     onClick={handleSelectOrchestrator}
-                    className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'orchestrator' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
-                    title="Select orchestrator (⌘1)"
+                    className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'commander' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
+                    title="Select commander (⌘1)"
                 >
                     <div className="flex items-center justify-between">
-                        <div className="font-medium text-slate-100">main (orchestrator)</div>
+                        <div className="font-medium text-slate-100">commander</div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">main repo</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{commanderBranch}</span>
                     </div>
                     </div>
-                    <div className="text-xs text-slate-500">Original repository from which sessions are created</div>
+                    <div className="text-xs text-slate-500">Original repository from which agents are created</div>
                 </button>
             </div>
 
             <div className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center">
                 <div className="flex items-center gap-2 w-full">
-                    <span className="text-xs flex-shrink-0">Tasks</span>
+                    <span className="text-xs flex-shrink-0">Agents</span>
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto">
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
                             onClick={() => setFilterMode(FilterMode.All)}
-                            title="Show all tasks"
+                            title="Show all agents"
                         >
                             All <span className="text-slate-400">({contextSessions.length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.Draft ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
-                            onClick={() => setFilterMode(FilterMode.Draft)}
-                            title="Show draft tasks"
+                                filterMode === FilterMode.Plan ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            onClick={() => setFilterMode(FilterMode.Plan)}
+                            title="Show plan agents"
                         >
-                            Drafts <span className="text-slate-400">({contextSessions.filter(s => isDraft(s.info)).length})</span>
+                            Plans <span className="text-slate-400">({contextSessions.filter(s => isPlan(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
                             onClick={() => setFilterMode(FilterMode.Running)}
-                            title="Show running tasks"
+                            title="Show running agents"
                         >
-                            Running <span className="text-slate-400">({contextSessions.filter(s => !isReviewed(s.info) && !isDraft(s.info)).length})</span>
+                            Running <span className="text-slate-400">({contextSessions.filter(s => !isReviewed(s.info) && !isPlan(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
-                            title="Show reviewed tasks"
+                            title="Show reviewed agents"
                         >
                             Reviewed <span className="text-slate-400">({contextSessions.filter(s => isReviewed(s.info)).length})</span>
                         </button>
@@ -575,9 +583,9 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             </div>
             <div className="flex-1 overflow-y-auto px-2 pt-2">
                 {loading ? (
-                    <div className="text-center text-slate-500 py-4">Loading tasks...</div>
+                    <div className="text-center text-slate-500 py-4">Loading agents...</div>
                 ) : sessions.length === 0 ? (
-                    <div className="text-center text-slate-500 py-4">No active tasks</div>
+                    <div className="text-center text-slate-500 py-4">No active agents</div>
                 ) : (
                     sessions.map((session, i) => {
                         const isSelected = selection.kind === 'session' && selection.payload === session.info.session_id
@@ -603,10 +611,10 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                 onUnmarkReady={async (sessionId) => {
                                     try {
                                         await invoke('para_core_unmark_session_ready', { name: sessionId })
-                                        // Reload both regular and draft sessions to avoid dropping drafts
+                                        // Reload both regular and plan sessions to avoid dropping plans
                                         await Promise.all([
                                             invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                                            invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
+                                            invoke<any[]>('para_core_list_sessions_by_state', { state: 'plan' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {
@@ -625,7 +633,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                         }
                                     }))
                                 }}
-                                onConvertToDraft={(sessionId) => {
+                                onConvertToPlan={(sessionId) => {
                                     // Open confirmation modal
                                     setConvertToDraftModal({
                                         open: true,
@@ -636,23 +644,23 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                 }}
                                 onRunDraft={async (sessionId) => {
                                     try {
-                                        // Open Start task modal prefilled from draft
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:start-task-from-draft', { detail: { name: sessionId } }))
+                                        // Open Start agent modal prefilled from plan
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionId } }))
                                     } catch (err) {
-                                        console.error('Failed to open start modal from draft:', err)
+                                        console.error('Failed to open start modal from plan:', err)
                                     }
                                 }}
-                                onDeleteDraft={async (sessionId) => {
+                                onDeletePlan={async (sessionId) => {
                                     try {
                                         await invoke('para_core_cancel_session', { name: sessionId })
-                                        // Reload both regular and draft sessions to ensure remaining drafts persist
+                                        // Reload both regular and plan sessions to ensure remaining plans persist
                                         await Promise.all([
                                             invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                                            invoke<any[]>('para_core_list_sessions_by_state', { state: 'draft' })
+                                            invoke<any[]>('para_core_list_sessions_by_state', { state: 'plan' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {
-                                        console.error('Failed to delete draft:', err)
+                                        console.error('Failed to delete plan:', err)
                                     }
                                 }}
                             />
@@ -672,15 +680,15 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 hasUncommittedChanges={markReadyModal.hasUncommitted}
                 onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
-                    // Reload both regular and draft sessions
+                    // Reload both regular and plan sessions
                     await reloadSessions()
                 }}
             />
-            <ConvertToDraftConfirmation
-                open={convertToDraftModal.open}
-                sessionName={convertToDraftModal.sessionName}
-                sessionDisplayName={convertToDraftModal.sessionDisplayName}
-                hasUncommittedChanges={convertToDraftModal.hasUncommitted}
+            <ConvertToPlanConfirmation
+                open={convertToPlanModal.open}
+                sessionName={convertToPlanModal.sessionName}
+                sessionDisplayName={convertToPlanModal.sessionDisplayName}
+                hasUncommittedChanges={convertToPlanModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
                     await reloadSessions()

@@ -9,7 +9,7 @@ interface Props {
   onStart?: () => void
 }
 
-export function DraftEditor({ sessionName, onStart }: Props) {
+export function PlanEditor({ sessionName, onStart }: Props) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -22,7 +22,7 @@ export function DraftEditor({ sessionName, onStart }: Props) {
     let mounted = true
     setLoading(true)
     setError(null)
-    invoke<[string | null, string | null]>('para_core_get_session_task_content', { name: sessionName })
+    invoke<[string | null, string | null]>('para_core_get_session_agent_content', { name: sessionName })
       .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
         const text: string = draftContent ?? initialPrompt ?? ''
@@ -44,7 +44,7 @@ export function DraftEditor({ sessionName, onStart }: Props) {
         setSaving(true)
         await invoke('para_core_update_draft_content', { name: sessionName, content })
       } catch (e) {
-        console.error('[DraftEditor] Failed to save draft:', e)
+        console.error('[DraftEditor] Failed to save plan:', e)
       } finally {
         setSaving(false)
       }
@@ -70,7 +70,7 @@ export function DraftEditor({ sessionName, onStart }: Props) {
       setError(null)
       onStart()
     } catch (e: any) {
-      console.error('[DraftEditor] Failed to start draft:', e)
+      console.error('[DraftEditor] Failed to start plan:', e)
       setError(String(e))
     } finally {
       setStarting(false)
@@ -105,16 +105,16 @@ export function DraftEditor({ sessionName, onStart }: Props) {
             onClick={handleRun}
             disabled={starting}
             className="px-3 py-1 text-xs rounded bg-green-600 hover:bg-green-500 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Run task (⌘⏎)"
+            title="Run agent (⌘⏎)"
           >
             <VscPlay />
-            {starting ? 'Starting…' : 'Run Task'}
+            {starting ? 'Starting…' : 'Run Agent'}
           </button>
           <button
             onClick={handleCopy}
             disabled={copying || !content}
             className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Copy task content"
+            title="Copy agent content"
           >
             <VscCopy />
             {copying ? 'Copied!' : 'Copy'}
@@ -125,7 +125,7 @@ export function DraftEditor({ sessionName, onStart }: Props) {
       {/* Status bar */}
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">
-          {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing draft'}
+          {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing plan'}
         </div>
       </div>
       
@@ -139,7 +139,7 @@ export function DraftEditor({ sessionName, onStart }: Props) {
           <MarkdownEditor
             value={content}
             onChange={setContent}
-            placeholder="Enter task description in markdown…"
+            placeholder="Enter agent description in markdown…"
             className="h-full"
           />
         </Suspense>

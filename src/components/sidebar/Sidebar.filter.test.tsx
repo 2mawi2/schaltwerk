@@ -49,7 +49,7 @@ interface EnrichedSession {
   terminals: string[]
 }
 
-const createSession = (id: string, readyToMerge = false, sessionState?: 'draft' | 'active'): EnrichedSession => ({
+const createSession = (id: string, readyToMerge = false, sessionState?: 'plan' | 'active'): EnrichedSession => ({
   info: {
     session_id: id,
     branch: `para/${id}`,
@@ -60,7 +60,7 @@ const createSession = (id: string, readyToMerge = false, sessionState?: 'draft' 
     is_current: false,
     session_type: 'worktree',
     ready_to_merge: readyToMerge,
-    // Explicit session state for draft filtering in UI
+    // Explicit session state for plan filtering in UI
     // @ts-expect-error test-only relaxed shape
     session_state: sessionState,
   },
@@ -89,9 +89,9 @@ describe('Sidebar filter functionality and persistence', () => {
     localStorage.clear()
 
     const sessions = [
-      createSession('alpha', false, 'draft'),
+      createSession('alpha', false, 'plan'),
       createSession('bravo', true, 'active'),  // reviewed
-      createSession('charlie', false, 'draft'),
+      createSession('charlie', false, 'plan'),
       createSession('delta', true, 'active'),  // reviewed
     ]
 
@@ -101,11 +101,11 @@ describe('Sidebar filter functionality and persistence', () => {
         const fm = (args?.sortMode !== undefined, args?.filterMode || FilterMode.All) as FilterMode
         const filtered = fm === FilterMode.All
           ? sessions
-          : fm === FilterMode.Draft
-            ? sessions.filter(s => (s.info as any).session_state === 'draft')
+          : fm === FilterMode.Plan
+            ? sessions.filter(s => (s.info as any).session_state === 'plan')
             : fm === FilterMode.Reviewed
               ? sessions.filter(s => s.info.ready_to_merge)
-              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as any).session_state !== 'draft')
+              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as any).session_state !== 'plan')
         return filtered
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -127,12 +127,12 @@ describe('Sidebar filter functionality and persistence', () => {
     vi.restoreAllMocks()
   })
 
-  it('filters sessions: All -> Drafts -> Reviewed', async () => {
+  it('filters sessions: All -> Plans -> Reviewed', async () => {
     renderWithProviders(<Sidebar />)
 
     // Wait for sessions to load (verify by filter counts)
     await waitFor(() => {
-      const allButton = screen.getByTitle('Show all tasks')
+      const allButton = screen.getByTitle('Show all agents')
       expect(allButton.textContent).toContain('4')
       
       // Sessions might not render in test, but filter counts should be correct
@@ -145,20 +145,20 @@ describe('Sidebar filter functionality and persistence', () => {
       }
     })
 
-    // Click Drafts
-    fireEvent.click(screen.getByTitle('Show draft tasks'))
+    // Click Plans
+    fireEvent.click(screen.getByTitle('Show plan agents'))
 
     await waitFor(() => {
-      const draftsButton = screen.getByTitle('Show draft tasks')
-      expect(draftsButton.textContent).toContain('2') // alpha and charlie are drafts (session_state: 'draft')
+      const draftsButton = screen.getByTitle('Show plan agents')
+      expect(draftsButton.textContent).toContain('2') // alpha and charlie are plans (session_state: 'plan')
       
       // Sessions might not render, but filter counts should be correct
       const sessionButtons = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
       if (sessionButtons.length === 0) {
-        console.warn('Draft sessions not rendering - checking filter counts')
+        console.warn('Plan sessions not rendering - checking filter counts')
         expect(draftsButton.textContent).toContain('2')
       } else {
-        // alpha and charlie should be visible as drafts
+        // alpha and charlie should be visible as plans
         expect(sessionButtons).toHaveLength(2)
         expect(sessionButtons[0]).toHaveTextContent('alpha')
         expect(sessionButtons[1]).toHaveTextContent('charlie')
@@ -166,11 +166,11 @@ describe('Sidebar filter functionality and persistence', () => {
     })
 
     // Click Reviewed
-    fireEvent.click(screen.getByTitle('Show reviewed tasks'))
+    fireEvent.click(screen.getByTitle('Show reviewed agents'))
 
     await waitFor(() => {
       // Check that the filter counter shows the right numbers
-      const reviewedButton = screen.getByTitle('Show reviewed tasks')
+      const reviewedButton = screen.getByTitle('Show reviewed agents')
       expect(reviewedButton.textContent).toContain('2')
       
       // The filtered sessions should be visible, but if there's an issue with rendering,
@@ -181,8 +181,8 @@ describe('Sidebar filter functionality and persistence', () => {
       // If sessions are properly rendered, we should see 2. If there's a rendering issue,
       // the test should still pass based on the filter counters being correct
       if (sessionButtons.length === 0) {
-        // No sessions rendered - check if "No active tasks" is shown (indicates filter UI issue)
-        const noTasksText = screen.queryByText('No active tasks')
+        // No sessions rendered - check if "No active agents" is shown (indicates filter UI issue)
+        const noTasksText = screen.queryByText('No active agents')
         if (noTasksText) {
           console.warn('Sessions not rendering in filtered view - UI issue detected')
           // At least verify the filter counts are correct
@@ -236,9 +236,9 @@ describe('Sidebar filter functionality and persistence', () => {
         ]
         const fm = (args?.filterMode || FilterMode.All) as FilterMode
         if (fm === FilterMode.All) return all
-        if (fm === FilterMode.Draft) return all.filter(s => (s.info as any).session_state === 'draft')
+        if (fm === FilterMode.Plan) return all.filter(s => (s.info as any).session_state === 'plan')
         if (fm === FilterMode.Reviewed) return all.filter(s => s.info.ready_to_merge)
-        return all.filter(s => !s.info.ready_to_merge && (s.info as any).session_state !== 'draft')
+        return all.filter(s => !s.info.ready_to_merge && (s.info as any).session_state !== 'plan')
       }
       if (command === 'para_core_list_enriched_sessions') {
         return [
@@ -260,7 +260,7 @@ describe('Sidebar filter functionality and persistence', () => {
     const { unmount } = renderWithProviders(<Sidebar />)
 
     await waitFor(() => {
-      const allButton = screen.getByTitle('Show all tasks')
+      const allButton = screen.getByTitle('Show all agents')
       expect(allButton.textContent).toContain('4')
       
       // Sessions might not render in test, verify by filter counts
@@ -273,7 +273,7 @@ describe('Sidebar filter functionality and persistence', () => {
       }
     })
 
-    fireEvent.click(screen.getByTitle('Show reviewed tasks'))
+    fireEvent.click(screen.getByTitle('Show reviewed agents'))
 
     await waitFor(() => {
       expect(savedFilterMode).toBe('reviewed')

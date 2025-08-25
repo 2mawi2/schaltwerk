@@ -33,7 +33,7 @@ interface SchaltwerkPauseArgs {
 
 interface SchaltwerkListArgs {
   json?: boolean
-  filter?: 'all' | 'active' | 'draft' | 'reviewed'
+  filter?: 'all' | 'active' | 'plan' | 'reviewed'
 }
 
 interface SchaltwerkSendMessageArgs {
@@ -87,7 +87,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         name: "schaltwerk_create",
         description: `Create a new Schaltwerk session for development work.
 
-🎯 PURPOSE: Start new isolated Git worktrees for development tasks with AI assistance.
+🎯 PURPOSE: Start new isolated Git worktrees for development agents with AI assistance.
 
 📋 USAGE:
 - Basic: schaltwerk_create(name: "feature-auth", prompt: "implement user authentication")
@@ -122,7 +122,7 @@ The prompt becomes the initial context for the AI agent working in that session.
             },
             prompt: {
               type: "string",
-              description: "Initial task description or context for AI agent. Be specific and detailed."
+              description: "Initial agent description or context for AI agent. Be specific and detailed."
             },
             agent_type: {
               type: "string",
@@ -154,12 +154,12 @@ The prompt becomes the initial context for the AI agent working in that session.
 - agent_type: "claude" | "cursor"
 - branch: Git branch name
 - worktree_path: Local path
-- initial_prompt: Original task description
+- initial_prompt: Original agent description
 
 📋 TEXT OUTPUT (default):
 - Formatted list showing review status, name, agent, and last modified
 
-💡 COMMON TASKS:
+💡 COMMON AGENTS:
 - List unreviewed sessions: filter by status="new"
 - Find active work: check last_activity timestamps
 - Identify sessions by agent type
@@ -298,28 +298,28 @@ schaltwerk_pause(session_name: "feature-auth")
       },
       {
         name: "schaltwerk_draft_create",
-        description: `Create a new draft session for later refinement and execution.
+        description: `Create a new plan session for later refinement and execution.
 
-🎯 PURPOSE: Create draft sessions to collaborate on task descriptions before starting agents.
+🎯 PURPOSE: Create plan sessions to collaborate on agent descriptions before starting agents.
 
 📋 USAGE:
 - Basic: schaltwerk_draft_create(name: "auth-feature", content: "# Authentication\\n\\nImplement user login")
 - Without content: schaltwerk_draft_create(name: "bug-fix")
 - With base branch: schaltwerk_draft_create(name: "hotfix", content: "Fix critical bug", base_branch: "production")
 
-✏️ DRAFTS:
-- Drafts are lightweight planning sessions
-- No worktree created until draft is started
+✏️ PLANS:
+- Plans are lightweight planning sessions
+- No worktree created until plan is started
 - Content can be refined multiple times
 - Convert to active session when ready
 
 📝 CONTENT FORMAT:
-- Use Markdown for structured task descriptions
+- Use Markdown for structured agent descriptions
 - Include requirements, technical details, acceptance criteria
 - More detail leads to better AI agent results
 
 ⚡ WORKFLOW:
-1. Create draft with initial idea
+1. Create plan with initial idea
 2. Refine content as needed (schaltwerk_draft_update)
 3. Start when ready (schaltwerk_draft_start)`,
         inputSchema: {
@@ -327,11 +327,11 @@ schaltwerk_pause(session_name: "feature-auth")
           properties: {
             name: {
               type: "string",
-              description: "Draft session name (alphanumeric, hyphens, underscores). Auto-generated if not provided."
+              description: "Plan session name (alphanumeric, hyphens, underscores). Auto-generated if not provided."
             },
             content: {
               type: "string",
-              description: "Initial draft content in Markdown format. Can be updated later."
+              description: "Initial plan content in Markdown format. Can be updated later."
             },
             base_branch: {
               type: "string",
@@ -343,9 +343,9 @@ schaltwerk_pause(session_name: "feature-auth")
       },
       {
         name: "schaltwerk_draft_update",
-        description: `Update content of an existing draft session.
+        description: `Update content of an existing plan session.
 
-🎯 PURPOSE: Refine and improve draft content before starting an agent.
+🎯 PURPOSE: Refine and improve plan content before starting an agent.
 
 📋 USAGE:
 - Replace content: schaltwerk_draft_update(session_name: "auth-feature", content: "# Updated Requirements...")
@@ -365,7 +365,7 @@ schaltwerk_pause(session_name: "feature-auth")
           properties: {
             session_name: {
               type: "string",
-              description: "Name of the draft session to update"
+              description: "Name of the plan session to update"
             },
             content: {
               type: "string",
@@ -382,9 +382,9 @@ schaltwerk_pause(session_name: "feature-auth")
       },
       {
         name: "schaltwerk_draft_start",
-        description: `Start a draft session with an AI agent.
+        description: `Start a plan session with an AI agent.
 
-🎯 PURPOSE: Convert a refined draft into an active development session.
+🎯 PURPOSE: Convert a refined plan into an active development session.
 
 📋 USAGE:
 - Basic: schaltwerk_draft_start(session_name: "auth-feature")
@@ -399,17 +399,17 @@ schaltwerk_pause(session_name: "feature-auth")
 
 ⚡ WHAT HAPPENS:
 1. Creates Git worktree from base branch
-2. Starts selected AI agent with draft content
-3. Draft content becomes initial prompt
+2. Starts selected AI agent with plan content
+3. Plan content becomes initial prompt
 4. Session transitions to active state
 
-⚠️ IMPORTANT: Once started, draft cannot be reverted to draft state.`,
+⚠️ IMPORTANT: Once started, plan cannot be reverted to plan state.`,
         inputSchema: {
           type: "object",
           properties: {
             session_name: {
               type: "string",
-              description: "Name of the draft session to start"
+              description: "Name of the plan session to start"
             },
             agent_type: {
               type: "string",
@@ -431,10 +431,10 @@ schaltwerk_pause(session_name: "feature-auth")
       },
       {
         name: "schaltwerk_draft_list",
-        description: `List all draft sessions.
+        description: `List all plan sessions.
 
 📊 OUTPUT:
-- Shows all draft sessions with content preview
+- Shows all plan sessions with content preview
 - Ordered by last update time (newest first)
 - Includes creation time and content length
 
@@ -442,7 +442,7 @@ schaltwerk_pause(session_name: "feature-auth")
 - Text format: schaltwerk_draft_list()
 - JSON format: schaltwerk_draft_list(json: true)
 
-💡 Use this to review drafts before starting them.`,
+💡 Use this to review plans before starting them.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -457,15 +457,15 @@ schaltwerk_pause(session_name: "feature-auth")
       },
       {
         name: "schaltwerk_draft_delete",
-        description: `Delete a draft session permanently.
+        description: `Delete a plan session permanently.
 
 ⚠️ DESTRUCTIVE OPERATION
-- Permanently removes draft from database
+- Permanently removes plan from database
 - Cannot be undone
-- No worktree to clean up (drafts don't create worktrees)
+- No worktree to clean up (plans don't create worktrees)
 
 📋 USAGE:
-schaltwerk_draft_delete(session_name: "old-draft")
+schaltwerk_draft_delete(session_name: "old-plan")
 
 ✅ SAFE TO USE: Only affects database record, no files or branches.`,
         inputSchema: {
@@ -473,7 +473,7 @@ schaltwerk_draft_delete(session_name: "old-draft")
           properties: {
             session_name: {
               type: "string",
-              description: "Name of the draft session to delete"
+              description: "Name of the plan session to delete"
             }
           },
           required: ["session_name"]
@@ -481,25 +481,25 @@ schaltwerk_draft_delete(session_name: "old-draft")
       },
       {
         name: "schaltwerk_get_current_tasks",
-        description: `Get current tasks with flexible field selection to manage response size.
+        description: `Get current agents with flexible field selection to manage response size.
 
-🎯 PURPOSE: Retrieve task information with control over which fields to include, preventing large responses.
+🎯 PURPOSE: Retrieve agent information with control over which fields to include, preventing large responses.
 
 📊 FIELD SELECTION:
 Use the 'fields' parameter to specify which fields to include. This is critical for managing response size.
 
 🔧 AVAILABLE FIELDS:
-- name: Task identifier (always included)
+- name: Agent identifier (always included)
 - display_name: Human-readable name
-- status: 'active' | 'draft' | 'cancelled' | 'paused'
-- session_state: 'Draft' | 'Running' | 'Reviewed'
+- status: 'active' | 'plan' | 'cancelled' | 'paused'
+- session_state: 'Plan' | 'Running' | 'Reviewed'
 - created_at: ISO timestamp
 - last_activity: ISO timestamp
 - branch: Git branch name
 - worktree_path: Local directory path
 - ready_to_merge: Boolean for review status
-- initial_prompt: Original task description (can be large)
-- draft_content: Full draft content (can be VERY large)
+- initial_prompt: Original agent description (can be large)
+- draft_content: Full plan content (can be VERY large)
 
 📋 USAGE PATTERNS:
 
@@ -507,17 +507,17 @@ Use the 'fields' parameter to specify which fields to include. This is critical 
 schaltwerk_get_current_tasks()
 Returns: name, status, session_state, branch only
 
-2️⃣ TASK MANAGEMENT (medium detail):
+2️⃣ AGENT MANAGEMENT (medium detail):
 schaltwerk_get_current_tasks(fields: ["name", "status", "session_state", "branch", "created_at", "last_activity"])
 Use when: Managing sessions, checking activity, organizing work
 
-3️⃣ DRAFT SELECTION (content preview):
+3️⃣ PLAN SELECTION (content preview):
 schaltwerk_get_current_tasks(
   fields: ["name", "status", "session_state", "draft_content"],
-  status_filter: "draft",
+  status_filter: "plan",
   content_preview_length: 200
 )
-Use when: Browsing drafts to find the right one to start
+Use when: Browsing plans to find the right one to start
 
 4️⃣ FULL DETAILS (use sparingly):
 schaltwerk_get_current_tasks(fields: ["all"])
@@ -526,17 +526,17 @@ Use when: Need complete information for specific analysis
 ⚠️ PERFORMANCE TIPS:
 - Never request 'draft_content' or 'initial_prompt' unless needed
 - Use status_filter to reduce dataset size
-- Use content_preview_length for draft browsing
+- Use content_preview_length for plan browsing
 - Default fields are optimized for common operations
 
 🎯 FILTERING:
-- status_filter: Filter by status ('draft', 'active', 'reviewed')
-- Reduces response size by excluding irrelevant tasks
+- status_filter: Filter by status ('plan', 'active', 'reviewed')
+- Reduces response size by excluding irrelevant agents
 
 💡 BEST PRACTICES:
 - Start with minimal fields, add more if needed
-- Use filters to focus on relevant tasks
-- Request content fields only when examining specific tasks`,
+- Use filters to focus on relevant agents
+- Request content fields only when examining specific agents`,
         inputSchema: {
           type: "object",
           properties: {
@@ -551,8 +551,8 @@ Use when: Need complete information for specific analysis
             },
             status_filter: {
               type: "string",
-              enum: ["draft", "active", "reviewed", "all"],
-              description: "Filter tasks by status. 'reviewed' shows ready_to_merge sessions.",
+              enum: ["plan", "active", "reviewed", "all"],
+              description: "Filter agents by status. 'reviewed' shows ready_to_merge sessions.",
               default: "all"
             },
             content_preview_length: {
@@ -585,12 +585,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             createArgs.base_branch
           )
           
-          result = `Draft session created successfully:
+          result = `Plan session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
 - Content Length: ${session.draft_content?.length || 0} characters
-- Status: Draft (ready for refinement)`
+- Status: Plan (ready for refinement)`
         } else {
           const session = await bridge.createSession(
             createArgs.name || `mcp_session_${Date.now()}`,
@@ -621,7 +621,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           const essentialSessions = sessions.map(s => ({
             name: s.name,
             display_name: s.display_name || s.name,
-            status: s.status === 'draft' ? 'draft' : (s.ready_to_merge ? 'reviewed' : 'new'),
+            status: s.status === 'plan' ? 'plan' : (s.ready_to_merge ? 'reviewed' : 'new'),
             session_state: s.session_state,
             ready_to_merge: s.ready_to_merge || false,
             created_at: s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toISOString() : null,
@@ -639,11 +639,11 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           } else {
             // Format as human-readable text
             const lines = sessions.map((s: Session) => {
-              if (s.status === 'draft') {
+              if (s.status === 'plan') {
                 const created = s.created_at && !isNaN(new Date(s.created_at).getTime()) ? new Date(s.created_at).toLocaleDateString() : 'unknown'
                 const contentLength = s.draft_content?.length || 0
                 const name = s.display_name || s.name
-                return `[DRAFT] ${name} - Created: ${created}, Content: ${contentLength} chars`
+                return `[PLAN] ${name} - Created: ${created}, Content: ${contentLength} chars`
               } else {
                 const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
                 const agent = s.original_agent_type || 'unknown'
@@ -699,12 +699,12 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           draftCreateArgs.base_branch
         )
         
-        result = `Draft session created successfully:
+        result = `Plan session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
 - Content Length: ${session.draft_content?.length || 0} characters
-- Status: Draft (ready for refinement)`
+- Status: Plan (ready for refinement)`
         break
       }
 
@@ -721,7 +721,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           ? draftUpdateArgs.content.substring(0, 100) + '...'
           : draftUpdateArgs.content
         
-        result = `Draft '${draftUpdateArgs.session_name}' updated successfully.
+        result = `Plan '${draftUpdateArgs.session_name}' updated successfully.
 - Update Mode: ${draftUpdateArgs.append ? 'Append' : 'Replace'}
 - Content Preview: ${contentPreview}`
         break
@@ -737,7 +737,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           draftStartArgs.base_branch
         )
         
-        result = `Draft '${draftStartArgs.session_name}' started successfully:
+        result = `Plan '${draftStartArgs.session_name}' started successfully:
 - Agent Type: ${draftStartArgs.agent_type || 'claude'}
 - Skip Permissions: ${draftStartArgs.skip_permissions || false}
 - Status: Active (worktree created, agent ready)`
@@ -747,10 +747,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
       case "schaltwerk_draft_list": {
         const draftListArgs = args as SchaltwerkDraftListArgs
         
-        const drafts = await bridge.listDraftSessions()
+        const plans = await bridge.listDraftSessions()
         
         if (draftListArgs.json) {
-          const essentialDrafts = drafts.map(d => ({
+          const essentialDrafts = plans.map(d => ({
             name: d.name,
             display_name: d.display_name || d.name,
             created_at: d.created_at ? new Date(d.created_at).toISOString() : null,
@@ -761,10 +761,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           }))
           result = JSON.stringify(essentialDrafts, null, 2)
         } else {
-          if (drafts.length === 0) {
-            result = 'No draft sessions found'
+          if (plans.length === 0) {
+            result = 'No plan sessions found'
           } else {
-            const lines = drafts.map((d: Session) => {
+            const lines = plans.map((d: Session) => {
               const name = d.display_name || d.name
               const created = d.created_at ? new Date(d.created_at).toLocaleDateString() : 'unknown'
               const updated = d.updated_at ? new Date(d.updated_at).toLocaleDateString() : 'unknown'
@@ -777,7 +777,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
   - Preview: ${preview}${contentLength > 50 ? '...' : ''}`
             })
             
-            result = `Draft Sessions (${drafts.length}):\n\n${lines.join('\n\n')}`
+            result = `Plan Sessions (${plans.length}):\n\n${lines.join('\n\n')}`
           }
         }
         break
@@ -788,14 +788,14 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         
         await bridge.deleteDraftSession(draftDeleteArgs.session_name)
         
-        result = `Draft session '${draftDeleteArgs.session_name}' has been deleted permanently`
+        result = `Plan session '${draftDeleteArgs.session_name}' has been deleted permanently`
         break
       }
 
       case "schaltwerk_get_current_tasks": {
         const taskArgs = args as {
           fields?: string[],
-          status_filter?: 'draft' | 'active' | 'reviewed' | 'all',
+          status_filter?: 'plan' | 'active' | 'reviewed' | 'all',
           content_preview_length?: number
         }
         
@@ -803,16 +803,16 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         const requestedFields = taskArgs.fields || ['name', 'status', 'session_state', 'branch']
         const includeAll = requestedFields.includes('all')
         
-        let tasks = await bridge.getCurrentTasks()
+        let agents = await bridge.getCurrentTasks()
         
         // Apply status filter
         if (taskArgs.status_filter && taskArgs.status_filter !== 'all') {
-          tasks = tasks.filter(t => {
+          agents = agents.filter(t => {
             switch (taskArgs.status_filter) {
-              case 'draft':
-                return t.status === 'draft'
+              case 'plan':
+                return t.status === 'plan'
               case 'active':
-                return t.status !== 'draft' && !t.ready_to_merge
+                return t.status !== 'plan' && !t.ready_to_merge
               case 'reviewed':
                 return t.ready_to_merge === true
               default:
@@ -822,35 +822,35 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         }
         
         // Build response with only requested fields
-        const formattedTasks = tasks.map(t => {
-          const task: any = {
+        const formattedTasks = agents.map(t => {
+          const agent: any = {
             name: t.name // Always include name
           }
           
           // Add requested fields
           if (includeAll || requestedFields.includes('display_name')) {
-            task.display_name = t.display_name || t.name
+            agent.display_name = t.display_name || t.name
           }
           if (includeAll || requestedFields.includes('status')) {
-            task.status = t.status
+            agent.status = t.status
           }
           if (includeAll || requestedFields.includes('session_state')) {
-            task.session_state = t.session_state
+            agent.session_state = t.session_state
           }
           if (includeAll || requestedFields.includes('created_at')) {
-            task.created_at = t.created_at ? new Date(t.created_at).toISOString() : null
+            agent.created_at = t.created_at ? new Date(t.created_at).toISOString() : null
           }
           if (includeAll || requestedFields.includes('last_activity')) {
-            task.last_activity = t.last_activity ? new Date(t.last_activity).toISOString() : null
+            agent.last_activity = t.last_activity ? new Date(t.last_activity).toISOString() : null
           }
           if (includeAll || requestedFields.includes('branch')) {
-            task.branch = t.branch
+            agent.branch = t.branch
           }
           if (includeAll || requestedFields.includes('worktree_path')) {
-            task.worktree_path = t.worktree_path
+            agent.worktree_path = t.worktree_path
           }
           if (includeAll || requestedFields.includes('ready_to_merge')) {
-            task.ready_to_merge = t.ready_to_merge || false
+            agent.ready_to_merge = t.ready_to_merge || false
           }
           
           // Handle content fields with optional preview
@@ -859,7 +859,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             if (prompt && taskArgs.content_preview_length && prompt.length > taskArgs.content_preview_length) {
               prompt = prompt.substring(0, taskArgs.content_preview_length) + '...'
             }
-            task.initial_prompt = prompt
+            agent.initial_prompt = prompt
           }
           
           if (includeAll || requestedFields.includes('draft_content')) {
@@ -867,10 +867,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
             if (content && taskArgs.content_preview_length && content.length > taskArgs.content_preview_length) {
               content = content.substring(0, taskArgs.content_preview_length) + '...'
             }
-            task.draft_content = content
+            agent.draft_content = content
           }
           
-          return task
+          return agent
         })
         
         result = JSON.stringify(formattedTasks, null, 2)
@@ -917,15 +917,15 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         mimeType: "application/json"
       },
       {
-        uri: "schaltwerk://drafts",
-        name: "Draft Sessions",
-        description: "All draft sessions awaiting refinement and start",
+        uri: "schaltwerk://plans",
+        name: "Plan Sessions",
+        description: "All plan sessions awaiting refinement and start",
         mimeType: "application/json"
       },
       {
-        uri: "schaltwerk://drafts/{name}",
-        name: "Draft Content",
-        description: "Content of a specific draft session",
+        uri: "schaltwerk://plans/{name}",
+        name: "Plan Content",
+        description: "Content of a specific plan session",
         mimeType: "text/markdown"
       }
     ]
@@ -959,22 +959,22 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         break
       }
 
-      case "schaltwerk://drafts": {
-        const drafts = await bridge.listDraftSessions()
-        content = JSON.stringify(drafts, null, 2)
+      case "schaltwerk://plans": {
+        const plans = await bridge.listDraftSessions()
+        content = JSON.stringify(plans, null, 2)
         break
       }
 
       default: {
-        // Check if it's a specific draft content request
-        const draftMatch = uri.match(/^schaltwerk:\/\/drafts\/(.+)$/)
+        // Check if it's a specific plan content request
+        const draftMatch = uri.match(/^schaltwerk:\/\/plans\/(.+)$/)
         if (draftMatch) {
           const draftName = draftMatch[1]
-          const drafts = await bridge.listDraftSessions()
-          const draft = drafts.find(d => d.name === draftName)
+          const plans = await bridge.listDraftSessions()
+          const plan = plans.find(d => d.name === draftName)
           
-          if (!draft) {
-            throw new McpError(ErrorCode.InvalidRequest, `Draft '${draftName}' not found`)
+          if (!plan) {
+            throw new McpError(ErrorCode.InvalidRequest, `Plan '${draftName}' not found`)
           }
           
           return {
@@ -982,7 +982,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
               {
                 uri,
                 mimeType: "text/markdown",
-                text: draft.draft_content || ''
+                text: plan.draft_content || ''
               }
             ]
           }

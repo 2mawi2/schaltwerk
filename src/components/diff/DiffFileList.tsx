@@ -34,10 +34,10 @@ interface FileChangeEvent {
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
   sessionNameOverride?: string
-  isOrchestrator?: boolean
+  isCommander?: boolean
 }
 
-export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator }: DiffFileListProps) {
+export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }: DiffFileListProps) {
   const { selection } = useSelection()
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(null)
@@ -61,8 +61,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
       // Use the current sessionName value from closure
       const currentSession = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
       
-      // For orchestrator mode (no session), get working changes
-      if (isOrchestrator && !currentSession) {
+      // For commander mode (no session), get working changes
+      if (isCommander && !currentSession) {
         const [changedFiles, currentBranch] = await Promise.all([
           invoke<ChangedFile[]>('get_orchestrator_working_changes'),
           invoke<string>('get_current_branch_name', { sessionName: null })
@@ -110,13 +110,13 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
     } finally {
       setIsLoading(false)
     }
-  }, [sessionNameOverride, selection, isOrchestrator, isLoading])
+  }, [sessionNameOverride, selection, isCommander, isLoading])
 
   // Path resolver used by top bar now; no local button anymore
   
   useEffect(() => {
-    if (!sessionName && !isOrchestrator) {
-      // Clear files when no session and not orchestrator
+    if (!sessionName && !isCommander) {
+      // Clear files when no session and not commander
       setFiles([])
       setBranchInfo(null)
       return
@@ -130,9 +130,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
 
     // Setup async operations
     const setup = async () => {
-      // For orchestrator mode, poll less frequently since working directory changes are less frequent
-      if (isOrchestrator && !sessionName) {
-        pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for orchestrator
+      // For commander mode, poll less frequently since working directory changes are less frequent
+      if (isCommander && !sessionName) {
+        pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for commander
         return
       }
       
@@ -186,7 +186,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
         clearInterval(pollInterval)
       }
     }
-  }, [sessionName, isOrchestrator])  // Remove loadChangedFiles from dependencies!
+  }, [sessionName, isCommander])  // Remove loadChangedFiles from dependencies!
   
   const handleFileClick = (file: ChangedFile) => {
     setSelectedFile(file.path)
@@ -212,16 +212,16 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
         <div className="flex items-center justify-between pr-12">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">
-              {isOrchestrator && !sessionName 
+              {isCommander && !sessionName 
                 ? 'Uncommitted Changes' 
                 : `Changes from ${branchInfo?.baseBranch || 'base'}`}
             </span>
-            {branchInfo && !isOrchestrator && (
+            {branchInfo && !isCommander && (
               <span className="text-xs text-slate-500">
                 ({branchInfo.currentBranch} → {branchInfo.baseBranch})
               </span>
             )}
-            {branchInfo && isOrchestrator && (
+            {branchInfo && isCommander && (
               <span className="text-xs text-slate-500">
                 (on {branchInfo.currentBranch})
               </span>
@@ -235,7 +235,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
         </div>
       </div>
       
-      {sessionName === null && !isOrchestrator ? (
+      {sessionName === null && !isCommander ? (
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="text-center text-slate-500">
             <div className="text-sm">No session selected</div>
@@ -281,12 +281,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isOrchestrator
           <div className="text-center">
             <VscFile className="mx-auto mb-2 text-4xl opacity-50" />
             <div className="mb-1">
-              {isOrchestrator && !sessionName 
+              {isCommander && !sessionName 
                 ? 'No uncommitted changes' 
                 : `No changes from ${branchInfo?.baseBranch || 'base'}`}
             </div>
             <div className="text-xs">
-              {isOrchestrator && !sessionName 
+              {isCommander && !sessionName 
                 ? 'Your working directory is clean'
                 : branchInfo?.currentBranch === branchInfo?.baseBranch 
                   ? `You are on the ${branchInfo?.baseBranch} branch` 

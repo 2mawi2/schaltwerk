@@ -8,9 +8,9 @@ Schaltwerk is a Tauri-based desktop application that provides a visual interface
 
 ## Essential Development Commands
 
-### Before Completing ANY Task
+### Before Completing ANY Agent
 
-**IMPORTANT**: Always run these commands before considering a task complete:
+**IMPORTANT**: Always run these commands before considering a agent complete:
 
 ```bash
 # Run all tests and lints
@@ -39,7 +39,7 @@ src/
 ├── components/       # React components
 │   ├── Terminal.tsx  # Core terminal renderer using xterm.js
 │   ├── TerminalGrid.tsx  # Main dual-terminal layout (top and bottom)
-│   ├── RightPanelTabs.tsx  # Right panel with Changes/Tasks tabs
+│   ├── RightPanelTabs.tsx  # Right panel with Changes/Agents tabs
 │   └── Sidebar.tsx   # Session list and navigation
 ├── hooks/           # Custom React hooks
 │   ├── useSessionTerminals.ts     # Single terminal management
@@ -64,20 +64,20 @@ src-tauri/
 - **Lazy creation**: Terminals created only when first needed
 - **Persistent state**: Terminals keep running when switching sessions
 - **Proper cleanup**: All processes killed when app exits
-- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Tasks/Drafts for orchestrator
+- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Agents/Plans for commander
 
 ### Terminal ID Convention (required)
 ```
-Orchestrator:
-- orchestrator-{projectId}-top
-- orchestrator-{projectId}-bottom
+Commander:
+- commander-{projectId}-top
+- commander-{projectId}-bottom
 
 Sessions:
 - session-{name}-top
 - session-{name}-bottom
 ```
 
-Note: The orchestrator terminals include a project-specific ID hash to ensure separate terminals per project. The right panel is RightPanelTabs component showing diffs/tasks, not a terminal.
+Note: The commander terminals include a project-specific ID hash to ensure separate terminals per project. The right panel is RightPanelTabs component showing diffs/agents, not a terminal.
 
 ## Testing Requirements
 
@@ -115,7 +115,7 @@ Never consider a task complete unless `npm run test` passes without errors.
 **CRITICAL**: Test failures are NEVER unrelated. All tests must be green before:
 - Committing any changes
 - Merging any branches
-- Considering any task complete
+- Considering any agent complete
 
 If tests are failing, they must be fixed immediately. Do not assume test failures are from previous changes or unrelated work. Every test failure indicates a real problem that must be resolved.
 
@@ -230,7 +230,7 @@ useEffect(() => {
 - **Session persistence**: Terminals should survive session switches but not app restarts
 - **Resource management**: Each session creates 3 OS processes - handle with care
 
-## Common Tasks
+## Common Agents
 
 ### Adding a new terminal panel
 1. Create new component using `Terminal` component
@@ -297,9 +297,9 @@ Logs use a consistent format for easy parsing:
 
 Example:
 ```
-[2024-01-15 14:23:45.123 INFO  ui::pty] Creating terminal: id=orchestrator-top, cwd=/Users/name/project
-[2024-01-15 14:23:45.456 DEBUG ui::pty] Saved child process for terminal orchestrator-top
-[2024-01-15 14:23:45.789 WARN  ui::pty] Terminal orchestrator-bottom slow write: 25ms
+[2024-01-15 14:23:45.123 INFO  ui::pty] Creating terminal: id=commander-top, cwd=/Users/name/project
+[2024-01-15 14:23:45.456 DEBUG ui::pty] Saved child process for terminal commander-top
+[2024-01-15 14:23:45.789 WARN  ui::pty] Terminal commander-bottom slow write: 25ms
 ```
 
 ### Logging in Rust Code
@@ -341,8 +341,8 @@ INFO Terminal created successfully: id=session-main-top
 
 #### Performance Issues
 ```
-WARN Terminal orchestrator-bottom slow write: 25ms
-DEBUG Terminal orchestrator-top slow buffer append: 15ms
+WARN Terminal commander-bottom slow write: 25ms
+DEBUG Terminal commander-top slow buffer append: 15ms
 ```
 
 #### Error Handling
@@ -360,7 +360,7 @@ tail -f ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
 grep ERROR ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
 
 # Watch for specific terminal
-grep "orchestrator-top" ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
+grep "commander-top" ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
 
 # Monitor performance issues
 grep -E "slow|WARN|ERROR" ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
@@ -379,7 +379,7 @@ grep -E "slow|WARN|ERROR" ~/Library/Application\ Support/schaltwerk/logs/schaltw
 ### Architecture Principles
 - **MCP server must use REST API calls only**: Never directly access the SQLite database
 - **Stateless design**: MCP server should be a stateless HTTP client to the Rust backend
-- **Database operations**: All session/draft operations must go through `src-tauri/src/mcp_api.rs` endpoints
+- **Database operations**: All session/plan operations must go through `src-tauri/src/mcp_api.rs` endpoints
 
 ### MCP Development Workflow
 ```bash
@@ -390,17 +390,17 @@ npm run build          # Rebuild MCP server
 ```
 
 ### Key API Endpoints
-- `POST /api/drafts` - Create draft session
-- `PATCH /api/drafts/{name}` - Update draft content (supports append=true)
-- `POST /api/drafts/{name}/start` - Start draft as active session
-- `DELETE /api/drafts/{name}` - Delete draft session
+- `POST /api/plans` - Create plan session
+- `PATCH /api/plans/{name}` - Update plan content (supports append=true)
+- `POST /api/plans/{name}/start` - Start plan as active session
+- `DELETE /api/plans/{name}` - Delete plan session
 
 ### Performance Patterns
-- **Use atomic operations**: For draft content updates, use `append_draft_content()` instead of get-then-update pattern
+- **Use atomic operations**: For plan content updates, use `append_draft_content()` instead of get-then-update pattern
 - **Avoid double database calls**: All operations should be single transactions where possible
 
 ### Webhook Integration
-- `POST /webhook/draft-created` - When draft is created
+- `POST /webhook/plan-created` - When plan is created
 - `POST /webhook/session-added` - When session becomes active
 - `POST /webhook/session-removed` - When session is deleted
 
@@ -463,12 +463,12 @@ open -a Schaltwerk
 
 ### Testing MCP Changes
 ```bash
-# Test MCP draft creation
-echo '{"name": "test-draft", "content": "# Test Draft"}' | json_pp
-# Verify draft appears in UI drafts section, not running sessions
+# Test MCP plan creation
+echo '{"name": "test-plan", "content": "# Test Plan"}' | json_pp
+# Verify plan appears in UI plans section, not running sessions
 
 # Test API endpoints directly
-curl -X POST http://127.0.0.1:8547/api/drafts -H "Content-Type: application/json" -d '{"name":"test","content":"test"}'
+curl -X POST http://127.0.0.1:8547/api/plans -H "Content-Type: application/json" -d '{"name":"test","content":"test"}'
 ```
 
 ### Code Quality

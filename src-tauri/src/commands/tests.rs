@@ -1,4 +1,4 @@
-// Test the reset orchestrator commands
+// Test the reset commander commands
 // These are more like integration tests that verify the command structure and basic functionality
 
 #[tokio::test]
@@ -6,7 +6,7 @@ async fn test_reset_commands_parse_correctly_when_no_project() {
     // Test that the commands fail gracefully when no project is set up
     // This verifies error handling without needing to mock the entire project setup
     
-    let terminal_id = "test-orchestrator-no-project";
+    let terminal_id = "test-commander-no-project";
     
     let fresh_result = super::para_core_start_fresh_orchestrator(terminal_id.to_string()).await;
     // Should fail with meaningful error about missing project
@@ -32,7 +32,7 @@ async fn test_reset_command_timing() {
     // Test that reset waits for cleanup (even when it fails due to no project)
     // The timing behavior should be consistent regardless of success/failure
     
-    let terminal_id = "test-orchestrator-timing";
+    let terminal_id = "test-commander-timing";
     
     let start_time = std::time::Instant::now();
     let _result = super::para_core_reset_orchestrator(terminal_id.to_string()).await;
@@ -44,7 +44,7 @@ async fn test_reset_command_timing() {
 
 #[tokio::test]
 async fn test_fresh_orchestrator_command_timing() {
-    // Test that fresh orchestrator doesn't hang
+    // Test that fresh commander doesn't hang
     
     let terminal_id = "test-fresh-timing";
     
@@ -62,10 +62,10 @@ async fn test_command_functions_exist_and_callable() {
     // This verifies the basic API contract
     
     let terminal_ids = vec![
-        "test-orchestrator-1",
-        "test-orchestrator-2", 
-        "orchestrator-claude-top",
-        "orchestrator-cursor-top",
+        "test-commander-1",
+        "test-commander-2", 
+        "commander-claude-top",
+        "commander-cursor-top",
     ];
     
     for terminal_id in terminal_ids {

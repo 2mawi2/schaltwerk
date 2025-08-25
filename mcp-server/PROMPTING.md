@@ -39,7 +39,7 @@ Be specific and detailed in your prompts:
 - "Update code"
 
 #### Agent Type Selection
-- Use `"claude"` for general development tasks (default)
+- Use `"claude"` for general development agents (default)
 - Use `"cursor"` when Cursor IDE integration is preferred
 - Set `skip_permissions: true` for fully autonomous operation
 
@@ -96,7 +96,7 @@ Use: schaltwerk_list({ json: true })
 Use: schaltwerk_cancel(session_name: "experiment-feature")
 ```
 
-## Prompt Templates for Common Tasks
+## Prompt Templates for Common Agents
 
 ### Feature Development
 ```
@@ -140,14 +140,14 @@ schaltwerk_create(
 )
 ```
 
-## Integration with Orchestrator Pattern
+## Integration with Commander Pattern
 
-When acting as an orchestrator managing multiple AI agents:
+When acting as an commander managing multiple AI agents:
 
 1. **Create Sessions for Each Agent**
    ```
-   schaltwerk_create(name: "agent1-task", prompt: "...", skip_permissions: true)
-   schaltwerk_create(name: "agent2-task", prompt: "...", skip_permissions: true)
+   schaltwerk_create(name: "agent1-agent", prompt: "...", skip_permissions: true)
+   schaltwerk_create(name: "agent2-agent", prompt: "...", skip_permissions: true)
    ```
 
 2. **Monitor Progress**
@@ -162,7 +162,7 @@ When acting as an orchestrator managing multiple AI agents:
 
 4. **Cleanup**
    ```
-   schaltwerk_cancel(session_name: "completed-task")
+   schaltwerk_cancel(session_name: "completed-agent")
    ```
 
 ## Error Handling

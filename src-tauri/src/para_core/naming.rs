@@ -144,7 +144,7 @@ pub async fn generate_display_name(
     let prompt_plain = format!(
         r#"IMPORTANT: Do not use any tools. Answer this message directly without searching or reading files.
 
-Generate a SHORT kebab-case name for this task.
+Generate a SHORT kebab-case name for this agent.
 
 Rules:
 - Maximum 3-4 words
@@ -160,7 +160,7 @@ Examples of good names:
 - "fix-login" (not "fix-the-login-button-on-homepage")
 - "api-docs" (not "create-api-documentation-for-endpoints")
 
-Task: {truncated}
+Agent: {truncated}
 
 Respond with just the short kebab-case name:"#
     );
@@ -640,8 +640,8 @@ mod tests {
 
     #[test]
     fn test_truncate_prompt() {
-        let short_prompt = "Short task";
-        assert_eq!(truncate_prompt(short_prompt), "Short task");
+        let short_prompt = "Short agent";
+        assert_eq!(truncate_prompt(short_prompt), "Short agent");
         
         let long_prompt = "This is a very long prompt that contains multiple lines\nSecond line here\nThird line\nFourth line\nFifth line should be truncated";
         let result = truncate_prompt(long_prompt);
@@ -677,7 +677,7 @@ mod tests {
         fix_codex_single_dash_long_flags(&mut extra);
         reorder_codex_model_after_profile(&mut extra);
         args.extend(extra);
-        args.push("name this task".into());
+        args.push("name this agent".into());
 
         // Expect sandbox first, then profile before model, then prompt
         assert_eq!(args[0], "--sandbox");
@@ -685,7 +685,7 @@ mod tests {
         let p = args.iter().position(|a| a == "-p" || a == "--profile").unwrap();
         let m = args.iter().position(|a| a == "-m" || a.starts_with("--model")).unwrap();
         assert!(p < m);
-        assert_eq!(args.last().unwrap(), "name this task");
+        assert_eq!(args.last().unwrap(), "name this agent");
         // Values follow the short flags
         assert_eq!(args[p + 1], "maibornwolff");
         assert_eq!(args[m + 1], "gpt-5");

@@ -73,19 +73,19 @@ describe('SelectionContext', () => {
   })
 
   describe('getTerminalIds mapping logic', () => {
-    it('should map orchestrator selection to orchestrator terminals', async () => {
+    it('should map commander selection to commander terminals', async () => {
       const { result } = renderHook(() => useSelection(), { wrapper })
 
       await waitFor(() => {
         expect(result.current.isReady).toBe(true)
       })
 
-      // Initial state should be orchestrator with correct terminal IDs
-      expect(result.current.selection.kind).toBe('orchestrator')
+      // Initial state should be commander with correct terminal IDs
+      expect(result.current.selection.kind).toBe('commander')
       // Terminal IDs are now based on project path hash
       // For /test/project path, verify the pattern
-      expect(result.current.terminals.top).toMatch(/^orchestrator-project-[a-f0-9]+-top$/)
-      expect(result.current.terminals.bottomBase).toMatch(/^orchestrator-project-[a-f0-9]+-bottom$/)
+      expect(result.current.terminals.top).toMatch(/^commander-project-[a-f0-9]+-top$/)
+      expect(result.current.terminals.bottomBase).toMatch(/^commander-project-[a-f0-9]+-bottom$/)
     })
 
     it('should map session selection to session-specific terminals', async () => {
@@ -138,7 +138,7 @@ describe('SelectionContext', () => {
   })
 
   describe('ensureTerminals deduplication and path selection', () => {
-    it('should use orchestrator cwd for orchestrator selection', async () => {
+    it('should use commander cwd for commander selection', async () => {
       const { result } = renderHook(() => useSelection(), { wrapper })
 
       await waitFor(() => {
@@ -297,7 +297,7 @@ describe('SelectionContext', () => {
         expect(result.current.isReady).toBe(true)
       })
 
-      // Reset counter after orchestrator initialization
+      // Reset counter after commander initialization
       createTerminalCalls = 0
       createdTerminals.clear()
 
@@ -321,7 +321,7 @@ describe('SelectionContext', () => {
 
   // Simplified tests for core functionality without complex async scenarios
   describe('basic functionality', () => {
-    it('should start with orchestrator selection', async () => {
+    it('should start with commander selection', async () => {
       // Skip this test for now - there's an issue with the context not being provided properly in tests
       // The implementation works correctly in the actual app
       expect(true).toBe(true)
@@ -341,7 +341,7 @@ describe('SelectionContext', () => {
   })
 
   describe('State Transitions', () => {
-    it('should detect state transitions from draft to running', () => {
+    it('should detect state transitions from plan to running', () => {
       // Function to test the state transition logic
       const testStateTransition = (
         currentPayload: string,
@@ -353,7 +353,7 @@ describe('SelectionContext', () => {
         const newSelection = { 
           kind: 'session' as const, 
           payload: newPayload, 
-          sessionState: newIsDraft ? 'draft' : 'running' as const 
+          sessionState: newIsDraft ? 'plan' : 'running' as const 
         }
 
         return currentSelection.kind === 'session' && 
@@ -365,7 +365,7 @@ describe('SelectionContext', () => {
       expect(testStateTransition('test-session', 'test-session', true, false)).toBe(true)
     })
 
-    it('should detect state transitions from running to draft', () => {
+    it('should detect state transitions from running to plan', () => {
       // Function to test the state transition logic
       const testStateTransition = (
         currentPayload: string,
@@ -377,7 +377,7 @@ describe('SelectionContext', () => {
         const newSelection = { 
           kind: 'session' as const, 
           payload: newPayload, 
-          sessionState: newIsDraft ? 'draft' : 'running' as const 
+          sessionState: newIsDraft ? 'plan' : 'running' as const 
         }
 
         return currentSelection.kind === 'session' && 
@@ -401,7 +401,7 @@ describe('SelectionContext', () => {
         const newSelection = { 
           kind: 'session' as const, 
           payload: newPayload, 
-          sessionState: newIsDraft ? 'draft' : 'running' as const 
+          sessionState: newIsDraft ? 'plan' : 'running' as const 
         }
 
         return currentSelection.kind === 'session' && 

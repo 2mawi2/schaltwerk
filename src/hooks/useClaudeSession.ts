@@ -3,23 +3,23 @@ import { invoke } from '@tauri-apps/api/core'
 
 interface ClaudeSessionOptions {
     sessionName?: string
-    isOrchestrator?: boolean
+    isCommander?: boolean
     terminalId?: string
 }
 
 export function useClaudeSession() {
     const startClaude = useCallback(async (options: ClaudeSessionOptions = {}) => {
         try {
-            if (options.isOrchestrator) {
+            if (options.isCommander) {
                 await invoke('para_core_start_claude_orchestrator', { 
-                    terminalId: options.terminalId || 'orchestrator-default-top' 
+                    terminalId: options.terminalId || 'commander-default-top' 
                 })
                 return { success: true }
             } else if (options.sessionName) {
                 await invoke('para_core_start_claude', { sessionName: options.sessionName })
                 return { success: true }
             } else {
-                console.error('[useClaudeSession] Invalid Claude session options: must specify either isOrchestrator or sessionName')
+                console.error('[useClaudeSession] Invalid Claude session options: must specify either isCommander or sessionName')
                 return { success: false, error: 'Invalid options' }
             }
         } catch (error) {

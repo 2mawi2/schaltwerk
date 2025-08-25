@@ -111,8 +111,8 @@ describe('Sidebar sorting functionality', () => {
         const mode = args?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const drafts = sessions.filter(s => s.info.session_state === 'draft')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'draft')
+        const plans = sessions.filter(s => s.info.session_state === 'plan')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'plan')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         let sorted: any[] = []
         if (mode === SortMode.Created) {
@@ -130,7 +130,7 @@ describe('Sidebar sorting functionality', () => {
         } else {
           sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         }
-        const draftsSorted = drafts.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'para_core_list_sessions_by_state') return []
@@ -176,7 +176,7 @@ describe('Sidebar sorting functionality', () => {
     // Find session buttons by their distinct structure (have both session name and branch)
     let sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
     expect(sessionButtons).toHaveLength(3)
     expect(sessionButtons[0]).toHaveTextContent('alpha_session')
@@ -191,7 +191,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
     // Sorted by creation time (newest first)
     expect(sessionButtons[0]).toHaveTextContent('zebra_session') // Jan 2 (newest)
@@ -206,7 +206,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
     // Sorted by last modified (most recent first)
     expect(sessionButtons[0]).toHaveTextContent('beta_session')  // Jan 20
@@ -221,7 +221,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
     // Back to alphabetical
     expect(sessionButtons[0]).toHaveTextContent('alpha_session')
@@ -269,7 +269,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
     // Unreviewed by last-edited, then reviewed alphabetically
     expect(sessionButtons[0]).toHaveTextContent('beta')  // unreviewed, Jan 20
@@ -348,7 +348,7 @@ describe('Sidebar sorting functionality', () => {
     // Sessions with timestamps come first (newest first), then sessions without timestamps (alphabetical)
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (orchestrator)')
+      return text.includes('para/') && !text.includes('main (commander)')
     })
     expect(sessionButtons).toHaveLength(3)
     // First is the one with timestamp. Our mock extracts timestamp either from created_at or id suffix.

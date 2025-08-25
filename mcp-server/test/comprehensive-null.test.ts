@@ -1,7 +1,7 @@
 const formatListJson = (s: any) => ({
   name: s.name,
   display_name: s.display_name || s.name,
-  status: s.status === 'draft' ? 'draft' : (s.ready_to_merge ? 'reviewed' : 'new'),
+  status: s.status === 'plan' ? 'plan' : (s.ready_to_merge ? 'reviewed' : 'new'),
   state: s.session_state,
   created_at: s.created_at ? new Date(s.created_at).toISOString() : null,
   last_activity: s.last_activity ? new Date(s.last_activity).toISOString() : null,
@@ -13,11 +13,11 @@ const formatListJson = (s: any) => ({
 })
 
 const formatListText = (s: any) => {
-  if (s.status === 'draft') {
+  if (s.status === 'plan') {
     const created = s.created_at ? new Date(s.created_at).toLocaleDateString() : 'unknown'
     const contentLength = s.draft_content?.length || 0
     const name = s.display_name || s.name
-    return `[DRAFT] ${name} - Created: ${created}, Content: ${contentLength} chars`
+    return `[PLAN] ${name} - Created: ${created}, Content: ${contentLength} chars`
   } else {
     const reviewed = s.ready_to_merge ? '[REVIEWED]' : '[NEW]'
     const agent = s.original_agent_type || 'unknown'
@@ -87,52 +87,52 @@ const validateSessionFormatting = (session: any) => {
   const text = formatListText(session)
   
   if (!session.created_at) {
-    if (session.status === 'draft') {
+    if (session.status === 'plan') {
       expect(text).toContain('Created: unknown')
     }
     expect(json.created_at).toBeNull()
   }
   
   if (!session.last_activity) {
-    if (session.status !== 'draft') {
+    if (session.status !== 'plan') {
       expect(text).toContain('Modified: never')
     }
     expect(json.last_activity).toBeNull()
   }
 }
 
-const validateDraftFormatting = (draft: any) => {
-  expect(() => formatDraftJson(draft)).not.toThrow()
-  expect(() => formatDraftText(draft)).not.toThrow()
+const validateDraftFormatting = (plan: any) => {
+  expect(() => formatDraftJson(plan)).not.toThrow()
+  expect(() => formatDraftText(plan)).not.toThrow()
   
-  const json = formatDraftJson(draft)
-  const text = formatDraftText(draft)
+  const json = formatDraftJson(plan)
+  const text = formatDraftText(plan)
   
-  if (!draft.created_at) {
+  if (!plan.created_at) {
     expect(text).toContain('Created: unknown')
     expect(json.created_at).toBeNull()
   }
   
-  if (!draft.updated_at) {
+  if (!plan.updated_at) {
     expect(text).toContain('Updated: unknown')
     expect(json.updated_at).toBeNull()
   }
 }
 
-const validateTaskFormatting = (task: any) => {
-  expect(() => formatTask(task)).not.toThrow()
+const validateTaskFormatting = (agent: any) => {
+  expect(() => formatTask(agent)).not.toThrow()
   
-  const result = formatTask(task)
+  const result = formatTask(agent)
   
-  if (!task.created_at) {
+  if (!agent.created_at) {
     expect(result.created_at).toBeNull()
-  } else if (task.created_at === 0) {
+  } else if (agent.created_at === 0) {
     expect(result.created_at).toBe('1970-01-01T00:00:00.000Z')
   }
   
-  if (!task.last_activity) {
+  if (!agent.last_activity) {
     expect(result.last_activity).toBeNull()
-  } else if (task.last_activity === 0) {
+  } else if (agent.last_activity === 0) {
     expect(result.last_activity).toBe('1970-01-01T00:00:00.000Z')
   }
 }
@@ -156,8 +156,8 @@ describe('Comprehensive MCP Null Handling', () => {
       const testSessions = [
         { name: 'test1', status: 'active', created_at: null, last_activity: null },
         { name: 'test2', status: 'active', created_at: undefined, last_activity: undefined },
-        { name: 'test3', status: 'draft', created_at: null, last_activity: null },
-        { name: 'test4', status: 'draft', created_at: undefined, last_activity: undefined },
+        { name: 'test3', status: 'plan', created_at: null, last_activity: null },
+        { name: 'test4', status: 'plan', created_at: undefined, last_activity: undefined },
         { name: 'test5', status: 'active', created_at: Date.now(), last_activity: Date.now() },
       ]
 
@@ -179,9 +179,9 @@ describe('Comprehensive MCP Null Handling', () => {
     it('should handle null/undefined dates in schaltwerk_get_current_tasks', () => {
       const testTasks = [
         { name: 'task1', status: 'active', created_at: null, last_activity: null },
-        { name: 'task2', status: 'draft', created_at: undefined, last_activity: undefined },
+        { name: 'task2', status: 'plan', created_at: undefined, last_activity: undefined },
         { name: 'task3', status: 'active', created_at: 0, last_activity: 0 },
-        { name: 'task4', status: 'draft', created_at: Date.now(), last_activity: null },
+        { name: 'task4', status: 'plan', created_at: Date.now(), last_activity: null },
         { name: 'task5', status: 'active', created_at: Date.now(), last_activity: Date.now() },
       ]
 

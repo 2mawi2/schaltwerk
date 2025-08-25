@@ -5,7 +5,7 @@ interface Props {
   sessionName: string
 }
 
-export function DraftInfoPanel({ sessionName }: Props) {
+export function PlanInfoPanel({ sessionName }: Props) {
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,10 +13,10 @@ export function DraftInfoPanel({ sessionName }: Props) {
     try {
       setStarting(true)
       setError(null)
-      // Open Start new task modal prefilled from draft instead of starting directly
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-task-from-draft', { detail: { name: sessionName } }))
+      // Open Start new agent modal prefilled from plan instead of starting directly
+      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionName } }))
     } catch (e: any) {
-      console.error('[DraftInfoPanel] Failed to open start modal from draft:', e)
+      console.error('[DraftInfoPanel] Failed to open start modal from plan:', e)
       setError(String(e))
     } finally {
       setStarting(false)
@@ -29,18 +29,18 @@ export function DraftInfoPanel({ sessionName }: Props) {
         <div className="mx-auto mb-4 h-10 w-10 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center">
           <VscRocket className="text-slate-300 text-lg" />
         </div>
-        <h3 className="text-slate-100 text-sm font-semibold mb-2">Draft Task</h3>
+        <h3 className="text-slate-100 text-sm font-semibold mb-2">Plan Agent</h3>
         <p className="text-slate-400 text-xs mb-4">
-          Start the task to create a worktree and launch the agent. You can edit the content in the main editor.
+          Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.
         </p>
         <button
           onClick={handleRun}
           disabled={starting}
           className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Run task (⌘⏎)"
+          title="Run agent (⌘⏎)"
         >
           <VscPlay className="text-xs" />
-          {starting ? 'Starting…' : 'Run Task'}
+          {starting ? 'Starting…' : 'Run Agent'}
         </button>
         {error && (
           <div className="mt-3 text-xs text-red-400">{error}</div>

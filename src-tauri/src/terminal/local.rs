@@ -31,7 +31,7 @@ pub struct LocalPtyAdapter {
     app_handle: Arc<Mutex<Option<AppHandle>>>,
     // Coalesced emitter buffers per terminal id
     emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-    // Tracks whether a flush task is scheduled per terminal id
+    // Tracks whether a flush agent is scheduled per terminal id
     emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
 }
 
@@ -381,7 +381,7 @@ impl TerminalBackend for LocalPtyAdapter {
         
         self.terminals.write().await.insert(id.clone(), state);
         
-        // Start reader task
+        // Start reader agent
         Self::start_reader(
             id.clone(),
             reader,

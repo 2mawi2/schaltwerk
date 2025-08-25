@@ -16,18 +16,18 @@ vi.mock('@tauri-apps/api/event', () => ({
 const mockSessions = [
     {
         info: {
-            session_id: 'test-draft',
-            display_name: 'Test Draft',
-            branch: 'feature/test-draft',
-            worktree_path: '/path/to/draft',
+            session_id: 'test-plan',
+            display_name: 'Test Plan',
+            branch: 'feature/test-plan',
+            worktree_path: '/path/to/plan',
             base_branch: 'main',
             merge_mode: 'rebase',
-            status: 'draft',
+            status: 'plan',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: false
         },
-        terminals: ['session-test-draft-top', 'session-test-draft-bottom']
+        terminals: ['session-test-plan-top', 'session-test-plan-bottom']
     },
     {
         info: {
@@ -112,7 +112,7 @@ describe('SessionsContext', () => {
         expect(result.current.sessions).toEqual(mockSessions)
     })
 
-    it('should update session status from draft to active', async () => {
+    it('should update session status from plan to active', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         let callCount = 0
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
@@ -126,15 +126,15 @@ describe('SessionsContext', () => {
         const { result } = renderHook(() => useSessions(), { wrapper })
 
         await act(async () => {
-            await result.current.updateSessionStatus('test-draft', 'active')
+            await result.current.updateSessionStatus('test-plan', 'active')
         })
 
         // First call is to get current sessions, second is start_draft_session, third is reload
         expect(invoke).toHaveBeenCalledWith('para_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('para_core_start_draft_session', { name: 'test-draft' })
+        expect(invoke).toHaveBeenCalledWith('para_core_start_draft_session', { name: 'test-plan' })
     })
 
-    it('should update session status from active to draft', async () => {
+    it('should update session status from active to plan', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'para_core_list_enriched_sessions') return mockSessions
@@ -146,7 +146,7 @@ describe('SessionsContext', () => {
         const { result } = renderHook(() => useSessions(), { wrapper })
 
         await act(async () => {
-            await result.current.updateSessionStatus('test-active', 'draft')
+            await result.current.updateSessionStatus('test-active', 'plan')
         })
 
         expect(invoke).toHaveBeenCalledWith('para_core_list_enriched_sessions')
@@ -172,7 +172,7 @@ describe('SessionsContext', () => {
         expect(invoke).toHaveBeenCalledWith('para_core_mark_ready', { name: 'test-active' })
     })
 
-    it('should create a new draft session', async () => {
+    it('should create a new plan session', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'para_core_list_enriched_sessions') return mockSessions
@@ -184,12 +184,12 @@ describe('SessionsContext', () => {
         const { result } = renderHook(() => useSessions(), { wrapper })
 
         await act(async () => {
-            await result.current.createDraft('new-draft', '# New Draft')
+            await result.current.createDraft('new-plan', '# New Plan')
         })
 
         expect(invoke).toHaveBeenCalledWith('para_core_create_draft_session', {
-            name: 'new-draft',
-            content: '# New Draft'
+            name: 'new-plan',
+            content: '# New Plan'
         })
     })
 
@@ -255,11 +255,11 @@ describe('SessionsContext', () => {
         // Simulate removal event
         act(() => {
             if (listeners['schaltwerk:session-removed']) {
-                listeners['schaltwerk:session-removed']({ payload: { session_name: 'test-draft' } })
+                listeners['schaltwerk:session-removed']({ payload: { session_name: 'test-plan' } })
             }
         })
 
         expect(result.current.sessions).toHaveLength(2)
-        expect(result.current.sessions.find(s => s.info.session_id === 'test-draft')).toBeUndefined()
+        expect(result.current.sessions.find(s => s.info.session_id === 'test-plan')).toBeUndefined()
     })
 })

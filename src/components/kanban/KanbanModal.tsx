@@ -64,8 +64,8 @@ export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <h2 className="text-xl font-semibold text-white">Task Board</h2>
-            <span className="text-sm text-slate-400">Drag tasks between columns to change their status</span>
+            <h2 className="text-xl font-semibold text-white">Agent Board</h2>
+            <span className="text-sm text-slate-400">Drag agents and plans between columns to change their status</span>
           </div>
           <button
             onClick={onClose}

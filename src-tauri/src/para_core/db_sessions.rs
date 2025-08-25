@@ -19,8 +19,8 @@ pub trait SessionMethods {
     fn update_session_branch(&self, id: &str, new_branch: &str) -> Result<()>;
     fn update_session_ready_to_merge(&self, id: &str, ready: bool) -> Result<()>;
     fn update_session_state(&self, id: &str, state: SessionState) -> Result<()>;
-    fn update_draft_content(&self, id: &str, content: &str) -> Result<()>;
-    fn append_draft_content(&self, id: &str, content: &str) -> Result<()>;
+    fn update_plan_content(&self, id: &str, content: &str) -> Result<()>;
+    fn append_plan_content(&self, id: &str, content: &str) -> Result<()>;
     fn update_session_initial_prompt(&self, id: &str, prompt: &str) -> Result<()>;
     fn set_pending_name_generation(&self, id: &str, pending: bool) -> Result<()>;
     fn set_session_original_settings(&self, session_id: &str, agent_type: &str, skip_permissions: bool) -> Result<()>;
@@ -37,7 +37,7 @@ impl SessionMethods for Database {
                 branch, parent_branch, worktree_path,
                 status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                 original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                draft_content, session_state
+                plan_content, session_state
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
             params![
                 session.id,
@@ -58,7 +58,7 @@ impl SessionMethods for Database {
                 session.original_skip_permissions,
                 session.pending_name_generation,
                 session.was_auto_generated,
-                session.draft_content,
+                session.plan_content,
                 session.session_state.as_str(),
             ],
         )?;
@@ -74,7 +74,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    draft_content, session_state
+                    plan_content, session_state
              FROM sessions
              WHERE repository_path = ?1 AND name = ?2"
         )?;
@@ -102,7 +102,7 @@ impl SessionMethods for Database {
                     original_skip_permissions: row.get(15).ok(),
                     pending_name_generation: row.get(16).unwrap_or(false),
                     was_auto_generated: row.get(17).unwrap_or(false),
-                    draft_content: row.get(18).ok(),
+                    plan_content: row.get(18).ok(),
                     session_state: row.get::<_, String>(19).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
@@ -121,7 +121,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    draft_content, session_state
+                    plan_content, session_state
              FROM sessions
              WHERE id = ?1"
         )?;
@@ -149,7 +149,7 @@ impl SessionMethods for Database {
                     original_skip_permissions: row.get(15).ok(),
                     pending_name_generation: row.get(16).unwrap_or(false),
                     was_auto_generated: row.get(17).unwrap_or(false),
-                    draft_content: row.get(18).ok(),
+                    plan_content: row.get(18).ok(),
                     session_state: row.get::<_, String>(19).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
@@ -164,7 +164,7 @@ impl SessionMethods for Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT draft_content, initial_prompt
+            "SELECT plan_content, initial_prompt
              FROM sessions
              WHERE repository_path = ?1 AND name = ?2"
         )?;
@@ -190,7 +190,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    draft_content, session_state
+                    plan_content, session_state
              FROM sessions
              WHERE repository_path = ?1
              ORDER BY ready_to_merge ASC, last_activity DESC"
@@ -219,7 +219,7 @@ impl SessionMethods for Database {
                     original_skip_permissions: row.get(15).ok(),
                     pending_name_generation: row.get(16).unwrap_or(false),
                     was_auto_generated: row.get(17).unwrap_or(false),
-                    draft_content: row.get(18).ok(),
+                    plan_content: row.get(18).ok(),
                     session_state: row.get::<_, String>(19).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
@@ -239,7 +239,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    draft_content, session_state
+                    plan_content, session_state
              FROM sessions
              WHERE status = 'active'
              ORDER BY ready_to_merge ASC, last_activity DESC"
@@ -268,7 +268,7 @@ impl SessionMethods for Database {
                     original_skip_permissions: row.get(15).ok(),
                     pending_name_generation: row.get(16).unwrap_or(false),
                     was_auto_generated: row.get(17).unwrap_or(false),
-                    draft_content: row.get(18).ok(),
+                    plan_content: row.get(18).ok(),
                     session_state: row.get::<_, String>(19).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
@@ -350,7 +350,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    draft_content, session_state
+                    plan_content, session_state
              FROM sessions
              WHERE repository_path = ?1 AND session_state = ?2
              ORDER BY ready_to_merge ASC, last_activity DESC"
@@ -379,7 +379,7 @@ impl SessionMethods for Database {
                     original_skip_permissions: row.get(15).ok(),
                     pending_name_generation: row.get(16).unwrap_or(false),
                     was_auto_generated: row.get(17).unwrap_or(false),
-                    draft_content: row.get(18).ok(),
+                    plan_content: row.get(18).ok(),
                     session_state: row.get::<_, String>(19).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
@@ -404,12 +404,12 @@ impl SessionMethods for Database {
         Ok(())
     }
 
-    fn update_draft_content(&self, id: &str, content: &str) -> Result<()> {
+    fn update_plan_content(&self, id: &str, content: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         
         conn.execute(
             "UPDATE sessions
-             SET draft_content = ?1, updated_at = ?2
+             SET plan_content = ?1, updated_at = ?2
              WHERE id = ?3",
             params![content, Utc::now().timestamp(), id],
         )?;
@@ -417,14 +417,14 @@ impl SessionMethods for Database {
         Ok(())
     }
 
-    fn append_draft_content(&self, id: &str, content: &str) -> Result<()> {
+    fn append_plan_content(&self, id: &str, content: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         
         conn.execute(
             "UPDATE sessions
-             SET draft_content = CASE 
-                 WHEN draft_content IS NULL OR draft_content = '' THEN ?1
-                 ELSE draft_content || char(10) || ?1
+             SET plan_content = CASE 
+                 WHEN plan_content IS NULL OR plan_content = '' THEN ?1
+                 ELSE plan_content || char(10) || ?1
              END,
              updated_at = ?2
              WHERE id = ?3",
@@ -459,10 +459,10 @@ impl SessionMethods for Database {
     fn rename_draft_session(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()> {
         let conn = self.conn.lock().unwrap();
         
-        // First check if the session exists and is a draft
+        // First check if the session exists and is a plan
         let session = self.get_session_by_name(repo_path, old_name)?;
-        if session.session_state != SessionState::Draft {
-            return Err(anyhow::anyhow!("Can only rename draft sessions"));
+        if session.session_state != SessionState::Plan {
+            return Err(anyhow::anyhow!("Can only rename plan sessions"));
         }
         
         // Check if the new name is already taken

@@ -13,10 +13,10 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         content: (
             <div>
                 <p className="mb-4">
-                    Schaltwerk is a visual interface for managing AI-powered development sessions. It helps you work with different AI agents to complete coding tasks efficiently.
+                    Schaltwerk is a visual interface for managing AI-powered development agents. It helps you work with different AI agents to complete coding agents efficiently.
                 </p>
                 <p className="mb-4">
-                    Each session runs in its own isolated environment (called a worktree), so you can work on multiple tasks simultaneously without conflicts.
+                    Each session runs in its own isolated environment (called a worktree), so you can work on multiple agents simultaneously without conflicts.
                 </p>
                 <p className="text-sm text-slate-400">
                     This tutorial will show you the key features and how to get started.
@@ -32,10 +32,10 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     Schaltwerk's interface is designed for efficient keyboard-driven workflow:
                 </p>
                 <ul className="list-disc pl-6 mb-4 space-y-2">
-                    <li><strong>Left Sidebar:</strong> Session list and project navigation</li>
+                    <li><strong>Left Sidebar:</strong> Agent list and project navigation</li>
                     <li><strong>Center Panel:</strong> AI Agent workspace (Claude, Cursor, Gemini, etc.)</li>
-                    <li><strong>Bottom Terminals:</strong> Command-line access for development tasks</li>
-                    <li><strong>Right Panel:</strong> Diff viewer for changes or Tasks/Drafts overview</li>
+                    <li><strong>Bottom Terminals:</strong> Command-line access for development agents</li>
+                    <li><strong>Right Panel:</strong> Diff viewer for changes or Agents/Plans overview</li>
                 </ul>
                 <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
                     <div className="flex items-start gap-2">
@@ -47,7 +47,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 <strong>Keyboard-First:</strong> Schaltwerk is fully controllable via keyboard shortcuts for rapid context switching.
                             </p>
                             <p className="text-blue-300/80 text-sm mt-1">
-                                Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd> to switch sessions, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> for AI agent, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> for terminals.
+                                Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd> to switch agents, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> for AI agent, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> for terminals.
                             </p>
                         </div>
                     </div>
@@ -64,18 +64,18 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </p>
                 <div className="space-y-3 mb-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-blue-400 font-medium mb-2">Regular Sessions</h4>
-                        <p className="text-sm text-slate-300 mb-2">Start immediately with an AI agent working on your task.</p>
+                        <h4 className="text-blue-400 font-medium mb-2">Running Agents</h4>
+                        <p className="text-sm text-slate-300 mb-2">Start immediately with an AI agent working on your agent.</p>
                         <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">⌘N</kbd>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-amber-400 font-medium mb-2">Draft Sessions</h4>
-                        <p className="text-sm text-slate-300 mb-2">Create a workspace to plan your task before starting the AI agent.</p>
+                        <h4 className="text-amber-400 font-medium mb-2">Plans</h4>
+                        <p className="text-sm text-slate-300 mb-2">Create a workspace to plan your agent before starting the AI agent.</p>
                         <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">⇧⌘N</kbd>
                     </div>
                 </div>
                 <p className="text-sm text-slate-400">
-                    Use drafts to refine your task description, gather requirements, or prepare context before the AI agent begins work.
+                    Use plans to gather requirements, design solutions, or prepare context before the AI agent begins work.
                 </p>
             </div>
         ),
@@ -83,11 +83,11 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         action: 'highlight'
     },
     {
-        title: "The Orchestrator - Your Control Center",
+        title: "The Commander - Your Control Center",
         content: (
             <div>
                 <p className="mb-4">
-                    The <strong>Orchestrator</strong> is your project's control center. When connected to Schaltwerk's MCP server, it becomes a powerful natural language interface for managing all sessions.
+                    The <strong>Commander</strong> is your project's control center. When connected to Schaltwerk's MCP server, it becomes a powerful natural language interface for managing all agents.
                 </p>
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded p-3 mb-4">
                     <div className="flex items-start gap-2">
@@ -102,10 +102,10 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 Connect the MCP server to enable natural language commands:
                             </p>
                             <ul className="text-xs text-purple-300/70 space-y-1 list-disc list-inside">
-                                <li>"Which of my draft tasks are most important to continue?"</li>
-                                <li>"Review tasks X, Y, Z and mark them as reviewed"</li>
-                                <li>"Squash merge all reviewed tasks into main"</li>
-                                <li>"Split this feature into parallel tasks and start them"</li>
+                                <li>"Which of my plans are most important to continue?"</li>
+                                <li>"Review agents X, Y, Z and mark them as reviewed"</li>
+                                <li>"Squash merge all reviewed agents into main"</li>
+                                <li>"Split this feature into parallel agents and start them"</li>
                                 <li>"Send follow-up message to session Y about the test failures"</li>
                                 <li>"Resolve merge conflicts between sessions A and B"</li>
                             </ul>
@@ -114,7 +114,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </div>
                 <div className="text-sm text-slate-400">
                     <p className="mb-2">
-                        <strong>Ideal workflow:</strong> Plan tasks → Launch sessions → Review (manually or via orchestrator) → Merge & integrate
+                        <strong>Ideal workflow:</strong> Create plans → Start agents → Review (manually or via commander) → Merge & integrate
                     </p>
                     <p>
                         Access with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> • Connect MCP in Settings
@@ -136,9 +136,9 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     <div className="text-sm">
                         <strong className="text-slate-200">Session Navigation:</strong>
                         <ul className="list-disc pl-6 mt-1 space-y-1">
-                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1-9</kbd> Jump to specific session by number</li>
+                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1-9</kbd> Jump to specific agent by number</li>
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd> Cycle through sessions smoothly</li>
-                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> Switch to Orchestrator</li>
+                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> Switch to Commander</li>
                         </ul>
                     </div>
                     <div className="text-sm">
@@ -158,7 +158,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     </div>
                 </div>
                 <p className="text-sm text-slate-400">
-                    The goal is minimal context switching - stay focused on your work while seamlessly managing multiple parallel tasks.
+                    The goal is minimal context switching - stay focused on your work while seamlessly managing multiple parallel agents.
                 </p>
             </div>
         )
@@ -168,7 +168,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         content: (
             <div>
                 <p className="mb-4">
-                    Action buttons provide instant access to common AI prompts. They appear in the terminal header for both orchestrator and session views.
+                    Action buttons provide instant access to common AI prompts. They appear in the terminal header for both commander and session views.
                 </p>
                 <div className="bg-green-900/30 border border-green-700/50 rounded p-3 mb-4">
                     <div className="flex items-start gap-2">
@@ -183,7 +183,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 Default action buttons help you:
                             </p>
                             <ul className="text-xs text-green-300/70 space-y-1 list-disc list-inside">
-                                <li><strong>Merge:</strong> Find and merge all reviewed sessions to main branch</li>
+                                <li><strong>Merge:</strong> Find and merge all reviewed agents to main branch</li>
                                 <li><strong>PR:</strong> Create pull requests with comprehensive descriptions</li>
                                 <li><strong>Test:</strong> Run tests and automatically fix failures</li>
                             </ul>
@@ -197,14 +197,14 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                             Configure up to 6 custom buttons in Settings → Action Buttons with prompts specific to your workflow:
                         </p>
                         <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside mb-2">
-                            <li>Define custom AI prompts for repetitive tasks</li>
+                            <li>Define custom AI prompts for repetitive agents</li>
                             <li>Choose colors for visual organization</li>
                             <li>Use keyboard shortcuts F1-F6 for instant access</li>
                         </ul>
                         <div className="bg-slate-900/50 rounded p-2 mt-2">
                             <p className="text-xs text-slate-300 mb-1"><strong>Example custom prompts:</strong></p>
                             <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
-                                <li>"Find all reviewed sessions with the Schaltwerk MCP, then squash and merge to main"</li>
+                                <li>"Find all reviewed agents with the Schaltwerk MCP, then squash and merge to main"</li>
                                 <li>"Create a comprehensive PR description analyzing all changes and their impact"</li>
                                 <li>"Run all tests, fix any failures, then prepare for deployment"</li>
                             </ul>
@@ -270,17 +270,17 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         )
     },
     {
-        title: "Code Review & Task Management",
+        title: "Code Review & Agent Management",
         content: (
             <div>
                 <p className="mb-4">
-                    The right panel adapts to your workflow, showing tasks during development and changes during review:
+                    The right panel adapts to your workflow, showing agents during development and changes during review:
                 </p>
                 <div className="space-y-3 mb-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-green-400 font-medium mb-2">Tasks Tab - Your Testing Checklist</h4>
+                        <h4 className="text-green-400 font-medium mb-2">Agents Tab - Your Testing Checklist</h4>
                         <p className="text-sm text-slate-300 mb-2">
-                            When running tests via terminal, the Tasks tab keeps your test checklist visible as a reminder of what needs validation.
+                            When running tests via terminal, the Agents tab keeps your test checklist visible as a reminder of what needs validation.
                         </p>
                         <p className="text-sm text-slate-300">
                             Perfect for tracking progress during manual testing and verification.
@@ -318,8 +318,8 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                         <div>
                             <h4 className="text-slate-200 font-medium mb-2">Getting Started</h4>
                             <ul className="space-y-1 text-slate-400">
-                                <li>• Create sessions with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘N</kbd> or drafts with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⇧⌘N</kbd></li>
-                                <li>• Switch sessions instantly with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd></li>
+                                <li>• Start agents with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘N</kbd> or plans with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⇧⌘N</kbd></li>
+                                <li>• Switch agents instantly with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd></li>
                                 <li>• Focus panels with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> (agent) or <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> (terminal)</li>
                                 <li>• Use action buttons <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">F1-F6</kbd> for AI prompts</li>
                             </ul>
@@ -328,8 +328,8 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                             <h4 className="text-slate-200 font-medium mb-2">Advanced Workflow</h4>
                             <ul className="space-y-1 text-slate-400">
                                 <li>• Review with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘G</kbd> and add comments</li>
-                                <li>• Use orchestrator for natural language control</li>
-                                <li>• Manage parallel tasks efficiently</li>
+                                <li>• Use commander for natural language control</li>
+                                <li>• Manage parallel agents efficiently</li>
                                 <li>• Customize action buttons for your workflow</li>
                             </ul>
                         </div>

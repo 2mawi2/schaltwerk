@@ -1,6 +1,6 @@
 export enum FilterMode {
     All = 'all',
-    Draft = 'draft',
+    Plan = 'plan',
     Running = 'running',
     Reviewed = 'reviewed'
 }

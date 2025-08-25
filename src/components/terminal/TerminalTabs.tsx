@@ -7,7 +7,7 @@ interface TerminalTabsProps {
   workingDirectory: string
   className?: string
   sessionName?: string
-  isOrchestrator?: boolean
+  isCommander?: boolean
   maxTabs?: number
   agentType?: string
 }
@@ -21,7 +21,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   workingDirectory,
   className = '',
   sessionName,
-  isOrchestrator = false,
+  isCommander = false,
   maxTabs = 6,
   agentType
 }, ref) => {
@@ -130,7 +130,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
               terminalId={tab.terminalId}
               className="h-full w-full"
               sessionName={sessionName}
-              isOrchestrator={isOrchestrator}
+              isCommander={isCommander}
               agentType={agentType}
             />
           </div>

@@ -14,18 +14,18 @@ pub async fn handle_mcp_request(
     let path = req.uri().path().to_string();
     
     match (&method, path.as_str()) {
-        (&Method::POST, "/api/drafts") => create_draft(req).await,
-        (&Method::GET, "/api/drafts") => list_drafts().await,
-        (&Method::PATCH, path) if path.starts_with("/api/drafts/") && !path.ends_with("/start") => {
-            let name = extract_draft_name(path, "/api/drafts/");
-            update_draft_content(req, &name, app).await
+        (&Method::POST, "/api/plans") => create_draft(req).await,
+        (&Method::GET, "/api/plans") => list_drafts().await,
+        (&Method::PATCH, path) if path.starts_with("/api/plans/") && !path.ends_with("/start") => {
+            let name = extract_draft_name(path, "/api/plans/");
+            update_plan_content(req, &name, app).await
         }
-        (&Method::POST, path) if path.starts_with("/api/drafts/") && path.ends_with("/start") => {
+        (&Method::POST, path) if path.starts_with("/api/plans/") && path.ends_with("/start") => {
             let name = extract_draft_name_for_start(path);
             start_draft_session(req, &name, app).await
         }
-        (&Method::DELETE, path) if path.starts_with("/api/drafts/") => {
-            let name = extract_draft_name(path, "/api/drafts/");
+        (&Method::DELETE, path) if path.starts_with("/api/plans/") => {
+            let name = extract_draft_name(path, "/api/plans/");
             delete_draft(&name, app).await
         }
         (&Method::POST, "/api/sessions") => create_session(req, app).await,
@@ -48,7 +48,7 @@ fn extract_draft_name(path: &str, prefix: &str) -> String {
 }
 
 fn extract_draft_name_for_start(path: &str) -> String {
-    let prefix = "/api/drafts/";
+    let prefix = "/api/plans/";
     let suffix = "/start";
     let name = &path[prefix.len()..path.len() - suffix.len()];
     urlencoding::decode(name).unwrap_or(std::borrow::Cow::Borrowed(name)).to_string()
@@ -85,7 +85,7 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
         Ok(p) => p,
         Err(e) => {
-            error!("Failed to parse draft creation request: {e}");
+            error!("Failed to parse plan creation request: {e}");
             return Ok(error_response(StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")));
         }
     };
@@ -111,7 +111,7 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     
     match manager.create_draft_session(name, content) {
         Ok(session) => {
-            info!("Created draft session via API: {name}");
+            info!("Created plan session via API: {name}");
             let json = serde_json::to_string(&session).unwrap_or_else(|e| {
                 error!("Failed to serialize session: {e}");
                 "{}".to_string()
@@ -119,8 +119,8 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
             Ok(json_response(StatusCode::CREATED, json))
         },
         Err(e) => {
-            error!("Failed to create draft session: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create draft: {e}")))
+            error!("Failed to create plan session: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create plan: {e}")))
         }
     }
 }
@@ -137,7 +137,7 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    match manager.list_sessions_by_state(SessionState::Draft) {
+    match manager.list_sessions_by_state(SessionState::Plan) {
         Ok(sessions) => {
             let json = serde_json::to_string(&sessions).unwrap_or_else(|e| {
                 error!("Failed to serialize sessions: {e}");
@@ -146,13 +146,13 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
             Ok(json_response(StatusCode::OK, json))
         },
         Err(e) => {
-            error!("Failed to list draft sessions: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list drafts: {e}")))
+            error!("Failed to list plan sessions: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list plans: {e}")))
         }
     }
 }
 
-async fn update_draft_content(
+async fn update_plan_content(
     req: Request<Incoming>,
     name: &str,
     app: tauri::AppHandle,
@@ -162,7 +162,7 @@ async fn update_draft_content(
     let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
         Ok(p) => p,
         Err(e) => {
-            error!("Failed to parse draft update request: {e}");
+            error!("Failed to parse plan update request: {e}");
             return Ok(error_response(StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")));
         }
     };
@@ -188,12 +188,12 @@ async fn update_draft_content(
     let manager = core_lock.session_manager();
     
     match if append {
-        manager.append_draft_content(name, content)
+        manager.append_plan_content(name, content)
     } else {
-        manager.update_draft_content(name, content)
+        manager.update_plan_content(name, content)
     } {
         Ok(()) => {
-            info!("Updated draft content via API: {name}");
+            info!("Updated plan content via API: {name}");
             
             // Emit events to update UI
             if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<serde_json::Value>::new()) {
@@ -203,8 +203,8 @@ async fn update_draft_content(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to update draft content: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update draft: {e}")))
+            error!("Failed to update plan content: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update plan: {e}")))
         }
     }
 }
@@ -238,7 +238,7 @@ async fn start_draft_session(
     
     match manager.start_draft_session(name, base_branch.as_deref()) {
         Ok(()) => {
-            info!("Started draft session via API: {name}");
+            info!("Started plan session via API: {name}");
             
             if let Ok(sessions) = manager.list_enriched_sessions() {
                 if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -248,8 +248,8 @@ async fn start_draft_session(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to start draft session: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start draft: {e}")))
+            error!("Failed to start plan session: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start plan: {e}")))
         }
     }
 }
@@ -271,7 +271,7 @@ async fn delete_draft(
     
     match manager.cancel_session(name) {
         Ok(()) => {
-            info!("Deleted draft session via API: {name}");
+            info!("Deleted plan session via API: {name}");
             
             #[derive(serde::Serialize, Clone)]
             struct SessionRemovedPayload { session_name: String }
@@ -282,8 +282,8 @@ async fn delete_draft(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to delete draft session: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete draft: {e}")))
+            error!("Failed to delete plan session: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete plan: {e}")))
         }
     }
 }
@@ -361,8 +361,8 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
         filter_state = Some(SessionState::Reviewed);
     } else if query.contains("state=running") {
         filter_state = Some(SessionState::Running);
-    } else if query.contains("state=draft") {
-        filter_state = Some(SessionState::Draft);
+    } else if query.contains("state=plan") {
+        filter_state = Some(SessionState::Plan);
     }
     
     let core = match get_para_core().await {
@@ -384,7 +384,7 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
                     match state {
                         SessionState::Reviewed => s.info.ready_to_merge,
                         SessionState::Running => !s.info.ready_to_merge && s.info.session_state == SessionState::Running,
-                        SessionState::Draft => s.info.session_state == SessionState::Draft,
+                        SessionState::Plan => s.info.session_state == SessionState::Plan,
                     }
                 });
             }

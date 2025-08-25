@@ -391,7 +391,7 @@ impl SessionManager {
             // regardless of whether a prompt was provided. The generator uses a default prompt.
             pending_name_generation: was_auto_generated,
             was_auto_generated,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         
@@ -512,7 +512,7 @@ impl SessionManager {
             return Err(anyhow!("Session '{}' is not in running state", name));
         }
         
-        log::info!("Converting session '{name}' from running to draft");
+        log::info!("Converting session '{name}' from running to plan");
         
         // Check for uncommitted changes and warn
         let has_uncommitted = if session.worktree_path.exists() {
@@ -522,7 +522,7 @@ impl SessionManager {
         };
         
         if has_uncommitted {
-            log::warn!("Converting session '{name}' to draft with uncommitted changes");
+            log::warn!("Converting session '{name}' to plan with uncommitted changes");
         }
         
         // Remove worktree first (required before branch operations)
@@ -548,15 +548,15 @@ impl SessionManager {
             }
         }
         
-        // Update session to draft state
-        self.db.update_session_status(&session.id, SessionStatus::Draft)?;
-        self.db.update_session_state(&session.id, SessionState::Draft)?;
+        // Update session to plan state
+        self.db.update_session_status(&session.id, SessionStatus::Plan)?;
+        self.db.update_session_state(&session.id, SessionState::Plan)?;
         
         // Clear the prompted state so it can be prompted again when restarted
         clear_session_prompted(&session.worktree_path);
         log::info!("Cleared prompt state for session '{name}'");
         
-        log::info!("Successfully converted session '{name}' to draft");
+        log::info!("Successfully converted session '{name}' to plan");
         
         Ok(())
     }
@@ -707,7 +707,7 @@ impl SessionManager {
             let status_type = match session.status {
                 SessionStatus::Active => SessionStatusType::Active,
                 SessionStatus::Cancelled => SessionStatusType::Archived,
-                SessionStatus::Draft => SessionStatusType::Draft,
+                SessionStatus::Plan => SessionStatusType::Plan,
             };
             
             let original_agent_type = session
@@ -733,7 +733,7 @@ impl SessionManager {
                 current_task: session.initial_prompt.clone(),
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
-                draft_content: session.draft_content.clone(),
+                plan_content: session.plan_content.clone(),
                 session_state: session.session_state.clone(),
             };
             
@@ -769,9 +769,9 @@ impl SessionManager {
     fn apply_session_filter(&self, sessions: Vec<EnrichedSession>, filter_mode: &FilterMode) -> Vec<EnrichedSession> {
         match filter_mode {
             FilterMode::All => sessions,
-            FilterMode::Draft => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Draft).collect(),
+            FilterMode::Plan => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Plan).collect(),
             FilterMode::Running => sessions.into_iter().filter(|s| {
-                s.info.session_state != SessionState::Draft && !s.info.ready_to_merge
+                s.info.session_state != SessionState::Plan && !s.info.ready_to_merge
             }).collect(),
             FilterMode::Reviewed => sessions.into_iter().filter(|s| s.info.ready_to_merge).collect(),
         }
@@ -876,7 +876,7 @@ impl SessionManager {
                 let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     // Always use initial prompt when session hasn't been prompted,
                     // regardless of whether OpenCode session has history.
-                    // This allows draft->session transitions to work properly.
+                    // This allows plan->session transitions to work properly.
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
                         p.as_str()
@@ -980,7 +980,7 @@ impl SessionManager {
                 crate::para_core::claude::build_claude_command_with_config(
                     &session.worktree_path,
                     // Don't resume existing session if we have a prompt to pass
-                    // This ensures draft content creates a fresh conversation
+                    // This ensures plan content creates a fresh conversation
                     session_id_to_use,
                     prompt_to_use,
                     skip_permissions,
@@ -1001,7 +1001,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_fresh_with_binary(&self, binary_paths: &std::collections::HashMap<String, String>) -> Result<String> {
-        log::info!("Building FRESH orchestrator command (no session resume) for repo: {}", self.repo_path.display());
+        log::info!("Building FRESH commander command (no session resume) for repo: {}", self.repo_path.display());
         
         // Validate that the repo path exists and is accessible
         if !self.repo_path.exists() {
@@ -1012,13 +1012,13 @@ impl SessionManager {
         // Check if it's a git repository
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!("The folder '{}' is not a git repository. The commander requires a git repository to function.", self.repo_path.display()));
         }
         
         let skip_permissions = self.db.get_skip_permissions()?;
         let agent_type = self.db.get_agent_type()?;
         
-        log::info!("Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Fresh commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         let command = match agent_type.as_str() {
             "cursor" => {
@@ -1061,7 +1061,7 @@ impl SessionManager {
                 )
             }
             "codex" => {
-                // For Codex orchestrator, use workspace-write as default sandbox mode
+                // For Codex commander, use workspace-write as default sandbox mode
                 let sandbox_mode = if skip_permissions {
                     "danger-full-access"
                 } else {
@@ -1108,7 +1108,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_with_args_and_binary(&self, _cli_args: Option<&str>, binary_paths: &std::collections::HashMap<String, String>) -> Result<String> {
-        log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
+        log::info!("Building commander command for repo: {}", self.repo_path.display());
         
         // Validate that the repo path exists and is accessible
         if !self.repo_path.exists() {
@@ -1119,13 +1119,13 @@ impl SessionManager {
         // Check if it's a git repository
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!("The folder '{}' is not a git repository. The commander requires a git repository to function.", self.repo_path.display()));
         }
         
         let skip_permissions = self.db.get_skip_permissions()?;
         let agent_type = self.db.get_agent_type()?;
         
-        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         let command = match agent_type.as_str() {
             "cursor" => {
@@ -1178,7 +1178,7 @@ impl SessionManager {
             }
             "codex" => {
                 let session_id = crate::para_core::codex::find_codex_session(&self.repo_path);
-                // For Codex orchestrator, use workspace-write as default sandbox mode
+                // For Codex commander, use workspace-write as default sandbox mode
                 let sandbox_mode = if skip_permissions {
                     "danger-full-access"
                 } else {
@@ -1244,13 +1244,13 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn create_draft_session(&self, name: &str, draft_content: &str) -> Result<Session> {
-        log::info!("Creating draft session '{}' in repository: {}", name, self.repo_path.display());
+    pub fn create_draft_session(&self, name: &str, plan_content: &str) -> Result<Session> {
+        log::info!("Creating plan session '{}' in repository: {}", name, self.repo_path.display());
         
         let repo_lock = Self::get_repo_lock(&self.repo_path);
         let _guard = repo_lock.lock().map_err(|e| {
-            error!("Repository lock poisoned during draft creation: {e}");
-            anyhow!("Failed to acquire repository lock for draft creation")
+            error!("Repository lock poisoned during plan creation: {e}");
+            anyhow!("Failed to acquire repository lock for plan creation")
         })?;
         
         if !git::is_valid_session_name(name) {
@@ -1277,7 +1277,7 @@ impl SessionManager {
             branch: branch.clone(),
             parent_branch: "main".to_string(),
             worktree_path: worktree_path.clone(),
-            status: SessionStatus::Draft,
+            status: SessionStatus::Plan,
             created_at: now,
             updated_at: now,
             last_activity: None,
@@ -1287,34 +1287,34 @@ impl SessionManager {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: Some(draft_content.to_string()),
-            session_state: SessionState::Draft,
+            plan_content: Some(plan_content.to_string()),
+            session_state: SessionState::Plan,
         };
         
         if let Err(e) = self.db.create_session(&session) {
             // Release reservation on failure to persist session
             self.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save draft session to database: {}", e));
+            return Err(anyhow!("Failed to save plan session to database: {}", e));
         }
         
-        // Draft persisted successfully; reservation no longer needed
+        // Plan persisted successfully; reservation no longer needed
         self.unreserve_name(&unique_name);
         Ok(session)
     }
 
     pub fn start_draft_session(&self, session_name: &str, base_branch: Option<&str>) -> Result<()> {
-        log::info!("Starting draft session '{}' in repository: {}", session_name, self.repo_path.display());
+        log::info!("Starting plan session '{}' in repository: {}", session_name, self.repo_path.display());
         
         let repo_lock = Self::get_repo_lock(&self.repo_path);
         let _guard = repo_lock.lock().map_err(|e| {
-            error!("Repository lock poisoned during draft start: {e}");
-            anyhow!("Failed to acquire repository lock for starting draft session")
+            error!("Repository lock poisoned during plan start: {e}");
+            anyhow!("Failed to acquire repository lock for starting plan session")
         })?;
         
         let session = self.db.get_session_by_name(&self.repo_path, session_name)?;
         
-        if session.session_state != SessionState::Draft {
-            return Err(anyhow!("Session '{}' is not in draft state", session_name));
+        if session.session_state != SessionState::Plan {
+            return Err(anyhow!("Session '{}' is not in plan state", session_name));
         }
         
         let parent_branch = if let Some(base) = base_branch {
@@ -1346,19 +1346,19 @@ impl SessionManager {
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
         
-        // Update both status and state when starting a draft
+        // Update both status and state when starting a plan
         self.db.update_session_status(&session.id, SessionStatus::Active)?;
         self.db.update_session_state(&session.id, SessionState::Running)?;
         
-        // Copy draft_content to initial_prompt so Claude/Cursor can use it
-        if let Some(draft_content) = session.draft_content {
-            log::info!("Copying draft content to initial_prompt for session '{session_name}': '{draft_content}'");
-            self.db.update_session_initial_prompt(&session.id, &draft_content)?;
+        // Copy plan_content to initial_prompt so Claude/Cursor can use it
+        if let Some(plan_content) = session.plan_content {
+            log::info!("Copying plan content to initial_prompt for session '{session_name}': '{plan_content}'");
+            self.db.update_session_initial_prompt(&session.id, &plan_content)?;
             // Clear the prompted state so the initial_prompt will be used when agent starts
             clear_session_prompted(&session.worktree_path);
-            log::info!("Cleared prompt state for session '{session_name}' to ensure draft content is used");
+            log::info!("Cleared prompt state for session '{session_name}' to ensure plan content is used");
         } else {
-            log::warn!("No draft_content found for session '{session_name}' - initial_prompt will not be set");
+            log::warn!("No plan_content found for session '{session_name}' - initial_prompt will not be set");
         }
         
         let global_agent = self.db.get_agent_type().unwrap_or_else(|_| "claude".to_string());
@@ -1383,15 +1383,15 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn update_draft_content(&self, session_name: &str, content: &str) -> Result<()> {
+    pub fn update_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
         let session = self.db.get_session_by_name(&self.repo_path, session_name)?;
-        self.db.update_draft_content(&session.id, content)?;
+        self.db.update_plan_content(&session.id, content)?;
         Ok(())
     }
 
-    pub fn append_draft_content(&self, session_name: &str, content: &str) -> Result<()> {
+    pub fn append_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
         let session = self.db.get_session_by_name(&self.repo_path, session_name)?;
-        self.db.append_draft_content(&session.id, content)?;
+        self.db.append_plan_content(&session.id, content)?;
         Ok(())
     }
 
@@ -1463,7 +1463,7 @@ mod session_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         
@@ -1526,7 +1526,7 @@ mod session_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         
@@ -1694,7 +1694,7 @@ mod session_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         
@@ -1713,7 +1713,7 @@ mod session_tests {
         use std::path::PathBuf;
         
         // This test verifies that PROMPTED_SESSIONS is properly cleared
-        // when a session is converted to draft
+        // when a session is converted to plan
         
         // Create a mock worktree path
         let worktree_path = PathBuf::from("/tmp/test-worktree");
@@ -1725,7 +1725,7 @@ mod session_tests {
         mark_session_prompted(&worktree_path);
         assert!(has_session_been_prompted(&worktree_path), "Session should be marked as prompted");
         
-        // Clear the prompted state (simulating conversion to draft)
+        // Clear the prompted state (simulating conversion to plan)
         clear_session_prompted(&worktree_path);
         
         // After clearing, it should not be prompted anymore
@@ -1793,7 +1793,7 @@ mod session_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         manager.db.create_session(&base_session).unwrap();
@@ -1861,7 +1861,7 @@ mod session_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         manager.db.create_session(&base_session).unwrap();
@@ -1896,7 +1896,7 @@ mod session_tests {
                 original_skip_permissions: None,
                 pending_name_generation: false,
                 was_auto_generated: false,
-                draft_content: None,
+                plan_content: None,
                 session_state: SessionState::Running,
             };
             manager.db.create_session(&session).unwrap();
@@ -2069,7 +2069,7 @@ mod reservation_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         
@@ -2140,7 +2140,7 @@ mod collision_detection_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         manager.db_ref().create_session(&session).unwrap();
@@ -2206,7 +2206,7 @@ mod collision_detection_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         manager.db_ref().create_session(&session).unwrap();
@@ -2262,7 +2262,7 @@ mod collision_detection_tests {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            draft_content: None,
+            plan_content: None,
             session_state: SessionState::Running,
         };
         manager.db_ref().create_session(&session).unwrap();
@@ -2514,7 +2514,7 @@ mod performance_tests {
                 original_skip_permissions: None,
                 pending_name_generation: false,
                 was_auto_generated: false,
-                draft_content: None,
+                plan_content: None,
                 session_state: SessionState::Running,
             };
             manager.db_ref().create_session(&session).unwrap();
@@ -2647,7 +2647,7 @@ mod performance_tests {
                 original_skip_permissions: None,
                 pending_name_generation: false,
                 was_auto_generated: false,
-                draft_content: None,
+                plan_content: None,
                 session_state: SessionState::Running,
             };
             manager.db_ref().create_session(&session).unwrap();

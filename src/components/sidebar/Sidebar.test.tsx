@@ -232,7 +232,7 @@ describe('Sidebar', () => {
 
   describe('session list rendering', () => {
     it('should show empty state when no sessions', async () => {
-      // Mock both the regular sessions and drafts calls
+      // Mock both the regular sessions and plans calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'para_core_list_enriched_sessions':
@@ -278,7 +278,7 @@ describe('Sidebar', () => {
             status: 'active',
             is_current: false,
             session_type: 'worktree',
-            current_task: 'Simple task',
+            current_task: 'Simple agent',
             has_uncommitted_changes: false
           },
           status: undefined,
@@ -286,7 +286,7 @@ describe('Sidebar', () => {
         }
       ]
 
-      // Mock both the regular sessions and drafts calls
+      // Mock both the regular sessions and plans calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'para_core_list_enriched_sessions':
@@ -489,12 +489,12 @@ describe('Sidebar', () => {
   })
 
   describe('basic interaction', () => {
-    it('should render orchestrator button', async () => {
+    it('should render commander button', async () => {
       mockInvoke.mockResolvedValueOnce([])
 
       render(<Sidebar />, { wrapper: createTestWrapper() })
       // The button uses a title attribute
-      const orchestratorButton = screen.getByTitle(/Select orchestrator/i)
+      const orchestratorButton = screen.getByTitle(/Select commander/i)
       expect(orchestratorButton).toBeInTheDocument()
     })
 
@@ -548,7 +548,7 @@ describe('Sidebar', () => {
         }
       ]
 
-      // Mock both the regular sessions and drafts calls
+      // Mock both the regular sessions and plans calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'para_core_list_enriched_sessions':

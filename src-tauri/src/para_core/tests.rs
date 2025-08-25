@@ -871,13 +871,13 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();
         
-        // Create a draft session first
-        let draft_content = "# Task: Implement authentication\n- Add login form\n- Setup JWT tokens";
-        let draft_session = manager.create_draft_session("auth-feature", draft_content).unwrap();
-        assert_eq!(draft_session.session_state, SessionState::Draft);
-        assert_eq!(draft_session.draft_content, Some(draft_content.to_string()));
+        // Create a plan session first
+        let plan_content = "# Agent: Implement authentication\n- Add login form\n- Setup JWT tokens";
+        let draft_session = manager.create_draft_session("auth-feature", plan_content).unwrap();
+        assert_eq!(draft_session.session_state, SessionState::Plan);
+        assert_eq!(draft_session.plan_content, Some(plan_content.to_string()));
         
-        // Start the draft session (convert to running)
+        // Start the plan session (convert to running)
         manager.start_draft_session("auth-feature", None).unwrap();
         
         // Verify it's now running
@@ -885,14 +885,14 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(running_session.session_state, SessionState::Running);
         assert_eq!(running_session.status, SessionStatus::Active);
         
-        // Convert the running session back to draft
+        // Convert the running session back to plan
         manager.convert_session_to_draft("auth-feature").unwrap();
         
-        // Verify it's back to draft state
+        // Verify it's back to plan state
         let converted_session = manager.db_ref().get_session_by_name(&env.repo_path, "auth-feature").unwrap();
-        assert_eq!(converted_session.session_state, SessionState::Draft);
-        assert_eq!(converted_session.status, SessionStatus::Draft);
-        assert_eq!(converted_session.draft_content, Some(draft_content.to_string()));
+        assert_eq!(converted_session.session_state, SessionState::Plan);
+        assert_eq!(converted_session.status, SessionStatus::Plan);
+        assert_eq!(converted_session.plan_content, Some(plan_content.to_string()));
         
         // Verify the worktree has been removed
         assert!(!converted_session.worktree_path.exists());
@@ -908,18 +908,18 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();
         
-        // Create a draft session with detailed content
-        let draft_content = "# Task: Build user authentication system\n\n## Requirements:\n- OAuth2 login\n- JWT tokens\n- User profile management\n- Password reset flow\n\n## Technical Details:\n- Use Rust backend\n- PostgreSQL database\n- React frontend";
-        let _draft_session = manager.create_draft_session("auth-system", draft_content).unwrap();
+        // Create a plan session with detailed content
+        let plan_content = "# Agent: Build user authentication system\n\n## Requirements:\n- OAuth2 login\n- JWT tokens\n- User profile management\n- Password reset flow\n\n## Technical Details:\n- Use Rust backend\n- PostgreSQL database\n- React frontend";
+        let _draft_session = manager.create_draft_session("auth-system", plan_content).unwrap();
         
-        // Start the draft session
+        // Start the plan session
         manager.start_draft_session("auth-system", None).unwrap();
         
-        // Convert back to draft
+        // Convert back to plan
         manager.convert_session_to_draft("auth-system").unwrap();
         
         // Verify content is preserved
         let converted = manager.db_ref().get_session_by_name(&env.repo_path, "auth-system").unwrap();
-        assert_eq!(converted.draft_content, Some(draft_content.to_string()));
-        assert_eq!(converted.session_state, SessionState::Draft);
+        assert_eq!(converted.plan_content, Some(plan_content.to_string()));
+        assert_eq!(converted.session_state, SessionState::Plan);
     }

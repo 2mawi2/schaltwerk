@@ -209,9 +209,9 @@ impl SessionUtils {
     pub fn apply_session_filter(&self, sessions: Vec<EnrichedSession>, filter_mode: &FilterMode) -> Vec<EnrichedSession> {
         match filter_mode {
             FilterMode::All => sessions,
-            FilterMode::Draft => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Draft).collect(),
+            FilterMode::Plan => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Plan).collect(),
             FilterMode::Running => sessions.into_iter().filter(|s| {
-                s.info.session_state != SessionState::Draft && !s.info.ready_to_merge
+                s.info.session_state != SessionState::Plan && !s.info.ready_to_merge
             }).collect(),
             FilterMode::Reviewed => sessions.into_iter().filter(|s| s.info.ready_to_merge).collect(),
         }

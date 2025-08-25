@@ -166,7 +166,7 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
     drop(core_lock);
     
     if was_auto_generated {
-        log::info!("Session '{name}' was auto-generated, spawning name generation task");
+        log::info!("Session '{name}' was auto-generated, spawning name generation agent");
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             
@@ -309,13 +309,13 @@ pub async fn para_core_get_session(name: String) -> Result<Session, String> {
 }
 
 #[tauri::command]
-pub async fn para_core_get_session_task_content(name: String) -> Result<(Option<String>, Option<String>), String> {
+pub async fn para_core_get_session_agent_content(name: String) -> Result<(Option<String>, Option<String>), String> {
     let core = get_para_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
     manager.get_session_task_content(&name)
-        .map_err(|e| format!("Failed to get session task content: {e}"))
+        .map_err(|e| format!("Failed to get session agent content: {e}"))
 }
 
 #[tauri::command]
@@ -369,7 +369,7 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
 
 #[tauri::command]
 pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    log::info!("Converting session to draft: {name}");
+    log::info!("Converting session to plan: {name}");
     
     let core = get_para_core().await?;
     let core = core.lock().await;
@@ -377,7 +377,7 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
     
     match manager.convert_session_to_draft(&name) {
         Ok(()) => {
-            log::info!("Successfully converted session to draft: {name}");
+            log::info!("Successfully converted session to plan: {name}");
             
             // Close associated terminals
             if let Ok(terminal_manager) = get_terminal_manager().await {
@@ -388,7 +388,7 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
                 for id in ids {
                     if let Ok(true) = terminal_manager.terminal_exists(&id).await {
                         if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                            log::warn!("Failed to close terminal {id} on convert to draft: {e}");
+                            log::warn!("Failed to close terminal {id} on convert to plan: {e}");
                         }
                     }
                 }
@@ -403,8 +403,8 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
             Ok(())
         },
         Err(e) => {
-            log::error!("Failed to convert session {name} to draft: {e}");
-            Err(format!("Failed to convert session to draft: {e}"))
+            log::error!("Failed to convert session {name} to plan: {e}");
+            Err(format!("Failed to convert session to plan: {e}"))
         }
     }
 }
@@ -606,18 +606,18 @@ pub async fn para_core_start_claude(app: tauri::AppHandle, session_name: String)
 
 #[tauri::command]
 pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<String, String> {
-    log::info!("Starting Claude for orchestrator in terminal: {terminal_id}");
+    log::info!("Starting Claude for commander in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
     let core = match get_para_core().await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("Failed to get para_core for orchestrator: {e}");
+            log::error!("Failed to get para_core for commander: {e}");
             // If we can't get a para_core (no project), create a user-friendly error
             if e.contains("No active project") {
-                return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
+                return Err("No project is currently open. Please open a project folder first before starting the commander.".to_string());
             }
-            return Err(format!("Failed to initialize orchestrator: {e}"));
+            return Err(format!("Failed to initialize commander: {e}"));
         }
     };
     let core = core.lock().await;
@@ -645,28 +645,28 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
     
     let command = manager.start_claude_in_orchestrator_with_binary(&binary_paths)
         .map_err(|e| {
-            log::error!("Failed to build orchestrator command: {e}");
-            format!("Failed to start Claude in orchestrator: {e}")
+            log::error!("Failed to build commander command: {e}");
+            format!("Failed to start Claude in commander: {e}")
         })?;
     
-    log::info!("Claude command for orchestrator: {command}");
+    log::info!("Claude command for commander: {command}");
     
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     
     // Check if we have permission to access the working directory
-    log::info!("Checking permissions for orchestrator working directory: {cwd}");
+    log::info!("Checking permissions for commander working directory: {cwd}");
     match std::fs::read_dir(&cwd) {
-        Ok(_) => log::info!("Orchestrator working directory access confirmed: {cwd}"),
+        Ok(_) => log::info!("Commander working directory access confirmed: {cwd}"),
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-            log::warn!("Permission denied for orchestrator working directory: {cwd}");
+            log::warn!("Permission denied for commander working directory: {cwd}");
             return Err(format!("Permission required for folder: {cwd}. Please grant access when prompted and then retry starting the agent."));
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            log::warn!("Orchestrator working directory not found: {cwd}");
+            log::warn!("Commander working directory not found: {cwd}");
             return Err(format!("Working directory not found: {cwd}"));
         }
         Err(e) => {
-            log::error!("Error checking orchestrator working directory access: {e}");
+            log::error!("Error checking commander working directory access: {e}");
             return Err(format!("Error accessing working directory: {e}"));
         }
     }
@@ -934,20 +934,20 @@ pub async fn para_core_unmark_session_ready(app: tauri::AppHandle, name: String)
 }
 
 #[tauri::command]
-pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String, draft_content: String) -> Result<Session, String> {
-    log::info!("Creating draft session: {name}");
+pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String, plan_content: String) -> Result<Session, String> {
+    log::info!("Creating plan session: {name}");
     
     let core = get_para_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    let session = manager.create_draft_session(&name, &draft_content)
-        .map_err(|e| format!("Failed to create draft session: {e}"))?;
+    let session = manager.create_draft_session(&name, &plan_content)
+        .map_err(|e| format!("Failed to create plan session: {e}"))?;
     
     // Emit event with actual sessions list
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after creating draft session");
+        log::info!("Emitting sessions-refreshed event after creating plan session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
@@ -958,18 +958,18 @@ pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String,
 
 #[tauri::command]
 pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
-    log::info!("Starting draft session: {name}");
+    log::info!("Starting plan session: {name}");
     
     let core = get_para_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
     manager.start_draft_session(&name, base_branch.as_deref())
-        .map_err(|e| format!("Failed to start draft session: {e}"))?;
+        .map_err(|e| format!("Failed to start plan session: {e}"))?;
     
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after starting draft session");
+        log::info!("Emitting sessions-refreshed event after starting plan session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
@@ -978,10 +978,10 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
     // Drop the lock before starting Claude to avoid deadlock
     drop(core_lock);
     
-    // Automatically start the AI agent for the newly started draft session
-    log::info!("Auto-starting AI agent for draft session: {name}");
+    // Automatically start the AI agent for the newly started plan session
+    log::info!("Auto-starting AI agent for plan session: {name}");
     if let Err(e) = para_core_start_claude(app.clone(), name.clone()).await {
-        log::warn!("Failed to auto-start AI agent for draft session {name}: {e}");
+        log::warn!("Failed to auto-start AI agent for plan session {name}: {e}");
         // Don't fail the whole operation if agent start fails - session is already created
     }
     
@@ -1004,27 +1004,27 @@ pub async fn para_core_update_session_state(name: String, state: String) -> Resu
 }
 
 #[tauri::command]
-pub async fn para_core_update_draft_content(name: String, content: String) -> Result<(), String> {
-    log::info!("Updating draft content for session: {name}");
+pub async fn para_core_update_plan_content(name: String, content: String) -> Result<(), String> {
+    log::info!("Updating plan content for session: {name}");
     
     let core = get_para_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.update_draft_content(&name, &content)
-        .map_err(|e| format!("Failed to update draft content: {e}"))
+    manager.update_plan_content(&name, &content)
+        .map_err(|e| format!("Failed to update plan content: {e}"))
 }
 
 #[tauri::command]
 pub async fn para_core_rename_draft_session(app: tauri::AppHandle, old_name: String, new_name: String) -> Result<(), String> {
-    log::info!("Renaming draft session from '{old_name}' to '{new_name}'");
+    log::info!("Renaming plan session from '{old_name}' to '{new_name}'");
     
     let core = get_para_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
     manager.rename_draft_session(&old_name, &new_name)
-        .map_err(|e| format!("Failed to rename draft session: {e}"))?;
+        .map_err(|e| format!("Failed to rename plan session: {e}"))?;
     
     // Emit sessions-refreshed event to update UI
     if let Ok(sessions) = manager.list_enriched_sessions() {
@@ -1037,15 +1037,15 @@ pub async fn para_core_rename_draft_session(app: tauri::AppHandle, old_name: Str
 }
 
 #[tauri::command]
-pub async fn para_core_append_draft_content(name: String, content: String) -> Result<(), String> {
-    log::info!("Appending to draft content for session: {name}");
+pub async fn para_core_append_plan_content(name: String, content: String) -> Result<(), String> {
+    log::info!("Appending to plan content for session: {name}");
     
     let core = get_para_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.append_draft_content(&name, &content)
-        .map_err(|e| format!("Failed to append draft content: {e}"))
+    manager.append_plan_content(&name, &content)
+        .map_err(|e| format!("Failed to append plan content: {e}"))
 }
 
 #[tauri::command]
@@ -1065,7 +1065,7 @@ pub async fn para_core_list_sessions_by_state(state: String) -> Result<Vec<Sessi
 
 #[tauri::command]
 pub async fn para_core_reset_orchestrator(terminal_id: String) -> Result<String, String> {
-    log::info!("Resetting orchestrator for terminal: {terminal_id}");
+    log::info!("Resetting commander for terminal: {terminal_id}");
     
     // Close the current terminal first
     let manager = get_terminal_manager().await?;
@@ -1077,24 +1077,24 @@ pub async fn para_core_reset_orchestrator(terminal_id: String) -> Result<String,
     // Wait a brief moment to ensure cleanup
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     
-    // Start a FRESH orchestrator session (bypassing session discovery)
+    // Start a FRESH commander session (bypassing session discovery)
     para_core_start_fresh_orchestrator(terminal_id).await
 }
 
 #[tauri::command]
 pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<String, String> {
-    log::info!("Starting FRESH Claude for orchestrator in terminal: {terminal_id}");
+    log::info!("Starting FRESH Claude for commander in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
     let core = match get_para_core().await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("Failed to get para_core for fresh orchestrator: {e}");
+            log::error!("Failed to get para_core for fresh commander: {e}");
             // If we can't get a para_core (no project), create a user-friendly error
             if e.contains("No active project") {
-                return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
+                return Err("No project is currently open. Please open a project folder first before starting the commander.".to_string());
             }
-            return Err(format!("Failed to initialize orchestrator: {e}"));
+            return Err(format!("Failed to initialize commander: {e}"));
         }
     };
     let core = core.lock().await;
@@ -1103,22 +1103,22 @@ pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<S
     // Build command for FRESH session (no session resume)
     let command = manager.start_claude_in_orchestrator_fresh()
         .map_err(|e| {
-            log::error!("Failed to build fresh orchestrator command: {e}");
-            format!("Failed to start fresh Claude in orchestrator: {e}")
+            log::error!("Failed to build fresh commander command: {e}");
+            format!("Failed to start fresh Claude in commander: {e}")
         })?;
     
-    log::info!("Fresh Claude command for orchestrator: {command}");
+    log::info!("Fresh Claude command for commander: {command}");
     
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     
     // Check if we have permission to access the working directory
-    log::info!("Checking permissions for orchestrator working directory: {cwd}");
+    log::info!("Checking permissions for commander working directory: {cwd}");
     match std::fs::read_dir(&cwd) {
         Ok(_) => {
-            log::info!("Permissions verified for orchestrator directory: {cwd}");
+            log::info!("Permissions verified for commander directory: {cwd}");
         }
         Err(e) => {
-            log::error!("Permission denied for orchestrator directory {cwd}: {e}");
+            log::error!("Permission denied for commander directory {cwd}: {e}");
             return Err(format!("Permission required for folder: {cwd}. Please grant folder access to continue."));
         }
     }
@@ -1154,7 +1154,7 @@ pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<S
     if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
         let count = project_env_vars.len();
         if count > 0 {
-            log::info!("Adding {count} project-specific environment variables to fresh orchestrator");
+            log::info!("Adding {count} project-specific environment variables to fresh commander");
             for (key, value) in project_env_vars {
                 env_vars.push((key, value));
             }
@@ -1190,6 +1190,6 @@ pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<S
         });
     }
     
-    log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
+    log::info!("Successfully started fresh Claude in commander terminal: {terminal_id}");
     Ok(command)
 }

@@ -4,50 +4,50 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { VscDiff, VscChevronLeft, VscNotebook } from 'react-icons/vsc'
 import clsx from 'clsx'
-import { DraftContentView } from '../drafts/DraftContentView'
-import { DraftListView } from '../drafts/DraftListView'
-import { DraftInfoPanel } from '../drafts/DraftInfoPanel'
+import { PlanContentView } from '../plans/PlanContentView'
+import { PlanListView } from '../plans/PlanListView'
+import { PlanInfoPanel } from '../plans/PlanInfoPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
-  selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
-  isDraftOverride?: boolean
+  selectionOverride?: { kind: 'session' | 'commander'; payload?: string | null }
+  isPlanOverride?: boolean
 }
 
-export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverride }: RightPanelTabsProps) {
-  const { selection, isDraft } = useSelection()
+export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride }: RightPanelTabsProps) {
+  const { selection, isPlan } = useSelection()
   const { projectPath } = useProject()
-  const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'task' | null>(null)
-  const [previewDraftName, setPreviewDraftName] = useState<string | null>(null)
+  const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | null>(null)
+  const [previewPlanName, setPreviewPlanName] = useState<string | null>(null)
 
   // Determine active tab based on user selection or smart defaults
-  // For drafts, always show task tab regardless of user selection
+  // For plans, always show agent tab regardless of user selection
   const effectiveSelection = selectionOverride ?? selection
-  const effectiveIsDraft = typeof isDraftOverride === 'boolean' ? isDraftOverride : isDraft
-  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsDraft) ? 'task' : (
+  const effectiveIsPlan = typeof isPlanOverride === 'boolean' ? isPlanOverride : isPlan
+  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsPlan) ? 'agent' : (
     userSelectedTab || (
-      effectiveSelection.kind === 'orchestrator' ? 'task' : 'changes'
+      effectiveSelection.kind === 'commander' ? 'agent' : 'changes'
     )
   )
 
-  // Reset preview when leaving orchestrator
+  // Reset preview when leaving commander
   useEffect(() => {
-    if (selection.kind !== 'orchestrator') setPreviewDraftName(null)
+    if (selection.kind !== 'commander') setPreviewPlanName(null)
   }, [selection])
 
   // Reset state when project changes
   useEffect(() => {
     setUserSelectedTab(null)
-    setPreviewDraftName(null)
+    setPreviewPlanName(null)
   }, [projectPath])
 
-  // Note: removed Cmd+D toggle to reserve shortcut for New Draft
+  // Note: removed Cmd+D toggle to reserve shortcut for New Plan
 
   // Unified header with tabs
-  const isOrchestrator = effectiveSelection.kind === 'orchestrator'
-  const rightTabLabel = isOrchestrator ? 'Drafts' : 'Task'
-  const showBackButton = isOrchestrator && !!previewDraftName
-  const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsDraft) || isOrchestrator
+  const isCommander = effectiveSelection.kind === 'commander'
+  const rightTabLabel = isCommander ? 'Plans' : 'Agent'
+  const showBackButton = isCommander && !!previewPlanName
+  const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
 
   return (
     <div className="h-full flex flex-col bg-panel">
@@ -66,10 +66,10 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverrid
           </button>
         )}
         <button
-          onClick={() => setUserSelectedTab('task')}
+          onClick={() => setUserSelectedTab('agent')}
           className={clsx(
             'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-            activeTab === 'task' ? 'text-slate-200 bg-slate-800/50' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            activeTab === 'agent' ? 'text-slate-200 bg-slate-800/50' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
           )}
           title={`${rightTabLabel}`}
         >
@@ -78,18 +78,18 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverrid
         </button>
       </div>
 
-      {/* Back/breadcrumb row when previewing a draft in orchestrator */}
+      {/* Back/breadcrumb row when previewing a plan in commander */}
       {showBackButton && (
         <div className="px-3 py-1.5 border-b border-slate-800 flex items-center gap-2">
           <button
             className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-1"
-            onClick={() => setPreviewDraftName(null)}
-            title="Back to drafts"
+            onClick={() => setPreviewPlanName(null)}
+            title="Back to plans"
           >
             <VscChevronLeft />
             Back
           </button>
-          <div className="text-xs text-slate-400">Viewing draft: {previewDraftName}</div>
+          <div className="text-xs text-slate-400">Viewing plan: {previewPlanName}</div>
         </div>
       )}
 
@@ -98,26 +98,26 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isDraftOverrid
           <SimpleDiffPanel 
             onFileSelect={onFileSelect} 
             sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
-            isOrchestrator={effectiveSelection.kind === 'orchestrator'}
+            isCommander={effectiveSelection.kind === 'commander'}
           />
         ) : (
-          // Task/Drafts tab content
+          // Agent/Plans tab content
           effectiveSelection.kind === 'session' ? (
-            // For draft sessions, show the info panel; for running sessions, show the task content
-            effectiveIsDraft ? (
-              <DraftInfoPanel sessionName={effectiveSelection.payload!} />
+            // For plan sessions, show the info panel; for running sessions, show the agent content
+            effectiveIsPlan ? (
+              <PlanInfoPanel sessionName={effectiveSelection.payload!} />
             ) : (
-              <DraftContentView 
+              <PlanContentView 
                 sessionName={effectiveSelection.payload!} 
                 editable={false} 
                 debounceMs={1000} 
               />
             )
           ) : (
-            previewDraftName ? (
-              <DraftContentView sessionName={previewDraftName} editable debounceMs={1000} />
+            previewPlanName ? (
+              <PlanContentView sessionName={previewPlanName} editable debounceMs={1000} />
             ) : (
-              <DraftListView onOpenDraft={(name) => setPreviewDraftName(name)} />
+              <PlanListView onOpenPlan={(name: string) => setPreviewPlanName(name)} />
             )
           )
         )}

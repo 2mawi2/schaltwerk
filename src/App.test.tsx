@@ -126,7 +126,7 @@ describe('App.tsx', () => {
     await waitFor(() => {
       expect(screen.getByTestId('sidebar')).toBeInTheDocument()
       expect(screen.getByTestId('terminal-grid')).toBeInTheDocument()
-      // Right panel can be in Drafts tab by default; diff panel may not be present
+      // Right panel can be in Plans tab by default; diff panel may not be present
     })
 
     // Click the global Home button to return
@@ -175,29 +175,29 @@ describe('App.tsx', () => {
     }, { timeout: 3000 })
   })
 
-  describe('Draft Starting', () => {
+  describe('Plan Starting', () => {
     beforeEach(() => {
-      // Setup project state for draft tests
+      // Setup project state for plan tests
       mockState.isGitRepo = true
     })
 
-    it('handles schaltwerk:start-task-from-draft event by prefilling new session modal', async () => {
+    it('handles schaltwerk:start-agent-from-plan event by prefilling new session modal', async () => {
       renderApp()
 
-      // Trigger the draft start event
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-task-from-draft', {
-        detail: { name: 'test-draft' }
+      // Trigger the plan start event
+      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', {
+        detail: { name: 'test-plan' }
       }))
 
       // Wait for the event to be processed
       await waitFor(() => {
-        // The app should set up event listeners for draft starting
+        // The app should set up event listeners for plan starting
         // This is verified by the fact that the app renders without errors
         expect(screen.getByTestId('home-screen')).toBeInTheDocument()
       })
     })
 
-    it('sets up event listeners for draft starting functionality', () => {
+    it('sets up event listeners for plan starting functionality', () => {
       renderApp()
       
       // Verify the app renders and would have set up the event listeners

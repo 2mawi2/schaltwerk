@@ -8,7 +8,7 @@ interface Props {
     onSwitch: (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => void | Promise<void>
 }
 
-export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
+export function SwitchCommanderModal({ open, onClose, onSwitch }: Props) {
     const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'>('claude')
     const [switching, setSwitching] = useState(false)
     const { getAgentType } = useClaudeSession()
@@ -58,7 +58,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
             <div className="w-[480px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl">
                 <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">
-                    Switch Orchestrator Model
+                    Switch Commander Model
                 </div>
                 
                 <div className="p-4 space-y-4">
@@ -68,8 +68,8 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                             <div className="text-sm text-amber-200">
                                 <p className="font-medium mb-1">Warning</p>
                                 <p className="text-amber-300/90">
-                                    Switching the orchestrator model will restart the terminal and clear the current session history. 
-                                    Any unsaved work in the orchestrator terminal will be lost.
+                                    Switching the commander model will restart the terminal and clear the current session history. 
+                                    Any unsaved work in the commander terminal will be lost.
                                 </p>
                             </div>
                         </div>
@@ -83,7 +83,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                             disabled={switching}
                         />
                         <p className="text-xs text-slate-400 mt-2">
-                            Choose the AI model to use for the orchestrator terminal
+                            Choose the AI model to use for the commander terminal
                         </p>
                     </div>
                 </div>

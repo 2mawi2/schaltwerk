@@ -381,7 +381,7 @@ pub async fn get_file_diff_from_main(
         }
     }
     
-    // For orchestrator (no session), get diff against HEAD (working changes)
+    // For commander (no session), get diff against HEAD (working changes)
     if session_name.is_none() {
         // Get the HEAD version of the file
         let base_content = Command::new("git")

@@ -549,7 +549,7 @@ mod tests {
         let cmd = build_opencode_command_with_config(
             Path::new("/path/to/worktree"),
             Some(&session_info),
-            Some("new task"),
+            Some("new agent"),
             true,
             Some(&config),
         );

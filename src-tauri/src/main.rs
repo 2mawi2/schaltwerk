@@ -453,28 +453,28 @@ async fn start_webhook_server(app: tauri::AppHandle) {
                 
                 Ok(Response::new("OK".to_string()))
             }
-            (&hyper::Method::POST, "/webhook/draft-created") => {
-                // Parse the JSON body for draft creation notification
+            (&hyper::Method::POST, "/webhook/plan-created") => {
+                // Parse the JSON body for plan creation notification
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
                 
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                        log::info!("Received draft-created webhook: {payload}");
+                        log::info!("Received plan-created webhook: {payload}");
                         
                         if let Some(draft_name) = payload.get("session_name").and_then(|v| v.as_str()) {
-                            log::info!("Draft created via MCP: {draft_name}");
+                            log::info!("Plan created via MCP: {draft_name}");
                             
                             // Emit sessions-refreshed event to trigger UI updates
                             // We emit with empty array since UI components will fetch what they need
-                            // (drafts via list_sessions_by_state, sessions via list_enriched_sessions)
-                            log::info!("Emitting sessions-refreshed event after MCP draft creation");
+                            // (plans via list_sessions_by_state, sessions via list_enriched_sessions)
+                            log::info!("Emitting sessions-refreshed event after MCP plan creation");
                             if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<para_core::EnrichedSession>::new()) {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
                             
-                            // Emit selection event to automatically open the draft
-                            log::info!("Emitting selection event to open draft: {draft_name}");
+                            // Emit selection event to automatically open the plan
+                            log::info!("Emitting selection event to open plan: {draft_name}");
                             let selection = serde_json::json!({
                                 "kind": "session",
                                 "payload": draft_name
@@ -483,13 +483,13 @@ async fn start_webhook_server(app: tauri::AppHandle) {
                                 log::error!("Failed to emit selection event: {e}");
                             }
                         } else {
-                            log::warn!("Draft-created webhook payload missing 'name' field");
+                            log::warn!("Plan-created webhook payload missing 'name' field");
                         }
                     } else {
-                        log::warn!("Failed to parse draft-created webhook JSON payload");
+                        log::warn!("Failed to parse plan-created webhook JSON payload");
                     }
                 } else {
-                    log::warn!("Failed to convert draft-created webhook body to UTF-8");
+                    log::warn!("Failed to convert plan-created webhook body to UTF-8");
                 }
                 
                 Ok(Response::new("OK".to_string()))
@@ -641,7 +641,7 @@ fn main() {
             para_core_list_enriched_sessions,
             para_core_list_enriched_sessions_sorted,
             para_core_get_session,
-            para_core_get_session_task_content,
+            para_core_get_session_agent_content,
             para_core_cancel_session,
             para_core_convert_session_to_draft,
             para_core_update_git_stats,
@@ -663,8 +663,8 @@ fn main() {
             para_core_create_draft_session,
             para_core_start_draft_session,
             para_core_update_session_state,
-            para_core_update_draft_content,
-            para_core_append_draft_content,
+            para_core_update_plan_content,
+            para_core_append_plan_content,
             para_core_rename_draft_session,
             para_core_list_sessions_by_state,
             // Open apps commands (from module)

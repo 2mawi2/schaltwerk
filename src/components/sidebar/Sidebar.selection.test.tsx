@@ -58,11 +58,11 @@ describe('Sidebar - Selection on State Changes', () => {
     })
 
     it('selects first visible session when current selection disappears due to filter', async () => {
-        const draftSession = mockDraftSession('draft-task')
-        const runningSession1 = mockEnrichedSession('running-task-1', 'active', false)
-        const runningSession2 = mockEnrichedSession('running-task-2', 'active', false)
+        const draftSession = mockDraftSession('plan-agent')
+        const runningSession1 = mockEnrichedSession('running-agent-1', 'active', false)
+        const runningSession2 = mockEnrichedSession('running-agent-2', 'active', false)
 
-        // Start with a draft and two running sessions
+        // Start with a plan and two running sessions
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return [draftSession, runningSession1, runningSession2]
@@ -70,9 +70,9 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'para_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [draftSession, runningSession1, runningSession2]
-                if (fm === 'draft') return [draftSession]
+                if (fm === 'plan') return [draftSession]
                 if (fm === 'reviewed') return all.filter(s => s.info.ready_to_merge)
-                if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'draft')
+                if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'plan')
                 return all
             }
             if (cmd === 'para_core_list_sessions_by_state') {
@@ -92,35 +92,35 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for sessions to load
         await waitFor(() => {
-            expect(screen.getByText('draft-task')).toBeInTheDocument()
-            expect(screen.getByText('running-task-1')).toBeInTheDocument()
-            expect(screen.getByText('running-task-2')).toBeInTheDocument()
+            expect(screen.getByText('plan-agent')).toBeInTheDocument()
+            expect(screen.getByText('running-agent-1')).toBeInTheDocument()
+            expect(screen.getByText('running-agent-2')).toBeInTheDocument()
         })
 
-        // Select the draft task
-        await userEvent.click(screen.getByText('draft-task'))
+        // Select the plan agent
+        await userEvent.click(screen.getByText('plan-agent'))
         
-        // Verify draft is selected
+        // Verify plan is selected
         await waitFor(() => {
-            const draftButton = screen.getByText('draft-task').closest('button')
+            const draftButton = screen.getByText('plan-agent').closest('button')
             expect(draftButton).toHaveClass('session-ring-blue')
         })
 
-        // Switch to running filter (draft will disappear)
-        const runningFilterButton = screen.getByTitle('Show running tasks')
+        // Switch to running filter (plan will disappear)
+        const runningFilterButton = screen.getByTitle('Show running agents')
         await userEvent.click(runningFilterButton)
 
         // Verify first running session is automatically selected
         await waitFor(() => {
-            const running1Button = screen.getByText('running-task-1').closest('button')
+            const running1Button = screen.getByText('running-agent-1').closest('button')
             expect(running1Button).toHaveClass('session-ring-blue')
         })
     })
 
-    it('selects orchestrator when no sessions are visible after filter change', async () => {
-        const draftSession = mockDraftSession('draft-task')
+    it('selects commander when no sessions are visible after filter change', async () => {
+        const draftSession = mockDraftSession('plan-agent')
 
-        // Start with only a draft session
+        // Start with only a plan session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'para_core_list_enriched_sessions') {
                 return [draftSession]
@@ -128,7 +128,7 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'para_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [draftSession]
-                if (fm === 'draft') return all
+                if (fm === 'plan') return all
                 if (fm === 'running') return []
                 if (fm === 'reviewed') return []
                 return all
@@ -150,25 +150,25 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for sessions to load
         await waitFor(() => {
-            expect(screen.getByText('draft-task')).toBeInTheDocument()
+            expect(screen.getByText('plan-agent')).toBeInTheDocument()
         })
 
-        // Select the draft task
-        await userEvent.click(screen.getByText('draft-task'))
+        // Select the plan agent
+        await userEvent.click(screen.getByText('plan-agent'))
 
         // Switch to running filter (no sessions will be visible)
-        const runningFilterButton = screen.getByTitle('Show running tasks')
+        const runningFilterButton = screen.getByTitle('Show running agents')
         await userEvent.click(runningFilterButton)
 
-        // Verify orchestrator is automatically selected
+        // Verify commander is automatically selected
         await waitFor(() => {
-            const orchestratorButton = screen.getByText('main (orchestrator)').closest('button')
+            const orchestratorButton = screen.getByText('commander').closest('button')
             expect(orchestratorButton).toHaveClass('session-ring-blue')
         })
     })
 
     it('maintains selection when session remains visible after state change', async () => {
-        const runningSession = mockEnrichedSession('task-1', 'active', false)
+        const runningSession = mockEnrichedSession('agent-1', 'active', false)
 
         // Start with a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
@@ -195,11 +195,11 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for session to load
         await waitFor(() => {
-            expect(screen.getByText('task-1')).toBeInTheDocument()
+            expect(screen.getByText('agent-1')).toBeInTheDocument()
         })
 
-        // Select the task
-        await userEvent.click(screen.getByText('task-1'))
+        // Select the agent
+        await userEvent.click(screen.getByText('agent-1'))
 
         // Update the session to be reviewed (still visible in "all" filter)
         const reviewedSession = { ...runningSession, info: { ...runningSession.info, ready_to_merge: true } }
@@ -223,26 +223,26 @@ describe('Sidebar - Selection on State Changes', () => {
             })
         }
 
-        // Verify task is still selected (since it's still visible in "all" filter)
+        // Verify agent is still selected (since it's still visible in "all" filter)
         await waitFor(() => {
-            const taskButton = screen.getByText('task-1').closest('button')
+            const taskButton = screen.getByText('agent-1').closest('button')
             expect(taskButton).toHaveClass('session-ring-blue')
         })
     })
 
-    it('selects orchestrator when no sessions visible after filter change with selected draft', async () => {
-        const draftTask = mockDraftSession('draft-task')
-        const runningTask = mockEnrichedSession('running-task', 'active', false)
+    it('selects commander when no sessions visible after filter change with selected plan', async () => {
+        const planAgent = mockDraftSession('plan-agent')
+        const runningTask = mockEnrichedSession('running-agent', 'active', false)
 
-        // Start with a draft and a running session
+        // Start with a plan and a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'para_core_list_enriched_sessions') {
-                return [draftTask, runningTask]
+                return [planAgent, runningTask]
             }
             if (cmd === 'para_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
-                const all = [draftTask, runningTask]
-                if (fm === 'draft') return [draftTask]
+                const all = [planAgent, runningTask]
+                if (fm === 'plan') return [planAgent]
                 if (fm === 'running') return [runningTask]
                 if (fm === 'reviewed') return []
                 return all
@@ -264,31 +264,31 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for sessions to load
         await waitFor(() => {
-            expect(screen.getByText('draft-task')).toBeInTheDocument()
-            expect(screen.getByText('running-task')).toBeInTheDocument()
+            expect(screen.getByText('plan-agent')).toBeInTheDocument()
+            expect(screen.getByText('running-agent')).toBeInTheDocument()
         })
 
-        // First select the running task in all view
-        await userEvent.click(screen.getByText('running-task'))
+        // First select the running agent in all view
+        await userEvent.click(screen.getByText('running-agent'))
         
-        // Switch to draft filter (running task disappears)
-        const draftFilterButton = screen.getByTitle('Show draft tasks')
+        // Switch to plan filter (running agent disappears)
+        const draftFilterButton = screen.getByTitle('Show plan agents')
         await userEvent.click(draftFilterButton)
         
-        // Verify draft task is automatically selected (first visible)
+        // Verify plan agent is automatically selected (first visible)
         await waitFor(() => {
-            const draftButton = screen.getByText('draft-task').closest('button')
+            const draftButton = screen.getByText('plan-agent').closest('button')
             expect(draftButton).toHaveClass('session-ring-blue')
         })
 
-        // Now select the draft and switch to running filter
-        await userEvent.click(screen.getByText('draft-task'))
-        const runningFilterButton = screen.getByTitle('Show running tasks')
+        // Now select the plan and switch to running filter
+        await userEvent.click(screen.getByText('plan-agent'))
+        const runningFilterButton = screen.getByTitle('Show running agents')
         await userEvent.click(runningFilterButton)
 
-        // Verify running task is automatically selected
+        // Verify running agent is automatically selected
         await waitFor(() => {
-            const runningButton = screen.getByText('running-task').closest('button')
+            const runningButton = screen.getByText('running-agent').closest('button')
             expect(runningButton).toHaveClass('session-ring-blue')
         })
     })

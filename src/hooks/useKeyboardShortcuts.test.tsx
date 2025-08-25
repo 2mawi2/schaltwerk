@@ -24,7 +24,7 @@ describe('useKeyboardShortcuts', () => {
   beforeEach(() => {
     mockMacPlatform()
   })
-  it('invokes orchestrator selection on mod+1', () => {
+  it('invokes commander selection on mod+1', () => {
     const onSelectOrchestrator = vi.fn()
     const onSelectSession = vi.fn()
 

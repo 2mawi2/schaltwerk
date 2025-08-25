@@ -5,10 +5,10 @@ import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 
 export interface Selection {
-    kind: 'session' | 'orchestrator'
+    kind: 'session' | 'commander'
     payload?: string
     worktreePath?: string
-    sessionState?: 'draft' | 'running' | 'reviewed'  // Pass from Sidebar to avoid async fetch
+    sessionState?: 'plan' | 'running' | 'reviewed'  // Pass from Sidebar to avoid async fetch
 }
 
 interface TerminalSet {
@@ -23,7 +23,7 @@ interface SelectionContextType {
     setSelection: (selection: Selection, forceRecreate?: boolean, isIntentional?: boolean) => Promise<void>
     clearTerminalTracking: (terminalIds: string[]) => Promise<void>
     isReady: boolean
-    isDraft: boolean
+    isPlan: boolean
 }
 
 const SelectionContext = createContext<SelectionContextType | null>(null)
@@ -31,15 +31,15 @@ const SelectionContext = createContext<SelectionContextType | null>(null)
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
     const { terminalFontSize } = useFontSize()
-    const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
+    const [selection, setSelectionState] = useState<Selection>({ kind: 'commander' })
     const [terminals, setTerminals] = useState<TerminalSet>({
-        top: 'orchestrator-default-top',
-        bottomBase: 'orchestrator-default-bottom',
+        top: 'commander-default-top',
+        bottomBase: 'commander-default-bottom',
         workingDirectory: ''
     })
     // Start as not ready, will become ready once we have initialized with a project
     const [isReady, setIsReady] = useState(false)
-    const [isDraft, setIsDraft] = useState(false)
+    const [isPlan, setIsPlan] = useState(false)
     const previousProjectPath = useRef<string | null>(null)
     const hasInitialized = useRef(false)
     
@@ -53,8 +53,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
         let workingDir = projectPath || ''
         
-        if (sel.kind === 'orchestrator') {
-            // Make orchestrator terminals project-specific by using project path hash
+        if (sel.kind === 'commander') {
+            // Make commander terminals project-specific by using project path hash
             // Use a simple hash of the full path to ensure uniqueness
             let projectId = 'default'
             if (projectPath) {
@@ -70,7 +70,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 }
                 projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
             }
-            const base = `orchestrator-${projectId}`
+            const base = `commander-${projectId}`
             return {
                 top: `${base}-top`,
                 bottomBase: `${base}-bottom`,
@@ -167,9 +167,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
         const ids = getTerminalIds(sel)
 
-        // Orchestrator always has terminals and is never a draft
-        if (sel.kind === 'orchestrator') {
-            setIsDraft(false)
+        // Commander always has terminals and is never a plan
+        if (sel.kind === 'commander') {
+            setIsPlan(false)
             const cwd = projectPath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
             return ids
@@ -177,15 +177,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Sessions: Use passed sessionState if available to avoid async fetch
         if (sel.sessionState) {
-            const isDraftSession = sel.sessionState === 'draft'
-            setIsDraft(isDraftSession)
+            const isPlanSession = sel.sessionState === 'plan'
+            setIsPlan(isPlanSession)
             
-            if (isDraftSession) {
-                // Do not create terminals for drafts
+            if (isPlanSession) {
+                // Do not create terminals for plans
                 return ids
             }
             
-            // Create terminals for non-draft sessions
+            // Create terminals for non-plan sessions
             const cwd = sel.worktreePath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
             await createTerminal(ids.bottomBase, cwd)
@@ -201,11 +201,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const sessionData = await invoke<any>('para_core_get_session', { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sel.worktreePath || sessionData?.worktree_path
-            const isDraftSession = state === 'draft'
-            setIsDraft(!!isDraftSession)
+            const isPlanSession = state === 'plan'
+            setIsPlan(!!isPlanSession)
 
-            if (isDraftSession) {
-                // Do not create terminals for drafts
+            if (isPlanSession) {
+                // Do not create terminals for plans
                 return ids
             }
 
@@ -219,7 +219,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         } catch (e) {
             console.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
-            setIsDraft(false)
+            setIsPlan(false)
             // Don't create terminals if we can't determine session state
             return ids
         }
@@ -234,7 +234,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (dbSelection) {
                     console.log('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
                     return {
-                        kind: dbSelection.kind as 'session' | 'orchestrator',
+                        kind: dbSelection.kind as 'session' | 'commander',
                         payload: dbSelection.payload ?? undefined
                     }
                 }
@@ -243,14 +243,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
         
-        // Default to orchestrator if no saved selection
-        return { kind: 'orchestrator' }
+        // Default to commander if no saved selection
+        return { kind: 'commander' }
     }, [projectPath])
     
     // Validate and restore a remembered selection
     const validateAndRestoreSelection = useCallback(async (remembered: Selection): Promise<Selection> => {
-        // If orchestrator, it's always valid
-        if (remembered.kind === 'orchestrator') {
+        // If commander, it's always valid
+        if (remembered.kind === 'commander') {
             return remembered
         }
         
@@ -271,18 +271,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     worktreePath
                 }
             } catch (error) {
-                console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
-                // Session doesn't exist anymore, fallback to orchestrator
-                return { kind: 'orchestrator' }
+                console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to commander`)
+                // Session doesn't exist anymore, fallback to commander
+                return { kind: 'commander' }
             }
         }
         
         // Default fallback
-        return { kind: 'orchestrator' }
+        return { kind: 'commander' }
     }, [])
     
     // Clear terminal tracking and close terminals to prevent orphaned processes
-    // Used when: 1) Switching projects (orchestrator IDs change), 2) Restarting orchestrator with new model
+    // Used when: 1) Switching projects (commander IDs change), 2) Restarting commander with new model
     const clearTerminalTracking = useCallback(async (terminalIds: string[]) => {
         for (const id of terminalIds) {
             terminalsCreated.current.delete(id)
@@ -304,11 +304,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Get the new terminal IDs to check if they're changing
         const newTerminalIds = getTerminalIds(newSelection)
         
-        // Check if session state is changing from draft to running (or vice versa)
+        // Check if session state is changing from plan to running (or vice versa)
         const isStateTransition = selection.kind === 'session' && 
             newSelection.kind === 'session' && 
             selection.payload === newSelection.payload &&
-            isDraft !== (newSelection.sessionState === 'draft')
+            isPlan !== (newSelection.sessionState === 'plan')
         
         // Check if we're actually changing selection or terminals (but allow initial setup, force recreate, or state transitions)
         if (!forceRecreate && !isStateTransition && isReady && 
@@ -335,14 +335,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // If terminal already exists, update state immediately for instant switch
             if (terminalAlreadyExists && !forceRecreate) {
-                // CRITICAL: Update isDraft state based on the new selection
-                // This was missing and causing stale isDraft when switching from draft to running
+                // CRITICAL: Update isPlan state based on the new selection
+                // This was missing and causing stale isPlan when switching from plan to running
                 if (newSelection.kind === 'session') {
-                    const isDraftSession = newSelection.sessionState === 'draft'
-                    setIsDraft(isDraftSession)
+                    const isPlanSession = newSelection.sessionState === 'plan'
+                    setIsPlan(isPlanSession)
                 } else {
-                    // Orchestrator is never a draft
-                    setIsDraft(false)
+                    // Commander is never a plan
+                    setIsPlan(false)
                 }
                 
                 // Update selection and terminals immediately
@@ -397,7 +397,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
     }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath])
 
-    // React to backend session refreshes (e.g., draft -> running)
+    // React to backend session refreshes (e.g., plan -> running)
     useEffect(() => {
         let unlisten: (() => void) | null = null
         const attach = async () => {
@@ -409,18 +409,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         const sessionData = await invoke<any>('para_core_get_session', { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
                         const worktreePath: string | undefined = sessionData?.worktree_path
-                        const nowDraft = state === 'draft'
-                        const wasDraft = isDraft
+                        const nowPlan = state === 'plan'
+                        const wasPlan = isPlan
                         
-                        // Update isDraft state
-                        setIsDraft(!!nowDraft)
+                        // Update isPlan state
+                        setIsPlan(!!nowPlan)
                         
-                        // If state changed from draft to running, update selection and ensure terminals
-                        if (wasDraft && !nowDraft) {
+                        // If state changed from plan to running, update selection and ensure terminals
+                        if (wasPlan && !nowPlan) {
                             // Session became running - update the selection's sessionState
                             const updatedSelection = {
                                 ...selection,
-                                sessionState: state as 'draft' | 'running' | 'reviewed' | undefined,
+                                sessionState: state as 'plan' | 'running' | 'reviewed' | undefined,
                                 worktreePath: worktreePath || selection.worktreePath
                             }
                             setSelectionState(updatedSelection)
@@ -443,7 +443,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
         attach()
         return () => { try { if (unlisten) unlisten() } catch {} }
-    }, [selection, ensureTerminals, getTerminalIds, isDraft])
+    }, [selection, ensureTerminals, getTerminalIds, isPlan])
     
     // Initialize on mount and when project path changes
     useEffect(() => {
@@ -495,8 +495,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             console.log('[SelectionContext] Setting selection to:', targetSelection)
             
-            // Set the selection - the orchestrator terminals are already project-specific via the ID hash
-            // No need to force recreate, just switch to the correct project's orchestrator
+            // Set the selection - the commander terminals are already project-specific via the ID hash
+            // No need to force recreate, just switch to the correct project's commander
             await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
         }
         
@@ -508,7 +508,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         })
     }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection]) // Re-run when projectPath changes
     
-    // Listen for selection events from backend (e.g., when MCP creates/updates drafts)
+    // Listen for selection events from backend (e.g., when MCP creates/updates plans)
     useEffect(() => {
         let unlisten: (() => void) | undefined
         
@@ -516,7 +516,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 unlisten = await listen<Selection>('schaltwerk:selection', async (event) => {
                     console.log('Received selection event from backend:', event.payload)
-                    // Set the selection to the requested session/draft - this is intentional (backend requested)
+                    // Set the selection to the requested session/plan - this is intentional (backend requested)
                     await setSelection(event.payload, false, true)
                 })
             } catch (e) {
@@ -541,7 +541,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setSelection,
             clearTerminalTracking,
             isReady,
-            isDraft
+            isPlan
         }}>
             {children}
         </SelectionContext.Provider>

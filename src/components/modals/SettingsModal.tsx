@@ -637,7 +637,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         <h3 className="text-sm font-medium text-slate-200 mb-2">Environment Variables</h3>
                         <div className="text-sm text-slate-400 mb-4">
                             Configure environment variables for {activeAgentTab === 'cursor-agent' ? 'Cursor' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
-                            These variables will be available when starting sessions with this agent type.
+                            These variables will be available when starting agents with this agent type.
                         </div>
 
                         <div className="space-y-3">
@@ -830,7 +830,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             <ul className="text-xs text-slate-500 space-y-1 list-disc list-inside">
                                 <li><code className="text-blue-400">$WORKTREE_PATH</code> - Path to the new worktree</li>
                                 <li><code className="text-blue-400">$REPO_PATH</code> - Path to the main repository</li>
-                                <li><code className="text-blue-400">$SESSION_NAME</code> - Name of the session</li>
+                                <li><code className="text-blue-400">$SESSION_NAME</code> - Name of the agent</li>
                                 <li><code className="text-blue-400">$BRANCH_NAME</code> - Name of the new branch</li>
                             </ul>
                         </div>
@@ -871,7 +871,7 @@ fi`}
                     <div className="mt-8">
                         <h3 className="text-sm font-medium text-slate-200 mb-2">Project Environment Variables</h3>
                         <div className="text-sm text-slate-400 mb-4">
-                            Configure environment variables that will be set for all sessions in this project.
+                            Configure environment variables that will be set for all agents in this project.
                             These variables are applied to all terminals and agent processes.
                         </div>
                         
@@ -1016,7 +1016,7 @@ fi`}
                         <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
                             <ul className="space-y-2 text-sm">
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Switch to Orchestrator</span>
+                                    <span className="text-slate-300">Switch to Commander</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + 1</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1064,7 +1064,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + N</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">New Draft</span>
+                                    <span className="text-slate-300">New Plan</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + N</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1084,7 +1084,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + G</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Open Task Board (Kanban)</span>
+                                    <span className="text-slate-300">Open Agent Board (Kanban)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + K</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1092,7 +1092,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Run Draft Task (when focused)</span>
+                                    <span className="text-slate-300">Run Plan Agent (when focused)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
                                 </li>
                             </ul>
@@ -1121,7 +1121,7 @@ fi`}
                     <div className="p-4 bg-slate-800/30 border border-slate-700 rounded">
                         <div className="text-xs text-slate-400">
                             <p className="mb-2">Note: Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Cmd</kbd> on Windows/Linux systems.</p>
-                            <p>Keyboard shortcuts work globally throughout the application and can be used to efficiently navigate between sessions and manage your workflow.</p>
+                            <p>Keyboard shortcuts work globally throughout the application and can be used to efficiently navigate between agents and manage your workflow.</p>
                         </div>
                     </div>
                 </div>
@@ -1221,7 +1221,7 @@ fi`}
                     <div>
                         <h3 className="text-sm font-medium text-slate-200 mb-4">Action Buttons</h3>
                         <p className="text-sm text-slate-400 mb-4">
-                            Configure custom action buttons that appear in the terminal header for both orchestrator and session views.
+                            Configure custom action buttons that appear in the terminal header for both commander and agent views.
                             These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
                         </p>
                         

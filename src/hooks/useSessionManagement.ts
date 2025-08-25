@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface SessionSelection {
-    kind: 'orchestrator' | 'session'
+    kind: 'commander' | 'session'
     payload?: string
 }
 
@@ -71,7 +71,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         try {
             setIsResetting(true)
             
-            if (selection.kind === 'orchestrator') {
+            if (selection.kind === 'commander') {
                 await resetOrchestratorTerminal(terminals.top)
             } else if (selection.kind === 'session' && selection.payload) {
                 await resetSessionTerminals(selection.payload, terminals.top)
@@ -130,7 +130,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         selection: SessionSelection, 
         terminalId: string
     ): Promise<void> => {
-        if (selection.kind === 'orchestrator') {
+        if (selection.kind === 'commander') {
             await startOrchestratorWithNewModel(terminalId)
         } else if (selection.kind === 'session' && selection.payload) {
             await startSessionWithNewModel(selection.payload)

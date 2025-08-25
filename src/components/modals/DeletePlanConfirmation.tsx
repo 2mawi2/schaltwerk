@@ -9,7 +9,7 @@ interface DeleteDraftConfirmationProps {
   loading?: boolean
 }
 
-export function DeleteDraftConfirmation({ 
+export function DeletePlanConfirmation({ 
   open, 
   displayName,
   onConfirm, 
@@ -24,7 +24,7 @@ export function DeleteDraftConfirmation({
 
   const body = (
     <p className="text-zinc-300">
-      This will permanently delete the draft session.
+      This will permanently delete the plan session.
       <span className="block mt-2 text-zinc-400">
         This action cannot be undone.
       </span>
@@ -34,12 +34,12 @@ export function DeleteDraftConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title={<span>Delete Draft: {displayName}?</span>}
+      title={<span>Delete Plan: {displayName}?</span>}
       body={body}
-      confirmText="Delete Draft"
-      confirmTitle="Delete draft (Enter)"
-      cancelText="Keep Draft"
-      cancelTitle="Keep draft (Esc)"
+      confirmText="Delete Plan"
+      confirmTitle="Delete plan (Enter)"
+      cancelText="Keep Plan"
+      cancelTitle="Keep plan (Esc)"
       onConfirm={handleConfirm}
       onCancel={onCancel}
       loading={loading}

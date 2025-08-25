@@ -123,13 +123,13 @@ export function TopBar({
           </div>
         )}
         
-        {/* Task Board button - only show when a project is open */}
+        {/* Agent Board button - only show when a project is open */}
         {activeTabPath && onOpenKanban && (
           <button
             onClick={onOpenKanban}
             className="h-6 px-2 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors mr-2 text-xs gap-1"
-            title="Task Board (⌘⇧K)"
-            aria-label="Task Board"
+            title="Agent Board (⌘⇧K)"
+            aria-label="Agent Board"
           >
             <VscListFlat className="text-[14px]" />
             <span>Board</span>

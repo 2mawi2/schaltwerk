@@ -11,7 +11,7 @@ interface ConvertToDraftConfirmationProps {
   onSuccess: () => void
 }
 
-export function ConvertToDraftConfirmation({ 
+export function ConvertToPlanConfirmation({ 
   open, 
   sessionName, 
   sessionDisplayName,
@@ -33,8 +33,8 @@ export function ConvertToDraftConfirmation({
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Failed to convert session to draft:', error)
-      alert(`Failed to convert session to draft: ${error}`)
+      console.error('Failed to convert session to plan:', error)
+      alert(`Failed to convert session to plan: ${error}`)
     } finally {
       setLoading(false)
     }
@@ -47,18 +47,18 @@ export function ConvertToDraftConfirmation({
   const body = (
     <div>
       <p className="text-slate-300 mb-4">
-        Convert <span className="font-mono text-blue-400">{displayName}</span> back to a draft task?
+        Convert <span className="font-mono text-blue-400">{displayName}</span> back to a plan agent?
       </p>
       {hasUncommittedChanges && (
         <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">
           <p className="text-amber-200 text-sm font-semibold mb-2">⚠ Warning: Uncommitted changes will be lost</p>
           <p className="text-amber-100 text-sm">
-            This session has uncommitted changes in the worktree. Converting to draft will:
+            This session has uncommitted changes in the worktree. Converting to plan will:
           </p>
           <ul className="text-amber-100 text-sm mt-2 ml-4 list-disc">
             <li>Remove the worktree and all uncommitted changes</li>
             <li>Archive the branch</li>
-            <li>Preserve the task description as a draft</li>
+            <li>Preserve the agent description as a plan</li>
           </ul>
         </div>
       )}
@@ -70,12 +70,12 @@ export function ConvertToDraftConfirmation({
           <ul className="text-slate-300 text-sm mt-2 ml-4 list-disc">
             <li>Remove the worktree</li>
             <li>Archive the branch</li>
-            <li>Preserve the task description as a draft</li>
+            <li>Preserve the agent description as a plan</li>
           </ul>
         </div>
       )}
       <p className="text-slate-400 text-sm">
-        The task content will be preserved and can be started again later.
+        The agent content will be preserved and can be started again later.
       </p>
     </div>
   )
@@ -83,10 +83,10 @@ export function ConvertToDraftConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title="Convert Session to Draft"
+      title="Convert Session to Plan"
       body={body}
-      confirmText={loading ? 'Converting…' : 'Convert to Draft'}
-      confirmTitle="Convert to draft (Enter)"
+      confirmText={loading ? 'Converting…' : 'Convert to Plan'}
+      confirmTitle="Convert to plan (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"
       onConfirm={handleConfirm}
