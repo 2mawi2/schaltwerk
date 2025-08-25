@@ -395,6 +395,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const chunk = writeQueueRef.current.join('');
                 writeQueueRef.current = [];
                 terminal.current.write(chunk);
+                
+                // Auto-scroll to bottom for AI sessions when new output arrives
+                const shouldAutoScroll = terminalId.endsWith('-top') && 
+                    (terminalId.includes('session-') || terminalId.includes('commander-'));
+                if (shouldAutoScroll) {
+                    requestAnimationFrame(() => {
+                        try {
+                            terminal.current?.scrollToBottom();
+                        } catch (error) {
+                            console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom during output flush:`, error);
+                        }
+                    });
+                }
             }, 16);
         };
 
@@ -404,6 +417,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];
             terminal.current.write(chunk);
+            
+            // Auto-scroll to bottom for AI sessions when flushing immediately
+            const shouldAutoScroll = terminalId.endsWith('-top') && 
+                (terminalId.includes('session-') || terminalId.includes('commander-'));
+            if (shouldAutoScroll) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.scrollToBottom();
+                    } catch (error) {
+                        console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom during immediate flush:`, error);
+                    }
+                });
+            }
         };
 
         // Listen for terminal output from backend (buffer until hydrated)
@@ -425,22 +451,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const snapshot = await invoke<string>('get_terminal_buffer', { id: terminalId });
                 
                 if (snapshot) {
-                    // Check if the snapshot contains enough data to have scrollback
-                    const lineCount = (snapshot.match(/\n/g) || []).length;
-                    const hasSignificantContent = lineCount > terminal.current!.rows * 2;
-                    
                     writeQueueRef.current.push(snapshot);
                     
-                    // If we have significant content, try to scroll to bottom after rendering
-                    // This prevents the terminal from appearing at the top of the scrollback
-                    if (hasSignificantContent) {
+                    // Always scroll to bottom after hydrating for AI session terminals
+                    // This ensures we see the latest output when switching between sessions
+                    const shouldAutoScroll = terminalId.endsWith('-top') && 
+                        (terminalId.includes('session-') || terminalId.includes('commander-'));
+                    
+                    if (shouldAutoScroll) {
+                        // Scroll to bottom after content is written and rendered
+                        // Use a single RAF to ensure proper timing after DOM updates
                         requestAnimationFrame(() => {
                             if (terminal.current && terminal.current.buffer && terminal.current.buffer.active) {
                                 try {
-                                    // Scroll to the bottom (most recent output)
                                     terminal.current.scrollToBottom();
-                                } catch (e) {
-                                    // Scroll API might not be available
+                                } catch (error) {
+                                    console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom during hydration:`, error);
                                 }
                             }
                         });

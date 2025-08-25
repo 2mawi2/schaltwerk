@@ -482,3 +482,30 @@ curl -X POST http://127.0.0.1:8547/api/plans -H "Content-Type: application/json"
 - Never introduce YAGNI: Code that eventually will be needed in the future but not now, all the code must be used and referenced now
 - Never implement non-deterministic fallbacks for external CLIs (e.g., simulating key presses, pasting text).
   If a CLI feature is required (like an interactive prompt flag), upgrade the dependency and use the official flag instead of workarounds.
+
+#### Error Handling Requirements
+
+**MANDATORY**: All catch blocks must properly handle errors:
+- **NEVER use empty catch blocks** - Every catch must log the error or re-throw it
+- **Always log errors with context** - Include the operation being performed and relevant identifiers
+- **Use appropriate log levels** - `console.error` for critical failures, `console.warn` for recoverable issues
+- **Provide actionable information** - Include enough context to debug the issue
+
+Example of proper error handling:
+```typescript
+try {
+    await someOperation();
+} catch (error) {
+    console.error(`[Component ${componentId}] Failed to perform operation:`, error);
+    // Handle the error appropriately or re-throw
+}
+```
+
+**NEVER do this:**
+```typescript
+try {
+    await someOperation();
+} catch (e) {
+    // Silent failure - UNACCEPTABLE
+}
+```
