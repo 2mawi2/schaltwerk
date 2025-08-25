@@ -227,6 +227,12 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
+    // Migration: Add action_buttons column for storing orchestrator action button configurations
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN action_buttons TEXT",
+        [],
+    );
+    
     // Create agent_binaries table for storing agent binary configurations
     conn.execute(
         "CREATE TABLE IF NOT EXISTS agent_binaries (

@@ -5,18 +5,24 @@ import { FocusProvider } from '../contexts/FocusContext'
 import { ReviewProvider } from '../contexts/ReviewContext'
 import { ProjectProvider, useProject } from '../contexts/ProjectContext'
 import { FontSizeProvider } from '../contexts/FontSizeContext'
+import { SessionsProvider } from '../contexts/SessionsContext'
+import { ActionButtonsProvider } from '../contexts/ActionButtonsContext'
 
 export function renderWithProviders(ui: React.ReactElement) {
   return render(
     <FontSizeProvider>
       <ProjectProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            <ReviewProvider>
-              {ui}
-            </ReviewProvider>
-          </FocusProvider>
-        </SelectionProvider>
+        <SessionsProvider>
+          <ActionButtonsProvider>
+            <SelectionProvider>
+              <FocusProvider>
+                <ReviewProvider>
+                  {ui}
+                </ReviewProvider>
+              </FocusProvider>
+            </SelectionProvider>
+          </ActionButtonsProvider>
+        </SessionsProvider>
       </ProjectProvider>
     </FontSizeProvider>
   )
@@ -39,13 +45,17 @@ export function TestProviders({ children }: { children: React.ReactNode }) {
     <FontSizeProvider>
       <ProjectProvider>
         <TestProjectInitializer>
-          <SelectionProvider>
-            <FocusProvider>
-              <ReviewProvider>
-                {children}
-              </ReviewProvider>
-            </FocusProvider>
-          </SelectionProvider>
+          <SessionsProvider>
+            <ActionButtonsProvider>
+              <SelectionProvider>
+                <FocusProvider>
+                  <ReviewProvider>
+                    {children}
+                  </ReviewProvider>
+                </FocusProvider>
+              </SelectionProvider>
+            </ActionButtonsProvider>
+          </SessionsProvider>
         </TestProjectInitializer>
       </ProjectProvider>
     </FontSizeProvider>

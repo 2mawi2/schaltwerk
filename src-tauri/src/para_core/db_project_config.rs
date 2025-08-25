@@ -18,6 +18,16 @@
         pub sort_mode: String,
     }
 
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    pub struct HeaderActionConfig {
+        pub id: String,
+        pub label: String,
+        pub prompt: String,  // Changed from command to prompt
+        #[serde(skip_serializing_if = "Option::is_none")]
+        pub color: Option<String>,
+    }
+
     pub trait ProjectConfigMethods {
         fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;
         fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()>;
@@ -27,6 +37,8 @@
         fn set_project_sessions_settings(&self, repo_path: &Path, settings: &ProjectSessionsSettings) -> Result<()>;
         fn get_project_environment_variables(&self, repo_path: &Path) -> Result<HashMap<String, String>>;
         fn set_project_environment_variables(&self, repo_path: &Path, env_vars: &HashMap<String, String>) -> Result<()>;
+        fn get_project_action_buttons(&self, repo_path: &Path) -> Result<Vec<HeaderActionConfig>>;
+        fn set_project_action_buttons(&self, repo_path: &Path, actions: &[HeaderActionConfig]) -> Result<()>;
     }
 
     impl ProjectConfigMethods for Database {
@@ -225,4 +237,71 @@
             Ok(())
         }
         
+        fn get_project_action_buttons(&self, repo_path: &Path) -> Result<Vec<HeaderActionConfig>> {
+            let conn = self.conn.lock().unwrap();
+            
+            let canonical_path = std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+            
+            let query_res: rusqlite::Result<Option<String>> = conn.query_row(
+                "SELECT action_buttons FROM project_config WHERE repository_path = ?1",
+                params![canonical_path.to_string_lossy()],
+                |row| row.get(0),
+            );
+            
+            match query_res {
+                Ok(Some(json_str)) => {
+                    let actions: Vec<HeaderActionConfig> = serde_json::from_str(&json_str)?;
+                    Ok(actions)
+                }
+                Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => {
+                    Ok(Self::get_default_action_buttons())
+                }
+                Err(e) => Err(e.into()),
+            }
+        }
+        
+        fn set_project_action_buttons(&self, repo_path: &Path, actions: &[HeaderActionConfig]) -> Result<()> {
+            let conn = self.conn.lock().unwrap();
+            let now = Utc::now().timestamp();
+            
+            let canonical_path = std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+            
+            let json_str = serde_json::to_string(actions)?;
+            
+            conn.execute(
+                "INSERT INTO project_config (repository_path, action_buttons, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4)
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    action_buttons = excluded.action_buttons,
+                    updated_at = excluded.updated_at",
+                params![canonical_path.to_string_lossy(), json_str, now, now],
+            )?;
+            
+            Ok(())
+        }
+    }
+    
+    impl Database {
+        fn get_default_action_buttons() -> Vec<HeaderActionConfig> {
+            vec![
+                HeaderActionConfig {
+                    id: "merge-reviewed".to_string(),
+                    label: "Merge".to_string(),
+                    prompt: "Find all reviewed sessions and merge them to the main branch with proper commit messages.".to_string(),
+                    color: None,
+                },
+                HeaderActionConfig {
+                    id: "create-pr".to_string(),
+                    label: "PR".to_string(),
+                    prompt: "Create a pull request for the current branch with a comprehensive description of changes.".to_string(),
+                    color: None,
+                },
+                HeaderActionConfig {
+                    id: "run-tests".to_string(),
+                    label: "Test".to_string(),
+                    prompt: "Run all tests and fix any failures that occur.".to_string(),
+                    color: None,
+                },
+            ]
+        }
     }

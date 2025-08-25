@@ -8,21 +8,24 @@ import { ReviewProvider } from './contexts/ReviewContext'
 import { ProjectProvider } from './contexts/ProjectContext'
 import { FontSizeProvider } from './contexts/FontSizeContext'
 import { SessionsProvider } from './contexts/SessionsContext'
+import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <FontSizeProvider>
       <ProjectProvider>
         <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <ReviewProvider>
-                <div className="h-screen w-screen">
-                  <App />
-                </div>
-              </ReviewProvider>
-            </FocusProvider>
-          </SelectionProvider>
+          <ActionButtonsProvider>
+            <SelectionProvider>
+              <FocusProvider>
+                <ReviewProvider>
+                  <div className="h-screen w-screen">
+                    <App />
+                  </div>
+                </ReviewProvider>
+              </FocusProvider>
+            </SelectionProvider>
+          </ActionButtonsProvider>
         </SessionsProvider>
       </ProjectProvider>
     </FontSizeProvider>

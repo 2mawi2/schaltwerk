@@ -194,6 +194,8 @@ beforeEach(() => {
           worktree_path: '/session/worktree',
           session_id: args?.name || 'test-session',
         })
+      case 'get_project_action_buttons':
+        return Promise.resolve([])
       default:
         return Promise.resolve(undefined)
     }

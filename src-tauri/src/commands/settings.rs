@@ -7,7 +7,7 @@ use crate::{
 };
 use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences};
 use crate::para_core::db_app_config::AppConfigMethods;
-use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings};
+use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
 
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
@@ -294,6 +294,43 @@ pub async fn set_diff_view_preferences(preferences: DiffViewPreferences) -> Resu
     
     let mut manager = settings_manager.lock().await;
     manager.set_diff_view_preferences(preferences)
+}
+
+#[tauri::command]
+pub async fn get_project_action_buttons() -> Result<Vec<HeaderActionConfig>, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.para_core.lock().await;
+    let db = core.database();
+
+    db.get_project_action_buttons(&project.path)
+        .map_err(|e| format!("Failed to get project action buttons: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Result<(), String> {
+    // Limit to maximum 6 action buttons
+    if actions.len() > 6 {
+        return Err("Maximum of 6 action buttons allowed".to_string());
+    }
+    
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.para_core.lock().await;
+    let db = core.database();
+
+    db.set_project_action_buttons(&project.path, &actions)
+        .map_err(|e| format!("Failed to set project action buttons: {e}"))
 }
 
 #[cfg(test)]

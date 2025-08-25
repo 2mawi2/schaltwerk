@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
 import { useSettings, AgentType } from '../../hooks/useSettings'
+import { useActionButtons } from '../../contexts/ActionButtonsContext'
+import type { HeaderActionConfig } from '../ActionButton'
 
 interface Props {
     open: boolean
@@ -18,7 +20,7 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'actions'
 
 interface DetectedBinary {
     path: string
@@ -88,6 +90,15 @@ const CATEGORIES: CategoryConfig[] = [
             </svg>
         )
     },
+    {
+        id: 'actions',
+        label: 'Action Buttons',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 100 4m0-4v2m0-6V4" />
+            </svg>
+        )
+    },
 ]
 
 interface ProjectSettings {
@@ -148,6 +159,15 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         loadProjectSettings,
         loadTerminalSettings
     } = useSettings()
+    
+    const {
+        actionButtons,
+        saveActionButtons,
+        resetToDefaults
+    } = useActionButtons()
+    
+    const [editableActionButtons, setEditableActionButtons] = useState<HeaderActionConfig[]>([])
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
     
     const showNotification = (message: string, type: NotificationType) => {
         setNotification({ message, type, visible: true })
@@ -223,6 +243,24 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             loadAllSettings()
         }
     }, [open])
+
+    // Sync action buttons when modal opens or buttons change
+    useEffect(() => {
+        if (open) {
+            setEditableActionButtons([...actionButtons])
+            // Only reset unsaved changes flag when modal first opens
+            if (!hasUnsavedChanges) {
+                setHasUnsavedChanges(false)
+            }
+        }
+    }, [open])
+    
+    // Update editable buttons when the source actionButtons change (after reload)
+    useEffect(() => {
+        if (!hasUnsavedChanges) {
+            setEditableActionButtons([...actionButtons])
+        }
+    }, [actionButtons])
     
     const loadAllSettings = async () => {
         const [loadedEnvVars, loadedCliArgs, loadedProjectSettings, loadedTerminalSettings] = await Promise.all([
@@ -319,10 +357,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const handleSave = async () => {
         const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings)
         
+        // Save action buttons if they've been modified
+        if (hasUnsavedChanges) {
+            const success = await saveActionButtons(editableActionButtons)
+            if (!success) {
+                result.failedSettings.push('action buttons')
+            }
+            // No need to reload - saveActionButtons updates the context state directly
+        }
+        
         if (result.failedSettings.length > 0) {
             showNotification(`Failed to save: ${result.failedSettings.join(', ')}`, 'error')
-        } else if (result.savedSettings.length > 0) {
+        } else if (result.savedSettings.length > 0 || hasUnsavedChanges) {
             showNotification(`Settings saved successfully`, 'success')
+            setHasUnsavedChanges(false)
         }
         
         onClose()
@@ -1051,6 +1099,25 @@ fi`}
                         </div>
                     </div>
                     
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-4">Action Buttons</h3>
+                        <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
+                            <p className="text-sm text-slate-300 mb-3">
+                                Action buttons appear in the terminal header and provide quick access to common AI prompts.
+                            </p>
+                            <ul className="space-y-2 text-sm">
+                                <li className="flex justify-between items-center">
+                                    <span className="text-slate-300">Action Button 1-6</span>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">F1-F6</kbd>
+                                </li>
+                            </ul>
+                            <div className="mt-3 pt-3 border-t border-slate-600 text-xs text-slate-400">
+                                <p className="mb-2">💡 Tip: Configure your action buttons in the "Action Buttons" settings tab.</p>
+                                <p>You can customize up to 6 buttons with different colors and AI prompts that will be pasted into Claude.</p>
+                            </div>
+                        </div>
+                    </div>
+                    
                     <div className="p-4 bg-slate-800/30 border border-slate-700 rounded">
                         <div className="text-xs text-slate-400">
                             <p className="mb-2">Note: Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Cmd</kbd> on Windows/Linux systems.</p>
@@ -1146,6 +1213,150 @@ fi`}
             </div>
         </div>
     )
+
+    const renderActionButtonsSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-4">Action Buttons</h3>
+                        <p className="text-sm text-slate-400 mb-4">
+                            Configure custom action buttons that appear in the terminal header for both orchestrator and session views.
+                            These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
+                        </p>
+                        
+                        <div className="bg-blue-900/20 border border-blue-700/50 rounded p-3 mb-6">
+                            <div className="text-xs text-blue-300">
+                                <strong>💡 How it works:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside text-blue-200">
+                                    <li>Click any action button to instantly paste its prompt into Claude</li>
+                                    <li>Use keyboard shortcuts F1-F6 for even faster access</li>
+                                    <li>Buttons appear next to "Model" and "Reset" in the terminal header</li>
+                                    <li>Maximum of 6 custom buttons allowed</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-4">
+                            {editableActionButtons.map((button, index) => (
+                                <div key={button.id} className="bg-slate-800/50 border border-slate-700 rounded p-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm text-slate-300 mb-2">Label</label>
+                                            <input
+                                                type="text"
+                                                value={button.label}
+                                                onChange={(e) => {
+                                                    const updated = [...editableActionButtons]
+                                                    updated[index] = { ...button, label: e.target.value }
+                                                    setEditableActionButtons(updated)
+                                                    setHasUnsavedChanges(true)
+                                                }}
+                                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
+                                                placeholder="Button Label"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm text-slate-300 mb-2">Color</label>
+                                            <select
+                                                value={button.color || 'slate'}
+                                                onChange={(e) => {
+                                                    const updated = [...editableActionButtons]
+                                                    updated[index] = { ...button, color: e.target.value }
+                                                    setEditableActionButtons(updated)
+                                                    setHasUnsavedChanges(true)
+                                                }}
+                                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700"
+                                            >
+                                                <option value="slate">Default (Slate)</option>
+                                                <option value="green">Green</option>
+                                                <option value="blue">Blue</option>
+                                                <option value="amber">Amber</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="mt-4">
+                                        <label className="block text-sm text-slate-300 mb-2">AI Prompt</label>
+                                        <textarea
+                                            value={button.prompt}
+                                            onChange={(e) => {
+                                                const updated = [...editableActionButtons]
+                                                updated[index] = { ...button, prompt: e.target.value }
+                                                setEditableActionButtons(updated)
+                                                setHasUnsavedChanges(true)
+                                            }}
+                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm min-h-[80px] resize-y"
+                                            placeholder="Enter the AI prompt that will be pasted into Claude chat..."
+                                        />
+                                    </div>
+                                    <div className="mt-4 flex justify-end">
+                                        <button
+                                            onClick={() => {
+                                                setEditableActionButtons(editableActionButtons.filter((_, i) => i !== index))
+                                                setHasUnsavedChanges(true)
+                                            }}
+                                            className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1"
+                                        >
+                                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            Remove
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                            
+                            {editableActionButtons.length < 6 ? (
+                                <button
+                                    onClick={() => {
+                                        const newButton: HeaderActionConfig = {
+                                            id: `custom-${Date.now()}`,
+                                            label: 'New Action',
+                                            prompt: '',
+                                            color: 'slate',
+                                        }
+                                        setEditableActionButtons([...editableActionButtons, newButton])
+                                        setHasUnsavedChanges(true)
+                                    }}
+                                    className="w-full border-2 border-dashed border-slate-600 rounded-lg p-4 text-slate-400 hover:text-slate-300 hover:border-slate-500 transition-colors flex items-center justify-center gap-2"
+                                >
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                                    Add New Action Button
+                                </button>
+                            ) : (
+                                <div className="w-full border-2 border-dashed border-slate-700 rounded-lg p-4 text-slate-500 flex items-center justify-center gap-2">
+                                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    Maximum of 6 action buttons allowed
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div className="border-t border-slate-800 p-4 bg-slate-900/50">
+                <div className="flex items-center justify-between">
+                    <button
+                        onClick={async () => {
+                            const success = await resetToDefaults()
+                            if (success) {
+                                // State is automatically updated by resetToDefaults
+                                setHasUnsavedChanges(false)
+                                showNotification('Action buttons reset to defaults', 'success')
+                            }
+                        }}
+                        className="text-slate-400 hover:text-slate-300 text-sm"
+                    >
+                        Reset to Defaults
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
     
     const renderSettingsContent = () => {
         switch (activeCategory) {
@@ -1159,6 +1370,8 @@ fi`}
                 return renderProjectSettings()
             case 'terminal':
                 return renderTerminalSettings()
+            case 'actions':
+                return renderActionButtonsSettings()
             default:
                 return renderAppearanceSettings()
         }

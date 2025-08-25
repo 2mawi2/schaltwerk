@@ -164,6 +164,65 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         )
     },
     {
+        title: "Action Buttons - Quick AI Commands",
+        content: (
+            <div>
+                <p className="mb-4">
+                    Action buttons provide instant access to common AI prompts. They appear in the terminal header for both orchestrator and session views.
+                </p>
+                <div className="bg-green-900/30 border border-green-700/50 rounded p-3 mb-4">
+                    <div className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <div>
+                            <p className="text-green-200 text-sm font-medium mb-2">
+                                Streamline Your Workflow
+                            </p>
+                            <p className="text-green-300/80 text-sm mb-2">
+                                Default action buttons help you:
+                            </p>
+                            <ul className="text-xs text-green-300/70 space-y-1 list-disc list-inside">
+                                <li><strong>Merge:</strong> Find and merge all reviewed sessions to main branch</li>
+                                <li><strong>PR:</strong> Create pull requests with comprehensive descriptions</li>
+                                <li><strong>Test:</strong> Run tests and automatically fix failures</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div className="space-y-3 mb-4">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
+                        <h4 className="text-blue-400 font-medium mb-2">Customization</h4>
+                        <p className="text-sm text-slate-300 mb-2">
+                            Configure up to 6 custom buttons in Settings → Action Buttons with prompts specific to your workflow:
+                        </p>
+                        <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside mb-2">
+                            <li>Define custom AI prompts for repetitive tasks</li>
+                            <li>Choose colors for visual organization</li>
+                            <li>Use keyboard shortcuts F1-F6 for instant access</li>
+                        </ul>
+                        <div className="bg-slate-900/50 rounded p-2 mt-2">
+                            <p className="text-xs text-slate-300 mb-1"><strong>Example custom prompts:</strong></p>
+                            <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
+                                <li>"Find all reviewed sessions with the Schaltwerk MCP, then squash and merge to main"</li>
+                                <li>"Create a comprehensive PR description analyzing all changes and their impact"</li>
+                                <li>"Run all tests, fix any failures, then prepare for deployment"</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-sm text-slate-400">
+                    <p className="mb-2">
+                        <strong>Example uses:</strong> Code review prompts, refactoring commands, documentation generation, test writing, dependency updates
+                    </p>
+                    <p>
+                        Access with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">F1-F6</kbd> • Configure in Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘,</kbd>)
+                    </p>
+                </div>
+            </div>
+        )
+    },
+    {
         title: "AI Agents",
         content: (
             <div>
@@ -262,6 +321,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 <li>• Create sessions with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘N</kbd> or drafts with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⇧⌘N</kbd></li>
                                 <li>• Switch sessions instantly with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd></li>
                                 <li>• Focus panels with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> (agent) or <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> (terminal)</li>
+                                <li>• Use action buttons <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">F1-F6</kbd> for AI prompts</li>
                             </ul>
                         </div>
                         <div>
@@ -270,6 +330,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 <li>• Review with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘G</kbd> and add comments</li>
                                 <li>• Use orchestrator for natural language control</li>
                                 <li>• Manage parallel tasks efficiently</li>
+                                <li>• Customize action buttons for your workflow</li>
                             </ul>
                         </div>
                     </div>

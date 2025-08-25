@@ -9,6 +9,9 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { clearTerminalStartedTracking } from './Terminal'
+import { useActionButtons } from '../../contexts/ActionButtonsContext'
+import { invoke } from '@tauri-apps/api/core'
+import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { useRef, useEffect, useState } from 'react'
 
 export function TerminalGrid() {
@@ -16,6 +19,11 @@ export function TerminalGrid() {
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { getAgentType } = useClaudeSession()
     const { isResetting, resetSession, switchModel } = useSessionManagement()
+    const { actionButtons } = useActionButtons()
+    
+    // Show action buttons for both orchestrator and sessions
+    const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
+    
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
@@ -378,6 +386,34 @@ export function TerminalGrid() {
                                     <span>Reset</span>
                                 </div>
                             </button>
+                            
+                            {/* Action Buttons - only show for orchestrator */}
+                            {shouldShowActionButtons && (
+                                <>
+                                    <div className="w-px h-3 bg-slate-600 mx-1" />
+                                    {actionButtons.map((action) => (
+                                        <button
+                                            key={action.id}
+                                            onClick={async (e) => {
+                                                e.stopPropagation()
+                                                try {
+                                                    // Use the actual terminal ID from context
+                                                    await invoke('paste_and_submit_terminal', { 
+                                                        id: terminals.top, 
+                                                        data: action.prompt 
+                                                    })
+                                                } catch (error) {
+                                                    console.error(`Failed to execute action "${action.label}":`, error)
+                                                }
+                                            }}
+                                            className={`px-2 py-1 text-[10px] rounded transition-colors flex items-center gap-1 ${getActionButtonColorClasses(action.color)}`}
+                                            title={action.label}
+                                        >
+                                            <span>{action.label}</span>
+                                        </button>
+                                    ))}
+                                </>
+                            )}
                         </div>
                         
                         {/* Absolute-centered title to avoid alignment shift */}

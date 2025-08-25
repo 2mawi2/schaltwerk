@@ -75,6 +75,8 @@ vi.mock('@tauri-apps/api/core', () => ({
         return null
       case 'para_core_get_session':
         return { worktree_path: '/tmp/worktrees/abc' }
+      case 'get_project_action_buttons':
+        return []
       case 'initialize_project':
       case 'add_recent_project':
       case 'para_core_create_session':
