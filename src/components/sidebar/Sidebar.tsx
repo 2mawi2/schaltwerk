@@ -13,6 +13,7 @@ import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToDraftConfirmation } from '../modals/ConvertToDraftConfirmation'
 import { SessionButton } from './SessionButton'
 import { FilterMode, SortMode, isValidFilterMode, isValidSortMode, getDefaultFilterMode, getDefaultSortMode } from '../../types/sessionFilters'
+import { SessionHints } from '../hints/SessionHints'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'draft' | 'running' | 'reviewed' {
@@ -659,6 +660,12 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                     })
                 )}
             </div>
+            
+            {/* Context-aware hints */}
+            <div className="border-t border-slate-800">
+                <SessionHints />
+            </div>
+            
             <MarkReadyConfirmation
                 open={markReadyModal.open}
                 sessionName={markReadyModal.sessionName}

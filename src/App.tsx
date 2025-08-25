@@ -18,6 +18,8 @@ import { ProjectTab } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { PermissionPrompt } from './components/PermissionPrompt'
 import { KanbanModal } from './components/kanban/KanbanModal'
+import { OnboardingModal } from './components/onboarding/OnboardingModal'
+import { useOnboarding } from './hooks/useOnboarding'
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -38,6 +40,7 @@ export default function App() {
   const { selection, setSelection } = useSelection()
   const { projectPath, setProjectPath } = useProject()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
+  const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -695,6 +698,13 @@ export default function App() {
           <SettingsModal
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
+            onOpenTutorial={openOnboarding}
+          />
+
+          <OnboardingModal
+            open={isOnboardingOpen}
+            onClose={closeOnboarding}
+            onComplete={completeOnboarding}
           />
 
           {/* Permission Prompt - shows only when needed */}
