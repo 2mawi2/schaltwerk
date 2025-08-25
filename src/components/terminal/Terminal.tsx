@@ -508,6 +508,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // }
             invoke('write_terminal', { id: terminalId, data }).catch(console.error);
         });
+        
+        // Send initialization sequence to ensure proper terminal mode
+        // This helps with arrow key handling in some shells
+        setTimeout(() => {
+            if (terminal.current) {
+                // Send a null byte to initialize the terminal properly
+                // This helps ensure the shell is in the right mode
+                invoke('write_terminal', { id: terminalId, data: '' }).catch(console.error);
+            }
+        }, 100);
 
         // Handle terminal resize - only send if size actually changed
         const handleResize = () => {
