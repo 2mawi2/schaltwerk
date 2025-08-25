@@ -8,7 +8,7 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { useSortedSessions } from '../../hooks/useSortedSessions'
 import { useProject } from '../../contexts/ProjectContext'
-import { computeNextSelectedSessionId } from '../../utils/selectionNext'
+import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToPlanConfirmation } from '../modals/ConvertToPlanConfirmation'
 import { SessionButton } from './SessionButton'
@@ -144,7 +144,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         loadProjectSettings()
     }, [projectPath])
     
-    // Auto-select first visible session when current selection disappears from view
+    // Auto-select appropriate session when current selection disappears from view
     useEffect(() => {
         // Skip auto-selection during project switches to avoid conflicts with restoration
         if (isProjectSwitching.current) return
@@ -153,20 +153,31 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         
         const currentSessionVisible = sessions.some(s => s.info.session_id === selection.payload)
         
-        if (!currentSessionVisible) {
-            if (sessions.length > 0) {
-                // Current selection is not visible anymore, select the first visible session
-                const firstSession = sessions[0]
+        if (!currentSessionVisible && sessions.length > 0 && selection.payload) {
+            const prevSessions = latestSortedSessionsRef.current
+            const prevIndex = findPreviousSessionIndex(prevSessions, selection.payload)
+            
+            let targetSession
+            if (prevIndex >= 0) {
+                // Try to select the session now at the same index position
+                const targetIndex = Math.min(prevIndex, sessions.length - 1)
+                targetSession = sessions[targetIndex]
+            } else {
+                // Session wasn't found in previous list, select first available session
+                targetSession = sessions[0]
+            }
+            
+            if (targetSession) {
                 setSelection({
                     kind: 'session',
-                    payload: firstSession.info.session_id,
-                    worktreePath: firstSession.info.worktree_path,
-                    sessionState: mapSessionUiState(firstSession.info)
+                    payload: targetSession.info.session_id,
+                    worktreePath: targetSession.info.worktree_path,
+                    sessionState: mapSessionUiState(targetSession.info)
                 }, false, false) // Auto-selection - not intentional
-            } else {
-                // No sessions visible, select commander
-                setSelection({ kind: 'commander' }, false, false) // Auto-selection - not intentional
             }
+        } else if (!currentSessionVisible && sessions.length === 0) {
+            // No sessions visible, select commander
+            setSelection({ kind: 'commander' }, false, false) // Auto-selection - not intentional
         }
     }, [sessions, selection, setSelection])
 
