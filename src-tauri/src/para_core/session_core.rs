@@ -758,6 +758,12 @@ impl SessionManager {
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
         
+        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
+            if !setup_script.trim().is_empty() {
+                self.utils.execute_setup_script(&setup_script, &session.name, &session.branch, &session.worktree_path)?;
+            }
+        }
+        
         self.db_manager.update_session_status(&session.id, SessionStatus::Active)?;
         self.db_manager.update_session_state(&session.id, SessionState::Running)?;
         
