@@ -6,22 +6,16 @@ import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection } from '../../hooks/useLineSelection'
 // getFileLanguage now comes from Rust backend via fileInfo in diff responses
 import { loadFileDiff, type FileDiffData } from './loadDiffs'
-import { DiffLineRow } from './DiffLineRow'
-import { ReviewCommentsList } from './ReviewCommentsList'
 import { useReviewComments } from '../../hooks/useReviewComments'
+import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
+import { DiffViewer } from './DiffViewer'
 import { 
-  VscClose, VscComment, VscSend, VscCheck, VscFile,
-  VscDiffAdded, VscDiffModified, VscDiffRemoved, VscListFlat, VscListSelection, VscFileBinary
+  VscClose, VscSend, VscListFlat, VscListSelection
 } from 'react-icons/vsc'
-import clsx from 'clsx'
 import hljs from 'highlight.js'
-import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import '../../styles/vscode-dark-theme.css'
 
-interface ChangedFile {
-  path: string
-  change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
-}
+// ChangedFile type now imported from DiffFileExplorer
 
 interface UnifiedDiffModalProps {
   filePath: string | null
@@ -863,18 +857,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [isOpen, showCommentForm, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview])
 
-  const getFileIcon = (changeType: string, filePath: string) => {
-    if (isBinaryFileByExtension(filePath)) {
-      return <VscFileBinary className="text-slate-400" />
-    }
-    
-    switch (changeType) {
-      case 'added': return <VscDiffAdded className="text-green-500" />
-      case 'modified': return <VscDiffModified className="text-yellow-500" />
-      case 'deleted': return <VscDiffRemoved className="text-red-500" />
-      default: return <VscFile className="text-blue-500" />
-    }
-  }
 
   if (!isOpen) return null
 
@@ -920,385 +902,45 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
           <div className="flex flex-1 overflow-hidden">
             {/* File list sidebar */}
-            <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col">
-              <div className="p-3 border-b border-slate-800">
-                <div className="text-sm font-medium mb-1">Changed Files</div>
-                <div className="text-xs text-slate-500">{files.length} files</div>
-              </div>
-              <div className="flex-1 overflow-y-auto">
-                {files.map(file => {
-                  const commentCount = getCommentsForFile(file.path).length
-                  const isLeftSelected = (visibleFilePath ?? selectedFile) === file.path
-                  return (
-                    <div
-                      key={file.path}
-                      className={clsx(
-                        "px-3 py-2 cursor-pointer hover:bg-slate-800/50 transition-colors",
-                        "flex items-center gap-2",
-                        isLeftSelected && "bg-slate-800"
-                      )}
-                      onClick={() => scrollToFile(file.path, files.indexOf(file))}
-                    >
-                      {getFileIcon(file.change_type, file.path)}
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm truncate">{file.path.split('/').pop()}</div>
-                        <div className="text-xs text-slate-500 truncate">
-                          {file.path.substring(0, file.path.lastIndexOf('/'))}
-                        </div>
-                      </div>
-                      {commentCount > 0 && (
-                        <div className="flex items-center gap-1 text-xs text-blue-400">
-                          <VscComment />
-                          <span>{commentCount}</span>
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-              {currentReview && currentReview.comments.length > 0 && (
-                <div className="p-3 border-t border-slate-800 flex flex-col gap-3">
-                  <div className="text-xs text-slate-500">
-                    <div className="font-medium text-slate-400 mb-2">Review Comments:</div>
-                    <ReviewCommentsList 
-                      comments={currentReview.comments}
-                      onDeleteComment={removeComment}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <button
-                      onClick={handleFinishReview}
-                      className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
-                    >
-                      <VscCheck />
-                      <span>
-                        Finish Review ({currentReview.comments.length} comment{currentReview.comments.length > 1 ? 's' : ''})
-                      </span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-300">
-                        ⌘↩
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (window.confirm(getConfirmationMessage(currentReview.comments.length))) {
-                          clearReview()
-                        }
-                      }}
-                      className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium transition-colors text-slate-400 hover:text-slate-300"
-                    >
-                      Cancel Review
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
+            <DiffFileExplorer 
+              files={files}
+              selectedFile={selectedFile}
+              visibleFilePath={visibleFilePath}
+              onFileSelect={scrollToFile}
+              getCommentsForFile={getCommentsForFile}
+              currentReview={currentReview}
+              onFinishReview={handleFinishReview}
+              onCancelReview={clearReview}
+              removeComment={removeComment}
+              getConfirmationMessage={getConfirmationMessage}
+            />
 
             {/* Diff viewer */}
             <div className="flex-1 flex flex-col overflow-hidden">
-              {!selectedFile && files.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-slate-500">Loading files...</div>
-                </div>
-              ) : fileError ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center px-8">
-                    <div className="text-6xl mb-4 text-slate-600">⚠️</div>
-                    <div className="text-lg font-medium text-slate-400 mb-2">Cannot Display Diff</div>
-                    <div className="text-sm text-slate-500">{fileError}</div>
-                    <div className="text-xs text-slate-600 mt-4">
-                      This file type cannot be compared in the diff viewer.
-                    </div>
-                  </div>
-                </div>
-              ) : selectedFile && allFileDiffs.get(selectedFile)?.isBinary ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center px-8">
-                    <div className="text-6xl mb-4 text-slate-500">📄</div>
-                    <div className="text-lg font-medium text-slate-300 mb-2">Binary File</div>
-                    <div className="text-sm text-slate-400 mb-4">
-                      {allFileDiffs.get(selectedFile)?.unsupportedReason || "This file cannot be displayed in the diff viewer"}
-                    </div>
-                    <div className="text-xs text-slate-500">
-                      Binary files are not shown to prevent performance issues.
-                    </div>
-                  </div>
-                </div>
-              ) : (
-                <>
-              {branchInfo && (
-                <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-800 bg-slate-900/30">
-                  {branchInfo.baseBranch} ({branchInfo.baseCommit.slice(0, 7)}) → {branchInfo.currentBranch} ({branchInfo.headCommit.slice(0, 7)})
-                </div>
-              )}
-                  {/* Skeleton placeholder for initial frame to avoid flash of empty content */}
-                  {allFileDiffs.size === 0 && files.length > 0 && (
-                    <div className="p-4 text-slate-600">Preparing preview…</div>
-                  )}
-
-                  <div className="flex-1 overflow-auto font-mono text-sm" ref={scrollContainerRef}>
-                    {/* In large diff mode, only render the selected file */}
-                    {isLargeDiffMode ? (
-                      files.filter(f => f.path === selectedFile).map((file) => {
-                        const fileDiff = allFileDiffs.get(file.path)
-                        const commentCount = getCommentsForFile(file.path).length
-                        const isCurrentFile = true
-                        
-                        return (
-                          <div 
-                            key={file.path} 
-                            ref={(el) => {
-                              if (el) fileRefs.current.set(file.path, el)
-                            }}
-                            className="border-b border-slate-800 last:border-b-0"
-                          >
-                            {/* File header */}
-                            <div 
-                              className={clsx(
-                                "sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between",
-                                isCurrentFile && "bg-slate-800"
-                              )}
-                            >
-                              <div className="flex items-center gap-3">
-                                {getFileIcon(file.change_type, file.path)}
-                                <div>
-                                  <div className="font-medium text-sm">{file.path}</div>
-                                  <div className="text-xs text-slate-500">
-                                    {file.change_type === 'added' && 'New file'}
-                                    {file.change_type === 'deleted' && 'Deleted file'}
-                                    {file.change_type === 'modified' && 'Modified'}
-                                    {file.change_type === 'renamed' && 'Renamed'}
-                                  </div>
-                                </div>
-                              </div>
-                              {commentCount > 0 && (
-                                <div className="flex items-center gap-1 text-sm text-blue-400">
-                                  <VscComment />
-                                  <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* File diff content or loading placeholder */}
-                            {!fileDiff ? (
-                              <div className="px-4 py-8 text-center text-slate-500">
-                                <div className="animate-pulse">Loading diff...</div>
-                              </div>
-                            ) : (
-                            <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                              <tbody>
-                                {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
-                                  const globalIdx = `${file.path}-${idx}`
-                                  const isExpanded = expandedSections.has(globalIdx)
-                                  const lineNum = line.oldLineNumber || line.newLineNumber
-                                  const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
-                                  
-                                  if (line.isCollapsible) {
-                                    const rows = []
-                                    rows.push(
-                                      <DiffLineRow
-                                        key={globalIdx}
-                                        line={line}
-                                        index={globalIdx}
-                                        isSelected={false}
-                                        onLineMouseDown={handleLineMouseDown}
-                                        onLineMouseEnter={handleLineMouseEnter}
-                                        onLineMouseUp={handleLineMouseUp}
-                                        onToggleCollapse={() => toggleCollapsed(globalIdx)}
-                                        isCollapsed={!isExpanded}
-                                        highlightedContent={undefined}
-                                      />
-                                    )
-                                    
-                                    if (isExpanded && line.collapsedLines) {
-                                      line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                                        const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
-                                        const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
-                                        const collapsedComment = getCommentForLine(collapsedLineNum, collapsedSide)
-                                         rows.push(
-                                          <DiffLineRow
-                                            key={`${globalIdx}-expanded-${collapsedIdx}`}
-                                            line={collapsedLine}
-                                            index={`${globalIdx}-${collapsedIdx}`}
-                                            isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
-                                            onLineMouseDown={handleLineMouseDown}
-                                            onLineMouseEnter={handleLineMouseEnter}
-                                            onLineMouseUp={handleLineMouseUp}
-                                             highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
-                                            hasComment={!!collapsedComment}
-                                            commentText={collapsedComment?.comment}
-                                          />
-                                        )
-                                      })
-                                    }
-                                    
-                                    return rows
-                                  }
-                                  
-                                  const comment = getCommentForLine(lineNum, side)
-                                  return (
-                                    <DiffLineRow
-                                      key={globalIdx}
-                                      line={line}
-                                      index={globalIdx}
-                                      isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
-                                      onLineMouseDown={handleLineMouseDown}
-                                      onLineMouseEnter={handleLineMouseEnter}
-                                      onLineMouseUp={handleLineMouseUp}
-                                      highlightedContent={line.content ? highlightCode(line.content) : undefined}
-                                      hasComment={!!comment}
-                                      commentText={comment?.comment}
-                                    />
-                                  )
-                                })}
-                              </tbody>
-                            </table>
-                            )}
-                          </div>
-                        )
-                      })
-                    ) : (
-                      /* For continuous scroll mode, render all files with placeholders */
-                      files.map((file) => {
-                        const fileDiff = allFileDiffs.get(file.path)
-                        const commentCount = getCommentsForFile(file.path).length
-                        const isCurrentFile = file.path === selectedFile
-                        const isLoading = loadingFiles.has(file.path)
-                        const isVisible = visibleFileSet.has(file.path)
-                        // Only highlight syntax for visible files to avoid blocking
-                        const shouldHighlight = isVisible || isCurrentFile
-                      
-                      return (
-                        <div 
-                          key={file.path} 
-                          data-file-path={file.path}
-                          ref={(el) => {
-                            if (el) {
-                              fileRefs.current.set(file.path, el)
-                              // Observe element for intersection if observer exists
-                              if (observerRef.current && !isLargeDiffMode) {
-                                observerRef.current.observe(el)
-                              }
-                            }
-                          }}
-                          className="border-b border-slate-800 last:border-b-0"
-                          style={{ minHeight: '200px' }}
-                        >
-                          {/* File header */}
-                          <div 
-                            className={clsx(
-                              "sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between",
-                              isCurrentFile && "bg-slate-800"
-                            )}
-                          >
-                            <div className="flex items-center gap-3">
-                              {getFileIcon(file.change_type, file.path)}
-                              <div>
-                                <div className="font-medium text-sm">{file.path}</div>
-                                <div className="text-xs text-slate-500">
-                                  {file.change_type === 'added' && 'New file'}
-                                  {file.change_type === 'deleted' && 'Deleted file'}
-                                  {file.change_type === 'modified' && 'Modified'}
-                                  {file.change_type === 'renamed' && 'Renamed'}
-                                </div>
-                              </div>
-                            </div>
-                            {commentCount > 0 && (
-                              <div className="flex items-center gap-1 text-sm text-blue-400">
-                                <VscComment />
-                                <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* File diff content with smart loading */}
-                          {!fileDiff ? (
-                            <div className="px-4 py-8 text-center text-slate-500">
-                              {isLoading ? (
-                                <div className="animate-pulse">Loading diff...</div>
-                              ) : (
-                                <div className="text-slate-600">
-                                  {/* Placeholder maintains scroll position */}
-                                  <div className="h-20" />
-                                </div>
-                              )}
-                            </div>
-                          ) : (
-                          <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                            <tbody>
-                              {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
-                                const globalIdx = `${file.path}-${idx}`
-                                const isExpanded = expandedSections.has(globalIdx)
-                                const lineNum = line.oldLineNumber || line.newLineNumber
-                                const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
-                                
-                                if (line.isCollapsible) {
-                                  const rows = []
-                                  rows.push(
-                                    <DiffLineRow
-                                      key={globalIdx}
-                                      line={line}
-                                      index={globalIdx}
-                                      isSelected={false}
-                                      onLineMouseDown={handleLineMouseDown}
-                                      onLineMouseEnter={handleLineMouseEnter}
-                                      onLineMouseUp={handleLineMouseUp}
-                                      onToggleCollapse={() => toggleCollapsed(globalIdx)}
-                                      isCollapsed={!isExpanded}
-                                      highlightedContent={undefined}
-                                    />
-                                  )
-                                  
-                                  if (isExpanded && line.collapsedLines) {
-                                    line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                                      const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
-                                      const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
-                                      const collapsedComment = getCommentForLine(collapsedLineNum, collapsedSide)
-                                       rows.push(
-                                        <DiffLineRow
-                                          key={`${globalIdx}-expanded-${collapsedIdx}`}
-                                          line={collapsedLine}
-                                          index={`${globalIdx}-${collapsedIdx}`}
-                                          isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
-                                          onLineMouseDown={handleLineMouseDown}
-                                          onLineMouseEnter={handleLineMouseEnter}
-                                          onLineMouseUp={handleLineMouseUp}
-                                           highlightedContent={shouldHighlight && collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
-                                          hasComment={!!collapsedComment}
-                                          commentText={collapsedComment?.comment}
-                                        />
-                                      )
-                                    })
-                                  }
-                                  
-                                  return rows
-                                }
-                                
-                                const comment = getCommentForLine(lineNum, side)
-                                return (
-                                  <DiffLineRow
-                                    key={globalIdx}
-                                    line={line}
-                                    index={globalIdx}
-                                    isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
-                                    onLineMouseDown={handleLineMouseDown}
-                                    onLineMouseEnter={handleLineMouseEnter}
-                                    onLineMouseUp={handleLineMouseUp}
-                                    highlightedContent={shouldHighlight && line.content ? highlightCode(line.content) : undefined}
-                                    hasComment={!!comment}
-                                    commentText={comment?.comment}
-                                  />
-                                )
-                              })}
-                            </tbody>
-                          </table>
-                          )}
-                        </div>
-                      )
-                    })
-                    )}
-                  </div>
-                  
-                  {/* Comment form appears near the selected line */}
+              <DiffViewer
+                files={files}
+                selectedFile={selectedFile}
+                allFileDiffs={allFileDiffs}
+                fileError={fileError}
+                branchInfo={branchInfo}
+                expandedSections={expandedSections as Set<string>}
+                isLargeDiffMode={isLargeDiffMode}
+                visibleFileSet={visibleFileSet}
+                loadingFiles={loadingFiles}
+                observerRef={observerRef}
+                scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+                fileRefs={fileRefs}
+                getCommentsForFile={getCommentsForFile}
+                getCommentForLine={getCommentForLine}
+                highlightCode={highlightCode}
+                toggleCollapsed={toggleCollapsed}
+                handleLineMouseDown={handleLineMouseDown}
+                handleLineMouseEnter={handleLineMouseEnter}
+                handleLineMouseUp={handleLineMouseUp}
+                lineSelection={lineSelection}
+              />
+              
+              {/* Comment form appears near the selected line */}
                   
                   {/* Comment form fixed on the right side */}
                   {showCommentForm && lineSelection.selection && (
@@ -1341,8 +983,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                       </div>
                     </>
                   )}
-                </>
-              )}
             </div>
           </div>
         </div>
