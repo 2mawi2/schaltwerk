@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from '../../contexts/SelectionContext'
 import clsx from 'clsx'
-import { OptimizedDiffViewer } from '../diff/OptimizedDiffViewer'
+import { SimpleDiffViewer } from '../diff/SimpleDiffViewer'
 import { VscGitCommit, VscChevronLeft } from 'react-icons/vsc'
 
 interface CommitInfo {
@@ -248,7 +248,7 @@ export function GitHistoryPanel() {
               Select a file to view diff
             </div>
           ) : (
-            <OptimizedDiffViewer
+            <SimpleDiffViewer
               oldContent={fileDiff.oldText}
               newContent={fileDiff.newText}
               viewMode="split"
