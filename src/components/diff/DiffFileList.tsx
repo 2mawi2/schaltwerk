@@ -52,24 +52,31 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   const lastResultRef = useRef<string>('')
   
-  const loadChangedFiles = useCallback(async () => {
+  // Use refs to track current values without triggering effect recreations
+  const currentPropsRef = useRef({ sessionNameOverride, selection, isCommander })
+  currentPropsRef.current = { sessionNameOverride, selection, isCommander }
+  
+  // Store the load function in a ref so it doesn't change between renders
+  const loadChangedFilesRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  loadChangedFilesRef.current = async () => {
     if (isLoading) return // Prevent concurrent loads
     
     setIsLoading(true)
     
     try {
-      // Use the current sessionName value from closure
-      const currentSession = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+      // CRITICAL: Get current values from ref to avoid stale closures
+      const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
+      const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
       
       // For commander mode (no session), get working changes
-      if (isCommander && !currentSession) {
+      if (currentIsCommander && !currentSession) {
         const [changedFiles, currentBranch] = await Promise.all([
           invoke<ChangedFile[]>('get_orchestrator_working_changes'),
           invoke<string>('get_current_branch_name', { sessionName: null })
         ])
         
         // Check if results actually changed to avoid unnecessary re-renders
-        const resultSignature = `${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
+        const resultSignature = `commander-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
         if (resultSignature !== lastResultRef.current) {
           lastResultRef.current = resultSignature
           setFiles(changedFiles)
@@ -84,7 +91,15 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       }
       
       // Regular session mode
-      if (!currentSession) return
+      if (!currentSession) {
+        // Clear data when no session selected to prevent stale data
+        if (lastResultRef.current !== 'no-session') {
+          lastResultRef.current = 'no-session'
+          setFiles([])
+          setBranchInfo(null)
+        }
+        return
+      }
       
       const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit]] = await Promise.all([
         invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName: currentSession }),
@@ -94,7 +109,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       ])
       
       // Check if results actually changed to avoid unnecessary re-renders
-      const resultSignature = `${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}-${baseBranch}`
+      // Include session name in signature to ensure different sessions don't share cached results
+      const resultSignature = `session-${currentSession}-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}-${baseBranch}`
       if (resultSignature !== lastResultRef.current) {
         lastResultRef.current = resultSignature
         setFiles(changedFiles)
@@ -106,24 +122,50 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         })
       }
     } catch (error) {
-      console.error('Failed to load changed files:', error)
+      console.error(`Failed to load changed files:`, error)
+      // Clear data on error to prevent showing stale data from previous session
+      setFiles([])
+      setBranchInfo(null)
     } finally {
       setIsLoading(false)
     }
-  }, [sessionNameOverride, selection, isCommander, isLoading])
+  }
+  
+  // Stable function that calls the ref
+  const loadChangedFiles = useCallback(async () => {
+    await loadChangedFilesRef.current?.()
+  }, [])
 
   // Path resolver used by top bar now; no local button anymore
   
   useEffect(() => {
-    if (!sessionName && !isCommander) {
+    // Reset component state immediately when session changes
+    const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
+    const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
+    
+    if (!currentSession && !currentIsCommander) {
       // Clear files when no session and not commander
       setFiles([])
       setBranchInfo(null)
+      lastResultRef.current = 'no-session'
       return
     }
 
-    // Initial load
-    loadChangedFiles()
+    // CRITICAL: Clear stale data immediately when session changes
+    // This prevents showing old session data while new session data loads
+    const newSessionKey = currentIsCommander ? 'commander' : currentSession
+    const needsDataClear = lastResultRef.current && !lastResultRef.current.includes(newSessionKey || 'no-session')
+    if (needsDataClear) {
+      setFiles([])
+      setBranchInfo(null)
+      lastResultRef.current = ''
+    }
+
+    // Only load if we don't already have data for this session or if we just cleared stale data
+    const hasDataForCurrentSession = lastResultRef.current && lastResultRef.current.includes(newSessionKey || 'no-session')
+    if (!hasDataForCurrentSession || needsDataClear) {
+      loadChangedFiles()
+    }
 
     let pollInterval: NodeJS.Timeout | null = null
     let eventUnlisten: (() => void) | null = null
@@ -131,15 +173,15 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     // Setup async operations
     const setup = async () => {
       // For commander mode, poll less frequently since working directory changes are less frequent
-      if (isCommander && !sessionName) {
+      if (currentIsCommander && !currentSession) {
         pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for commander
         return
       }
       
       // Try to start file watcher for session mode
       try {
-        await invoke('start_file_watcher', { sessionName })
-        console.log(`File watcher started for session: ${sessionName}`)
+        await invoke('start_file_watcher', { sessionName: currentSession })
+        console.log(`File watcher started for session: ${currentSession}`)
       } catch (error) {
         console.error('Failed to start file watcher, falling back to polling:', error)
         // Fallback to polling if file watcher fails
@@ -149,7 +191,10 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // Always set up event listener (even if watcher failed, in case it recovers)
       try {
         eventUnlisten = await listen<FileChangeEvent>('schaltwerk:file-changes', (event) => {
-          if (event.payload.session_name === sessionName) {
+          // CRITICAL: Only update if this event is for the currently selected session
+          const { sessionNameOverride: currentOverride, selection: currentSelection } = currentPropsRef.current
+          const currentlySelectedSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
+          if (event.payload.session_name === currentlySelectedSession) {
             setFiles(event.payload.changed_files)
             setBranchInfo({
               currentBranch: event.payload.branch_info.current_branch,
@@ -157,6 +202,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
               baseCommit: event.payload.branch_info.base_commit,
               headCommit: event.payload.branch_info.head_commit
             })
+            
+            // Update signature to match current session
+            lastResultRef.current = `session-${currentlySelectedSession}-${event.payload.changed_files.length}-${event.payload.changed_files.map(f => `${f.path}:${f.change_type}`).join(',')}-${event.payload.branch_info.current_branch}-${event.payload.branch_info.base_branch}`
             
             // If we receive events, we can stop polling
             if (pollInterval) {
@@ -174,8 +222,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     
     return () => {
       // Stop file watcher
-      if (sessionName) {
-        invoke('stop_file_watcher', { sessionName }).catch(console.error)
+      if (currentSession) {
+        invoke('stop_file_watcher', { sessionName: currentSession }).catch(console.error)
       }
       // Clean up event listener
       if (eventUnlisten) {
@@ -186,7 +234,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         clearInterval(pollInterval)
       }
     }
-  }, [sessionName, isCommander])  // Remove loadChangedFiles from dependencies!
+  }, [sessionNameOverride, selection, isCommander])  // Don't include loadChangedFiles to prevent effect recreation
   
   const handleFileClick = (file: ChangedFile) => {
     setSelectedFile(file.path)

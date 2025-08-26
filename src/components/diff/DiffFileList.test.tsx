@@ -309,4 +309,142 @@ describe('DiffFileList', () => {
     // Should only call once due to isLoading protection
     expect(callCount).toBe(1)
   })
+
+  describe('Session Switching Issues', () => {
+    it('should show correct files when switching between sessions quickly', async () => {
+      const { invoke } = (await import('@tauri-apps/api/core')) as any
+      
+      // Track which session data was returned for each call
+      const sessionCallLog: string[] = []
+      
+      ;(invoke as any).mockImplementation(async (cmd: string, args?: any) => {
+        if (cmd === 'get_changed_files_from_main') {
+          const sessionName = args?.sessionName
+          sessionCallLog.push(`get_changed_files_from_main:${sessionName}`)
+          
+          // Return different files for different sessions
+          if (sessionName === 'session1') {
+            return [{ path: 'session1-file.ts', change_type: 'modified' }]
+          } else if (sessionName === 'session2') {
+            return [{ path: 'session2-file.ts', change_type: 'modified' }]
+          }
+          return []
+        }
+        if (cmd === 'get_current_branch_name') return 'main'
+        if (cmd === 'get_base_branch_name') return 'main'  
+        if (cmd === 'get_commit_comparison_info') return ['abc123', 'def456']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      const { rerender } = render(<TestWrapper sessionName="session1" />)
+      
+      // Wait for session1 data to load
+      await screen.findByText('session1-file.ts')
+      
+      // Quickly switch to session2
+      rerender(<TestWrapper sessionName="session2" />)
+      
+      // Should now show session2 files, not session1 files
+      await waitFor(async () => {
+        // This test will FAIL in the original code because it shows stale session1 data
+        expect(screen.queryByText('session1-file.ts')).not.toBeInTheDocument()
+        await screen.findByText('session2-file.ts')
+      }, { timeout: 3000 })
+
+      // Verify the correct API calls were made
+      expect(sessionCallLog).toContain('get_changed_files_from_main:session1')
+      expect(sessionCallLog).toContain('get_changed_files_from_main:session2')
+    })
+
+    it('should clear stale data immediately when sessions switch', async () => {
+      const { invoke } = (await import('@tauri-apps/api/core')) as any
+      
+      ;(invoke as any).mockImplementation(async (cmd: string, args?: any) => {
+        if (cmd === 'get_changed_files_from_main') {
+          const sessionName = args?.sessionName
+          // Add delay to simulate async loading
+          await new Promise(resolve => setTimeout(resolve, 10))
+          
+          if (sessionName === 'clear-session1') {
+            return [{ path: 'clear-file1.ts', change_type: 'modified' }]
+          } else if (sessionName === 'clear-session2') {
+            return [{ path: 'clear-file2.ts', change_type: 'modified' }]
+          }
+          return []
+        }
+        if (cmd === 'get_current_branch_name') return 'main'
+        if (cmd === 'get_base_branch_name') return 'main'  
+        if (cmd === 'get_commit_comparison_info') return ['abc123', 'def456']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      const { rerender } = render(<TestWrapper sessionName="clear-session1" />)
+      
+      // Wait for session1 data to load
+      await screen.findByText('clear-file1.ts')
+      
+      // Switch to session2
+      rerender(<TestWrapper sessionName="clear-session2" />)
+      
+      // Should clear old data immediately and show new data
+      // The key test: should NOT see session1 data when session2 is loading
+      await waitFor(async () => {
+        // First check that session1 data is gone
+        expect(screen.queryByText('clear-file1.ts')).not.toBeInTheDocument()
+        // Then wait for session2 data to appear
+        await screen.findByText('clear-file2.ts')
+      }, { timeout: 1000 })
+    })
+
+    it('should include session name in result signatures to prevent cache sharing', async () => {
+      const { invoke } = (await import('@tauri-apps/api/core')) as any
+      
+      let apiCallCount = 0
+      
+      ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+        if (cmd === 'get_changed_files_from_main') {
+          apiCallCount++
+          // Both sessions return identical files - this tests that session name is included in cache key
+          return [{ path: 'identical-file.ts', change_type: 'modified' }]
+        }
+        if (cmd === 'get_current_branch_name') return 'main'
+        if (cmd === 'get_base_branch_name') return 'main'  
+        if (cmd === 'get_commit_comparison_info') return ['abc123', 'def456']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      // Load first session
+      const { rerender } = render(<TestWrapper sessionName="session-a" />)
+      await screen.findByText('identical-file.ts')
+      expect(apiCallCount).toBe(1)
+      
+      // Load second session with identical data but different session name
+      rerender(<TestWrapper sessionName="session-b" />)
+      await screen.findByText('identical-file.ts')
+      
+      // Should make a second API call because session names are different,
+      // even though the data is identical
+      await waitFor(() => {
+        expect(apiCallCount).toBe(2)
+      }, { timeout: 1000 })
+    })
+  })
 })
