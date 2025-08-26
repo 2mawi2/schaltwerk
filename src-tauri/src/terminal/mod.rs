@@ -29,6 +29,9 @@ pub trait TerminalBackend: Send + Sync {
 pub mod local;
 pub mod manager;
 
+#[cfg(test)]
+mod manager_test;
+
 pub use local::LocalPtyAdapter;
 pub use manager::TerminalManager;
 
