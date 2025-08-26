@@ -314,7 +314,28 @@ use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
 use http_body_util::BodyExt;
 
-async fn start_webhook_server(app: tauri::AppHandle) {
+async fn find_available_port(base_port: u16) -> u16 {
+    for port in base_port..base_port + 100 {
+        if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)).await {
+            drop(listener);
+            return port;
+        }
+    }
+    base_port // Fallback to base port if no port found
+}
+
+fn calculate_project_port(project_path: &str) -> u16 {
+    use sha2::{Sha256, Digest};
+    let mut hasher = Sha256::new();
+    hasher.update(project_path.as_bytes());
+    let hash = hasher.finalize();
+    
+    // Use first 2 bytes of hash to generate a port in range 8547-8647
+    let port_offset = ((hash[0] as u16) << 8 | hash[1] as u16) % 100;
+    8547 + port_offset
+}
+
+async fn start_webhook_server(app: tauri::AppHandle) -> bool {
     async fn handle_webhook(
         app: tauri::AppHandle,
         req: Request<IncomingBody>,
@@ -506,17 +527,31 @@ async fn start_webhook_server(app: tauri::AppHandle) {
         }
     }
     
-    // Start the webhook server on a local port
-    let addr = "127.0.0.1:8547";
-    let listener = match TcpListener::bind(addr).await {
+    // Calculate project-specific port
+    let project_manager = get_project_manager().await;
+    let base_port = if let Some(active_project) = project_manager.current_project_path().await {
+        let project_str = active_project.to_string_lossy();
+        let calculated_port = calculate_project_port(&project_str);
+        log::info!("Using project-specific base port {calculated_port} for project: {project_str}");
+        calculated_port
+    } else {
+        log::info!("No active project, using default base port 8547");
+        8547
+    };
+    
+    // Find an available port starting from the base port
+    let port = find_available_port(base_port).await;
+    let addr = ("127.0.0.1", port);
+    
+    let listener = match TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => {
-            log::warn!("Failed to start webhook server on {addr}: {e}");
-            return;
+            log::warn!("Failed to start webhook server on {addr:?}: {e}");
+            return false;
         }
     };
     
-    log::info!("Webhook server listening on http://{addr}");
+    log::info!("Webhook server listening on http://{}:{}", addr.0, addr.1);
     
     loop {
         let (stream, _) = match listener.accept().await {
@@ -845,7 +880,9 @@ fn main() {
             // Start webhook server for MCP notifications
             let webhook_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                start_webhook_server(webhook_handle).await;
+                if !start_webhook_server(webhook_handle).await {
+                    log::warn!("Webhook server failed to start - likely another instance is running");
+                }
             });
             
             // MCP server is now managed by Claude Code via .mcp.json configuration
