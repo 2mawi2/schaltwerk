@@ -20,6 +20,7 @@ import { PermissionPrompt } from './components/PermissionPrompt'
 import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
+import { useSessionPrefill } from './hooks/useSessionPrefill'
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -41,6 +42,7 @@ export default function App() {
   const { projectPath, setProjectPath } = useProject()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
+  const { fetchSessionForPrefill } = useSessionPrefill()
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -317,38 +319,31 @@ export default function App() {
 
   // Open Start Agent modal prefilled from an existing plan
   useEffect(() => {
-    const handler = (event: any) => {
+    const handler = async (event: any) => {
       const name = event?.detail?.name as string | undefined
       if (!name) return
       // Store focus and open modal
       previousFocusRef.current = document.activeElement
+      
+      // Fetch plan content first, then open modal with prefilled data
+      const prefillData = await fetchSessionForPrefill(name)
+      
+      // Open modal after data is ready
       setNewSessionOpen(true)
       setStartFromDraftName(name)
-      // Fetch plan content and parent branch, then prefill modal
-      ;(async () => {
-        try {
-          const sessionData = await invoke<any>('schaltwerk_core_get_session', { name })
-          const text: string = sessionData?.draft_content ?? sessionData?.initial_prompt ?? ''
-          const parentBranch: string | undefined = sessionData?.parent_branch || undefined
-          setTimeout(() => {
-            window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
-              detail: {
-                name,
-                taskContent: text,
-                baseBranch: parentBranch,
-                lockName: true,
-                fromDraft: true,
-              }
-            }))
-          }, 0)
-        } catch (error) {
-          console.error('Failed to prefill from plan:', error)
-        }
-      })()
+      
+      // Dispatch prefill event with fetched data
+      if (prefillData) {
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
+            detail: prefillData
+          }))
+        }, 50)
+      }
     }
     window.addEventListener('schaltwerk:start-agent-from-plan' as any, handler)
     return () => window.removeEventListener('schaltwerk:start-agent-from-plan' as any, handler)
-  }, [])
+  }, [fetchSessionForPrefill])
 
 
   const handleCancelSession = async (_force: boolean) => {

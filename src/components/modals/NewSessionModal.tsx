@@ -103,9 +103,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             }
         }
         
-        // Validate agent content if creating as plan
+        // Validate plan content if creating as plan
         if (createAsDraft && !taskContent.trim()) {
-            setValidationError('Please enter agent content')
+            setValidationError('Please enter plan content')
             return
         }
         
@@ -192,6 +192,41 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         }
     }, [open, getSkipPermissions, getAgentType, initialIsDraft])
 
+    // Register prefill event listener immediately, not dependent on open state
+    // This ensures we can catch events that are dispatched right when the modal opens
+    useEffect(() => {
+        const prefillHandler = (event: any) => {
+            const detail = event?.detail || {}
+            const nameFromDraft: string | undefined = detail.name
+            const taskContentFromDraft: string | undefined = detail.taskContent
+            const lockName: boolean | undefined = detail.lockName
+            const fromDraft: boolean | undefined = detail.fromDraft
+            const baseBranchFromDraft: string | undefined = detail.baseBranch
+
+            if (nameFromDraft) {
+                setName(nameFromDraft)
+                // Treat this as user-provided name to avoid regen
+                wasEditedRef.current = true
+                setWasEdited(true)
+                setNameLocked(!!lockName)
+            }
+            if (typeof taskContentFromDraft === 'string') {
+                setTaskContent(taskContentFromDraft)
+            }
+            if (baseBranchFromDraft) {
+                setBaseBranch(baseBranchFromDraft)
+            }
+            // If running from an existing plan, don't create another plan
+            if (fromDraft) {
+                setCreateAsDraft(false)
+            }
+        }
+        window.addEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
+        return () => {
+            window.removeEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
+        }
+    }, [])
+
     useEffect(() => {
         if (!open) return
 
@@ -219,34 +254,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         // Use capture phase so this handler runs before others and can stop propagation
         window.addEventListener('keydown', handleKeyDown, true)
         const setDraftHandler = () => setCreateAsDraft(true)
-        const prefillHandler = (event: any) => {
-            const detail = event?.detail || {}
-            const nameFromDraft: string | undefined = detail.name
-            const taskContentFromDraft: string | undefined = detail.taskContent
-            const lockName: boolean | undefined = detail.lockName
-            const fromDraft: boolean | undefined = detail.fromDraft
-
-            if (nameFromDraft) {
-                setName(nameFromDraft)
-                // Treat this as user-provided name to avoid regen
-                wasEditedRef.current = true
-                setWasEdited(true)
-                setNameLocked(!!lockName)
-            }
-            if (typeof taskContentFromDraft === 'string') {
-                setTaskContent(taskContentFromDraft)
-            }
-            // If running from an existing plan, don't create another plan
-            if (fromDraft) {
-                setCreateAsDraft(false)
-            }
-        }
         window.addEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
-        window.addEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)
             window.removeEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
-            window.removeEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
         }
     }, [open, onClose])
 
@@ -295,7 +306,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
                     <div>
                         <label className="block text-sm text-slate-300 mb-1">
-                            {createAsDraft ? 'Agent content' : 'Initial prompt (optional)'}
+                            {createAsDraft ? 'Plan content' : 'Initial prompt (optional)'}
                         </label>
                         <textarea 
                             ref={promptTextareaRef}
@@ -308,7 +319,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                 }
                             }} 
                             className="w-full h-32 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm" 
-                            placeholder={createAsDraft ? "Enter agent description in markdown..." : "Describe the agent for the Claude session"} 
+                            placeholder={createAsDraft ? "Enter plan content in markdown..." : "Describe the agent for the Claude session"} 
                         />
                         <p className="text-xs text-slate-400 mt-1">
                             {createAsDraft ? (

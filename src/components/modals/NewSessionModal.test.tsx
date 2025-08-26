@@ -89,6 +89,80 @@ describe('NewSessionModal', () => {
     await waitFor(() => expect(checkbox.checked).toBe(true))
   })
 
+  it('prefills plan content when schaltwerk:new-session:prefill event is dispatched', async () => {
+    const { act } = await import('@testing-library/react')
+    render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    
+    // Initially the task content textarea should be empty
+    const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
+    expect(taskTextarea.value).toBe('')
+    
+    // Dispatch the prefill event with plan content
+    const planContent = '# My Plan\n\nThis is the plan content that should be prefilled.'
+    const planName = 'test-plan'
+    
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
+        detail: {
+          name: planName,
+          taskContent: planContent,
+          baseBranch: 'main',
+          lockName: true,
+          fromDraft: true,
+        }
+      }))
+    })
+    
+    // Wait for the content to be prefilled
+    await waitFor(() => {
+      expect(taskTextarea.value).toBe(planContent)
+    })
+    
+    // Also check that the name was prefilled
+    const nameInput = screen.getByPlaceholderText('eager_cosmos') as HTMLInputElement
+    expect(nameInput.value).toBe(planName)
+  })
+
+  it('handles race condition when prefill event is dispatched right after modal opens', async () => {
+    const { act } = await import('@testing-library/react')
+    
+    // Initially render with modal closed
+    const { rerender: rerenderFn } = render(<NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} />)
+    
+    // Dispatch the prefill event BEFORE opening modal (simulating the race condition)
+    const planContent = '# My Plan\n\nThis is the plan content that should be prefilled.'
+    const planName = 'test-plan'
+    
+    // Schedule the event to be dispatched slightly after the modal opens
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
+        detail: {
+          name: planName,
+          taskContent: planContent,
+          baseBranch: 'main',
+          lockName: true,
+          fromDraft: true,
+        }
+      }))
+    }, 50)
+    
+    // Now open the modal
+    await act(async () => {
+      rerenderFn(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    })
+    
+    // Wait a bit for the event to be dispatched
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
+    // Check if the content was prefilled
+    const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
+    expect(taskTextarea.value).toBe(planContent)
+    
+    // Also check that the name was prefilled
+    const nameInput = screen.getByPlaceholderText('eager_cosmos') as HTMLInputElement
+    expect(nameInput.value).toBe(planName)
+  })
+
   // Skipping edge-case validation UI assertion to avoid flakiness in CI
 
   it('toggles agent type and skip permissions', async () => {
@@ -203,6 +277,34 @@ describe('NewSessionModal', () => {
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
     expect(onCreate).not.toHaveBeenCalled()
     expect(await screen.findByText('Agent name must be 100 characters or less')).toBeInTheDocument()
+  })
+
+  it('shows correct labels and placeholders when starting agent from plan', async () => {
+    const { act } = await import('@testing-library/react')
+    render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    
+    // Dispatch the prefill event to simulate starting from a plan
+    const planContent = '# My Plan\n\nThis is the plan content.'
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
+        detail: {
+          name: 'test-plan',
+          taskContent: planContent,
+          fromDraft: true, // This should make createAsDraft false (starting agent from plan)
+        }
+      }))
+    })
+    
+    // Check that the label is "Initial prompt (optional)" when starting agent from plan
+    expect(screen.getByText('Initial prompt (optional)')).toBeInTheDocument()
+    
+    // Check that the textarea contains the plan content
+    const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
+    expect(taskTextarea.value).toBe(planContent)
+    
+    // Check that "Create as plan" checkbox is unchecked
+    const checkbox = screen.getByLabelText(/Create as plan/i) as HTMLInputElement
+    expect(checkbox.checked).toBe(false)
   })
 
   it('replaces spaces with underscores in the final name', async () => {
