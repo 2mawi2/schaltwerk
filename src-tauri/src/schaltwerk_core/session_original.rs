@@ -7,7 +7,7 @@ use uuid::Uuid;
 use chrono::{Utc, TimeZone};
 use rand::Rng;
 use log::{warn, error};
-use crate::para_core::{
+use crate::schaltwerk_core::{
     database::Database,
     db_sessions::SessionMethods,
     db_git_stats::GitStatsMethods,
@@ -212,7 +212,7 @@ impl SessionManager {
             }
 
             // Miss or stale: query git for this single branch and cache the result
-            let exists = crate::para_core::git::branch_exists(&self.repo_path, short_branch)?;
+            let exists = crate::schaltwerk_core::git::branch_exists(&self.repo_path, short_branch)?;
             repo_cache.insert(short_branch.to_string(), (now, exists));
             Ok(exists)
         })?
@@ -503,7 +503,7 @@ impl SessionManager {
     }
     
     pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
-        use crate::para_core::types::SessionState;
+        use crate::schaltwerk_core::types::SessionState;
         
         let session = self.db.get_session_by_name(&self.repo_path, name)?;
         
@@ -844,7 +844,7 @@ impl SessionManager {
         
         let command = match agent_type.as_str() {
             "cursor" => {
-                let session_id = crate::para_core::cursor::find_cursor_session(&session.worktree_path);
+                let session_id = crate::schaltwerk_core::cursor::find_cursor_session(&session.worktree_path);
                 let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
@@ -855,11 +855,11 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::para_core::cursor::CursorConfig {
+                let config = crate::schaltwerk_core::cursor::CursorConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::cursor::build_cursor_command_with_config(
+                crate::schaltwerk_core::cursor::build_cursor_command_with_config(
                     &session.worktree_path,
                     session_id.as_deref(),
                     prompt_to_use,
@@ -868,7 +868,7 @@ impl SessionManager {
                 )
             }
             "opencode" => {
-                let session_info = crate::para_core::opencode::find_opencode_session(&session.worktree_path);
+                let session_info = crate::schaltwerk_core::opencode::find_opencode_session(&session.worktree_path);
                 // Only pass initial prompt if:
                 // 1. No session exists yet, OR
                 // 2. Session exists but has no history (empty session)
@@ -886,11 +886,11 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::para_core::opencode::OpenCodeConfig {
+                let config = crate::schaltwerk_core::opencode::OpenCodeConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::opencode::build_opencode_command_with_config(
+                crate::schaltwerk_core::opencode::build_opencode_command_with_config(
                     &session.worktree_path,
                     session_info.as_ref(),
                     prompt_to_use,
@@ -899,7 +899,7 @@ impl SessionManager {
                 )
             }
             "gemini" => {
-                let session_id = crate::para_core::gemini::find_gemini_session(&session.worktree_path);
+                let session_id = crate::schaltwerk_core::gemini::find_gemini_session(&session.worktree_path);
                 let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
@@ -910,11 +910,11 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::para_core::gemini::GeminiConfig {
+                let config = crate::schaltwerk_core::gemini::GeminiConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::gemini::build_gemini_command_with_config(
+                crate::schaltwerk_core::gemini::build_gemini_command_with_config(
                     &session.worktree_path,
                     session_id.as_deref(),
                     prompt_to_use,
@@ -923,7 +923,7 @@ impl SessionManager {
                 )
             }
             "codex" => {
-                let session_id = crate::para_core::codex::find_codex_session(&session.worktree_path);
+                let session_id = crate::schaltwerk_core::codex::find_codex_session(&session.worktree_path);
                 let prompt_to_use = if !has_session_been_prompted(&session.worktree_path) {
                     session.initial_prompt.as_ref().map(|p| {
                         mark_session_prompted(&session.worktree_path);
@@ -941,10 +941,10 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::para_core::codex::CodexConfig {
+                let config = crate::schaltwerk_core::codex::CodexConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::codex::build_codex_command_with_config(
+                crate::schaltwerk_core::codex::build_codex_command_with_config(
                     &session.worktree_path,
                     session_id.as_deref(),
                     prompt_to_use,
@@ -953,7 +953,7 @@ impl SessionManager {
                 )
             }
             _ => {
-                let session_id = crate::para_core::claude::find_claude_session(&session.worktree_path);
+                let session_id = crate::schaltwerk_core::claude::find_claude_session(&session.worktree_path);
                 log::debug!("Claude session lookup for '{}': session_id={:?}, initial_prompt={:?}, prompted={}", 
                     session_name, session_id, session.initial_prompt, has_session_been_prompted(&session.worktree_path));
                 
@@ -973,11 +973,11 @@ impl SessionManager {
                     session_name, session_id_to_use, prompt_to_use.is_some());
                 
                 let binary_path = self.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::para_core::claude::ClaudeConfig {
+                let config = crate::schaltwerk_core::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::claude::build_claude_command_with_config(
+                crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &session.worktree_path,
                     // Don't resume existing session if we have a prompt to pass
                     // This ensures plan content creates a fresh conversation
@@ -1023,10 +1023,10 @@ impl SessionManager {
         let command = match agent_type.as_str() {
             "cursor" => {
                 let binary_path = self.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::para_core::cursor::CursorConfig {
+                let config = crate::schaltwerk_core::cursor::CursorConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::cursor::build_cursor_command_with_config(
+                crate::schaltwerk_core::cursor::build_cursor_command_with_config(
                     &self.repo_path,
                     None, // No session resume - force fresh
                     None,
@@ -1036,10 +1036,10 @@ impl SessionManager {
             }
             "opencode" => {
                 let binary_path = self.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::para_core::opencode::OpenCodeConfig {
+                let config = crate::schaltwerk_core::opencode::OpenCodeConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::opencode::build_opencode_command_with_config(
+                crate::schaltwerk_core::opencode::build_opencode_command_with_config(
                     &self.repo_path,
                     None, // No session resume - force fresh
                     None,
@@ -1049,10 +1049,10 @@ impl SessionManager {
             }
             "gemini" => {
                 let binary_path = self.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::para_core::gemini::GeminiConfig {
+                let config = crate::schaltwerk_core::gemini::GeminiConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::gemini::build_gemini_command_with_config(
+                crate::schaltwerk_core::gemini::build_gemini_command_with_config(
                     &self.repo_path,
                     None, // No session resume - force fresh
                     None,
@@ -1069,10 +1069,10 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::para_core::codex::CodexConfig {
+                let config = crate::schaltwerk_core::codex::CodexConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::codex::build_codex_command_with_config(
+                crate::schaltwerk_core::codex::build_codex_command_with_config(
                     &self.repo_path,
                     None, // No session resume - force fresh
                     None,
@@ -1083,10 +1083,10 @@ impl SessionManager {
             _ => {
                 // For Claude, explicitly pass None to bypass session discovery
                 let binary_path = self.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::para_core::claude::ClaudeConfig {
+                let config = crate::schaltwerk_core::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::claude::build_claude_command_with_config(
+                crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &self.repo_path,
                     None, // No session resume - force fresh
                     None,
@@ -1129,14 +1129,14 @@ impl SessionManager {
         
         let command = match agent_type.as_str() {
             "cursor" => {
-                let session_id = crate::para_core::cursor::find_cursor_session(&self.repo_path);
+                let session_id = crate::schaltwerk_core::cursor::find_cursor_session(&self.repo_path);
                 
                 let binary_path = self.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::para_core::cursor::CursorConfig {
+                let config = crate::schaltwerk_core::cursor::CursorConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::cursor::build_cursor_command_with_config(
+                crate::schaltwerk_core::cursor::build_cursor_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,
@@ -1145,14 +1145,14 @@ impl SessionManager {
                 )
             }
             "opencode" => {
-                let session_info = crate::para_core::opencode::find_opencode_session(&self.repo_path);
+                let session_info = crate::schaltwerk_core::opencode::find_opencode_session(&self.repo_path);
                 
                 let binary_path = self.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::para_core::opencode::OpenCodeConfig {
+                let config = crate::schaltwerk_core::opencode::OpenCodeConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::opencode::build_opencode_command_with_config(
+                crate::schaltwerk_core::opencode::build_opencode_command_with_config(
                     &self.repo_path,
                     session_info.as_ref(),
                     None,
@@ -1161,14 +1161,14 @@ impl SessionManager {
                 )
             }
             "gemini" => {
-                let session_id = crate::para_core::gemini::find_gemini_session(&self.repo_path);
+                let session_id = crate::schaltwerk_core::gemini::find_gemini_session(&self.repo_path);
                 
                 let binary_path = self.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::para_core::gemini::GeminiConfig {
+                let config = crate::schaltwerk_core::gemini::GeminiConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::gemini::build_gemini_command_with_config(
+                crate::schaltwerk_core::gemini::build_gemini_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,
@@ -1177,7 +1177,7 @@ impl SessionManager {
                 )
             }
             "codex" => {
-                let session_id = crate::para_core::codex::find_codex_session(&self.repo_path);
+                let session_id = crate::schaltwerk_core::codex::find_codex_session(&self.repo_path);
                 // For Codex commander, use workspace-write as default sandbox mode
                 let sandbox_mode = if skip_permissions {
                     "danger-full-access"
@@ -1186,10 +1186,10 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::para_core::codex::CodexConfig {
+                let config = crate::schaltwerk_core::codex::CodexConfig {
                     binary_path: Some(binary_path),
                 };
-                crate::para_core::codex::build_codex_command_with_config(
+                crate::schaltwerk_core::codex::build_codex_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,
@@ -1198,14 +1198,14 @@ impl SessionManager {
                 )
             }
             _ => {
-                let session_id = crate::para_core::claude::find_claude_session(&self.repo_path);
+                let session_id = crate::schaltwerk_core::claude::find_claude_session(&self.repo_path);
                 
                 let binary_path = self.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::para_core::claude::ClaudeConfig {
+                let config = crate::schaltwerk_core::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
                 
-                crate::para_core::claude::build_claude_command_with_config(
+                crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,
@@ -1429,7 +1429,7 @@ mod session_tests {
     use tempfile::TempDir;
     use std::fs;
     use chrono::Utc;
-    use crate::para_core::types::{Session, SessionStatus};
+    use crate::schaltwerk_core::types::{Session, SessionStatus};
     
     fn create_test_session_manager() -> (SessionManager, TempDir, Session) {
         let temp_dir = TempDir::new().unwrap();

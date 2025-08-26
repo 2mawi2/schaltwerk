@@ -2,12 +2,12 @@ use std::collections::HashMap;
 
 use crate::{
     SETTINGS_MANAGER,
-    get_para_core,
+    get_schaltwerk_core,
     PROJECT_MANAGER,
 };
 use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences};
-use crate::para_core::db_app_config::AppConfigMethods;
-use crate::para_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
+use crate::schaltwerk_core::db_app_config::AppConfigMethods;
+use crate::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
 
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
@@ -99,16 +99,16 @@ pub async fn set_terminal_divider_position(position: f64) -> Result<(), String> 
 
 #[tauri::command]
 pub async fn get_project_default_base_branch() -> Result<Option<String>, String> {
-    let para_core = get_para_core().await?;
-    let core = para_core.lock().await;
+    let schaltwerk_core = get_schaltwerk_core().await?;
+    let core = schaltwerk_core.lock().await;
     core.db.get_default_base_branch()
         .map_err(|e| format!("Failed to get default base branch: {e}"))
 }
 
 #[tauri::command]
 pub async fn set_project_default_base_branch(branch: Option<String>) -> Result<(), String> {
-    let para_core = get_para_core().await?;
-    let core = para_core.lock().await;
+    let schaltwerk_core = get_schaltwerk_core().await?;
+    let core = schaltwerk_core.lock().await;
     core.db.set_default_base_branch(branch.as_deref())
         .map_err(|e| format!("Failed to set default base branch: {e}"))
 }
@@ -128,7 +128,7 @@ pub async fn get_project_settings() -> Result<ProjectSettings, String> {
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     let setup_script = db
@@ -148,7 +148,7 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     db.set_project_setup_script(&project.path, &settings.setup_script)
@@ -166,7 +166,7 @@ pub async fn get_project_selection() -> Result<Option<ProjectSelection>, String>
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     db.get_project_selection(&project.path)
@@ -182,7 +182,7 @@ pub async fn set_project_selection(kind: String, payload: Option<String>) -> Res
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     let selection = ProjectSelection { kind, payload };
@@ -199,7 +199,7 @@ pub async fn get_project_sessions_settings() -> Result<ProjectSessionsSettings, 
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     db.get_project_sessions_settings(&project.path)
@@ -215,7 +215,7 @@ pub async fn set_project_sessions_settings(settings: ProjectSessionsSettings) ->
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db   = core.database();
 
     db.set_project_sessions_settings(&project.path, &settings)
@@ -231,7 +231,7 @@ pub async fn get_project_environment_variables() -> Result<HashMap<String, Strin
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db   = core.database();
 
     db.get_project_environment_variables(&project.path)
@@ -249,7 +249,7 @@ pub async fn set_project_environment_variables(
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db   = core.database();
 
     db.set_project_environment_variables(&project.path, &env_vars)
@@ -305,7 +305,7 @@ pub async fn get_project_action_buttons() -> Result<Vec<HeaderActionConfig>, Str
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     db.get_project_action_buttons(&project.path)
@@ -326,7 +326,7 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
         .await
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
-    let core = project.para_core.lock().await;
+    let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
     db.set_project_action_buttons(&project.path, &actions)

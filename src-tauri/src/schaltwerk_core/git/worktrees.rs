@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use anyhow::{Result, anyhow};
-use crate::para_core::git::repository::get_commit_hash;
+use crate::schaltwerk_core::git::repository::get_commit_hash;
 
 pub fn create_worktree_from_base(
     repo_path: &Path,

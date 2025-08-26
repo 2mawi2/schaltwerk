@@ -13,7 +13,7 @@ This is the Model Context Protocol (MCP) server for Schaltwerk, enabling AI assi
 
 ### Quick Setup (Recommended)
 
-From the para-ui repository root:
+From the schaltwerk repository root:
 
 ```bash
 just mcp-setup
@@ -44,7 +44,7 @@ Since the commander runs Claude Code CLI (not Claude Desktop), configure it usin
 
 ##### Option 1: CLI Command (Recommended)
 ```bash
-claude mcp add --transport stdio --scope project schaltwerk node /path/to/para-ui/mcp-server/build/schaltwerk-mcp-server.js
+claude mcp add --transport stdio --scope project schaltwerk node /path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
 ```
 
 ##### Option 2: Manual Configuration
@@ -56,13 +56,13 @@ Add to `.claude.json` in your project root:
     "schaltwerk": {
       "type": "stdio",
       "command": "node",
-      "args": ["/path/to/para-ui/mcp-server/build/schaltwerk-mcp-server.js"]
+      "args": ["/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js"]
     }
   }
 }
 ```
 
-Replace `/path/to/para-ui` with the actual path to your para-ui repository.
+Replace `/path/to/schaltwerk` with the actual path to your schaltwerk repository.
 
 ### 3. Restart Commander
 
@@ -129,7 +129,7 @@ npm test
 
 The MCP server communicates directly with the Schaltwerk SQLite database to manage sessions. It:
 
-1. Reads session data from `~/Library/Application Support/para-ui/sessions.db`
+1. Reads session data from `~/Library/Application Support/schaltwerk/sessions.db`
 2. Creates Git worktrees for new sessions
 3. Updates session metadata in the database
 4. Manages review status tracking

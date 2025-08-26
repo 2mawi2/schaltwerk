@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, mpsc};
 use log::{debug, info, warn, error};
 
-use crate::para_core::{git, types::ChangedFile};
+use crate::schaltwerk_core::{git, types::ChangedFile};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileChangeEvent {

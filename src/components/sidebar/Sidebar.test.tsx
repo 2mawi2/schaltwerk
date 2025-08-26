@@ -190,7 +190,7 @@ describe('Sidebar', () => {
     // Setup default mocks
     mockInvoke.mockImplementation((command: string) => {
       switch (command) {
-        case 'para_core_list_enriched_sessions':
+        case 'schaltwerk_core_list_enriched_sessions':
           return Promise.resolve([])
         case 'get_current_directory':
           return Promise.resolve('/test/cwd')
@@ -198,20 +198,20 @@ describe('Sidebar', () => {
           return Promise.resolve(false)
         case 'create_terminal':
           return Promise.resolve()
-        case 'para_core_get_session':
+        case 'schaltwerk_core_get_session':
           return Promise.resolve({
             worktree_path: '/test/session/path',
             session_id: 'test-session'
           })
-        case 'para_core_list_sessions_by_state':
+        case 'schaltwerk_core_list_sessions_by_state':
           return Promise.resolve([])
         case 'get_project_sessions_settings':
           return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
         case 'set_project_sessions_settings':
           return Promise.resolve()
-        case 'para_core_get_font_sizes':
+        case 'schaltwerk_core_get_font_sizes':
           return Promise.resolve([13, 12])
-        case 'para_core_set_font_sizes':
+        case 'schaltwerk_core_set_font_sizes':
           return Promise.resolve()
         default:
           return Promise.resolve()
@@ -235,9 +235,9 @@ describe('Sidebar', () => {
       // Mock both the regular sessions and plans calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'para_core_list_enriched_sessions':
+          case 'schaltwerk_core_list_enriched_sessions':
             return Promise.resolve([])
-          case 'para_core_list_sessions_by_state':
+          case 'schaltwerk_core_list_sessions_by_state':
             return Promise.resolve([])
           case 'get_current_directory':
             return Promise.resolve('/test/cwd')
@@ -249,9 +249,9 @@ describe('Sidebar', () => {
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
             return Promise.resolve()
-          case 'para_core_get_font_sizes':
+          case 'schaltwerk_core_get_font_sizes':
             return Promise.resolve([13, 12])
-          case 'para_core_set_font_sizes':
+          case 'schaltwerk_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -289,11 +289,11 @@ describe('Sidebar', () => {
       // Mock both the regular sessions and plans calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'para_core_list_enriched_sessions':
+          case 'schaltwerk_core_list_enriched_sessions':
             return Promise.resolve(mockSessions)
-          case 'para_core_list_enriched_sessions_sorted':
+          case 'schaltwerk_core_list_enriched_sessions_sorted':
             return Promise.resolve(mockSessions)
-          case 'para_core_list_sessions_by_state':
+          case 'schaltwerk_core_list_sessions_by_state':
             return Promise.resolve([])
           case 'get_current_directory':
             return Promise.resolve('/test/cwd')
@@ -305,9 +305,9 @@ describe('Sidebar', () => {
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
             return Promise.resolve()
-          case 'para_core_get_font_sizes':
+          case 'schaltwerk_core_get_font_sizes':
             return Promise.resolve([13, 12])
-          case 'para_core_set_font_sizes':
+          case 'schaltwerk_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -551,11 +551,11 @@ describe('Sidebar', () => {
       // Mock both the regular sessions and plans calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'para_core_list_enriched_sessions':
+          case 'schaltwerk_core_list_enriched_sessions':
             return Promise.resolve(mockSessions)
-          case 'para_core_list_enriched_sessions_sorted':
+          case 'schaltwerk_core_list_enriched_sessions_sorted':
             return Promise.resolve(mockSessions)
-          case 'para_core_list_sessions_by_state':
+          case 'schaltwerk_core_list_sessions_by_state':
             return Promise.resolve([])
           case 'get_current_directory':
             return Promise.resolve('/test/cwd')
@@ -567,9 +567,9 @@ describe('Sidebar', () => {
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
             return Promise.resolve()
-          case 'para_core_get_font_sizes':
+          case 'schaltwerk_core_get_font_sizes':
             return Promise.resolve([13, 12])
-          case 'para_core_set_font_sizes':
+          case 'schaltwerk_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -589,9 +589,9 @@ describe('Sidebar', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'para_core_list_enriched_sessions':
+          case 'schaltwerk_core_list_enriched_sessions':
             return Promise.reject(new Error('Failed to load sessions'))
-          case 'para_core_list_sessions_by_state':
+          case 'schaltwerk_core_list_sessions_by_state':
             return Promise.resolve([])
           case 'get_current_directory':
             return Promise.resolve('/test/cwd')
@@ -603,9 +603,9 @@ describe('Sidebar', () => {
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
           case 'set_project_sessions_settings':
             return Promise.resolve()
-          case 'para_core_get_font_sizes':
+          case 'schaltwerk_core_get_font_sizes':
             return Promise.resolve([13, 12])
-          case 'para_core_set_font_sizes':
+          case 'schaltwerk_core_set_font_sizes':
             return Promise.resolve()
           default:
             return Promise.resolve()

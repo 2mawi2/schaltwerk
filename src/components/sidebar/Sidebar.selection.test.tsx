@@ -64,10 +64,10 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with a plan and two running sessions
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [draftSession, runningSession1, runningSession2]
             }
-            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [draftSession, runningSession1, runningSession2]
                 if (fm === 'plan') return [draftSession]
@@ -75,7 +75,7 @@ describe('Sidebar - Selection on State Changes', () => {
                 if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'plan')
                 return all
             }
-            if (cmd === 'para_core_list_sessions_by_state') {
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
                 return []
             }
             if (cmd === 'get_project_sessions_settings') {
@@ -122,10 +122,10 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with only a plan session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [draftSession]
             }
-            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [draftSession]
                 if (fm === 'plan') return all
@@ -133,7 +133,7 @@ describe('Sidebar - Selection on State Changes', () => {
                 if (fm === 'reviewed') return []
                 return all
             }
-            if (cmd === 'para_core_list_sessions_by_state') {
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
                 return []
             }
             if (cmd === 'get_project_sessions_settings') {
@@ -172,13 +172,13 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [runningSession]
             }
-            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 return [runningSession]
             }
-            if (cmd === 'para_core_list_sessions_by_state') {
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
                 return []
             }
             if (cmd === 'get_project_sessions_settings') {
@@ -204,10 +204,10 @@ describe('Sidebar - Selection on State Changes', () => {
         // Update the session to be reviewed (still visible in "all" filter)
         const reviewedSession = { ...runningSession, info: { ...runningSession.info, ready_to_merge: true } }
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [reviewedSession]
             }
-            if (cmd === 'para_core_list_sessions_by_state') {
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
                 return []
             }
             if (cmd === 'get_project_sessions_settings') {
@@ -236,10 +236,10 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with a plan and a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [planAgent, runningTask]
             }
-            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [planAgent, runningTask]
                 if (fm === 'plan') return [planAgent]
@@ -247,7 +247,7 @@ describe('Sidebar - Selection on State Changes', () => {
                 if (fm === 'reviewed') return []
                 return all
             }
-            if (cmd === 'para_core_list_sessions_by_state') {
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
                 return []
             }
             if (cmd === 'get_project_sessions_settings') {

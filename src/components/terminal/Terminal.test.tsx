@@ -294,8 +294,8 @@ beforeEach(() => {
   ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => true)
   ;(TauriCore as any).__setInvokeHandler('resize_terminal', () => undefined)
   ;(TauriCore as any).__setInvokeHandler('write_terminal', () => undefined)
-  ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => undefined)
-  ;(TauriCore as any).__setInvokeHandler('para_core_start_claude', () => undefined)
+  ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => undefined)
+  ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude', () => undefined)
   ;(FitAddonModule as any).__setNextFitSize(null)
   
   // Reset WebGL state
@@ -422,7 +422,7 @@ describe('Terminal component', () => {
     // next macrotask
     await advanceAndFlush(1)
 
-    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'para_core_start_claude_orchestrator')
+    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls.length).toBe(1)
 
     // Re-render same id -> should not start again due to global guard
@@ -430,7 +430,7 @@ describe('Terminal component', () => {
     await flushAll()
     await advanceAndFlush(1)
 
-    const startCalls2 = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'para_core_start_claude_orchestrator')
+    const startCalls2 = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls2.length).toBe(1)
   })
 
@@ -443,8 +443,8 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(500)
 
-    const startOrch = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'para_core_start_claude_orchestrator')
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'para_core_start_claude')
+    const startOrch = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startOrch).toBeUndefined()
     expect(startSess).toBeUndefined()
   })
@@ -454,7 +454,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(200)
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'para_core_start_claude')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeUndefined()
   })
 
@@ -463,7 +463,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(200)
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'para_core_start_claude')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeUndefined()
   })
 
@@ -473,7 +473,7 @@ describe('Terminal component', () => {
     vi.advanceTimersByTime(1)
     await flushAll()
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'para_core_start_claude')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeTruthy()
     expect(startSess[1]).toMatchObject({ sessionName: 'work' })
   })
@@ -487,7 +487,7 @@ describe('Terminal component', () => {
     // attempts up to 10 times (every 150ms)
     vi.advanceTimersByTime(150 * 12)
 
-    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'para_core_start_claude_orchestrator')
+    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls.length).toBe(0)
   })
 
@@ -735,7 +735,7 @@ describe('Terminal component', () => {
       const permissionErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => {
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Permission required for folder: /some/path')
       })
       
@@ -757,7 +757,7 @@ describe('Terminal component', () => {
       const noProjectErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:no-project-error', noProjectErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => {
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('No project is currently open')
       })
       
@@ -780,7 +780,7 @@ describe('Terminal component', () => {
       const spawnErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:spawn-error', spawnErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => {
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Failed to spawn command: para')
       })
       
@@ -803,7 +803,7 @@ describe('Terminal component', () => {
       const notGitErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:not-git-error', notGitErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => {
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('fatal: not a git repository (or any of the parent directories): .git')
       })
       
@@ -823,7 +823,7 @@ describe('Terminal component', () => {
     })
 
     it('rolls back start flags on commander failure to allow retry', async () => {
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => {
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Some failure')
       })
       
@@ -836,13 +836,13 @@ describe('Terminal component', () => {
       clearTerminalStartedTracking(['commander-retry-top'])
       
       // Try again - should attempt to start again
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude_orchestrator', () => 'success')
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => 'success')
       renderTerminal({ terminalId: "commander-retry-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
       const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
-        c[0] === 'para_core_start_claude_orchestrator'
+        c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBeGreaterThanOrEqual(2)
     })
@@ -855,7 +855,7 @@ describe('Terminal component', () => {
       
       // Verify first start happened
       const firstStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
-        c[0] === 'para_core_start_claude_orchestrator'
+        c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(firstStartCalls.length).toBe(1)
       
@@ -868,7 +868,7 @@ describe('Terminal component', () => {
       
       // Should still be only 1 call total
       const totalStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
-        c[0] === 'para_core_start_claude_orchestrator'
+        c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(totalStartCalls.length).toBe(1)
     })
@@ -877,7 +877,7 @@ describe('Terminal component', () => {
       const permissionErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('para_core_start_claude', () => {
+      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude', () => {
         throw new Error('Permission required for folder: /some/session/path')
       })
       
@@ -901,7 +901,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
-        c[0] === 'para_core_start_claude'
+        c[0] === 'schaltwerk_core_start_claude'
       )
       expect(startCalls.length).toBe(0)
     })
@@ -931,7 +931,7 @@ describe('Terminal component', () => {
       
       // Should now attempt to start
       const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
-        c[0] === 'para_core_start_claude_orchestrator'
+        c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(1)
     })
@@ -946,7 +946,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(150 * 12)
       
       const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
-        c[0] === 'para_core_start_claude_orchestrator'
+        c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(0)
     })

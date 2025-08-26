@@ -322,12 +322,12 @@ export class SchaltwerkBridge {
       execSync('git rev-parse --show-toplevel', { cwd, stdio: 'pipe' })
       return cwd
     } catch {
-      // If not, try to find the para-ui repository
+      // If not, try to find the schaltwerk repository
       const possiblePaths = [
-        path.join(os.homedir(), 'Documents', 'git', 'para-ui'),
-        path.join(os.homedir(), 'Projects', 'para-ui'),
-        path.join(os.homedir(), 'Code', 'para-ui'),
-        path.join(os.homedir(), 'para-ui'),
+        path.join(os.homedir(), 'Documents', 'git', 'schaltwerk'),
+        path.join(os.homedir(), 'Projects', 'schaltwerk'),
+        path.join(os.homedir(), 'Code', 'schaltwerk'),
+        path.join(os.homedir(), 'schaltwerk'),
       ]
       
       for (const p of possiblePaths) {
@@ -336,7 +336,7 @@ export class SchaltwerkBridge {
         }
       }
       
-      throw new Error('Could not find para-ui repository')
+      throw new Error('Could not find schaltwerk repository')
     }
   }
 

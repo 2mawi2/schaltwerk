@@ -46,7 +46,7 @@ describe('Project Switching Selection Behavior', () => {
                     return Promise.resolve(false)
                 case 'create_terminal':
                     return Promise.resolve()
-                case 'para_core_get_session':
+                case 'schaltwerk_core_get_session':
                     return Promise.resolve({
                         worktree_path: '/test/session/path',
                         session_id: args?.name || 'test-session'

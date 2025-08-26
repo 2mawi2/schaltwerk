@@ -60,9 +60,9 @@ describe('Sidebar keyboard navigation basic', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_current_directory') return '/cwd'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true

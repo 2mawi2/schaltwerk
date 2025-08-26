@@ -1,9 +1,10 @@
 use tauri::Emitter;
-use crate::para_core::{SessionState, EnrichedSession, Session, SortMode, FilterMode};
-use crate::para_core::db_sessions::SessionMethods;
-use crate::para_core::db_app_config::AppConfigMethods;
-use crate::para_core::db_project_config::ProjectConfigMethods;
-use crate::{get_para_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
+use crate::schaltwerk_core::{SessionState, EnrichedSession};
+use crate::schaltwerk_core::types::{Session, SortMode, FilterMode};
+use crate::schaltwerk_core::db_sessions::SessionMethods;
+use crate::schaltwerk_core::db_app_config::AppConfigMethods;
+use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
 
 // Normalize user-provided CLI text copied from rich sources:
 // - Replace Unicode dash-like characters with ASCII '-'
@@ -81,10 +82,10 @@ fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
     *args = without_model;
 }
 #[tauri::command]
-pub async fn para_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
-    log::debug!("Listing enriched sessions from para_core");
+pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
+    log::debug!("Listing enriched sessions from schaltwerk_core");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -101,7 +102,7 @@ pub async fn para_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, 
 }
 
 #[tauri::command]
-pub async fn para_core_list_enriched_sessions_sorted(
+pub async fn schaltwerk_core_list_enriched_sessions_sorted(
     sort_mode: String,
     filter_mode: String,
 ) -> Result<Vec<EnrichedSession>, String> {
@@ -114,7 +115,7 @@ pub async fn para_core_list_enriched_sessions_sorted(
     let filter_mode = filter_mode_str.parse::<FilterMode>()
         .map_err(|e| format!("Invalid filter mode '{filter_mode_str}': {e}"))?;
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -131,12 +132,12 @@ pub async fn para_core_list_enriched_sessions_sorted(
 }
 
 #[tauri::command]
-pub async fn para_core_create_session(app: tauri::AppHandle, name: String, prompt: Option<String>, base_branch: Option<String>, user_edited_name: Option<bool>) -> Result<Session, String> {
+pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String, prompt: Option<String>, base_branch: Option<String>, user_edited_name: Option<bool>) -> Result<Session, String> {
     let looks_docker_style = name.contains('_') && name.split('_').count() == 2;
     let was_user_edited = user_edited_name.unwrap_or(false);
     let was_auto_generated = looks_docker_style && !was_user_edited;
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -171,10 +172,10 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             
             let (session_info, db_clone) = {
-                let core = match get_para_core().await {
+                let core = match get_schaltwerk_core().await {
                     Ok(c) => c,
                     Err(e) => {
-                        log::warn!("Cannot get para_core for session '{session_name_clone}': {e}");
+                        log::warn!("Cannot get schaltwerk_core for session '{session_name_clone}': {e}");
                         return;
                     }
                 };
@@ -238,7 +239,7 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
                 for (key, value) in project_env_vars { env_vars.push((key, value)); }
             }
 
-            let ctx = crate::para_core::naming::SessionRenameContext {
+            let ctx = crate::schaltwerk_core::naming::SessionRenameContext {
                 db: &db_clone,
                 session_id: &session_id,
                 worktree_path: &worktree_path,
@@ -249,14 +250,14 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
                 cli_args: Some(&cli_args),
                 env_vars: &env_vars,
             };
-            match crate::para_core::naming::generate_display_name_and_rename_branch(ctx).await {
+            match crate::schaltwerk_core::naming::generate_display_name_and_rename_branch(ctx).await {
                 Ok(Some(display_name)) => {
                     log::info!("Successfully generated display name '{display_name}' for session '{session_name_clone}'");
                     
-                    let core = match get_para_core().await {
+                    let core = match get_schaltwerk_core().await {
                         Ok(c) => c,
                         Err(e) => {
-                            log::warn!("Cannot get para_core for sessions refresh: {e}");
+                            log::warn!("Cannot get schaltwerk_core for sessions refresh: {e}");
                             return;
                         }
                     };
@@ -289,8 +290,8 @@ pub async fn para_core_create_session(app: tauri::AppHandle, name: String, promp
 }
 
 #[tauri::command]
-pub async fn para_core_list_sessions() -> Result<Vec<Session>, String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_list_sessions() -> Result<Vec<Session>, String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -299,8 +300,8 @@ pub async fn para_core_list_sessions() -> Result<Vec<Session>, String> {
 }
 
 #[tauri::command]
-pub async fn para_core_get_session(name: String) -> Result<Session, String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_get_session(name: String) -> Result<Session, String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -309,8 +310,8 @@ pub async fn para_core_get_session(name: String) -> Result<Session, String> {
 }
 
 #[tauri::command]
-pub async fn para_core_get_session_agent_content(name: String) -> Result<(Option<String>, Option<String>), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_get_session_agent_content(name: String) -> Result<(Option<String>, Option<String>), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -319,10 +320,10 @@ pub async fn para_core_get_session_agent_content(name: String) -> Result<(Option
 }
 
 #[tauri::command]
-pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
+pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Starting cancel session: {name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -368,10 +369,10 @@ pub async fn para_core_cancel_session(app: tauri::AppHandle, name: String) -> Re
 }
 
 #[tauri::command]
-pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: String) -> Result<(), String> {
+pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Converting session to plan: {name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -410,8 +411,8 @@ pub async fn para_core_convert_session_to_draft(app: tauri::AppHandle, name: Str
 }
 
 #[tauri::command]
-pub async fn para_core_update_git_stats(session_id: String) -> Result<(), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_update_git_stats(session_id: String) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -420,8 +421,8 @@ pub async fn para_core_update_git_stats(session_id: String) -> Result<(), String
 }
 
 #[tauri::command]
-pub async fn para_core_cleanup_orphaned_worktrees() -> Result<(), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_cleanup_orphaned_worktrees() -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -430,10 +431,10 @@ pub async fn para_core_cleanup_orphaned_worktrees() -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn para_core_start_claude(app: tauri::AppHandle, session_name: String) -> Result<String, String> {
+pub async fn schaltwerk_core_start_claude(app: tauri::AppHandle, session_name: String) -> Result<String, String> {
     log::info!("Starting Claude for session: {session_name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -605,15 +606,15 @@ pub async fn para_core_start_claude(app: tauri::AppHandle, session_name: String)
 }
 
 #[tauri::command]
-pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<String, String> {
+pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> Result<String, String> {
     log::info!("Starting Claude for commander in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("Failed to get para_core for commander: {e}");
-            // If we can't get a para_core (no project), create a user-friendly error
+            log::error!("Failed to get schaltwerk_core for commander: {e}");
+            // If we can't get a schaltwerk_core (no project), create a user-friendly error
             if e.contains("No active project") {
                 return Err("No project is currently open. Please open a project folder first before starting the commander.".to_string());
             }
@@ -794,8 +795,8 @@ pub async fn para_core_start_claude_orchestrator(terminal_id: String) -> Result<
 }
 
 #[tauri::command]
-pub async fn para_core_set_skip_permissions(enabled: bool) -> Result<(), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_set_skip_permissions(enabled: bool) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     core.db.set_skip_permissions(enabled)
@@ -803,8 +804,8 @@ pub async fn para_core_set_skip_permissions(enabled: bool) -> Result<(), String>
 }
 
 #[tauri::command]
-pub async fn para_core_get_skip_permissions() -> Result<bool, String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_get_skip_permissions() -> Result<bool, String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     core.db.get_skip_permissions()
@@ -812,8 +813,8 @@ pub async fn para_core_get_skip_permissions() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn para_core_set_agent_type(agent_type: String) -> Result<(), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_set_agent_type(agent_type: String) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     core.db.set_agent_type(&agent_type)
@@ -821,8 +822,8 @@ pub async fn para_core_set_agent_type(agent_type: String) -> Result<(), String> 
 }
 
 #[tauri::command]
-pub async fn para_core_set_session_agent_type(session_name: String, agent_type: String) -> Result<(), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_set_session_agent_type(session_name: String, agent_type: String) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     // Update global agent type
@@ -847,8 +848,8 @@ pub async fn para_core_set_session_agent_type(session_name: String, agent_type: 
 }
 
 #[tauri::command]
-pub async fn para_core_get_agent_type() -> Result<String, String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_get_agent_type() -> Result<String, String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     core.db.get_agent_type()
@@ -856,8 +857,8 @@ pub async fn para_core_get_agent_type() -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn para_core_get_font_sizes() -> Result<(i32, i32), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_get_font_sizes() -> Result<(i32, i32), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     core.db.get_font_sizes()
@@ -865,8 +866,8 @@ pub async fn para_core_get_font_sizes() -> Result<(i32, i32), String> {
 }
 
 #[tauri::command]
-pub async fn para_core_set_font_sizes(terminal_font_size: i32, ui_font_size: i32) -> Result<(), String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_set_font_sizes(terminal_font_size: i32, ui_font_size: i32) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     
     core.db.set_font_sizes(terminal_font_size, ui_font_size)
@@ -874,10 +875,10 @@ pub async fn para_core_set_font_sizes(terminal_font_size: i32, ui_font_size: i32
 }
 
 #[tauri::command]
-pub async fn para_core_mark_session_ready(app: tauri::AppHandle, name: String, auto_commit: bool) -> Result<bool, String> {
+pub async fn schaltwerk_core_mark_session_ready(app: tauri::AppHandle, name: String, auto_commit: bool) -> Result<bool, String> {
     log::info!("Marking session {name} as reviewed (auto_commit: {auto_commit})");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -897,8 +898,8 @@ pub async fn para_core_mark_session_ready(app: tauri::AppHandle, name: String, a
 }
 
 #[tauri::command]
-pub async fn para_core_has_uncommitted_changes(name: String) -> Result<bool, String> {
-    let core = get_para_core().await?;
+pub async fn schaltwerk_core_has_uncommitted_changes(name: String) -> Result<bool, String> {
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
 
@@ -906,15 +907,15 @@ pub async fn para_core_has_uncommitted_changes(name: String) -> Result<bool, Str
         .get_session(&name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
 
-    crate::para_core::git::has_uncommitted_changes(&session.worktree_path)
+    crate::schaltwerk_core::git::has_uncommitted_changes(&session.worktree_path)
         .map_err(|e| format!("Failed to check uncommitted changes: {e}"))
 }
 
 #[tauri::command]
-pub async fn para_core_unmark_session_ready(app: tauri::AppHandle, name: String) -> Result<(), String> {
+pub async fn schaltwerk_core_unmark_session_ready(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Unmarking session {name} as reviewed");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
@@ -934,10 +935,10 @@ pub async fn para_core_unmark_session_ready(app: tauri::AppHandle, name: String)
 }
 
 #[tauri::command]
-pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String, plan_content: String) -> Result<Session, String> {
+pub async fn schaltwerk_core_create_draft_session(app: tauri::AppHandle, name: String, plan_content: String) -> Result<Session, String> {
     log::info!("Creating plan session: {name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -957,10 +958,10 @@ pub async fn para_core_create_draft_session(app: tauri::AppHandle, name: String,
 }
 
 #[tauri::command]
-pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
+pub async fn schaltwerk_core_start_draft_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
     log::info!("Starting plan session: {name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -980,7 +981,7 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
     
     // Automatically start the AI agent for the newly started plan session
     log::info!("Auto-starting AI agent for plan session: {name}");
-    if let Err(e) = para_core_start_claude(app.clone(), name.clone()).await {
+    if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone()).await {
         log::warn!("Failed to auto-start AI agent for plan session {name}: {e}");
         // Don't fail the whole operation if agent start fails - session is already created
     }
@@ -989,13 +990,13 @@ pub async fn para_core_start_draft_session(app: tauri::AppHandle, name: String, 
 }
 
 #[tauri::command]
-pub async fn para_core_update_session_state(name: String, state: String) -> Result<(), String> {
+pub async fn schaltwerk_core_update_session_state(name: String, state: String) -> Result<(), String> {
     log::info!("Updating session state: {name} -> {state}");
     
     let session_state = state.parse::<SessionState>()
         .map_err(|e| format!("Invalid session state: {e}"))?;
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -1004,10 +1005,10 @@ pub async fn para_core_update_session_state(name: String, state: String) -> Resu
 }
 
 #[tauri::command]
-pub async fn para_core_update_plan_content(name: String, content: String) -> Result<(), String> {
+pub async fn schaltwerk_core_update_plan_content(name: String, content: String) -> Result<(), String> {
     log::info!("Updating plan content for session: {name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -1016,10 +1017,10 @@ pub async fn para_core_update_plan_content(name: String, content: String) -> Res
 }
 
 #[tauri::command]
-pub async fn para_core_rename_draft_session(app: tauri::AppHandle, old_name: String, new_name: String) -> Result<(), String> {
+pub async fn schaltwerk_core_rename_draft_session(app: tauri::AppHandle, old_name: String, new_name: String) -> Result<(), String> {
     log::info!("Renaming plan session from '{old_name}' to '{new_name}'");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -1037,10 +1038,10 @@ pub async fn para_core_rename_draft_session(app: tauri::AppHandle, old_name: Str
 }
 
 #[tauri::command]
-pub async fn para_core_append_plan_content(name: String, content: String) -> Result<(), String> {
+pub async fn schaltwerk_core_append_plan_content(name: String, content: String) -> Result<(), String> {
     log::info!("Appending to plan content for session: {name}");
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -1049,13 +1050,13 @@ pub async fn para_core_append_plan_content(name: String, content: String) -> Res
 }
 
 #[tauri::command]
-pub async fn para_core_list_sessions_by_state(state: String) -> Result<Vec<Session>, String> {
+pub async fn schaltwerk_core_list_sessions_by_state(state: String) -> Result<Vec<Session>, String> {
     log::info!("Listing sessions by state: {state}");
     
     let session_state = state.parse::<SessionState>()
         .map_err(|e| format!("Invalid session state: {e}"))?;
     
-    let core = get_para_core().await?;
+    let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
@@ -1064,7 +1065,7 @@ pub async fn para_core_list_sessions_by_state(state: String) -> Result<Vec<Sessi
 }
 
 #[tauri::command]
-pub async fn para_core_reset_orchestrator(terminal_id: String) -> Result<String, String> {
+pub async fn schaltwerk_core_reset_orchestrator(terminal_id: String) -> Result<String, String> {
     log::info!("Resetting commander for terminal: {terminal_id}");
     
     // Close the current terminal first
@@ -1078,19 +1079,19 @@ pub async fn para_core_reset_orchestrator(terminal_id: String) -> Result<String,
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     
     // Start a FRESH commander session (bypassing session discovery)
-    para_core_start_fresh_orchestrator(terminal_id).await
+    schaltwerk_core_start_fresh_orchestrator(terminal_id).await
 }
 
 #[tauri::command]
-pub async fn para_core_start_fresh_orchestrator(terminal_id: String) -> Result<String, String> {
+pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Result<String, String> {
     log::info!("Starting FRESH Claude for commander in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("Failed to get para_core for fresh commander: {e}");
-            // If we can't get a para_core (no project), create a user-friendly error
+            log::error!("Failed to get schaltwerk_core for fresh commander: {e}");
+            // If we can't get a schaltwerk_core (no project), create a user-friendly error
             if e.contains("No active project") {
                 return Err("No project is currently open. Please open a project folder first before starting the commander.".to_string());
             }

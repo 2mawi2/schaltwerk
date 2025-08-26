@@ -2,9 +2,9 @@
 
 #[cfg(test)]
 mod draft_fixed_tests {
-    use crate::para_core::types::{SessionStatus, SessionState};
-    use crate::para_core::database::Database;
-    use crate::para_core::session::SessionManager;
+    use crate::schaltwerk_core::types::{SessionStatus, SessionState};
+    use crate::schaltwerk_core::database::Database;
+    use crate::schaltwerk_core::session::SessionManager;
     use tempfile::TempDir;
     use std::fs;
     use std::process::Command;

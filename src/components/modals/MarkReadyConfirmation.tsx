@@ -30,7 +30,7 @@ export function MarkReadyConfirmation({
     let cancelled = false
     ;(async () => {
       try {
-        const dirty = await invoke<boolean>('para_core_has_uncommitted_changes', { name: sessionName })
+        const dirty = await invoke<boolean>('schaltwerk_core_has_uncommitted_changes', { name: sessionName })
         if (!cancelled) setFreshHasUncommitted(dirty)
       } catch {
         // If check fails, fall back to prop
@@ -50,7 +50,7 @@ export function MarkReadyConfirmation({
     
     setLoading(true)
     try {
-      const success = await invoke<boolean>('para_core_mark_session_ready', {
+      const success = await invoke<boolean>('schaltwerk_core_mark_session_ready', {
         name: sessionName,
         // Always pass current autoCommit choice; backend is idempotent if clean
         autoCommit: autoCommit

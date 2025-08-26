@@ -130,15 +130,15 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_path_for_claude_schaltwerk_worktree_para_ui() {
+    fn test_sanitize_path_for_claude_schaltwerk_worktree_schaltwerk() {
         // Realistic path from our setup
-        let path = Path::new("/Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/eager_tesla");
+        let path = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla");
         let sanitized = sanitize_path_for_claude(path);
         // Expectations based on observed ~/.claude/projects entries:
         // - leading dash for absolute path
         // - components separated by single '-'
         // - hidden ".schaltwerk" becomes "--schaltwerk" due to '/' -> '-' and '.' -> '-'
-        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-para-ui--schaltwerk-worktrees-eager_tesla");
+        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-eager_tesla");
     }
 
     #[test]
@@ -151,7 +151,7 @@ mod tests {
         let prev_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", home_path);
 
-        let worktree = Path::new("/Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/eager_tesla");
+        let worktree = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla");
         let sanitized = sanitize_path_for_claude(worktree);
 
         let projects_root = home_path.join(".claude").join("projects");
@@ -239,22 +239,22 @@ mod tests {
     }
 
     #[test]
-    fn test_sanitize_para_ui_main_repo_path() {
-        // Matches observed ~/.claude/projects folder: -Users-marius-wichtner-Documents-git-para-ui
-        let path = Path::new("/Users/marius.wichtner/Documents/git/para-ui");
+    fn test_sanitize_schaltwerk_main_repo_path() {
+        // Matches observed ~/.claude/projects folder: -Users-marius-wichtner-Documents-git-schaltwerk
+        let path = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk");
         let sanitized = sanitize_path_for_claude(path);
-        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-para-ui");
+        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-schaltwerk");
     }
 
     #[test]
-    fn test_sanitize_para_ui_worktree_path() {
+    fn test_sanitize_schaltwerk_worktree_path() {
         // Matches observed ~/.claude/projects folder for this worktree:
-        // -Users-marius-wichtner-Documents-git-para-ui--schaltwerk-worktrees-auto-submit-functionality
-        let path = Path::new("/Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/auto-submit-functionality");
+        // -Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-auto-submit-functionality
+        let path = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/auto-submit-functionality");
         let sanitized = sanitize_path_for_claude(path);
         assert_eq!(
             sanitized,
-            "-Users-marius-wichtner-Documents-git-para-ui--schaltwerk-worktrees-auto-submit-functionality"
+            "-Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-auto-submit-functionality"
         );
     }
 }

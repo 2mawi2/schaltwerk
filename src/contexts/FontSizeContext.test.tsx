@@ -5,10 +5,10 @@ import { FontSizeProvider, useFontSize } from './FontSizeContext'
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((cmd: string, _args?: any) => {
-    if (cmd === 'para_core_get_font_sizes') {
+    if (cmd === 'schaltwerk_core_get_font_sizes') {
       return Promise.resolve([13, 12])
     }
-    if (cmd === 'para_core_set_font_sizes') {
+    if (cmd === 'schaltwerk_core_set_font_sizes') {
       return Promise.resolve()
     }
     return Promise.reject(new Error(`Unknown command: ${cmd}`))
@@ -123,7 +123,7 @@ describe('FontSizeContext', () => {
     })
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('para_core_set_font_sizes', { 
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_font_sizes', { 
         terminalFontSize: 14,
         uiFontSize: 13
       })

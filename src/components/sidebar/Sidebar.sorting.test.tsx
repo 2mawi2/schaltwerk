@@ -106,8 +106,8 @@ describe('Sidebar sorting functionality', () => {
   
   const createInvokeMock = (sessions: any[]) => {
     return async (cmd: string, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: any) => !!s.info.ready_to_merge
@@ -133,7 +133,7 @@ describe('Sidebar sorting functionality', () => {
         const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_current_directory') return '/test/dir'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true

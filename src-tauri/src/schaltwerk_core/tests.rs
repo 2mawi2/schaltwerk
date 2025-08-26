@@ -1,7 +1,7 @@
 #[cfg(test)]
-use crate::para_core::{Database, SessionManager, git};
+use crate::schaltwerk_core::{Database, SessionManager, git};
 #[cfg(test)]
-use crate::para_core::types::SessionStatus;
+use crate::schaltwerk_core::types::SessionStatus;
 #[cfg(test)]
 use tempfile::TempDir;
 #[cfg(test)]
@@ -13,11 +13,11 @@ use anyhow::Result;
 
 // Import database traits for method access in tests
 #[cfg(test)]
-use crate::para_core::db_sessions::SessionMethods;
+use crate::schaltwerk_core::db_sessions::SessionMethods;
 #[cfg(test)]
-use crate::para_core::db_git_stats::GitStatsMethods;
+use crate::schaltwerk_core::db_git_stats::GitStatsMethods;
 #[cfg(test)]
-use crate::para_core::db_project_config::ProjectConfigMethods;
+use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
 
 #[cfg(test)]
 struct TestEnvironment {
@@ -866,7 +866,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
 
     #[test]
     fn test_convert_running_session_to_draft() {
-        use crate::para_core::types::SessionState;
+        use crate::schaltwerk_core::types::SessionState;
         
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();
@@ -903,7 +903,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
     
     #[test]
     fn test_convert_session_to_draft_preserves_content() {
-        use crate::para_core::types::SessionState;
+        use crate::schaltwerk_core::types::SessionState;
         
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();

@@ -15,7 +15,7 @@ mod file_utils;
 mod file_watcher;
 mod logging;
 mod terminal;
-mod para_core;
+mod schaltwerk_core;
 mod open_apps;
 mod projects;
 mod project_manager;
@@ -162,9 +162,9 @@ pub async fn get_terminal_manager() -> Result<Arc<terminal::TerminalManager>, St
         .map_err(|e| format!("Failed to get terminal manager: {e}"))
 }
 
-pub async fn get_para_core() -> Result<Arc<tokio::sync::Mutex<para_core::SchaltwerkCore>>, String> {
+pub async fn get_schaltwerk_core() -> Result<Arc<tokio::sync::Mutex<schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
-    manager.current_para_core().await
+    manager.current_schaltwerk_core().await
         .map_err(|e| {
             log::error!("Failed to get para core: {e}");
             format!("Failed to get para core: {e}")
@@ -180,8 +180,8 @@ pub async fn get_file_watcher_manager() -> Result<Arc<file_watcher::FileWatcherM
 
 #[tauri::command]
 async fn start_file_watcher(session_name: String) -> Result<(), String> {
-    let para_core = get_para_core().await?;
-    let core = para_core.lock().await;
+    let schaltwerk_core = get_schaltwerk_core().await?;
+    let core = schaltwerk_core.lock().await;
     let session_manager = core.session_manager();
     
     let sessions = session_manager.list_enriched_sessions()
@@ -469,7 +469,7 @@ async fn start_webhook_server(app: tauri::AppHandle) {
                             // We emit with empty array since UI components will fetch what they need
                             // (plans via list_sessions_by_state, sessions via list_enriched_sessions)
                             log::info!("Emitting sessions-refreshed event after MCP plan creation");
-                            if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<para_core::EnrichedSession>::new()) {
+                            if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<schaltwerk_core::EnrichedSession>::new()) {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
                             
@@ -546,7 +546,7 @@ use tauri::{Emitter, Manager};
 fn main() {
     // Initialize logging
     logging::init_logging();
-    log::info!("Para UI starting...");
+    log::info!("Schaltwerk starting...");
     
     // Parse command line arguments using Clap (positional DIR)
     use clap::Parser;
@@ -636,37 +636,37 @@ fn main() {
             // MCP commands
             start_mcp_server,
             // Para core commands
-            para_core_create_session,
-            para_core_list_sessions,
-            para_core_list_enriched_sessions,
-            para_core_list_enriched_sessions_sorted,
-            para_core_get_session,
-            para_core_get_session_agent_content,
-            para_core_cancel_session,
-            para_core_convert_session_to_draft,
-            para_core_update_git_stats,
-            para_core_cleanup_orphaned_worktrees,
-            para_core_start_claude,
-            para_core_start_claude_orchestrator,
-            para_core_start_fresh_orchestrator,
-            para_core_reset_orchestrator,
-            para_core_set_skip_permissions,
-            para_core_get_skip_permissions,
-            para_core_mark_session_ready,
-            para_core_has_uncommitted_changes,
-            para_core_unmark_session_ready,
-            para_core_set_agent_type,
-            para_core_set_session_agent_type,
-            para_core_get_agent_type,
-            para_core_get_font_sizes,
-            para_core_set_font_sizes,
-            para_core_create_draft_session,
-            para_core_start_draft_session,
-            para_core_update_session_state,
-            para_core_update_plan_content,
-            para_core_append_plan_content,
-            para_core_rename_draft_session,
-            para_core_list_sessions_by_state,
+            schaltwerk_core_create_session,
+            schaltwerk_core_list_sessions,
+            schaltwerk_core_list_enriched_sessions,
+            schaltwerk_core_list_enriched_sessions_sorted,
+            schaltwerk_core_get_session,
+            schaltwerk_core_get_session_agent_content,
+            schaltwerk_core_cancel_session,
+            schaltwerk_core_convert_session_to_draft,
+            schaltwerk_core_update_git_stats,
+            schaltwerk_core_cleanup_orphaned_worktrees,
+            schaltwerk_core_start_claude,
+            schaltwerk_core_start_claude_orchestrator,
+            schaltwerk_core_start_fresh_orchestrator,
+            schaltwerk_core_reset_orchestrator,
+            schaltwerk_core_set_skip_permissions,
+            schaltwerk_core_get_skip_permissions,
+            schaltwerk_core_mark_session_ready,
+            schaltwerk_core_has_uncommitted_changes,
+            schaltwerk_core_unmark_session_ready,
+            schaltwerk_core_set_agent_type,
+            schaltwerk_core_set_session_agent_type,
+            schaltwerk_core_get_agent_type,
+            schaltwerk_core_get_font_sizes,
+            schaltwerk_core_set_font_sizes,
+            schaltwerk_core_create_draft_session,
+            schaltwerk_core_start_draft_session,
+            schaltwerk_core_update_session_state,
+            schaltwerk_core_update_plan_content,
+            schaltwerk_core_append_plan_content,
+            schaltwerk_core_rename_draft_session,
+            schaltwerk_core_list_sessions_by_state,
             // Open apps commands (from module)
             open_apps::get_default_open_app,
             open_apps::set_default_open_app,
@@ -813,7 +813,7 @@ fn main() {
             let file_watcher_handle = app.handle().clone();
             let _ = FILE_WATCHER_MANAGER.set(Arc::new(file_watcher::FileWatcherManager::new(file_watcher_handle)));
             
-            // Start activity tracking for para_core sessions
+            // Start activity tracking for schaltwerk_core sessions
             let app_handle = app.handle().clone();
             
             // Start terminal monitoring for stuck detection
@@ -825,13 +825,13 @@ fn main() {
                 use tokio::time::{sleep, Duration};
                 // Retry until a project is initialized, then start tracking once
                 loop {
-                    match get_para_core().await {
+                    match get_schaltwerk_core().await {
                         Ok(core) => {
                             let db = {
                                 let core_lock = core.lock().await;
                                 Arc::new(core_lock.db.clone())
                             };
-                            para_core::activity::start_activity_tracking_with_app(db, app_handle.clone());
+                            schaltwerk_core::activity::start_activity_tracking_with_app(db, app_handle.clone());
                             break;
                         }
                         Err(e) => {

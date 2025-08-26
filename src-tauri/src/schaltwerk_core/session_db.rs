@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use anyhow::{Result, anyhow};
 use chrono::Utc;
-use crate::para_core::{
+use crate::schaltwerk_core::{
     database::Database,
     db_sessions::SessionMethods,
     db_git_stats::GitStatsMethods,

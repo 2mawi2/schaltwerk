@@ -22,7 +22,7 @@ describe('MCP API Integration Tests', () => {
     execSync('git commit -m "Initial commit"', { cwd: testRepoPath })
     
     const dataDir = path.join(os.tmpdir(), `test-schaltwerk-${Date.now()}`)
-    const projectDir = path.join(dataDir, 'projects', 'para-ui_test')
+    const projectDir = path.join(dataDir, 'projects', 'schaltwerk_test')
     fs.mkdirSync(projectDir, { recursive: true })
     testDbPath = path.join(projectDir, 'sessions.db')
     

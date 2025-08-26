@@ -26,7 +26,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
 
   // Load font sizes from database on mount
   useEffect(() => {
-    invoke<[number, number]>('para_core_get_font_sizes')
+    invoke<[number, number]>('schaltwerk_core_get_font_sizes')
       .then(([terminal, ui]) => {
         if (terminal >= MIN_FONT_SIZE && terminal <= MAX_FONT_SIZE) {
           setTerminalFontSize(terminal)
@@ -46,7 +46,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!initialized) return
     
-    invoke('para_core_set_font_sizes', { 
+    invoke('schaltwerk_core_set_font_sizes', { 
       terminalFontSize, 
       uiFontSize 
     })

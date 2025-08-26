@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
 use uuid::Uuid;
 use rand::Rng;
-use crate::para_core::{
+use crate::schaltwerk_core::{
     git,
     types::{EnrichedSession, SortMode, FilterMode, SessionState},
     session_cache::SessionCacheManager,

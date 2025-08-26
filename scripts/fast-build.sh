@@ -3,7 +3,7 @@ set -euo pipefail
 
 PORT=${1:-3212}
 
-echo "🚀 Building Para UI on port $PORT (fresh release build)"
+echo "🚀 Building Schaltwerk on port $PORT (fresh release build)"
 
 export VITE_PORT=$PORT
 export PORT=$PORT

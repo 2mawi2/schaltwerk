@@ -61,10 +61,10 @@ describe('Sidebar status indicators and actions', () => {
     unlistenFns = []
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
-      if (cmd === 'para_core_list_sessions_by_state') return []
-      if (cmd === 'para_core_unmark_session_ready') return undefined
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_unmark_session_ready') return undefined
       if (cmd === 'get_current_directory') return '/cwd'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
@@ -109,7 +109,7 @@ describe('Sidebar status indicators and actions', () => {
     fireEvent.click(unmarkBtn)
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('para_core_unmark_session_ready', { name: 's2' })
+      expect(invoke).toHaveBeenCalledWith('schaltwerk_core_unmark_session_ready', { name: 's2' })
     })
   })
 
@@ -142,9 +142,9 @@ describe('Sidebar status indicators and actions', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_current_directory') return '/cwd'
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true

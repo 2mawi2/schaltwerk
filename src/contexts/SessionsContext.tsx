@@ -81,7 +81,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
         try {
             setLoading(true)
-            const enrichedSessions = await invoke<EnrichedSession[]>('para_core_list_enriched_sessions')
+            const enrichedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
             const enriched = enrichedSessions || []
             // If enriched already contains plans, use it as-is
             if (enriched.some(s => mapSessionUiState(s.info) === 'plan')) {
@@ -93,7 +93,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 // Try to fetch explicit plans; if shape is unexpected, ignore
                 let all = enriched
                 try {
-                    const draftSessions = await invoke<any[]>('para_core_list_sessions_by_state', { state: 'plan' })
+                    const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
                     if (Array.isArray(draftSessions) && draftSessions.some(d => d && (d.name || d.id))) {
                         const enrichedDrafts: EnrichedSession[] = draftSessions.map(plan => ({
                             id: plan.id,
@@ -135,7 +135,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const updateSessionStatus = useCallback(async (sessionId: string, newStatus: string) => {
         try {
             // First, we need to get the current session state
-            const currentSessions = await invoke<EnrichedSession[]>('para_core_list_enriched_sessions')
+            const currentSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
             const session = currentSessions?.find(s => s.info.session_id === sessionId)
             
             if (!session) {
@@ -144,15 +144,15 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
 
             if (newStatus === 'plan') {
-                await invoke('para_core_convert_session_to_draft', { name: sessionId })
+                await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
                 if (session.info.status === 'plan') {
-                    await invoke('para_core_start_draft_session', { name: sessionId })
+                    await invoke('schaltwerk_core_start_draft_session', { name: sessionId })
                 } else if (session.info.ready_to_merge) {
-                    await invoke('para_core_unmark_ready', { name: sessionId })
+                    await invoke('schaltwerk_core_unmark_ready', { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
-                await invoke('para_core_mark_ready', { name: sessionId })
+                await invoke('schaltwerk_core_mark_ready', { name: sessionId })
             }
 
             await reloadSessions()
@@ -163,7 +163,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const createDraft = useCallback(async (name: string, content: string) => {
         try {
-            await invoke('para_core_create_draft_session', { name, planContent: content })
+            await invoke('schaltwerk_core_create_draft_session', { name, planContent: content })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to create plan:', error)

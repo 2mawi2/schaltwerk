@@ -23,7 +23,7 @@ pub fn discover_repository() -> Result<PathBuf> {
         .output()?;
     
     if !output.status.success() {
-        return Err(anyhow!("Not in a git repository. Please run Para UI from within a git repository."));
+        return Err(anyhow!("Not in a git repository. Please run Schaltwerk from within a git repository."));
     }
     
     let path = String::from_utf8_lossy(&output.stdout)

@@ -73,14 +73,14 @@ vi.mock('@tauri-apps/api/core', () => ({
         return false
       case 'create_terminal':
         return null
-      case 'para_core_get_session':
+      case 'schaltwerk_core_get_session':
         return { worktree_path: '/tmp/worktrees/abc' }
       case 'get_project_action_buttons':
         return []
       case 'initialize_project':
       case 'add_recent_project':
-      case 'para_core_create_session':
-      case 'para_core_cancel_session':
+      case 'schaltwerk_core_create_session':
+      case 'schaltwerk_core_cancel_session':
       case 'directory_exists':
       case 'update_recent_project_timestamp':
       case 'remove_recent_project':

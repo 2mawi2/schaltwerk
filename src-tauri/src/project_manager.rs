@@ -7,13 +7,13 @@ use log::{info, debug, warn};
 use sha2::{Sha256, Digest};
 
 use crate::terminal::TerminalManager;
-use crate::para_core::SchaltwerkCore;
+use crate::schaltwerk_core::SchaltwerkCore;
 
 /// Represents a single project with its own terminals and sessions
 pub struct Project {
     pub path: PathBuf,
     pub terminal_manager: Arc<TerminalManager>,
-    pub para_core: Arc<Mutex<SchaltwerkCore>>,
+    pub schaltwerk_core: Arc<Mutex<SchaltwerkCore>>,
 }
 
 impl Project {
@@ -33,14 +33,14 @@ impl Project {
         
         info!("Using database at: {}", db_path.display());
         
-        let para_core = Arc::new(Mutex::new(
+        let schaltwerk_core = Arc::new(Mutex::new(
             SchaltwerkCore::new_with_repo_path(Some(db_path), path.clone())?
         ));
         
         Ok(Self {
             path,
             terminal_manager,
-            para_core,
+            schaltwerk_core,
         })
     }
     
@@ -241,13 +241,13 @@ impl ProjectManager {
     }
     
     /// Get SchaltwerkCore for current project
-    pub async fn current_para_core(&self) -> Result<Arc<Mutex<SchaltwerkCore>>> {
+    pub async fn current_schaltwerk_core(&self) -> Result<Arc<Mutex<SchaltwerkCore>>> {
         let project = self.current_project().await?;
-        Ok(project.para_core.clone())
+        Ok(project.schaltwerk_core.clone())
     }
 
     /// Get SchaltwerkCore for a specific project path
-    pub async fn get_para_core_for_path(&self, path: &PathBuf) -> Result<Arc<Mutex<SchaltwerkCore>>> {
+    pub async fn get_schaltwerk_core_for_path(&self, path: &PathBuf) -> Result<Arc<Mutex<SchaltwerkCore>>> {
         // Canonicalize the input path for consistent comparison
         let canonical_path = match std::fs::canonicalize(path) {
             Ok(p) => p,
@@ -258,11 +258,11 @@ impl ProjectManager {
         if let Some(current_path) = self.current_project_path().await {
             let current_canonical = std::fs::canonicalize(&current_path).unwrap_or(current_path);
             if current_canonical == canonical_path {
-                return self.current_para_core().await;
+                return self.current_schaltwerk_core().await;
             }
             // Check if the path is inside the current project (for worktree paths)
             if canonical_path.starts_with(&current_canonical) {
-                return self.current_para_core().await;
+                return self.current_schaltwerk_core().await;
             }
         }
         
@@ -271,11 +271,11 @@ impl ProjectManager {
         for project in projects.values() {
             let project_canonical = std::fs::canonicalize(&project.path).unwrap_or(project.path.clone());
             if project_canonical == canonical_path {
-                return Ok(project.para_core.clone());
+                return Ok(project.schaltwerk_core.clone());
             }
             // Check if the path is inside this project (for worktree paths)
             if canonical_path.starts_with(&project_canonical) {
-                return Ok(project.para_core.clone());
+                return Ok(project.schaltwerk_core.clone());
             }
         }
         
@@ -291,7 +291,7 @@ impl ProjectManager {
         projects_write.insert(canonical_path.clone(), arc_project.clone());
         drop(projects_write);
         
-        Ok(arc_project.para_core.clone())
+        Ok(arc_project.schaltwerk_core.clone())
     }
 }
 

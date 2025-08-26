@@ -1,8 +1,8 @@
 use std::process::Command;
 use std::path::Path;
 // no serde derives used in this module
-use crate::get_para_core;
-use crate::para_core::{git, types::ChangedFile};
+use crate::get_schaltwerk_core;
+use crate::schaltwerk_core::{git, types::ChangedFile};
 use std::collections::HashMap;
 use crate::file_utils;
 use crate::diff_engine::{
@@ -501,7 +501,7 @@ pub async fn get_commit_comparison_info(session_name: Option<String>) -> Result<
 
 async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
-        let core = get_para_core().await?;
+        let core = get_schaltwerk_core().await?;
         let core = core.lock().await;
         let manager = core.session_manager();
         
@@ -539,7 +539,7 @@ async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
 
 async fn get_base_branch(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
-        let core = get_para_core().await?;
+        let core = get_schaltwerk_core().await?;
         let core = core.lock().await;
         let manager = core.session_manager();
         
@@ -557,13 +557,13 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
         // No session specified, get default branch from current project
         let manager = crate::get_project_manager().await;
         if let Ok(project) = manager.current_project().await {
-            crate::para_core::git::get_default_branch(&project.path)
+            crate::schaltwerk_core::git::get_default_branch(&project.path)
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         } else {
             // Fallback for when no project is active (needed for Claude sessions)
             let current_dir = std::env::current_dir()
                 .map_err(|e| format!("Failed to get current directory: {e}"))?;
-            crate::para_core::git::get_default_branch(&current_dir)
+            crate::schaltwerk_core::git::get_default_branch(&current_dir)
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         }
     }

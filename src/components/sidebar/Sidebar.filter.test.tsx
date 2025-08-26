@@ -96,8 +96,8 @@ describe('Sidebar filter functionality and persistence', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const fm = (args?.sortMode !== undefined, args?.filterMode || FilterMode.All) as FilterMode
         const filtered = fm === FilterMode.All
           ? sessions
@@ -112,7 +112,7 @@ describe('Sidebar filter functionality and persistence', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: FilterMode.All, sort_mode: SortMode.Name }
       }
@@ -227,7 +227,7 @@ describe('Sidebar filter functionality and persistence', () => {
         }
         return undefined
       }
-      if (command === 'para_core_list_enriched_sessions_sorted') {
+      if (command === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const all = [
           createSession('session1'),
           createSession('session2'),
@@ -240,7 +240,7 @@ describe('Sidebar filter functionality and persistence', () => {
         if (fm === FilterMode.Reviewed) return all.filter(s => s.info.ready_to_merge)
         return all.filter(s => !s.info.ready_to_merge && (s.info as any).session_state !== 'plan')
       }
-      if (command === 'para_core_list_enriched_sessions') {
+      if (command === 'schaltwerk_core_list_enriched_sessions') {
         return [
           createSession('session1'),
           createSession('session2'),
@@ -252,7 +252,7 @@ describe('Sidebar filter functionality and persistence', () => {
       if (command === 'terminal_exists') return false
       if (command === 'create_terminal') return true
       if (command === 'get_buffer') return ''
-      if (command === 'para_core_list_sessions_by_state') return []
+      if (command === 'schaltwerk_core_list_sessions_by_state') return []
       return undefined
     })
     

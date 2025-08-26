@@ -22,7 +22,7 @@ export function PlanEditor({ sessionName, onStart }: Props) {
     let mounted = true
     setLoading(true)
     setError(null)
-    invoke<[string | null, string | null]>('para_core_get_session_agent_content', { name: sessionName })
+    invoke<[string | null, string | null]>('schaltwerk_core_get_session_agent_content', { name: sessionName })
       .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
         const text: string = draftContent ?? initialPrompt ?? ''
@@ -42,7 +42,7 @@ export function PlanEditor({ sessionName, onStart }: Props) {
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSaving(true)
-        await invoke('para_core_update_draft_content', { name: sessionName, content })
+        await invoke('schaltwerk_core_update_draft_content', { name: sessionName, content })
       } catch (e) {
         console.error('[DraftEditor] Failed to save plan:', e)
       } finally {

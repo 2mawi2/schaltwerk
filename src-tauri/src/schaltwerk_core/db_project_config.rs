@@ -3,7 +3,7 @@
     use std::collections::HashMap;
     use anyhow::Result;
     use chrono::Utc;
-    use crate::para_core::database::Database;
+    use crate::schaltwerk_core::database::Database;
     use serde::{Serialize, Deserialize};
 
     #[derive(Debug, Clone, Serialize, Deserialize)]

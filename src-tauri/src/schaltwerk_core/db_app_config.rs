@@ -1,6 +1,6 @@
 use rusqlite::params;
 use anyhow::Result;
-use crate::para_core::database::Database;
+use crate::schaltwerk_core::database::Database;
 
 pub trait AppConfigMethods {
     fn get_skip_permissions(&self) -> Result<bool>;

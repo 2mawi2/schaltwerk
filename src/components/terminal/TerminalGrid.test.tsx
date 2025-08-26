@@ -189,7 +189,7 @@ beforeEach(() => {
           mountCount.set(terminalId, 0) // Mark as created but not yet mounted
         }
         return Promise.resolve()
-      case 'para_core_get_session':
+      case 'schaltwerk_core_get_session':
         return Promise.resolve({
           worktree_path: '/session/worktree',
           session_id: args?.name || 'test-session',

@@ -44,8 +44,8 @@ The formula is automatically updated by GitHub Actions when a new release is tag
 
 ```bash
 # Download the release archives
-curl -LO https://github.com/mariuswichtner/para-ui/releases/download/vX.Y.Z/schaltwerk-X.Y.Z-x86_64-apple-darwin.tar.gz
-curl -LO https://github.com/mariuswichtner/para-ui/releases/download/vX.Y.Z/schaltwerk-X.Y.Z-aarch64-apple-darwin.tar.gz
+curl -LO https://github.com/mariuswichtner/schaltwerk/releases/download/vX.Y.Z/schaltwerk-X.Y.Z-x86_64-apple-darwin.tar.gz
+curl -LO https://github.com/mariuswichtner/schaltwerk/releases/download/vX.Y.Z/schaltwerk-X.Y.Z-aarch64-apple-darwin.tar.gz
 
 # Calculate checksums
 shasum -a 256 schaltwerk-*.tar.gz

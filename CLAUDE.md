@@ -189,7 +189,7 @@ When session state changes in backend:
 Example backend:
 ```rust
 #[tauri::command]
-async fn para_core_start_draft_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
+async fn schaltwerk_core_start_draft_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
     // ... perform operation ...
     if let Ok(sessions) = manager.list_enriched_sessions() {
         app.emit("schaltwerk:sessions-refreshed", &sessions)?;
@@ -267,7 +267,7 @@ The exact log file path is printed to stderr when the app starts with a 📝 emo
 
 ### Log Levels
 The application uses standard log levels with smart defaults:
-- **DEBUG**: Detailed information for our codebase (`ui`, `para_ui` modules)
+- **DEBUG**: Detailed information for our codebase (`ui`, `schaltwerk` modules)
 - **INFO**: Important events and milestones (default for `portable_pty`, `tauri`)
 - **WARN**: Potentially harmful situations (default for third-party crates)
 - **ERROR**: Error events that might still allow the app to continue

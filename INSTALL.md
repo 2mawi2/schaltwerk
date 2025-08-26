@@ -47,7 +47,7 @@ The application will now launch and work normally. This approval is only needed 
 If you prefer to install manually or can't use Homebrew:
 
 ### Download the Application
-1. Go to the [Releases page](https://github.com/2mawi2/para-ui/releases)
+1. Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases)
 2. Download the appropriate version:
    - `schaltwerk-*-aarch64-apple-darwin.tar.gz` for Apple Silicon (M1/M2/M3)
    - `schaltwerk-*-x86_64-apple-darwin.tar.gz` for Intel Macs
@@ -140,8 +140,8 @@ If you need to build Schaltwerk from source:
 ### Build Steps
 ```bash
 # 1. Clone the repository
-git clone https://github.com/2mawi2/para-ui.git
-cd para-ui
+git clone https://github.com/2mawi2/schaltwerk.git
+cd schaltwerk
 
 # 2. Install dependencies
 npm install
@@ -176,6 +176,6 @@ Schaltwerk is distributed without an Apple Developer certificate ($99/year) to k
 ## Support
 
 For issues or questions:
-1. Check the [GitHub Issues](https://github.com/2mawi2/para-ui/issues)
+1. Check the [GitHub Issues](https://github.com/2mawi2/schaltwerk/issues)
 2. Review the [CLAUDE.md](./CLAUDE.md) for development guidelines
 3. Contact the maintainer through the private repository

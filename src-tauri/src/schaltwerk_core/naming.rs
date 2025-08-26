@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use crate::para_core::{Database, db_sessions::SessionMethods, git};
+use crate::schaltwerk_core::{Database, db_sessions::SessionMethods, git};
 use std::path::Path;
 use tokio::process::Command;
 use tokio::time::{timeout, Duration};
@@ -355,7 +355,7 @@ Respond with just the short kebab-case name:"#
         
         // OpenCode uses the `run` command with a specific model and prompt
         let timeout_duration = Duration::from_secs(20);
-        let binary = crate::para_core::opencode::resolve_opencode_binary();
+        let binary = crate::schaltwerk_core::opencode::resolve_opencode_binary();
         let opencode_future = Command::new(&binary)
             .args(["run", "--model", "openrouter/openai/gpt-4o-mini", &prompt_plain])
             .current_dir(worktree_path)
@@ -420,7 +420,7 @@ Respond with just the short kebab-case name:"#
         log::info!("Attempting to generate name with gemini");
         
         let timeout_duration = Duration::from_secs(15);
-        let binary = crate::para_core::gemini::resolve_gemini_binary();
+        let binary = crate::schaltwerk_core::gemini::resolve_gemini_binary();
         let gemini_future = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
             .current_dir(worktree_path)
@@ -561,7 +561,7 @@ fn cursor_namegen_args(prompt_plain: &str) -> Vec<String> {
     ]
 }
 
-// Codex helpers (keep in sync with para_core)
+// Codex helpers (keep in sync with schaltwerk_core)
 fn fix_codex_single_dash_long_flags(args: &mut [String]) {
     for a in args.iter_mut() {
         if a.starts_with("--") { continue; }

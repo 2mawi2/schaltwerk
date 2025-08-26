@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::process::Command;
 use anyhow::{Result, anyhow};
-use crate::para_core::git::repository::{repository_has_commits, get_unborn_head_branch};
+use crate::schaltwerk_core::git::repository::{repository_has_commits, get_unborn_head_branch};
 
 pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
     log::info!("Listing branches for repo: {}", repo_path.display());

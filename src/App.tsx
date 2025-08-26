@@ -317,7 +317,7 @@ export default function App() {
       // Fetch plan content and parent branch, then prefill modal
       ;(async () => {
         try {
-          const sessionData = await invoke<any>('para_core_get_session', { name })
+          const sessionData = await invoke<any>('schaltwerk_core_get_session', { name })
           const text: string = sessionData?.draft_content ?? sessionData?.initial_prompt ?? ''
           const parentBranch: string | undefined = sessionData?.parent_branch || undefined
           setTimeout(() => {
@@ -346,7 +346,7 @@ export default function App() {
 
     try {
       setIsCancelling(true)
-      await invoke('para_core_cancel_session', {
+      await invoke('schaltwerk_core_cancel_session', {
         name: currentSession.name
       })
       setCancelModalOpen(false)
@@ -364,12 +364,12 @@ export default function App() {
 
     try {
       setIsCancelling(true)
-      await invoke('para_core_cancel_session', {
+      await invoke('schaltwerk_core_cancel_session', {
         name: currentSession.name
       })
       setDeletePlanModalOpen(false)
       // Reload sessions to update the list
-      await invoke('para_core_list_enriched_sessions')
+      await invoke('schaltwerk_core_list_enriched_sessions')
     } catch (error) {
       console.error('Failed to delete plan:', error)
       alert(`Failed to delete plan: ${error}`)
@@ -401,13 +401,13 @@ export default function App() {
         // Ensure the plan content reflects latest prompt before starting
         const contentToUse = data.prompt || ''
         if (contentToUse.trim().length > 0) {
-          await invoke('para_core_update_draft_content', {
+          await invoke('schaltwerk_core_update_draft_content', {
             name: data.name,
             content: contentToUse,
           })
         }
         // Start the plan session (transitions plan -> active and creates worktree)
-        await invoke('para_core_start_draft_session', {
+        await invoke('schaltwerk_core_start_draft_session', {
           name: data.name,
           baseBranch: data.baseBranch || null,
         })
@@ -418,7 +418,7 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, 200))
 
         // Get the started session to get correct worktree path and state
-        const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
+        const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
         // Switch to the now-running session - the SelectionContext will handle the state transition
         // Backend will handle agent start automatically
@@ -433,14 +433,14 @@ export default function App() {
 
       if (data.isPlan) {
         // Create plan session
-        await invoke('para_core_create_draft_session', {
+        await invoke('schaltwerk_core_create_draft_session', {
           name: data.name,
           planContent: data.draftContent || '',
         })
         setNewSessionOpen(false)
 
         // Get the created session to get the correct worktree path
-        const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
+        const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
         // Switch to the new plan session - no agent will start
         await setSelection({
@@ -450,7 +450,7 @@ export default function App() {
         })
       } else {
         // Create regular session
-        await invoke('para_core_create_session', {
+        await invoke('schaltwerk_core_create_session', {
           name: data.name,
           prompt: data.prompt || null,
           baseBranch: data.baseBranch || null,
@@ -459,7 +459,7 @@ export default function App() {
         setNewSessionOpen(false)
 
         // Get the created session to get the correct worktree path
-        const sessionData = await invoke('para_core_get_session', { name: data.name }) as any
+        const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
         // Switch to the new session immediately - context handles terminal creation and Claude start
         await setSelection({

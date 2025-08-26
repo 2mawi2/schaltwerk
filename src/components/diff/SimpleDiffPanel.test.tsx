@@ -69,7 +69,7 @@ describe('SimpleDiffPanel', () => {
 
     // And we never fetch the session prompt
     const calls = (invoke as unknown as { mock: { calls: any[][] } }).mock.calls as any[]
-    expect(calls.find((c: any[]) => c[0] === 'para_core_get_session')).toBeUndefined()
+    expect(calls.find((c: any[]) => c[0] === 'schaltwerk_core_get_session')).toBeUndefined()
   })
 
   it('renders changed files, highlights selected row, and calls onFileSelect', async () => {
@@ -84,7 +84,7 @@ describe('SimpleDiffPanel', () => {
       if (cmd === 'get_current_branch_name') return 'feat'
       if (cmd === 'get_base_branch_name') return 'main'
       if (cmd === 'get_commit_comparison_info') return ['a', 'b']
-      if (cmd === 'para_core_get_session') return { initial_prompt: '' }
+      if (cmd === 'schaltwerk_core_get_session') return { initial_prompt: '' }
       return null
     })
 

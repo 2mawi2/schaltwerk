@@ -35,7 +35,7 @@ describe('MarkReadyConfirmation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Mark as Reviewed/ }))
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('para_core_mark_session_ready', { name: 's1', autoCommit: true })
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
       expect(onSuccess).toHaveBeenCalled()
       expect(onClose).toHaveBeenCalled()
     })
@@ -63,7 +63,7 @@ describe('MarkReadyConfirmation', () => {
     fireEvent.click(confirmBtn)
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('para_core_mark_session_ready', { name: 's1', autoCommit: true })
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
     })
   })
 
@@ -81,7 +81,7 @@ describe('MarkReadyConfirmation', () => {
     render(<MarkReadyConfirmation {...baseProps} />)
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('para_core_mark_session_ready', { name: 's1', autoCommit: true })
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
     })
   })
 })

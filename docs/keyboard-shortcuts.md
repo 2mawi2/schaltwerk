@@ -1,4 +1,4 @@
-# Para UI Keyboard Shortcuts
+# Schaltwerk Keyboard Shortcuts
 
 ## Focus Control
 | Shortcut | Action |

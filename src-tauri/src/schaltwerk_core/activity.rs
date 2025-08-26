@@ -10,7 +10,7 @@ use chrono::{Utc, TimeZone};
 #[cfg(test)]
 use chrono::DateTime;
 use anyhow::Result;
-use crate::para_core::{
+use crate::schaltwerk_core::{
     database::Database,
     db_sessions::SessionMethods,
     db_git_stats::GitStatsMethods,
@@ -68,7 +68,7 @@ impl<E: EventEmitter> ActivityTracker<E> {
         Ok(())
     }
     
-    fn refresh_stats_and_activity_for_session(&self, session: &crate::para_core::types::Session) -> Result<bool> {
+    fn refresh_stats_and_activity_for_session(&self, session: &crate::schaltwerk_core::types::Session) -> Result<bool> {
         // Prefer diff-aware last change time via git stats; fall back to filesystem walk only if unavailable
         let mut emitted_activity = false;
         
@@ -202,12 +202,12 @@ mod tests {
     use super::*;
     use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
-    use crate::para_core::database::Database;
-        use crate::para_core::db_sessions::SessionMethods;
-        use crate::para_core::types::{Session, SessionStatus, SessionState};
+    use crate::schaltwerk_core::database::Database;
+        use crate::schaltwerk_core::db_sessions::SessionMethods;
+        use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState};
         use chrono::Utc;
         #[cfg(test)]
-        use crate::para_core::git::{create_worktree_from_base, get_current_branch};
+        use crate::schaltwerk_core::git::{create_worktree_from_base, get_current_branch};
     
     #[derive(Clone)]
     struct MockEmitter {

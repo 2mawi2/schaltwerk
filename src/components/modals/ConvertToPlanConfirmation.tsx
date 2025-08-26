@@ -26,7 +26,7 @@ export function ConvertToPlanConfirmation({
     
     setLoading(true)
     try {
-      await invoke('para_core_convert_session_to_draft', {
+      await invoke('schaltwerk_core_convert_session_to_draft', {
         name: sessionName
       })
       

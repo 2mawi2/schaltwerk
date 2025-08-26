@@ -1,5 +1,5 @@
 use rusqlite::params;
-use crate::para_core::database::Database;
+use crate::schaltwerk_core::database::Database;
 
 pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
     let conn = db.conn.lock().unwrap();

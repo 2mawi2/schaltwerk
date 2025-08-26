@@ -64,13 +64,13 @@ describe('Session Switching Performance', () => {
     it('should handle switching between many sessions efficiently', async () => {
         const mockSessions = generateMockSessions(50)
         vi.mocked(invoke).mockImplementation(async (cmd) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return mockSessions
             }
-            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 return mockSessions
             }
-            if (cmd === 'para_core_list_sessions_by_state') return []
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
             if (cmd === 'get_current_directory') {
                 return '/test/dir'
             }
@@ -148,17 +148,17 @@ describe('Session Switching Performance', () => {
         
         const calledCommands: string[] = []
         vi.mocked(invoke).mockImplementation(async (cmd) => {
-            if (cmd === 'para_core_list_enriched_sessions') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 invokeCallCount++
                 calledCommands.push(cmd)
                 return mockSessions
             }
-            if (cmd === 'para_core_list_enriched_sessions_sorted') {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 invokeCallCount++
                 calledCommands.push(cmd)
                 return mockSessions
             }
-            if (cmd === 'para_core_list_sessions_by_state') return []
+            if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
             if (cmd === 'get_current_directory') {
                 return '/test/dir'
             }

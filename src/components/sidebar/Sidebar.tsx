@@ -621,11 +621,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                 }}
                                 onUnmarkReady={async (sessionId) => {
                                     try {
-                                        await invoke('para_core_unmark_session_ready', { name: sessionId })
+                                        await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
                                         // Reload both regular and plan sessions to avoid dropping plans
                                         await Promise.all([
-                                            invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                                            invoke<any[]>('para_core_list_sessions_by_state', { state: 'plan' })
+                                            invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
+                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {
@@ -663,11 +663,11 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                                 }}
                                 onDeletePlan={async (sessionId) => {
                                     try {
-                                        await invoke('para_core_cancel_session', { name: sessionId })
+                                        await invoke('schaltwerk_core_cancel_session', { name: sessionId })
                                         // Reload both regular and plan sessions to ensure remaining plans persist
                                         await Promise.all([
-                                            invoke<EnrichedSession[]>('para_core_list_enriched_sessions'),
-                                            invoke<any[]>('para_core_list_sessions_by_state', { state: 'plan' })
+                                            invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
+                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {

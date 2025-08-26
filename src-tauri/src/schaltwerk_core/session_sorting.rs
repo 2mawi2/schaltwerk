@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod session_sorting_tests {
-    use crate::para_core::{Database, SessionManager};
-    use crate::para_core::db_sessions::SessionMethods;
-    use crate::para_core::types::{Session, SessionStatus, SessionState, SortMode, FilterMode};
+    use crate::schaltwerk_core::{Database, SessionManager};
+    use crate::schaltwerk_core::db_sessions::SessionMethods;
+    use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState, SortMode, FilterMode};
     use chrono::{Utc, Duration};
     use tempfile::TempDir;
     use std::path::PathBuf;
@@ -51,7 +51,7 @@ mod session_sorting_tests {
         let db = Database::new(Some(db_path)).unwrap();
         
         // Initialize database schema
-        crate::para_core::db_schema::initialize_schema(&db).unwrap();
+        crate::schaltwerk_core::db_schema::initialize_schema(&db).unwrap();
         
         let manager = SessionManager::new(db.clone(), temp_dir.path().to_path_buf());
 

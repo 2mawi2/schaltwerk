@@ -42,7 +42,7 @@ cat > /tmp/sidebar_patch.txt << 'EOF'
                      </div>
                      </div>
 EOF
-cd /Users/marius.wichtner/Documents/git/para-ui/.schaltwerk/worktrees/priceless_brattain
+cd /Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/priceless_brattain
 patch -p0 < /tmp/sidebar_patch.txt 2>/dev/null || true
 
 # 2. Fix NewSessionModal - conditional heading and button text

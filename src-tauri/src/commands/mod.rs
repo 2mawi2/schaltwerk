@@ -1,4 +1,4 @@
-pub mod para_core;
+pub mod schaltwerk_core;
 pub mod terminal;
 pub mod settings;
 pub mod project;
@@ -9,7 +9,40 @@ pub mod agent_binaries;
 #[cfg(test)]
 mod tests;
 
-pub use para_core::*;
+// Export schaltwerk_core commands individually to avoid unused import warnings
+pub use schaltwerk_core::{
+    schaltwerk_core_list_enriched_sessions,
+    schaltwerk_core_list_enriched_sessions_sorted,
+    schaltwerk_core_create_session,
+    schaltwerk_core_list_sessions,
+    schaltwerk_core_get_session,
+    schaltwerk_core_get_session_agent_content,
+    schaltwerk_core_cancel_session,
+    schaltwerk_core_convert_session_to_draft,
+    schaltwerk_core_update_git_stats,
+    schaltwerk_core_cleanup_orphaned_worktrees,
+    schaltwerk_core_start_claude,
+    schaltwerk_core_start_claude_orchestrator,
+    schaltwerk_core_start_fresh_orchestrator,
+    schaltwerk_core_reset_orchestrator,
+    schaltwerk_core_set_skip_permissions,
+    schaltwerk_core_get_skip_permissions,
+    schaltwerk_core_mark_session_ready,
+    schaltwerk_core_has_uncommitted_changes,
+    schaltwerk_core_unmark_session_ready,
+    schaltwerk_core_set_agent_type,
+    schaltwerk_core_set_session_agent_type,
+    schaltwerk_core_get_agent_type,
+    schaltwerk_core_get_font_sizes,
+    schaltwerk_core_set_font_sizes,
+    schaltwerk_core_create_draft_session,
+    schaltwerk_core_start_draft_session,
+    schaltwerk_core_update_session_state,
+    schaltwerk_core_update_plan_content,
+    schaltwerk_core_append_plan_content,
+    schaltwerk_core_rename_draft_session,
+    schaltwerk_core_list_sessions_by_state,
+};
 pub use terminal::*;
 pub use settings::*;
 pub use project::*;

@@ -112,8 +112,8 @@ describe('Sidebar sort mode persistence', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || SortMode.Name
         if (mode === SortMode.Created) {
           return [...sessions].sort((a, b) => {
@@ -136,7 +136,7 @@ describe('Sidebar sort mode persistence', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
@@ -312,8 +312,8 @@ describe('Sidebar sort mode persistence', () => {
         throw new Error('Backend save failed')
       }
       // Default handling for other commands
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }

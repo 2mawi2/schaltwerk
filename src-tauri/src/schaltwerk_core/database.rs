@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 
 // Import the db_schema module
-use crate::para_core::db_schema;
+use crate::schaltwerk_core::db_schema;
 
 
 
@@ -22,7 +22,7 @@ impl Database {
         let path = db_path.unwrap_or_else(|| {
             dirs::data_local_dir()
                 .unwrap()
-                .join("para-ui")
+                .join("schaltwerk")
                 .join("sessions.db")
         });
         

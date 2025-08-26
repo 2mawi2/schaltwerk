@@ -25,7 +25,7 @@ mod session_sorting;
 
 pub use database::Database;
 pub use session_core::SessionManager;
-pub use types::{Session, SessionState, EnrichedSession, SortMode, FilterMode};
+pub use types::{SessionState, EnrichedSession};
 
 use std::path::PathBuf;
 use anyhow::Result;

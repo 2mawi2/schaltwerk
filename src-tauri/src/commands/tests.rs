@@ -8,7 +8,7 @@ async fn test_reset_commands_parse_correctly_when_no_project() {
     
     let terminal_id = "test-commander-no-project";
     
-    let fresh_result = super::para_core_start_fresh_orchestrator(terminal_id.to_string()).await;
+    let fresh_result = super::schaltwerk_core_start_fresh_orchestrator(terminal_id.to_string()).await;
     // Should fail with meaningful error about missing project
     assert!(fresh_result.is_err(), "Fresh start should fail without project");
     let fresh_error = fresh_result.unwrap_err();
@@ -17,7 +17,7 @@ async fn test_reset_commands_parse_correctly_when_no_project() {
             fresh_error.contains("Failed to get para core"),
             "Fresh start error should mention project issue: {}", fresh_error);
     
-    let reset_result = super::para_core_reset_orchestrator(terminal_id.to_string()).await;
+    let reset_result = super::schaltwerk_core_reset_orchestrator(terminal_id.to_string()).await;
     // Should fail with meaningful error about missing project
     assert!(reset_result.is_err(), "Reset should fail without project");
     let reset_error = reset_result.unwrap_err();
@@ -35,7 +35,7 @@ async fn test_reset_command_timing() {
     let terminal_id = "test-commander-timing";
     
     let start_time = std::time::Instant::now();
-    let _result = super::para_core_reset_orchestrator(terminal_id.to_string()).await;
+    let _result = super::schaltwerk_core_reset_orchestrator(terminal_id.to_string()).await;
     let duration = start_time.elapsed();
     
     // Reset should complete in reasonable time (not hang indefinitely)
@@ -49,7 +49,7 @@ async fn test_fresh_orchestrator_command_timing() {
     let terminal_id = "test-fresh-timing";
     
     let start_time = std::time::Instant::now();
-    let _result = super::para_core_start_fresh_orchestrator(terminal_id.to_string()).await;
+    let _result = super::schaltwerk_core_start_fresh_orchestrator(terminal_id.to_string()).await;
     let duration = start_time.elapsed();
     
     // Should complete in reasonable time (not hang indefinitely)
@@ -70,10 +70,10 @@ async fn test_command_functions_exist_and_callable() {
     
     for terminal_id in terminal_ids {
         // These will fail due to no project, but they should not panic or crash
-        let fresh_result = super::para_core_start_fresh_orchestrator(terminal_id.to_string()).await;
+        let fresh_result = super::schaltwerk_core_start_fresh_orchestrator(terminal_id.to_string()).await;
         assert!(fresh_result.is_err(), "Fresh start should fail without project setup");
         
-        let reset_result = super::para_core_reset_orchestrator(terminal_id.to_string()).await;
+        let reset_result = super::schaltwerk_core_reset_orchestrator(terminal_id.to_string()).await;
         assert!(reset_result.is_err(), "Reset should fail without project setup");
         
         // Both should return String errors, not panic

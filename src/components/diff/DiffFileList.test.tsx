@@ -8,7 +8,7 @@ import { FontSizeProvider } from '../../contexts/FontSizeContext'
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string, args: any) => {
-    if (cmd === 'para_core_get_session') {
+    if (cmd === 'schaltwerk_core_get_session') {
       return { worktree_path: '/tmp/worktree/' + (args?.name || 'default') }
     }
     if (cmd === 'get_changed_files_from_main') {
@@ -122,7 +122,7 @@ describe('DiffFileList', () => {
     // Override invoke just for this test to return empty changes
     const { invoke } = (await import('@tauri-apps/api/core')) as any
     ;(invoke as any).mockImplementationOnce(async (cmd: string) => {
-      if (cmd === 'para_core_get_session') return { worktree_path: '/tmp' }
+      if (cmd === 'schaltwerk_core_get_session') return { worktree_path: '/tmp' }
       if (cmd === 'get_changed_files_from_main') return []
       return 'main'
     })

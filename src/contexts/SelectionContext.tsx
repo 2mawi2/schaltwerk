@@ -198,7 +198,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Fallback: fetch session data if sessionState not provided (backward compatibility)
         try {
-            const sessionData = await invoke<any>('para_core_get_session', { name: sel.payload })
+            const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sel.worktreePath || sessionData?.worktree_path
             const isPlanSession = state === 'plan'
@@ -257,7 +257,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // For sessions, check if it still exists
         if (remembered.kind === 'session' && remembered.payload) {
             try {
-                const sessionData = await invoke<any>('para_core_get_session', { name: remembered.payload })
+                const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: remembered.payload })
                 // Session exists - we could check state here if needed
                 // const state = sessionData?.state || sessionData?.session_state
                 
@@ -406,7 +406,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 unlisten = await listen('schaltwerk:sessions-refreshed', async () => {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
-                        const sessionData = await invoke<any>('para_core_get_session', { name: selection.payload })
+                        const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
                         const worktreePath: string | undefined = sessionData?.worktree_path
                         const nowPlan = state === 'plan'

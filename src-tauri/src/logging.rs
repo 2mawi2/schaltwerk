@@ -82,8 +82,7 @@ pub fn init_logging() {
         builder.parse_filters(&rust_log);
     } else {
         // Our crates
-        builder.filter_module("schaltwerk", LevelFilter::Debug);
-        builder.filter_module("para_ui", LevelFilter::Debug);
+        builder.filter_module("ui", LevelFilter::Debug);
         
         // Third-party crates we care about
         builder.filter_module("portable_pty", LevelFilter::Info);

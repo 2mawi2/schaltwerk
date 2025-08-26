@@ -11,12 +11,12 @@ export function useClaudeSession() {
     const startClaude = useCallback(async (options: ClaudeSessionOptions = {}) => {
         try {
             if (options.isCommander) {
-                await invoke('para_core_start_claude_orchestrator', { 
+                await invoke('schaltwerk_core_start_claude_orchestrator', { 
                     terminalId: options.terminalId || 'commander-default-top' 
                 })
                 return { success: true }
             } else if (options.sessionName) {
-                await invoke('para_core_start_claude', { sessionName: options.sessionName })
+                await invoke('schaltwerk_core_start_claude', { sessionName: options.sessionName })
                 return { success: true }
             } else {
                 console.error('[useClaudeSession] Invalid Claude session options: must specify either isCommander or sessionName')
@@ -30,7 +30,7 @@ export function useClaudeSession() {
 
     const getSkipPermissions = useCallback(async (): Promise<boolean> => {
         try {
-            return await invoke<boolean>('para_core_get_skip_permissions')
+            return await invoke<boolean>('schaltwerk_core_get_skip_permissions')
         } catch (error) {
             console.error('Failed to get skip permissions:', error)
             return false
@@ -39,7 +39,7 @@ export function useClaudeSession() {
 
     const setSkipPermissions = useCallback(async (enabled: boolean): Promise<boolean> => {
         try {
-            await invoke('para_core_set_skip_permissions', { enabled })
+            await invoke('schaltwerk_core_set_skip_permissions', { enabled })
             return true
         } catch (error) {
             console.error('Failed to set skip permissions:', error)
@@ -49,7 +49,7 @@ export function useClaudeSession() {
 
     const getAgentType = useCallback(async (): Promise<string> => {
         try {
-            return await invoke<string>('para_core_get_agent_type')
+            return await invoke<string>('schaltwerk_core_get_agent_type')
         } catch (error) {
             console.error('Failed to get agent type:', error)
             return 'claude'
@@ -58,7 +58,7 @@ export function useClaudeSession() {
 
     const setAgentType = useCallback(async (agentType: string): Promise<boolean> => {
         try {
-            await invoke('para_core_set_agent_type', { agentType })
+            await invoke('schaltwerk_core_set_agent_type', { agentType })
             return true
         } catch (error) {
             console.error('Failed to set agent type:', error)

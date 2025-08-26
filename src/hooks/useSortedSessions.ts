@@ -57,7 +57,7 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
             setLoading(true)
             setError(null)
             
-            const sortedSessions = await invoke<EnrichedSession[]>('para_core_list_enriched_sessions_sorted', {
+            const sortedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions_sorted', {
                 sortMode,
                 filterMode
             })

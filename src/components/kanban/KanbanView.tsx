@@ -194,17 +194,17 @@ export function KanbanView() {
         try {
             if (newStatus === 'plan') {
                 // Convert to plan
-                await invoke('para_core_convert_session_to_draft', { name: sessionId })
+                await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
                 // If it's a plan, start it; if ready_to_merge, unmark it
                 if (session.info.status === 'plan') {
-                    await invoke('para_core_start_draft_session', { name: sessionId })
+                    await invoke('schaltwerk_core_start_draft_session', { name: sessionId })
                 } else if (session.info.ready_to_merge) {
-                    await invoke('para_core_unmark_session_ready', { name: sessionId })
+                    await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
                 // Mark as ready to merge
-                await invoke('para_core_mark_session_ready', { name: sessionId, autoCommit: false })
+                await invoke('schaltwerk_core_mark_session_ready', { name: sessionId, autoCommit: false })
             }
             await reloadSessions()
         } catch (error) {
@@ -225,7 +225,7 @@ export function KanbanView() {
         }
         
         try {
-            await invoke('para_core_mark_ready', { name: sessionId })
+            await invoke('schaltwerk_core_mark_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to mark ready:', error)
@@ -234,7 +234,7 @@ export function KanbanView() {
 
     const handleUnmarkReady = async (sessionId: string) => {
         try {
-            await invoke('para_core_unmark_ready', { name: sessionId })
+            await invoke('schaltwerk_core_unmark_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to unmark ready:', error)
@@ -248,7 +248,7 @@ export function KanbanView() {
         }
         
         try {
-            await invoke('para_core_cancel_session', { 
+            await invoke('schaltwerk_core_cancel_session', { 
                 name: sessionId,
                 immediate: !hasUncommitted 
             })
@@ -260,7 +260,7 @@ export function KanbanView() {
 
     const handleConvertToDraft = async (sessionId: string) => {
         try {
-            await invoke('para_core_convert_session_to_draft', { name: sessionId })
+            await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to convert to plan:', error)
@@ -269,7 +269,7 @@ export function KanbanView() {
 
     const handleRunDraft = async (sessionId: string) => {
         try {
-            await invoke('para_core_start_draft_session', { name: sessionId })
+            await invoke('schaltwerk_core_start_draft_session', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to run plan:', error)
@@ -279,7 +279,7 @@ export function KanbanView() {
     const handleDeleteDraft = async (sessionId: string) => {
         // No confirmation for plans - consistent with sidebar behavior
         try {
-            await invoke('para_core_cancel_session', { name: sessionId })
+            await invoke('schaltwerk_core_cancel_session', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to delete plan:', error)

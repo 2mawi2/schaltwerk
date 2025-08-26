@@ -40,7 +40,7 @@ describe('useSessionManagement', () => {
                 await result.current.resetSession(selection, mockTerminals)
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_reset_orchestrator', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', {
                 terminalId: 'test-terminal-top'
             })
             expect(mockDispatchEvent).toHaveBeenCalledWith(
@@ -59,7 +59,7 @@ describe('useSessionManagement', () => {
             mockInvoke
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockResolvedValueOnce(undefined) // close_terminal
-                .mockResolvedValueOnce(undefined) // para_core_start_claude
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude
 
             await act(async () => {
                 await result.current.resetSession(selection, mockTerminals)
@@ -71,7 +71,7 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith('close_terminal', {
                 id: 'test-terminal-top'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_start_claude', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', {
                 sessionName: 'test-session'
             })
             expect(mockDispatchEvent).toHaveBeenCalledWith(
@@ -89,14 +89,14 @@ describe('useSessionManagement', () => {
 
             mockInvoke
                 .mockResolvedValueOnce(false) // terminal_exists returns false
-                .mockResolvedValueOnce(undefined) // para_core_start_claude
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude
 
             await act(async () => {
                 await result.current.resetSession(selection, mockTerminals)
             })
 
             expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_start_claude', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', {
                 sessionName: 'test-session'
             })
         })
@@ -156,10 +156,10 @@ describe('useSessionManagement', () => {
             const selection = { kind: 'commander' as const }
 
             mockInvoke
-                .mockResolvedValueOnce(undefined) // para_core_set_agent_type
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockResolvedValueOnce(undefined) // close_terminal
-                .mockResolvedValueOnce(undefined) // para_core_start_claude_orchestrator
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude_orchestrator
 
             expect(result.current).not.toBeNull()
             
@@ -173,10 +173,10 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_set_agent_type', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_agent_type', {
                 agentType: 'gemini'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_start_claude_orchestrator', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_orchestrator', {
                 terminalId: 'test-terminal-top'
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
@@ -192,10 +192,10 @@ describe('useSessionManagement', () => {
             }
 
             mockInvoke
-                .mockResolvedValueOnce(undefined) // para_core_set_session_agent_type
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_session_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockResolvedValueOnce(undefined) // close_terminal
-                .mockResolvedValueOnce(undefined) // para_core_start_claude
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude
 
             await act(async () => {
                 await result.current!.switchModel(
@@ -207,11 +207,11 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_set_session_agent_type', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_session_agent_type', {
                 sessionName: 'test-session',
                 agentType: 'cursor'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_start_claude', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', {
                 sessionName: 'test-session'
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
@@ -224,9 +224,9 @@ describe('useSessionManagement', () => {
             const selection = { kind: 'commander' as const }
 
             mockInvoke
-                .mockResolvedValueOnce(undefined) // para_core_set_agent_type
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                 .mockResolvedValueOnce(false) // terminal_exists returns false
-                .mockResolvedValueOnce(undefined) // para_core_start_claude_orchestrator
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude_orchestrator
 
             await act(async () => {
                 await result.current!.switchModel(
@@ -239,7 +239,7 @@ describe('useSessionManagement', () => {
             })
 
             expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith('para_core_start_claude_orchestrator', {
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_orchestrator', {
                 terminalId: 'test-terminal-top'
             })
         })

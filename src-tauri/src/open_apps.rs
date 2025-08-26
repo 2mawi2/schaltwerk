@@ -1,5 +1,5 @@
 use std::process::Command;
-use crate::para_core::db_app_config::AppConfigMethods;
+use crate::schaltwerk_core::db_app_config::AppConfigMethods;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct OpenApp {
@@ -105,14 +105,14 @@ pub async fn list_available_open_apps() -> Result<Vec<OpenApp>, String> {
 
 #[tauri::command]
 pub async fn get_default_open_app() -> Result<String, String> {
-    let core = crate::para_core::SchaltwerkCore::new(None)
+    let core = crate::schaltwerk_core::SchaltwerkCore::new(None)
         .map_err(|e| format!("Failed to init core: {e}"))?;
     Ok(core.db.get_default_open_app().unwrap_or_else(|_| "finder".to_string()))
 }
 
 #[tauri::command]
 pub async fn set_default_open_app(app_id: String) -> Result<(), String> {
-    let core = crate::para_core::SchaltwerkCore::new(None)
+    let core = crate::schaltwerk_core::SchaltwerkCore::new(None)
         .map_err(|e| format!("Failed to init core: {e}"))?;
     core.db.set_default_open_app(&app_id).map_err(|e| e.to_string())
 }

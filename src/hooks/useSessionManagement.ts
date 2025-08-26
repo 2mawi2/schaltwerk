@@ -27,7 +27,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     const [isResetting, setIsResetting] = useState(false)
 
     const resetOrchestratorTerminal = useCallback(async (terminalId: string): Promise<void> => {
-        await invoke('para_core_reset_orchestrator', { terminalId })
+        await invoke('schaltwerk_core_reset_orchestrator', { terminalId })
     }, [])
 
     const closeTerminalIfExists = useCallback(async (terminalId: string): Promise<void> => {
@@ -38,7 +38,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const restartClaudeInSession = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke('para_core_start_claude', { sessionName })
+        await invoke('schaltwerk_core_start_claude', { sessionName })
     }, [])
 
     const waitForTerminalCleanup = useCallback(async (): Promise<void> => {
@@ -89,11 +89,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
         sessionName: string, 
         agentType: string
     ): Promise<void> => {
-        await invoke('para_core_set_session_agent_type', { sessionName, agentType })
+        await invoke('schaltwerk_core_set_session_agent_type', { sessionName, agentType })
     }, [])
 
     const updateGlobalAgentType = useCallback(async (agentType: string): Promise<void> => {
-        await invoke('para_core_set_agent_type', { agentType })
+        await invoke('schaltwerk_core_set_agent_type', { agentType })
     }, [])
 
     const updateAgentType = useCallback(async (
@@ -119,11 +119,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [closeTerminalIfExists, waitForTerminalCleanup])
 
     const startOrchestratorWithNewModel = useCallback(async (terminalId: string): Promise<void> => {
-        await invoke('para_core_start_claude_orchestrator', { terminalId })
+        await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId })
     }, [])
 
     const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke('para_core_start_claude', { sessionName })
+        await invoke('schaltwerk_core_start_claude', { sessionName })
     }, [])
 
     const restartWithNewModel = useCallback(async (

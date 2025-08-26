@@ -53,7 +53,7 @@ describe('SelectionContext', () => {
           return Promise.resolve(false)
         case 'create_terminal':
           return Promise.resolve()
-        case 'para_core_get_session':
+        case 'schaltwerk_core_get_session':
           return Promise.resolve({
             worktree_path: '/test/session/path',
             session_id: args?.name || 'test-session'
@@ -191,7 +191,7 @@ describe('SelectionContext', () => {
         })
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('para_core_get_session', {
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_get_session', {
         name: 'test-session'
       })
       expect(mockInvoke).toHaveBeenCalledWith('create_terminal', {
@@ -204,7 +204,7 @@ describe('SelectionContext', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'para_core_get_session') {
+        if (command === 'schaltwerk_core_get_session') {
           return Promise.reject(new Error('Session not found'))
         }
         if (command === 'get_current_directory') {
@@ -234,7 +234,7 @@ describe('SelectionContext', () => {
       }))
       
       // Should have tried to get the session info
-      expect(mockInvoke).toHaveBeenCalledWith('para_core_get_session', {
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_get_session', {
         name: 'missing-session'
       })
       

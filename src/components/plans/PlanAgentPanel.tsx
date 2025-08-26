@@ -31,7 +31,7 @@ export function PlanAgentPanel() {
     try {
       setLoading(true)
       setError(null)
-      const sessions = await invoke<PlanSession[]>('para_core_list_sessions_by_state', { state: 'plan' })
+      const sessions = await invoke<PlanSession[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
       setDrafts(sessions || [])
     } catch (err) {
       console.error('[PlanAgentPanel] Failed to fetch plans:', err)
@@ -76,7 +76,7 @@ export function PlanAgentPanel() {
     
     try {
       setSaving(true)
-      await invoke('para_core_update_draft_content', { 
+      await invoke('schaltwerk_core_update_draft_content', { 
         name: editingDraft, 
         content: editContent 
       })
@@ -110,7 +110,7 @@ export function PlanAgentPanel() {
     
     try {
       setDeleting(true)
-      await invoke('para_core_cancel_session', { name: deleteConfirm })
+      await invoke('schaltwerk_core_cancel_session', { name: deleteConfirm })
       await fetchDrafts()
       setDeleteConfirm(null)
     } catch (err) {

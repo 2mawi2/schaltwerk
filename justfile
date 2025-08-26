@@ -1,4 +1,4 @@
-# Para UI Development Commands
+# Schaltwerk Development Commands
 
 # Release a new version (automatically bumps version, commits, tags, and pushes)
 release version="patch":
@@ -67,7 +67,7 @@ release version="patch":
     echo "  • Update Homebrew tap"
     echo ""
     echo "📊 Monitor progress at:"
-    echo "  https://github.com/2mawi2/para-ui/actions"
+    echo "  https://github.com/2mawi2/schaltwerk/actions"
 
 # Install the application to ~/Applications
 install:
@@ -141,7 +141,7 @@ run:
     
     # Find available port starting from 1420
     port=$(just _find_available_port 1420)
-    echo "🚀 Starting Para UI on port $port (branch: $branch)"
+    echo "🚀 Starting Schaltwerk on port $port (branch: $branch)"
     
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
@@ -242,7 +242,7 @@ run-port port:
         exit 1
     fi
     
-    echo "🚀 Starting Para UI on port {{port}}"
+    echo "🚀 Starting Schaltwerk on port {{port}}"
     
     # Create temporary config override
     temp_config=$(mktemp)
@@ -278,7 +278,7 @@ build:
 
 # Build and run the application in production mode
 run-build:
-    npm run build && npm run tauri build && ./src-tauri/target/release/para-ui
+    npm run build && npm run tauri build && ./src-tauri/target/release/schaltwerk
 
 # Run all tests and lints
 test:
@@ -288,7 +288,7 @@ test:
 run-release:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🚀 Building Para UI (release bundle, no auto-reload)…"
+    echo "🚀 Building Schaltwerk (release bundle, no auto-reload)…"
     npm run build
     npm run tauri build
     echo "✅ Build complete. Launching binary from HOME directory…"
@@ -297,7 +297,7 @@ run-release:
     PROJECT_ROOT="$(pwd)"
     
     # Check for binary in shared target directory first, then fallback to local
-    BINARY_PATH="/tmp/para-ui-shared-target/release/schaltwerk"
+    BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
     if [ ! -f "$BINARY_PATH" ]; then
         BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
     fi
@@ -314,7 +314,7 @@ run-release:
 run-port-release port:
     #!/usr/bin/env bash
     set -euo pipefail
-    echo "🚀 Building Para UI release on port {{port}}..."
+    echo "🚀 Building Schaltwerk release on port {{port}}..."
     
     # Export port for any runtime components that need it
     export VITE_PORT={{port}}
@@ -324,7 +324,7 @@ run-port-release port:
     echo "🧹 Cleaning old release binaries..."
     rm -f ./src-tauri/target/release/schaltwerk
     rm -f ./src-tauri/target/release/ui
-    rm -f /tmp/para-ui-shared-target/release/schaltwerk
+    rm -f /tmp/schaltwerk-shared-target/release/schaltwerk
     
     # Build frontend
     echo "📦 Building frontend..."
@@ -341,7 +341,7 @@ run-port-release port:
     PROJECT_ROOT="$(pwd)"
     
     # Check for binary in shared target directory first, then fallback to local
-    BINARY_PATH="/tmp/para-ui-shared-target/release/schaltwerk"
+    BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
     if [ ! -f "$BINARY_PATH" ]; then
         BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
     fi

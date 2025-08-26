@@ -117,9 +117,9 @@ describe('SessionsContext', () => {
         let callCount = 0
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             callCount++
-            if (cmd === 'para_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'para_core_start_draft_session') return undefined
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
+            if (cmd === 'schaltwerk_core_start_draft_session') return undefined
             return undefined
         })
 
@@ -130,16 +130,16 @@ describe('SessionsContext', () => {
         })
 
         // First call is to get current sessions, second is start_draft_session, third is reload
-        expect(invoke).toHaveBeenCalledWith('para_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('para_core_start_draft_session', { name: 'test-plan' })
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_draft_session', { name: 'test-plan' })
     })
 
     it('should update session status from active to plan', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'para_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'para_core_convert_session_to_draft') return undefined
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
+            if (cmd === 'schaltwerk_core_convert_session_to_draft') return undefined
             return undefined
         })
 
@@ -149,16 +149,16 @@ describe('SessionsContext', () => {
             await result.current.updateSessionStatus('test-active', 'plan')
         })
 
-        expect(invoke).toHaveBeenCalledWith('para_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('para_core_convert_session_to_draft', { name: 'test-active' })
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_convert_session_to_draft', { name: 'test-active' })
     })
 
     it('should mark session as ready for merge', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'para_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'para_core_mark_ready') return undefined
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
+            if (cmd === 'schaltwerk_core_mark_ready') return undefined
             return undefined
         })
 
@@ -168,16 +168,16 @@ describe('SessionsContext', () => {
             await result.current.updateSessionStatus('test-active', 'dirty')
         })
 
-        expect(invoke).toHaveBeenCalledWith('para_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('para_core_mark_ready', { name: 'test-active' })
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_mark_ready', { name: 'test-active' })
     })
 
     it('should create a new plan session', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'para_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'para_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'para_core_create_draft_session') return undefined
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
+            if (cmd === 'schaltwerk_core_create_draft_session') return undefined
             return undefined
         })
 
@@ -187,7 +187,7 @@ describe('SessionsContext', () => {
             await result.current.createDraft('new-plan', '# New Plan')
         })
 
-        expect(invoke).toHaveBeenCalledWith('para_core_create_draft_session', {
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_create_draft_session', {
             name: 'new-plan',
             planContent: '# New Plan'
         })

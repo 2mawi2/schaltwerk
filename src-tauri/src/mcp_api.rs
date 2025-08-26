@@ -3,8 +3,8 @@ use http_body_util::BodyExt;
 use log::{info, error, warn};
 use tauri::Emitter;
 
-use crate::get_para_core;
-use crate::para_core::SessionState;
+use crate::get_schaltwerk_core;
+use crate::schaltwerk_core::SessionState;
 
 pub async fn handle_mcp_request(
     req: Request<Incoming>,
@@ -98,7 +98,7 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     };
     let content = payload["content"].as_str().unwrap_or("");
     
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -126,7 +126,7 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
 }
 
 async fn list_drafts() -> Result<Response<String>, hyper::Error> {
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -176,7 +176,7 @@ async fn update_plan_content(
     
     let append = payload["append"].as_bool().unwrap_or(false);
     
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -225,7 +225,7 @@ async fn start_draft_session(
         None
     };
     
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -258,7 +258,7 @@ async fn delete_draft(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -312,7 +312,7 @@ async fn create_session(
     let base_branch = payload["base_branch"].as_str().map(|s| s.to_string());
     let user_edited_name = payload["user_edited_name"].as_bool();
     
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -365,7 +365,7 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
         filter_state = Some(SessionState::Plan);
     }
     
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -403,7 +403,7 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
 }
 
 async fn get_session(name: &str) -> Result<Response<String>, hyper::Error> {
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");
@@ -433,7 +433,7 @@ async fn delete_session(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let core = match get_para_core().await {
+    let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
             error!("Failed to get para core: {e}");

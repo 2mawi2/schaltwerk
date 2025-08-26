@@ -23,7 +23,7 @@ export function PlanListView({ onOpenPlan }: Props) {
   const fetchDrafts = useCallback(async () => {
     setLoading(true)
     try {
-      const sessions = await invoke<PlanSession[]>('para_core_list_sessions_by_state', { state: 'plan' })
+      const sessions = await invoke<PlanSession[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
       setPlans(sessions || [])
     } finally {
       setLoading(false)

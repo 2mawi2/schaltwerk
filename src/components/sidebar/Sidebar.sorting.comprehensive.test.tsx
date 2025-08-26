@@ -106,8 +106,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -129,7 +129,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
@@ -168,8 +168,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -191,7 +191,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
@@ -238,8 +238,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -261,7 +261,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
@@ -310,8 +310,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
         const plans = sessions.filter(s => (s.info as any).session_state === 'plan')
@@ -347,7 +347,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
@@ -408,8 +408,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
-      if (cmd === 'para_core_list_enriched_sessions') return sessions
-      if (cmd === 'para_core_list_enriched_sessions_sorted') {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
         const plans = sessions.filter(s => (s.info as any).session_state === 'plan')
@@ -439,7 +439,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'terminal_exists') return false
       if (cmd === 'create_terminal') return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'para_core_list_sessions_by_state') return []
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
       if (cmd === 'get_project_sessions_settings') {
         return { filter_mode: 'all', sort_mode: 'name' }
       }

@@ -41,7 +41,7 @@ pub fn build_codex_command_with_config(
     // Add sandbox mode first (this is an option)
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));
     
-    // NOTE: Additional CLI args will be inserted by the calling code in para_core.rs
+    // NOTE: Additional CLI args will be inserted by the calling code in schaltwerk_core.rs
     // between the sandbox flag and the prompt. This ensures proper order:
     // codex --sandbox MODE [ADDITIONAL_OPTIONS] [PROMPT]
     

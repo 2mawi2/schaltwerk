@@ -674,7 +674,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Mark as started BEFORE invoking to prevent overlaps
                     startedGlobal.add(terminalId);
                     try {
-                        await invoke('para_core_start_claude_orchestrator', { terminalId });
+                        await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
                     } catch (e) {
                         // Roll back start flags on failure to allow retry
                         startedGlobal.delete(terminalId);
@@ -734,7 +734,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Mark as started BEFORE invoking to prevent overlaps
                     startedGlobal.add(terminalId);
                     try {
-                        await invoke('para_core_start_claude', { sessionName });
+                        await invoke('schaltwerk_core_start_claude', { sessionName });
                     } catch (e) {
                         // Roll back start flags on failure to allow retry
                         startedGlobal.delete(terminalId);

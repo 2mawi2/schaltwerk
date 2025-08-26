@@ -1,8 +1,8 @@
 use rusqlite::params;
 use anyhow::Result;
 use chrono::{Utc, TimeZone};
-use crate::para_core::database::Database;
-use crate::para_core::types::GitStats;
+use crate::schaltwerk_core::database::Database;
+use crate::schaltwerk_core::types::GitStats;
 
 pub trait GitStatsMethods {
     fn save_git_stats(&self, stats: &GitStats) -> Result<()>;
