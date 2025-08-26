@@ -25,7 +25,7 @@ pub use stats::{calculate_git_stats_fast, get_changed_files};
 pub use operations::{has_uncommitted_changes, commit_all_changes, is_valid_session_name};
 
 #[cfg(test)]
-pub use stats::{calculate_git_stats, parse_numstat_line, clear_stats_cache};
+pub use stats::calculate_git_stats;
 
 
 
