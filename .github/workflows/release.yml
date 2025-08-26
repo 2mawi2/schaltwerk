@@ -63,12 +63,14 @@ jobs:
         env:
           MACOSX_DEPLOYMENT_TARGET: '11.0'
           # Use CI profile for much faster builds
-          CARGO_PROFILE: 'ci'
+          CARGO_PROFILE_RELEASE_LTO: 'false'
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '256'
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
         run: |
-          # Build both targets in parallel with CI profile (saves 2-3 minutes)
-          npm run tauri build -- --target x86_64-apple-darwin --profile ci &
+          # Build both targets in parallel with optimized settings (saves 2-3 minutes)
+          npm run tauri build -- --target x86_64-apple-darwin &
           PID_INTEL=$!
-          npm run tauri build -- --target aarch64-apple-darwin --profile ci &
+          npm run tauri build -- --target aarch64-apple-darwin &
           PID_ARM=$!
           
           # Wait for both builds to complete
@@ -85,9 +87,9 @@ jobs:
 
       - name: Create Universal Binary
         run: |
-          # Create a universal binary app (using CI profile paths)
-          cp -R src-tauri/target/aarch64-apple-darwin/ci/bundle/macos/Schaltwerk.app ./Schaltwerk-arm64.app
-          cp -R src-tauri/target/x86_64-apple-darwin/ci/bundle/macos/Schaltwerk.app ./Schaltwerk-x64.app
+          # Create a universal binary app
+          cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-arm64.app
+          cp -R src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-x64.app
           
           # Create universal binary
           lipo -create \
