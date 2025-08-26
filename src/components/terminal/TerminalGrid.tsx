@@ -338,7 +338,7 @@ export function TerminalGrid() {
                     setIsDraggingSplit(false)
                 }}
             >
-                <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'claude' && !isDraggingSplit ? 'border-2 border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border border-slate-800'}`}>
+                <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'claude' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
                     <div 
                         className={`h-8 px-3 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
                             localFocus === 'claude' 
@@ -445,7 +445,7 @@ export function TerminalGrid() {
                         />
                     </div>
                 </div>
-                <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-2 border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border border-slate-800'}`}>
+                <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
                     <div 
                         data-bottom-header
                         className={`h-8 px-3 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
