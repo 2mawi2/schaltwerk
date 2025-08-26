@@ -267,7 +267,7 @@ The exact log file path is printed to stderr when the app starts with a 📝 emo
 
 ### Log Levels
 The application uses standard log levels with smart defaults:
-- **DEBUG**: Detailed information for our codebase (`ui`, `schaltwerk` modules)
+- **DEBUG**: Detailed information for our codebase (`schaltwerk` modules)
 - **INFO**: Important events and milestones (default for `portable_pty`, `tauri`)
 - **WARN**: Potentially harmful situations (default for third-party crates)
 - **ERROR**: Error events that might still allow the app to continue
@@ -280,13 +280,13 @@ Set the `RUST_LOG` environment variable to override defaults:
 RUST_LOG=trace npm run tauri dev
 
 # Debug our code, warn for everything else
-RUST_LOG=ui=debug,warn npm run tauri dev
+RUST_LOG=schaltwerk=debug,warn npm run tauri dev
 
 # Only errors
 RUST_LOG=error npm run tauri dev
 
 # Debug specific module
-RUST_LOG=ui::pty=trace npm run tauri dev
+RUST_LOG=schaltwerk::terminal=trace npm run tauri dev
 ```
 
 ### Log Format
@@ -297,9 +297,9 @@ Logs use a consistent format for easy parsing:
 
 Example:
 ```
-[2024-01-15 14:23:45.123 INFO  ui::pty] Creating terminal: id=commander-top, cwd=/Users/name/project
-[2024-01-15 14:23:45.456 DEBUG ui::pty] Saved child process for terminal commander-top
-[2024-01-15 14:23:45.789 WARN  ui::pty] Terminal commander-bottom slow write: 25ms
+[2024-01-15 14:23:45.123 INFO  schaltwerk::terminal] Creating terminal: id=commander-top, cwd=/Users/name/project
+[2024-01-15 14:23:45.456 DEBUG schaltwerk::terminal] Saved child process for terminal commander-top
+[2024-01-15 14:23:45.789 WARN  schaltwerk::terminal] Terminal commander-bottom slow write: 25ms
 ```
 
 ### Logging in Rust Code
@@ -368,7 +368,7 @@ grep -E "slow|WARN|ERROR" ~/Library/Application\ Support/schaltwerk/logs/schaltw
 
 ### Debugging Tips
 1. **Start with INFO level**: Default configuration shows important events
-2. **Enable DEBUG for issues**: `RUST_LOG=ui=debug` for detailed flow
+2. **Enable DEBUG for issues**: `RUST_LOG=schaltwerk=debug` for detailed flow
 3. **Check timing**: Look for "slow" operations indicating performance issues
 4. **Follow IDs**: Track specific terminal IDs through their lifecycle
 5. **Check cleanup**: Ensure terminals in logs are properly closed

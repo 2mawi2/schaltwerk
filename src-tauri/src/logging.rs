@@ -81,14 +81,14 @@ pub fn init_logging() {
     if let Ok(rust_log) = std::env::var("RUST_LOG") {
         builder.parse_filters(&rust_log);
     } else {
-        // Our crates
-        builder.filter_module("ui", LevelFilter::Debug);
+        // Our crate (schaltwerk) - set to Debug to see all our logs
+        builder.filter_module("schaltwerk", LevelFilter::Debug);
         
         // Third-party crates we care about
         builder.filter_module("portable_pty", LevelFilter::Info);
         builder.filter_module("tauri", LevelFilter::Info);
         
-        // Everything else
+        // Everything else defaults to Warn
         builder.filter_level(LevelFilter::Warn);
     }
     
@@ -103,15 +103,17 @@ pub fn init_logging() {
         };
         
         let log_line = format!(
-            "[{} {} {}] {}\n",
+            "[{} {} {}] {}",
             Local::now().format("%Y-%m-%d %H:%M:%S%.3f"),
             level_str,
             record.target(),
             record.args()
         );
         
-        // Write to stderr (console)
-        write!(buf, "{log_line}")?;
+        // Write to the buffer (stderr via env_logger)
+        writeln!(buf, "{log_line}")?;
+        // Force flush to ensure immediate output
+        buf.flush()?;
         
         // Also write to file (with error handling)
         if let Ok(mut file) = OpenOptions::new()
@@ -119,8 +121,9 @@ pub fn init_logging() {
             .append(true)
             .open(&log_path_for_closure) 
         {
-            let _ = file.write_all(log_line.as_bytes());
-            let _ = file.flush();
+            let _ = writeln!(file, "{log_line}");
+            // Force flush to ensure immediate write to disk
+            let _ = file.sync_all();
         }
         
         Ok(())
@@ -133,6 +136,14 @@ pub fn init_logging() {
     // Initialize the logger; subsequent calls are prevented by guard above
     builder.init();
     
+    // Force stderr to be line-buffered for immediate output
+    // This ensures logs appear immediately in development
+    use std::io::{self, IsTerminal};
+    if io::stderr().is_terminal() {
+        // In a terminal, ensure line buffering
+        let _ = io::stderr().flush();
+    }
+    
     log::info!("========================================");
     log::info!("Schaltwerk v{} starting", env!("CARGO_PKG_VERSION"));
     log::info!("Log file: {}", log_path.display());
@@ -141,7 +152,10 @@ pub fn init_logging() {
     
     // Print to console so user knows where logs are (skip in tests to avoid noisy outputs)
     if !cfg!(test) {
-        eprintln!("Logs are being written to: {}", log_path.display());
+        eprintln!("📝 Logs are being written to: {}", log_path.display());
+        // Force immediate flush
+        use std::io::{self, Write as IoWrite};
+        let _ = io::stderr().flush();
     }
 }
 
