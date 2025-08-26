@@ -355,8 +355,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             // This will trigger TerminalGrid's currentFocus effect immediately
         },
         onOpenDiffViewer: () => {
-            // Only open if a session is selected
-            if (selection.kind !== 'session') return
+            // Open diff viewer for both sessions and commander
+            if (selection.kind !== 'session' && selection.kind !== 'commander') return
             window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-view'))
         },
         onFocusTerminal: () => {

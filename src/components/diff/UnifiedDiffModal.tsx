@@ -93,6 +93,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // }, [files, allFileDiffs, viewMode])
 
   
+  const isCommanderView = () => selection.kind === 'commander'
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
   
   // Helper to check if a line has comments
@@ -163,9 +164,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [continuousScroll, selectedFile, files, sessionName])
 
+  const getChangedFilesForContext = async () => {
+    if (isCommanderView()) {
+      return await invoke<ChangedFile[]>('get_orchestrator_working_changes')
+    }
+    return await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
+  }
+
   const loadChangedFiles = useCallback(async () => {
     try {
-      const changedFiles = await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
+      const changedFiles = await getChangedFilesForContext()
       setFiles(changedFiles)
       
       // Prime initial selection
@@ -347,7 +355,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
   // Load diffs for visible files with buffer zones
   useEffect(() => {
-    if (isLargeDiffMode || !isOpen) return
+    if (isLargeDiffMode || !isOpen) {
+      return
+    }
 
     // Create a file index map for O(1) lookups instead of O(n) finds
     const fileIndexMap = new Map<string, number>()
