@@ -110,6 +110,13 @@ struct StatsCacheKey {
 type StatsCacheMap = HashMap<(std::path::PathBuf, String), (StatsCacheKey, GitStats)>;
 static STATS_CACHE: OnceLock<Mutex<StatsCacheMap>> = OnceLock::new();
 
+#[cfg(test)]
+pub fn clear_stats_cache() {
+    if let Some(cache) = STATS_CACHE.get() {
+        cache.lock().unwrap().clear();
+    }
+}
+
 pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Result<GitStats> {
     let repo = Repository::discover(worktree_path)?;
 
@@ -441,7 +448,7 @@ fn parse_name_status_line(line: &str) -> Option<(&str, &str)> {
 }
 
 #[cfg(test)]
-fn parse_numstat_line(line: &str) -> Option<(u32, u32, &str)> {
+pub fn parse_numstat_line(line: &str) -> Option<(u32, u32, &str)> {
     if line.is_empty() {
         return None;
     }

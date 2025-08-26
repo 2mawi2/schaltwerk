@@ -5,6 +5,13 @@ mod worktrees;
 mod stats;
 mod operations;
 
+#[cfg(test)]
+mod worktree_test;
+#[cfg(test)]
+mod branches_test;
+#[cfg(test)]
+mod stats_test;
+
 pub use repository::{discover_repository, get_default_branch, init_repository, repository_has_commits, create_initial_commit, INITIAL_COMMIT_MESSAGE};
 
 #[cfg(test)]
@@ -18,7 +25,7 @@ pub use stats::{calculate_git_stats_fast, get_changed_files};
 pub use operations::{has_uncommitted_changes, commit_all_changes, is_valid_session_name};
 
 #[cfg(test)]
-pub use stats::calculate_git_stats;
+pub use stats::{calculate_git_stats, parse_numstat_line, clear_stats_cache};
 
 
 
