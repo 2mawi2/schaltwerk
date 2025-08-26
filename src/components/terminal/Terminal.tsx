@@ -395,19 +395,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const chunk = writeQueueRef.current.join('');
                 writeQueueRef.current = [];
                 terminal.current.write(chunk);
-                
-                // Auto-scroll to bottom for AI sessions when new output arrives
-                const shouldAutoScroll = terminalId.endsWith('-top') && 
-                    (terminalId.includes('session-') || terminalId.includes('commander-'));
-                if (shouldAutoScroll) {
-                    requestAnimationFrame(() => {
-                        try {
-                            terminal.current?.scrollToBottom();
-                        } catch (error) {
-                            console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom during output flush:`, error);
-                        }
-                    });
-                }
             }, 16);
         };
 
@@ -417,19 +404,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];
             terminal.current.write(chunk);
-            
-            // Auto-scroll to bottom for AI sessions when flushing immediately
-            const shouldAutoScroll = terminalId.endsWith('-top') && 
-                (terminalId.includes('session-') || terminalId.includes('commander-'));
-            if (shouldAutoScroll) {
-                requestAnimationFrame(() => {
-                    try {
-                        terminal.current?.scrollToBottom();
-                    } catch (error) {
-                        console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom during immediate flush:`, error);
-                    }
-                });
-            }
         };
 
         // Listen for terminal output from backend (buffer until hydrated)
@@ -453,20 +427,26 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 if (snapshot) {
                     writeQueueRef.current.push(snapshot);
                     
-                    // Always scroll to bottom after hydrating for AI session terminals
-                    // This ensures we see the latest output when switching between sessions
+                    // Smart auto-scroll: only scroll to bottom if user was already at bottom
+                    // This preserves manual scroll position but shows latest output when appropriate
                     const shouldAutoScroll = terminalId.endsWith('-top') && 
                         (terminalId.includes('session-') || terminalId.includes('commander-'));
                     
                     if (shouldAutoScroll) {
-                        // Scroll to bottom after content is written and rendered
-                        // Use a single RAF to ensure proper timing after DOM updates
+                        // Check if user was at the bottom before hydration
                         requestAnimationFrame(() => {
                             if (terminal.current && terminal.current.buffer && terminal.current.buffer.active) {
                                 try {
-                                    terminal.current.scrollToBottom();
+                                    const viewport = terminal.current.buffer.active.viewportY;
+                                    const baseY = terminal.current.buffer.active.baseY;
+                                    const isAtBottom = viewport >= baseY;
+                                    
+                                    // Only auto-scroll if user was already at the bottom
+                                    if (isAtBottom) {
+                                        terminal.current.scrollToBottom();
+                                    }
                                 } catch (error) {
-                                    console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom during hydration:`, error);
+                                    console.warn(`[Terminal ${terminalId}] Failed to check scroll position during hydration:`, error);
                                 }
                             }
                         });
