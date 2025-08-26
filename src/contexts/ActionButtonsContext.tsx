@@ -1,6 +1,7 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import type { HeaderActionConfig } from '../components/ActionButton'
+import { useProject } from './ProjectContext'
 
 interface ActionButtonsContextType {
   actionButtons: HeaderActionConfig[]
@@ -14,15 +15,23 @@ interface ActionButtonsContextType {
 const ActionButtonsContext = createContext<ActionButtonsContextType | undefined>(undefined)
 
 export function ActionButtonsProvider({ children }: { children: ReactNode }) {
+  const { projectPath } = useProject()
   const [actionButtons, setActionButtons] = useState<HeaderActionConfig[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const loadActionButtons = async () => {
+  const loadActionButtons = useCallback(async () => {
+    if (!projectPath) {
+      console.log('No project path available, skipping action buttons load')
+      setActionButtons([])
+      setLoading(false)
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
-      console.log('Loading action buttons...')
+      console.log('Loading action buttons for project:', projectPath)
       const buttons = await invoke<HeaderActionConfig[]>('get_project_action_buttons')
       console.log('Action buttons loaded:', buttons)
       setActionButtons(buttons)
@@ -33,7 +42,7 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }
+  }, [projectPath])
 
   const saveActionButtons = async (buttons: HeaderActionConfig[]) => {
     try {
@@ -76,7 +85,7 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     loadActionButtons()
-  }, [])
+  }, [loadActionButtons])
 
   return (
     <ActionButtonsContext.Provider value={{

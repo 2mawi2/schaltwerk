@@ -414,6 +414,18 @@ export function TerminalGrid() {
                                                         id: terminals.top, 
                                                         data: action.prompt 
                                                     })
+                                                    
+                                                    // Restore focus to the previously focused terminal
+                                                    requestAnimationFrame(() => {
+                                                        if (localFocus === 'claude' && claudeTerminalRef.current) {
+                                                            claudeTerminalRef.current.focus()
+                                                        } else if (localFocus === 'terminal' && terminalTabsRef.current) {
+                                                            terminalTabsRef.current.focus()
+                                                        } else {
+                                                            // Default to focusing claude terminal if no previous focus
+                                                            claudeTerminalRef.current?.focus()
+                                                        }
+                                                    })
                                                 } catch (error) {
                                                     console.error(`Failed to execute action "${action.label}":`, error)
                                                 }
