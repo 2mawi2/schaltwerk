@@ -418,7 +418,7 @@ export function TerminalGrid() {
                         
                         {/* Absolute-centered title to avoid alignment shift */}
                         <span className="absolute left-0 right-0 text-center font-medium pointer-events-none">
-                            {selection.kind === 'commander' ? 'Commander — main repo' : `Session — ${selection.payload ?? ''}`}
+                            {selection.kind === 'commander' ? 'Commander — main repo' : `Agent — ${selection.payload ?? ''}`}
                         </span>
                         
                         {/* Right side: ⌘T indicator */}

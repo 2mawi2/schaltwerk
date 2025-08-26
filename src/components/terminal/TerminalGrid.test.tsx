@@ -315,7 +315,7 @@ describe('TerminalGrid', () => {
     await Promise.resolve()
 
     // Headers reflect new session
-    expect(await screen.findByText('Session — dev', {}, { timeout: 3000 })).toBeInTheDocument()
+    expect(await screen.findByText('Agent — dev', {}, { timeout: 3000 })).toBeInTheDocument()
     expect(screen.getByText('Terminal — dev')).toBeInTheDocument()
 
     // New terminal ids mounted (remounted due to key change)
@@ -331,7 +331,7 @@ describe('TerminalGrid', () => {
     await new Promise(r => setTimeout(r, 120))
     // Focus is now on the bottom terminal
     expect(m.__getFocusSpy('session-dev-bottom')).toHaveBeenCalled()
-    fireEvent.click(screen.getByText('Session — dev'))
+    fireEvent.click(screen.getByText('Agent — dev'))
     await new Promise(r => setTimeout(r, 120))
     expect(m.__getFocusSpy('session-dev-top')).toHaveBeenCalled()
   })
@@ -457,10 +457,10 @@ describe('TerminalGrid', () => {
 
       // Wait for session to load
       await waitFor(() => {
-        expect(screen.getByText('Session — test-session')).toBeInTheDocument()
+        expect(screen.getByText('Agent — test-session')).toBeInTheDocument()
       })
 
-      // Session should inherit the collapsed state from commander since it has no localStorage entry
+      // Agent should inherit the collapsed state from commander since it has no localStorage entry
       expect(screen.getByTestId('split')).toBeInTheDocument()
       const expandBtn = screen.getByLabelText('Expand terminal panel')
       expect(expandBtn).toBeInTheDocument()
@@ -527,7 +527,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Session — session-a')).toBeInTheDocument()
+        expect(screen.getByText('Agent — session-a')).toBeInTheDocument()
         const expandBtn = screen.getByLabelText('Expand terminal panel')
         expect(expandBtn).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
@@ -539,7 +539,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Session — session-b')).toBeInTheDocument()
+        expect(screen.getByText('Agent — session-b')).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
         const collapseBtn = screen.getByLabelText('Collapse terminal panel')
         expect(collapseBtn).toBeInTheDocument()
@@ -551,7 +551,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Session — session-a')).toBeInTheDocument()
+        expect(screen.getByText('Agent — session-a')).toBeInTheDocument()
         const expandBtn = screen.getByLabelText('Expand terminal panel')
         expect(expandBtn).toBeInTheDocument()
         expect(screen.getByTestId('split')).toBeInTheDocument()
@@ -576,7 +576,7 @@ describe('TerminalGrid', () => {
       })
 
       await waitFor(() => {
-        expect(screen.getByText('Session — test')).toBeInTheDocument()
+        expect(screen.getByText('Agent — test')).toBeInTheDocument()
       })
 
       // Terminal should be collapsed for this session (from localStorage)

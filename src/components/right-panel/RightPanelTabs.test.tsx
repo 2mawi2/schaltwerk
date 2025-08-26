@@ -86,13 +86,13 @@ describe('RightPanelTabs', () => {
       
       // Initially shows Changes tab for running session
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
-      expect(screen.getByTitle('Agent')).not.toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Plan')).not.toHaveClass('bg-slate-800/50')
       
-      // User clicks on Agent tab
-      fireEvent.click(screen.getByTitle('Agent'))
+      // User clicks on Plan tab
+      fireEvent.click(screen.getByTitle('Plan'))
       
-      // Agent tab should now be active
-      expect(screen.getByTitle('Agent')).toHaveClass('bg-slate-800/50')
+      // Plan tab should now be active
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
       expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-slate-800/50')
       
       // Switch to a different session
@@ -109,8 +109,8 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // Agent tab should still be active (user preference persisted)
-      expect(screen.getByTitle('Agent')).toHaveClass('bg-slate-800/50')
+      // Plan tab should still be active (user preference persisted)
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
       expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-slate-800/50')
     })
     
@@ -128,9 +128,9 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // User selects Agent tab explicitly
-      fireEvent.click(screen.getByTitle('Agent'))
-      expect(screen.getByTitle('Agent')).toHaveClass('bg-slate-800/50')
+      // User selects Plan tab explicitly
+      fireEvent.click(screen.getByTitle('Plan'))
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
       
       // Switch to commander
       mockUseSelection.mockReturnValue({
@@ -146,12 +146,12 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // User's choice of Agent should persist (shown as "Plans" in commander)
+      // User's choice of Plan should persist (shown as "Plans" in commander)
       expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-slate-800/50')
     })
     
     it('should use smart defaults when user has not made a selection', () => {
-      // Test commander defaults to Agent/Plans (no Changes tab in commander)
+      // Test commander defaults to Plan/Plans (no Changes tab in commander)
       mockUseSelection.mockReturnValue({
         selection: { kind: 'commander' },
         isPlan: false,
@@ -169,7 +169,7 @@ describe('RightPanelTabs', () => {
       // Changes tab should be present in commander
       expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
       
-      // Test plan session defaults to Agent and changes tab is hidden
+      // Test plan session defaults to Plan and changes tab is hidden
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'draft1' },
         isPlan: true,
@@ -183,8 +183,8 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // Get the tab button specifically (has title="Agent")
-      const taskTab = screen.getByTitle('Agent')
+      // Get the tab button specifically (has title="Plan")
+      const taskTab = screen.getByTitle('Plan')
       expect(taskTab).toHaveClass('bg-slate-800/50')
       // Changes tab should not be present for plans
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
@@ -204,7 +204,7 @@ describe('RightPanelTabs', () => {
       )
       
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
-      expect(screen.getByTitle('Agent')).not.toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Plan')).not.toHaveClass('bg-slate-800/50')
     })
     
     it('should allow user to override smart defaults at any time', () => {
@@ -225,11 +225,11 @@ describe('RightPanelTabs', () => {
       // Session starts with Changes (default)
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
       
-      // User clicks Agent
-      fireEvent.click(screen.getByTitle('Agent'))
-      expect(screen.getByTitle('Agent')).toHaveClass('bg-slate-800/50')
+      // User clicks Plan
+      fireEvent.click(screen.getByTitle('Plan'))
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
       
-      // Switch to another session - Agent should stay selected
+      // Switch to another session - Plan should stay selected
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session2' },
         isPlan: false,
@@ -243,13 +243,13 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      expect(screen.getByTitle('Agent')).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
       
       // User now clicks Changes
       fireEvent.click(screen.getByRole('button', { name: /Changes/i }))
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
       
-      // Switch to commander - Agent tab is shown as "Plans"
+      // Switch to commander - Plan tab is shown as "Plans"
       mockUseSelection.mockReturnValue({
         selection: { kind: 'commander' },
         isPlan: false,
@@ -287,10 +287,10 @@ describe('RightPanelTabs', () => {
       // Initially shows Changes content (SimpleDiffPanel)
       expect(screen.getByTestId('diff-panel')).toBeInTheDocument()
       
-      // Click Agent tab
-      fireEvent.click(screen.getByTitle('Agent'))
+      // Click Plan tab
+      fireEvent.click(screen.getByTitle('Plan'))
       
-      // Should now show Agent content (DraftContentView)
+      // Should now show Plan content (DraftContentView)
       expect(screen.queryByTestId('diff-panel')).not.toBeInTheDocument()
     })
     
@@ -310,9 +310,9 @@ describe('RightPanelTabs', () => {
       
       // Changes tab should not be visible for plans
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
-      // Only Agent tab should be visible
-      expect(screen.getByTitle('Agent')).toBeInTheDocument()
-      expect(screen.getByTitle('Agent')).toHaveClass('bg-slate-800/50')
+      // Only Plan tab should be visible
+      expect(screen.getByTitle('Plan')).toBeInTheDocument()
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
     })
   })
 })

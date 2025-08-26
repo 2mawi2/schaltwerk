@@ -45,7 +45,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
 
   // Unified header with tabs
   const isCommander = effectiveSelection.kind === 'commander'
-  const rightTabLabel = isCommander ? 'Plans' : 'Agent'
+  const rightTabLabel = isCommander ? 'Plans' : 'Plan'
   const showBackButton = isCommander && !!previewPlanName
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
 
