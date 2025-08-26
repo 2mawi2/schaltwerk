@@ -75,7 +75,7 @@ export class SchaltwerkBridge {
         branch: es.info.branch,
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
-        status: es.info.session_state === 'Plan' ? 'plan' as const : 'active' as const,
+        status: es.info.session_state === 'plan' ? 'plan' as const : 'active' as const,
         session_state: es.info.session_state,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
@@ -89,7 +89,7 @@ export class SchaltwerkBridge {
         was_auto_generated: false
       }))
       
-      return sessions.filter(s => s.status !== 'plan')
+      return sessions
     } catch (error) {
       console.error('Failed to list sessions via API:', error)
       return []
@@ -599,7 +599,7 @@ export class SchaltwerkBridge {
         branch: es.info.branch,
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
-        status: es.info.status === 'active' ? 'active' as const : 'plan' as const,
+        status: es.info.session_state === 'plan' ? 'plan' as const : 'active' as const,
         session_state: es.info.session_state,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
@@ -613,11 +613,7 @@ export class SchaltwerkBridge {
         was_auto_generated: false
       }))
       
-      // For 'all' filter, also include plans
-      if (filter === 'all' || !filter) {
-        const plans = await this.listDraftSessions()
-        sessions = [...sessions, ...plans]
-      }
+      // Don't duplicate plans - they're already included in enrichedSessions from API
       
       return sessions
     } catch (error) {
