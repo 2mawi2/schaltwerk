@@ -31,19 +31,6 @@ impl SessionCacheManager {
         Self { repo_path }
     }
 
-    #[cfg(test)]
-    pub fn has_session_been_prompted(&self, worktree_path: &Path) -> bool {
-        let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-        let prompted = set.lock().unwrap();
-        prompted.contains(worktree_path)
-    }
-
-    #[cfg(not(test))]
-    pub fn has_session_been_prompted(&self, worktree_path: &Path) -> bool {
-        let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));
-        let prompted = set.lock().unwrap();
-        prompted.contains(worktree_path)
-    }
 
     #[cfg(test)]
     pub fn mark_session_prompted(&self, worktree_path: &Path) {

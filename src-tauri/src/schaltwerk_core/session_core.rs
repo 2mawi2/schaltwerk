@@ -343,15 +343,9 @@ impl SessionManager {
         
         match agent_type.as_str() {
             "cursor" => {
-                let session_id = crate::schaltwerk_core::cursor::find_cursor_session(&session.worktree_path);
-                let prompt_to_use = if !self.cache_manager.has_session_been_prompted(&session.worktree_path) {
-                    session.initial_prompt.as_ref().map(|p| {
-                        self.cache_manager.mark_session_prompted(&session.worktree_path);
-                        p.as_str()
-                    })
-                } else {
-                    None
-                };
+                // Always start fresh - no session discovery for new sessions
+                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::cursor::CursorConfig {
@@ -360,22 +354,16 @@ impl SessionManager {
                 
                 Ok(crate::schaltwerk_core::cursor::build_cursor_command_with_config(
                     &session.worktree_path,
-                    session_id.as_deref(),
+                    None, // No session ID - always start fresh
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
                 ))
             }
             "opencode" => {
-                let session_info = crate::schaltwerk_core::opencode::find_opencode_session(&session.worktree_path);
-                let prompt_to_use = if !self.cache_manager.has_session_been_prompted(&session.worktree_path) {
-                    session.initial_prompt.as_ref().map(|p| {
-                        self.cache_manager.mark_session_prompted(&session.worktree_path);
-                        p.as_str()
-                    })
-                } else {
-                    None
-                };
+                // Always start fresh - no session discovery for new sessions
+                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::opencode::OpenCodeConfig {
@@ -384,22 +372,16 @@ impl SessionManager {
                 
                 Ok(crate::schaltwerk_core::opencode::build_opencode_command_with_config(
                     &session.worktree_path,
-                    session_info.as_ref(),
+                    None, // No session info - always start fresh
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
                 ))
             }
             "gemini" => {
-                let session_id = crate::schaltwerk_core::gemini::find_gemini_session(&session.worktree_path);
-                let prompt_to_use = if !self.cache_manager.has_session_been_prompted(&session.worktree_path) {
-                    session.initial_prompt.as_ref().map(|p| {
-                        self.cache_manager.mark_session_prompted(&session.worktree_path);
-                        p.as_str()
-                    })
-                } else {
-                    None
-                };
+                // Always start fresh - no session discovery for new sessions
+                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::gemini::GeminiConfig {
@@ -408,22 +390,16 @@ impl SessionManager {
                 
                 Ok(crate::schaltwerk_core::gemini::build_gemini_command_with_config(
                     &session.worktree_path,
-                    session_id.as_deref(),
+                    None, // No session ID - always start fresh
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
                 ))
             }
             "codex" => {
-                let session_id = crate::schaltwerk_core::codex::find_codex_session(&session.worktree_path);
-                let prompt_to_use = if !self.cache_manager.has_session_been_prompted(&session.worktree_path) {
-                    session.initial_prompt.as_ref().map(|p| {
-                        self.cache_manager.mark_session_prompted(&session.worktree_path);
-                        p.as_str()
-                    })
-                } else {
-                    None
-                };
+                // Always start fresh - no session discovery for new sessions
+                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let sandbox_mode = if skip_permissions {
                     "danger-full-access"
@@ -437,31 +413,18 @@ impl SessionManager {
                 };
                 Ok(crate::schaltwerk_core::codex::build_codex_command_with_config(
                     &session.worktree_path,
-                    session_id.as_deref(),
+                    None, // No session ID - always start fresh
                     prompt_to_use,
                     sandbox_mode,
                     Some(&config),
                 ))
             }
             _ => {
-                let session_id = crate::schaltwerk_core::claude::find_claude_session(&session.worktree_path);
-                log::debug!("Claude session lookup for '{}': session_id={:?}, initial_prompt={:?}, prompted={}", 
-                    session_name, session_id, session.initial_prompt, self.cache_manager.has_session_been_prompted(&session.worktree_path));
-                
-                let prompt_to_use = if !self.cache_manager.has_session_been_prompted(&session.worktree_path) {
-                    session.initial_prompt.as_ref().map(|p| {
-                        log::info!("Using initial_prompt for Claude session '{session_name}': '{p}'");
-                        self.cache_manager.mark_session_prompted(&session.worktree_path);
-                        p.as_str()
-                    })
-                } else {
-                    log::info!("Session '{session_name}' already prompted - not using initial_prompt");
-                    None
-                };
-                
-                let session_id_to_use = if prompt_to_use.is_some() { None } else { session_id.as_deref() };
-                log::info!("Building Claude command for '{}': session_id={:?}, prompt={:?}", 
-                    session_name, session_id_to_use, prompt_to_use.is_some());
+                // Always start fresh - no session discovery for new sessions
+                log::info!("Starting fresh Claude session '{}' with initial_prompt={:?}", 
+                    session_name, session.initial_prompt);
+                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::claude::ClaudeConfig {
@@ -470,7 +433,7 @@ impl SessionManager {
                 
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &session.worktree_path,
-                    session_id_to_use,
+                    None, // No session ID - always start fresh
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
@@ -478,7 +441,6 @@ impl SessionManager {
             }
         }
     }
-
     pub fn start_claude_in_orchestrator(&self) -> Result<String> {
         self.start_claude_in_orchestrator_with_args(None)
     }
