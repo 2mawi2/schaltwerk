@@ -1,4 +1,4 @@
-import { useEffect, useRef, Dispatch, SetStateAction } from 'react'
+import { useEffect, Dispatch, SetStateAction } from 'react'
 
 export interface PrefillEventDetail {
   name?: string

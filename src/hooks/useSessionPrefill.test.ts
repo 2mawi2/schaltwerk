@@ -93,7 +93,7 @@ describe('useSessionPrefill', () => {
 
       const { result } = renderHook(() => useSessionPrefill())
 
-      let prefillData
+      let prefillData: any
       await act(async () => {
         prefillData = await result.current.fetchSessionForPrefill('test-session')
       })
@@ -113,7 +113,7 @@ describe('useSessionPrefill', () => {
 
       const { result } = renderHook(() => useSessionPrefill())
 
-      let prefillData
+      let prefillData: any
       await act(async () => {
         prefillData = await result.current.fetchSessionForPrefill('test-session')
       })
