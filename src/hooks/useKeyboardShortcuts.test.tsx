@@ -252,23 +252,7 @@ describe('useKeyboardShortcuts', () => {
       expect(onSelectNextSession).toHaveBeenCalledTimes(1)
     })
 
-    it('focuses sidebar with Cmd+ArrowLeft', () => {
-      const onFocusSidebar = vi.fn()
-      const onSelectOrchestrator = vi.fn()
-      const onSelectSession = vi.fn()
-
-      renderHook(() => useKeyboardShortcuts({ 
-        onSelectOrchestrator, 
-        onSelectSession, 
-        onFocusSidebar,
-        sessionCount: 3
-      }))
-
-      pressKey('ArrowLeft', { metaKey: true })
-      expect(onFocusSidebar).toHaveBeenCalledTimes(1)
-    })
-
-    it('focuses Claude with Cmd+ArrowRight', () => {
+    it('focuses Claude with Cmd+ArrowLeft', () => {
       const onFocusClaude = vi.fn()
       const onSelectOrchestrator = vi.fn()
       const onSelectSession = vi.fn()
@@ -280,8 +264,24 @@ describe('useKeyboardShortcuts', () => {
         sessionCount: 3
       }))
 
-      pressKey('ArrowRight', { metaKey: true })
+      pressKey('ArrowLeft', { metaKey: true })
       expect(onFocusClaude).toHaveBeenCalledTimes(1)
+    })
+
+    it('focuses terminal with Cmd+ArrowRight', () => {
+      const onFocusTerminal = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() => useKeyboardShortcuts({ 
+        onSelectOrchestrator, 
+        onSelectSession, 
+        onFocusTerminal,
+        sessionCount: 3
+      }))
+
+      pressKey('ArrowRight', { metaKey: true })
+      expect(onFocusTerminal).toHaveBeenCalledTimes(1)
     })
 
     it('does not navigate when callbacks are undefined', () => {
@@ -780,19 +780,19 @@ describe('useKeyboardShortcuts', () => {
       expect(callbacks.onSelectNextSession).toHaveBeenCalled()
 
       pressKey('ArrowLeft', { metaKey: true })
-      expect(callbacks.onFocusSidebar).toHaveBeenCalled()
+      expect(callbacks.onFocusClaude).toHaveBeenCalled()
 
       pressKey('ArrowRight', { metaKey: true })
-      expect(callbacks.onFocusClaude).toHaveBeenCalled()
+      expect(callbacks.onFocusTerminal).toHaveBeenCalled()
 
       pressKey('g', { metaKey: true })
       expect(callbacks.onOpenDiffViewer).toHaveBeenCalled()
 
       pressKey('t', { metaKey: true })
-      expect(callbacks.onFocusClaude).toHaveBeenCalledTimes(2) // Called from both ArrowRight and t
+      expect(callbacks.onFocusClaude).toHaveBeenCalledTimes(2) // Called from both ArrowLeft and t
 
       pressKey('/', { metaKey: true })
-      expect(callbacks.onFocusTerminal).toHaveBeenCalled()
+      expect(callbacks.onFocusTerminal).toHaveBeenCalledTimes(2) // Called from both ArrowRight and /
     })
   })
 })

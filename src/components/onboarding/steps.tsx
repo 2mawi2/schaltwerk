@@ -144,8 +144,8 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     <div className="text-sm">
                         <strong className="text-slate-200">Focus Control:</strong>
                         <ul className="list-disc pl-6 mt-1 space-y-1">
-                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> Focus AI agent panel</li>
-                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> Focus terminal</li>
+                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> or <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘←</kbd> Focus AI agent panel</li>
+                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> or <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘→</kbd> Focus terminal</li>
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘G</kbd> Open diff viewer for reviews</li>
                         </ul>
                     </div>

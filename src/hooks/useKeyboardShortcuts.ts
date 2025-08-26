@@ -44,14 +44,16 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
                     onSelectNextSession()
                 }
             } else if (key === 'ArrowLeft') {
-                if (onFocusSidebar) {
-                    event.preventDefault()
-                    onFocusSidebar()
-                }
-            } else if (key === 'ArrowRight') {
+                // Same as Cmd+T - Focus Claude (agent window)
                 if (onFocusClaude) {
                     event.preventDefault()
                     onFocusClaude()
+                }
+            } else if (key === 'ArrowRight') {
+                // Same as Cmd+/ - Focus terminal
+                if (onFocusTerminal) {
+                    event.preventDefault()
+                    onFocusTerminal()
                 }
             } else if (key === 'd' || key === 'D') {
                 if (onCancelSelectedSession) {
