@@ -13,6 +13,7 @@ import {
   VscClose, VscSend, VscListFlat, VscListSelection
 } from 'react-icons/vsc'
 import hljs from 'highlight.js'
+import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
 
 // ChangedFile type now imported from DiffFileExplorer
@@ -59,6 +60,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [commentFormPosition, setCommentFormPosition] = useState<{ x: number, y: number } | null>(null)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [continuousScroll, setContinuousScroll] = useState(false)
+  const [isSearchVisible, setIsSearchVisible] = useState(false)
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
@@ -806,9 +808,24 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // Global keyboard shortcuts for the diff modal (placed after handleFinishReview definition)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Cmd/Ctrl+Enter to finish review when modal is open
       const isMac = navigator.userAgent.includes('Mac')
       const modifierPressed = isMac ? e.metaKey : e.ctrlKey
+      
+      // Cmd/Ctrl+F to open search when modal is open
+      if (isOpen && modifierPressed && (e.key === 'f' || e.key === 'F')) {
+        const target = e.target as HTMLElement | null
+        const tag = target?.tagName?.toLowerCase()
+        const isEditable = (target as any)?.isContentEditable
+        // Only trigger search if not typing in inputs
+        if (tag !== 'textarea' && tag !== 'input' && !isEditable) {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsSearchVisible(true)
+          return
+        }
+      }
+      
+      // Cmd/Ctrl+Enter to finish review when modal is open
       if (isOpen && modifierPressed && e.key === 'Enter') {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName?.toLowerCase()
@@ -826,14 +843,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         // Prevent ESC from reaching terminals while modal is open
         e.preventDefault()
         e.stopPropagation()
-        if (showCommentForm) {
+        if (isSearchVisible) {
+          setIsSearchVisible(false)
+        } else if (showCommentForm) {
           setShowCommentForm(false)
           setCommentFormPosition(null)
           lineSelection.clearSelection()
         } else if (isOpen) {
           onClose()
         }
-      } else if (isOpen && !showCommentForm) {
+      } else if (isOpen && !showCommentForm && !isSearchVisible) {
         // Arrow key navigation for file list when modal is open and comment form is not shown
         if (e.key === 'ArrowUp') {
           e.preventDefault()
@@ -855,7 +874,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
     window.addEventListener('keydown', handleKeyDown, true) // capture phase
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isOpen, showCommentForm, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview])
+  }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview])
 
 
   if (!isOpen) return null
@@ -916,7 +935,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
             />
 
             {/* Diff viewer */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            <div className="flex-1 flex flex-col overflow-hidden relative">
               <DiffViewer
                 files={files}
                 selectedFile={selectedFile}
@@ -938,6 +957,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 handleLineMouseEnter={handleLineMouseEnter}
                 handleLineMouseUp={handleLineMouseUp}
                 lineSelection={lineSelection}
+              />
+              
+              {/* Search functionality */}
+              <SearchBox
+                targetRef={scrollContainerRef}
+                isVisible={isSearchVisible}
+                onClose={() => setIsSearchVisible(false)}
               />
               
               {/* Comment form appears near the selected line */}
