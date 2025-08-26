@@ -83,7 +83,7 @@ pub async fn generate_display_name_and_rename_branch(ctx: SessionRenameContext<'
     
     if let Some(ref new_name) = result {
         // Generate new branch name based on the display name
-        let new_branch = format!("para/{new_name}");
+        let new_branch = format!("schaltwerk/{new_name}");
         
         // Only rename if the branch name would actually change
         if ctx.current_branch != new_branch {

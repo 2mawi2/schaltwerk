@@ -108,7 +108,7 @@ pub fn rename_branch(repo_path: &Path, old_branch: &str, new_branch: &str) -> Re
 
 pub fn archive_branch(repo_path: &Path, branch_name: &str, session_name: &str) -> Result<String> {
     let timestamp = chrono::Utc::now().format("%Y%m%d_%H%M%S");
-    let archived_branch = format!("para/archived/{timestamp}/{session_name}");
+    let archived_branch = format!("schaltwerk/archived/{timestamp}/{session_name}");
     
     let output = Command::new("git")
         .args([
