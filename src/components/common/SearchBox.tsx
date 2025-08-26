@@ -22,15 +22,17 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
   const inputRef = useRef<HTMLInputElement>(null)
 
   const clearHighlights = useCallback(() => {
-    matches.forEach(match => {
-      if (match.element && match.element.parentNode) {
-        match.element.innerHTML = match.originalHTML
-      }
+    setMatches(prevMatches => {
+      prevMatches.forEach(match => {
+        if (match.element && match.element.parentNode) {
+          match.element.innerHTML = match.originalHTML
+        }
+      })
+      return []
     })
-    setMatches([])
     setCurrentMatchIndex(-1)
     setTotalMatches(0)
-  }, [matches])
+  }, [])
 
   const highlightMatches = useCallback((term: string) => {
     if (!targetRef.current || !term.trim()) {
