@@ -204,7 +204,7 @@ jobs:
     name: Update Homebrew Tap
     needs: create-release
     runs-on: ubuntu-latest
-    if: github.repository == '2mawi2/para-ui'
+    if: github.repository == '2mawi2/schaltwerk'
     
     steps:
       - name: Checkout Homebrew tap
@@ -221,7 +221,7 @@ jobs:
           
           # Download DMG from GitHub release
           curl -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
-            "https://api.github.com/repos/2mawi2/para-ui/releases/tags/v${VERSION}" | \
+            "https://api.github.com/repos/2mawi2/schaltwerk/releases/tags/v${VERSION}" | \
             jq -r '.assets[] | select(.name | endswith(".dmg")) | .url' | \
             xargs curl -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             -H "Accept: application/octet-stream" -o "Schaltwerk-${VERSION}-universal.dmg"
@@ -246,7 +246,7 @@ jobs:
             url "https://github.com/2mawi2/homebrew-tap/raw/main/releases/Schaltwerk-#{version}-universal.dmg"
             name "Schaltwerk"
             desc "Visual interface for managing Para sessions"
-            homepage "https://github.com/2mawi2/para-ui"
+            homepage "https://github.com/2mawi2/schaltwerk"
 
             app "Schaltwerk.app"
 
