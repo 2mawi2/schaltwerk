@@ -13,10 +13,11 @@ export function PlanInfoPanel({ sessionName }: Props) {
     try {
       setStarting(true)
       setError(null)
+      console.log('[PlanInfoPanel] Dispatching start-agent-from-plan event for:', sessionName)
       // Open Start new agent modal prefilled from plan instead of starting directly
       window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionName } }))
     } catch (e: any) {
-      console.error('[DraftInfoPanel] Failed to open start modal from plan:', e)
+      console.error('[PlanInfoPanel] Failed to open start modal from plan:', e)
       setError(String(e))
     } finally {
       setStarting(false)

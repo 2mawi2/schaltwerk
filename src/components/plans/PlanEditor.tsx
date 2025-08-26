@@ -42,7 +42,7 @@ export function PlanEditor({ sessionName, onStart }: Props) {
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSaving(true)
-        await invoke('schaltwerk_core_update_draft_content', { name: sessionName, content })
+        await invoke('schaltwerk_core_update_plan_content', { name: sessionName, content })
       } catch (e) {
         console.error('[DraftEditor] Failed to save plan:', e)
       } finally {

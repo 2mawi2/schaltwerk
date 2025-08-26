@@ -19,36 +19,49 @@ describe('useSessionPrefill', () => {
       expect(extractSessionContent(null)).toBe('')
     })
 
-    it('returns draft_content when available', () => {
+    it('returns plan_content when available', () => {
       const sessionData = {
+        plan_content: 'Plan content',
+        draft_content: 'Draft content',
+        initial_prompt: 'Initial prompt',
+      }
+      expect(extractSessionContent(sessionData)).toBe('Plan content')
+    })
+
+    it('returns draft_content when plan_content is null', () => {
+      const sessionData = {
+        plan_content: null,
         draft_content: 'Draft content',
         initial_prompt: 'Initial prompt',
       }
       expect(extractSessionContent(sessionData)).toBe('Draft content')
     })
 
-    it('returns initial_prompt when draft_content is null', () => {
+    it('returns initial_prompt when plan_content and draft_content are null', () => {
       const sessionData = {
+        plan_content: null,
         draft_content: null,
         initial_prompt: 'Initial prompt',
       }
       expect(extractSessionContent(sessionData)).toBe('Initial prompt')
     })
 
-    it('returns empty string when both are null', () => {
+    it('returns empty string when all content fields are null', () => {
       const sessionData = {
+        plan_content: null,
         draft_content: null,
         initial_prompt: null,
       }
       expect(extractSessionContent(sessionData)).toBe('')
     })
 
-    it('prioritizes draft_content over initial_prompt', () => {
+    it('prioritizes plan_content over draft_content and initial_prompt', () => {
       const sessionData = {
+        plan_content: 'Plan',
         draft_content: 'Draft',
         initial_prompt: 'Prompt',
       }
-      expect(extractSessionContent(sessionData)).toBe('Draft')
+      expect(extractSessionContent(sessionData)).toBe('Plan')
     })
   })
 
@@ -137,7 +150,7 @@ describe('useSessionPrefill', () => {
       expect(prefillData).toBeNull()
       expect(result.current.error).toBe('Failed to fetch session')
       expect(result.current.isLoading).toBe(false)
-      expect(consoleSpy).toHaveBeenCalledWith('Failed to fetch session for prefill:', 'Failed to fetch session')
+      expect(consoleSpy).toHaveBeenCalledWith('[useSessionPrefill] Failed to fetch session for prefill:', 'Failed to fetch session')
 
       consoleSpy.mockRestore()
     })

@@ -44,7 +44,7 @@ export function PlanContentView({ sessionName, editable = true, debounceMs = 100
       if (!editable) return
       try {
         setSaving(true)
-        await invoke('schaltwerk_core_update_draft_content', { name: sessionName, content })
+        await invoke('schaltwerk_core_update_plan_content', { name: sessionName, content })
       } catch (e) {
         console.error('[DraftContentView] Failed to save plan:', e)
       } finally {

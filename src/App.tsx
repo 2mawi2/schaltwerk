@@ -320,13 +320,22 @@ export default function App() {
   // Open Start Agent modal prefilled from an existing plan
   useEffect(() => {
     const handler = async (event: any) => {
+      console.log('[App] Received start-agent-from-plan event:', event?.detail)
       const name = event?.detail?.name as string | undefined
-      if (!name) return
+      if (!name) {
+        console.warn('[App] No name provided in start-agent-from-plan event')
+        return
+      }
       // Store focus and open modal
       previousFocusRef.current = document.activeElement
       
+      // Notify modal that prefill is coming
+      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill-pending'))
+      
       // Fetch plan content first, then open modal with prefilled data
+      console.log('[App] Fetching session data for prefill:', name)
       const prefillData = await fetchSessionForPrefill(name)
+      console.log('[App] Fetched prefill data:', prefillData)
       
       // Open modal after data is ready
       setNewSessionOpen(true)
@@ -334,11 +343,15 @@ export default function App() {
       
       // Dispatch prefill event with fetched data
       if (prefillData) {
-        setTimeout(() => {
+        // Use requestAnimationFrame to ensure modal is rendered before dispatching
+        requestAnimationFrame(() => {
+          console.log('[App] Dispatching prefill event with data')
           window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
             detail: prefillData
           }))
-        }, 50)
+        })
+      } else {
+        console.warn('[App] No prefill data fetched for session:', name)
       }
     }
     window.addEventListener('schaltwerk:start-agent-from-plan' as any, handler)
@@ -406,7 +419,7 @@ export default function App() {
         // Ensure the plan content reflects latest prompt before starting
         const contentToUse = data.prompt || ''
         if (contentToUse.trim().length > 0) {
-          await invoke('schaltwerk_core_update_draft_content', {
+          await invoke('schaltwerk_core_update_plan_content', {
             name: data.name,
             content: contentToUse,
           })

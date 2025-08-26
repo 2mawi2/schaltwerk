@@ -76,7 +76,7 @@ export function PlanAgentPanel() {
     
     try {
       setSaving(true)
-      await invoke('schaltwerk_core_update_draft_content', { 
+      await invoke('schaltwerk_core_update_plan_content', { 
         name: editingDraft, 
         content: editContent 
       })
