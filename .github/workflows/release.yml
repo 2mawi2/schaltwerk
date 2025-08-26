@@ -42,8 +42,9 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             src-tauri/target/
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-ci-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
+            ${{ runner.os }}-cargo-ci-
             ${{ runner.os }}-cargo-
 
       - name: Install dependencies
@@ -52,22 +53,22 @@ jobs:
           rm -rf node_modules
           npm install
 
-      - name: Run tests
-        run: npm run test
+      # Tests run in separate workflow - releases depend on successful test runs
+      # This saves ~3-4 minutes in release workflow
 
       - name: Build frontend
         run: npm run build
 
-      - name: Build for Intel and Apple Silicon in parallel
+      - name: Build for Intel and Apple Silicon with CI profile
         env:
           MACOSX_DEPLOYMENT_TARGET: '11.0'
-          CARGO_PROFILE_RELEASE_LTO: 'thin'
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+          # Use CI profile for much faster builds
+          CARGO_PROFILE: 'ci'
         run: |
-          # Build both targets in parallel with faster CI settings
-          npm run tauri build -- --target x86_64-apple-darwin &
+          # Build both targets in parallel with CI profile (saves 2-3 minutes)
+          npm run tauri build -- --target x86_64-apple-darwin --profile ci &
           PID_INTEL=$!
-          npm run tauri build -- --target aarch64-apple-darwin &
+          npm run tauri build -- --target aarch64-apple-darwin --profile ci &
           PID_ARM=$!
           
           # Wait for both builds to complete
@@ -84,9 +85,9 @@ jobs:
 
       - name: Create Universal Binary
         run: |
-          # Create a universal binary app
-          cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-arm64.app
-          cp -R src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-x64.app
+          # Create a universal binary app (using CI profile paths)
+          cp -R src-tauri/target/aarch64-apple-darwin/ci/bundle/macos/Schaltwerk.app ./Schaltwerk-arm64.app
+          cp -R src-tauri/target/x86_64-apple-darwin/ci/bundle/macos/Schaltwerk.app ./Schaltwerk-x64.app
           
           # Create universal binary
           lipo -create \
