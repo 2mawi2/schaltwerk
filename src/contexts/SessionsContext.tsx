@@ -163,7 +163,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const createDraft = useCallback(async (name: string, content: string) => {
         try {
-            await invoke('para_core_create_draft_session', { name, content })
+            await invoke('para_core_create_draft_session', { name, planContent: content })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to create plan:', error)

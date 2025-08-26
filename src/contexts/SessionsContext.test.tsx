@@ -189,7 +189,7 @@ describe('SessionsContext', () => {
 
         expect(invoke).toHaveBeenCalledWith('para_core_create_draft_session', {
             name: 'new-plan',
-            content: '# New Plan'
+            planContent: '# New Plan'
         })
     })
 

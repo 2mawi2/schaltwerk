@@ -435,7 +435,7 @@ export default function App() {
         // Create plan session
         await invoke('para_core_create_draft_session', {
           name: data.name,
-          draftContent: data.draftContent || '',
+          planContent: data.draftContent || '',
         })
         setNewSessionOpen(false)
 
