@@ -34,21 +34,21 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node",
-    "extensionsToTreatAsEsm": [
-      ".ts"
-    ],
     "moduleNameMapper": {
-      "^(\\.{1,2}/.*)\\.js$": "$1"
+      "^(\\.{1,2}/.*)\\.js$": "$1",
+      "node-fetch": "<rootDir>/test/mocks/node-fetch.js"
     },
     "transform": {
       "^.+\\.ts$": [
         "ts-jest",
         {
-          "useESM": true,
           "tsconfig": "tsconfig.test.json"
         }
       ]
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!(node-fetch)/)"
+    ],
     "testMatch": [
       "**/src/**/*.test.ts",
       "**/test/**/*.test.ts"
