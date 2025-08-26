@@ -139,11 +139,20 @@ mod tests {
     use std::env;
 
     #[test]
+    #[serial_test::serial]
     fn test_project_history_add_update_remove_and_persist() {
-        // Redirect HOME so dirs::config_dir points under temp
+        // Redirect HOME and XDG_CONFIG_HOME for cross-platform compatibility
         let tmp = TempDir::new().unwrap();
-        let prev = env::var("HOME").ok();
+        let prev_home = env::var("HOME").ok();
+        let prev_xdg = env::var("XDG_CONFIG_HOME").ok();
+        
+        // Set HOME for macOS and XDG_CONFIG_HOME for Linux
         env::set_var("HOME", tmp.path());
+        env::set_var("XDG_CONFIG_HOME", tmp.path().join(".config"));
+        
+        // Ensure the config directory exists
+        let config_path = tmp.path().join(".config");
+        std::fs::create_dir_all(&config_path).unwrap();
 
         let mut hist = ProjectHistory::load().unwrap();
         assert_eq!(hist.get_recent_projects().len(), 0);
@@ -168,7 +177,9 @@ mod tests {
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].path, "/x/y");
 
-        if let Some(p) = prev { env::set_var("HOME", p); } else { env::remove_var("HOME"); }
+        // Restore environment variables
+        if let Some(p) = prev_home { env::set_var("HOME", p); } else { env::remove_var("HOME"); }
+        if let Some(p) = prev_xdg { env::set_var("XDG_CONFIG_HOME", p); } else { env::remove_var("XDG_CONFIG_HOME"); }
     }
 
     #[test]

@@ -64,4 +64,14 @@ impl SchaltwerkCore {
     pub fn database(&self) -> &Database {
         &self.db
     }
+    
+    #[cfg(test)]
+    pub fn new_in_memory_with_repo_path(repo_path: PathBuf) -> Result<Self> {
+        let db = Database::new_in_memory()?;
+        
+        Ok(Self {
+            db,
+            repo_path,
+        })
+    }
 }

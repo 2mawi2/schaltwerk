@@ -342,6 +342,7 @@ mod tests {
     }
     
     #[test]
+    #[serial_test::serial]
     fn test_find_opencode_session_no_home() {
         // Test when HOME environment variable is not set
         let original_home = std::env::var("HOME").ok();

@@ -45,4 +45,18 @@ impl Database {
     fn initialize_schema(&self) -> Result<()> {
         db_schema::initialize_schema(self)
     }
+    
+    #[cfg(test)]
+    pub fn new_in_memory() -> Result<Self> {
+        let conn = Connection::open(":memory:")?;
+        
+        let db = Self {
+            conn: Arc::new(Mutex::new(conn)),
+            db_path: PathBuf::from(":memory:"),
+        };
+        
+        db.initialize_schema()?;
+        
+        Ok(db)
+    }
 }

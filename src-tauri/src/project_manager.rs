@@ -85,6 +85,23 @@ impl Project {
         
         Ok(project_data_dir.join("sessions.db"))
     }
+    
+    #[cfg(test)]
+    pub fn new_in_memory(path: PathBuf) -> Result<Self> {
+        // Each project gets its own terminal manager
+        let terminal_manager = Arc::new(TerminalManager::new());
+        
+        // Use in-memory database for tests
+        let schaltwerk_core = Arc::new(Mutex::new(
+            SchaltwerkCore::new_in_memory_with_repo_path(path.clone())?
+        ));
+        
+        Ok(Self {
+            path,
+            terminal_manager,
+            schaltwerk_core,
+        })
+    }
 }
 
 /// Manages multiple projects and their resources
@@ -293,6 +310,31 @@ impl ProjectManager {
         
         Ok(arc_project.schaltwerk_core.clone())
     }
+    
+    #[cfg(test)]
+    pub async fn switch_to_project_in_memory(&self, path: PathBuf) -> Result<Arc<Project>> {
+        // Normalize the path
+        let path = match std::fs::canonicalize(&path) {
+            Ok(p) => p,
+            Err(e) => return Err(e.into()),
+        };
+        
+        // Check if project already exists
+        let mut projects = self.projects.write().await;
+        
+        let project = if let Some(existing) = projects.get(&path) {
+            existing.clone()
+        } else {
+            let new_project = Arc::new(Project::new_in_memory(path.clone())?);
+            projects.insert(path.clone(), new_project.clone());
+            new_project
+        };
+        
+        // Update current project
+        *self.current_project.write().await = Some(path.clone());
+        
+        Ok(project)
+    }
 }
 
 #[cfg(test)]
@@ -306,9 +348,9 @@ mod tests {
         let tmp = TempDir::new().unwrap();
         let path = tmp.path().to_path_buf();
 
-        let p1 = mgr.switch_to_project(path.clone()).await.unwrap();
+        let p1 = mgr.switch_to_project_in_memory(path.clone()).await.unwrap();
         // Switching again to the same canonicalized path should reuse the same Arc
-        let p2 = mgr.switch_to_project(path.clone()).await.unwrap();
+        let p2 = mgr.switch_to_project_in_memory(path.clone()).await.unwrap();
 
         assert!(Arc::ptr_eq(&p1, &p2));
 
@@ -322,8 +364,8 @@ mod tests {
         let tmp1 = TempDir::new().unwrap();
         let tmp2 = TempDir::new().unwrap();
 
-        let _ = mgr.switch_to_project(tmp1.path().to_path_buf()).await.unwrap();
-        let _ = mgr.switch_to_project(tmp2.path().to_path_buf()).await.unwrap();
+        let _ = mgr.switch_to_project_in_memory(tmp1.path().to_path_buf()).await.unwrap();
+        let _ = mgr.switch_to_project_in_memory(tmp2.path().to_path_buf()).await.unwrap();
 
         // Should not error even if there are no active terminals
         mgr.cleanup_all().await;
