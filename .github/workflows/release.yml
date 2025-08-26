@@ -88,8 +88,10 @@ jobs:
       - name: Create Universal Binary
         run: |
           # Create a universal binary app
-          cp -R src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-arm64.app
-          cp -R src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Schaltwerk.app ./Schaltwerk-x64.app
+          # Note: GitHub Actions uses /tmp/schaltwerk-shared-target for builds
+          TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/schaltwerk-shared-target}"
+          cp -R "$TARGET_DIR/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app" ./Schaltwerk-arm64.app
+          cp -R "$TARGET_DIR/x86_64-apple-darwin/release/bundle/macos/schaltwerk.app" ./Schaltwerk-x64.app
           
           # Create universal binary
           lipo -create \
