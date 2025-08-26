@@ -146,6 +146,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
     useLayoutEffect(() => {
         if (open) {
+            
             setCreating(false)
             // Generate a fresh Docker-style name each time the modal opens
             const gen = generateDockerStyleName()

@@ -58,6 +58,7 @@ export default function App() {
   const [openAsDraft, setOpenAsDraft] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
   const isKanbanOpenRef = useRef(false)
+  const previousFocusRef = useRef<Element | null>(null)
   
   // Keep ref in sync with state
   useEffect(() => {
@@ -206,6 +207,8 @@ export default function App() {
 
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
+          // Store current focus before opening modal
+          previousFocusRef.current = document.activeElement
           setNewSessionOpen(true)
         }
       }
@@ -216,6 +219,8 @@ export default function App() {
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
+          // Store current focus before opening modal
+          previousFocusRef.current = document.activeElement
           setOpenAsDraft(true)
           setNewSessionOpen(true)
         }
@@ -250,6 +255,8 @@ export default function App() {
     const handleGlobalNewSession = () => {
       // Handle ⌘N from terminal (custom event)
       if (!newSessionOpen && !cancelModalOpen) {
+        // Store current focus before opening modal
+        previousFocusRef.current = document.activeElement
         setNewSessionOpen(true)
       }
     }
@@ -289,6 +296,7 @@ export default function App() {
   // Open NewSessionModal directly in plan mode when requested
   useEffect(() => {
     const handler = () => {
+      previousFocusRef.current = document.activeElement
       setOpenAsDraft(true)
       setNewSessionOpen(true)
     }
@@ -299,6 +307,7 @@ export default function App() {
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
+      previousFocusRef.current = document.activeElement
       setOpenAsDraft(false)
       setNewSessionOpen(true)
     }
@@ -311,7 +320,8 @@ export default function App() {
     const handler = (event: any) => {
       const name = event?.detail?.name as string | undefined
       if (!name) return
-      // Open modal first
+      // Store focus and open modal
+      previousFocusRef.current = document.activeElement
       setNewSessionOpen(true)
       setStartFromDraftName(name)
       // Fetch plan content and parent branch, then prefill modal
@@ -618,7 +628,10 @@ export default function App() {
                 </div>
                 <div className="p-2 border-t border-slate-800 grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => setNewSessionOpen(true)}
+                    onClick={() => {
+                      previousFocusRef.current = document.activeElement
+                      setNewSessionOpen(true)
+                    }}
                     className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
                     title="Start agent (⌘N)"
                   >
@@ -626,7 +639,11 @@ export default function App() {
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
                   </button>
                   <button
-                    onClick={() => { setOpenAsDraft(true); setNewSessionOpen(true) }}
+                    onClick={() => {
+                      previousFocusRef.current = document.activeElement
+                      setOpenAsDraft(true)
+                      setNewSessionOpen(true)
+                    }}
                     className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
                     title="Create plan (⇧⌘N)"
                   >
@@ -654,7 +671,21 @@ export default function App() {
           <NewSessionModal
             open={newSessionOpen}
             initialIsDraft={openAsDraft}
-            onClose={() => { setNewSessionOpen(false); setOpenAsDraft(false); setStartFromDraftName(null) }}
+            onClose={() => {
+              setNewSessionOpen(false)
+              setOpenAsDraft(false)
+              setStartFromDraftName(null)
+              // Restore focus after modal closes
+              if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
+                setTimeout(() => {
+                  try {
+                    (previousFocusRef.current as HTMLElement).focus()
+                  } catch (error) {
+                    console.warn('[App] Failed to restore focus after NewSessionModal closed:', error)
+                  }
+                }, 100)
+              }
+            }}
             onCreate={handleCreateSession}
           />
 
