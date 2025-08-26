@@ -482,26 +482,34 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         hydrateTerminal();
 
-        // Handle font size changes
+        // Handle font size changes with better debouncing
+        let fontSizeChangeTimer: NodeJS.Timeout | null = null;
         const handleFontSizeChange = () => {
-            if (terminal.current) {
-                terminal.current.options.fontSize = terminalFontSize;
-                if (fitAddon.current) {
-                    // Small delay to ensure the font change is processed
-                    setTimeout(() => {
-                        if (fitAddon.current && terminal.current) {
-                            try {
-                                fitAddon.current.fit();
-                                const { cols, rows } = terminal.current;
-                                lastSize.current = { cols, rows };
-                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
-                            } catch (e) {
-                                console.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
-                            }
-                        }
-                    }, 50);
+            if (!terminal.current) return;
+            
+            // Clear any pending font size change
+            if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
+            
+            // Update font immediately for visual feedback
+            terminal.current.options.fontSize = terminalFontSize;
+            
+            // Debounce the fit operation to prevent rapid resizes
+            fontSizeChangeTimer = setTimeout(() => {
+                if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
+                
+                try {
+                    fitAddon.current.fit();
+                    const { cols, rows } = terminal.current;
+                    
+                    // Only send resize if dimensions actually changed
+                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                        lastSize.current = { cols, rows };
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                    }
+                } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
-            }
+            }, 100);
         };
 
         window.addEventListener('font-size-changed', handleFontSizeChange);
@@ -584,17 +592,28 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
 
-        // Use ResizeObserver with a more conservative debounce for better performance
+        // Use ResizeObserver with more stable debouncing to prevent jitter
         let resizeTimeout: NodeJS.Timeout | null = null;
+        let lastResizeTime = 0;
         const resizeObserver = new ResizeObserver(() => {
             // Skip resize work while user drags the split for smoother UI
             if (document.body.classList.contains('is-split-dragging')) {
                 return;
             }
+            
+            const now = Date.now();
+            const timeSinceLastResize = now - lastResizeTime;
+            
+            // Clear any pending resize
             if (resizeTimeout) clearTimeout(resizeTimeout);
+            
+            // If resizes are happening too rapidly, increase debounce time
+            const debounceTime = timeSinceLastResize < 200 ? 250 : 150;
+            
             resizeTimeout = setTimeout(() => {
+                lastResizeTime = Date.now();
                 handleResize();
-            }, 120); // slightly tighter debounce for snappier feel
+            }, debounceTime);
         });
         resizeObserver.observe(termRef.current);
         // Initial fit pass after mount
@@ -620,6 +639,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cancelled = true;
             
             if (resizeTimeout) clearTimeout(resizeTimeout);
+            if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
             clearTimeout(mountTimeout);
             window.removeEventListener('terminal-split-drag-end', doFinalFit);
             // Synchronously detach if possible to avoid races in tests

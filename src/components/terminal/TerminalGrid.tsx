@@ -36,13 +36,13 @@ export function TerminalGrid() {
     const initialExpanded = (() => {
         const rawExpanded = localStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
         const v = rawExpanded ? Number(rawExpanded) : NaN
-        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 35
+        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 28
     })()
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
     const [sizes, setSizes] = useState<number[]>(() => {
         const raw = localStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
-        let base: number[] = [65, 35]
+        let base: number[] = [72, 28]
         if (raw) {
             try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {}
         }
@@ -75,7 +75,7 @@ export function TerminalGrid() {
             setSizes([100 - collapsedPercent, collapsedPercent])
         } else {
             // When expanding, restore to last expanded size
-            const expandedSize = lastExpandedBottomPercent || 35
+            const expandedSize = lastExpandedBottomPercent || 28
             setSizes([100 - expandedSize, expandedSize])
         }
     }
@@ -88,7 +88,7 @@ export function TerminalGrid() {
         
         const handleFocusTerminal = () => {
             if (isBottomCollapsed) {
-                const expandedSize = lastExpandedBottomPercent || 35
+                const expandedSize = lastExpandedBottomPercent || 28
                 setSizes([100 - expandedSize, expandedSize])
                 setIsBottomCollapsed(false)
             }
@@ -177,16 +177,28 @@ export function TerminalGrid() {
             const headerEl = container.querySelector('[data-bottom-header]') as HTMLElement | null
             const headerHeight = headerEl?.offsetHeight || 30
             const pct = Math.max(2, Math.min(15, (headerHeight / total) * 100))
-            if (Math.abs(pct - collapsedPercent) > 0.5) {
+            // Only update if significantly different to avoid cascading resizes
+            if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
-                setSizes([100 - pct, pct])
+                // Use requestAnimationFrame to avoid mid-frame updates
+                requestAnimationFrame(() => {
+                    setSizes([100 - pct, pct])
+                })
             }
         }
-        computeCollapsedPercent()
-        const ro = new ResizeObserver(computeCollapsedPercent)
+        // Initial computation with delay to ensure layout is stable
+        const timer = setTimeout(computeCollapsedPercent, 50)
+        const ro = new ResizeObserver(() => {
+            // Debounce resize observations to avoid too frequent updates
+            clearTimeout(timer)
+            setTimeout(computeCollapsedPercent, 100)
+        })
         if (containerRef.current) ro.observe(containerRef.current)
-        return () => ro.disconnect()
-    }, [isBottomCollapsed, collapsedPercent])
+        return () => {
+            clearTimeout(timer)
+            ro.disconnect()
+        }
+    }, [isBottomCollapsed])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
     const sessionKey = () => (selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown')
@@ -195,8 +207,8 @@ export function TerminalGrid() {
         const raw = localStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
         const rawCollapsed = localStorage.getItem(`schaltwerk:terminal-grid:collapsed:${key}`)
         const rawExpanded = localStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`)
-        let nextSizes: number[] = [65, 35]
-        let expandedBottom = 35
+        let nextSizes: number[] = [72, 28]
+        let expandedBottom = 28
         
         if (raw) {
             try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed } catch {}
@@ -268,7 +280,7 @@ export function TerminalGrid() {
         setLocalFocus('terminal')
         // If collapsed, uncollapse first
         if (isBottomCollapsed) {
-            const expanded = lastExpandedBottomPercent || 35
+            const expanded = lastExpandedBottomPercent || 28
             setSizes([100 - expanded, expanded])
             setIsBottomCollapsed(false)
             requestAnimationFrame(() => {
@@ -323,7 +335,7 @@ export function TerminalGrid() {
             <Split 
                 className="h-full flex flex-col" 
                 direction="vertical" 
-                sizes={effectiveSizes || [65, 35]} 
+                sizes={effectiveSizes || [72, 28]} 
                 minSize={[120, 24]} 
                 gutterSize={8}
                 onDragStart={() => {
