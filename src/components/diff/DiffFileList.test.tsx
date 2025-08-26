@@ -177,7 +177,7 @@ describe('DiffFileList', () => {
 
     // Should show commander-specific header
     expect(await screen.findByText('Uncommitted Changes')).toBeInTheDocument()
-    expect(screen.getByText('(on main)')).toBeInTheDocument()
+    expect(await screen.findByText('(on main)')).toBeInTheDocument()
     
     // Should show commander changes
     expect(screen.getByText('commander.ts')).toBeInTheDocument()
