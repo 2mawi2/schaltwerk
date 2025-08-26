@@ -42,7 +42,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const waitForTerminalCleanup = useCallback(async (): Promise<void> => {
-        await new Promise(resolve => setTimeout(resolve, 200))
+        await new Promise(resolve => setTimeout(resolve, 50))
     }, [])
 
     const notifyTerminalsReset = useCallback((): void => {
@@ -50,7 +50,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const waitForResetCompletion = useCallback(async (): Promise<void> => {
-        await new Promise(resolve => setTimeout(resolve, 500))
+        await new Promise(resolve => setTimeout(resolve, 100))
     }, [])
 
     const resetSessionTerminals = useCallback(async (

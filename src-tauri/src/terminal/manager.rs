@@ -33,7 +33,17 @@ impl TerminalManager {
     }
     
     pub async fn create_terminal(&self, id: String, cwd: String) -> Result<(), String> {
-        self.create_terminal_with_env(id, cwd, vec![]).await
+        let start = std::time::Instant::now();
+        let result = self.create_terminal_with_env(id.clone(), cwd, vec![]).await;
+        let elapsed = start.elapsed();
+        
+        if elapsed.as_millis() > 500 {
+            log::warn!("Terminal {} slow create: {}ms", id, elapsed.as_millis());
+        } else {
+            log::debug!("Terminal {} created in: {}ms", id, elapsed.as_millis());
+        }
+        
+        result
     }
     
     pub async fn create_terminal_with_env(&self, id: String, cwd: String, env: Vec<(String, String)>) -> Result<(), String> {
@@ -70,7 +80,17 @@ impl TerminalManager {
     }
     
     pub async fn create_terminal_with_size(&self, id: String, cwd: String, cols: u16, rows: u16) -> Result<(), String> {
-        self.create_terminal_with_size_and_env(id, cwd, cols, rows, vec![]).await
+        let start = std::time::Instant::now();
+        let result = self.create_terminal_with_size_and_env(id.clone(), cwd, cols, rows, vec![]).await;
+        let elapsed = start.elapsed();
+        
+        if elapsed.as_millis() > 500 {
+            log::warn!("Terminal {} slow create with size {}x{}: {}ms", id, cols, rows, elapsed.as_millis());
+        } else {
+            log::debug!("Terminal {} created with size {}x{} in: {}ms", id, cols, rows, elapsed.as_millis());
+        }
+        
+        result
     }
     
     pub async fn create_terminal_with_size_and_env(&self, id: String, cwd: String, cols: u16, rows: u16, env: Vec<(String, String)>) -> Result<(), String> {
