@@ -410,9 +410,18 @@ impl TerminalBackend for LocalPtyAdapter {
             writer
                 .write_all(data)
                 .map_err(|e| format!("Write failed: {e}"))?;
-            writer
-                .flush()
-                .map_err(|e| format!("Flush failed: {e}"))?;
+            
+            // Smart flushing: only flush on important characters that need immediate response
+            // This reduces flush overhead for regular typing while maintaining responsiveness
+            let needs_immediate_flush = data.contains(&b'\n') || // newline/enter
+                                      data.contains(&b'\r') || // carriage return
+                                      data.starts_with(b"\x1b"); // escape sequences (arrows, etc)
+            
+            if needs_immediate_flush {
+                writer
+                    .flush()
+                    .map_err(|e| format!("Flush failed: {e}"))?;
+            }
             
             let elapsed = start.elapsed();
             if elapsed.as_millis() > 20 {
