@@ -63,7 +63,26 @@ export class SchaltwerkBridge {
       }
       
       // The response will be EnrichedSession objects from the backend
-      const enrichedSessions = await response.json() as any[]
+      const enrichedSessions = await response.json() as Array<{
+        info: {
+          session_id: string;
+          display_name?: string;
+          branch: string;
+          base_branch: string;
+          worktree_path: string;
+          session_state: string;
+          created_at?: string;
+          updated_at?: string;
+          last_activity?: string;
+          initial_prompt?: string;
+          draft_content?: string;
+          ready_to_merge?: boolean;
+          original_agent_type?: string;
+          original_skip_permissions?: boolean;
+          pending_name_generation?: boolean;
+          was_auto_generated?: boolean;
+        };
+      }>
       
       // Convert EnrichedSession to Session format
       const sessions: Session[] = enrichedSessions.map(es => ({
@@ -76,11 +95,11 @@ export class SchaltwerkBridge {
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
         status: es.info.session_state === 'plan' ? 'plan' as const : 'active' as const,
-        session_state: es.info.session_state,
+        session_state: es.info.session_state as 'Plan' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
-        updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
-        last_activity: es.info.last_modified ? new Date(es.info.last_modified).getTime() : undefined,
-        initial_prompt: es.info.current_task || undefined,
+        updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
+        last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
+        initial_prompt: es.info.initial_prompt || undefined,
         draft_content: es.info.draft_content || undefined,
         ready_to_merge: es.info.ready_to_merge || false,
         original_agent_type: undefined,
@@ -250,7 +269,7 @@ export class SchaltwerkBridge {
     // This preserves all work and allows resuming later
   }
 
-  async getGitStats(sessionId: string): Promise<GitStats | undefined> {
+  async getGitStats(): Promise<GitStats | undefined> {
     // TODO: Implement git stats via API when needed
     console.warn('getGitStats: API implementation pending')
     return undefined
@@ -587,7 +606,26 @@ export class SchaltwerkBridge {
       
       // The response will be EnrichedSession objects from the backend
       // We need to map them to Session objects expected by MCP
-      const enrichedSessions = await response.json() as any[]
+      const enrichedSessions = await response.json() as Array<{
+        info: {
+          session_id: string;
+          display_name?: string;
+          branch: string;
+          base_branch: string;
+          worktree_path: string;
+          session_state: string;
+          created_at?: string;
+          updated_at?: string;
+          last_activity?: string;
+          initial_prompt?: string;
+          draft_content?: string;
+          ready_to_merge?: boolean;
+          original_agent_type?: string;
+          original_skip_permissions?: boolean;
+          pending_name_generation?: boolean;
+          was_auto_generated?: boolean;
+        };
+      }>
       
       // Convert EnrichedSession to Session format
       let sessions: Session[] = enrichedSessions.map(es => ({
@@ -600,11 +638,11 @@ export class SchaltwerkBridge {
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
         status: es.info.session_state === 'plan' ? 'plan' as const : 'active' as const,
-        session_state: es.info.session_state,
+        session_state: es.info.session_state as 'Plan' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
-        updated_at: es.info.last_modified ? new Date(es.info.last_modified).getTime() : Date.now(),
-        last_activity: es.info.last_modified ? new Date(es.info.last_modified).getTime() : undefined,
-        initial_prompt: es.info.current_task || undefined,
+        updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
+        last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
+        initial_prompt: es.info.initial_prompt || undefined,
         draft_content: es.info.draft_content || undefined,
         ready_to_merge: es.info.ready_to_merge || false,
         original_agent_type: undefined,

@@ -823,7 +823,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         
         // Build response with only requested fields
         const formattedTasks = agents.map(t => {
-          const agent: any = {
+          const agent: Record<string, unknown> = {
             name: t.name // Always include name
           }
           

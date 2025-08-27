@@ -1,6 +1,11 @@
 @import './styles/theme.css';
 @import "tailwindcss";
 
+@theme {
+  --color-panel: #0b1220;
+  --color-panel-alt: #0f172a;
+}
+
 /* Terminal font sizes are defined in theme.css */
 
 /* Prefer dark UI for native system widgets like scrollbars */
