@@ -160,7 +160,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -168,7 +168,7 @@ describe('Sidebar sort mode persistence', () => {
     // Should be in name (alphabetical) order by default
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('test_session_a')
@@ -195,7 +195,7 @@ describe('Sidebar sort mode persistence', () => {
       // Also wait for sessions to be sorted correctly
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       
       // Check first session is test_session_b (newest)
@@ -205,7 +205,7 @@ describe('Sidebar sort mode persistence', () => {
     // Now verify full order
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('test_session_b') // Jan 2 (newest)
@@ -223,7 +223,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -267,7 +267,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -275,7 +275,7 @@ describe('Sidebar sort mode persistence', () => {
     // Should fallback to default 'name' mode when value is invalid
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('test_session_a')
@@ -295,7 +295,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -347,7 +347,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -355,7 +355,7 @@ describe('Sidebar sort mode persistence', () => {
     // Should fallback to default name sorting
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('test_session_a')
@@ -373,7 +373,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -400,7 +400,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -414,7 +414,7 @@ describe('Sidebar sort mode persistence', () => {
     // Should be in last-edited order (most recent first)
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('test_session_c') // Jan 20 (most recent)
@@ -436,7 +436,7 @@ describe('Sidebar sort mode persistence', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -444,7 +444,7 @@ describe('Sidebar sort mode persistence', () => {
     // Should default to name sorting when no value exists
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('test_session_a')
@@ -469,7 +469,7 @@ describe('Sidebar sort mode persistence', () => {
       await waitFor(() => {
         const sessionButtons = screen.getAllByRole('button').filter(btn => {
           const text = btn.textContent || ''
-          return text.includes('para/') && !text.includes('main (commander)')
+          return text.includes('para/') && !text.includes('main (orchestrator)')
         })
         expect(sessionButtons).toHaveLength(3)
       })

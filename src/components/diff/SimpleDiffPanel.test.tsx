@@ -7,7 +7,7 @@ vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 const invoke = (await import('@tauri-apps/api/core')).invoke as unknown as ReturnType<typeof vi.fn>
 
 // Mutable selection used by mocked hook
-let currentSelection: any = { kind: 'commander' }
+let currentSelection: any = { kind: 'orchestrator' }
 vi.mock('../../contexts/SelectionContext', async () => {
   const actual = await vi.importActual<any>('../../contexts/SelectionContext')
   return {
@@ -41,8 +41,8 @@ describe('SimpleDiffPanel', () => {
     }
   })
 
-  it('renders DiffFileList and no dock by default (commander)', async () => {
-    currentSelection = { kind: 'commander' }
+  it('renders DiffFileList and no dock by default (orchestrator)', async () => {
+    currentSelection = { kind: 'orchestrator' }
     invoke.mockResolvedValueOnce([]) // get_changed_files_from_main will be called by DiffFileList polling, but we just ensure render
     const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
     render(<SimpleDiffPanel onFileSelect={vi.fn()} />)

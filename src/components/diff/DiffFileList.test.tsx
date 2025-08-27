@@ -143,8 +143,8 @@ describe('DiffFileList', () => {
     expect(await screen.findByText('No changes from main')).toBeInTheDocument()
   })
 
-  it('shows commander empty state when no session selected', async () => {
-    // No session set -> commander mode
+  it('shows orchestrator empty state when no session selected', async () => {
+    // No session set -> orchestrator mode
     render(
       <Wrapper>
         <DiffFileList onFileSelect={() => {}} />
@@ -155,13 +155,13 @@ describe('DiffFileList', () => {
     expect(screen.getByText('Select a session to view changes')).toBeInTheDocument()
   })
 
-  it('shows commander changes when isCommander is true', async () => {
-    // Mock commander-specific commands
+  it('shows orchestrator changes when isCommander is true', async () => {
+    // Mock orchestrator-specific commands
     const { invoke } = (await import('@tauri-apps/api/core')) as any
     ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
       if (cmd === 'get_orchestrator_working_changes') {
         return [
-          { path: 'src/commander.ts', change_type: 'modified' },
+          { path: 'src/orchestrator.ts', change_type: 'modified' },
           { path: 'config.json', change_type: 'added' },
         ]
       }
@@ -175,17 +175,17 @@ describe('DiffFileList', () => {
       </Wrapper>
     )
 
-    // Should show commander-specific header
+    // Should show orchestrator-specific header
     expect(await screen.findByText('Uncommitted Changes')).toBeInTheDocument()
     expect(await screen.findByText('(on main)')).toBeInTheDocument()
     
-    // Should show commander changes
-    expect(screen.getByText('commander.ts')).toBeInTheDocument()
+    // Should show orchestrator changes
+    expect(screen.getByText('orchestrator.ts')).toBeInTheDocument()
     expect(screen.getByText('config.json')).toBeInTheDocument()
   })
 
-  it('shows commander empty state when no working changes', async () => {
-    // Mock commander with no changes
+  it('shows orchestrator empty state when no working changes', async () => {
+    // Mock orchestrator with no changes
     const { invoke } = (await import('@tauri-apps/api/core')) as any
     ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
       if (cmd === 'get_orchestrator_working_changes') return []
@@ -199,13 +199,13 @@ describe('DiffFileList', () => {
       </Wrapper>
     )
 
-    // Should show commander-specific empty state
+    // Should show orchestrator-specific empty state
     expect(await screen.findByText('No uncommitted changes')).toBeInTheDocument()
     expect(screen.getByText('Your working directory is clean')).toBeInTheDocument()
   })
 
-  it('filters out .schaltwerk files in commander mode', async () => {
-    // Mock commander with .schaltwerk files (should not appear due to backend filtering)
+  it('filters out .schaltwerk files in orchestrator mode', async () => {
+    // Mock orchestrator with .schaltwerk files (should not appear due to backend filtering)
     const { invoke } = (await import('@tauri-apps/api/core')) as any
     ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
       if (cmd === 'get_orchestrator_working_changes') {
@@ -233,7 +233,7 @@ describe('DiffFileList', () => {
     expect(screen.queryByText('session.db')).not.toBeInTheDocument()
   })
 
-  it('uses Promise.all for parallel commander calls', async () => {
+  it('uses Promise.all for parallel orchestrator calls', async () => {
     const { invoke } = (await import('@tauri-apps/api/core')) as any
     const invokeCallOrder: string[] = []
     

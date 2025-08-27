@@ -74,20 +74,20 @@ src-tauri/
 - **Lazy creation**: Terminals created only when first needed
 - **Persistent state**: Terminals keep running when switching sessions
 - **Proper cleanup**: All processes killed when app exits
-- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Agents/Plans for commander
+- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Agents/Plans for orchestrator
 
 ### Terminal ID Convention (required)
 ```
-Commander:
-- commander-{projectId}-top
-- commander-{projectId}-bottom
+Orchestrator:
+- orchestrator-{projectId}-top
+- orchestrator-{projectId}-bottom
 
 Sessions:
 - session-{name}-top
 - session-{name}-bottom
 ```
 
-Note: The commander terminals include a project-specific ID hash to ensure separate terminals per project. The right panel is RightPanelTabs component showing diffs/agents, not a terminal.
+Note: The orchestrator terminals include a project-specific ID hash to ensure separate terminals per project. The right panel is RightPanelTabs component showing diffs/agents, not a terminal.
 
 ## Color Theme System
 
@@ -415,9 +415,9 @@ Logs use a consistent format for easy parsing:
 
 Example:
 ```
-[2024-01-15 14:23:45.123 INFO  schaltwerk::terminal] Creating terminal: id=commander-top, cwd=/Users/name/project
-[2024-01-15 14:23:45.456 DEBUG schaltwerk::terminal] Saved child process for terminal commander-top
-[2024-01-15 14:23:45.789 WARN  schaltwerk::terminal] Terminal commander-bottom slow write: 25ms
+[2024-01-15 14:23:45.123 INFO  schaltwerk::terminal] Creating terminal: id=orchestrator-top, cwd=/Users/name/project
+[2024-01-15 14:23:45.456 DEBUG schaltwerk::terminal] Saved child process for terminal orchestrator-top
+[2024-01-15 14:23:45.789 WARN  schaltwerk::terminal] Terminal orchestrator-bottom slow write: 25ms
 ```
 
 ### Logging in Rust Code
@@ -459,8 +459,8 @@ INFO Terminal created successfully: id=session-main-top
 
 #### Performance Issues
 ```
-WARN Terminal commander-bottom slow write: 25ms
-DEBUG Terminal commander-top slow buffer append: 15ms
+WARN Terminal orchestrator-bottom slow write: 25ms
+DEBUG Terminal orchestrator-top slow buffer append: 15ms
 ```
 
 #### Error Handling
@@ -478,7 +478,7 @@ tail -f ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
 grep ERROR ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
 
 # Watch for specific terminal
-grep "commander-top" ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
+grep "orchestrator-top" ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
 
 # Monitor performance issues
 grep -E "slow|WARN|ERROR" ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log

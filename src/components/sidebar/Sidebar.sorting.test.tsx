@@ -176,7 +176,7 @@ describe('Sidebar sorting functionality', () => {
     // Find session buttons by their distinct structure (have both session name and branch)
     let sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     expect(sessionButtons).toHaveLength(3)
     expect(sessionButtons[0]).toHaveTextContent('alpha_session')
@@ -191,7 +191,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     // Sorted by creation time (newest first)
     expect(sessionButtons[0]).toHaveTextContent('zebra_session') // Jan 2 (newest)
@@ -206,7 +206,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     // Sorted by last modified (most recent first)
     expect(sessionButtons[0]).toHaveTextContent('beta_session')  // Jan 20
@@ -221,7 +221,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     // Back to alphabetical
     expect(sessionButtons[0]).toHaveTextContent('alpha_session')
@@ -269,7 +269,7 @@ describe('Sidebar sorting functionality', () => {
     
     sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     // Unreviewed by last-edited, then reviewed alphabetically
     expect(sessionButtons[0]).toHaveTextContent('beta')  // unreviewed, Jan 20
@@ -348,7 +348,7 @@ describe('Sidebar sorting functionality', () => {
     // Sessions with timestamps come first (newest first), then sessions without timestamps (alphabetical)
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
     expect(sessionButtons).toHaveLength(3)
     // First is the one with timestamp. Our mock extracts timestamp either from created_at or id suffix.

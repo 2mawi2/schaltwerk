@@ -1017,7 +1017,7 @@ fi`}
                         <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
                             <ul className="space-y-2 text-sm">
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Switch to Commander</span>
+                                    <span className="text-slate-300">Switch to Orchestrator</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + 1</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1081,7 +1081,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + R</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Open Diff Viewer (Session/Commander)</span>
+                                    <span className="text-slate-300">Open Diff Viewer (Session/Orchestrator)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + G</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1222,7 +1222,7 @@ fi`}
                     <div>
                         <h3 className="text-sm font-medium text-slate-200 mb-4">Action Buttons</h3>
                         <p className="text-sm text-slate-400 mb-4">
-                            Configure custom action buttons that appear in the terminal header for both commander and agent views.
+                            Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
                             These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
                         </p>
                         

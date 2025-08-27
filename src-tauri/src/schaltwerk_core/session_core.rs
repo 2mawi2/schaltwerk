@@ -450,7 +450,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_fresh_with_binary(&self, binary_paths: &HashMap<String, String>) -> Result<String> {
-        log::info!("Building FRESH commander command (no session resume) for repo: {}", self.repo_path.display());
+        log::info!("Building FRESH orchestrator command (no session resume) for repo: {}", self.repo_path.display());
         
         if !self.repo_path.exists() {
             log::error!("Repository path does not exist: {}", self.repo_path.display());
@@ -459,13 +459,13 @@ impl SessionManager {
         
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The commander requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
         }
         
         let skip_permissions = self.db_manager.get_skip_permissions()?;
         let agent_type = self.db_manager.get_agent_type()?;
         
-        log::info!("Fresh commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, false)
     }
@@ -479,7 +479,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_with_args_and_binary(&self, _cli_args: Option<&str>, binary_paths: &HashMap<String, String>) -> Result<String> {
-        log::info!("Building commander command for repo: {}", self.repo_path.display());
+        log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
         
         if !self.repo_path.exists() {
             return Err(anyhow!("Repository path does not exist: {}", self.repo_path.display()));
@@ -492,7 +492,7 @@ impl SessionManager {
         let skip_permissions = self.db_manager.get_skip_permissions()?;
         let agent_type = self.db_manager.get_agent_type()?;
         
-        log::info!("Commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, true)
     }

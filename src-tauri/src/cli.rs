@@ -3,11 +3,11 @@ use std::path::PathBuf;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Schaltwerk - An commander for your agents
+/// Schaltwerk - An orchestrator for your agents
 #[derive(Debug, Parser)]
 #[command(
     name = "schaltwerk",
-    about = "Schaltwerk - An commander for your agents",
+    about = "Schaltwerk - An orchestrator for your agents",
     version = VERSION,
     help_template = "\
 {before-help}{name} {version}

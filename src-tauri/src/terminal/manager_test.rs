@@ -224,7 +224,7 @@ mod tests {
         
         let _ = handle.await;
         
-        assert!(manager.terminal_exists(&panic_id).await.unwrap(), "Terminal should still exist after task panic");
+        assert!(manager.terminal_exists(&panic_id).await.unwrap(), "Terminal should still exist after agent panic");
         
         manager.cleanup_all().await.unwrap();
         assert!(!manager.terminal_exists(&panic_id).await.unwrap(), "Cleanup should remove all terminals");

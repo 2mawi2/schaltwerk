@@ -238,7 +238,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setNameLocked(!!lockName)
             }
             if (typeof taskContentFromDraft === 'string') {
-                console.log('[NewSessionModal] Setting task content from prefill:', taskContentFromDraft.substring(0, 100), '...')
+                console.log('[NewSessionModal] Setting agent content from prefill:', taskContentFromDraft.substring(0, 100), '...')
                 setTaskContent(taskContentFromDraft)
             }
             if (baseBranchFromDraft) {

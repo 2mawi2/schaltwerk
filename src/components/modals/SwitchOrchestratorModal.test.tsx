@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
-import { SwitchCommanderModal } from './SwitchCommanderModal'
+import { SwitchOrchestratorModal } from './SwitchOrchestratorModal'
 
 // Mock useClaudeSession to control getAgentType behavior and avoid tauri calls
 vi.mock('../../hooks/useClaudeSession', () => {
@@ -11,16 +11,16 @@ vi.mock('../../hooks/useClaudeSession', () => {
   }
 })
 
-function openModal(overrides: Partial<React.ComponentProps<typeof SwitchCommanderModal>> = {}) {
+function openModal(overrides: Partial<React.ComponentProps<typeof SwitchOrchestratorModal>> = {}) {
   const onClose = vi.fn()
   const onSwitch = vi.fn().mockResolvedValue(undefined)
   render(
-    <SwitchCommanderModal open={true} onClose={onClose} onSwitch={onSwitch} {...overrides} />
+    <SwitchOrchestratorModal open={true} onClose={onClose} onSwitch={onSwitch} {...overrides} />
   )
   return { onClose, onSwitch }
 }
 
-describe('SwitchCommanderModal', () => {
+describe('SwitchOrchestratorModal', () => {
   let prevUnhandled: any
   const noop = () => {}
   beforeAll(() => {
@@ -45,14 +45,14 @@ describe('SwitchCommanderModal', () => {
 
   it('renders nothing when closed, shows content when open', async () => {
     const { rerender } = render(
-      <SwitchCommanderModal open={false} onClose={vi.fn()} onSwitch={vi.fn()} />
+      <SwitchOrchestratorModal open={false} onClose={vi.fn()} onSwitch={vi.fn()} />
     )
-    expect(screen.queryByText('Switch Commander Agent')).not.toBeInTheDocument()
+    expect(screen.queryByText('Switch Orchestrator Agent')).not.toBeInTheDocument()
 
     await act(async () => {
-      rerender(<SwitchCommanderModal open={true} onClose={vi.fn()} onSwitch={vi.fn()} />)
+      rerender(<SwitchOrchestratorModal open={true} onClose={vi.fn()} onSwitch={vi.fn()} />)
     })
-    expect(screen.getByText('Switch Commander Agent')).toBeInTheDocument()
+    expect(screen.getByText('Switch Orchestrator Agent')).toBeInTheDocument()
   })
 
   it('loads current agent type on open and displays it', async () => {
@@ -131,7 +131,7 @@ describe('SwitchCommanderModal', () => {
     const { onClose } = openModal()
 
     // Wait until ready
-    await waitFor(() => screen.getByText('Switch Commander Agent'))
+    await waitFor(() => screen.getByText('Switch Orchestrator Agent'))
 
     // Esc closes
     const esc = new KeyboardEvent('keydown', { key: 'Escape' })
@@ -144,8 +144,8 @@ describe('SwitchCommanderModal', () => {
     cleanup()
     const onClose2 = vi.fn()
     const onSwitch2 = vi.fn().mockResolvedValue(undefined)
-    render(<SwitchCommanderModal open={true} onClose={onClose2} onSwitch={onSwitch2} />)
-    await waitFor(() => screen.getByText('Switch Commander Agent'))
+    render(<SwitchOrchestratorModal open={true} onClose={onClose2} onSwitch={onSwitch2} />)
+    await waitFor(() => screen.getByText('Switch Orchestrator Agent'))
 
     const enter = new KeyboardEvent('keydown', { key: 'Enter' })
     await act(async () => {

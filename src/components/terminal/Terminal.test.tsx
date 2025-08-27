@@ -326,13 +326,13 @@ function renderTerminal(props: React.ComponentProps<typeof Terminal>) {
 
 describe('Terminal component', () => {
   it('sends initial resize on mount based on terminal size', async () => {
-    renderTerminal({ terminalId: "commander-top" })
+    renderTerminal({ terminalId: "orchestrator-top" })
     await flushAll()
 
     const resizeCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'resize_terminal')
     expect(resizeCalls.length).toBeGreaterThan(0)
     const lastArgs = resizeCalls[resizeCalls.length - 1][1]
-    expect(lastArgs).toMatchObject({ id: 'commander-top', cols: 80, rows: 24 })
+    expect(lastArgs).toMatchObject({ id: 'orchestrator-top', cols: 80, rows: 24 })
   })
 
   it('hydrates from buffer and flushes pending output in order (batched)', async () => {
@@ -413,8 +413,8 @@ describe('Terminal component', () => {
     expect(markReadySpy).toHaveBeenCalledTimes(1)
   })
 
-  it('auto-starts commander when terminal exists', async () => {
-    renderTerminal({ terminalId: "commander-auto-top", isCommander: true })
+  it('auto-starts orchestrator when terminal exists', async () => {
+    renderTerminal({ terminalId: "orchestrator-auto-top", isCommander: true })
 
     // hydration tick and start scheduled on next tick
     await flushAll()
@@ -426,7 +426,7 @@ describe('Terminal component', () => {
     expect(startCalls.length).toBe(1)
 
     // Re-render same id -> should not start again due to global guard
-    renderTerminal({ terminalId: "commander-auto-top", isCommander: true })
+    renderTerminal({ terminalId: "orchestrator-auto-top", isCommander: true })
     await flushAll()
     await advanceAndFlush(1)
 
@@ -434,12 +434,12 @@ describe('Terminal component', () => {
     expect(startCalls2.length).toBe(1)
   })
 
-  // Removed implicit commander-top auto-start test per guidance
+  // Removed implicit orchestrator-top auto-start test per guidance
 
   // Removed retry-until-exists timing test per guidance
 
   it('does not auto-start for non-top terminals', async () => {
-    renderTerminal({ terminalId: "commander-bottom", isCommander: true })
+    renderTerminal({ terminalId: "orchestrator-bottom", isCommander: true })
     await flushAll()
     vi.advanceTimersByTime(500)
 
@@ -481,7 +481,7 @@ describe('Terminal component', () => {
   it('stops retrying after limit when terminal never exists', async () => {
     ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => false)
 
-    renderTerminal({ terminalId: "commander-top", isCommander: true })
+    renderTerminal({ terminalId: "orchestrator-top", isCommander: true })
     await flushAll()
 
     // attempts up to 10 times (every 150ms)
@@ -526,10 +526,10 @@ describe('Terminal component', () => {
   })
 
   describe('WebGL initialization', () => {
-    it('initializes WebGL addon for commander terminals when supported', async () => {
+    it('initializes WebGL addon for orchestrator terminals when supported', async () => {
       __setWebGLSupport(true)
       
-      const { container } = renderTerminal({ terminalId: "commander-abc123-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-abc123-top", isCommander: true })
       await flushAll()
       
       // Mock container dimensions for WebGL initialization
@@ -550,7 +550,7 @@ describe('Terminal component', () => {
     it('falls back to Canvas when WebGL unavailable', async () => {
       __setWebGLSupport(false)
       
-      const { container } = renderTerminal({ terminalId: "commander-webgl-fallback-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-webgl-fallback-top", isCommander: true })
       
       // Mock container dimensions BEFORE any async operations
       const terminalDiv = container.querySelector('div')
@@ -580,7 +580,7 @@ describe('Terminal component', () => {
         configurable: true 
       })
       
-      const { container } = renderTerminal({ terminalId: "commander-mobile-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-mobile-top", isCommander: true })
       
       // Mock container dimensions BEFORE any async operations
       const terminalDiv = container.querySelector('div')
@@ -605,7 +605,7 @@ describe('Terminal component', () => {
     it('handles SecurityError gracefully', async () => {
       ;(WebglAddonModule as any).__setSecurityError(true)
       
-      const { container } = renderTerminal({ terminalId: "commander-security-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-security-top", isCommander: true })
       
       // Mock container dimensions BEFORE any async operations
       const terminalDiv = container.querySelector('div')
@@ -630,7 +630,7 @@ describe('Terminal component', () => {
     it('handles GPU blacklist gracefully', async () => {
       ;(WebglAddonModule as any).__setBlacklistError(true)
       
-      const { container } = renderTerminal({ terminalId: "commander-blacklist-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-blacklist-top", isCommander: true })
       
       // Mock container dimensions BEFORE any async operations
       const terminalDiv = container.querySelector('div')
@@ -682,7 +682,7 @@ describe('Terminal component', () => {
       // These tests verify that the context loss handler is set up, which is what matters
       __setWebGLSupport(true)
       
-      const { container } = renderTerminal({ terminalId: "commander-contextloss-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-contextloss-top", isCommander: true })
       
       // Mock container dimensions BEFORE any async operations
       const terminalDiv = container.querySelector('div')
@@ -708,7 +708,7 @@ describe('Terminal component', () => {
       // These scenarios are integration test territory
       __setWebGLSupport(true)
       
-      const { container } = renderTerminal({ terminalId: "commander-restorefail-top", isCommander: true })
+      const { container } = renderTerminal({ terminalId: "orchestrator-restorefail-top", isCommander: true })
       
       // Mock container dimensions BEFORE any async operations
       const terminalDiv = container.querySelector('div')
@@ -731,7 +731,7 @@ describe('Terminal component', () => {
   })
 
   describe('Auto-start error handling', () => {
-    it('dispatches permission error event on commander permission failure', async () => {
+    it('dispatches permission error event on orchestrator permission failure', async () => {
       const permissionErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
       
@@ -739,7 +739,7 @@ describe('Terminal component', () => {
         throw new Error('Permission required for folder: /some/path')
       })
       
-      renderTerminal({ terminalId: "commander-perm-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-perm-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -761,7 +761,7 @@ describe('Terminal component', () => {
         throw new Error('No project is currently open')
       })
       
-      renderTerminal({ terminalId: "commander-noproject-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-noproject-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -769,7 +769,7 @@ describe('Terminal component', () => {
         expect.objectContaining({
           detail: expect.objectContaining({
             error: expect.stringContaining('No project is currently open'),
-            terminalId: "commander-noproject-top"
+            terminalId: "orchestrator-noproject-top"
           })
         })
       )
@@ -784,7 +784,7 @@ describe('Terminal component', () => {
         throw new Error('Failed to spawn command: para')
       })
       
-      renderTerminal({ terminalId: "commander-spawn-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-spawn-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -792,7 +792,7 @@ describe('Terminal component', () => {
         expect.objectContaining({
           detail: expect.objectContaining({
             error: expect.stringContaining('Failed to spawn command'),
-            terminalId: "commander-spawn-top"
+            terminalId: "orchestrator-spawn-top"
           })
         })
       )
@@ -807,7 +807,7 @@ describe('Terminal component', () => {
         throw new Error('fatal: not a git repository (or any of the parent directories): .git')
       })
       
-      renderTerminal({ terminalId: "commander-notgit-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-notgit-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -815,29 +815,29 @@ describe('Terminal component', () => {
         expect.objectContaining({
           detail: expect.objectContaining({
             error: expect.stringContaining('not a git repository'),
-            terminalId: "commander-notgit-top"
+            terminalId: "orchestrator-notgit-top"
           })
         })
       )
       window.removeEventListener('schaltwerk:not-git-error', notGitErrorSpy)
     })
 
-    it('rolls back start flags on commander failure to allow retry', async () => {
+    it('rolls back start flags on orchestrator failure to allow retry', async () => {
       ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Some failure')
       })
       
-      renderTerminal({ terminalId: "commander-retry-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-retry-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
       // Check that terminal is not marked as started globally
       const { clearTerminalStartedTracking } = await import('./Terminal')
-      clearTerminalStartedTracking(['commander-retry-top'])
+      clearTerminalStartedTracking(['orchestrator-retry-top'])
       
       // Try again - should attempt to start again
       ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => 'success')
-      renderTerminal({ terminalId: "commander-retry-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-retry-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -849,7 +849,7 @@ describe('Terminal component', () => {
 
     it('prevents double-start via claude-started event', async () => {
       // First render and start the terminal
-      const { unmount } = renderTerminal({ terminalId: "commander-doublestart-top", isCommander: true })
+      const { unmount } = renderTerminal({ terminalId: "orchestrator-doublestart-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -862,7 +862,7 @@ describe('Terminal component', () => {
       // Unmount and remount - should not start again due to global tracking
       unmount()
       
-      renderTerminal({ terminalId: "commander-doublestart-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-doublestart-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -906,14 +906,14 @@ describe('Terminal component', () => {
       expect(startCalls.length).toBe(0)
     })
 
-    it('handles commander retry logic with terminal existence checks', async () => {
+    it('handles orchestrator retry logic with terminal existence checks', async () => {
       let callCount = 0
       ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => {
         callCount++
         return callCount > 3 // Fail first 3 times, succeed on 4th
       })
       
-      renderTerminal({ terminalId: "commander-retryexists-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-retryexists-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
@@ -939,7 +939,7 @@ describe('Terminal component', () => {
     it('stops retrying after 10 attempts when terminal never exists', async () => {
       ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => false)
       
-      renderTerminal({ terminalId: "commander-maxretry-top", isCommander: true })
+      renderTerminal({ terminalId: "orchestrator-maxretry-top", isCommander: true })
       await flushAll()
       
       // Fast-forward through all retry attempts (10 * 150ms = 1500ms)

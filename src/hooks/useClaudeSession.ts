@@ -12,7 +12,7 @@ export function useClaudeSession() {
         try {
             if (options.isCommander) {
                 await invoke('schaltwerk_core_start_claude_orchestrator', { 
-                    terminalId: options.terminalId || 'commander-default-top' 
+                    terminalId: options.terminalId || 'orchestrator-default-top' 
                 })
                 return { success: true }
             } else if (options.sessionName) {

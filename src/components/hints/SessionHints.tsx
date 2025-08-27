@@ -114,20 +114,20 @@ function getHintsForSelection(selection: any): HintMessage[] {
     if (!selection) {
         return [{
             id: 'no-selection',
-            message: 'Select a session or the commander from the sidebar to get started. Use ⌘N to create a new session.',
+            message: 'Select a session or the orchestrator from the sidebar to get started. Use ⌘N to create a new session.',
             type: 'info'
         }]
     }
 
-    if (selection.kind === 'commander') {
+    if (selection.kind === 'orchestrator') {
         return [
             {
-                id: 'commander-help',
-                message: 'You\'re in the Commander. This is your main workspace for project management, git operations, and switching between sessions.',
+                id: 'orchestrator-help',
+                message: 'You\'re in the Orchestrator. This is your main workspace for project management, git operations, and switching between sessions.',
                 type: 'info'
             },
             {
-                id: 'commander-create-session',
+                id: 'orchestrator-create-session',
                 message: 'Ready to start working? Create a new session with ⌘N or a plan with ⇧⌘N to begin an AI-assisted agent.',
                 type: 'tip'
             }

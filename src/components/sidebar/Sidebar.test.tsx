@@ -489,12 +489,12 @@ describe('Sidebar', () => {
   })
 
   describe('basic interaction', () => {
-    it('should render commander button', async () => {
+    it('should render orchestrator button', async () => {
       mockInvoke.mockResolvedValueOnce([])
 
       render(<Sidebar />, { wrapper: createTestWrapper() })
       // The button uses a title attribute
-      const orchestratorButton = screen.getByTitle(/Select commander/i)
+      const orchestratorButton = screen.getByTitle(/Select orchestrator/i)
       expect(orchestratorButton).toBeInTheDocument()
     })
 

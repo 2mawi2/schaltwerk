@@ -190,9 +190,9 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
-    // Migrate old "draft" session_state values to "plan"
+    // Migrate old "plan" session_state values to "plan"
     let _ = conn.execute(
-        "UPDATE sessions SET session_state = 'plan' WHERE session_state = 'draft'",
+        "UPDATE sessions SET session_state = 'plan' WHERE session_state = 'plan'",
         [],
     );
     
@@ -234,7 +234,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
-    // Migration: Add action_buttons column for storing commander action button configurations
+    // Migration: Add action_buttons column for storing orchestrator action button configurations
     let _ = conn.execute(
         "ALTER TABLE project_config ADD COLUMN action_buttons TEXT",
         [],

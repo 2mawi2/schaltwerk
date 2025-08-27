@@ -17,7 +17,7 @@ Complete reference for all keyboard shortcuts and hotkeys in Schaltwerk:
 ### Most Important Shortcuts
 - **⌘T** - Focus sessions
 - **⌘/** - Focus terminal  
-- **⌘1** - Switch to commander
+- **⌘1** - Switch to orchestrator
 - **⌘2-9** - Switch to sessions
 - **⌘N** - New session
 - **⌘G** - View diff

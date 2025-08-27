@@ -11,7 +11,7 @@ import { PlanInfoPanel } from '../plans/PlanInfoPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
-  selectionOverride?: { kind: 'session' | 'commander'; payload?: string | null }
+  selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
   isPlanOverride?: boolean
 }
 
@@ -29,13 +29,13 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
   const effectiveIsPlan = typeof isPlanOverride === 'boolean' ? isPlanOverride : isPlan
   const activeTab = (effectiveSelection.kind === 'session' && effectiveIsPlan) ? 'agent' : (
     userSelectedTab || (
-      effectiveSelection.kind === 'commander' ? 'agent' : 'changes'
+      effectiveSelection.kind === 'orchestrator' ? 'agent' : 'changes'
     )
   )
 
-  // Reset preview when leaving commander
+  // Reset preview when leaving orchestrator
   useEffect(() => {
-    if (selection.kind !== 'commander') setPreviewPlanName(null)
+    if (selection.kind !== 'orchestrator') setPreviewPlanName(null)
   }, [selection])
 
   // Reset state when project changes
@@ -50,7 +50,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
   }, [currentFocus])
   
   const handlePanelClick = () => {
-    const sessionKey = effectiveSelection.kind === 'commander' ? 'commander' : effectiveSelection.payload || 'unknown'
+    const sessionKey = effectiveSelection.kind === 'orchestrator' ? 'orchestrator' : effectiveSelection.payload || 'unknown'
     setFocusForSession(sessionKey, 'diff')
     setLocalFocus(true)
   }
@@ -58,7 +58,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
   // Note: removed Cmd+D toggle to reserve shortcut for New Plan
 
   // Unified header with tabs
-  const isCommander = effectiveSelection.kind === 'commander'
+  const isCommander = effectiveSelection.kind === 'orchestrator'
   const rightTabLabel = isCommander ? 'Plans' : 'Plan'
   const showBackButton = isCommander && !!previewPlanName
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
@@ -112,7 +112,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
       }`} />
 
-      {/* Back/breadcrumb row when previewing a plan in commander */}
+      {/* Back/breadcrumb row when previewing a plan in orchestrator */}
       {showBackButton && (
         <div className="px-3 py-1.5 border-b border-slate-800 flex items-center gap-2">
           <button
@@ -133,7 +133,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           <SimpleDiffPanel 
             onFileSelect={onFileSelect} 
             sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
-            isCommander={effectiveSelection.kind === 'commander'}
+            isCommander={effectiveSelection.kind === 'orchestrator'}
           />
         ) : (
           // Agent/Plans tab content

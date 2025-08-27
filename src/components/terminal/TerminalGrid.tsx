@@ -7,7 +7,7 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
-import { SwitchCommanderModal } from '../modals/SwitchCommanderModal'
+import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { clearTerminalStartedTracking } from './Terminal'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
@@ -21,17 +21,17 @@ export function TerminalGrid() {
     const { isResetting, resetSession, switchModel } = useSessionManagement()
     const { actionButtons } = useActionButtons()
     
-    // Show action buttons for both commander and sessions
-    const shouldShowActionButtons = (selection.kind === 'commander' || selection.kind === 'session') && actionButtons.length > 0
+    // Show action buttons for both orchestrator and sessions
+    const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
     
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
-    const [switchCommanderModal, setSwitchCommanderModal] = useState(false)
+    const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(6) // fallback ~ header height in %
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
-    const initialPersistKey = selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown'
+    const initialPersistKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
     const initialIsCollapsed = (sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
     const initialExpanded = (() => {
         const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
@@ -59,7 +59,7 @@ export function TerminalGrid() {
     
 
     const getSessionKey = () => {
-        return selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown'
+        return selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
     }
 
     const toggleTerminalCollapsed = () => {
@@ -201,7 +201,7 @@ export function TerminalGrid() {
     }, [isBottomCollapsed])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
-    const sessionKey = () => (selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown')
+    const sessionKey = () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown')
     useEffect(() => {
         const key = sessionKey()
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
@@ -362,13 +362,13 @@ export function TerminalGrid() {
                         {/* Left side: Switch Model and Reset buttons */}
                         <div className="flex items-center gap-1 pointer-events-auto">
                             <button
-                                onClick={(e) => { e.stopPropagation(); setSwitchCommanderModal(true); }}
+                                onClick={(e) => { e.stopPropagation(); setSwitchOrchestratorModal(true); }}
                                 className={`px-2 py-1 text-[10px] rounded hover:bg-slate-700/50 transition-colors ${
                                     localFocus === 'claude'
                                         ? 'hover:bg-blue-600/30 text-blue-300 hover:text-blue-200'
                                         : 'text-slate-400 hover:text-slate-300'
                                 }`}
-                                title={selection.kind === 'commander' ? 'Switch commander agent' : 'Switch session agent'}
+                                title={selection.kind === 'orchestrator' ? 'Switch orchestrator agent' : 'Switch session agent'}
                             >
                                 <div className="flex items-center gap-1">
                                     <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,7 +385,7 @@ export function TerminalGrid() {
                                         ? 'hover:bg-blue-600/30 text-blue-300 hover:text-blue-200'
                                         : 'text-slate-400 hover:text-slate-300'
                                 }`}
-                                title={selection.kind === 'commander' ? 'Reset commander' : `Reset agent ${selection.payload || ''}`}
+                                title={selection.kind === 'orchestrator' ? 'Reset orchestrator' : `Reset agent ${selection.payload || ''}`}
                             >
                                 <div className="flex items-center gap-1">
                                     {isResetting ? (
@@ -399,7 +399,7 @@ export function TerminalGrid() {
                                 </div>
                             </button>
                             
-                            {/* Action Buttons - only show for commander */}
+                            {/* Action Buttons - only show for orchestrator */}
                             {shouldShowActionButtons && (
                                 <>
                                     <div className="w-px h-3 bg-slate-600 mx-1" />
@@ -442,7 +442,7 @@ export function TerminalGrid() {
                         
                         {/* Absolute-centered title to avoid alignment shift */}
                         <span className="absolute left-0 right-0 text-center font-medium pointer-events-none">
-                            {selection.kind === 'commander' ? 'Commander — main repo' : `Agent — ${selection.payload ?? ''}`}
+                            {selection.kind === 'orchestrator' ? 'Orchestrator — main repo' : `Agent — ${selection.payload ?? ''}`}
                         </span>
                         
                         {/* Right side: ⌘T indicator */}
@@ -464,7 +464,7 @@ export function TerminalGrid() {
                             terminalId={terminals.top} 
                             className="h-full w-full" 
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                            isCommander={selection.kind === 'commander'}
+                            isCommander={selection.kind === 'orchestrator'}
                             agentType={agentType}
                             onTerminalClick={handleClaudeSessionClick}
                         />
@@ -481,7 +481,7 @@ export function TerminalGrid() {
                         onClick={handleTerminalClick}
                     >
                         <span className="absolute left-0 right-0 text-center pointer-events-none">
-                            Terminal — {selection.kind === 'commander' ? 'main' : selection.payload}
+                            Terminal — {selection.kind === 'orchestrator' ? 'main' : selection.payload}
                         </span>
                         <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded mr-1 transition-colors duration-200 ${
                             localFocus === 'terminal'
@@ -518,7 +518,7 @@ export function TerminalGrid() {
                             workingDirectory={terminals.workingDirectory}
                             className="h-full"
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                            isCommander={selection.kind === 'commander'}
+                            isCommander={selection.kind === 'orchestrator'}
                             agentType={agentType}
                             onTerminalClick={handleTerminalClick}
                         />
@@ -528,10 +528,10 @@ export function TerminalGrid() {
 
             {/* Prompt dock moved to right diff panel */}
             
-            <SwitchCommanderModal
-                open={switchCommanderModal}
-                onClose={() => setSwitchCommanderModal(false)}
-                onSwitch={async (agentType) => {
+            <SwitchOrchestratorModal
+                open={switchOrchestratorModal}
+                onClose={() => setSwitchOrchestratorModal(false)}
+                onSwitch={async (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
                     try {
                         await switchModel(
                             agentType,
@@ -545,7 +545,7 @@ export function TerminalGrid() {
                         setAgentType(agentType)
                         
                         // Close the modal
-                        setSwitchCommanderModal(false)
+                        setSwitchOrchestratorModal(false)
                     } catch (error) {
                         console.error('Failed to switch model:', error)
                     }

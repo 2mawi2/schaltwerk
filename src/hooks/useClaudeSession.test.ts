@@ -14,12 +14,12 @@ describe('useClaudeSession', () => {
     vi.clearAllMocks()
   })
 
-  it('starts commander when isCommander is true', async () => {
+  it('starts orchestrator when isCommander is true', async () => {
     mockInvoke.mockResolvedValueOnce(undefined)
     const { result } = renderHook(() => useClaudeSession())
     await act(async () => result.current.startClaude({ isCommander: true }))
     expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_orchestrator', { 
-      terminalId: 'commander-default-top' 
+      terminalId: 'orchestrator-default-top' 
     })
   })
 

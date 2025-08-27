@@ -64,11 +64,11 @@ describe('Project Switching Selection Behavior', () => {
     })
 
     describe('Basic Selection Functionality', () => {
-        it('should start with commander selection', async () => {
+        it('should start with orchestrator selection', async () => {
             const { result } = renderHook(() => useSelection(), { wrapper: TestWrapper })
 
             await waitFor(() => {
-                expect(result.current.selection.kind).toBe('commander')
+                expect(result.current.selection.kind).toBe('orchestrator')
             })
         })
 
@@ -108,7 +108,7 @@ describe('Project Switching Selection Behavior', () => {
             })
 
             await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'commander' })
+                expect(result.current.selection.selection).toEqual({ kind: 'orchestrator' })
             })
 
             act(() => {
@@ -156,7 +156,7 @@ describe('Project Switching Selection Behavior', () => {
             // Should handle null gracefully
             expect(() => {
                 act(() => {
-                    result.current.selection.setSelection({ kind: 'commander' })
+                    result.current.selection.setSelection({ kind: 'orchestrator' })
                 })
             }).not.toThrow()
         })

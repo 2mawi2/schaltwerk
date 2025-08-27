@@ -93,7 +93,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // }, [files, allFileDiffs, viewMode])
 
   
-  const isCommanderView = () => selection.kind === 'commander'
+  const isCommanderView = () => selection.kind === 'orchestrator'
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
   
   // Helper to check if a line has comments

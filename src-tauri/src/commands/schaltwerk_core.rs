@@ -607,18 +607,18 @@ pub async fn schaltwerk_core_start_claude(app: tauri::AppHandle, session_name: S
 
 #[tauri::command]
 pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> Result<String, String> {
-    log::info!("Starting Claude for commander in terminal: {terminal_id}");
+    log::info!("Starting Claude for orchestrator in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
     let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("Failed to get schaltwerk_core for commander: {e}");
+            log::error!("Failed to get schaltwerk_core for orchestrator: {e}");
             // If we can't get a schaltwerk_core (no project), create a user-friendly error
             if e.contains("No active project") {
-                return Err("No project is currently open. Please open a project folder first before starting the commander.".to_string());
+                return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
             }
-            return Err(format!("Failed to initialize commander: {e}"));
+            return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
     let core = core.lock().await;
@@ -646,28 +646,28 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> R
     
     let command = manager.start_claude_in_orchestrator_with_binary(&binary_paths)
         .map_err(|e| {
-            log::error!("Failed to build commander command: {e}");
-            format!("Failed to start Claude in commander: {e}")
+            log::error!("Failed to build orchestrator command: {e}");
+            format!("Failed to start Claude in orchestrator: {e}")
         })?;
     
-    log::info!("Claude command for commander: {command}");
+    log::info!("Claude command for orchestrator: {command}");
     
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     
     // Check if we have permission to access the working directory
-    log::info!("Checking permissions for commander working directory: {cwd}");
+    log::info!("Checking permissions for orchestrator working directory: {cwd}");
     match std::fs::read_dir(&cwd) {
-        Ok(_) => log::info!("Commander working directory access confirmed: {cwd}"),
+        Ok(_) => log::info!("Orchestrator working directory access confirmed: {cwd}"),
         Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-            log::warn!("Permission denied for commander working directory: {cwd}");
+            log::warn!("Permission denied for orchestrator working directory: {cwd}");
             return Err(format!("Permission required for folder: {cwd}. Please grant access when prompted and then retry starting the agent."));
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            log::warn!("Commander working directory not found: {cwd}");
+            log::warn!("Orchestrator working directory not found: {cwd}");
             return Err(format!("Working directory not found: {cwd}"));
         }
         Err(e) => {
-            log::error!("Error checking commander working directory access: {e}");
+            log::error!("Error checking orchestrator working directory access: {e}");
             return Err(format!("Error accessing working directory: {e}"));
         }
     }
@@ -1066,7 +1066,7 @@ pub async fn schaltwerk_core_list_sessions_by_state(state: String) -> Result<Vec
 
 #[tauri::command]
 pub async fn schaltwerk_core_reset_orchestrator(terminal_id: String) -> Result<String, String> {
-    log::info!("Resetting commander for terminal: {terminal_id}");
+    log::info!("Resetting orchestrator for terminal: {terminal_id}");
     
     // Close the current terminal first
     let manager = get_terminal_manager().await?;
@@ -1078,24 +1078,24 @@ pub async fn schaltwerk_core_reset_orchestrator(terminal_id: String) -> Result<S
     // Wait a brief moment to ensure cleanup
     tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
     
-    // Start a FRESH commander session (bypassing session discovery)
+    // Start a FRESH orchestrator session (bypassing session discovery)
     schaltwerk_core_start_fresh_orchestrator(terminal_id).await
 }
 
 #[tauri::command]
 pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Result<String, String> {
-    log::info!("Starting FRESH Claude for commander in terminal: {terminal_id}");
+    log::info!("Starting FRESH Claude for orchestrator in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
     let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
-            log::error!("Failed to get schaltwerk_core for fresh commander: {e}");
+            log::error!("Failed to get schaltwerk_core for fresh orchestrator: {e}");
             // If we can't get a schaltwerk_core (no project), create a user-friendly error
             if e.contains("No active project") {
-                return Err("No project is currently open. Please open a project folder first before starting the commander.".to_string());
+                return Err("No project is currently open. Please open a project folder first before starting the orchestrator.".to_string());
             }
-            return Err(format!("Failed to initialize commander: {e}"));
+            return Err(format!("Failed to initialize orchestrator: {e}"));
         }
     };
     let core = core.lock().await;
@@ -1124,22 +1124,22 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
     // Build command for FRESH session (no session resume)
     let command = manager.start_claude_in_orchestrator_fresh_with_binary(&binary_paths)
         .map_err(|e| {
-            log::error!("Failed to build fresh commander command: {e}");
-            format!("Failed to start fresh Claude in commander: {e}")
+            log::error!("Failed to build fresh orchestrator command: {e}");
+            format!("Failed to start fresh Claude in orchestrator: {e}")
         })?;
     
-    log::info!("Fresh Claude command for commander: {command}");
+    log::info!("Fresh Claude command for orchestrator: {command}");
     
     let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
     
     // Check if we have permission to access the working directory
-    log::info!("Checking permissions for commander working directory: {cwd}");
+    log::info!("Checking permissions for orchestrator working directory: {cwd}");
     match std::fs::read_dir(&cwd) {
         Ok(_) => {
-            log::info!("Permissions verified for commander directory: {cwd}");
+            log::info!("Permissions verified for orchestrator directory: {cwd}");
         }
         Err(e) => {
-            log::error!("Permission denied for commander directory {cwd}: {e}");
+            log::error!("Permission denied for orchestrator directory {cwd}: {e}");
             return Err(format!("Permission required for folder: {cwd}. Please grant folder access to continue."));
         }
     }
@@ -1175,7 +1175,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
     if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
         let count = project_env_vars.len();
         if count > 0 {
-            log::info!("Adding {count} project-specific environment variables to fresh commander");
+            log::info!("Adding {count} project-specific environment variables to fresh orchestrator");
             for (key, value) in project_env_vars {
                 env_vars.push((key, value));
             }
@@ -1211,6 +1211,6 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
         });
     }
     
-    log::info!("Successfully started fresh Claude in commander terminal: {terminal_id}");
+    log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
     Ok(command)
 }

@@ -58,7 +58,7 @@ vi.mock('./Terminal', () => {
         data-testid={`terminal-${terminalId}`}
         data-terminal-id={terminalId}
         data-session-name={sessionName || ''}
-        data-commander={isCommander ? '1' : '0'}
+        data-orchestrator={isCommander ? '1' : '0'}
         className={className}
         onClick={handleClick}
       />
@@ -87,7 +87,7 @@ vi.mock('./Terminal', () => {
 vi.mock('./TerminalTabs', () => {
   const TerminalTabsMock = forwardRef<any, any>(function TerminalTabsMock(props, ref) {
     const { baseTerminalId, isCommander } = props
-    // For commander, add -0 suffix; for sessions, no suffix
+    // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
     const focus = vi.fn()
     
@@ -159,7 +159,7 @@ function ControlBridge() {
       setCurrentFocus,
       setFocusForSession,
       getFocusForSession,
-      getSessionKey: () => (selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown'),
+      getSessionKey: () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'),
       isReady,
       terminals,
     }
@@ -218,7 +218,7 @@ function renderGrid() {
 }
 
 describe('TerminalGrid', () => {
-  it('renders dual-terminal layout with correct headers and ids (commander)', async () => {
+  it('renders dual-terminal layout with correct headers and ids (orchestrator)', async () => {
     renderGrid()
     // Use real timers to allow async initialization to complete
     vi.useRealTimers()
@@ -230,14 +230,14 @@ describe('TerminalGrid', () => {
     }, { timeout: 3000 })
 
     // Headers should be visible
-    expect(screen.getByText('Commander — main repo')).toBeInTheDocument()
+    expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
     expect(screen.getByText('Terminal — main')).toBeInTheDocument()
 
     // Terminal components should use the actual IDs from the context
     if (!bridge) throw new Error('Bridge not initialized')
     expect(screen.getByTestId(`terminal-${bridge.terminals.top}`)).toBeInTheDocument()
-    // Bottom terminal is now inside TerminalTabs with -0 suffix for commander
-    const bottomTerminalId = bridge.terminals.bottomBase.includes('commander') ? `${bridge.terminals.bottomBase}-0` : bridge.terminals.bottomBase
+    // Bottom terminal is now inside TerminalTabs with -0 suffix for orchestrator
+    const bottomTerminalId = bridge.terminals.bottomBase.includes('orchestrator') ? `${bridge.terminals.bottomBase}-0` : bridge.terminals.bottomBase
     expect(screen.getByTestId(`terminal-${bottomTerminalId}`)).toBeInTheDocument()
   })
 
@@ -273,7 +273,7 @@ describe('TerminalGrid', () => {
     }, { timeout: 3000 })
 
     // Click top header -> focus claude (top) after 100ms
-    fireEvent.click(screen.getByText('Commander — main repo'))
+    fireEvent.click(screen.getByText('Orchestrator — main repo'))
     await new Promise(r => setTimeout(r, 120))
     const topFocus = (await import('./Terminal')) as any
     expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
@@ -282,7 +282,7 @@ describe('TerminalGrid', () => {
     fireEvent.click(screen.getByText('Terminal — main'))
     await new Promise(r => setTimeout(r, 120))
     const bottomFocusSpy = (await import('./Terminal')) as any
-    const bottomTerminalId = bridge!.terminals.bottomBase.includes('commander') ? `${bridge!.terminals.bottomBase}-0` : bridge!.terminals.bottomBase
+    const bottomTerminalId = bridge!.terminals.bottomBase.includes('orchestrator') ? `${bridge!.terminals.bottomBase}-0` : bridge!.terminals.bottomBase
     expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
 
     // Also clicking terminals directly should focus
@@ -349,7 +349,7 @@ describe('TerminalGrid', () => {
 
     const m = (await import('./Terminal')) as any
     const topId = bridge!.terminals.top
-    const bottomId = bridge!.terminals.bottomBase.includes('commander') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for commander only
+    const bottomId = bridge!.terminals.bottomBase.includes('orchestrator') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for orchestrator only
     
     expect(m.__getMountCount(topId)).toBe(1)
     
@@ -395,7 +395,7 @@ describe('TerminalGrid', () => {
       }, { timeout: 3000 })
 
       // Initially not collapsed - both panels visible
-      expect(screen.getByText('Commander — main repo')).toBeInTheDocument()
+      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
       expect(screen.getByText('Terminal — main')).toBeInTheDocument()
       expect(screen.getByTestId('split')).toBeInTheDocument()
 
@@ -411,7 +411,7 @@ describe('TerminalGrid', () => {
       })
 
       // Claude section should still be visible
-      expect(screen.getByText('Commander — main repo')).toBeInTheDocument()
+      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
 
       // Click expand button to expand again
       const expandButton = screen.getByLabelText('Expand terminal panel')
@@ -437,7 +437,7 @@ describe('TerminalGrid', () => {
         expect(bridge?.isReady).toBe(true)
       }, { timeout: 3000 })
 
-      // Collapse terminal for commander
+      // Collapse terminal for orchestrator
       const collapseButton = screen.getByLabelText('Collapse terminal panel')
       fireEvent.click(collapseButton)
 
@@ -447,8 +447,8 @@ describe('TerminalGrid', () => {
         expect(expandBtn).toBeInTheDocument()
       })
 
-      // Check sessionStorage was updated for commander
-      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:commander')).toBe('true')
+      // Check sessionStorage was updated for orchestrator
+      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:orchestrator')).toBe('true')
 
       // Switch to a session
       await act(async () => {
@@ -460,7 +460,7 @@ describe('TerminalGrid', () => {
         expect(screen.getByText('Agent — test-session')).toBeInTheDocument()
       })
 
-      // Agent should inherit the collapsed state from commander since it has no sessionStorage entry
+      // Agent should inherit the collapsed state from orchestrator since it has no sessionStorage entry
       expect(screen.getByTestId('split')).toBeInTheDocument()
       const expandBtn = screen.getByLabelText('Expand terminal panel')
       expect(expandBtn).toBeInTheDocument()
@@ -486,17 +486,17 @@ describe('TerminalGrid', () => {
 
       expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
 
-      // Switch back to commander
+      // Switch back to orchestrator
       await act(async () => {
-        await bridge!.setSelection({ kind: 'commander', payload: undefined, worktreePath: undefined })
+        await bridge!.setSelection({ kind: 'orchestrator', payload: undefined, worktreePath: undefined })
       })
 
-      // Wait for commander to load
+      // Wait for orchestrator to load
       await waitFor(() => {
-        expect(screen.getByText('Commander — main repo')).toBeInTheDocument()
+        expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
       })
 
-      // Commander should still be collapsed (state was persisted)
+      // Orchestrator should still be collapsed (state was persisted)
       const expandBtnOrch = screen.getByLabelText('Expand terminal panel')
       expect(expandBtnOrch).toBeInTheDocument()
       expect(screen.getByTestId('split')).toBeInTheDocument()
@@ -504,7 +504,7 @@ describe('TerminalGrid', () => {
 
     it('restores correct minimization state when switching between sessions', async () => {
       // Set up different collapse states in sessionStorage
-      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:commander', 'false')
+      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:orchestrator', 'false')
       sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-a', 'true')
       sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-b', 'false')
 
@@ -516,7 +516,7 @@ describe('TerminalGrid', () => {
         expect(bridge?.isReady).toBe(true)
       }, { timeout: 3000 })
 
-      // Commander starts not collapsed
+      // Orchestrator starts not collapsed
       expect(screen.getByTestId('split')).toBeInTheDocument()
       const collapseBtn = screen.getByLabelText('Collapse terminal panel')
       expect(collapseBtn).toBeInTheDocument()
@@ -642,7 +642,7 @@ describe('TerminalGrid', () => {
       })
 
       // Final state should be expanded and functional
-      expect(screen.getByText('Commander — main repo')).toBeInTheDocument()
+      expect(screen.getByText('Orchestrator — main repo')).toBeInTheDocument()
       expect(screen.getByText('Terminal — main')).toBeInTheDocument()
       const collapseBtn = screen.getByLabelText('Collapse terminal panel')
       expect(collapseBtn).toBeInTheDocument()

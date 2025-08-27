@@ -93,7 +93,7 @@ describe('NewSessionModal', () => {
     const { act } = await import('@testing-library/react')
     render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
     
-    // Initially the task content textarea should be empty
+    // Initially the agent content textarea should be empty
     const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
     expect(taskTextarea.value).toBe('')
     

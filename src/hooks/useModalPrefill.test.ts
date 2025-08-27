@@ -32,7 +32,7 @@ describe('useModalPrefill', () => {
       expect(handlers.wasEditedRef.current).toBe(true)
     })
 
-    it('updates task content when provided', () => {
+    it('updates agent content when provided', () => {
       const detail: PrefillEventDetail = {
         taskContent: '# Plan content\n\nDescription',
       }
@@ -86,7 +86,7 @@ describe('useModalPrefill', () => {
       expect(handlers.wasEditedRef.current).toBe(false)
     })
 
-    it('does not update task content when not provided', () => {
+    it('does not update agent content when not provided', () => {
       const detail: PrefillEventDetail = {
         name: 'test-session',
       }

@@ -40,7 +40,7 @@ npm run build
 
 #### 2. Configure Claude Code (CLI)
 
-Since the commander runs Claude Code CLI (not Claude Desktop), configure it using one of these methods:
+Since the orchestrator runs Claude Code CLI (not Claude Desktop), configure it using one of these methods:
 
 ##### Option 1: CLI Command (Recommended)
 ```bash
@@ -64,9 +64,9 @@ Add to `.claude.json` in your project root:
 
 Replace `/path/to/schaltwerk` with the actual path to your schaltwerk repository.
 
-### 3. Restart Commander
+### 3. Restart Orchestrator
 
-Use the Settings modal (⌘,) in Schaltwerk to restart the commander and reload the MCP configuration.
+Use the Settings modal (⌘,) in Schaltwerk to restart the orchestrator and reload the MCP configuration.
 
 ## Usage
 

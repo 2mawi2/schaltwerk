@@ -122,7 +122,7 @@ describe('RightPanelTabs', () => {
       expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-blue-800/30')
     })
     
-    it('should persist user tab selection when switching to commander', async () => {
+    it('should persist user tab selection when switching to orchestrator', async () => {
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session1' },
         isPlan: false,
@@ -140,11 +140,11 @@ describe('RightPanelTabs', () => {
       fireEvent.click(screen.getByTitle('Plan'))
       expect(screen.getByTitle('Plan')).toHaveClass('bg-blue-800/30')
       
-      // Switch to commander
+      // Switch to orchestrator
       mockUseSelection.mockReturnValue({
-        selection: { kind: 'commander' },
+        selection: { kind: 'orchestrator' },
         isPlan: false,
-        terminals: { top: 'commander-top', bottomBase: 'commander-bottom', workingDirectory: '/test' },
+        terminals: { top: 'orchestrator-top', bottomBase: 'orchestrator-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
         isReady: true
@@ -154,17 +154,17 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // User's choice of Plan should persist (shown as "Plans" in commander)
+      // User's choice of Plan should persist (shown as "Plans" in orchestrator)
       // Note: still has focus styling from the click
       expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-blue-800/30')
     })
     
     it('should use smart defaults when user has not made a selection', () => {
-      // Test commander defaults to Plan/Plans (no Changes tab in commander)
+      // Test orchestrator defaults to Plan/Plans (no Changes tab in orchestrator)
       mockUseSelection.mockReturnValue({
-        selection: { kind: 'commander' },
+        selection: { kind: 'orchestrator' },
         isPlan: false,
-        terminals: { top: 'commander-top', bottomBase: 'commander-bottom', workingDirectory: '/test' },
+        terminals: { top: 'orchestrator-top', bottomBase: 'orchestrator-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
         isReady: true
@@ -175,7 +175,7 @@ describe('RightPanelTabs', () => {
       )
       
       expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-slate-800/50')
-      // Changes tab should be present in commander
+      // Changes tab should be present in orchestrator
       expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
       
       // Test plan session defaults to Plan and changes tab is hidden
@@ -260,11 +260,11 @@ describe('RightPanelTabs', () => {
       // Changes tab is now active (with focus styling since we clicked)
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-blue-800/30')
       
-      // Switch to commander - Plan tab is shown as "Plans"
+      // Switch to orchestrator - Plan tab is shown as "Plans"
       mockUseSelection.mockReturnValue({
-        selection: { kind: 'commander' },
+        selection: { kind: 'orchestrator' },
         isPlan: false,
-        terminals: { top: 'commander-top', bottomBase: 'commander-bottom', workingDirectory: '/test' },
+        terminals: { top: 'orchestrator-top', bottomBase: 'orchestrator-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
         isReady: true
@@ -274,7 +274,7 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // In commander, both Changes and Plans tabs should be visible
+      // In orchestrator, both Changes and Plans tabs should be visible
       expect(screen.getByRole('button', { name: /Plans/i })).toBeInTheDocument()
       expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
     })

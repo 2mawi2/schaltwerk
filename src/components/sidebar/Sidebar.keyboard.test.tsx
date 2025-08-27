@@ -86,17 +86,17 @@ describe('Sidebar keyboard navigation basic', () => {
     vi.restoreAllMocks()
   })
 
-  it('Cmd+ArrowDown selects first session from commander; Cmd+ArrowUp returns to commander', async () => {
+  it('Cmd+ArrowDown selects first session from orchestrator; Cmd+ArrowUp returns to orchestrator', async () => {
     renderWithProviders(<Sidebar />)
 
     await waitFor(() => {
       const items = screen.getAllByRole('button')
-      expect(items.some(b => (b.textContent || '').includes('commander'))).toBe(true)
+      expect(items.some(b => (b.textContent || '').includes('orchestrator'))).toBe(true)
       expect(items.filter(b => (b.textContent || '').includes('para/'))).toHaveLength(3)
     })
 
-    // Commander selected by default (has blue ring class)
-    const orchestratorBtn = screen.getByTitle(/Select commander/i)
+    // Orchestrator selected by default (has blue ring class)
+    const orchestratorBtn = screen.getByTitle(/Select orchestrator/i)
     expect(orchestratorBtn.className).toContain('session-ring-blue')
 
     // Move down
@@ -106,11 +106,11 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(screen.getByTitle(/Selected session/)).toBeInTheDocument()
     })
 
-    // Move up to commander
+    // Move up to orchestrator
     press('ArrowUp', { metaKey: true })
 
     await waitFor(() => {
-      const orch = screen.getByTitle(/Select commander/i)
+      const orch = screen.getByTitle(/Select orchestrator/i)
       expect(orch.className).toContain('session-ring-blue')
     })
   })

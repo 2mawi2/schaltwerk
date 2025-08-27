@@ -43,7 +43,7 @@ export function useSessionPrefill() {
       console.log('[useSessionPrefill] Raw session data:', sessionData)
       
       const taskContent = extractSessionContent(sessionData)
-      console.log('[useSessionPrefill] Extracted task content:', taskContent?.substring(0, 100), '...')
+      console.log('[useSessionPrefill] Extracted agent content:', taskContent?.substring(0, 100), '...')
       
       const baseBranch = sessionData?.parent_branch || undefined
       console.log('[useSessionPrefill] Base branch:', baseBranch)

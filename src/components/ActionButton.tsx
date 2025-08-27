@@ -17,7 +17,7 @@ interface ActionButtonProps {
 export function ActionButton({ action, projectId, onExecute }: ActionButtonProps) {
   const handleClick = async () => {
     try {
-      const terminalId = `commander-${projectId}-top`
+      const terminalId = `orchestrator-${projectId}-top`
       
       // Use paste_and_submit_terminal to properly paste into AI session
       await invoke('paste_and_submit_terminal', { 

@@ -73,19 +73,19 @@ describe('SelectionContext', () => {
   })
 
   describe('getTerminalIds mapping logic', () => {
-    it('should map commander selection to commander terminals', async () => {
+    it('should map orchestrator selection to orchestrator terminals', async () => {
       const { result } = renderHook(() => useSelection(), { wrapper })
 
       await waitFor(() => {
         expect(result.current.isReady).toBe(true)
       })
 
-      // Initial state should be commander with correct terminal IDs
-      expect(result.current.selection.kind).toBe('commander')
+      // Initial state should be orchestrator with correct terminal IDs
+      expect(result.current.selection.kind).toBe('orchestrator')
       // Terminal IDs are now based on project path hash
       // For /test/project path, verify the pattern
-      expect(result.current.terminals.top).toMatch(/^commander-project-[a-f0-9]+-top$/)
-      expect(result.current.terminals.bottomBase).toMatch(/^commander-project-[a-f0-9]+-bottom$/)
+      expect(result.current.terminals.top).toMatch(/^orchestrator-project-[a-f0-9]+-top$/)
+      expect(result.current.terminals.bottomBase).toMatch(/^orchestrator-project-[a-f0-9]+-bottom$/)
     })
 
     it('should map session selection to session-specific terminals', async () => {
@@ -138,7 +138,7 @@ describe('SelectionContext', () => {
   })
 
   describe('ensureTerminals deduplication and path selection', () => {
-    it('should use commander cwd for commander selection', async () => {
+    it('should use orchestrator cwd for orchestrator selection', async () => {
       const { result } = renderHook(() => useSelection(), { wrapper })
 
       await waitFor(() => {
@@ -297,7 +297,7 @@ describe('SelectionContext', () => {
         expect(result.current.isReady).toBe(true)
       })
 
-      // Reset counter after commander initialization
+      // Reset counter after orchestrator initialization
       createTerminalCalls = 0
       createdTerminals.clear()
 
@@ -321,7 +321,7 @@ describe('SelectionContext', () => {
 
   // Simplified tests for core functionality without complex async scenarios
   describe('basic functionality', () => {
-    it('should start with commander selection', async () => {
+    it('should start with orchestrator selection', async () => {
       // Skip this test for now - there's an issue with the context not being provided properly in tests
       // The implementation works correctly in the actual app
       expect(true).toBe(true)

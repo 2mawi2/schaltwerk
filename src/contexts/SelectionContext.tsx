@@ -5,7 +5,7 @@ import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 
 export interface Selection {
-    kind: 'session' | 'commander'
+    kind: 'session' | 'orchestrator'
     payload?: string
     worktreePath?: string
     sessionState?: 'plan' | 'running' | 'reviewed'  // Pass from Sidebar to avoid async fetch
@@ -31,10 +31,10 @@ const SelectionContext = createContext<SelectionContextType | null>(null)
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
     const { terminalFontSize } = useFontSize()
-    const [selection, setSelectionState] = useState<Selection>({ kind: 'commander' })
+    const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({
-        top: 'commander-default-top',
-        bottomBase: 'commander-default-bottom',
+        top: 'orchestrator-default-top',
+        bottomBase: 'orchestrator-default-bottom',
         workingDirectory: ''
     })
     // Start as not ready, will become ready once we have initialized with a project
@@ -53,8 +53,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
         let workingDir = projectPath || ''
         
-        if (sel.kind === 'commander') {
-            // Make commander terminals project-specific by using project path hash
+        if (sel.kind === 'orchestrator') {
+            // Make orchestrator terminals project-specific by using project path hash
             // Use a simple hash of the full path to ensure uniqueness
             let projectId = 'default'
             if (projectPath) {
@@ -70,7 +70,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 }
                 projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
             }
-            const base = `commander-${projectId}`
+            const base = `orchestrator-${projectId}`
             return {
                 top: `${base}-top`,
                 bottomBase: `${base}-bottom`,
@@ -167,8 +167,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
         const ids = getTerminalIds(sel)
 
-        // Commander always has terminals and is never a plan
-        if (sel.kind === 'commander') {
+        // Orchestrator always has terminals and is never a plan
+        if (sel.kind === 'orchestrator') {
             setIsPlan(false)
             const cwd = projectPath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
@@ -234,7 +234,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (dbSelection) {
                     console.log('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
                     return {
-                        kind: dbSelection.kind as 'session' | 'commander',
+                        kind: dbSelection.kind as 'session' | 'orchestrator',
                         payload: dbSelection.payload ?? undefined
                     }
                 }
@@ -243,14 +243,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
         
-        // Default to commander if no saved selection
-        return { kind: 'commander' }
+        // Default to orchestrator if no saved selection
+        return { kind: 'orchestrator' }
     }, [projectPath])
     
     // Validate and restore a remembered selection
     const validateAndRestoreSelection = useCallback(async (remembered: Selection): Promise<Selection> => {
-        // If commander, it's always valid
-        if (remembered.kind === 'commander') {
+        // If orchestrator, it's always valid
+        if (remembered.kind === 'orchestrator') {
             return remembered
         }
         
@@ -271,18 +271,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     worktreePath
                 }
             } catch (error) {
-                console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to commander`)
-                // Session doesn't exist anymore, fallback to commander
-                return { kind: 'commander' }
+                console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
+                // Session doesn't exist anymore, fallback to orchestrator
+                return { kind: 'orchestrator' }
             }
         }
         
         // Default fallback
-        return { kind: 'commander' }
+        return { kind: 'orchestrator' }
     }, [])
     
     // Clear terminal tracking and close terminals to prevent orphaned processes
-    // Used when: 1) Switching projects (commander IDs change), 2) Restarting commander with new model
+    // Used when: 1) Switching projects (orchestrator IDs change), 2) Restarting orchestrator with new model
     const clearTerminalTracking = useCallback(async (terminalIds: string[]) => {
         for (const id of terminalIds) {
             terminalsCreated.current.delete(id)
@@ -341,7 +341,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     const isPlanSession = newSelection.sessionState === 'plan'
                     setIsPlan(isPlanSession)
                 } else {
-                    // Commander is never a plan
+                    // Orchestrator is never a plan
                     setIsPlan(false)
                 }
                 
@@ -495,8 +495,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             console.log('[SelectionContext] Setting selection to:', targetSelection)
             
-            // Set the selection - the commander terminals are already project-specific via the ID hash
-            // No need to force recreate, just switch to the correct project's commander
+            // Set the selection - the orchestrator terminals are already project-specific via the ID hash
+            // No need to force recreate, just switch to the correct project's orchestrator
             await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
         }
         

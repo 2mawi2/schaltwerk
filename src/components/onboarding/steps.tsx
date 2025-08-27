@@ -83,11 +83,11 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         action: 'highlight'
     },
     {
-        title: "The Commander - Your Control Center",
+        title: "The Orchestrator - Your Control Center",
         content: (
             <div>
                 <p className="mb-4">
-                    The <strong>Commander</strong> is your project's control center. When connected to Schaltwerk's MCP server, it becomes a powerful natural language interface for managing all agents.
+                    The <strong>Orchestrator</strong> is your project's control center. When connected to Schaltwerk's MCP server, it becomes a powerful natural language interface for managing all agents.
                 </p>
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded p-3 mb-4">
                     <div className="flex items-start gap-2">
@@ -114,7 +114,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </div>
                 <div className="text-sm text-slate-400">
                     <p className="mb-2">
-                        <strong>Ideal workflow:</strong> Create plans → Start agents → Review (manually or via commander) → Merge & integrate
+                        <strong>Ideal workflow:</strong> Create plans → Start agents → Review (manually or via orchestrator) → Merge & integrate
                     </p>
                     <p>
                         Access with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> • Connect MCP in Settings
@@ -138,7 +138,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                         <ul className="list-disc pl-6 mt-1 space-y-1">
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1-9</kbd> Jump to specific agent by number</li>
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd> Cycle through sessions smoothly</li>
-                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> Switch to Commander</li>
+                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> Switch to Orchestrator</li>
                         </ul>
                     </div>
                     <div className="text-sm">
@@ -168,7 +168,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         content: (
             <div>
                 <p className="mb-4">
-                    Action buttons provide instant access to common AI prompts. They appear in the terminal header for both commander and session views.
+                    Action buttons provide instant access to common AI prompts. They appear in the terminal header for both orchestrator and session views.
                 </p>
                 <div className="bg-green-900/30 border border-green-700/50 rounded p-3 mb-4">
                     <div className="flex items-start gap-2">
@@ -328,7 +328,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                             <h4 className="text-slate-200 font-medium mb-2">Advanced Workflow</h4>
                             <ul className="space-y-1 text-slate-400">
                                 <li>• Review with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘G</kbd> and add comments</li>
-                                <li>• Use commander for natural language control</li>
+                                <li>• Use orchestrator for natural language control</li>
                                 <li>• Manage parallel agents efficiently</li>
                                 <li>• Customize action buttons for your workflow</li>
                             </ul>

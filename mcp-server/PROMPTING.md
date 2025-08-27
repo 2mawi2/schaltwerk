@@ -140,9 +140,9 @@ schaltwerk_create(
 )
 ```
 
-## Integration with Commander Pattern
+## Integration with Orchestrator Pattern
 
-When acting as an commander managing multiple AI agents:
+When acting as an orchestrator managing multiple AI agents:
 
 1. **Create Sessions for Each Agent**
    ```

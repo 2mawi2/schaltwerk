@@ -520,7 +520,7 @@ export default function App() {
       setActiveTabPath(path)
       setProjectPath(path)
       setShowHome(false)
-      // SelectionContext will automatically update commander when projectPath changes
+      // SelectionContext will automatically update orchestrator when projectPath changes
     } catch (error) {
       console.error('Failed to open project:', error)
       alert(`Failed to open project: ${error}`)

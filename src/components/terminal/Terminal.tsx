@@ -250,7 +250,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const initializeRenderer = () => {
             if (!cancelled && terminal.current && termRef.current) {
                 // Skip WebGL for known problematic terminal types
-                const isProblematicTerminal = terminalId.includes('session-') && !terminalId.includes('commander');
+                const isProblematicTerminal = terminalId.includes('session-') && !terminalId.includes('orchestrator');
                 
                 if (isProblematicTerminal) {
                     // Session terminals that run TUI apps - use Canvas for compatibility
@@ -258,7 +258,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     return;
                 }
                 
-                // For commander terminals, try WebGL with proper error handling
+                // For orchestrator terminals, try WebGL with proper error handling
                 if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                     try {
                         fitAddon.current?.fit();
@@ -355,7 +355,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         // For OpenCode terminals, send additional resize events to ensure proper TUI layout
         // But delay them longer to avoid conflicts with the mounting process
-        if (terminalId.includes('session-') && !terminalId.includes('commander')) {
+        if (terminalId.includes('session-') && !terminalId.includes('orchestrator')) {
             setTimeout(() => {
                 if (terminal.current && termRef.current) {
                     try {
@@ -432,7 +432,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Smart auto-scroll: only scroll to bottom if user was already at bottom
                     // This preserves manual scroll position but shows latest output when appropriate
                     const shouldAutoScroll = terminalId.endsWith('-top') && 
-                        (terminalId.includes('session-') || terminalId.includes('commander-'));
+                        (terminalId.includes('session-') || terminalId.includes('orchestrator-'));
                     
                     if (shouldAutoScroll) {
                         // Check if user was at the bottom before hydration
@@ -569,7 +569,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                 // For OpenCode session terminals, prevent downgrading to small sizes
                 // unless it's a legitimate resize (like window resize)
-                const isSessionTerminal = terminalId.includes('session-') && !terminalId.includes('commander');
+                const isSessionTerminal = terminalId.includes('session-') && !terminalId.includes('orchestrator');
                 const isDowngrading = (cols < lastSize.current.cols || rows < lastSize.current.rows);
                 const isTooSmall = cols < 100 || rows < 30;
                 
@@ -680,7 +680,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
             startingTerminals.current.set(terminalId, true);
             try {
-                if (isCommander || (terminalId.includes('commander') && terminalId.endsWith('-top'))) {
+                if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                     const exists = await invoke<boolean>('terminal_exists', { id: terminalId });
                     if (!exists) {
                         const attempts = (startAttempts.current.get(terminalId) || 0) + 1;

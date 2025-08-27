@@ -89,7 +89,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
-    const [commanderBranch, setCommanderBranch] = useState<string>("main")
+    const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
         sessionName: '',
@@ -176,16 +176,16 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                 }, false, false) // Auto-selection - not intentional
             }
         } else if (!currentSessionVisible && sessions.length === 0) {
-            // No sessions visible, select commander
-            setSelection({ kind: 'commander' }, false, false) // Auto-selection - not intentional
+            // No sessions visible, select orchestrator
+            setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional
         }
     }, [sessions, selection, setSelection])
 
-    // Fetch current branch for commander
+    // Fetch current branch for orchestrator
     useEffect(() => {
         invoke<string>("get_current_branch_name", { sessionName: null })
-            .then(branch => setCommanderBranch(branch))
-            .catch(() => setCommanderBranch("main"))
+            .then(branch => setOrchestratorBranch(branch))
+            .catch(() => setOrchestratorBranch("main"))
     }, [])
 
     // Compute time-based idle sessions from last activity
@@ -211,7 +211,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
     }, [contextSessions])
 
     const handleSelectOrchestrator = async () => {
-        await setSelection({ kind: 'commander' }, false, true) // User clicked - intentional
+        await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }
     
 
@@ -289,7 +289,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         if (sessions.length === 0) return
         if (selection.kind === 'session') {
             const currentIndex = sessions.findIndex(s => s.info.session_id === selection.payload)
-            // If at the first session, go to commander
+            // If at the first session, go to orchestrator
             if (currentIndex <= 0) {
                 await handleSelectOrchestrator()
                 return
@@ -297,13 +297,13 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             await handleSelectSession(currentIndex - 1)
             return
         }
-        // If commander is selected, do nothing on ArrowUp
+        // If orchestrator is selected, do nothing on ArrowUp
     }
 
     const selectNext = async () => {
         if (sessions.length === 0) return
-        if (selection.kind === 'commander') {
-            // From commander, go to the first session
+        if (selection.kind === 'orchestrator') {
+            // From orchestrator, go to the first session
             await handleSelectSession(0)
             return
         }
@@ -349,18 +349,18 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             }, 50)
         },
         onFocusClaude: () => {
-            const sessionKey = selection.kind === 'commander' ? 'commander' : (selection.payload || 'unknown')
+            const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'claude')
             setCurrentFocus('claude')
             // This will trigger TerminalGrid's currentFocus effect immediately
         },
         onOpenDiffViewer: () => {
-            // Open diff viewer for both sessions and commander
-            if (selection.kind !== 'session' && selection.kind !== 'commander') return
+            // Open diff viewer for both sessions and orchestrator
+            if (selection.kind !== 'session' && selection.kind !== 'orchestrator') return
             window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-view'))
         },
         onFocusTerminal: () => {
-            const sessionKey = selection.kind === 'commander' ? 'commander' : (selection.payload || 'unknown')
+            const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'terminal')
             setCurrentFocus('terminal')
             window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal'))
@@ -460,7 +460,7 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
                             sessionState: nextSession ? mapSessionUiState(nextSession.info) : undefined
                         }, false, false) // Fallback - not intentional
                     } else {
-                        await setSelection({ kind: 'commander' }, false, false) // Fallback - not intentional
+                        await setSelection({ kind: 'orchestrator' }, false, false) // Fallback - not intentional
                     }
                 }
             })
@@ -516,18 +516,18 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
 
     return (
         <div ref={sidebarRef} className="h-full flex flex-col">
-            <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Commander)</div>
+            <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
             <div className="px-2 pt-2">
                 <button
                     onClick={handleSelectOrchestrator}
-                    className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'commander' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
-                    title="Select commander (⌘1)"
+                    className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'orchestrator' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
+                    title="Select orchestrator (⌘1)"
                 >
                     <div className="flex items-center justify-between">
-                        <div className="font-medium text-slate-100">commander</div>
+                        <div className="font-medium text-slate-100">orchestrator</div>
                     <div className="flex items-center gap-2">
                         <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
-                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{commanderBranch}</span>
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
                     </div>
                     </div>
                     <div className="text-xs text-slate-500">Original repository from which agents are created</div>

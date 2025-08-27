@@ -117,7 +117,7 @@ describe('Sidebar - Selection on State Changes', () => {
         })
     })
 
-    it('selects commander when no sessions are visible after filter change', async () => {
+    it('selects orchestrator when no sessions are visible after filter change', async () => {
         const draftSession = mockDraftSession('plan-agent')
 
         // Start with only a plan session
@@ -160,9 +160,9 @@ describe('Sidebar - Selection on State Changes', () => {
         const runningFilterButton = screen.getByTitle('Show running agents')
         await userEvent.click(runningFilterButton)
 
-        // Verify commander is automatically selected
+        // Verify orchestrator is automatically selected
         await waitFor(() => {
-            const orchestratorButton = screen.getByText('commander').closest('button')
+            const orchestratorButton = screen.getByText('orchestrator').closest('button')
             expect(orchestratorButton).toHaveClass('session-ring-blue')
         })
     })
@@ -230,7 +230,7 @@ describe('Sidebar - Selection on State Changes', () => {
         })
     })
 
-    it('selects commander when no sessions visible after filter change with selected plan', async () => {
+    it('selects orchestrator when no sessions visible after filter change with selected plan', async () => {
         const planAgent = mockDraftSession('plan-agent')
         const runningTask = mockEnrichedSession('running-agent', 'active', false)
 

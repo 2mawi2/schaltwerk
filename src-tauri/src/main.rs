@@ -565,7 +565,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
         let io = TokioIo::new(stream);
         let app_clone = app.clone();
         
-        tokio::task::spawn(async move {
+        tokio::spawn(async move {
             if let Err(err) = http1::Builder::new()
                 .serve_connection(io, service_fn(move |req| handle_webhook(app_clone.clone(), req)))
                 .await

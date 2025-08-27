@@ -31,10 +31,10 @@ describe('useSessionManagement', () => {
     })
 
     describe('resetSession', () => {
-        it('should reset commander session', async () => {
+        it('should reset orchestrator session', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
 
             await act(async () => {
                 await result.current.resetSession(selection, mockTerminals)
@@ -104,7 +104,7 @@ describe('useSessionManagement', () => {
         it('should track resetting state', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
 
             expect(result.current.isResetting).toBe(false)
 
@@ -119,7 +119,7 @@ describe('useSessionManagement', () => {
         it('should not reset if already resetting', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
 
             // Mock a slow invoke to keep resetting state
             let resolveInvoke: () => void
@@ -150,10 +150,10 @@ describe('useSessionManagement', () => {
     })
 
     describe('switchModel', () => {
-        it('should switch model for commander', async () => {
+        it('should switch model for orchestrator', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
@@ -221,7 +221,7 @@ describe('useSessionManagement', () => {
         it('should handle terminal not existing during model switch', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
@@ -247,7 +247,7 @@ describe('useSessionManagement', () => {
         it('should dispatch reset terminals event after model switch', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
 
             await act(async () => {
                 await result.current!.switchModel(
@@ -269,7 +269,7 @@ describe('useSessionManagement', () => {
         it('should handle errors in resetSession and reset state', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
             
             mockInvoke.mockRejectedValueOnce(new Error('Test error'))
 
@@ -285,7 +285,7 @@ describe('useSessionManagement', () => {
         it('should handle errors in switchModel', async () => {
             const { result } = renderHook(() => useSessionManagement())
             
-            const selection = { kind: 'commander' as const }
+            const selection = { kind: 'orchestrator' as const }
             
             mockInvoke.mockRejectedValueOnce(new Error('Switch error'))
 

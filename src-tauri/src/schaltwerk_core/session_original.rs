@@ -1001,7 +1001,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_fresh_with_binary(&self, binary_paths: &std::collections::HashMap<String, String>) -> Result<String> {
-        log::info!("Building FRESH commander command (no session resume) for repo: {}", self.repo_path.display());
+        log::info!("Building FRESH orchestrator command (no session resume) for repo: {}", self.repo_path.display());
         
         // Validate that the repo path exists and is accessible
         if !self.repo_path.exists() {
@@ -1012,13 +1012,13 @@ impl SessionManager {
         // Check if it's a git repository
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The commander requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
         }
         
         let skip_permissions = self.db.get_skip_permissions()?;
         let agent_type = self.db.get_agent_type()?;
         
-        log::info!("Fresh commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         let command = match agent_type.as_str() {
             "cursor" => {
@@ -1061,7 +1061,7 @@ impl SessionManager {
                 )
             }
             "codex" => {
-                // For Codex commander, use workspace-write as default sandbox mode
+                // For Codex orchestrator, use workspace-write as default sandbox mode
                 let sandbox_mode = if skip_permissions {
                     "danger-full-access"
                 } else {
@@ -1108,7 +1108,7 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_orchestrator_with_args_and_binary(&self, _cli_args: Option<&str>, binary_paths: &std::collections::HashMap<String, String>) -> Result<String> {
-        log::info!("Building commander command for repo: {}", self.repo_path.display());
+        log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
         
         // Validate that the repo path exists and is accessible
         if !self.repo_path.exists() {
@@ -1119,13 +1119,13 @@ impl SessionManager {
         // Check if it's a git repository
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The commander requires a git repository to function.", self.repo_path.display()));
+            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
         }
         
         let skip_permissions = self.db.get_skip_permissions()?;
         let agent_type = self.db.get_agent_type()?;
         
-        log::info!("Commander agent type: {agent_type}, skip_permissions: {skip_permissions}");
+        log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
         
         let command = match agent_type.as_str() {
             "cursor" => {
@@ -1178,7 +1178,7 @@ impl SessionManager {
             }
             "codex" => {
                 let session_id = crate::schaltwerk_core::codex::find_codex_session(&self.repo_path);
-                // For Codex commander, use workspace-write as default sandbox mode
+                // For Codex orchestrator, use workspace-write as default sandbox mode
                 let sandbox_mode = if skip_permissions {
                     "danger-full-access"
                 } else {

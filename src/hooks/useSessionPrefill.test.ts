@@ -22,7 +22,7 @@ describe('useSessionPrefill', () => {
     it('returns plan_content when available', () => {
       const sessionData = {
         plan_content: 'Plan content',
-        draft_content: 'Draft content',
+        draft_content: 'Plan content',
         initial_prompt: 'Initial prompt',
       }
       expect(extractSessionContent(sessionData)).toBe('Plan content')
@@ -31,10 +31,10 @@ describe('useSessionPrefill', () => {
     it('returns draft_content when plan_content is null', () => {
       const sessionData = {
         plan_content: null,
-        draft_content: 'Draft content',
+        draft_content: 'Plan content',
         initial_prompt: 'Initial prompt',
       }
-      expect(extractSessionContent(sessionData)).toBe('Draft content')
+      expect(extractSessionContent(sessionData)).toBe('Plan content')
     })
 
     it('returns initial_prompt when plan_content and draft_content are null', () => {
@@ -58,7 +58,7 @@ describe('useSessionPrefill', () => {
     it('prioritizes plan_content over draft_content and initial_prompt', () => {
       const sessionData = {
         plan_content: 'Plan',
-        draft_content: 'Draft',
+        draft_content: 'Plan',
         initial_prompt: 'Prompt',
       }
       expect(extractSessionContent(sessionData)).toBe('Plan')

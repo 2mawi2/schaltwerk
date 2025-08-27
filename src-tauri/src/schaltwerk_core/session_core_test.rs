@@ -448,17 +448,17 @@ mod tests {
     fn test_start_draft_session_plan_to_running_transition() {
         let setup = TestSetup::new();
         
-        // Create a draft session first
-        let draft = setup.manager.create_draft_session(
+        // Create a plan session first
+        let plan = setup.manager.create_draft_session(
             "test-plan",
             "This is a plan content"
         ).unwrap();
         
-        assert_eq!(draft.status, SessionStatus::Plan);
-        assert_eq!(draft.session_state, SessionState::Plan);
-        assert_eq!(draft.plan_content, Some("This is a plan content".to_string()));
+        assert_eq!(plan.status, SessionStatus::Plan);
+        assert_eq!(plan.session_state, SessionState::Plan);
+        assert_eq!(plan.plan_content, Some("This is a plan content".to_string()));
         
-        // Start the draft session
+        // Start the plan session
         let result = setup.manager.start_draft_session("test-plan", None);
         assert!(result.is_ok());
         
@@ -483,7 +483,7 @@ mod tests {
         
         assert_eq!(session.session_state, SessionState::Running);
         
-        // Try to start it as a draft - should fail
+        // Try to start it as a plan - should fail
         let result = setup.manager.start_draft_session("running-session", None);
         
         assert!(result.is_err());
@@ -502,18 +502,18 @@ mod tests {
             .output()
             .expect("Failed to create branch");
         
-        // Create and start draft with custom base
-        setup.manager.create_draft_session("test-draft", "Plan content").unwrap();
+        // Create and start plan with custom base
+        setup.manager.create_draft_session("test-plan", "Plan content").unwrap();
         
         let result = setup.manager.start_draft_session(
-            "test-draft",
+            "test-plan",
             Some("feature-branch")
         );
         
         assert!(result.is_ok());
         
         // Verify the worktree was created from the custom branch
-        let session = setup.manager.get_session("test-draft").unwrap();
+        let session = setup.manager.get_session("test-plan").unwrap();
         assert!(session.worktree_path.exists());
     }
 
@@ -523,10 +523,10 @@ mod tests {
         
         let plan_content = "Step 1: Do this\nStep 2: Do that\nStep 3: Finish";
         
-        // Create draft with plan content
+        // Create plan with plan content
         setup.manager.create_draft_session("test-plan", plan_content).unwrap();
         
-        // Start the draft
+        // Start the plan
         setup.manager.start_draft_session("test-plan", None).unwrap();
         
         // Verify plan content moved to initial_prompt
@@ -543,7 +543,7 @@ mod tests {
         let setup = TestSetup::new();
         let manager = Arc::new(setup.manager);
         
-        // Create a draft session
+        // Create a plan session
         manager.create_draft_session("concurrent-test", "Plan").unwrap();
         
         // Try to start it from multiple threads
@@ -575,7 +575,7 @@ mod tests {
     fn test_start_draft_session_error_during_worktree_creation() {
         let setup = TestSetup::new();
         
-        // Create draft
+        // Create plan
         setup.manager.create_draft_session("test-error", "Plan").unwrap();
         
         // Delete the repository to cause worktree creation to fail
@@ -671,15 +671,15 @@ mod tests {
             .output()
             .unwrap();
         
-        // Convert to draft
+        // Convert to plan
         let result = setup.manager.convert_session_to_draft("test-convert");
         assert!(result.is_ok());
         
         // Verify conversion
-        let draft = setup.manager.get_session("test-convert").unwrap();
-        assert_eq!(draft.status, SessionStatus::Plan);
-        assert_eq!(draft.session_state, SessionState::Plan);
-        assert!(!draft.worktree_path.exists());
+        let plan = setup.manager.get_session("test-convert").unwrap();
+        assert_eq!(plan.status, SessionStatus::Plan);
+        assert_eq!(plan.session_state, SessionState::Plan);
+        assert!(!plan.worktree_path.exists());
     }
 
     // Test complex scenarios
@@ -688,7 +688,7 @@ mod tests {
     fn test_create_start_cancel_cycle() {
         let setup = TestSetup::new();
         
-        // Create draft
+        // Create plan
         setup.manager.create_draft_session("lifecycle", "Plan content").unwrap();
         
         // Start it

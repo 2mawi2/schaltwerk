@@ -144,7 +144,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -152,7 +152,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     // Default should be name sorting (A-Z)
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     expect(sessionButtons[0]).toHaveTextContent('alpha_session')
@@ -206,7 +206,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -221,7 +221,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     // Should be sorted newest first
@@ -276,7 +276,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -292,7 +292,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     // Should be sorted by last modified (most recent first)
@@ -362,14 +362,14 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(4)
     })
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     // Name mode should group with unreviewed before reviewed. If any reviewed appears, all previous should be unreviewed.
@@ -390,7 +390,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sortedButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     // Last-edited mode: unreviewed by last edit time, then reviewed alphabetically
@@ -454,7 +454,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
         const text = btn.textContent || ''
-        return text.includes('para/') && !text.includes('main (commander)')
+        return text.includes('para/') && !text.includes('main (orchestrator)')
       })
       expect(sessionButtons).toHaveLength(3)
     })
@@ -469,7 +469,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
 
     const sessionButtons = screen.getAllByRole('button').filter(btn => {
       const text = btn.textContent || ''
-      return text.includes('para/') && !text.includes('main (commander)')
+      return text.includes('para/') && !text.includes('main (orchestrator)')
     })
 
     // Sessions with timestamps come first, then sessions without (alphabetical)

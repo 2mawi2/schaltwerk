@@ -68,7 +68,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
       const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
       
-      // For commander mode (no session), get working changes
+      // For orchestrator mode (no session), get working changes
       if (currentIsCommander && !currentSession) {
         const [changedFiles, currentBranch] = await Promise.all([
           invoke<ChangedFile[]>('get_orchestrator_working_changes'),
@@ -76,7 +76,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         ])
         
         // Check if results actually changed to avoid unnecessary re-renders
-        const resultSignature = `commander-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
+        const resultSignature = `orchestrator-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
         if (resultSignature !== lastResultRef.current) {
           lastResultRef.current = resultSignature
           setFiles(changedFiles)
@@ -144,7 +144,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
     
     if (!currentSession && !currentIsCommander) {
-      // Clear files when no session and not commander
+      // Clear files when no session and not orchestrator
       setFiles([])
       setBranchInfo(null)
       lastResultRef.current = 'no-session'
@@ -153,7 +153,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
     // CRITICAL: Clear stale data immediately when session changes
     // This prevents showing old session data while new session data loads
-    const newSessionKey = currentIsCommander ? 'commander' : currentSession
+    const newSessionKey = currentIsCommander ? 'orchestrator' : currentSession
     const needsDataClear = lastResultRef.current && !lastResultRef.current.includes(newSessionKey || 'no-session')
     if (needsDataClear) {
       setFiles([])
@@ -172,9 +172,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
     // Setup async operations
     const setup = async () => {
-      // For commander mode, poll less frequently since working directory changes are less frequent
+      // For orchestrator mode, poll less frequently since working directory changes are less frequent
       if (currentIsCommander && !currentSession) {
-        pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for commander
+        pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for orchestrator
         return
       }
       

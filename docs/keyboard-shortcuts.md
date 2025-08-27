@@ -9,7 +9,7 @@
 ## Session Navigation  
 | Shortcut | Action |
 |----------|---------|
-| **⌘1** | Switch to Commander |
+| **⌘1** | Switch to Orchestrator |
 | **⌘2-9** | Switch to Session 1-8 |
 | **⌘↑/↓** | Previous/Next session |
 | **⌘←** | Focus sidebar |
