@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TerminalGrid } from './components/terminal/TerminalGrid'
 import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
@@ -22,6 +22,15 @@ import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { theme } from './common/theme'
+
+// Simple debounce utility
+function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+  let timeout: NodeJS.Timeout | null = null
+  return ((...args: any[]) => {
+    if (timeout) clearTimeout(timeout)
+    timeout = setTimeout(() => func(...args), wait)
+  }) as T
+}
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -60,6 +69,8 @@ export default function App() {
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsDraft] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
+  const projectSwitchInProgressRef = useRef(false)
+  const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const isKanbanOpenRef = useRef(false)
   const previousFocusRef = useRef<Element | null>(null)
   
@@ -533,25 +544,59 @@ export default function App() {
     setProjectPath(null)
   }
 
-  const handleSelectTab = async (path: string) => {
-    console.log('handleSelectTab called with path:', path)
-    console.log('Current activeTabPath:', activeTabPath)
-    console.log('Current projectPath from context:', projectPath)
-
-    // Ensure backend knows about the project switch
-    try {
-      await invoke('initialize_project', { path })
-      console.log('Backend initialized successfully for:', path)
-    } catch (error) {
-      console.error('Failed to switch project in backend:', error)
+  const handleSelectTab = useCallback(async (path: string) => {
+    // Prevent redundant calls
+    if (path === activeTabPath && path === projectPath) {
+      return
     }
-
-    setActiveTabPath(path)
-    setProjectPath(path)
-    setShowHome(false)
-
-    console.log('State updated - new activeTabPath should be:', path)
-  }
+    
+    // Prevent concurrent project switches
+    if (projectSwitchInProgressRef.current) {
+      console.log('Project switch already in progress, ignoring request')
+      return
+    }
+    
+    // Abort any previous project switch that might be stuck
+    if (projectSwitchAbortControllerRef.current) {
+      projectSwitchAbortControllerRef.current.abort()
+    }
+    
+    projectSwitchInProgressRef.current = true
+    
+    const abortController = new AbortController()
+    projectSwitchAbortControllerRef.current = abortController
+    
+    try {
+      // Add timeout to prevent indefinite waiting
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Project switch timeout')), 5000)
+      })
+      
+      const switchPromise = invoke('initialize_project', { path })
+      
+      // Race between the actual switch and timeout
+      await Promise.race([switchPromise, timeoutPromise])
+      
+      // Only update state if not aborted
+      if (!abortController.signal.aborted) {
+        setActiveTabPath(path)
+        setProjectPath(path)
+        setShowHome(false)
+      }
+    } catch (error) {
+      if (!abortController.signal.aborted) {
+        console.error('Failed to switch project in backend:', error)
+      }
+      // Don't update state if backend switch failed
+      return
+    } finally {
+      projectSwitchInProgressRef.current = false
+      setIsProjectSwitching(false)
+      if (projectSwitchAbortControllerRef.current === abortController) {
+        projectSwitchAbortControllerRef.current = null
+      }
+    }
+  }, [activeTabPath, projectPath, setProjectPath])
 
   const handleCloseTab = async (path: string) => {
     const tabIndex = openTabs.findIndex(tab => tab.projectPath === path)
@@ -575,6 +620,46 @@ export default function App() {
       }
     }
   }
+
+  const switchProject = useCallback(async (direction: 'prev' | 'next') => {
+    if (openTabs.length <= 1) return
+    
+    const currentIndex = openTabs.findIndex(tab => tab.projectPath === activeTabPath)
+    if (currentIndex === -1) return
+    
+    // Calculate new index with proper boundary constraints
+    let newIndex: number
+    if (direction === 'next') {
+      // Don't go past the last tab
+      newIndex = Math.min(currentIndex + 1, openTabs.length - 1)
+    } else {
+      // Don't go before the first tab
+      newIndex = Math.max(currentIndex - 1, 0)
+    }
+    
+    // Only switch if we actually moved to a different index
+    if (newIndex !== currentIndex) {
+      const targetTab = openTabs[newIndex]
+      if (targetTab?.projectPath) {
+        await handleSelectTab(targetTab.projectPath)
+      }
+    }
+  }, [openTabs, activeTabPath, handleSelectTab])
+
+  const switchProjectDebounced = useMemo(
+    () => debounce((direction: 'prev' | 'next') => {
+      switchProject(direction)
+    }, 300),
+    [switchProject]
+  )
+
+  const handleSelectPrevProject = useCallback(() => {
+    switchProjectDebounced('prev')
+  }, [switchProjectDebounced])
+  
+  const handleSelectNextProject = useCallback(() => {
+    switchProjectDebounced('next')
+  }, [switchProjectDebounced])
 
   // Update unified work area ring color when selection changes
   useEffect(() => {
@@ -633,7 +718,12 @@ export default function App() {
             <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
               <div className="h-full flex flex-col">
                 <div className="flex-1 overflow-y-auto">
-                  <Sidebar isDiffViewerOpen={isDiffViewerOpen} />
+                  <Sidebar 
+                    isDiffViewerOpen={isDiffViewerOpen} 
+                    openTabs={openTabs}
+                    onSelectPrevProject={handleSelectPrevProject}
+                    onSelectNextProject={handleSelectNextProject}
+                  />
                 </div>
                 <div className="p-2 border-t grid grid-cols-2 gap-2" style={{ borderTopColor: theme.colors.border.default }}>
                   <button

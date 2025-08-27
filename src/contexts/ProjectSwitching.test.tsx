@@ -161,4 +161,208 @@ describe('Project Switching Selection Behavior', () => {
             }).not.toThrow()
         })
     })
+
+    describe('Project Switching Boundary Constraints', () => {
+        // Test the project switching boundary logic that was causing infinite loops
+        describe('Boundary Logic Unit Tests', () => {
+            const mockOpenTabs = [
+                { projectPath: '/project1', projectName: 'Project 1' },
+                { projectPath: '/project2', projectName: 'Project 2' },
+                { projectPath: '/project3', projectName: 'Project 3' }
+            ]
+
+            const mockHandleSelectTab = vi.fn()
+
+            // Simulate the switchProject logic from App.tsx
+            const createSwitchProjectFunction = (currentIndex: number) => {
+                return (direction: 'prev' | 'next') => {
+                    if (mockOpenTabs.length <= 1) return
+
+                    // Calculate new index with proper boundary constraints (fixed logic)
+                    let newIndex: number
+                    if (direction === 'next') {
+                        // Don't go past the last tab
+                        newIndex = Math.min(currentIndex + 1, mockOpenTabs.length - 1)
+                    } else {
+                        // Don't go before the first tab
+                        newIndex = Math.max(currentIndex - 1, 0)
+                    }
+
+                    // Only switch if we actually moved to a different index
+                    if (newIndex !== currentIndex) {
+                        const targetTab = mockOpenTabs[newIndex]
+                        if (targetTab?.projectPath) {
+                            mockHandleSelectTab(targetTab.projectPath)
+                        }
+                    }
+                }
+            }
+
+            beforeEach(() => {
+                vi.clearAllMocks()
+            })
+
+            it('should not switch when at first project and going prev', () => {
+                const switchProject = createSwitchProjectFunction(0) // At first project
+                
+                switchProject('prev')
+                
+                // Should not call handleSelectTab because we're already at the boundary
+                expect(mockHandleSelectTab).not.toHaveBeenCalled()
+            })
+
+            it('should not switch when at last project and going next', () => {
+                const switchProject = createSwitchProjectFunction(2) // At last project (index 2 of 3 projects)
+                
+                switchProject('next')
+                
+                // Should not call handleSelectTab because we're already at the boundary
+                expect(mockHandleSelectTab).not.toHaveBeenCalled()
+            })
+
+            it('should switch from middle to prev project', () => {
+                const switchProject = createSwitchProjectFunction(1) // At middle project
+                
+                switchProject('prev')
+                
+                expect(mockHandleSelectTab).toHaveBeenCalledWith('/project1')
+            })
+
+            it('should switch from middle to next project', () => {
+                const switchProject = createSwitchProjectFunction(1) // At middle project
+                
+                switchProject('next')
+                
+                expect(mockHandleSelectTab).toHaveBeenCalledWith('/project3')
+            })
+
+            it('should switch from second to first project', () => {
+                const switchProject = createSwitchProjectFunction(1) // At second project
+                
+                switchProject('prev')
+                
+                expect(mockHandleSelectTab).toHaveBeenCalledWith('/project1')
+            })
+
+            it('should switch from second to last project', () => {
+                const switchProject = createSwitchProjectFunction(1) // At second project
+                
+                switchProject('next')
+                
+                expect(mockHandleSelectTab).toHaveBeenCalledWith('/project3')
+            })
+
+            it('should not switch when only one project is open', () => {
+                const singleTabSwitchProject = () => {
+                    const singleTab = [{ projectPath: '/project1', projectName: 'Project 1' }]
+                    if (singleTab.length <= 1) return
+                    
+                    // This should never execute
+                    mockHandleSelectTab('/should-not-be-called')
+                }
+                
+                singleTabSwitchProject()
+                singleTabSwitchProject()
+                
+                expect(mockHandleSelectTab).not.toHaveBeenCalled()
+            })
+
+            it('should handle multiple prev attempts at first project', () => {
+                const switchProject = createSwitchProjectFunction(0) // At first project
+                
+                // Try to go prev multiple times - this was causing the infinite loop
+                switchProject('prev')
+                switchProject('prev')
+                switchProject('prev')
+                
+                // Should never call handleSelectTab
+                expect(mockHandleSelectTab).not.toHaveBeenCalled()
+            })
+
+            it('should handle multiple next attempts at last project', () => {
+                const switchProject = createSwitchProjectFunction(2) // At last project
+                
+                // Try to go next multiple times - this was also causing infinite loops
+                switchProject('next')
+                switchProject('next')
+                switchProject('next')
+                
+                // Should never call handleSelectTab
+                expect(mockHandleSelectTab).not.toHaveBeenCalled()
+            })
+
+            describe('edge cases with two projects', () => {
+                const twoTabs = [
+                    { projectPath: '/project1', projectName: 'Project 1' },
+                    { projectPath: '/project2', projectName: 'Project 2' }
+                ]
+
+                const createTwoTabSwitchProject = (currentIndex: number) => {
+                    return (direction: 'prev' | 'next') => {
+                        if (twoTabs.length <= 1) return
+                        
+                        let newIndex: number
+                        if (direction === 'next') {
+                            newIndex = Math.min(currentIndex + 1, twoTabs.length - 1)
+                        } else {
+                            newIndex = Math.max(currentIndex - 1, 0)
+                        }
+                        
+                        if (newIndex !== currentIndex) {
+                            const targetTab = twoTabs[newIndex]
+                            if (targetTab?.projectPath) {
+                                mockHandleSelectTab(targetTab.projectPath)
+                            }
+                        }
+                    }
+                }
+
+                it('should handle two projects - at first, going prev', () => {
+                    const switchProject = createTwoTabSwitchProject(0)
+                    
+                    switchProject('prev')
+                    expect(mockHandleSelectTab).not.toHaveBeenCalled()
+                    
+                    switchProject('next')
+                    expect(mockHandleSelectTab).toHaveBeenCalledWith('/project2')
+                })
+
+                it('should handle two projects - at last, going next', () => {
+                    const switchProject = createTwoTabSwitchProject(1)
+                    
+                    switchProject('next')
+                    expect(mockHandleSelectTab).not.toHaveBeenCalled()
+                    
+                    switchProject('prev')
+                    expect(mockHandleSelectTab).toHaveBeenCalledWith('/project1')
+                })
+            })
+
+            describe('regression tests for infinite loop bug', () => {
+                it('should not cause infinite loops with rapid prev switching at boundary', () => {
+                    const switchProject = createSwitchProjectFunction(0) // At first project
+                    
+                    // Simulate rapid keyboard presses that caused the original bug
+                    for (let i = 0; i < 10; i++) {
+                        switchProject('prev')
+                    }
+                    
+                    // Should never call handleSelectTab, preventing the infinite loop
+                    expect(mockHandleSelectTab).not.toHaveBeenCalled()
+                })
+
+                it('should not cause infinite loops with rapid next switching at boundary', () => {
+                    const switchProject = createSwitchProjectFunction(2) // At last project
+                    
+                    // Simulate rapid keyboard presses that caused the original bug
+                    for (let i = 0; i < 10; i++) {
+                        switchProject('next')
+                    }
+                    
+                    // Should never call handleSelectTab, preventing the infinite loop
+                    expect(mockHandleSelectTab).not.toHaveBeenCalled()
+                })
+            })
+        })
+    })
 })

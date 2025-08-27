@@ -252,36 +252,36 @@ describe('useKeyboardShortcuts', () => {
       expect(onSelectNextSession).toHaveBeenCalledTimes(1)
     })
 
-    it('focuses Claude with Cmd+ArrowLeft', () => {
-      const onFocusClaude = vi.fn()
+    it('switches to previous project with Cmd+ArrowLeft', () => {
+      const onSelectPrevProject = vi.fn()
       const onSelectOrchestrator = vi.fn()
       const onSelectSession = vi.fn()
 
       renderHook(() => useKeyboardShortcuts({ 
         onSelectOrchestrator, 
         onSelectSession, 
-        onFocusClaude,
+        onSelectPrevProject,
         sessionCount: 3
       }))
 
       pressKey('ArrowLeft', { metaKey: true })
-      expect(onFocusClaude).toHaveBeenCalledTimes(1)
+      expect(onSelectPrevProject).toHaveBeenCalledTimes(1)
     })
 
-    it('focuses terminal with Cmd+ArrowRight', () => {
-      const onFocusTerminal = vi.fn()
+    it('switches to next project with Cmd+ArrowRight', () => {
+      const onSelectNextProject = vi.fn()
       const onSelectOrchestrator = vi.fn()
       const onSelectSession = vi.fn()
 
       renderHook(() => useKeyboardShortcuts({ 
         onSelectOrchestrator, 
         onSelectSession, 
-        onFocusTerminal,
+        onSelectNextProject,
         sessionCount: 3
       }))
 
       pressKey('ArrowRight', { metaKey: true })
-      expect(onFocusTerminal).toHaveBeenCalledTimes(1)
+      expect(onSelectNextProject).toHaveBeenCalledTimes(1)
     })
 
     it('does not navigate when callbacks are undefined', () => {
@@ -706,6 +706,8 @@ describe('useKeyboardShortcuts', () => {
         onFocusClaude: vi.fn(),
         onOpenDiffViewer: vi.fn(),
         onFocusTerminal: vi.fn(),
+        onSelectPrevProject: vi.fn(),
+        onSelectNextProject: vi.fn(),
       }
 
       renderHook(() => useKeyboardShortcuts({ 
@@ -752,6 +754,8 @@ describe('useKeyboardShortcuts', () => {
         onFocusClaude: vi.fn(),
         onOpenDiffViewer: vi.fn(),
         onFocusTerminal: vi.fn(),
+        onSelectPrevProject: vi.fn(),
+        onSelectNextProject: vi.fn(),
       }
 
       renderHook(() => useKeyboardShortcuts({ 
@@ -780,19 +784,19 @@ describe('useKeyboardShortcuts', () => {
       expect(callbacks.onSelectNextSession).toHaveBeenCalled()
 
       pressKey('ArrowLeft', { metaKey: true })
-      expect(callbacks.onFocusClaude).toHaveBeenCalled()
+      expect(callbacks.onSelectPrevProject).toHaveBeenCalled()
 
       pressKey('ArrowRight', { metaKey: true })
-      expect(callbacks.onFocusTerminal).toHaveBeenCalled()
+      expect(callbacks.onSelectNextProject).toHaveBeenCalled()
 
       pressKey('g', { metaKey: true })
       expect(callbacks.onOpenDiffViewer).toHaveBeenCalled()
 
       pressKey('t', { metaKey: true })
-      expect(callbacks.onFocusClaude).toHaveBeenCalledTimes(2) // Called from both ArrowLeft and t
+      expect(callbacks.onFocusClaude).toHaveBeenCalledTimes(1) // Called only from t
 
       pressKey('/', { metaKey: true })
-      expect(callbacks.onFocusTerminal).toHaveBeenCalledTimes(2) // Called from both ArrowRight and /
+      expect(callbacks.onFocusTerminal).toHaveBeenCalledTimes(1) // Called only from /
     })
   })
 })

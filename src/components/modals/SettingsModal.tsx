@@ -1033,11 +1033,11 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + ↓</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Focus Claude (Agent)</span>
+                                    <span className="text-slate-300">Switch to Previous Project</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + ←</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Focus Terminal</span>
+                                    <span className="text-slate-300">Switch to Next Project</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + →</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">

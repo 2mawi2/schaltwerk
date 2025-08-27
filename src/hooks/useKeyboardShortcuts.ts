@@ -12,10 +12,12 @@ interface KeyboardShortcutsProps {
     onFocusClaude?: () => void
     onOpenDiffViewer?: () => void
     onFocusTerminal?: () => void
+    onSelectPrevProject?: () => void
+    onSelectNextProject?: () => void
     isDiffViewerOpen?: boolean
 }
 
-export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, isDiffViewerOpen }: KeyboardShortcutsProps) {
+export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen }: KeyboardShortcutsProps) {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const modifierKey = navigator.userAgent.includes('Mac') ? event.metaKey : event.ctrlKey
@@ -44,16 +46,16 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
                     onSelectNextSession()
                 }
             } else if (key === 'ArrowLeft') {
-                // Same as Cmd+T - Focus Claude (agent window)
-                if (onFocusClaude) {
+                // Switch to previous project
+                if (onSelectPrevProject && !isDiffViewerOpen) {
                     event.preventDefault()
-                    onFocusClaude()
+                    onSelectPrevProject()
                 }
             } else if (key === 'ArrowRight') {
-                // Same as Cmd+/ - Focus terminal
-                if (onFocusTerminal) {
+                // Switch to next project
+                if (onSelectNextProject && !isDiffViewerOpen) {
                     event.preventDefault()
-                    onFocusTerminal()
+                    onSelectNextProject()
                 }
             } else if (key === 'd' || key === 'D') {
                 if (onCancelSelectedSession) {
@@ -89,5 +91,5 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
         }
-    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, isDiffViewerOpen])
+    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen])
 }

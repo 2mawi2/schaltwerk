@@ -74,9 +74,12 @@ interface FollowUpMessageNotification {
 
 interface SidebarProps {
     isDiffViewerOpen?: boolean
+    openTabs?: Array<{projectPath: string, projectName: string}>
+    onSelectPrevProject?: () => void
+    onSelectNextProject?: () => void
 }
 
-export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
+export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
     const { selection, setSelection } = useSelection()
     const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
@@ -330,6 +333,19 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
         }
     }
 
+    // Project switching functions
+    const handleSelectPrevProject = () => {
+        if (onSelectPrevProject && openTabs.length > 1) {
+            onSelectPrevProject()
+        }
+    }
+
+    const handleSelectNextProject = () => {
+        if (onSelectNextProject && openTabs.length > 1) {
+            onSelectNextProject()
+        }
+    }
+
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
         onSelectSession: handleSelectSession,
@@ -365,6 +381,8 @@ export function Sidebar({ isDiffViewerOpen }: SidebarProps) {
             setCurrentFocus('terminal')
             window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal'))
         },
+        onSelectPrevProject: handleSelectPrevProject,
+        onSelectNextProject: handleSelectNextProject,
         isDiffViewerOpen
     })
 
