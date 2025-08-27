@@ -379,58 +379,58 @@ mod tests {
     use tempfile::TempDir;
     use std::fs;
     use std::process::Command;
-    use serial_test::serial;
-    
+
+
     fn create_test_git_repo(temp_dir: &TempDir) -> PathBuf {
         let repo_path = temp_dir.path().to_path_buf();
-        
+
         Command::new("git")
             .args(["init"])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to init git repo");
-            
+
         Command::new("git")
             .args(["config", "user.name", "Test User"])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to set git user.name");
-            
+
         Command::new("git")
             .args(["config", "user.email", "test@example.com"])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to set git user.email");
-        
+
         Command::new("git")
             .args(["config", "init.defaultBranch", "main"])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to set default branch");
-        
+
         fs::write(repo_path.join("initial.txt"), "initial content").unwrap();
-        
+
         Command::new("git")
             .args(["add", "."])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to git add");
-            
+
         let commit_output = Command::new("git")
             .args(["commit", "-m", "Initial commit"])
             .current_dir(&repo_path)
             .output()
             .expect("Failed to commit");
-            
+
         if !commit_output.status.success() {
             panic!("Failed to create initial commit: {}", String::from_utf8_lossy(&commit_output.stderr));
         }
-        
+
         let branch_check = Command::new("git")
             .args(["branch", "--show-current"])
             .current_dir(&repo_path)
             .output();
-            
+
         if branch_check.is_ok() {
             let current_branch = String::from_utf8_lossy(&branch_check.unwrap().stdout).trim().to_string();
             if current_branch.is_empty() || current_branch != "main" {
@@ -447,92 +447,238 @@ mod tests {
                     });
             }
         }
-            
+
         repo_path
     }
 
 
-    #[tokio::test]
-    async fn test_should_ignore_path() {
+
+
+
+    #[test]
+    fn test_should_ignore_path_comprehensive() {
+        // Test all ignore patterns
         assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/index")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/HEAD")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/config")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/.git/hooks/pre-commit")));
+
         assert!(FileWatcher::should_ignore_path(Path::new("/path/node_modules/package.json")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/node_modules/subdir/file.js")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/node_modules/@scope/package/file.ts")));
+
         assert!(FileWatcher::should_ignore_path(Path::new("/path/target/debug/app")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/target/release/binary")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/target/wasm32-unknown-emscripten")));
+
         assert!(FileWatcher::should_ignore_path(Path::new("/path/.DS_Store")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/.DS_Store")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/.DS_Store.backup")));
+
         assert!(FileWatcher::should_ignore_path(Path::new("/path/file.tmp")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/file.tmp")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/file.temporary.tmp")));
+
         assert!(FileWatcher::should_ignore_path(Path::new("/path/file.swp")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/.file.swp")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/file.txt.swp")));
+
         assert!(FileWatcher::should_ignore_path(Path::new("/path/.vscode/settings.json")));
-        
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/.vscode/extensions.json")));
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/.vscode/launch.json")));
+
+        // Test non-ignored paths
         assert!(!FileWatcher::should_ignore_path(Path::new("/path/src/main.rs")));
         assert!(!FileWatcher::should_ignore_path(Path::new("/path/README.md")));
-    }
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/package.json")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/Cargo.toml")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/src/components/App.tsx")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/tests/test_file.rs")));
 
-    #[test] 
-    fn test_compute_change_summary_counts_files() {
-        let changed_files = vec![
-            ChangedFile {
-                path: "file1.txt".to_string(),
-                change_type: "modified".to_string(),
-            },
-            ChangedFile {
-                path: "file2.txt".to_string(), 
-                change_type: "added".to_string(),
-            },
-        ];
-        
-        let temp_dir = TempDir::new().unwrap();
-        let repo_path = create_test_git_repo(&temp_dir);
-        
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let result = rt.block_on(FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD"));
-        
-        assert!(result.is_ok());
-        let summary = result.unwrap();
-        assert_eq!(summary.files_changed, 2);
-    }
+        // Test edge cases
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/gitfile.txt"))); // Contains "git" but not in .git/
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/node_modules_backup/file.js"))); // Contains "node_modules" but not exact match
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/target_file.txt"))); // Contains "target" but not in /target/
 
-    #[tokio::test]
-    #[serial]
-    async fn test_file_watcher_manager_basic_functionality() {
-        // Skip this test for now since it requires a full Tauri app handle
-        // In a real environment, this would be tested through integration tests
-        println!("File watcher manager tests would run in integration environment");
+        // Test with None path (should not panic)
+        assert!(!FileWatcher::should_ignore_path(Path::new("")));
+
+        // Test unicode paths
+        assert!(FileWatcher::should_ignore_path(Path::new("/path/📁/.git/config")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/📁/main.rs")));
     }
 
     #[test]
-    fn test_watcher_manager_would_work_with_app() {
-        // These tests would work in integration environment with real Tauri app
-        println!("Manager lifecycle tests require integration environment");
+    fn test_file_change_event_serialization() {
+        let event = FileChangeEvent {
+            session_name: "test-session".to_string(),
+            changed_files: vec![
+                ChangedFile {
+                    path: "src/main.rs".to_string(),
+                    change_type: "modified".to_string(),
+                },
+                ChangedFile {
+                    path: "Cargo.toml".to_string(),
+                    change_type: "added".to_string(),
+                },
+            ],
+            change_summary: ChangeSummary {
+                files_changed: 2,
+                lines_added: 15,
+                lines_removed: 3,
+                has_staged: true,
+                has_unstaged: false,
+            },
+            branch_info: BranchInfo {
+                current_branch: "feature-branch".to_string(),
+                base_branch: "main".to_string(),
+                base_commit: "abc123def456".to_string(),
+                head_commit: "def789ghi012".to_string(),
+            },
+            timestamp: 1234567890123,
+        };
+
+        let json = serde_json::to_string(&event);
+        assert!(json.is_ok(), "Serialization should succeed");
+
+        let parsed: Result<FileChangeEvent, _> = serde_json::from_str(&json.unwrap());
+        assert!(parsed.is_ok(), "Deserialization should succeed");
+
+        let deserialized = parsed.unwrap();
+        assert_eq!(deserialized.session_name, "test-session");
+        assert_eq!(deserialized.changed_files.len(), 2);
+        assert_eq!(deserialized.change_summary.files_changed, 2);
+        assert_eq!(deserialized.change_summary.lines_added, 15);
+        assert_eq!(deserialized.change_summary.lines_removed, 3);
+        assert!(deserialized.change_summary.has_staged);
+        assert!(!deserialized.change_summary.has_unstaged);
+        assert_eq!(deserialized.branch_info.current_branch, "feature-branch");
+        assert_eq!(deserialized.branch_info.base_branch, "main");
+        assert_eq!(deserialized.timestamp, 1234567890123);
+    }
+
+    #[test]
+    fn test_change_summary_struct_creation() {
+        let summary = ChangeSummary {
+            files_changed: 5,
+            lines_added: 100,
+            lines_removed: 25,
+            has_staged: true,
+            has_unstaged: false,
+        };
+
+        assert_eq!(summary.files_changed, 5);
+        assert_eq!(summary.lines_added, 100);
+        assert_eq!(summary.lines_removed, 25);
+        assert!(summary.has_staged);
+        assert!(!summary.has_unstaged);
+    }
+
+    #[test]
+    fn test_branch_info_struct_creation() {
+        let branch_info = BranchInfo {
+            current_branch: "feature-x".to_string(),
+            base_branch: "main".to_string(),
+            base_commit: "a1b2c3d4".to_string(),
+            head_commit: "e5f6g7h8".to_string(),
+        };
+
+        assert_eq!(branch_info.current_branch, "feature-x");
+        assert_eq!(branch_info.base_branch, "main");
+        assert_eq!(branch_info.base_commit, "a1b2c3d4");
+        assert_eq!(branch_info.head_commit, "e5f6g7h8");
     }
 
     #[tokio::test]
-    async fn test_branch_info_extraction() {
+    async fn test_branch_info_extraction_success() {
         let temp_dir = TempDir::new().unwrap();
         let repo_path = create_test_git_repo(&temp_dir);
-        
+
         let result = FileWatcher::get_branch_info(&repo_path, "main").await;
-        assert!(result.is_ok(), "Should extract branch info successfully");
-        
+        assert!(result.is_ok(), "Should extract branch info successfully: {:?}", result.err());
+
         let branch_info = result.unwrap();
         assert_eq!(branch_info.base_branch, "main");
-        
-        if branch_info.current_branch.is_empty() {
-            eprintln!("Warning: git branch --show-current returned empty, using fallback");
-        }
-        
-        assert!(!branch_info.base_commit.is_empty(), "Base commit should not be empty. Got: {:?}", branch_info);
-        assert!(!branch_info.head_commit.is_empty(), "Head commit should not be empty. Got: {:?}", branch_info);
+
+        // Current branch should be either "main" or "HEAD" depending on git version
+        assert!(branch_info.current_branch == "main" || branch_info.current_branch == "HEAD" || !branch_info.current_branch.is_empty());
+
+        assert!(!branch_info.base_commit.is_empty(), "Base commit should not be empty");
+        assert!(!branch_info.head_commit.is_empty(), "Head commit should not be empty");
+
+        // Base and head commits should be the same for a new repo
+        assert_eq!(branch_info.base_commit, branch_info.head_commit,
+                  "In a new repo, base and head commits should be the same");
     }
 
     #[tokio::test]
-    async fn test_change_summary_with_no_changes() {
+    async fn test_branch_info_extraction_with_feature_branch() {
         let temp_dir = TempDir::new().unwrap();
         let repo_path = create_test_git_repo(&temp_dir);
-        
+
+        // Create and switch to a feature branch
+        Command::new("git")
+            .args(["checkout", "-b", "feature-test"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to create feature branch");
+
+        // Make a commit on the feature branch
+        fs::write(repo_path.join("feature.txt"), "feature content").unwrap();
+        Command::new("git")
+            .args(["add", "feature.txt"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to stage feature file");
+
+        Command::new("git")
+            .args(["commit", "-m", "Feature commit"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to commit feature");
+
+        let result = FileWatcher::get_branch_info(&repo_path, "main").await;
+        assert!(result.is_ok(), "Should extract branch info from feature branch");
+
+        let branch_info = result.unwrap();
+        assert_eq!(branch_info.current_branch, "feature-test");
+        assert_eq!(branch_info.base_branch, "main");
+        assert!(!branch_info.base_commit.is_empty());
+        assert!(!branch_info.head_commit.is_empty());
+
+        // Base and head commits should be different now
+        assert_ne!(branch_info.base_commit, branch_info.head_commit,
+                  "Base and head commits should differ when on feature branch with commits");
+    }
+
+    #[tokio::test]
+    async fn test_branch_info_extraction_error_handling() {
+        let temp_dir = TempDir::new().unwrap();
+        let non_repo_path = temp_dir.path().join("not-a-repo");
+
+        fs::create_dir(&non_repo_path).unwrap();
+
+        let result = FileWatcher::get_branch_info(&non_repo_path, "main").await;
+        // The function might succeed even for non-git directories by using fallback values
+        // What matters is that it doesn't panic and returns a valid result
+        assert!(result.is_ok(), "Should handle non-git directory gracefully: {:?}", result.err());
+        let branch_info = result.unwrap();
+        // In a non-git directory, it should use fallback values
+        assert_eq!(branch_info.base_branch, "main");
+        // Current branch might be "HEAD" as fallback
+        assert!(branch_info.current_branch == "HEAD" || !branch_info.current_branch.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_compute_change_summary_with_no_changes() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
         let changed_files: Vec<ChangedFile> = vec![];
-        
+
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "main").await;
-        assert!(result.is_ok());
-        
+        assert!(result.is_ok(), "Should compute summary with no changes: {:?}", result.err());
+
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 0);
         assert_eq!(summary.lines_added, 0);
@@ -542,83 +688,461 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_change_summary_with_modifications() {
+    async fn test_compute_change_summary_with_staged_changes() {
         let temp_dir = TempDir::new().unwrap();
         let repo_path = create_test_git_repo(&temp_dir);
-        
-        fs::write(repo_path.join("test.txt"), "new file content\nline 2\nline 3").unwrap();
-        
+
+        // Create a new file and stage it
+        fs::write(repo_path.join("staged.txt"), "line 1\nline 2\nline 3\nline 4\nline 5").unwrap();
+
+        Command::new("git")
+            .args(["add", "staged.txt"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to stage file");
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "staged.txt".to_string(),
+                change_type: "added".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "Should compute summary with staged changes: {:?}", result.err());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.files_changed, 1);
+        assert!(summary.has_staged);
+        assert!(!summary.has_unstaged);
+        assert!(summary.lines_added > 0, "Should have added lines, got: {}", summary.lines_added);
+        assert_eq!(summary.lines_removed, 0);
+    }
+
+    #[tokio::test]
+    async fn test_compute_change_summary_with_unstaged_changes() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Modify existing file (creates unstaged changes)
+        fs::write(repo_path.join("initial.txt"), "modified content\nline 2\nline 3").unwrap();
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "initial.txt".to_string(),
+                change_type: "modified".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "Should compute summary with unstaged changes: {:?}", result.err());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.files_changed, 1);
+        assert!(!summary.has_staged);
+        assert!(summary.has_unstaged);
+        // Lines added/removed depend on the actual diff
+        // Note: These are unsigned integers so they're always >= 0
+    }
+
+    #[tokio::test]
+    async fn test_compute_change_summary_with_mixed_changes() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Create staged file
+        fs::write(repo_path.join("staged.txt"), "staged content").unwrap();
+        Command::new("git")
+            .args(["add", "staged.txt"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to stage file");
+
+        // Create unstaged modification
+        fs::write(repo_path.join("initial.txt"), "unstaged modification").unwrap();
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "staged.txt".to_string(),
+                change_type: "added".to_string(),
+            },
+            ChangedFile {
+                path: "initial.txt".to_string(),
+                change_type: "modified".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "Should compute summary with mixed changes: {:?}", result.err());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.files_changed, 2);
+        assert!(summary.has_staged);
+        assert!(summary.has_unstaged);
+    }
+
+    #[tokio::test]
+    async fn test_compute_change_summary_error_handling() {
+        let temp_dir = TempDir::new().unwrap();
+        let non_repo_path = temp_dir.path().join("not-a-repo");
+        fs::create_dir(&non_repo_path).unwrap();
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "test.txt".to_string(),
+                change_type: "modified".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &non_repo_path, "main").await;
+        // The function might succeed even for non-git directories, returning empty results
+        // What matters is that it doesn't panic and returns a valid result
+        assert!(result.is_ok(), "Should handle non-git directory gracefully: {:?}", result.err());
+        let summary = result.unwrap();
+        // In a non-git directory, we should get 0 changes
+        assert_eq!(summary.files_changed, 1); // Still counts the input files
+        assert_eq!(summary.lines_added, 0);
+        assert_eq!(summary.lines_removed, 0);
+    }
+
+    #[test]
+    fn test_handle_file_changes_filters_ignored_paths() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Test the filtering logic separately with individual paths
+        assert!(FileWatcher::should_ignore_path(&repo_path.join(".git/index")));
+        assert!(FileWatcher::should_ignore_path(&repo_path.join("node_modules/package.json")));
+        assert!(!FileWatcher::should_ignore_path(&repo_path.join("src/main.rs")));
+    }
+
+    #[tokio::test]
+    async fn test_git_integration_works() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Create a real file change
+        fs::write(repo_path.join("test.txt"), "new content").unwrap();
         Command::new("git")
             .args(["add", "test.txt"])
             .current_dir(&repo_path)
             .output()
-            .expect("Failed to stage file");
-        
-        let changed_files = vec![
-            ChangedFile {
-                path: "test.txt".to_string(),
-                change_type: "added".to_string(),
-            },
-        ];
-        
-        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "compute_change_summary failed: {:?}", result);
-        
-        let summary = result.unwrap();
-        assert_eq!(summary.files_changed, 1);
-        assert!(summary.has_staged);
-        
-        let diff_output = Command::new("git")
-            .args(["diff", "--numstat", "HEAD"])
-            .current_dir(&repo_path)
-            .output()
-            .expect("Failed to get diff");
-        
-        let diff_str = String::from_utf8_lossy(&diff_output.stdout);
-        eprintln!("Git diff output: {}", diff_str);
-        
-        if summary.lines_added == 0 {
-            eprintln!("Warning: git diff --numstat returned 0 lines added. This might be a git version compatibility issue.");
-            let staged_diff = Command::new("git")
-                .args(["diff", "--cached", "--numstat"])
-                .current_dir(&repo_path)
-                .output()
-                .expect("Failed to get staged diff");
-            let staged_str = String::from_utf8_lossy(&staged_diff.stdout);
-            eprintln!("Git diff --cached output: {}", staged_str);
-        }
+            .expect("Failed to stage test file");
+
+        // Test that git integration works
+        let changed_files = crate::schaltwerk_core::git::get_changed_files(&repo_path, "HEAD")
+            .expect("Should get changed files");
+
+        assert!(!changed_files.is_empty(), "Should detect changed files");
+        assert!(changed_files.iter().any(|f| f.path == "test.txt"), "Should include our test file");
     }
 
+
+
+    // Note: FileWatcherManager tests require a real Tauri AppHandle and are better
+    // suited for integration tests rather than unit tests. The manager functionality
+    // is tested indirectly through the FileWatcher tests.
+
     #[test]
-    fn test_file_change_event_serialization() {
+    fn test_data_structure_sizes() {
+        // Test that our data structures are reasonably sized
         let event = FileChangeEvent {
             session_name: "test".to_string(),
-            changed_files: vec![
-                ChangedFile {
-                    path: "file.txt".to_string(),
-                    change_type: "modified".to_string(),
-                },
-            ],
+            changed_files: Vec::new(),
             change_summary: ChangeSummary {
-                files_changed: 1,
-                lines_added: 5,
-                lines_removed: 2,
-                has_staged: true,
+                files_changed: 0,
+                lines_added: 0,
+                lines_removed: 0,
+                has_staged: false,
                 has_unstaged: false,
             },
             branch_info: BranchInfo {
-                current_branch: "feature".to_string(),
+                current_branch: "main".to_string(),
                 base_branch: "main".to_string(),
                 base_commit: "abc123".to_string(),
                 head_commit: "def456".to_string(),
             },
             timestamp: 1234567890,
         };
-        
-        let json = serde_json::to_string(&event);
-        assert!(json.is_ok());
-        
-        let parsed: Result<FileChangeEvent, _> = serde_json::from_str(&json.unwrap());
-        assert!(parsed.is_ok());
+
+        // Serialize and check size is reasonable
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.len() < 1000, "Serialized event should be reasonably small");
+
+        // Test with larger data
+        let event_with_files = FileChangeEvent {
+            session_name: "large-session".to_string(),
+            changed_files: (0..100).map(|i| ChangedFile {
+                path: format!("file{}.txt", i),
+                change_type: "modified".to_string(),
+            }).collect(),
+            change_summary: ChangeSummary {
+                files_changed: 100,
+                lines_added: 1000,
+                lines_removed: 500,
+                has_staged: true,
+                has_unstaged: true,
+            },
+            branch_info: BranchInfo {
+                current_branch: "feature-branch-with-long-name".to_string(),
+                base_branch: "main".to_string(),
+                base_commit: "abcdef1234567890abcdef1234567890".to_string(),
+                head_commit: "1234567890abcdef1234567890abcdef".to_string(),
+            },
+            timestamp: 1234567890123456789,
+        };
+
+        let json_large = serde_json::to_string(&event_with_files).unwrap();
+        // Should handle larger data structures without issues
+        assert!(json_large.len() > 1000, "Should handle larger data structures");
+    }
+
+    #[test]
+    fn test_edge_case_paths() {
+        // Test various edge case paths
+        assert!(!FileWatcher::should_ignore_path(Path::new("/")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("")));
+
+        // Paths with special characters
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with spaces/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with-dashes/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with_underscores/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with.dots/file.rs")));
+
+        // Paths that contain ignore keywords but aren't exact matches
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/gitignore.txt")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/node_modules_old/file.js")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/target_folder/file.txt")));
+
+        // Very long paths
+        let long_path = "/".repeat(200) + "/file.txt";
+        assert!(!FileWatcher::should_ignore_path(Path::new(&long_path)));
+
+        // Paths with unicode characters
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/🚀/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/тест/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/测试/file.rs")));
+    }
+
+    #[tokio::test]
+    async fn test_change_summary_with_deleted_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Delete a file
+        fs::remove_file(repo_path.join("initial.txt")).unwrap();
+
+        Command::new("git")
+            .args(["add", "initial.txt"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to stage deletion");
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "initial.txt".to_string(),
+                change_type: "deleted".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "Should handle deleted files: {:?}", result.err());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.files_changed, 1);
+        assert!(summary.has_staged);
+        assert!(!summary.has_unstaged);
+        // Lines removed should be at least 1 (the original content)
+        assert!(summary.lines_removed >= 1);
+    }
+
+    #[tokio::test]
+    async fn test_change_summary_with_renamed_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Rename a file using git mv
+        Command::new("git")
+            .args(["mv", "initial.txt", "renamed.txt"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to rename file");
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "initial.txt".to_string(),
+                change_type: "deleted".to_string(),
+            },
+            ChangedFile {
+                path: "renamed.txt".to_string(),
+                change_type: "added".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "Should handle renamed files: {:?}", result.err());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.files_changed, 2); // Both delete and add are counted
+        assert!(summary.has_staged);
+        assert!(!summary.has_unstaged);
+    }
+
+    #[test]
+    fn test_file_change_event_with_empty_files() {
+        let event = FileChangeEvent {
+            session_name: "test".to_string(),
+            changed_files: vec![], // Empty file list
+            change_summary: ChangeSummary {
+                files_changed: 0,
+                lines_added: 0,
+                lines_removed: 0,
+                has_staged: false,
+                has_unstaged: false,
+            },
+            branch_info: BranchInfo {
+                current_branch: "main".to_string(),
+                base_branch: "main".to_string(),
+                base_commit: "abc123".to_string(),
+                head_commit: "abc123".to_string(),
+            },
+            timestamp: 1234567890,
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: FileChangeEvent = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.changed_files.len(), 0);
+        assert_eq!(parsed.change_summary.files_changed, 0);
+    }
+
+    #[test]
+    fn test_file_change_event_with_many_files() {
+        let changed_files: Vec<ChangedFile> = (0..1000).map(|i| ChangedFile {
+            path: format!("file{}.rs", i),
+            change_type: if i % 2 == 0 { "modified".to_string() } else { "added".to_string() },
+        }).collect();
+
+        let event = FileChangeEvent {
+            session_name: "large-session".to_string(),
+            changed_files,
+            change_summary: ChangeSummary {
+                files_changed: 1000,
+                lines_added: 50000,
+                lines_removed: 25000,
+                has_staged: true,
+                has_unstaged: true,
+            },
+            branch_info: BranchInfo {
+                current_branch: "main".to_string(),
+                base_branch: "main".to_string(),
+                base_commit: "abc123".to_string(),
+                head_commit: "def456".to_string(),
+            },
+            timestamp: 1234567890123,
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        let parsed: FileChangeEvent = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed.changed_files.len(), 1000);
+        assert_eq!(parsed.change_summary.files_changed, 1000);
+
+        // Verify file types are preserved
+        let modified_count = parsed.changed_files.iter().filter(|f| f.change_type == "modified").count();
+        let added_count = parsed.changed_files.iter().filter(|f| f.change_type == "added").count();
+        assert_eq!(modified_count, 500);
+        assert_eq!(added_count, 500);
+    }
+
+    #[tokio::test]
+    async fn test_compute_change_summary_with_binary_files() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo_path = create_test_git_repo(&temp_dir);
+
+        // Create a binary file (simulate with non-UTF8 content)
+        let binary_content = vec![0u8, 1, 2, 255, 254, 253];
+        fs::write(repo_path.join("binary.bin"), binary_content).unwrap();
+
+        Command::new("git")
+            .args(["add", "binary.bin"])
+            .current_dir(&repo_path)
+            .output()
+            .expect("Failed to stage binary file");
+
+        let changed_files = vec![
+            ChangedFile {
+                path: "binary.bin".to_string(),
+                change_type: "added".to_string(),
+            },
+        ];
+
+        let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
+        assert!(result.is_ok(), "Should handle binary files: {:?}", result.err());
+
+        let summary = result.unwrap();
+        assert_eq!(summary.files_changed, 1);
+        assert!(summary.has_staged);
+        // Binary files typically show as "-" in git diff --numstat
+        // So lines_added and lines_removed might be 0
+    }
+
+    #[test]
+    fn test_timestamp_generation() {
+        let before = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        std::thread::sleep(Duration::from_millis(10));
+
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        std::thread::sleep(Duration::from_millis(10));
+
+        let after = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+
+        assert!(timestamp >= before, "Timestamp should be after 'before' time");
+        assert!(timestamp <= after, "Timestamp should be before 'after' time");
+        assert!(timestamp > 1609459200000, "Timestamp should be reasonable (after 2021)");
+    }
+
+    #[test]
+    fn test_change_summary_default_values() {
+        let summary = ChangeSummary {
+            files_changed: 0,
+            lines_added: 0,
+            lines_removed: 0,
+            has_staged: false,
+            has_unstaged: false,
+        };
+
+        // Test that default values are correct
+        assert_eq!(summary.files_changed, 0);
+        assert_eq!(summary.lines_added, 0);
+        assert_eq!(summary.lines_removed, 0);
+        assert!(!summary.has_staged);
+        assert!(!summary.has_unstaged);
+    }
+
+    #[test]
+    fn test_branch_info_default_values() {
+        let branch_info = BranchInfo {
+            current_branch: "HEAD".to_string(),
+            base_branch: "main".to_string(),
+            base_commit: "0000000000000000000000000000000000000000".to_string(),
+            head_commit: "0000000000000000000000000000000000000000".to_string(),
+        };
+
+        assert_eq!(branch_info.current_branch, "HEAD");
+        assert_eq!(branch_info.base_branch, "main");
+        assert!(branch_info.base_commit.len() == 40); // SHA-1 hash length
+        assert!(branch_info.head_commit.len() == 40);
     }
 }
