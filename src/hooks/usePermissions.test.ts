@@ -155,6 +155,8 @@ describe('useFolderPermission', () => {
 
   describe('requestPermission function', () => {
     it('successfully requests and grants permission', async () => {
+      vi.useRealTimers() // Use real timers for this test since we need actual async behavior
+      
       const testPath = '/test/path'
       mockInvoke.mockResolvedValueOnce(undefined) // ensure_folder_permission
       mockInvoke.mockResolvedValueOnce(true) // check_folder_access after delay
@@ -175,6 +177,8 @@ describe('useFolderPermission', () => {
     })
 
     it('waits for 500ms delay before checking permission', async () => {
+      vi.useRealTimers() // Use real timers for this test since we need actual async behavior
+      
       const testPath = '/test/path'
       mockInvoke.mockResolvedValueOnce(undefined)
       mockInvoke.mockResolvedValueOnce(true)
@@ -182,9 +186,7 @@ describe('useFolderPermission', () => {
       const { result } = renderHook(() => useFolderPermission())
 
       await act(async () => {
-        const promise = result.current.requestPermission(testPath)
-        vi.advanceTimersByTime(500)
-        await promise
+        await result.current.requestPermission(testPath)
       })
 
       expect(mockInvoke).toHaveBeenCalledWith('ensure_folder_permission', { path: testPath })

@@ -591,7 +591,6 @@ export default function App() {
       return
     } finally {
       projectSwitchInProgressRef.current = false
-      setIsProjectSwitching(false)
       if (projectSwitchAbortControllerRef.current === abortController) {
         projectSwitchAbortControllerRef.current = null
       }
