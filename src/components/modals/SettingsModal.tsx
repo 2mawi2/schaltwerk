@@ -1232,7 +1232,7 @@ fi`}
                                 <ul className="mt-2 space-y-1 list-disc list-inside text-blue-200">
                                     <li>Click any action button to instantly paste its prompt into Claude</li>
                                     <li>Use keyboard shortcuts F1-F6 for even faster access</li>
-                                    <li>Buttons appear next to "Model" and "Reset" in the terminal header</li>
+                                    <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
                                     <li>Maximum of 6 custom buttons allowed</li>
                                 </ul>
                             </div>

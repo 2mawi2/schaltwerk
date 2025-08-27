@@ -58,7 +58,7 @@ export function SwitchCommanderModal({ open, onClose, onSwitch }: Props) {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
             <div className="w-[480px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl">
                 <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">
-                    Switch Commander Model
+                    Switch Commander Agent
                 </div>
                 
                 <div className="p-4 space-y-4">
@@ -68,7 +68,7 @@ export function SwitchCommanderModal({ open, onClose, onSwitch }: Props) {
                             <div className="text-sm text-amber-200">
                                 <p className="font-medium mb-1">Warning</p>
                                 <p className="text-amber-300/90">
-                                    Switching the commander model will restart the terminal and clear the current session history. 
+                                    Switching the commander agent will restart the terminal and clear the current session history. 
                                     Any unsaved work in the commander terminal will be lost.
                                 </p>
                             </div>
@@ -76,14 +76,14 @@ export function SwitchCommanderModal({ open, onClose, onSwitch }: Props) {
                     </div>
                     
                     <div>
-                        <label className="block text-sm text-slate-300 mb-2">Select Model</label>
+                        <label className="block text-sm text-slate-300 mb-2">Select Agent</label>
                         <ModelSelector
                             value={agentType}
                             onChange={setAgentType}
                             disabled={switching}
                         />
                         <p className="text-xs text-slate-400 mt-2">
-                            Choose the AI model to use for the commander terminal
+                            Choose the AI agent to use for the commander terminal
                         </p>
                     </div>
                 </div>
@@ -102,7 +102,7 @@ export function SwitchCommanderModal({ open, onClose, onSwitch }: Props) {
                         onClick={handleSwitch}
                         disabled={switching}
                         className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2"
-                        title="Switch Model (Enter)"
+                        title="Switch Agent (Enter)"
                     >
                         {switching && (
                             <span
@@ -110,7 +110,7 @@ export function SwitchCommanderModal({ open, onClose, onSwitch }: Props) {
                                 aria-hidden="true"
                             />
                         )}
-                        <span>Switch Model</span>
+                        <span>Switch Agent</span>
                         {!switching && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>}
                     </button>
                 </div>

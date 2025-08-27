@@ -47,12 +47,12 @@ describe('SwitchCommanderModal', () => {
     const { rerender } = render(
       <SwitchCommanderModal open={false} onClose={vi.fn()} onSwitch={vi.fn()} />
     )
-    expect(screen.queryByText('Switch Commander Model')).not.toBeInTheDocument()
+    expect(screen.queryByText('Switch Commander Agent')).not.toBeInTheDocument()
 
     await act(async () => {
       rerender(<SwitchCommanderModal open={true} onClose={vi.fn()} onSwitch={vi.fn()} />)
     })
-    expect(screen.getByText('Switch Commander Model')).toBeInTheDocument()
+    expect(screen.getByText('Switch Commander Agent')).toBeInTheDocument()
   })
 
   it('loads current agent type on open and displays it', async () => {
@@ -67,8 +67,8 @@ describe('SwitchCommanderModal', () => {
     // Wait for agent type to load to "Cursor"
     await waitFor(() => screen.getByRole('button', { name: /cursor/i }))
 
-    // Click Switch Model -> should call with 'cursor'
-    fireEvent.click(screen.getByRole('button', { name: /switch model/i }))
+    // Click Switch Agent -> should call with 'cursor'
+    fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith('cursor'))
 
     // Change selection to Claude via dropdown and switch again
@@ -77,7 +77,7 @@ describe('SwitchCommanderModal', () => {
     const claudeOption = await screen.findByRole('button', { name: /^claude$/i })
     fireEvent.click(claudeOption)
 
-    fireEvent.click(screen.getByRole('button', { name: /switch model/i }))
+    fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
     await waitFor(() => expect(onSwitch).toHaveBeenCalledWith('claude'))
   })
 
@@ -87,7 +87,7 @@ describe('SwitchCommanderModal', () => {
     )
     openModal({ onSwitch: slowResolve })
     await waitFor(() => screen.getByRole('button', { name: /cursor/i }))
-    const switchBtn = screen.getByRole('button', { name: /switch model/i }) as HTMLButtonElement
+    const switchBtn = screen.getByRole('button', { name: /switch agent/i }) as HTMLButtonElement
     fireEvent.click(switchBtn)
     await waitFor(() => expect(slowResolve).toHaveBeenCalledTimes(1))
   })
@@ -102,7 +102,7 @@ describe('SwitchCommanderModal', () => {
     // Wait for initial load before triggering switch
     await waitFor(() => screen.getByRole('button', { name: /cursor/i }))
 
-    const switchBtn = screen.getByRole('button', { name: /switch model/i }) as HTMLButtonElement
+    const switchBtn = screen.getByRole('button', { name: /switch agent/i }) as HTMLButtonElement
 
     // Avoid unhandled rejection noise & wrap expectations to complete before rejection bubbles
     const handler = (e: PromiseRejectionEvent) => {
@@ -131,7 +131,7 @@ describe('SwitchCommanderModal', () => {
     const { onClose } = openModal()
 
     // Wait until ready
-    await waitFor(() => screen.getByText('Switch Commander Model'))
+    await waitFor(() => screen.getByText('Switch Commander Agent'))
 
     // Esc closes
     const esc = new KeyboardEvent('keydown', { key: 'Escape' })
@@ -145,7 +145,7 @@ describe('SwitchCommanderModal', () => {
     const onClose2 = vi.fn()
     const onSwitch2 = vi.fn().mockResolvedValue(undefined)
     render(<SwitchCommanderModal open={true} onClose={onClose2} onSwitch={onSwitch2} />)
-    await waitFor(() => screen.getByText('Switch Commander Model'))
+    await waitFor(() => screen.getByText('Switch Commander Agent'))
 
     const enter = new KeyboardEvent('keydown', { key: 'Enter' })
     await act(async () => {
