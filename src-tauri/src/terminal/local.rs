@@ -614,6 +614,7 @@ fn resolve_command(command: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::ApplicationSpec;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
