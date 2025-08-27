@@ -1,4 +1,4 @@
-use super::{CreateParams, TerminalBackend, ApplicationSpec};
+use super::{CreateParams, TerminalBackend};
 use log::{debug, error, info, warn};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
@@ -32,6 +32,12 @@ pub struct LocalPtyAdapter {
     emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     // Tracks whether a flush agent is scheduled per terminal id
     emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
+}
+
+impl Default for LocalPtyAdapter {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl LocalPtyAdapter {
