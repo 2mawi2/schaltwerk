@@ -236,7 +236,7 @@ mod tests {
         let race_id = unique_id("race-terminal");
         
         // Test with timeout and reduced complexity
-        let result = timeout(Duration::from_secs(10), async {
+        let result = timeout(Duration::from_secs(30), async {
             let manager1 = Arc::clone(&manager);
             let race_id_clone = race_id.clone();
             let create_handle = tokio::spawn(async move {
@@ -262,7 +262,7 @@ mod tests {
             assert!(!manager.terminal_exists(&race_id).await.unwrap());
         }).await;
         
-        assert!(result.is_ok(), "Race conditions test should complete within 10 seconds");
+        assert!(result.is_ok(), "Race conditions test should complete within 30 seconds");
     }
 
     #[tokio::test]

@@ -1,4 +1,4 @@
-use std::process::Command;
+use tokio::process::Command;
 use std::path::Path;
 // no serde derives used in this module
 use crate::get_schaltwerk_core;
@@ -34,6 +34,7 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
             "diff", "--name-status", "--cached"
         ])
         .output()
+        .await
         .map_err(|e| format!("Failed to get staged changes: {e}"))?;
     
     if staged_output.status.success() {
@@ -51,6 +52,7 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
             "diff", "--name-status"
         ])
         .output()
+        .await
         .map_err(|e| format!("Failed to get unstaged changes: {e}"))?;
     
     if unstaged_output.status.success() {
@@ -69,6 +71,7 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
             "ls-files", "--others", "--exclude-standard"
         ])
         .output()
+        .await
         .map_err(|e| format!("Failed to get untracked files: {e}"))?;
     
     if untracked_output.status.success() {
@@ -388,6 +391,7 @@ pub async fn get_file_diff_from_main(
         let base_content = Command::new("git")
             .args(["-C", &repo_path, "show", &format!("HEAD:{file_path}")])
             .output()
+            .await
             .map_err(|e| format!("Failed to get HEAD content: {e}"))?;
         
         let base_text = if base_content.status.success() {
@@ -420,6 +424,7 @@ pub async fn get_file_diff_from_main(
     let base_content = Command::new("git")
         .args(["-C", &repo_path, "show", &format!("{base_branch}:{file_path}")])
         .output()
+        .await
         .map_err(|e| format!("Failed to get base content: {e}"))?;
     
     let base_text = if base_content.status.success() {
@@ -468,6 +473,7 @@ pub async fn get_current_branch_name(session_name: Option<String>) -> Result<Str
     let output = Command::new("git")
         .args(["-C", &repo_path, "branch", "--show-current"])
         .output()
+        .await
         .map_err(|e| format!("Failed to get branch name: {e}"))?;
     
     if !output.status.success() {
@@ -486,6 +492,7 @@ pub async fn get_commit_comparison_info(session_name: Option<String>) -> Result<
     let base_output = Command::new("git")
         .args(["-C", &repo_path, "rev-parse", "--short", &base_branch])
         .output()
+        .await
         .map_err(|e| format!("Failed to get base commit: {e}"))?;
     
     let base_commit = String::from_utf8_lossy(&base_output.stdout).trim().to_string();
@@ -493,6 +500,7 @@ pub async fn get_commit_comparison_info(session_name: Option<String>) -> Result<
     let head_output = Command::new("git")
         .args(["-C", &repo_path, "rev-parse", "--short", "HEAD"])
         .output()
+        .await
         .map_err(|e| format!("Failed to get HEAD commit: {e}"))?;
     
     let head_commit = String::from_utf8_lossy(&head_output.stdout).trim().to_string();
@@ -539,6 +547,7 @@ pub async fn get_git_history(
             &limit,
         ])
         .output()
+        .await
         .map_err(|e| format!("Failed to run git log: {e}"))?;
 
     if !output.status.success() {
@@ -595,6 +604,7 @@ pub async fn get_commit_files(
             &commit,
         ])
         .output()
+        .await
         .map_err(|e| format!("Failed to run git diff-tree: {e}"))?;
     if !output.status.success() {
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
@@ -624,6 +634,7 @@ pub async fn get_commit_file_contents(
     let parents_out = Command::new("git")
         .args(["-C", &repo_path, "rev-list", "--parents", "-n", "1", &commit])
         .output()
+        .await
         .map_err(|e| format!("Failed to get commit parents: {e}"))?;
     if !parents_out.status.success() {
         return Err(String::from_utf8_lossy(&parents_out.stderr).to_string());
@@ -636,7 +647,8 @@ pub async fn get_commit_file_contents(
     let old_text = if let Some(parent) = first_parent.clone() {
         let out = Command::new("git")
             .args(["-C", &repo_path, "show", &format!("{parent}:{file_path}")])
-            .output();
+            .output()
+            .await;
         match out {
             Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
             _ => String::new(),
@@ -647,7 +659,8 @@ pub async fn get_commit_file_contents(
 
     let new_out = Command::new("git")
         .args(["-C", &repo_path, "show", &format!("{commit}:{file_path}")])
-        .output();
+        .output()
+        .await;
     let new_text = match new_out {
         Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
         _ => String::new(),
