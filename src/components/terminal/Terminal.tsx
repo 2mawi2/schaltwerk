@@ -790,7 +790,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         if (terminal.current) {
             terminal.current.focus()
         }
-        // Call the optional onTerminalClick handler
+        // Also notify parent about the click to update focus context
         if (onTerminalClick) {
             onTerminalClick()
         }
