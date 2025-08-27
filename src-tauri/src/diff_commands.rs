@@ -27,16 +27,21 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
     
     let mut file_map: HashMap<String, String> = HashMap::new();
     
-    // Get staged changes
-    let staged_output = Command::new("git")
-        .args([
-            "-C", &repo_path,
-            "diff", "--name-status", "--cached"
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to get staged changes: {e}"))?;
-    
+    // Run git commands concurrently to improve performance
+    let (staged_result, unstaged_result, untracked_result) = tokio::join!(
+        Command::new("git")
+            .args(["-C", &repo_path, "diff", "--name-status", "--cached"])
+            .output(),
+        Command::new("git")
+            .args(["-C", &repo_path, "diff", "--name-status"])
+            .output(),
+        Command::new("git")
+            .args(["-C", &repo_path, "ls-files", "--others", "--exclude-standard"])
+            .output()
+    );
+
+    // Process staged changes
+    let staged_output = staged_result.map_err(|e| format!("Failed to get staged changes: {e}"))?;
     if staged_output.status.success() {
         for line in String::from_utf8_lossy(&staged_output.stdout).lines() {
             if let Some((status, path)) = parse_name_status_line(line) {
@@ -45,16 +50,8 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
         }
     }
     
-    // Get unstaged changes
-    let unstaged_output = Command::new("git")
-        .args([
-            "-C", &repo_path,
-            "diff", "--name-status"
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to get unstaged changes: {e}"))?;
-    
+    // Process unstaged changes
+    let unstaged_output = unstaged_result.map_err(|e| format!("Failed to get unstaged changes: {e}"))?;
     if unstaged_output.status.success() {
         for line in String::from_utf8_lossy(&unstaged_output.stdout).lines() {
             if let Some((status, path)) = parse_name_status_line(line) {
@@ -64,15 +61,8 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
         }
     }
     
-    // Get untracked files
-    let untracked_output = Command::new("git")
-        .args([
-            "-C", &repo_path,
-            "ls-files", "--others", "--exclude-standard"
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to get untracked files: {e}"))?;
+    // Process untracked files
+    let untracked_output = untracked_result.map_err(|e| format!("Failed to get untracked files: {e}"))?;
     
     if untracked_output.status.success() {
         for line in String::from_utf8_lossy(&untracked_output.stdout).lines() {

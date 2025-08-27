@@ -777,24 +777,19 @@ mod tests {
     async fn test_environment_variables_set_correctly() {
         let adapter = LocalPtyAdapter::new();
         
-        // Create a terminal that echoes environment variables then sleeps
-        // This ensures the terminal stays alive long enough to capture output
         let params = CreateParams {
             id: "test-env-vars".to_string(),
             cwd: "/tmp".to_string(),
-            app: Some(ApplicationSpec {
-                command: "sh".to_string(),
-                args: vec!["-c".to_string(), "echo LINES=$LINES COLUMNS=$COLUMNS && sleep 0.5".to_string()],
-                env: vec![],
-                ready_timeout_ms: 1000,
-            }),
+            app: None,
         };
         
         // Create with specific size
         adapter.create_with_size(params, 150, 50).await.unwrap();
+        sleep(Duration::from_millis(100)).await;
         
-        // Give it time to execute and capture output
-        sleep(Duration::from_millis(200)).await;
+        // Send command to check environment variables
+        adapter.write("test-env-vars", b"echo LINES=$LINES COLUMNS=$COLUMNS\n").await.unwrap();
+        sleep(Duration::from_millis(500)).await;
         
         // Get the output
         let (_, data) = adapter.snapshot("test-env-vars", None).await.unwrap();
