@@ -4,6 +4,7 @@ import { beforeEach, vi } from 'vitest'
 // Setup global test environment
 beforeEach(() => {
   localStorage.clear()
+  sessionStorage.clear()
 })
 
 // Global mocks for Tauri APIs used across components during tests

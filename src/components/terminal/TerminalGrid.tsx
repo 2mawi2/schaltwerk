@@ -32,16 +32,16 @@ export function TerminalGrid() {
     const [collapsedPercent, setCollapsedPercent] = useState<number>(6) // fallback ~ header height in %
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
     const initialPersistKey = selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown'
-    const initialIsCollapsed = (localStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
+    const initialIsCollapsed = (sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
     const initialExpanded = (() => {
-        const rawExpanded = localStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
+        const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
         const v = rawExpanded ? Number(rawExpanded) : NaN
         return !Number.isNaN(v) && v > 0 && v < 100 ? v : 28
     })()
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
     const [sizes, setSizes] = useState<number[]>(() => {
-        const raw = localStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
+        const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
         let base: number[] = [72, 28]
         if (raw) {
             try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {}
@@ -204,9 +204,9 @@ export function TerminalGrid() {
     const sessionKey = () => (selection.kind === 'commander' ? 'commander' : selection.payload || 'unknown')
     useEffect(() => {
         const key = sessionKey()
-        const raw = localStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
-        const rawCollapsed = localStorage.getItem(`schaltwerk:terminal-grid:collapsed:${key}`)
-        const rawExpanded = localStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`)
+        const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
+        const rawCollapsed = sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${key}`)
+        const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`)
         let nextSizes: number[] = [72, 28]
         let expandedBottom = 28
         
@@ -242,17 +242,17 @@ export function TerminalGrid() {
     useEffect(() => {
         if (!sizes) return
         const key = sessionKey()
-        localStorage.setItem(`schaltwerk:terminal-grid:sizes:${key}`, JSON.stringify(sizes))
+        sessionStorage.setItem(`schaltwerk:terminal-grid:sizes:${key}`, JSON.stringify(sizes))
         if (!isBottomCollapsed) {
             setLastExpandedBottomPercent(sizes[1])
-            localStorage.setItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`, String(sizes[1]))
+            sessionStorage.setItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`, String(sizes[1]))
         }
     }, [sizes, isBottomCollapsed])
 
     // Persist collapsed state
     useEffect(() => {
         const key = sessionKey()
-        localStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
+        sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
     }, [isBottomCollapsed, selection])
 
     const handleClaudeSessionClick = async (e?: React.MouseEvent) => {

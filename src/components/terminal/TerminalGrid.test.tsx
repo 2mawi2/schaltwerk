@@ -425,9 +425,9 @@ describe('TerminalGrid', () => {
       })
     })
 
-    it('persists collapse state per session in localStorage', async () => {
-      // Clear localStorage to start fresh
-      localStorage.clear()
+    it('persists collapse state per session in sessionStorage', async () => {
+      // Clear sessionStorage to start fresh
+      sessionStorage.clear()
 
       renderGrid()
       vi.useRealTimers()
@@ -447,8 +447,8 @@ describe('TerminalGrid', () => {
         expect(expandBtn).toBeInTheDocument()
       })
 
-      // Check localStorage was updated for commander
-      expect(localStorage.getItem('schaltwerk:terminal-grid:collapsed:commander')).toBe('true')
+      // Check sessionStorage was updated for commander
+      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:commander')).toBe('true')
 
       // Switch to a session
       await act(async () => {
@@ -460,12 +460,12 @@ describe('TerminalGrid', () => {
         expect(screen.getByText('Agent — test-session')).toBeInTheDocument()
       })
 
-      // Agent should inherit the collapsed state from commander since it has no localStorage entry
+      // Agent should inherit the collapsed state from commander since it has no sessionStorage entry
       expect(screen.getByTestId('split')).toBeInTheDocument()
       const expandBtn = screen.getByLabelText('Expand terminal panel')
       expect(expandBtn).toBeInTheDocument()
       // The inherited collapsed state is immediately persisted
-      expect(localStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
+      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
 
       // First expand it
       fireEvent.click(expandBtn)
@@ -484,7 +484,7 @@ describe('TerminalGrid', () => {
         expect(expandBtn2).toBeInTheDocument()
       })
 
-      expect(localStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
+      expect(sessionStorage.getItem('schaltwerk:terminal-grid:collapsed:test-session')).toBe('true')
 
       // Switch back to commander
       await act(async () => {
@@ -503,10 +503,10 @@ describe('TerminalGrid', () => {
     })
 
     it('restores correct minimization state when switching between sessions', async () => {
-      // Set up different collapse states in localStorage
-      localStorage.setItem('schaltwerk:terminal-grid:collapsed:commander', 'false')
-      localStorage.setItem('schaltwerk:terminal-grid:collapsed:session-a', 'true')
-      localStorage.setItem('schaltwerk:terminal-grid:collapsed:session-b', 'false')
+      // Set up different collapse states in sessionStorage
+      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:commander', 'false')
+      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-a', 'true')
+      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:session-b', 'false')
 
       renderGrid()
       vi.useRealTimers()
@@ -560,7 +560,7 @@ describe('TerminalGrid', () => {
 
     it('expands terminal when clicking expand button while collapsed', async () => {
       // Pre-set collapsed state for the test session
-      localStorage.setItem('schaltwerk:terminal-grid:collapsed:test', 'true')
+      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:test', 'true')
       
       renderGrid()
       vi.useRealTimers()
@@ -579,7 +579,7 @@ describe('TerminalGrid', () => {
         expect(screen.getByText('Agent — test')).toBeInTheDocument()
       })
 
-      // Terminal should be collapsed for this session (from localStorage)
+      // Terminal should be collapsed for this session (from sessionStorage)
       const expandBtn = screen.getByLabelText('Expand terminal panel')
       expect(expandBtn).toBeInTheDocument()
 
