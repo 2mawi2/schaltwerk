@@ -26,6 +26,13 @@ vi.mock('../../contexts/ProjectContext', () => ({
   })),
 }))
 
+vi.mock('../../contexts/FocusContext', () => ({
+  useFocus: vi.fn(() => ({
+    setFocusForSession: vi.fn(),
+    currentFocus: null,
+  })),
+}))
+
 vi.mock('../diff/SimpleDiffPanel', () => ({
   SimpleDiffPanel: () => <div data-testid="diff-panel">Diff Panel</div>,
 }))
@@ -91,9 +98,9 @@ describe('RightPanelTabs', () => {
       // User clicks on Plan tab
       fireEvent.click(screen.getByTitle('Plan'))
       
-      // Plan tab should now be active
-      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
-      expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-slate-800/50')
+      // Plan tab should now be active (with focus styling)
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-blue-800/30')
+      expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-blue-800/30')
       
       // Switch to a different session
       mockUseSelection.mockReturnValue({
@@ -110,8 +117,9 @@ describe('RightPanelTabs', () => {
       )
       
       // Plan tab should still be active (user preference persisted)
-      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
-      expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-slate-800/50')
+      // Note: still has focus styling from the click
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-blue-800/30')
+      expect(screen.getByRole('button', { name: /Changes/i })).not.toHaveClass('bg-blue-800/30')
     })
     
     it('should persist user tab selection when switching to commander', async () => {
@@ -130,7 +138,7 @@ describe('RightPanelTabs', () => {
       
       // User selects Plan tab explicitly
       fireEvent.click(screen.getByTitle('Plan'))
-      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-blue-800/30')
       
       // Switch to commander
       mockUseSelection.mockReturnValue({
@@ -147,7 +155,8 @@ describe('RightPanelTabs', () => {
       )
       
       // User's choice of Plan should persist (shown as "Plans" in commander)
-      expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-slate-800/50')
+      // Note: still has focus styling from the click
+      expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-blue-800/30')
     })
     
     it('should use smart defaults when user has not made a selection', () => {
@@ -227,7 +236,7 @@ describe('RightPanelTabs', () => {
       
       // User clicks Plan
       fireEvent.click(screen.getByTitle('Plan'))
-      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-blue-800/30')
       
       // Switch to another session - Plan should stay selected
       mockUseSelection.mockReturnValue({
@@ -243,11 +252,13 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
+      // Since the panel still has focus from the previous click, the Plan tab shows focus styling
+      expect(screen.getByTitle('Plan')).toHaveClass('bg-blue-800/30')
       
       // User now clicks Changes
       fireEvent.click(screen.getByRole('button', { name: /Changes/i }))
-      expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-slate-800/50')
+      // Changes tab is now active (with focus styling since we clicked)
+      expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-blue-800/30')
       
       // Switch to commander - Plan tab is shown as "Plans"
       mockUseSelection.mockReturnValue({

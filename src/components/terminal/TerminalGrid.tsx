@@ -466,6 +466,7 @@ export function TerminalGrid() {
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                             isCommander={selection.kind === 'commander'}
                             agentType={agentType}
+                            onTerminalClick={handleClaudeSessionClick}
                         />
                     </div>
                 </div>
@@ -519,6 +520,7 @@ export function TerminalGrid() {
                             sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
                             isCommander={selection.kind === 'commander'}
                             agentType={agentType}
+                            onTerminalClick={handleTerminalClick}
                         />
                     </div>
                 </div>

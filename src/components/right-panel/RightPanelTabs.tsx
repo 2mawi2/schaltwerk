@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
+import { useFocus } from '../../contexts/FocusContext'
 import { VscDiff, VscChevronLeft, VscNotebook } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { PlanContentView } from '../plans/PlanContentView'
@@ -18,8 +19,10 @@ interface RightPanelTabsProps {
 export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride }: RightPanelTabsProps) {
   const { selection, isPlan } = useSelection()
   const { projectPath } = useProject()
+  const { setFocusForSession, currentFocus } = useFocus()
   const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | null>(null)
   const [previewPlanName, setPreviewPlanName] = useState<string | null>(null)
+  const [localFocus, setLocalFocus] = useState<boolean>(false)
 
   // Determine active tab based on user selection or smart defaults
   // For plans, always show agent tab regardless of user selection
@@ -41,6 +44,17 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
     setUserSelectedTab(null)
     setPreviewPlanName(null)
   }, [projectPath])
+  
+  // Update local focus state when global focus changes
+  useEffect(() => {
+    setLocalFocus(currentFocus === 'diff')
+  }, [currentFocus])
+  
+  const handlePanelClick = () => {
+    const sessionKey = effectiveSelection.kind === 'commander' ? 'commander' : effectiveSelection.payload || 'unknown'
+    setFocusForSession(sessionKey, 'diff')
+    setLocalFocus(true)
+  }
 
   // Note: removed Cmd+D toggle to reserve shortcut for New Plan
 
@@ -51,14 +65,23 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
 
   return (
-    <div className="h-full flex flex-col bg-panel">
+    <div 
+      className={`h-full flex flex-col bg-panel border-2 rounded transition-all duration-200 ${localFocus ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+      onClick={handlePanelClick}
+    >
       <div className="h-8 flex items-center border-b border-slate-800">
         {showChangesTab && (
           <button
             onClick={() => setUserSelectedTab('changes')}
             className={clsx(
               'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-              activeTab === 'changes' ? 'text-slate-200 bg-slate-800/50' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+              activeTab === 'changes' 
+                ? localFocus 
+                  ? 'text-blue-200 bg-blue-800/30' 
+                  : 'text-slate-200 bg-slate-800/50'
+                : localFocus
+                  ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
             )}
             title="Changes"
           >
@@ -70,7 +93,13 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           onClick={() => setUserSelectedTab('agent')}
           className={clsx(
             'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-            activeTab === 'agent' ? 'text-slate-200 bg-slate-800/50' : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            activeTab === 'agent' 
+              ? localFocus 
+                ? 'text-blue-200 bg-blue-800/30' 
+                : 'text-slate-200 bg-slate-800/50'
+              : localFocus
+                ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
           )}
           title={`${rightTabLabel}`}
         >
@@ -78,6 +107,11 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           <span>{rightTabLabel}</span>
         </button>
       </div>
+      <div className={`h-[2px] flex-shrink-0 transition-opacity duration-200 ${
+        localFocus
+          ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
+          : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
+      }`} />
 
       {/* Back/breadcrumb row when previewing a plan in commander */}
       {showBackButton && (

@@ -10,6 +10,7 @@ interface TerminalTabsProps {
   isCommander?: boolean
   maxTabs?: number
   agentType?: string
+  onTerminalClick?: () => void
 }
 
 export interface TerminalTabsHandle {
@@ -23,7 +24,8 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   sessionName,
   isCommander = false,
   maxTabs = 6,
-  agentType
+  agentType,
+  onTerminalClick
 }, ref) => {
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
@@ -132,6 +134,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
               sessionName={sessionName}
               isCommander={isCommander}
               agentType={agentType}
+              onTerminalClick={onTerminalClick}
             />
           </div>
         ))}
