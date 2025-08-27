@@ -48,7 +48,10 @@ function DraggableSessionCard({
     }))
 
     return (
-        <div ref={drag as any} className="cursor-move mb-2">
+        <div ref={drag as any} className={clsx(
+            "cursor-move mb-2 transition-all duration-200 ease-in-out",
+            isDragging ? "opacity-50 scale-95" : "hover:scale-[1.02]"
+        )}>
             <SessionCard
                 session={session}
                 isSelected={!!isSelected}
@@ -123,9 +126,9 @@ function Column({
             ref={drop as any}
             className={clsx(
                 'flex-1 flex flex-col bg-gray-900 rounded-lg p-3',
-                'border-2 transition-colors',
+                'border-2 transition-all duration-300 ease-in-out',
                 'min-w-[300px] max-w-[480px] min-h-0',
-                isOver && canDrop ? 'border-blue-500 bg-gray-850' : 'border-gray-800'
+                isOver && canDrop ? 'border-blue-500 bg-gray-850 scale-[1.02]' : 'border-gray-800'
             )}
         >
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
@@ -374,23 +377,25 @@ export function KanbanView() {
                 onDeletePlan={handleDeleteDraft}
             />
           </div>
-          <div className="w-[480px] min-w-[400px] max-w-[600px] overflow-hidden border-l border-slate-800 bg-panel flex flex-col">
-            <div className="flex-1 overflow-hidden">
+          <div className="w-[480px] min-w-[480px] max-w-[600px] overflow-hidden border-l border-slate-800 bg-panel flex flex-col transition-all duration-300 ease-in-out">
+            <div className="flex-1 overflow-hidden relative">
               {selectedForDetails ? (
-                selectedForDetails.isPlan === true ? (
-                  <PlanEditor 
-                    sessionName={selectedForDetails.payload}
-                    onStart={() => handleRunDraft(selectedForDetails.payload)}
-                  />
-                ) : (
-                  <SilentErrorBoundary>
-                    <RightPanelTabs 
-                      onFileSelect={handleOpenDiff}
-                      selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
-                      isPlanOverride={false}
+                <div className="absolute inset-0 animate-fadeIn">
+                  {selectedForDetails.isPlan === true ? (
+                    <PlanEditor 
+                      sessionName={selectedForDetails.payload}
+                      onStart={() => handleRunDraft(selectedForDetails.payload)}
                     />
-                  </SilentErrorBoundary>
-                )
+                  ) : (
+                    <SilentErrorBoundary>
+                      <RightPanelTabs 
+                        onFileSelect={handleOpenDiff}
+                        selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
+                        isPlanOverride={false}
+                      />
+                    </SilentErrorBoundary>
+                  )}
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-xs text-slate-400">
                   Select a agent to view details

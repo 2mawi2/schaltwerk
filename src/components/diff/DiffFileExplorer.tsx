@@ -38,7 +38,7 @@ export function DiffFileExplorer({
   getConfirmationMessage = (count: number) => `Are you sure you want to cancel this review? You will lose ${count} comment${count > 1 ? 's' : ''}.`
 }: DiffFileExplorerProps) {
   return (
-    <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col">
+    <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col animate-slideIn">
       <div className="p-3 border-b border-slate-800">
         <div className="text-sm font-medium mb-1">Changed Files</div>
         <div className="text-xs text-slate-500">{files.length} files</div>

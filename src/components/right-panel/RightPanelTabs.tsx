@@ -66,7 +66,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
 
   return (
     <div 
-      className={`h-full flex flex-col bg-panel border-2 rounded transition-all duration-200 ${localFocus ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+      className={`h-full flex flex-col bg-panel border-2 rounded transition-all duration-200 ease-in-out ${localFocus ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
       <div className="h-8 flex items-center border-b border-slate-800">
@@ -128,8 +128,9 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
         </div>
       )}
 
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'changes' ? (
+      <div className="flex-1 overflow-hidden relative">
+        <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
+          {activeTab === 'changes' ? (
           isCommander ? (
             <GitHistoryPanel />
           ) : (
@@ -160,6 +161,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
             )
           )
         )}
+        </div>
       </div>
     </div>
   )

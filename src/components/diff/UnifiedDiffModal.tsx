@@ -893,13 +893,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     <>
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 transition-opacity duration-200"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fadeIn"
         onClick={onClose}
       />
       
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800">
+        <div className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800 animate-slideUp">
           {/* Header */}
           <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
             <div className="flex items-center gap-4">
@@ -945,7 +945,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
             />
 
             {/* Diff viewer */}
-            <div className="flex-1 flex flex-col overflow-hidden relative">
+            <div className="flex-1 flex flex-col overflow-hidden relative animate-fadeIn">
               <DiffViewer
                 files={files}
                 selectedFile={selectedFile}

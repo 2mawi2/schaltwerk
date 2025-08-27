@@ -13,7 +13,10 @@ Schaltwerk is a Tauri-based desktop application that provides a visual interface
 **IMPORTANT**: Always run these commands before considering a agent complete:
 
 ```bash
-# Run all tests and lints
+# Run all tests and lints (PREFERRED METHOD)
+just test
+
+# Or use npm directly:
 npm run test
 
 # Or individually:
@@ -25,6 +28,13 @@ npm run build:rust    # Rust compilation check
 ### Development Commands
 
 ```bash
+# Test the application (ALWAYS use this for validation)
+just test             # Run all tests, lints, and build checks
+
+# Run the application (let user test functionality)
+just run              # Start the full Tauri application
+
+# Alternative npm commands:
 npm run dev           # Start Vite dev server
 npm run build         # Build TypeScript/React frontend
 npm run tauri dev     # Run full Tauri app in development mode

@@ -53,12 +53,12 @@ export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
 
   return (
     <div 
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fadeIn"
       onClick={handleBackdropClick}
     >
       <div 
         ref={modalRef}
-        className="relative w-[95vw] h-[90vh] max-w-[1600px] bg-slate-900 rounded-lg shadow-2xl flex flex-col"
+        className="relative w-[95vw] h-[90vh] max-w-[1600px] bg-slate-900 rounded-lg shadow-2xl flex flex-col animate-slideUp"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
