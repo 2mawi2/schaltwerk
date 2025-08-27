@@ -37,7 +37,7 @@ just run              # Start the full Tauri application
 # Alternative npm commands:
 npm run dev           # Start Vite dev server
 npm run build         # Build TypeScript/React frontend
-npm run tauri dev     # Run full Tauri app in development mode
+npm run tauri:dev     # Run full Tauri app in development mode (proper working directory)
 npm run check         # Full check (alias for npm run test)
 ```
 
@@ -338,7 +338,7 @@ useEffect(() => {
 2. Run `npm run lint` to check TypeScript
 3. Run `npm run lint:rust` to check Rust code
 4. Run `npm run test` for full validation
-5. Test in dev mode: `npm run tauri dev`
+5. Test in dev mode: `npm run tauri:dev`
 6. Only commit when all checks pass
 
 ## Important Notes
@@ -395,16 +395,16 @@ The application uses standard log levels with smart defaults:
 Set the `RUST_LOG` environment variable to override defaults:
 ```bash
 # Maximum verbosity for everything
-RUST_LOG=trace npm run tauri dev
+RUST_LOG=trace npm run tauri:dev
 
 # Debug our code, warn for everything else
-RUST_LOG=schaltwerk=debug,warn npm run tauri dev
+RUST_LOG=schaltwerk=debug,warn npm run tauri:dev
 
 # Only errors
-RUST_LOG=error npm run tauri dev
+RUST_LOG=error npm run tauri:dev
 
 # Debug specific module
-RUST_LOG=schaltwerk::terminal=trace npm run tauri dev
+RUST_LOG=schaltwerk::terminal=trace npm run tauri:dev
 ```
 
 ### Log Format

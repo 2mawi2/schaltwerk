@@ -33,9 +33,9 @@ First launch requires security approval (right-click → Open).
 
 ```bash
 npm install
-npm run tauri dev
+npm run tauri:dev
 # Pass args to the app like this (first -- is for npm, the other two for Tauri)
-npm run tauri dev -- -- -- --help
+npm run tauri:dev -- -- -- --help
 ```
 
 ### MCP Server Setup (for Claude Code integration)

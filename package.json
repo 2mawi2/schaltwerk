@@ -8,6 +8,7 @@
     "build": "tsc --noEmit --skipLibCheck && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
+    "tauri:dev": "SCHALTWERK_START_DIR=$HOME tauri dev",
     "lint": "tsc --noEmit",
     "lint:rust": "cd src-tauri && CARGO_TERM_COLOR=never cargo clippy -q -- -D warnings",
     "test:frontend": "FORCE_COLOR=0 vitest run --silent --reporter=dot",
