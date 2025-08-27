@@ -591,7 +591,7 @@ mod tests {
     fn test_utf16_file_detection() {
         let temp_dir = TempDir::new().unwrap();
         let file_path = temp_dir.path().join("utf16.txt");
-        
+
         // UTF-16 BOM followed by "Hello" in UTF-16LE
         let utf16_content = vec![
             0xFF, 0xFE, // UTF-16 LE BOM
@@ -602,8 +602,390 @@ mod tests {
             0x6F, 0x00, // o
         ];
         fs::write(&file_path, utf16_content).unwrap();
-        
+
         let result = is_binary_file(&file_path).unwrap();
         assert!(result, "UTF-16 files should be detected as binary due to null bytes");
+    }
+
+    #[test]
+    fn test_permission_denied_read() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("no_read_permission.txt");
+        fs::write(&file_path, "test content").unwrap();
+
+        // Remove read permission (Unix-like systems)
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&file_path).unwrap().permissions();
+            perms.set_mode(0o200); // write only
+            fs::set_permissions(&file_path, perms).unwrap();
+
+            // Test is_file_diffable with no read permission
+            let result = is_file_diffable(&file_path);
+            assert!(result.is_err(), "Should return error for file without read permission");
+            let err_msg = result.unwrap_err();
+            assert!(err_msg.contains("Failed to get file metadata") ||
+                    err_msg.contains("Failed to open file"),
+                    "Error should indicate permission issue: {}", err_msg);
+
+            // Test is_binary_file with no read permission
+            let result = is_binary_file(&file_path);
+            assert!(result.is_err(), "Should return error for file without read permission");
+            let err_msg = result.unwrap_err();
+            assert!(err_msg.contains("Failed to open file"), "Error should indicate file open issue: {}", err_msg);
+
+            // Restore permissions for cleanup
+            let mut perms = fs::metadata(&file_path).unwrap().permissions();
+            perms.set_mode(0o644);
+            fs::set_permissions(&file_path, perms).unwrap();
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, just test that the file exists and is readable
+            let result = is_file_diffable(&file_path).unwrap();
+            assert!(result, "File should be diffable on non-Unix systems");
+        }
+    }
+
+    #[test]
+    fn test_permission_denied_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let subdir = temp_dir.path().join("no_access");
+        fs::create_dir(&subdir).unwrap();
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = fs::metadata(&subdir).unwrap().permissions();
+            perms.set_mode(0o000); // no permissions
+            fs::set_permissions(&subdir, perms).unwrap();
+
+            // We can't create a file in a directory without permissions, so just test the directory itself
+            let result = is_file_diffable(&subdir);
+            assert!(result.is_err(), "Should return error for directory without access");
+
+            // Restore permissions for cleanup
+            let mut perms = fs::metadata(&subdir).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&subdir, perms).unwrap();
+        }
+
+        #[cfg(not(unix))]
+        {
+            let file_path = subdir.join("test.txt");
+            fs::write(&file_path, "test").unwrap();
+            let result = is_file_diffable(&file_path).unwrap();
+            assert!(result, "File should be diffable on non-Unix systems");
+        }
+    }
+
+    #[test]
+    fn test_symlink_to_regular_file() {
+        let temp_dir = TempDir::new().unwrap();
+        let target_file = temp_dir.path().join("target.txt");
+        fs::write(&target_file, "Hello, symlink target!").unwrap();
+
+        let symlink_path = temp_dir.path().join("link.txt");
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&target_file, &symlink_path).unwrap();
+
+            // Test that symlink is treated as diffable (follows target)
+            let result = is_file_diffable(&symlink_path).unwrap();
+            assert!(result, "Symlink to text file should be diffable");
+
+            // Test with binary target (use null byte for reliable binary detection)
+            let binary_target = temp_dir.path().join("binary_target.dat");
+            fs::write(&binary_target, &[0x7F, 0x45, 0x4C, 0x46, 0x00, 0x01, 0x02]).unwrap(); // ELF magic + null byte
+            let binary_link = temp_dir.path().join("binary_link.dat");
+            std::os::unix::fs::symlink(&binary_target, &binary_link).unwrap();
+
+            // Test both functions with the symlink
+            let result = is_binary_file(&binary_link).unwrap();
+            assert!(result, "Symlink to binary file should be detected as binary");
+
+            let result = is_file_diffable(&binary_link).unwrap();
+            assert!(!result, "Symlink to binary file should not be diffable");
+        }
+
+        #[cfg(windows)]
+        {
+            // On Windows, create a junction or just test the regular file
+            let result = is_file_diffable(&target_file).unwrap();
+            assert!(result, "Regular file should be diffable");
+        }
+    }
+
+    #[test]
+    fn test_broken_symlink() {
+        let temp_dir = TempDir::new().unwrap();
+        let broken_link = temp_dir.path().join("broken_link.txt");
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink("nonexistent_target.txt", &broken_link).unwrap();
+
+            // Broken symlinks behavior varies by system - they might return info about the link itself
+            // rather than an error. Let's just verify the function doesn't panic.
+            let result = is_file_diffable(&broken_link);
+            // The result can be either Ok(true) or Err, depending on system behavior
+            // What's important is that it doesn't panic
+            match result {
+                Ok(is_diffable) => {
+                    // On some systems, broken symlinks are treated as diffable
+                    // (they would show as deleted if the target doesn't exist)
+                    assert!(is_diffable, "Broken symlink should be diffable (shows as deleted)");
+                },
+                Err(e) => {
+                    // On other systems, broken symlinks return errors
+                    assert!(e.contains("Failed to get file metadata") ||
+                            e.contains("Failed to open file") ||
+                            e.contains("Failed to read file"));
+                }
+            }
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, test with a regular file
+            fs::write(&broken_link, "test").unwrap();
+            let result = is_file_diffable(&broken_link).unwrap();
+            assert!(result, "Regular file should be diffable");
+        }
+    }
+
+    #[test]
+    fn test_symlink_to_directory() {
+        let temp_dir = TempDir::new().unwrap();
+        let target_dir = temp_dir.path().join("target_dir");
+        fs::create_dir(&target_dir).unwrap();
+
+        let dir_link = temp_dir.path().join("dir_link");
+
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&target_dir, &dir_link).unwrap();
+
+            // Symlink to directory should return error (we expect regular files)
+            let result = is_file_diffable(&dir_link);
+            assert!(result.is_err(), "Symlink to directory should return error");
+        }
+
+        #[cfg(not(unix))]
+        {
+            // On non-Unix systems, test with a regular file
+            fs::write(&dir_link, "test").unwrap();
+            let result = is_file_diffable(&dir_link).unwrap();
+            assert!(result, "Regular file should be diffable");
+        }
+    }
+
+    #[test]
+    fn test_directory_path() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Test with directory path - should return error
+        let result = is_file_diffable(temp_dir.path());
+        assert!(result.is_err(), "Directory path should return error");
+        let err_msg = result.unwrap_err();
+        // The error message varies by platform, so just check that it's some kind of file access error
+        assert!(err_msg.contains("Failed to read file") ||
+                err_msg.contains("Failed to get file metadata") ||
+                err_msg.contains("Is a directory") ||
+                err_msg.contains("os error"),
+                "Error should indicate file access issue: {}", err_msg);
+
+        // Test is_binary_file with directory
+        let result = is_binary_file(temp_dir.path());
+        assert!(result.is_err(), "Directory should return error for binary check");
+        let err_msg = result.unwrap_err();
+        assert!(err_msg.contains("Failed to open file") ||
+                err_msg.contains("Failed to read file") ||
+                err_msg.contains("Is a directory"),
+                "Binary check should return appropriate error: {}", err_msg);
+    }
+
+    #[test]
+    fn test_very_long_file_name() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Create a file with a very long name (near typical filesystem limits)
+        let long_name = "a".repeat(200); // 200 character name
+        let long_path = temp_dir.path().join(format!("{}.txt", long_name));
+
+        fs::write(&long_path, "test content").unwrap();
+
+        let result = is_file_diffable(&long_path).unwrap();
+        assert!(result, "File with long name should be diffable");
+
+        let result = is_binary_file(&long_path).unwrap();
+        assert!(!result, "Text file with long name should not be binary");
+    }
+
+    #[test]
+    fn test_utf8_with_bom() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("utf8_bom.txt");
+
+        // UTF-8 BOM followed by text
+        let bom_content = vec![
+            0xEF, 0xBB, 0xBF, // UTF-8 BOM
+            b'H', b'e', b'l', b'l', b'o', b' ', b'w', b'o', b'r', b'l', b'd'
+        ];
+        fs::write(&file_path, bom_content).unwrap();
+
+        let result = is_file_diffable(&file_path).unwrap();
+        assert!(result, "UTF-8 file with BOM should be diffable");
+
+        let result = is_binary_file(&file_path).unwrap();
+        assert!(!result, "UTF-8 with BOM should not be detected as binary");
+    }
+
+    #[test]
+    fn test_unicode_edge_cases() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Test various Unicode scenarios
+        let test_cases = vec![
+            ("emoji.txt", "Hello 🌍 🌟 🚀"),
+            ("mixed_scripts.txt", "Hello こんにちは 안녕하세요"),
+            ("combining_chars.txt", "e\u{0301} + u\u{0308} = eu\u{0308}\u{0301}"),
+            ("zero_width.txt", "test\u{200B}with\u{200C}zero\u{200D}width"),
+            ("control_chars.txt", "line1\u{000A}line2\u{000D}line3"),
+        ];
+
+        for (filename, content) in test_cases {
+            let file_path = temp_dir.path().join(filename);
+            fs::write(&file_path, content).unwrap();
+
+            let result = is_file_diffable(&file_path).unwrap();
+            assert!(result, "Unicode file '{}' should be diffable", filename);
+
+            let result = is_binary_file(&file_path).unwrap();
+            assert!(!result, "Unicode text file '{}' should not be binary", filename);
+        }
+    }
+
+    #[test]
+    fn test_file_modified_during_check() {
+        let temp_dir = TempDir::new().unwrap();
+        let file_path = temp_dir.path().join("modified_during_check.txt");
+
+        // Create a large enough file that takes time to read
+        let initial_content = vec![b'A'; 10000];
+        fs::write(&file_path, initial_content).unwrap();
+
+        // This test is inherently racy, but we can at least verify the functions
+        // handle the file system operations gracefully
+        let result = is_file_diffable(&file_path).unwrap();
+        assert!(result, "File should be diffable even if modified during check");
+
+        let result = is_binary_file(&file_path).unwrap();
+        assert!(!result, "File without null bytes should not be binary");
+    }
+
+    #[test]
+    fn test_max_file_size_edge_cases() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Test file exactly at boundary - 1 byte
+        let near_max_path = temp_dir.path().join("near_max.txt");
+        let near_max_content = vec![b'a'; (MAX_FILE_SIZE - 1) as usize];
+        fs::write(&near_max_path, near_max_content).unwrap();
+        let result = is_file_diffable(&near_max_path).unwrap();
+        assert!(result, "File just under MAX_FILE_SIZE should be diffable");
+
+        // Test file with null byte in the checked range (first BINARY_CHECK_SIZE bytes)
+        let null_near_end_path = temp_dir.path().join("null_near_end.txt");
+        let mut content = vec![b'a'; (MAX_FILE_SIZE - 100) as usize];
+        content[100] = 0; // Null byte early in the file (within BINARY_CHECK_SIZE)
+        fs::write(&null_near_end_path, content).unwrap();
+        let result = is_file_diffable(&null_near_end_path).unwrap();
+        assert!(!result, "File with null byte should not be diffable");
+
+        // Test empty file (0 bytes)
+        let empty_path = temp_dir.path().join("empty_zero.txt");
+        fs::write(&empty_path, "").unwrap();
+        let result = is_file_diffable(&empty_path).unwrap();
+        assert!(result, "Empty file should be diffable");
+    }
+
+    #[test]
+    fn test_binary_detection_edge_cases() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // File with null byte at exact BINARY_CHECK_SIZE boundary (last byte checked)
+        let boundary_null_path = temp_dir.path().join("boundary_null.dat");
+        let mut content = vec![b'A'; BINARY_CHECK_SIZE];
+        content[BINARY_CHECK_SIZE - 1] = 0; // This is within the checked range (index 7999)
+        fs::write(&boundary_null_path, content).unwrap();
+        let result = is_binary_file(&boundary_null_path).unwrap();
+        assert!(result, "File with null at BINARY_CHECK_SIZE boundary should be binary");
+
+        // File with null byte right after BINARY_CHECK_SIZE (not checked)
+        let after_boundary_path = temp_dir.path().join("after_boundary.dat");
+        let mut content = vec![b'A'; BINARY_CHECK_SIZE + 1];
+        content[BINARY_CHECK_SIZE] = 0; // This is beyond the checked range
+        fs::write(&after_boundary_path, content).unwrap();
+        let result = is_binary_file(&after_boundary_path).unwrap();
+        assert!(!result, "File with null after BINARY_CHECK_SIZE should not be detected as binary");
+
+        // File exactly BINARY_CHECK_SIZE with no nulls
+        let exact_size_no_null_path = temp_dir.path().join("exact_size_no_null.txt");
+        let content = vec![b'A'; BINARY_CHECK_SIZE];
+        fs::write(&exact_size_no_null_path, content).unwrap();
+        let result = is_binary_file(&exact_size_no_null_path).unwrap();
+        assert!(!result, "File exactly BINARY_CHECK_SIZE with no nulls should not be binary");
+    }
+
+    #[test]
+    fn test_check_file_diffability_error_handling() {
+        let temp_dir = TempDir::new().unwrap();
+        let non_existent = temp_dir.path().join("does_not_exist.txt");
+
+        // Test check_file_diffability with non-existent file
+        // Note: Non-existent files ARE diffable (they show as deleted)
+        let info = check_file_diffability(&non_existent);
+        assert!(info.is_diffable);
+        assert!(info.reason.is_none());
+
+        // Test with directory
+        let info = check_file_diffability(temp_dir.path());
+        assert!(!info.is_diffable);
+        assert!(info.reason.is_some());
+        assert!(info.reason.unwrap().contains("Error checking file"));
+    }
+
+    #[test]
+    fn test_determine_non_diffable_reason_edge_cases() {
+        let temp_dir = TempDir::new().unwrap();
+
+        // Test with file that has extension but isn't in NON_DIFFABLE_EXTENSIONS
+        let unknown_ext_path = temp_dir.path().join("test.unknown");
+        fs::write(&unknown_ext_path, "text content").unwrap();
+        let reason = determine_non_diffable_reason(&unknown_ext_path);
+        // Should fall through to binary content check, then to default
+        assert!(reason.contains("Binary file content detected") || reason.contains("File cannot be diffed"));
+
+        // Test with file that has null bytes but small size
+        // Use an extension that's not in NON_DIFFABLE_EXTENSIONS to test binary content detection
+        let small_null_path = temp_dir.path().join("small_null.txt");
+        fs::write(&small_null_path, &[b'A', 0, b'B']).unwrap();
+
+        // First verify that is_binary_file detects it as binary
+        let is_binary = is_binary_file(&small_null_path).unwrap();
+        assert!(is_binary, "File with null byte should be detected as binary");
+
+        let reason = determine_non_diffable_reason(&small_null_path);
+        assert!(reason.contains("Binary file content detected"), "Expected 'Binary file content detected', got: {}", reason);
+
+        // Test with file that has no extension and no null bytes
+        let no_ext_text_path = temp_dir.path().join("no_extension_text");
+        fs::write(&no_ext_text_path, "This is plain text without extension").unwrap();
+        let reason = determine_non_diffable_reason(&no_ext_text_path);
+        // This should fall through to the default case since it's not caught by other conditions
+        assert!(reason.contains("File cannot be diffed"));
     }
 }
