@@ -100,34 +100,43 @@ export function useTerminalTabs({
     }
   }, [workingDirectory])
 
-  const addTab = useCallback(async () => {
-    if (sessionTabs.tabs.length >= sessionTabs.maxTabs) {
-      return
-    }
+   const addTab = useCallback(async () => {
+     if (sessionTabs.tabs.length >= sessionTabs.maxTabs) {
+       return
+     }
 
-    const newIndex = Math.max(...sessionTabs.tabs.map(t => t.index)) + 1
-    const newTerminalId = `${baseTerminalId}-${newIndex}`
+     const newIndex = Math.max(...sessionTabs.tabs.map(t => t.index)) + 1
+     const newTerminalId = `${baseTerminalId}-${newIndex}`
 
-    try {
-      await createTerminal(newTerminalId)
-      
-      const newTab: TabInfo = {
-        index: newIndex,
-        terminalId: newTerminalId,
-        label: `Terminal ${sessionTabs.tabs.length + 1}`
-      }
+     try {
+       await createTerminal(newTerminalId)
 
-      const updatedState = {
-        ...sessionTabs,
-        tabs: [...sessionTabs.tabs, newTab],
-        activeTab: newIndex
-      }
-      globalTabState.set(sessionKey, updatedState)
-      triggerUpdate()
-    } catch (error) {
-      console.error('Failed to add new tab:', error)
-    }
-  }, [sessionTabs, baseTerminalId, createTerminal, sessionKey, triggerUpdate])
+       const newTab: TabInfo = {
+         index: newIndex,
+         terminalId: newTerminalId,
+         label: `Terminal ${sessionTabs.tabs.length + 1}`
+       }
+
+       const updatedState = {
+         ...sessionTabs,
+         tabs: [...sessionTabs.tabs, newTab],
+         activeTab: newIndex
+       }
+       globalTabState.set(sessionKey, updatedState)
+       triggerUpdate()
+
+         // Focus the newly created terminal tab
+         if (typeof window !== 'undefined') {
+           requestAnimationFrame(() => {
+             window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal', {
+               detail: { terminalId: newTerminalId, focusType: 'terminal' }
+             }))
+           })
+         }
+     } catch (error) {
+       console.error('Failed to add new tab:', error)
+     }
+   }, [sessionTabs, baseTerminalId, createTerminal, sessionKey, triggerUpdate])
 
   const closeTab = useCallback(async (tabIndex: number) => {
     if (sessionTabs.tabs.length <= 1) {

@@ -85,15 +85,34 @@ export function TerminalGrid() {
         const handleTerminalReset = () => {
             setTerminalKey(prev => prev + 1)
         }
-        
-        const handleFocusTerminal = () => {
+
+        const handleFocusTerminal = (event?: Event) => {
             if (isBottomCollapsed) {
                 const expandedSize = lastExpandedBottomPercent || 28
                 setSizes([100 - expandedSize, expandedSize])
                 setIsBottomCollapsed(false)
             }
+
+            // Handle new focus events with specific terminal targeting
+            if (event && 'detail' in event) {
+                const customEvent = event as CustomEvent
+                const { focusType, terminalId } = customEvent.detail
+                setTimeout(() => {
+                    if (focusType === 'claude' && claudeTerminalRef.current) {
+                        claudeTerminalRef.current.focus()
+                    } else if (focusType === 'terminal' && terminalTabsRef.current) {
+                        if (terminalId) {
+                            // Focus a specific terminal tab
+                            terminalTabsRef.current.focusTerminal(terminalId)
+                        } else {
+                            // Focus the current active terminal tab
+                            terminalTabsRef.current.focus()
+                        }
+                    }
+                }, 50)
+            }
         }
-        
+
         window.addEventListener('schaltwerk:reset-terminals', handleTerminalReset)
         window.addEventListener('schaltwerk:focus-terminal', handleFocusTerminal)
         return () => {

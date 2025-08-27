@@ -14,7 +14,8 @@ interface TerminalTabsProps {
 }
 
 export interface TerminalTabsHandle {
-  focus: () => void
+   focus: () => void
+   focusTerminal: (terminalId: string) => void
 }
 
 export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
@@ -35,26 +36,39 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
 
   const terminalRefs = useRef<Map<number, TerminalHandle>>(new Map())
 
-  useImperativeHandle(ref, () => ({
-    focus: () => {
-      // Since we only render the active terminal, it should be the only one in the refs
-      const activeTerminalRef = terminalRefs.current.get(activeTab)
-      if (activeTerminalRef) {
-        activeTerminalRef.focus()
-      }
-    }
-  }), [activeTab])
+   useImperativeHandle(ref, () => ({
+     focus: () => {
+       // Since we only render the active terminal, it should be the only one in the refs
+       const activeTerminalRef = terminalRefs.current.get(activeTab)
+       if (activeTerminalRef) {
+         activeTerminalRef.focus()
+       }
+     },
+     focusTerminal: (terminalId: string) => {
+       // Find the tab with the matching terminal ID and focus it
+       const targetTab = tabs.find(tab => tab.terminalId === terminalId)
+       if (targetTab) {
+         setActiveTab(targetTab.index)
+          requestAnimationFrame(() => {
+            const terminalRef = terminalRefs.current.get(targetTab.index)
+            if (terminalRef) {
+              terminalRef.focus()
+            }
+          })
+       }
+     }
+   }), [activeTab, tabs])
 
   const handleTabClick = (e: React.MouseEvent, tabIndex: number) => {
     e.stopPropagation()
     setActiveTab(tabIndex)
-    // Focus the terminal after a brief delay
-    setTimeout(() => {
+    // Focus the terminal after DOM update
+    requestAnimationFrame(() => {
       const activeTerminalRef = terminalRefs.current.get(tabIndex)
       if (activeTerminalRef) {
         activeTerminalRef.focus()
       }
-    }, 50)
+    })
   }
 
   const handleTabClose = (e: React.MouseEvent, tabIndex: number) => {

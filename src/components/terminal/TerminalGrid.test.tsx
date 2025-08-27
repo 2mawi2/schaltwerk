@@ -575,16 +575,20 @@ describe('TerminalGrid', () => {
         await bridge!.setSelection({ kind: 'session', payload: 'test', worktreePath: '/test' })
       })
 
-      await waitFor(() => {
-        expect(screen.getByText('Agent — test')).toBeInTheDocument()
-      })
+       await waitFor(() => {
+         expect(screen.getByText('Agent — test')).toBeInTheDocument()
+       })
 
-      // Terminal should be collapsed for this session (from sessionStorage)
-      const expandBtn = screen.getByLabelText('Expand terminal panel')
-      expect(expandBtn).toBeInTheDocument()
+       // Terminal should be collapsed for this session (from sessionStorage)
+       // Wait for the button to have the correct aria-label
+       let expandBtn: HTMLElement
+       await waitFor(() => {
+         expandBtn = screen.getByLabelText('Expand terminal panel')
+         expect(expandBtn).toBeInTheDocument()
+       })
 
-      // Click expand button to expand
-      fireEvent.click(expandBtn)
+       // Click expand button to expand
+       fireEvent.click(expandBtn!)
 
       // Should expand the terminal
       await waitFor(() => {

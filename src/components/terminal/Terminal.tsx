@@ -461,10 +461,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }
                     pendingOutput.current = [];
                 }
-                setHydrated(true);
-                hydratedRef.current = true;
-                // Flush immediately to avoid dropping output on rapid remounts/tests
-                flushNow();
+                 setHydrated(true);
+                 hydratedRef.current = true;
+                 // Flush immediately to avoid dropping output on rapid remounts/tests
+                 flushNow();
+
+                 // Emit terminal ready event for focus management
+                 if (typeof window !== 'undefined') {
+                     window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', {
+                         detail: { terminalId }
+                     }));
+                 }
                 
             } catch (error) {
                 console.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
@@ -693,14 +700,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         startingTerminals.current.set(terminalId, false);
                         return;
                     }
-                    // Mark as started BEFORE invoking to prevent overlaps
-                    startedGlobal.add(terminalId);
-                    try {
-                        await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
-                    } catch (e) {
-                        // Roll back start flags on failure to allow retry
-                        startedGlobal.delete(terminalId);
-                        console.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
+                     // Mark as started BEFORE invoking to prevent overlaps
+                     startedGlobal.add(terminalId);
+                     try {
+                          await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
+                          // Focus the terminal after Claude starts successfully
+                          requestAnimationFrame(() => {
+                              if (terminal.current) {
+                                  terminal.current.focus();
+                              }
+                          });
+                     } catch (e) {
+                         // Roll back start flags on failure to allow retry
+                         startedGlobal.delete(terminalId);
+                         console.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
                         
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
@@ -753,14 +766,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         startingTerminals.current.set(terminalId, false);
                         return;
                     }
-                    // Mark as started BEFORE invoking to prevent overlaps
-                    startedGlobal.add(terminalId);
-                    try {
-                        await invoke('schaltwerk_core_start_claude', { sessionName });
-                    } catch (e) {
-                        // Roll back start flags on failure to allow retry
-                        startedGlobal.delete(terminalId);
-                        console.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
+                     // Mark as started BEFORE invoking to prevent overlaps
+                     startedGlobal.add(terminalId);
+                     try {
+                          await invoke('schaltwerk_core_start_claude', { sessionName });
+                          // Focus the terminal after Claude starts successfully
+                          requestAnimationFrame(() => {
+                              if (terminal.current) {
+                                  terminal.current.focus();
+                              }
+                          });
+                     } catch (e) {
+                         // Roll back start flags on failure to allow retry
+                         startedGlobal.delete(terminalId);
+                         console.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
                         
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
