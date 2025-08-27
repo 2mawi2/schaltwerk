@@ -846,7 +846,7 @@ if [ -f "$REPO_PATH/.env" ]; then
     cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
     echo "✓ Copied .env file to worktree"
 fi`}
-                                className="w-full h-80 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm resize-none overflow-auto focus:outline-none focus:border-blue-500 transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+                                className="w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm resize-none overflow-auto focus:outline-none focus:border-blue-500 transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
                                 spellCheck={false}
                                 style={{ 
                                     scrollbarWidth: 'thin',
