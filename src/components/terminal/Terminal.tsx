@@ -22,6 +22,7 @@ interface TerminalProps {
     sessionName?: string;
     isCommander?: boolean;
     agentType?: string;
+    onTerminalClick?: () => void;
 }
 
 export interface TerminalHandle {
@@ -29,7 +30,7 @@ export interface TerminalHandle {
     showSearch: () => void;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick }, ref) => {
     const { terminalFontSize } = useFontSize();
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
@@ -788,6 +789,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Focus the terminal when clicked
         if (terminal.current) {
             terminal.current.focus()
+        }
+        // Call the optional onTerminalClick handler
+        if (onTerminalClick) {
+            onTerminalClick()
         }
     }
 

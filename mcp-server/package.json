@@ -17,9 +17,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.3",
-    "node-fetch": "^3.3.2",
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/jest": "^29.5.12",
