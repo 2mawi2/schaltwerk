@@ -1,8 +1,5 @@
 @import './styles/theme.css';
-
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* Terminal font sizes are defined in theme.css */
 
