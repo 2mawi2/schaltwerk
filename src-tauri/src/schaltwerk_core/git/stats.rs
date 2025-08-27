@@ -363,40 +363,6 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     Ok(stats)
 }
 
-/// Async wrapper for calculate_git_stats_fast that runs on a blocking thread pool
-/// to avoid blocking the async runtime with CPU-intensive git operations
-pub async fn calculate_git_stats_async(
-    worktree_path: std::path::PathBuf, 
-    parent_branch: String
-) -> Result<GitStats> {
-    tokio::task::spawn_blocking(move || {
-        calculate_git_stats_fast(&worktree_path, &parent_branch)
-    })
-    .await
-    .map_err(|e| anyhow::anyhow!("Task panicked: {e}"))?
-}
-
-/// Batch calculate git stats for multiple sessions to improve performance
-pub async fn calculate_git_stats_batch(
-    requests: Vec<(std::path::PathBuf, String)>
-) -> Vec<(std::path::PathBuf, String, Result<GitStats>)> {
-    use futures::stream::{FuturesUnordered, StreamExt};
-    
-    let futures: FuturesUnordered<_> = requests
-        .into_iter()
-        .map(|(path, branch)| {
-            let path_clone = path.clone();
-            let branch_clone = branch.clone();
-            async move {
-                let result = calculate_git_stats_async(path.clone(), branch.clone()).await;
-                (path_clone, branch_clone, result)
-            }
-        })
-        .collect();
-    
-    // Limit concurrent operations to avoid overwhelming the system
-    futures.collect().await
-}
 
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
     let mut file_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();

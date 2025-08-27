@@ -620,7 +620,6 @@ fn resolve_command(command: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::terminal::ApplicationSpec;
     use tokio::time::{sleep, Duration};
     use std::time::SystemTime;
     

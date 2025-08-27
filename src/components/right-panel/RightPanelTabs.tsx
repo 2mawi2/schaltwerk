@@ -8,7 +8,6 @@ import clsx from 'clsx'
 import { PlanContentView } from '../plans/PlanContentView'
 import { PlanListView } from '../plans/PlanListView'
 import { PlanInfoPanel } from '../plans/PlanInfoPanel'
-import { GitHistoryPanel } from './GitHistoryPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -131,15 +130,11 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
       <div className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
           {activeTab === 'changes' ? (
-          isCommander ? (
-            <GitHistoryPanel />
-          ) : (
-            <SimpleDiffPanel 
-              onFileSelect={onFileSelect} 
-              sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
-              isCommander={effectiveSelection.kind === 'commander'}
-            />
-          )
+          <SimpleDiffPanel 
+            onFileSelect={onFileSelect} 
+            sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
+            isCommander={effectiveSelection.kind === 'commander'}
+          />
         ) : (
           // Agent/Plans tab content
           effectiveSelection.kind === 'session' ? (
