@@ -293,7 +293,7 @@ describe('useSessionManagement', () => {
                 await expect(
                     result.current!.switchModel(
                         'claude',
-                        selection, 
+                        selection,
                         mockTerminals,
                         mockClearTerminalTracking,
                         mockClearTerminalStartedTracking
@@ -302,4 +302,290 @@ describe('useSessionManagement', () => {
             })
         })
     })
+
+    describe('edge cases', () => {
+        describe('session selection edge cases', () => {
+            it('should handle session with null payload', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = {
+                    kind: 'session' as const,
+                    payload: null as any
+                }
+
+                await act(async () => {
+                    await result.current.resetSession(selection, mockTerminals)
+                })
+
+                // Should not call any commands when payload is null
+                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith('terminal_exists', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_start_claude', expect.any(Object))
+                // Should still dispatch reset event and wait
+                expect(mockDispatchEvent).toHaveBeenCalledWith(
+                    expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                )
+            })
+
+            it('should handle session with undefined payload', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = {
+                    kind: 'session' as const,
+                    payload: undefined as any
+                }
+
+                await act(async () => {
+                    await result.current.resetSession(selection, mockTerminals)
+                })
+
+                // Should not call any commands when payload is undefined
+                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith('terminal_exists', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_start_claude', expect.any(Object))
+                // Should still dispatch reset event and wait
+                expect(mockDispatchEvent).toHaveBeenCalledWith(
+                    expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                )
+            })
+
+            it('should handle invalid selection kind', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = {
+                    kind: 'invalid' as any,
+                    payload: 'test-session'
+                }
+
+                await act(async () => {
+                    await result.current.resetSession(selection, mockTerminals)
+                })
+
+                // Should not perform any reset operations for invalid kind
+                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith('terminal_exists', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_start_claude', expect.any(Object))
+                // Should still dispatch reset event and wait
+                expect(mockDispatchEvent).toHaveBeenCalledWith(
+                    expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                )
+            })
+        })
+
+        describe('terminal operations edge cases', () => {
+            it('should handle terminal existence check failure', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = {
+                    kind: 'session' as const,
+                    payload: 'test-session'
+                }
+
+                mockInvoke.mockRejectedValueOnce(new Error('Terminal check failed')) // terminal_exists fails
+
+                await act(async () => {
+                    await expect(
+                        result.current.resetSession(selection, mockTerminals)
+                    ).rejects.toThrow('Terminal check failed')
+                })
+
+                expect(result.current.isResetting).toBe(false)
+            })
+
+            it('should handle close terminal failure', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = {
+                    kind: 'session' as const,
+                    payload: 'test-session'
+                }
+
+                mockInvoke
+                    .mockResolvedValueOnce(true) // terminal_exists
+                    .mockRejectedValueOnce(new Error('Close terminal failed')) // close_terminal fails
+
+                await act(async () => {
+                    await expect(
+                        result.current.resetSession(selection, mockTerminals)
+                    ).rejects.toThrow('Close terminal failed')
+                })
+
+                expect(result.current.isResetting).toBe(false)
+            })
+
+            it('should handle restart claude failure', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = {
+                    kind: 'session' as const,
+                    payload: 'test-session'
+                }
+
+                mockInvoke
+                    .mockResolvedValueOnce(true) // terminal_exists
+                    .mockResolvedValueOnce(undefined) // close_terminal
+                    .mockRejectedValueOnce(new Error('Restart failed')) // schaltwerk_core_start_claude fails
+
+                await act(async () => {
+                    await expect(
+                        result.current.resetSession(selection, mockTerminals)
+                    ).rejects.toThrow('Restart failed')
+                })
+
+                expect(result.current.isResetting).toBe(false)
+            })
+        })
+
+        describe('switchModel error scenarios', () => {
+            it('should handle agent type update failure', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = { kind: 'orchestrator' as const }
+
+                mockInvoke.mockRejectedValueOnce(new Error('Agent type update failed'))
+
+                await act(async () => {
+                    await expect(
+                        result.current.switchModel(
+                            'claude',
+                            selection,
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
+                        )
+                    ).rejects.toThrow('Agent type update failed')
+                })
+            })
+
+            it('should handle terminal existence check failure in switchModel', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = { kind: 'orchestrator' as const }
+
+                mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
+                    .mockRejectedValueOnce(new Error('Terminal check failed')) // terminal_exists fails
+
+                await act(async () => {
+                    await expect(
+                        result.current.switchModel(
+                            'claude',
+                            selection,
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
+                        )
+                    ).rejects.toThrow('Terminal check failed')
+                })
+            })
+
+            it('should handle close terminal failure in switchModel', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = { kind: 'orchestrator' as const }
+
+                mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
+                    .mockResolvedValueOnce(true) // terminal_exists
+                    .mockRejectedValueOnce(new Error('Close terminal failed')) // close_terminal fails
+
+                await act(async () => {
+                    await expect(
+                        result.current.switchModel(
+                            'claude',
+                            selection,
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
+                        )
+                    ).rejects.toThrow('Close terminal failed')
+                })
+            })
+
+            it('should handle clear terminal tracking failure', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = { kind: 'orchestrator' as const }
+
+                mockClearTerminalTracking.mockRejectedValueOnce(new Error('Clear tracking failed'))
+
+                mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
+                    .mockResolvedValueOnce(true) // terminal_exists
+                    .mockResolvedValueOnce(undefined) // close_terminal
+
+                await act(async () => {
+                    await expect(
+                        result.current.switchModel(
+                            'claude',
+                            selection,
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
+                        )
+                    ).rejects.toThrow('Clear tracking failed')
+                })
+            })
+
+            it('should handle orchestrator restart failure', async () => {
+                const { result } = renderHook(() => useSessionManagement())
+
+                const selection = { kind: 'orchestrator' as const }
+
+                mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
+                    .mockResolvedValueOnce(true) // terminal_exists
+                    .mockResolvedValueOnce(undefined) // close_terminal
+                    .mockRejectedValueOnce(new Error('Orchestrator restart failed')) // schaltwerk_core_start_claude_orchestrator
+
+                await act(async () => {
+                    await expect(
+                        result.current.switchModel(
+                            'claude',
+                            selection,
+                            mockTerminals,
+                            mockClearTerminalTracking,
+                            mockClearTerminalStartedTracking
+                        )
+                    ).rejects.toThrow('Orchestrator restart failed')
+                })
+            })
+        })
+    })
+
+    describe('state management edge cases', () => {
+        it('should prevent concurrent reset calls', async () => {
+            const { result } = renderHook(() => useSessionManagement())
+
+            const selection = { kind: 'orchestrator' as const }
+
+            // Mock immediate resolve for all operations
+            mockInvoke.mockResolvedValue(undefined)
+
+            // Start first reset and wait for it to complete
+            await act(async () => {
+                await result.current.resetSession(selection, mockTerminals)
+            })
+
+            expect(result.current.isResetting).toBe(false)
+
+            // Reset mock call count
+            mockInvoke.mockClear()
+
+            // Try to reset again - this should work normally
+            await act(async () => {
+                await result.current.resetSession(selection, mockTerminals)
+            })
+
+            // Should call invoke for the second reset
+            expect(mockInvoke).toHaveBeenCalledTimes(1)
+            expect(result.current.isResetting).toBe(false)
+        })
+    })
+
+
+
+
+
+
 })
