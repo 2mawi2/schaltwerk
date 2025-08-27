@@ -18,15 +18,15 @@
         pub sort_mode: String,
     }
 
-    #[derive(Debug, Clone, Serialize, Deserialize)]
-    #[serde(rename_all = "camelCase")]
-    pub struct HeaderActionConfig {
-        pub id: String,
-        pub label: String,
-        pub prompt: String,  // Changed from command to prompt
-        #[serde(skip_serializing_if = "Option::is_none")]
-        pub color: Option<String>,
-    }
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct HeaderActionConfig {
+    pub id: String,
+    pub label: String,
+    pub prompt: String,  // Changed from command to prompt
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub color: Option<String>,
+}
 
     pub trait ProjectConfigMethods {
         fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;

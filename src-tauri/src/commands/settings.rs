@@ -113,7 +113,7 @@ pub async fn set_project_default_base_branch(branch: Option<String>) -> Result<(
         .map_err(|e| format!("Failed to set default base branch: {e}"))
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSettings {
     pub setup_script: String,
@@ -334,8 +334,9 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
 }
 
 #[cfg(test)]
-mod project_settings_tests {
+mod tests {
     use super::*;
+    use std::collections::HashMap;
 
     #[test]
     fn test_project_settings_serialization() {
@@ -350,5 +351,548 @@ mod project_settings_tests {
         let json_input = r#"{"setupScript":"echo hello"}"#;
         let deserialized: ProjectSettings = serde_json::from_str(json_input).unwrap();
         assert_eq!(deserialized.setup_script, "echo hello");
+    }
+
+    #[test]
+    fn test_header_action_config_serialization() {
+        let config = HeaderActionConfig {
+            id: "test-id".to_string(),
+            label: "Test Label".to_string(),
+            prompt: "Test prompt".to_string(),
+            color: Some("#ff0000".to_string()),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        // Fields are not being renamed to camelCase in this context
+        assert!(json.contains("\"id\""));
+        assert!(json.contains("test-id"));
+        assert!(json.contains("Test Label"));
+        assert!(json.contains("Test prompt"));
+        assert!(json.contains("#ff0000"));
+
+        let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, config);
+    }
+
+    #[test]
+    fn test_header_action_config_serialization_without_color() {
+        let config = HeaderActionConfig {
+            id: "test-id".to_string(),
+            label: "Test Label".to_string(),
+            prompt: "Test prompt".to_string(),
+            color: None,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        // Fields are not being renamed to camelCase in this context
+        assert!(json.contains("\"id\""));
+        assert!(json.contains("test-id"));
+        assert!(json.contains("Test Label"));
+        assert!(json.contains("Test prompt"));
+        assert!(!json.contains("color")); // Should be skipped when None
+
+        let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized, config);
+    }
+
+    #[tokio::test]
+    async fn test_settings_manager_not_initialized() {
+        let result = get_agent_env_vars("claude".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_project_manager_not_initialized() {
+        let result = get_project_settings().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to get current project"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_action_buttons_too_many() {
+        let actions = vec![
+            HeaderActionConfig {
+                id: "1".to_string(),
+                label: "Test 1".to_string(),
+                prompt: "test 1".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "2".to_string(),
+                label: "Test 2".to_string(),
+                prompt: "test 2".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "3".to_string(),
+                label: "Test 3".to_string(),
+                prompt: "test 3".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "4".to_string(),
+                label: "Test 4".to_string(),
+                prompt: "test 4".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "5".to_string(),
+                label: "Test 5".to_string(),
+                prompt: "test 5".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "6".to_string(),
+                label: "Test 6".to_string(),
+                prompt: "test 6".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "7".to_string(),
+                label: "Test 7".to_string(),
+                prompt: "test 7".to_string(),
+                color: None,
+            },
+        ];
+
+        let result = set_project_action_buttons(actions).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Maximum of 6 action buttons allowed"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_action_buttons_valid_count() {
+        let actions = vec![
+            HeaderActionConfig {
+                id: "1".to_string(),
+                label: "Test 1".to_string(),
+                prompt: "test 1".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "2".to_string(),
+                label: "Test 2".to_string(),
+                prompt: "test 2".to_string(),
+                color: None,
+            },
+        ];
+
+        // This will fail because we don't have a real project set up, but it should pass the validation
+        let result = set_project_action_buttons(actions).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_action_buttons_empty() {
+        let actions = Vec::new();
+
+        // This will fail because we don't have a real project, but we can test the function exists
+        let result = set_project_action_buttons(actions).await;
+        assert!(result.is_err()); // Expected due to no project setup
+    }
+
+    #[tokio::test]
+    async fn test_set_project_action_buttons_maximum() {
+        let actions = vec![
+            HeaderActionConfig {
+                id: "1".to_string(),
+                label: "Test 1".to_string(),
+                prompt: "test 1".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "2".to_string(),
+                label: "Test 2".to_string(),
+                prompt: "test 2".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "3".to_string(),
+                label: "Test 3".to_string(),
+                prompt: "test 3".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "4".to_string(),
+                label: "Test 4".to_string(),
+                prompt: "test 4".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "5".to_string(),
+                label: "Test 5".to_string(),
+                prompt: "test 5".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "6".to_string(),
+                label: "Test 6".to_string(),
+                prompt: "test 6".to_string(),
+                color: None,
+            },
+        ];
+
+        // This should pass validation and only fail due to no project
+        let result = set_project_action_buttons(actions).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_env_vars_uninitialized_manager() {
+        let result = get_agent_env_vars("claude".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_agent_env_vars_uninitialized_manager() {
+        let env_vars = HashMap::new();
+        let result = set_agent_env_vars("claude".to_string(), env_vars).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_agent_cli_args_uninitialized_manager() {
+        let result = get_agent_cli_args("claude".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_agent_cli_args_uninitialized_manager() {
+        let result = set_agent_cli_args("claude".to_string(), "--test".to_string()).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_terminal_ui_preferences_uninitialized_manager() {
+        let result = get_terminal_ui_preferences().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_terminal_collapsed_uninitialized_manager() {
+        let result = set_terminal_collapsed(true).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_terminal_divider_position_uninitialized_manager() {
+        let result = set_terminal_divider_position(0.5).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_terminal_settings_uninitialized_manager() {
+        let result = get_terminal_settings().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_terminal_settings_uninitialized_manager() {
+        let settings = crate::settings::TerminalSettings::default();
+        let result = set_terminal_settings(settings).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_diff_view_preferences_uninitialized_manager() {
+        let result = get_diff_view_preferences().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_diff_view_preferences_uninitialized_manager() {
+        let preferences = crate::settings::DiffViewPreferences::default();
+        let result = set_diff_view_preferences(preferences).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_project_default_base_branch_uninitialized_core() {
+        let result = get_project_default_base_branch().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to get para core"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_default_base_branch_uninitialized_core() {
+        let result = set_project_default_base_branch(Some("main".to_string())).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to get para core"));
+    }
+
+    #[tokio::test]
+    async fn test_get_project_settings_uninitialized_manager() {
+        let result = get_project_settings().await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        println!("Actual error message for get_project_settings: {}", error_msg);
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_settings_uninitialized_manager() {
+        let settings = ProjectSettings {
+            setup_script: "#!/bin/bash\necho test".to_string(),
+        };
+        let result = set_project_settings(settings).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_project_selection_uninitialized_manager() {
+        let result = get_project_selection().await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_project_environment_variables_uninitialized_manager() {
+        let result = get_project_environment_variables().await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        println!("Actual error message for get_project_environment_variables: {}", error_msg);
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_project_sessions_settings_uninitialized_manager() {
+        let result = get_project_sessions_settings().await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_sessions_settings_uninitialized_manager() {
+        let settings = crate::schaltwerk_core::db_project_config::ProjectSessionsSettings {
+            filter_mode: "all".to_string(),
+            sort_mode: "name".to_string(),
+        };
+        let result = set_project_sessions_settings(settings).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+
+
+    #[tokio::test]
+    async fn test_set_project_environment_variables_uninitialized_manager() {
+        let env_vars = HashMap::new();
+        let result = set_project_environment_variables(env_vars).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_project_action_buttons_uninitialized_manager() {
+        let result = get_project_action_buttons().await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_set_project_action_buttons_uninitialized_manager() {
+        let actions = vec![HeaderActionConfig {
+            id: "test".to_string(),
+            label: "Test".to_string(),
+            prompt: "test prompt".to_string(),
+            color: None,
+        }];
+        let result = set_project_action_buttons(actions).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[test]
+    fn test_project_settings_struct_creation() {
+        let setup_script = "#!/bin/bash\necho 'Hello World'";
+        let settings = ProjectSettings {
+            setup_script: setup_script.to_string(),
+        };
+
+        assert_eq!(settings.setup_script, setup_script);
+    }
+
+    #[test]
+    fn test_header_action_config_struct_creation() {
+        let config = HeaderActionConfig {
+            id: "merge-pr".to_string(),
+            label: "Merge PR".to_string(),
+            prompt: "Create a PR and merge it".to_string(),
+            color: Some("#00ff00".to_string()),
+        };
+
+        assert_eq!(config.id, "merge-pr");
+        assert_eq!(config.label, "Merge PR");
+        assert_eq!(config.prompt, "Create a PR and merge it");
+        assert_eq!(config.color, Some("#00ff00".to_string()));
+    }
+
+    #[test]
+    fn test_header_action_config_struct_creation_no_color() {
+        let config = HeaderActionConfig {
+            id: "test-action".to_string(),
+            label: "Test Action".to_string(),
+            prompt: "This is a test".to_string(),
+            color: None,
+        };
+
+        assert_eq!(config.id, "test-action");
+        assert_eq!(config.label, "Test Action");
+        assert_eq!(config.prompt, "This is a test");
+        assert_eq!(config.color, None);
+    }
+
+    #[test]
+    fn test_project_settings_json_roundtrip() {
+        let original = ProjectSettings {
+            setup_script: "#!/bin/bash\necho 'test script'\nexport PATH=/usr/local/bin:$PATH".to_string(),
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: ProjectSettings = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_header_action_config_json_roundtrip() {
+        let original = HeaderActionConfig {
+            id: "complex-action".to_string(),
+            label: "Complex Action".to_string(),
+            prompt: "This is a complex action with multiple lines\nand special characters: @#$%^&*()".to_string(),
+            color: Some("#123456".to_string()),
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_header_action_config_json_roundtrip_no_color() {
+        let original = HeaderActionConfig {
+            id: "simple-action".to_string(),
+            label: "Simple Action".to_string(),
+            prompt: "Simple action without color".to_string(),
+            color: None,
+        };
+
+        let json = serde_json::to_string(&original).unwrap();
+        let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_multiple_header_action_configs() {
+        let configs = vec![
+            HeaderActionConfig {
+                id: "action-1".to_string(),
+                label: "Action 1".to_string(),
+                prompt: "First action".to_string(),
+                color: Some("#ff0000".to_string()),
+            },
+            HeaderActionConfig {
+                id: "action-2".to_string(),
+                label: "Action 2".to_string(),
+                prompt: "Second action".to_string(),
+                color: None,
+            },
+            HeaderActionConfig {
+                id: "action-3".to_string(),
+                label: "Action 3".to_string(),
+                prompt: "Third action".to_string(),
+                color: Some("#0000ff".to_string()),
+            },
+        ];
+
+        let json = serde_json::to_string(&configs).unwrap();
+        let deserialized: Vec<HeaderActionConfig> = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(configs, deserialized);
+    }
+
+    #[test]
+    fn test_project_settings_with_special_characters() {
+        let settings = ProjectSettings {
+            setup_script: "#!/bin/bash\necho 'special chars: @#$%^&*()'\nexport PATH=/usr/local/bin:$PATH\ncd /some/path".to_string(),
+        };
+
+        let json = serde_json::to_string(&settings).unwrap();
+        let deserialized: ProjectSettings = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(settings, deserialized);
+    }
+
+    #[test]
+    fn test_header_action_config_with_special_characters() {
+        let config = HeaderActionConfig {
+            id: "special-action".to_string(),
+            label: "Special Action @#$%".to_string(),
+            prompt: "Action with special chars: @#$%^&*()\nMultiple lines\nWith quotes: \"hello\" and 'world'".to_string(),
+            color: Some("#abcdef".to_string()),
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(config, deserialized);
+    }
+
+    #[test]
+    fn test_empty_project_settings() {
+        let settings = ProjectSettings {
+            setup_script: String::new(),
+        };
+
+        let json = serde_json::to_string(&settings).unwrap();
+        let deserialized: ProjectSettings = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(settings, deserialized);
+        assert!(deserialized.setup_script.is_empty());
+    }
+
+    #[test]
+    fn test_empty_header_action_config() {
+        let config = HeaderActionConfig {
+            id: String::new(),
+            label: String::new(),
+            prompt: String::new(),
+            color: None,
+        };
+
+        let json = serde_json::to_string(&config).unwrap();
+        let deserialized: HeaderActionConfig = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(config, deserialized);
+        assert!(deserialized.id.is_empty());
+        assert!(deserialized.label.is_empty());
+        assert!(deserialized.prompt.is_empty());
+        assert!(deserialized.color.is_none());
     }
 }
