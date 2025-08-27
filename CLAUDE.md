@@ -89,6 +89,114 @@ Sessions:
 
 Note: The commander terminals include a project-specific ID hash to ensure separate terminals per project. The right panel is RightPanelTabs component showing diffs/agents, not a terminal.
 
+## Color Theme System
+
+**MANDATORY**: Always use the standardized color theme system instead of hardcoded colors.
+
+### Theme Architecture
+
+The application uses a centralized theme system to ensure visual consistency and maintainability:
+
+```
+src/
+├── common/
+│   └── theme.ts          # TypeScript theme configuration (single source of truth)
+├── styles/
+│   ├── theme.css         # CSS variables for stylesheet usage
+│   ├── syntax-theme.css  # Syntax highlighting theme
+│   └── vscode-dark-theme.css # VS Code editor theme
+```
+
+### Theme Usage Requirements
+
+1. **TypeScript Components**: Import and use the theme object
+   ```typescript
+   import { theme } from '../common/theme'
+   
+   // Use theme colors in styles
+   style={{ backgroundColor: theme.colors.background.secondary }}
+   
+   // Use helper functions for dynamic colors
+   const statusColor = getSessionColor('running') // Returns theme.colors.accent.blue
+   ```
+
+2. **CSS Files**: Use CSS variables
+   ```css
+   .my-component {
+     background-color: var(--color-bg-secondary);
+     color: var(--color-text-primary);
+     border-color: var(--color-border-default);
+   }
+   ```
+
+3. **Tailwind Classes**: Use extended theme colors when possible
+   ```tsx
+   <div className="bg-primary text-primary border-default" />
+   ```
+
+### Available Color Categories
+
+- **Background**: `primary`, `secondary`, `tertiary`, `elevated`, `hover`, `active`
+- **Text**: `primary`, `secondary`, `tertiary`, `muted`, `inverse`
+- **Border**: `default`, `subtle`, `strong`, `focus`
+- **Accent**: `blue`, `green`, `amber`, `red`, `violet`, `purple`, `yellow`, `cyan`
+  - Each accent has: `DEFAULT`, `light`, `dark`, `bg`, `border`
+- **Status**: `info`, `success`, `warning`, `error`
+- **Syntax**: Complete VS Code dark theme colors for code highlighting
+
+### Critical Rules
+
+1. **NEVER use hardcoded colors** like:
+   - ❌ `bg-slate-800`, `text-blue-500`, `border-gray-700`
+   - ❌ `#1e293b`, `rgba(59, 130, 246, 0.5)`
+   - ❌ Inline hex values or RGB colors
+
+2. **ALWAYS use theme system** instead:
+   - ✅ `theme.colors.background.elevated`
+   - ✅ `var(--color-accent-blue)`
+   - ✅ `bg-elevated text-primary`
+
+3. **Update existing hardcoded colors** when encountered:
+   - Search for hardcoded colors in the component
+   - Replace with appropriate theme colors
+   - Test visual consistency
+
+### Common Color Mappings
+
+| Old Hardcoded | New Theme |
+|---------------|-----------|
+| `bg-slate-950` | `theme.colors.background.primary` |
+| `bg-slate-900` | `theme.colors.background.tertiary` |
+| `bg-slate-800` | `theme.colors.background.elevated` |
+| `text-slate-100` | `theme.colors.text.primary` |
+| `text-slate-300` | `theme.colors.text.secondary` |
+| `border-slate-700` | `theme.colors.border.subtle` |
+| `bg-blue-600` | `theme.colors.accent.blue.dark` |
+| `text-red-400` | `theme.colors.accent.red.light` |
+
+### Terminal Colors
+
+Terminal components use the theme system for all colors:
+- Background: `theme.colors.background.secondary`
+- Text: `theme.colors.text.primary`
+- ANSI colors: `theme.colors.accent.*` variants
+
+### Benefits
+
+- **Consistency**: Uniform colors across the entire application
+- **Maintainability**: Change colors in one place, updates everywhere
+- **Type Safety**: TypeScript autocomplete and validation for theme colors
+- **Future-ready**: Easy to implement light/dark themes or custom themes
+- **Accessibility**: Centralized color management for contrast ratios
+
+### When Adding New Components
+
+1. Import theme system: `import { theme } from '../common/theme'`
+2. Use theme colors for all styling
+3. Follow existing patterns in updated components (App.tsx, Terminal.tsx, NewSessionModal.tsx)
+4. Test that colors match the rest of the application
+5. Never introduce new hardcoded colors
+
 ## Testing Requirements
 
 ### Test-Driven Development (TDD)
