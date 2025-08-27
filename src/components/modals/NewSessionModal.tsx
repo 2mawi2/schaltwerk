@@ -4,6 +4,7 @@ import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
 import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
 import { ModelSelector } from '../inputs/ModelSelector'
+import { theme } from '../../common/theme'
 
 interface Props {
     open: boolean
@@ -307,9 +308,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     if (!open) return null
 
     return (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-            <div className="w-[720px] max-w-[95vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl">
-                <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium">{createAsDraft ? "Create new plan" : "Start new agent"}</div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: theme.colors.overlay.backdrop }}>
+            <div className="w-[720px] max-w-[95vw] rounded-xl shadow-xl" style={{ backgroundColor: theme.colors.background.tertiary, borderColor: theme.colors.border.subtle, border: '1px solid' }}>
+                <div className="px-4 py-3 border-b font-medium" style={{ borderBottomColor: theme.colors.border.default, color: theme.colors.text.primary }}>{createAsDraft ? "Create new plan" : "Start new agent"}</div>
                 <div className="p-4 space-y-4">
                     <div>
                         <label className="block text-sm text-slate-300 mb-1">Agent name</label>

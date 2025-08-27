@@ -6,6 +6,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
+import { theme } from '../../common/theme';
 import 'xterm/css/xterm.css';
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
@@ -115,26 +116,26 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         terminal.current = new XTerm({
             theme: {
-                background: '#0b1220', // Match bg-panel color from web-ui
-                foreground: '#e4e4e7',
-                cursor: '#e4e4e7',
-                cursorAccent: '#0b1220',
-                black: '#1e293b',
-                red: '#ef4444',
-                green: '#22c55e',
-                yellow: '#eab308',
-                blue: '#3b82f6',
-                magenta: '#a855f7',
-                cyan: '#06b6d4',
-                white: '#e4e4e7',
-                brightBlack: '#475569',
-                brightRed: '#f87171',
-                brightGreen: '#86efac',
-                brightYellow: '#fde047',
-                brightBlue: '#60a5fa',
-                brightMagenta: '#c084fc',
-                brightCyan: '#67e8f9',
-                brightWhite: '#f1f5f9',
+                background: theme.colors.background.secondary,
+                foreground: theme.colors.text.primary,
+                cursor: theme.colors.text.primary,
+                cursorAccent: theme.colors.background.secondary,
+                black: theme.colors.background.elevated,
+                red: theme.colors.accent.red.DEFAULT,
+                green: theme.colors.accent.green.DEFAULT,
+                yellow: theme.colors.accent.yellow.DEFAULT,
+                blue: theme.colors.accent.blue.DEFAULT,
+                magenta: theme.colors.accent.purple.DEFAULT,
+                cyan: theme.colors.accent.cyan.DEFAULT,
+                white: theme.colors.text.primary,
+                brightBlack: theme.colors.background.hover,
+                brightRed: theme.colors.accent.red.light,
+                brightGreen: theme.colors.accent.green.light,
+                brightYellow: theme.colors.accent.yellow.light,
+                brightBlue: theme.colors.accent.blue.light,
+                brightMagenta: theme.colors.accent.purple.light,
+                brightCyan: theme.colors.accent.cyan.light,
+                brightWhite: theme.colors.text.primary,
             },
             fontFamily: 'Menlo, Monaco, "Courier New", monospace',
             fontSize: terminalFontSize,

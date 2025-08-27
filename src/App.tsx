@@ -21,6 +21,7 @@ import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
+import { theme } from './common/theme'
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -629,18 +630,24 @@ export default function App() {
       {!showHome && activeTabPath && (
         <>
           <Split className="h-full w-full flex pt-[28px]" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
-            <div className="h-full bg-panel border-r border-slate-800 overflow-y-auto" data-testid="sidebar">
+            <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
               <div className="h-full flex flex-col">
                 <div className="flex-1 overflow-y-auto">
                   <Sidebar isDiffViewerOpen={isDiffViewerOpen} />
                 </div>
-                <div className="p-2 border-t border-slate-800 grid grid-cols-2 gap-2">
+                <div className="p-2 border-t grid grid-cols-2 gap-2" style={{ borderTopColor: theme.colors.border.default }}>
                   <button
                     onClick={() => {
                       previousFocusRef.current = document.activeElement
                       setNewSessionOpen(true)
                     }}
-                    className="w-full bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between"
+                    className="w-full text-sm px-3 py-1.5 rounded group flex items-center justify-between transition-colors"
+                    style={{
+                      backgroundColor: `${theme.colors.background.elevated}99`,
+                      color: theme.colors.text.primary
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`}
                     title="Start agent (⌘N)"
                   >
                     <span>Start Agent</span>
@@ -652,7 +659,18 @@ export default function App() {
                       setOpenAsDraft(true)
                       setNewSessionOpen(true)
                     }}
-                    className="w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40"
+                    className="w-full text-sm px-3 py-1.5 rounded group flex items-center justify-between border transition-colors"
+                    style={{
+                      backgroundColor: theme.colors.accent.amber.bg,
+                      borderColor: theme.colors.accent.amber.border,
+                      color: theme.colors.text.primary
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = `${theme.colors.accent.amber.DEFAULT}33`
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
+                    }}
                     title="Create plan (⇧⌘N)"
                   >
                     <span>Create Plan</span>
@@ -666,7 +684,7 @@ export default function App() {
               {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
               <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
               <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
-                <main className="bg-slate-950 h-full" data-testid="terminal-grid">
+                <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
                   <TerminalGrid />
                 </main>
                 <section className="overflow-hidden">

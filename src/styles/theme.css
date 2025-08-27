@@ -1,0 +1,144 @@
+/* CSS Variables for Theme Colors */
+:root {
+  /* Background Colors */
+  --color-bg-primary: #020617;
+  --color-bg-secondary: #0b1220;
+  --color-bg-tertiary: #0f172a;
+  --color-bg-elevated: #1e293b;
+  --color-bg-hover: #334155;
+  --color-bg-active: #475569;
+  
+  /* Text Colors */
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #cbd5e1;
+  --color-text-tertiary: #94a3b8;
+  --color-text-muted: #64748b;
+  --color-text-inverse: #020617;
+  
+  /* Border Colors */
+  --color-border-default: #1e293b;
+  --color-border-subtle: #334155;
+  --color-border-strong: #475569;
+  --color-border-focus: #3b82f6;
+  
+  /* Accent Colors - Blue */
+  --color-accent-blue: #3b82f6;
+  --color-accent-blue-light: #60a5fa;
+  --color-accent-blue-dark: #2563eb;
+  --color-accent-blue-bg: rgba(59, 130, 246, 0.1);
+  --color-accent-blue-border: rgba(59, 130, 246, 0.5);
+  
+  /* Accent Colors - Green */
+  --color-accent-green: #22c55e;
+  --color-accent-green-light: #4ade80;
+  --color-accent-green-dark: #16a34a;
+  --color-accent-green-bg: rgba(34, 197, 94, 0.1);
+  --color-accent-green-border: rgba(34, 197, 94, 0.5);
+  
+  /* Accent Colors - Amber */
+  --color-accent-amber: #f59e0b;
+  --color-accent-amber-light: #fbbf24;
+  --color-accent-amber-dark: #d97706;
+  --color-accent-amber-bg: rgba(245, 158, 11, 0.1);
+  --color-accent-amber-border: rgba(245, 158, 11, 0.5);
+  
+  /* Accent Colors - Red */
+  --color-accent-red: #ef4444;
+  --color-accent-red-light: #f87171;
+  --color-accent-red-dark: #dc2626;
+  --color-accent-red-bg: rgba(239, 68, 68, 0.1);
+  --color-accent-red-border: rgba(239, 68, 68, 0.5);
+  
+  /* Accent Colors - Violet */
+  --color-accent-violet: #8b5cf6;
+  --color-accent-violet-light: #a78bfa;
+  --color-accent-violet-dark: #7c3aed;
+  --color-accent-violet-bg: rgba(139, 92, 246, 0.1);
+  --color-accent-violet-border: rgba(139, 92, 246, 0.5);
+  
+  /* Accent Colors - Purple */
+  --color-accent-purple: #a855f7;
+  --color-accent-purple-light: #c084fc;
+  --color-accent-purple-dark: #9333ea;
+  --color-accent-purple-bg: rgba(168, 85, 247, 0.1);
+  --color-accent-purple-border: rgba(168, 85, 247, 0.5);
+  
+  /* Status Colors */
+  --color-status-info: #3b82f6;
+  --color-status-success: #22c55e;
+  --color-status-warning: #f59e0b;
+  --color-status-error: #ef4444;
+  
+  /* Diff Colors */
+  --color-diff-added-bg: rgba(87, 166, 74, 0.15);
+  --color-diff-added-text: #57a64a;
+  --color-diff-removed-bg: rgba(244, 135, 113, 0.15);
+  --color-diff-removed-text: #f48771;
+  --color-diff-modified-bg: rgba(245, 158, 11, 0.15);
+  --color-diff-modified-text: #f59e0b;
+  
+  /* Scrollbar Colors */
+  --color-scrollbar-track: rgba(30, 41, 59, 0.5);
+  --color-scrollbar-thumb: rgba(71, 85, 105, 0.8);
+  --color-scrollbar-thumb-hover: rgba(100, 116, 139, 0.9);
+  
+  /* Selection Colors */
+  --color-selection-bg: rgba(59, 130, 246, 0.5);
+  
+  /* Overlay Colors */
+  --color-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --color-overlay-light: rgba(255, 255, 255, 0.1);
+  --color-overlay-dark: rgba(0, 0, 0, 0.3);
+  
+  /* Gray Scale (for backward compatibility) */
+  --color-gray-50: #f8fafc;
+  --color-gray-100: #f1f5f9;
+  --color-gray-200: #e2e8f0;
+  --color-gray-300: #cbd5e1;
+  --color-gray-400: #94a3b8;
+  --color-gray-500: #64748b;
+  --color-gray-600: #475569;
+  --color-gray-700: #334155;
+  --color-gray-800: #1e293b;
+  --color-gray-900: #0f172a;
+  --color-gray-950: #020617;
+  
+  /* Font Size Variables */
+  --font-xs: 0.75rem;
+  --font-sm: 0.875rem;
+  --font-base: 1rem;
+  --font-lg: 1.125rem;
+  --font-xl: 1.25rem;
+  --font-2xl: 1.5rem;
+  
+  /* Spacing Variables */
+  --spacing-xs: 0.25rem;
+  --spacing-sm: 0.5rem;
+  --spacing-md: 1rem;
+  --spacing-lg: 1.5rem;
+  --spacing-xl: 2rem;
+  --spacing-2xl: 3rem;
+  
+  /* Border Radius Variables */
+  --radius-none: 0;
+  --radius-sm: 0.125rem;
+  --radius-default: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-full: 9999px;
+  
+  /* Animation Variables */
+  --duration-fast: 150ms;
+  --duration-normal: 300ms;
+  --duration-slow: 500ms;
+  --easing-ease: ease;
+  --easing-ease-in: ease-in;
+  --easing-ease-out: ease-out;
+  --easing-ease-in-out: ease-in-out;
+  
+  /* Terminal Font Size */
+  --terminal-font-size: 13px;
+  --ui-font-size: 12px;
+  --base-font-size: 13px;
+}

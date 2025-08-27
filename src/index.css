@@ -1,13 +1,10 @@
+@import './styles/theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* CSS Variables for global font sizing */
-:root {
-  --terminal-font-size: 13px;
-  --ui-font-size: 12px;
-  --base-font-size: 13px;
-}
+/* Terminal font sizes are defined in theme.css */
 
 /* Prefer dark UI for native system widgets like scrollbars */
 html,
@@ -34,7 +31,7 @@ body,
 
 /* Better text selection colors for diff viewer */
 .select-text ::selection {
-  background-color: rgba(59, 130, 246, 0.5);
+  background-color: var(--color-selection-bg);
   color: inherit;
 }
 
@@ -49,7 +46,7 @@ body,
 }
 
 .select-text ::-moz-selection {
-  background-color: rgba(59, 130, 246, 0.5);
+  background-color: var(--color-selection-bg);
   color: inherit;
 }
 
@@ -59,17 +56,17 @@ body,
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(30, 41, 59, 0.5);
-  border-radius: 4px;
+  background: var(--color-scrollbar-track);
+  border-radius: var(--radius-default);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.8);
-  border-radius: 4px;
+  background: var(--color-scrollbar-thumb);
+  border-radius: var(--radius-default);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 0.9);
+  background: var(--color-scrollbar-thumb-hover);
 }
 
 /* Stylish split gutters (handles) */
@@ -224,7 +221,7 @@ body.is-split-dragging [class*="transition-"] {
 /* Markdown Editor Scrollbar Styles */
 .markdown-editor-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(71, 85, 105, 0.8) rgba(30, 41, 59, 0.3);
+  scrollbar-color: var(--color-scrollbar-thumb) var(--color-scrollbar-track);
 }
 
 .markdown-editor-scroll::-webkit-scrollbar {
@@ -233,22 +230,22 @@ body.is-split-dragging [class*="transition-"] {
 }
 
 .markdown-editor-scroll::-webkit-scrollbar-track {
-  background: rgba(30, 41, 59, 0.5);
-  border-radius: 5px;
+  background: var(--color-scrollbar-track);
+  border-radius: var(--radius-lg);
 }
 
 .markdown-editor-scroll::-webkit-scrollbar-thumb {
-  background: rgba(71, 85, 105, 0.9);
-  border-radius: 5px;
-  border: 2px solid rgba(30, 41, 59, 0.5);
+  background: var(--color-scrollbar-thumb);
+  border-radius: var(--radius-lg);
+  border: 2px solid var(--color-scrollbar-track);
 }
 
 .markdown-editor-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 1);
+  background: var(--color-scrollbar-thumb-hover);
 }
 
 .markdown-editor-scroll::-webkit-scrollbar-corner {
-  background: rgba(30, 41, 59, 0.5);
+  background: var(--color-scrollbar-track);
 }
 
 html,
@@ -269,7 +266,9 @@ body,
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  background-color: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  @apply antialiased;
   position: fixed;
   inset: 0;
   margin: 0;
@@ -291,34 +290,34 @@ body.is-split-dragging {
 }
 
 .session-ring-blue {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.8), 0 0 0 4px rgba(59, 130, 246, 0.2);
-  background-color: rgba(59, 130, 246, 0.08) !important;
+  box-shadow: 0 0 0 2px var(--color-accent-blue), 0 0 0 4px var(--color-accent-blue-bg);
+  background-color: var(--color-accent-blue-bg) !important;
 }
 
 .session-ring-green {
-  box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.8), 0 0 0 4px rgba(34, 197, 94, 0.2);
-  background-color: rgba(34, 197, 94, 0.08) !important;
+  box-shadow: 0 0 0 2px var(--color-accent-green), 0 0 0 4px var(--color-accent-green-bg);
+  background-color: var(--color-accent-green-bg) !important;
 }
 
 .session-ring-violet {
-  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.8), 0 0 0 4px rgba(139, 92, 246, 0.2);
-  background-color: rgba(139, 92, 246, 0.08) !important;
+  box-shadow: 0 0 0 2px var(--color-accent-violet), 0 0 0 4px var(--color-accent-violet-bg);
+  background-color: var(--color-accent-violet-bg) !important;
 }
 
 .session-ring-amber {
-  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.8), 0 0 0 4px rgba(245, 158, 11, 0.2);
-  background-color: rgba(245, 158, 11, 0.08) !important;
+  box-shadow: 0 0 0 2px var(--color-accent-amber), 0 0 0 4px var(--color-accent-amber-bg);
+  background-color: var(--color-accent-amber-bg) !important;
 }
 
 .session-ring-gray {
-  box-shadow: 0 0 0 2px rgba(107, 114, 128, 0.8), 0 0 0 4px rgba(107, 114, 128, 0.2);
+  box-shadow: 0 0 0 2px var(--color-gray-500), 0 0 0 4px rgba(107, 114, 128, 0.2);
   background-color: rgba(107, 114, 128, 0.08) !important;
 }
 
 /* Subtle header ruler to visually continue the frame into the content */
 .session-header-ruler {
   height: 2px;
-  background-image: linear-gradient(to right, transparent, rgba(148, 163, 184, 0.25), transparent);
+  background-image: linear-gradient(to right, transparent, var(--color-text-tertiary), transparent);
 }
 
 /* Work area unified ring; color toggled via JS */
