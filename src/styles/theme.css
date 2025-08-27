@@ -103,13 +103,29 @@
   --color-gray-900: #0f172a;
   --color-gray-950: #020617;
   
-  /* Font Size Variables */
-  --font-xs: 0.75rem;
-  --font-sm: 0.875rem;
-  --font-base: 1rem;
-  --font-lg: 1.125rem;
-  --font-xl: 1.25rem;
-  --font-2xl: 1.5rem;
+   /* Font Size Variables */
+   --font-xs: 0.75rem;
+   --font-sm: 0.875rem;
+   --font-base: 1rem;
+   --font-lg: 1.125rem;
+   --font-xl: 1.25rem;
+   --font-2xl: 1.5rem;
+
+   /* Standardized Semantic Font Sizes */
+   --font-caption: 0.6875rem;    /* 11px - Small labels, metadata */
+   --font-body: 0.875rem;        /* 14px - Primary body text */
+   --font-body-large: 1rem;      /* 16px - Larger body text */
+   --font-heading: 1.125rem;     /* 18px - Section headings */
+   --font-heading-large: 1.25rem; /* 20px - Main headings */
+   --font-heading-xlarge: 1.5rem; /* 24px - Page titles */
+   --font-display: 2rem;         /* 32px - Hero text, important notices */
+
+   /* UI-Specific Font Sizes */
+   --font-button: 0.875rem;      /* 14px - Button text */
+   --font-input: 0.875rem;       /* 14px - Input field text */
+   --font-label: 0.8125rem;      /* 13px - Form labels */
+   --font-code: 0.8125rem;       /* 13px - Code snippets (monospace) */
+   --font-terminal: 0.8125rem;   /* 13px - Terminal text */
   
   /* Spacing Variables */
   --spacing-xs: 0.25rem;
@@ -137,8 +153,8 @@
   --easing-ease-out: ease-out;
   --easing-ease-in-out: ease-in-out;
   
-  /* Terminal Font Size */
-  --terminal-font-size: 13px;
-  --ui-font-size: 12px;
-  --base-font-size: 13px;
+   /* Dynamic Font Sizes (updated by FontSizeContext) */
+   --terminal-font-size: 13px;
+   --ui-font-size: 14px;
+   --base-font-size: 14px;
 }

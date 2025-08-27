@@ -13,8 +13,8 @@ interface FontSizeContextType {
 
 const FontSizeContext = createContext<FontSizeContextType | undefined>(undefined)
 
-const DEFAULT_TERMINAL_FONT_SIZE = 13
-const DEFAULT_UI_FONT_SIZE = 12
+const DEFAULT_TERMINAL_FONT_SIZE = 13 // Use theme.fontSize.terminal
+const DEFAULT_UI_FONT_SIZE = 14 // Use theme.fontSize.body
 const MIN_FONT_SIZE = 8
 const MAX_FONT_SIZE = 24
 const FONT_SIZE_STEP = 1

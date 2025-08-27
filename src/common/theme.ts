@@ -153,14 +153,31 @@ export const theme = {
     full: '9999px',
   },
   
-  fontSize: {
-    xs: '0.75rem',   // 12px
-    sm: '0.875rem',  // 14px
-    base: '1rem',    // 16px
-    lg: '1.125rem',  // 18px
-    xl: '1.25rem',   // 20px
-    '2xl': '1.5rem', // 24px
-  },
+   fontSize: {
+     // Legacy sizes (for backward compatibility)
+     xs: '0.75rem',   // 12px
+     sm: '0.875rem',  // 14px
+     base: '1rem',    // 16px
+     lg: '1.125rem',  // 18px
+     xl: '1.25rem',   // 20px
+     '2xl': '1.5rem', // 24px
+
+     // Standardized semantic font sizes
+     caption: '0.6875rem',  // 11px - Small labels, metadata
+     body: '0.875rem',      // 14px - Primary body text
+     bodyLarge: '1rem',     // 16px - Larger body text
+     heading: '1.125rem',   // 18px - Section headings
+     headingLarge: '1.25rem', // 20px - Main headings
+     headingXLarge: '1.5rem', // 24px - Page titles
+     display: '2rem',       // 32px - Hero text, important notices
+
+     // UI-specific sizes
+     button: '0.875rem',    // 14px - Button text
+     input: '0.875rem',     // 14px - Input field text
+     label: '0.8125rem',    // 13px - Form labels
+     code: '0.8125rem',     // 13px - Code snippets (monospace)
+     terminal: '0.8125rem', // 13px - Terminal text
+   },
   
   shadow: {
     sm: '0 1px 2px 0 rgba(0, 0, 0, 0.5)',

@@ -1389,7 +1389,7 @@ fi`}
                 </div>
             )}
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
-                <div className="w-[900px] max-w-[95vw] h-[600px] max-h-[80vh] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
+                <div className="w-[1100px] max-w-[95vw] h-[700px] max-h-[85vh] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-800 text-slate-200 font-medium flex items-center justify-between">
                     <span>Settings</span>

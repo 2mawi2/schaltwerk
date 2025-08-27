@@ -64,7 +64,7 @@ describe('FontSizeContext', () => {
     })
 
     expect(getByTestId('terminal-font-size')).toHaveTextContent('14')
-    expect(getByTestId('ui-font-size')).toHaveTextContent('13')
+    expect(getByTestId('ui-font-size')).toHaveTextContent('15')
   })
 
   it('decreases font sizes when decrease function is called', () => {
@@ -79,7 +79,7 @@ describe('FontSizeContext', () => {
     })
 
     expect(getByTestId('terminal-font-size')).toHaveTextContent('12')
-    expect(getByTestId('ui-font-size')).toHaveTextContent('11')
+    expect(getByTestId('ui-font-size')).toHaveTextContent('13')
   })
 
   it('resets font sizes when reset function is called', () => {
@@ -95,14 +95,14 @@ describe('FontSizeContext', () => {
     })
 
     expect(getByTestId('terminal-font-size')).toHaveTextContent('15')
-    expect(getByTestId('ui-font-size')).toHaveTextContent('14')
+    expect(getByTestId('ui-font-size')).toHaveTextContent('16')
 
     act(() => {
       getByTestId('reset').click()
     })
 
     expect(getByTestId('terminal-font-size')).toHaveTextContent('13')
-    expect(getByTestId('ui-font-size')).toHaveTextContent('12')
+    expect(getByTestId('ui-font-size')).toHaveTextContent('14')
   })
 
   it('persists font sizes to database', async () => {
@@ -171,7 +171,7 @@ describe('FontSizeContext', () => {
       getByTestId('set-terminal').click()
     })
     expect(getByTestId('terminal-font-size')).toHaveTextContent('15')
-    expect(getByTestId('ui-font-size')).toHaveTextContent('12')
+    expect(getByTestId('ui-font-size')).toHaveTextContent('14')
 
     act(() => {
       getByTestId('set-ui').click()

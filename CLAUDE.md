@@ -197,6 +197,132 @@ Terminal components use the theme system for all colors:
 4. Test that colors match the rest of the application
 5. Never introduce new hardcoded colors
 
+## Font Size System
+
+**MANDATORY**: Always use the standardized font size system instead of hardcoded font sizes for consistent typography across the UI.
+
+### Font Size Architecture
+
+The application uses a centralized font size system to ensure visual consistency and maintainability:
+
+```
+src/
+├── common/
+│   └── theme.ts          # TypeScript font size configuration (single source of truth)
+├── styles/
+│   └── theme.css         # CSS variables for font sizes
+└── contexts/
+    └── FontSizeContext.tsx # Dynamic font size management
+```
+
+### Standardized Font Sizes
+
+| Semantic Name | Size | Usage |
+|---------------|------|-------|
+| `caption` | 11px (0.6875rem) | Small labels, metadata, timestamps |
+| `body` | 14px (0.875rem) | Primary body text, descriptions |
+| `bodyLarge` | 16px (1rem) | Larger body text, important content |
+| `heading` | 18px (1.125rem) | Section headings, modal titles |
+| `headingLarge` | 20px (1.25rem) | Main headings, page titles |
+| `headingXLarge` | 24px (1.5rem) | Hero headings, important notices |
+| `display` | 32px (2rem) | Display text, hero content |
+
+### UI-Specific Font Sizes
+
+| Name | Size | Usage |
+|------|------|-------|
+| `button` | 14px (0.875rem) | Button text |
+| `input` | 14px (0.875rem) | Input field text |
+| `label` | 13px (0.8125rem) | Form labels |
+| `code` | 13px (0.8125rem) | Code snippets (monospace) |
+| `terminal` | 13px (0.8125rem) | Terminal text |
+
+### Font Size Usage Requirements
+
+1. **TypeScript Components**: Import and use theme font sizes
+   ```typescript
+   import { theme } from '../common/theme'
+
+   // Use semantic font sizes
+   style={{ fontSize: theme.fontSize.body }}
+   ```
+
+2. **CSS Files**: Use CSS variables
+   ```css
+   .body-text {
+     font-size: var(--font-body);
+   }
+
+   .heading {
+     font-size: var(--font-heading);
+   }
+   ```
+
+3. **Tailwind Classes**: Use theme font sizes when possible
+   ```tsx
+   <p className="text-body">Body text content</p>
+   <h1 className="text-heading-large">Heading</h1>
+   ```
+
+### Critical Rules
+
+1. **NEVER use hardcoded font sizes** like:
+   - ❌ `text-sm`, `text-lg`, `text-xl`
+   - ❌ `font-size: 14px`, `font-size: 1rem`
+   - ❌ Inline font-size values
+
+2. **ALWAYS use theme system** instead:
+   - ✅ `theme.fontSize.body`
+   - ✅ `var(--font-body)`
+   - ✅ `text-body` (when Tailwind theme extended)
+
+3. **Use semantic names** that describe purpose, not size:
+   - ✅ `theme.fontSize.heading` (not `theme.fontSize.lg`)
+   - ✅ `theme.fontSize.caption` (not `theme.fontSize.xs`)
+
+### Dynamic Font Sizes
+
+The application supports dynamic font size adjustment through the FontSizeContext:
+
+- **Terminal Font Size**: Controlled by user preferences, affects terminal text
+- **UI Font Size**: Controlled by user preferences, affects general UI text
+- **Keyboard Shortcuts**: Cmd/Ctrl + (+/-/0) to adjust font sizes globally
+
+### Benefits
+
+- **Consistency**: Uniform typography across the entire application
+- **Maintainability**: Change font sizes in one place, updates everywhere
+- **Accessibility**: Consistent text sizing for better readability
+- **User Control**: Dynamic font size adjustment for user preferences
+- **Future-ready**: Easy to implement responsive typography or theme variants
+
+### When Adding New Components
+
+1. Import theme system: `import { theme } from '../common/theme'`
+2. Use semantic font sizes for all text elements
+3. Follow existing patterns in updated components
+4. Test that typography is consistent with the rest of the application
+5. Never introduce new hardcoded font sizes
+
+### Migration Guide
+
+When updating existing components:
+
+1. **Identify hardcoded font sizes**:
+   - Look for `text-sm`, `text-lg`, etc.
+   - Look for inline `font-size` styles
+   - Look for hardcoded pixel/rem values
+
+2. **Replace with semantic equivalents**:
+   - `text-sm` (14px) → `theme.fontSize.body`
+   - `text-lg` (18px) → `theme.fontSize.heading`
+   - `text-xs` (12px) → `theme.fontSize.label`
+
+3. **Test visual consistency**:
+   - Ensure text remains readable
+   - Check spacing and alignment
+   - Verify responsive behavior
+
 ## Testing Requirements
 
 ### Test-Driven Development (TDD)
