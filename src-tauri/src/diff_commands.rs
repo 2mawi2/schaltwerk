@@ -1,9 +1,8 @@
-use tokio::process::Command;
 use std::path::Path;
+use tokio::process::Command;
 // no serde derives used in this module
 use crate::get_schaltwerk_core;
 use crate::schaltwerk_core::{git, types::ChangedFile};
-use std::collections::HashMap;
 use crate::file_utils;
 use crate::diff_engine::{
     compute_unified_diff, add_collapsible_sections, compute_split_diff,
@@ -12,6 +11,7 @@ use crate::diff_engine::{
 };
 use crate::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
 use serde::Serialize;
+use git2::{Repository, Status};
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
@@ -25,71 +25,44 @@ pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result
 pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, String> {
     let repo_path = get_repo_path(None).await?;
     
-    let mut file_map: HashMap<String, String> = HashMap::new();
+    // Use libgit2 to get status
+    let repo = Repository::open(&repo_path)
+        .map_err(|e| format!("Failed to open repository: {e}"))?;
     
-    // Run git commands concurrently to improve performance
-    let (staged_result, unstaged_result, untracked_result) = tokio::join!(
-        Command::new("git")
-            .args(["-C", &repo_path, "diff", "--name-status", "--cached"])
-            .output(),
-        Command::new("git")
-            .args(["-C", &repo_path, "diff", "--name-status"])
-            .output(),
-        Command::new("git")
-            .args(["-C", &repo_path, "ls-files", "--others", "--exclude-standard"])
-            .output()
-    );
-
-    // Process staged changes
-    let staged_output = staged_result.map_err(|e| format!("Failed to get staged changes: {e}"))?;
-    if staged_output.status.success() {
-        for line in String::from_utf8_lossy(&staged_output.stdout).lines() {
-            if let Some((status, path)) = parse_name_status_line(line) {
-                file_map.insert(path.to_string(), status.to_string());
-            }
+    let statuses = repo.statuses(None)
+        .map_err(|e| format!("Failed to get repository status: {e}"))?;
+    
+    let mut changed_files = Vec::new();
+    
+    for entry in statuses.iter() {
+        let path = entry.path()
+            .ok_or_else(|| "Invalid path in status entry".to_string())?;
+        
+        // Filter out .schaltwerk directory and its contents
+        if path.starts_with(".schaltwerk/") || path == ".schaltwerk" {
+            continue;
         }
+        
+        let status = entry.status();
+        
+        // Determine the change type based on git status flags
+        let change_type = if status.contains(Status::INDEX_NEW) || status.contains(Status::WT_NEW) {
+            "added"
+        } else if status.contains(Status::INDEX_DELETED) || status.contains(Status::WT_DELETED) {
+            "deleted"
+        } else if status.contains(Status::INDEX_RENAMED) || status.contains(Status::WT_RENAMED) {
+            "renamed"
+        } else if status.contains(Status::INDEX_MODIFIED) || status.contains(Status::WT_MODIFIED) || status.contains(Status::INDEX_TYPECHANGE) || status.contains(Status::WT_TYPECHANGE) {
+            "modified"
+        } else {
+            continue; // Skip if no relevant changes
+        };
+        
+        changed_files.push(ChangedFile {
+            path: path.to_string(),
+            change_type: change_type.to_string(),
+        });
     }
-    
-    // Process unstaged changes
-    let unstaged_output = unstaged_result.map_err(|e| format!("Failed to get unstaged changes: {e}"))?;
-    if unstaged_output.status.success() {
-        for line in String::from_utf8_lossy(&unstaged_output.stdout).lines() {
-            if let Some((status, path)) = parse_name_status_line(line) {
-                // Don't override staged status if already present
-                file_map.entry(path.to_string()).or_insert(status.to_string());
-            }
-        }
-    }
-    
-    // Process untracked files
-    let untracked_output = untracked_result.map_err(|e| format!("Failed to get untracked files: {e}"))?;
-    
-    if untracked_output.status.success() {
-        for line in String::from_utf8_lossy(&untracked_output.stdout).lines() {
-            if !line.is_empty() {
-                file_map.entry(line.to_string()).or_insert("A".to_string());
-            }
-        }
-    }
-    
-    let mut changed_files: Vec<ChangedFile> = file_map
-        .into_iter()
-        .filter(|(path, _)| {
-            // Filter out .schaltwerk directory and its contents
-            !path.starts_with(".schaltwerk/") && path != ".schaltwerk"
-        })
-        .map(|(path, status)| ChangedFile {
-            path,
-            change_type: match status.as_str() {
-                "M" => "modified".to_string(),
-                "A" => "added".to_string(),
-                "D" => "deleted".to_string(),
-                "R" => "renamed".to_string(),
-                "C" => "copied".to_string(),
-                _ => "unknown".to_string(),
-            },
-        })
-        .collect();
     
     // Sort files alphabetically by path for consistent ordering
     changed_files.sort_by(|a, b| a.path.cmp(&b.path));
@@ -101,7 +74,8 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
 mod tests {
     use super::*;
     use std::fs;
-    use std::process::Command;
+    use std::process::Command as StdCommand;
+    use std::collections::HashMap;
     use tempfile::TempDir;
 
     fn setup_test_git_repo() -> TempDir {
@@ -109,20 +83,20 @@ mod tests {
         let repo_path = temp_dir.path();
 
         // Initialize git repo
-        Command::new("git")
+        StdCommand::new("git")
             .args(["init"])
             .current_dir(repo_path)
             .output()
             .unwrap();
 
         // Configure git
-        Command::new("git")
+        StdCommand::new("git")
             .args(["config", "user.name", "Test User"])
             .current_dir(repo_path)
             .output()
             .unwrap();
 
-        Command::new("git")
+        StdCommand::new("git")
             .args(["config", "user.email", "test@example.com"])
             .current_dir(repo_path)
             .output()
@@ -130,12 +104,12 @@ mod tests {
 
         // Create initial commit
         fs::write(repo_path.join("README.md"), "# Test repo").unwrap();
-        Command::new("git")
+        StdCommand::new("git")
             .args(["add", "README.md"])
             .current_dir(repo_path)
             .output()
             .unwrap();
-        Command::new("git")
+        StdCommand::new("git")
             .args(["commit", "-m", "Initial commit"])
             .current_dir(repo_path)
             .output()
@@ -349,6 +323,7 @@ mod tests {
     }
 }
 
+#[allow(dead_code)]
 fn parse_name_status_line(line: &str) -> Option<(&str, &str)> {
     let parts: Vec<&str> = line.split_whitespace().collect();
     if parts.len() >= 2 {

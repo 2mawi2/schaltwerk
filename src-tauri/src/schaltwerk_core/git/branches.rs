@@ -1,6 +1,6 @@
 use std::path::Path;
-use std::process::Command;
 use anyhow::{Result, anyhow};
+use git2::{Repository, BranchType};
 use crate::schaltwerk_core::git::repository::{repository_has_commits, get_unborn_head_branch};
 
 pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
@@ -18,90 +18,84 @@ pub fn list_branches(repo_path: &Path) -> Result<Vec<String>> {
         return Ok(Vec::new());
     }
     
-    let output = Command::new("git")
-        .args([
-            "-C", repo_path.to_str().unwrap(),
-            "branch", "-a", "--format=%(refname:short)"
-        ])
-        .output()?;
+    let repo = Repository::open(repo_path)?;
+    let mut branch_names = Vec::new();
     
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("Failed to list branches: {}", stderr));
+    // Get local branches
+    let local_branches = repo.branches(Some(BranchType::Local))?;
+    for (branch, _) in local_branches.flatten() {
+        if let Some(name) = branch.name()? {
+            branch_names.push(name.to_string());
+        }
     }
     
-    let branches_str = String::from_utf8_lossy(&output.stdout);
-    let mut branches: Vec<String> = branches_str
-        .lines()
-        .filter(|line| !line.is_empty())
-        .map(|line| {
-            if let Some(branch) = line.strip_prefix("origin/") {
-                branch.to_string()
-            } else {
-                line.to_string()
+    // Get remote branches and convert them to local branch names
+    let remote_branches = repo.branches(Some(BranchType::Remote))?;
+    for (branch, _) in remote_branches.flatten() {
+        if let Some(name) = branch.name()? {
+            // Strip origin/ prefix to get the branch name
+            if let Some(branch_name) = name.strip_prefix("origin/") {
+                if branch_name != "HEAD" {
+                    branch_names.push(branch_name.to_string());
+                }
             }
-        })
-        .collect();
+        }
+    }
     
-    branches.sort();
-    branches.dedup();
+    branch_names.sort();
+    branch_names.dedup();
     
-    branches.retain(|b| !b.contains("HEAD"));
-    
-    log::debug!("Found {} branches", branches.len());
-    Ok(branches)
+    log::debug!("Found {} branches", branch_names.len());
+    Ok(branch_names)
 }
 
 pub fn delete_branch(repo_path: &Path, branch_name: &str) -> Result<()> {
-    let output = Command::new("git")
-        .args([
-            "-C", repo_path.to_str().unwrap(),
-            "branch", "-D", branch_name
-        ])
-        .output()?;
+    let repo = Repository::open(repo_path)?;
     
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("Failed to delete branch {}: {}", branch_name, stderr));
-    }
+    // Find the branch
+    let mut branch = repo.find_branch(branch_name, BranchType::Local)
+        .map_err(|e| anyhow!("Failed to delete branch {}: {}", branch_name, e))?;
+    
+    // Delete the branch (force delete)
+    branch.delete()
+        .map_err(|e| anyhow!("Failed to delete branch {}: {}", branch_name, e))?;
     
     Ok(())
 }
 
 pub fn branch_exists(repo_path: &Path, branch_name: &str) -> Result<bool> {
-    let output = Command::new("git")
-        .args([
-            "-C", repo_path.to_str().unwrap(),
-            "rev-parse", "--verify", "--quiet", &format!("refs/heads/{branch_name}")
-        ])
-        .output();
+    let repo = Repository::open(repo_path)?;
     
-    match output {
-        Ok(result) => Ok(result.status.success()),
-        Err(_) => Ok(false)
-    }
+    // Try to find the branch
+    let result = match repo.find_branch(branch_name, BranchType::Local) {
+        Ok(_) => Ok(true),
+        Err(e) if e.code() == git2::ErrorCode::NotFound => Ok(false),
+        // Treat corrupted branches as non-existent
+        Err(e) if e.code() == git2::ErrorCode::InvalidSpec || 
+                  e.code() == git2::ErrorCode::GenericError => Ok(false),
+        Err(e) => Err(anyhow!("Error checking branch existence: {}", e))
+    };
+    result
 }
 
 pub fn rename_branch(repo_path: &Path, old_branch: &str, new_branch: &str) -> Result<()> {
     if !branch_exists(repo_path, old_branch)? {
-        return Err(anyhow!("Branch '{old_branch}' does not exist"));
+        return Err(anyhow!("Branch '{}' does not exist", old_branch));
     }
     
     if branch_exists(repo_path, new_branch)? {
-        return Err(anyhow!("Branch '{new_branch}' already exists"));
+        return Err(anyhow!("Branch '{}' already exists", new_branch));
     }
     
-    let output = Command::new("git")
-        .args([
-            "-C", repo_path.to_str().unwrap(),
-            "branch", "-m", old_branch, new_branch
-        ])
-        .output()?;
+    let repo = Repository::open(repo_path)?;
     
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("Failed to rename branch: {stderr}"));
-    }
+    // Find the branch to rename
+    let mut branch = repo.find_branch(old_branch, BranchType::Local)
+        .map_err(|e| anyhow!("Failed to find branch {}: {}", old_branch, e))?;
+    
+    // Rename the branch (force=false to prevent overwriting)
+    branch.rename(new_branch, false)
+        .map_err(|e| anyhow!("Failed to rename branch: {}", e))?;
     
     Ok(())
 }
@@ -115,17 +109,15 @@ pub fn archive_branch(repo_path: &Path, branch_name: &str, session_name: &str) -
         .as_secs();
     let archived_branch = format!("schaltwerk/archived/{timestamp}/{session_name}");
     
-    let output = Command::new("git")
-        .args([
-            "-C", repo_path.to_str().unwrap(),
-            "branch", "-m", branch_name, &archived_branch
-        ])
-        .output()?;
+    let repo = Repository::open(repo_path)?;
     
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("Failed to archive branch {}: {}", branch_name, stderr));
-    }
+    // Find the branch to archive
+    let mut branch = repo.find_branch(branch_name, BranchType::Local)
+        .map_err(|e| anyhow!("Failed to archive branch {}: {}", branch_name, e))?;
+    
+    // Rename to archive location (force=false to prevent overwriting)
+    branch.rename(&archived_branch, false)
+        .map_err(|e| anyhow!("Failed to archive branch {}: {}", branch_name, e))?;
     
     Ok(archived_branch)
 }

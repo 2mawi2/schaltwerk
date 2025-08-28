@@ -63,9 +63,27 @@ src-tauri/
 ├── src/
 │   ├── main.rs      # Tauri app entry point and commands
 │   ├── pty.rs       # Terminal PTY management
-│   └── cleanup.rs   # Process cleanup on exit
+│   ├── cleanup.rs   # Process cleanup on exit
+│   └── schaltwerk_core/
+│       └── git/     # Git operations using libgit2
 └── Cargo.toml       # Rust dependencies
 ```
+
+### Git Operations
+
+**MANDATORY**: All git operations must use the `git2` crate (libgit2 Rust bindings). Never use `Command::new("git")` or spawn git processes directly.
+
+The application uses libgit2 for all git operations to ensure:
+- Better performance (no process spawning overhead)
+- Consistent error handling
+- Thread safety
+- In-memory operations where possible
+
+All git functionality is centralized in `src-tauri/src/schaltwerk_core/git/` modules:
+- `repository.rs`: Core repository operations (discovery, branch detection, initialization)
+- `branches.rs`: Branch management (list, create, delete, rename, archive)
+- `worktrees.rs`: Worktree operations (create, remove, update)
+- `operations.rs`: Status and commit operations
 
 ## Key Features
 
