@@ -415,7 +415,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                         }}
                                         branches={branches}
                                         disabled={branches.length === 0}
-                                        placeholder={branches.length === 0 ? "No branches available" : "Type to search branches..."}
+                                         placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
                                         onValidationChange={setIsValidBranch}
                                     />
                                 )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { getLongestCommonPrefix } from '../../utils/stringUtils'
 
 interface BranchAutocompleteProps {
     value: string
@@ -39,15 +40,23 @@ export function BranchAutocomplete({
                     // Prioritize exact matches
                     const aExact = a.toLowerCase() === searchTerm
                     const bExact = b.toLowerCase() === searchTerm
-                    if (aExact && !bExact) return -1
-                    if (!aExact && bExact) return 1
-                    
+                    if (aExact && !bExact) {
+                        return -1
+                    }
+                    if (!aExact && bExact) {
+                        return 1
+                    }
+
                     // Then prioritize starts with
                     const aStarts = a.toLowerCase().startsWith(searchTerm)
                     const bStarts = b.toLowerCase().startsWith(searchTerm)
-                    if (aStarts && !bStarts) return -1
-                    if (!aStarts && bStarts) return 1
-                    
+                    if (aStarts && !bStarts) {
+                        return -1
+                    }
+                    if (!aStarts && bStarts) {
+                        return 1
+                    }
+
                     // Finally sort alphabetically
                     return a.localeCompare(b)
                 })
@@ -119,13 +128,39 @@ export function BranchAutocomplete({
             setIsOpen(false)
             setHighlightedIndex(-1)
         } else if (e.key === 'Tab') {
-            // Allow tab to accept the highlighted suggestion
-            if (isOpen && highlightedIndex >= 0 && highlightedIndex < filteredBranches.length) {
-                e.preventDefault()
-                onChange(filteredBranches[highlightedIndex])
+            e.preventDefault()
+            if (filteredBranches.length === 0) {
+                return
+            }
+
+            // If only one match, accept it
+            if (filteredBranches.length === 1) {
+                onChange(filteredBranches[0])
                 setIsOpen(false)
                 setHighlightedIndex(-1)
+                return
             }
+
+            // If multiple matches, complete to longest common prefix
+            if (filteredBranches.length > 1) {
+                const prefix = getLongestCommonPrefix(filteredBranches)
+                if (prefix.length > value.length) {
+                    onChange(prefix)
+                    // Keep dropdown open for further completion
+                    setHighlightedIndex(0)
+                } else {
+                    // If already at longest common prefix, accept first match
+                    onChange(filteredBranches[0])
+                    setIsOpen(false)
+                    setHighlightedIndex(-1)
+                }
+            }
+        } else if (e.ctrlKey && e.key === ' ') {
+            // Ctrl+Space to show all branches
+            e.preventDefault()
+            setIsOpen(true)
+            setFilteredBranches(branches.slice(0, 20))
+            setHighlightedIndex(0)
         }
     }, [filteredBranches, highlightedIndex, onChange, isOpen])
 
@@ -154,11 +189,13 @@ export function BranchAutocomplete({
     }
 
     const highlightMatch = (text: string, query: string) => {
-        if (!query) return text
+        if (!query) {
+            return text
+        }
         const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'))
         return (
             <>
-                {parts.map((part, index) => 
+                {parts.map((part, index) =>
                     part.toLowerCase() === query.toLowerCase() ? (
                         <span key={index} className="text-blue-400 font-semibold">{part}</span>
                     ) : (
