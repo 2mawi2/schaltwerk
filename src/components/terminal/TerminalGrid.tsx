@@ -1,6 +1,7 @@
 import { Terminal, TerminalHandle } from './Terminal'
 import { TerminalTabs, TerminalTabsHandle } from './TerminalTabs'
 import { PlanPlaceholder } from '../plans/PlanPlaceholder'
+import TerminalErrorBoundary from '../TerminalErrorBoundary'
 import Split from 'react-split'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { useSelection } from '../../contexts/SelectionContext'
@@ -477,7 +478,8 @@ export function TerminalGrid() {
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`}>
-                        <Terminal 
+                        <TerminalErrorBoundary terminalId={terminals.top}>
+                            <Terminal 
                             key={`top-terminal-${terminalKey}`}
                             ref={claudeTerminalRef}
                             terminalId={terminals.top} 
@@ -487,6 +489,7 @@ export function TerminalGrid() {
                             agentType={agentType}
                             onTerminalClick={handleClaudeSessionClick}
                         />
+                        </TerminalErrorBoundary>
                     </div>
                 </div>
                 <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
@@ -530,7 +533,8 @@ export function TerminalGrid() {
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 ${isBottomCollapsed ? 'hidden' : ''}`}>
-                        <TerminalTabs
+                        <TerminalErrorBoundary terminalId={terminals.bottomBase}>
+                            <TerminalTabs
                             key={`terminal-tabs-${terminalKey}`}
                             ref={terminalTabsRef}
                             baseTerminalId={terminals.bottomBase}
@@ -541,6 +545,7 @@ export function TerminalGrid() {
                             agentType={agentType}
                             onTerminalClick={handleTerminalClick}
                         />
+                        </TerminalErrorBoundary>
                     </div>
                 </div>
             </Split>

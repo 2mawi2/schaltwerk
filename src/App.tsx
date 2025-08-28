@@ -2,6 +2,8 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TerminalGrid } from './components/terminal/TerminalGrid'
 import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
+import ErrorBoundary from './components/ErrorBoundary'
+import SessionErrorBoundary from './components/SessionErrorBoundary'
 import { UnifiedDiffModal } from './components/diff/UnifiedDiffModal'
 import Split from 'react-split'
 import { NewSessionModal } from './components/modals/NewSessionModal'
@@ -808,7 +810,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <ErrorBoundary name="App">
       {/* Show TopBar always */}
       <TopBar
         tabs={openTabs}
@@ -841,7 +843,9 @@ export default function App() {
       {/* Show home screen if requested, or no active tab */}
       {showHome && (
         <div className="pt-[32px] h-full">
-          <HomeScreen onOpenProject={handleOpenProject} />
+          <ErrorBoundary name="HomeScreen">
+            <HomeScreen onOpenProject={handleOpenProject} />
+          </ErrorBoundary>
         </div>
       )}
 
@@ -852,12 +856,14 @@ export default function App() {
             <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
               <div className="h-full flex flex-col">
                 <div className="flex-1 overflow-y-auto">
-                  <Sidebar 
+                  <SessionErrorBoundary>
+                    <Sidebar 
                     isDiffViewerOpen={isDiffViewerOpen} 
                     openTabs={openTabs}
                     onSelectPrevProject={handleSelectPrevProject}
                     onSelectNextProject={handleSelectNextProject}
                   />
+                  </SessionErrorBoundary>
                 </div>
                 <div className="p-2 border-t grid grid-cols-2 gap-2" style={{ borderTopColor: theme.colors.border.default }}>
                   <button
@@ -918,10 +924,14 @@ export default function App() {
                   <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
                   <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
                     <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
-                      <TerminalGrid />
+                      <ErrorBoundary name="TerminalGrid">
+                        <TerminalGrid />
+                      </ErrorBoundary>
                     </main>
                     <section className="overflow-hidden">
-                      <RightPanelTabs onFileSelect={handleFileSelect} />
+                      <ErrorBoundary name="RightPanel">
+                        <RightPanelTabs onFileSelect={handleFileSelect} />
+                      </ErrorBoundary>
                     </section>
                   </Split>
                 </>
@@ -1020,6 +1030,6 @@ export default function App() {
           )}
         </>
       )}
-    </>
+    </ErrorBoundary>
   )
 }// Test comment added to main
