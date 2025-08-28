@@ -65,8 +65,8 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
-      <div 
-        className="h-12 flex-shrink-0 flex items-stretch overflow-x-auto scrollbar-hide"
+      <div
+        className="h-8 flex-shrink-0 flex items-stretch overflow-x-auto scrollbar-hide"
         style={{ backgroundColor: theme.colors.background.primary }}
       >
         {tabs.map((tab) => (
