@@ -387,8 +387,8 @@ pub async fn get_file_diff_from_main(
     }
     
     // For sessions, get diff against base branch
-    // We compare the working directory (if file has uncommitted changes) or HEAD against the base branch
-    // This ensures we show the actual current state of the file
+    // ALWAYS compare base branch to the current working directory state
+    // This ensures we show ALL changes (committed + uncommitted) consistently
     let base_branch = get_base_branch(session_name).await?;
     
     // Get the base branch version of the file
@@ -413,58 +413,15 @@ pub async fn get_file_diff_from_main(
         String::new()
     };
     
-    // Check if file has uncommitted changes in working directory
+    // ALWAYS use the working directory version to show all changes
+    // This ensures consistency with get_changed_files_from_main
     let worktree_text = if worktree_path.exists() {
-        // Check if file is modified in working directory
-        let status_output = Command::new("git")
-            .args(["-C", &repo_path, "status", "--porcelain", &file_path])
-            .output()
-            .await
-            .map_err(|e| format!("Failed to check file status: {e}"))?;
-        
-        let is_modified = !status_output.stdout.is_empty();
-        
-        if is_modified {
-            // File has uncommitted changes, show working directory version
-            std::fs::read_to_string(&worktree_path)
-                .map_err(|e| format!("Failed to read worktree file: {e}"))?
-        } else {
-            // File has no uncommitted changes, show HEAD version
-            let session_content = Command::new("git")
-                .args(["-C", &repo_path, "show", &format!("HEAD:{file_path}")])
-                .output()
-                .await
-                .map_err(|e| format!("Failed to get session HEAD content: {e}"))?;
-            
-            if session_content.status.success() {
-                let session_bytes = &session_content.stdout;
-                if session_bytes.len() > 10 * 1024 * 1024 {
-                    return Err("Session file is too large to diff (>10MB)".to_string());
-                }
-                if session_bytes.contains(&0) || is_likely_binary(session_bytes) {
-                    return Err("Session file appears to be binary".to_string());
-                }
-                String::from_utf8_lossy(session_bytes).to_string()
-            } else {
-                // File doesn't exist in session HEAD (was deleted)
-                String::new()
-            }
-        }
+        // Read the current working directory version
+        std::fs::read_to_string(&worktree_path)
+            .map_err(|e| format!("Failed to read worktree file: {e}"))?
     } else {
-        // File doesn't exist in working directory, check if it exists in HEAD
-        let session_content = Command::new("git")
-            .args(["-C", &repo_path, "show", &format!("HEAD:{file_path}")])
-            .output()
-            .await
-            .map_err(|e| format!("Failed to get session HEAD content: {e}"))?;
-        
-        if session_content.status.success() {
-            // File was deleted in working directory but exists in HEAD
-            String::new()
-        } else {
-            // File doesn't exist in either working directory or HEAD
-            String::new()
-        }
+        // File was deleted in working directory
+        String::new()
     };
     
     Ok((base_text, worktree_text))

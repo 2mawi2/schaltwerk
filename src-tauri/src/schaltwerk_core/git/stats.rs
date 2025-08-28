@@ -1,5 +1,4 @@
 use std::path::Path;
-use std::process::Command;
 use std::collections::{HashSet, HashMap};
 use anyhow::Result;
 use chrono::Utc;
@@ -152,62 +151,34 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let mut files_for_mtime: HashSet<String> = HashSet::new();
     let mut insertions: u32 = 0;
     let mut deletions: u32 = 0;
-
     let mut saw_schema_change: bool = false;
-    let mut add_from_diff = |diff: git2::Diff| {
-        if let Ok(stats) = diff.stats() {
-            insertions = insertions.saturating_add(stats.insertions() as u32);
-            deletions = deletions.saturating_add(stats.deletions() as u32);
-        }
-        for d in diff.deltas() {
-            use git2::Delta;
-            match d.status() {
-                Delta::Deleted | Delta::Renamed | Delta::Typechange => { saw_schema_change = true; }
-                _ => {}
-            }
-            if let Some(p) = d.new_file().path().or_else(|| d.old_file().path()) {
-                if let Some(s) = p.to_str() { files.insert(s.to_string()); }
-            }
-        }
-    };
 
+    // Use the same single diff approach as get_changed_files for consistency
+    // This shows net changes from base to current state
     let mut opts = DiffOptions::new();
+    opts.include_untracked(true).recurse_untracked_dirs(true);
 
-    if let (Some(bt), Some(ht)) = (base_tree.as_ref(), head_tree.as_ref()) {
-        if let Ok(diff) = repo.diff_tree_to_tree(Some(bt), Some(ht), Some(&mut opts)) {
-            add_from_diff(diff);
-        }
-    }
-
-    if let Some(ht) = head_tree.as_ref() {
-        if let Ok(idx) = repo.index() {
-            if let Ok(diff) = repo.diff_tree_to_index(Some(ht), Some(&idx), Some(&mut opts)) {
-                // Count stats and record files
-                add_from_diff(diff);
+    if let Some(ref bt) = base_tree {
+        if let Ok(diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts)) {
+            // Calculate stats from the single comprehensive diff
+            if let Ok(stats) = diff.stats() {
+                insertions = stats.insertions() as u32;
+                deletions = stats.deletions() as u32;
             }
-            // Create a separate diff to iterate deltas for mtime (staged)
-            if let Ok(diff_for_mtime) = repo.diff_tree_to_index(Some(ht), Some(&idx), Some(&mut opts)) {
-                for d in diff_for_mtime.deltas() {
-                    if let Some(p) = d.new_file().path().or_else(|| d.old_file().path()) {
-                        if let Some(s) = p.to_str() { files_for_mtime.insert(s.to_string()); }
-                    }
+            
+            // Process deltas for file tracking and schema change detection
+            for delta in diff.deltas() {
+                use git2::Delta;
+                match delta.status() {
+                    Delta::Deleted | Delta::Renamed | Delta::Typechange => { saw_schema_change = true; }
+                    _ => {}
                 }
-            }
-        }
-    }
-
-    if let Ok(idx) = repo.index() {
-        let mut workdir_opts = DiffOptions::new();
-        workdir_opts.include_untracked(true).recurse_untracked_dirs(true);
-        if let Ok(diff) = repo.diff_index_to_workdir(Some(&idx), Some(&mut workdir_opts)) {
-            // Count stats and record files
-            add_from_diff(diff);
-        }
-        // Create a separate diff to iterate deltas for mtime (unstaged/untracked)
-        if let Ok(diff_for_mtime) = repo.diff_index_to_workdir(Some(&idx), Some(&mut workdir_opts)) {
-            for d in diff_for_mtime.deltas() {
-                if let Some(p) = d.new_file().path().or_else(|| d.old_file().path()) {
-                    if let Some(s) = p.to_str() { files_for_mtime.insert(s.to_string()); }
+                
+                if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+                    if let Some(path_str) = path.to_str() {
+                        files.insert(path_str.to_string());
+                        files_for_mtime.insert(path_str.to_string());
+                    }
                 }
             }
         }
@@ -274,47 +245,60 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
 
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
-    // For sessions, only show committed changes between the base branch and HEAD
-    // We don't include staged, unstaged, or untracked files for sessions
-    let mut file_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
-
-    let committed_output = Command::new("git")
-        .args([
-            "-C", worktree_path.to_str().unwrap(),
-            "diff", "--name-status", &format!("{parent_branch}...HEAD")
-        ])
-        .output()?;
-    if committed_output.status.success() {
-        for line in String::from_utf8_lossy(&committed_output.stdout).lines() {
-            if let Some((status, path)) = parse_name_status_line(line) {
-                file_map.insert(path.to_string(), status.to_string());
+    // For sessions, show all changes from base branch to current working directory state
+    // This includes ALL changes: committed, staged, unstaged, and untracked files
+    
+    let repo = Repository::discover(worktree_path)?;
+    
+    // Get base branch commit and tree
+    let base_ref = repo.revparse_single(parent_branch)
+        .map_err(|e| anyhow::anyhow!("Failed to find base branch {}: {}", parent_branch, e))?;
+    let base_commit = base_ref.peel_to_commit()
+        .map_err(|e| anyhow::anyhow!("Failed to get base commit: {}", e))?;
+    let base_tree = base_commit.tree()
+        .map_err(|e| anyhow::anyhow!("Failed to get base tree: {}", e))?;
+    
+    // Use libgit2's diff_tree_to_workdir_with_index to get ALL changes in one operation
+    // This directly compares base tree to working directory including staged changes
+    let mut opts = DiffOptions::new();
+    opts.include_untracked(true)
+        .recurse_untracked_dirs(true)
+        .ignore_submodules(true);
+    
+    let diff = repo.diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))
+        .map_err(|e| anyhow::anyhow!("Failed to compute diff: {}", e))?;
+    
+    let mut files = Vec::new();
+    
+    for delta in diff.deltas() {
+        if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+            if let Some(path_str) = path.to_str() {
+                // Skip .schaltwerk directory
+                if path_str.starts_with(".schaltwerk/") || path_str == ".schaltwerk" {
+                    continue;
+                }
+                
+                let change_type = match delta.status() {
+                    git2::Delta::Added | git2::Delta::Untracked => "added",
+                    git2::Delta::Deleted => "deleted", 
+                    git2::Delta::Modified => "modified",
+                    git2::Delta::Renamed => "renamed",
+                    git2::Delta::Copied => "copied",
+                    git2::Delta::Typechange => "modified",
+                    _ => "modified",
+                };
+                
+                files.push(ChangedFile {
+                    path: path_str.to_string(),
+                    change_type: change_type.to_string(),
+                });
             }
         }
     }
-
-    let mut files: Vec<ChangedFile> = file_map
-        .into_iter()
-        .map(|(path, change_type)| ChangedFile { path, change_type })
-        .collect();
+    
+    // Sort files alphabetically for consistent ordering
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
-}
-
-fn parse_name_status_line(line: &str) -> Option<(&str, &str)> {
-    if line.is_empty() { return None; }
-    let parts: Vec<&str> = line.splitn(2, '\t').collect();
-    if parts.len() != 2 { return None; }
-    let status = parts[0];
-    let path = parts[1];
-    let change_type = match status.chars().next().unwrap_or('?') {
-        'M' => "modified",
-        'A' => "added",
-        'D' => "deleted",
-        'R' => "renamed",
-        'C' => "copied",
-        _ => "unknown",
-    };
-    Some((change_type, path))
 }
 
 #[cfg(test)]
