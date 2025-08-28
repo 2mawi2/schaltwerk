@@ -14,7 +14,7 @@
     "test:frontend": "FORCE_COLOR=0 vitest run --silent --reporter=dot --exclude='**/*.{bench,performance}.test.{ts,tsx}'",
     "test:frontend:coverage": "vitest run --coverage --exclude='**/*.{bench,performance}.test.{ts,tsx}'",
     "test:frontend:watch": "vitest --exclude='**/*.{bench,performance}.test.{ts,tsx}'",
-    "test:rust": "cd src-tauri && if command -v cargo-nextest >/dev/null 2>&1; then CARGO_TERM_COLOR=never RUST_LOG=warn cargo nextest run --lib --bins -E 'not test(test_benchmark)'; else CARGO_TERM_COLOR=never RUST_LOG=warn cargo test -q --lib --bins --skip 'test_benchmark'; fi",
+    "test:rust": "cd src-tauri && CARGO_TERM_COLOR=never RUST_LOG=warn cargo test -q --lib --bins -- --skip 'test_benchmark'",
     "test": "npm run lint && npm run lint:rust && npm run test:frontend && npm run test:rust && npm run build:rust",
     "benchmark:frontend": "FORCE_COLOR=0 vitest run --silent --reporter=dot src/tests/performance.test.tsx src/utils/diff.bench.test.ts src/components/diff/UnifiedDiffModal.performance.test.tsx",
     "benchmark:rust": "cd src-tauri && CARGO_TERM_COLOR=never cargo test --release 'test_benchmark' -- --nocapture",
