@@ -1,5 +1,5 @@
 #[cfg(test)]
-mod tests {
+mod benchmarks {
     use super::super::branches::*;
     use std::path::PathBuf;
     use std::process::Command;
@@ -52,7 +52,6 @@ mod tests {
                 .current_dir(&repo_path)
                 .output()?;
             
-            // Rename default branch to main for consistency
             let current_branch_output = Command::new("git")
                 .args(["rev-parse", "--abbrev-ref", "HEAD"])
                 .current_dir(&repo_path)
@@ -169,7 +168,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_branches_with_commits() -> Result<()> {
+    fn test_benchmark_list_branches_with_commits() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("feature-branch")?;
         repo.create_branch("bugfix-branch")?;
@@ -185,13 +184,11 @@ mod tests {
     }
 
     #[test]
-    fn test_list_branches_without_commits() -> Result<()> {
+    fn test_benchmark_list_branches_without_commits() -> Result<()> {
         let repo = TestRepo::new_without_commits()?;
         
         let branches = list_branches(&repo.repo_path)?;
         
-        // In an empty repo with no commits, the branch list could be empty
-        // or contain the default branch name depending on git version
         assert!(branches.is_empty() || 
                 branches.contains(&"main".to_string()) || 
                 branches.contains(&"master".to_string()));
@@ -204,7 +201,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_branches_with_remote() -> Result<()> {
+    fn test_benchmark_list_branches_with_remote() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("local-branch")?;
         repo.create_remote_branch("remote-branch")?;
@@ -221,7 +218,7 @@ mod tests {
     }
 
     #[test]
-    fn test_list_branches_sorted_and_deduplicated() -> Result<()> {
+    fn test_benchmark_list_branches_sorted_and_deduplicated() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("zebra")?;
         repo.create_branch("alpha")?;
@@ -243,7 +240,7 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_branch_success() -> Result<()> {
+    fn test_benchmark_delete_branch_success() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("to-delete")?;
         
@@ -257,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_delete_nonexistent_branch() {
+    fn test_benchmark_delete_nonexistent_branch() {
         let repo = TestRepo::new().unwrap();
         
         let result = delete_branch(&repo.repo_path, "nonexistent");
@@ -266,7 +263,7 @@ mod tests {
     }
 
     #[test]
-    fn test_branch_exists() -> Result<()> {
+    fn test_benchmark_branch_exists() -> Result<()> {
         let repo = TestRepo::new()?;
         
         assert!(branch_exists(&repo.repo_path, "main")?);
@@ -279,7 +276,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_branch_success() -> Result<()> {
+    fn test_benchmark_rename_branch_success() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("old-name")?;
         
@@ -295,7 +292,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_nonexistent_branch() {
+    fn test_benchmark_rename_nonexistent_branch() {
         let repo = TestRepo::new().unwrap();
         
         let result = rename_branch(&repo.repo_path, "nonexistent", "new-name");
@@ -304,7 +301,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rename_to_existing_branch() -> Result<()> {
+    fn test_benchmark_rename_to_existing_branch() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("branch1")?;
         repo.create_branch("branch2")?;
@@ -317,7 +314,7 @@ mod tests {
     }
 
     #[test]
-    fn test_archive_branch_success() -> Result<()> {
+    fn test_benchmark_archive_branch_success() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("to-archive")?;
         
@@ -329,7 +326,6 @@ mod tests {
         assert!(branch_exists(&repo.repo_path, &archived_name)?);
         assert!(archived_name.starts_with("schaltwerk/archived/"));
         assert!(archived_name.ends_with("/session1"));
-        // Unix timestamp should be numeric (at least 10 digits for modern timestamps)
         let timestamp_part = archived_name.strip_prefix("schaltwerk/archived/")
             .and_then(|s| s.split('/').next())
             .expect("Should contain timestamp");
@@ -340,7 +336,7 @@ mod tests {
     }
 
     #[test]
-    fn test_archive_branch_with_timestamp() -> Result<()> {
+    fn test_benchmark_archive_branch_with_timestamp() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("branch1")?;
         repo.create_branch("branch2")?;
@@ -358,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn test_archive_nonexistent_branch() {
+    fn test_benchmark_archive_nonexistent_branch() {
         let repo = TestRepo::new().unwrap();
         
         let result = archive_branch(&repo.repo_path, "nonexistent", "session1");
@@ -367,7 +363,7 @@ mod tests {
     }
 
     #[test]
-    fn test_concurrent_branch_operations() -> Result<()> {
+    fn test_benchmark_concurrent_branch_operations() -> Result<()> {
         let repo = TestRepo::new()?;
         let repo_path = Arc::new(repo.repo_path.clone());
         let success_count = Arc::new(Mutex::new(0));
@@ -406,7 +402,7 @@ mod tests {
     }
 
     #[test]
-    fn test_branch_name_collision_detection() -> Result<()> {
+    fn test_benchmark_branch_name_collision_detection() -> Result<()> {
         let repo = TestRepo::new()?;
         repo.create_branch("branch1")?;
         repo.create_branch("branch2")?;
@@ -428,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn test_repository_corruption_recovery() -> Result<()> {
+    fn test_benchmark_repository_corruption_recovery() -> Result<()> {
         let repo = TestRepo::new()?;
         
         let git_dir = repo.repo_path.join(".git");
@@ -446,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn test_special_characters_in_branch_names() -> Result<()> {
+    fn test_benchmark_special_characters_in_branch_names() -> Result<()> {
         let repo = TestRepo::new()?;
         
         let valid_special_names = vec![

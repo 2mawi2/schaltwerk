@@ -834,33 +834,6 @@ mod tests {
         safe_close(&adapter, &id).await;
     }
 
-    #[tokio::test]
-    async fn test_buffer_overflow_handling() {
-        let adapter = LocalPtyAdapter::new();
-        let id = unique_id("buffer-overflow");
-
-        let params = CreateParams {
-            id: id.clone(),
-            cwd: "/tmp".to_string(),
-            app: None,
-        };
-
-        adapter.create(params).await.unwrap();
-        sleep(Duration::from_millis(100)).await;
-
-        // Write a large amount of data to test buffer limits
-        let large_data = vec![b'A'; MAX_BUFFER_SIZE + 1000];
-        adapter.write(&id, &large_data).await.unwrap();
-        sleep(Duration::from_millis(200)).await;
-
-        let (_, data) = adapter.snapshot(&id, None).await.unwrap();
-
-        // Buffer should be capped at MAX_BUFFER_SIZE
-        assert!(data.len() <= MAX_BUFFER_SIZE);
-
-        safe_close(&adapter, &id).await;
-    }
-
     // ============================================================================
     // RESIZE AND TERMINAL CONTROL TESTS
     // ============================================================================

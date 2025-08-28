@@ -280,9 +280,13 @@ build:
 run-build:
     npm run build && npm run tauri build && ./src-tauri/target/release/schaltwerk
 
-# Run all tests and lints
+# Run all tests and lints (fast, no benchmarks/performance tests)
 test:
     npm run test
+
+# Run benchmarks and performance tests
+benchmark:
+    npm run benchmark
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:

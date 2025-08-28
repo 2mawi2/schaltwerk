@@ -406,7 +406,7 @@ mod tests {
     async fn test_project_manager_not_initialized() {
         let result = get_project_settings().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to get current project"));
+        assert!(result.unwrap_err().contains("Project manager not initialized"));
     }
 
     #[tokio::test]

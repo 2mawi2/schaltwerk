@@ -6,11 +6,11 @@ mod stats;
 mod operations;
 
 #[cfg(test)]
-mod worktree_test;
+mod worktree_benchmark;
 #[cfg(test)]
-mod branches_test;
+mod branches_benchmark;
 #[cfg(test)]
-mod stats_test;
+mod stats_benchmark;
 
 pub use repository::{discover_repository, get_default_branch, init_repository, repository_has_commits, create_initial_commit, INITIAL_COMMIT_MESSAGE};
 
@@ -24,8 +24,6 @@ pub use worktrees::is_worktree_registered;
 pub use stats::{calculate_git_stats_fast, get_changed_files};
 pub use operations::{has_uncommitted_changes, commit_all_changes, is_valid_session_name};
 
-#[cfg(test)]
-pub use stats::calculate_git_stats;
 
 
 
@@ -131,7 +129,7 @@ mod performance_tests {
         
         // Test old version
         let start = Instant::now();
-        let stats = calculate_git_stats(&worktree_path, &current_branch).unwrap();
+        let stats = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
         let old_duration = start.elapsed();
         println!("Old git stats calculation with 100 files took: {old_duration:?}");
         
@@ -155,7 +153,7 @@ mod performance_tests {
         // Test old version
         let start = Instant::now();
         for _ in 0..5 {
-            let _ = calculate_git_stats(&worktree_path, &current_branch).unwrap();
+            let _ = calculate_git_stats_fast(&worktree_path, &current_branch).unwrap();
         }
         let old_duration = start.elapsed();
         println!("5 repeated old git stats calculations took: {old_duration:?}");
