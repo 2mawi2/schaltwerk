@@ -33,9 +33,18 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let head_tree = head_commit.as_ref().and_then(|c| c.tree().ok());
 
     let base_ref = repo.revparse_single(parent_branch).ok();
-    let base_commit = base_ref
-        .and_then(|obj| obj.peel_to_commit().ok());
-    let base_tree = base_commit.as_ref().and_then(|c| c.tree().ok());
+    let base_commit = base_ref.and_then(|obj| obj.peel_to_commit().ok());
+    // Use merge-base between HEAD and parent_branch to represent the baseline
+    let base_tree = match (base_commit.as_ref(), head_commit.as_ref()) {
+        (Some(base_c), Some(head_c)) => {
+            if let Ok(merge_base_oid) = repo.merge_base(base_c.id(), head_c.id()) {
+                repo.find_commit(merge_base_oid).ok().and_then(|c| c.tree().ok())
+            } else {
+                None
+            }
+        }
+        _ => None,
+    };
 
     let mut status_opts = StatusOptions::new();
     status_opts.include_untracked(true).recurse_untracked_dirs(true);
@@ -187,7 +196,7 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     // Compute diff-aware last change timestamp
     let mut last_diff_change_ts: Option<i64> = None;
 
-    // Latest committed change ahead of parent_branch
+    // Latest committed change ahead of parent_branch (relative to merge-base)
     if let (Some(base_commit), Some(head_commit)) = (base_commit.as_ref(), head_commit.as_ref()) {
         if let Ok(merge_base_oid) = repo.merge_base(base_commit.id(), head_commit.id()) {
             if repo.revparse(&format!("{merge_base_oid}..HEAD")).is_ok() {
@@ -245,60 +254,147 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
 
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
-    // For sessions, show all changes from base branch to current working directory state
-    // This includes ALL changes: committed, staged, unstaged, and untracked files
-    
+    // Show all changes introduced by this worktree: committed + uncommitted
+    // Baseline = merge-base(HEAD, parent_branch); Target = workdir with index
     let repo = Repository::discover(worktree_path)?;
-    
-    // Get base branch commit and tree
-    let base_ref = repo.revparse_single(parent_branch)
-        .map_err(|e| anyhow::anyhow!("Failed to find base branch {}: {}", parent_branch, e))?;
-    let base_commit = base_ref.peel_to_commit()
-        .map_err(|e| anyhow::anyhow!("Failed to get base commit: {}", e))?;
-    let base_tree = base_commit.tree()
-        .map_err(|e| anyhow::anyhow!("Failed to get base tree: {}", e))?;
-    
-    // Use libgit2's diff_tree_to_workdir_with_index to get ALL changes in one operation
-    // This directly compares base tree to working directory including staged changes
-    let mut opts = DiffOptions::new();
-    opts.include_untracked(true)
-        .recurse_untracked_dirs(true)
-        .ignore_submodules(true);
-    
-    let diff = repo.diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))
-        .map_err(|e| anyhow::anyhow!("Failed to compute diff: {}", e))?;
-    
+
+    // Resolve HEAD and parent_branch commits
+    let head_oid = repo.head().ok().and_then(|h| h.target());
+    let base_ref = repo.revparse_single(parent_branch).ok();
+    let base_commit = base_ref.and_then(|obj| obj.peel_to_commit().ok());
+
+    // Determine baseline tree from merge-base(HEAD, parent)
+    let baseline_tree = match (head_oid, base_commit.as_ref()) {
+        (Some(h), Some(parent)) => {
+            if let Ok(mb) = repo.merge_base(h, parent.id()) {
+                repo.find_commit(mb).ok().and_then(|c| c.tree().ok())
+            } else {
+                parent.tree().ok()
+            }
+        }
+        _ => None,
+    };
+
     let mut files = Vec::new();
-    
-    for delta in diff.deltas() {
-        if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
-            if let Some(path_str) = path.to_str() {
+
+    if let Some(base_tree) = baseline_tree {
+        let mut opts = DiffOptions::new();
+        opts.include_untracked(true)
+            .recurse_untracked_dirs(true)
+            .ignore_submodules(true);
+
+        let diff = repo
+            .diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))?;
+
+        for delta in diff.deltas() {
+            if let Some(path) = delta
+                .new_file()
+                .path()
+                .or_else(|| delta.old_file().path())
+                .and_then(|p| p.to_str())
+            {
                 // Skip .schaltwerk directory
-                if path_str.starts_with(".schaltwerk/") || path_str == ".schaltwerk" {
+                if path.starts_with(".schaltwerk/") || path == ".schaltwerk" {
                     continue;
                 }
-                
+
                 let change_type = match delta.status() {
                     git2::Delta::Added | git2::Delta::Untracked => "added",
-                    git2::Delta::Deleted => "deleted", 
-                    git2::Delta::Modified => "modified",
+                    git2::Delta::Deleted => "deleted",
+                    git2::Delta::Modified | git2::Delta::Typechange => "modified",
                     git2::Delta::Renamed => "renamed",
                     git2::Delta::Copied => "copied",
-                    git2::Delta::Typechange => "modified",
                     _ => "modified",
                 };
-                
+
                 files.push(ChangedFile {
-                    path: path_str.to_string(),
+                    path: path.to_string(),
                     change_type: change_type.to_string(),
                 });
             }
         }
     }
-    
-    // Sort files alphabetically for consistent ordering
+
     files.sort_by(|a, b| a.path.cmp(&b.path));
     Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+    use std::process::Command as StdCommand;
+    use std::fs;
+
+    fn init_repo() -> TempDir {
+        clear_stats_cache();
+        let temp = TempDir::new().unwrap();
+        let p = temp.path();
+        StdCommand::new("git").args(["init"]).current_dir(p).output().unwrap();
+        StdCommand::new("git").args(["config","user.name","Test"]).current_dir(p).output().unwrap();
+        StdCommand::new("git").args(["config","user.email","t@example.com"]).current_dir(p).output().unwrap();
+        fs::write(p.join("README.md"), "root\n").unwrap();
+        StdCommand::new("git").args(["add","."]).current_dir(p).output().unwrap();
+        StdCommand::new("git").args(["commit","-m","init"]).current_dir(p).output().unwrap();
+        // Rename default branch to main for consistency
+        let cur = StdCommand::new("git").args(["rev-parse","--abbrev-ref","HEAD"]).current_dir(p).output().unwrap();
+        let cur_name = String::from_utf8_lossy(&cur.stdout).trim().to_string();
+        if cur_name != "main" && !cur_name.is_empty() {
+            StdCommand::new("git").args(["branch","-m",&cur_name,"main"]).current_dir(p).output().unwrap();
+        }
+        temp
+    }
+
+    #[test]
+    fn includes_committed_and_uncommitted_from_worktree() {
+        let repo = init_repo();
+        let p = repo.path();
+
+        // Create feature branch
+        StdCommand::new("git").args(["checkout","-b","feature"]).current_dir(p).output().unwrap();
+
+        // Commit a file on feature
+        fs::write(p.join("committed.txt"), "hello\n").unwrap();
+        StdCommand::new("git").args(["add","committed.txt"]).current_dir(p).output().unwrap();
+        StdCommand::new("git").args(["commit","-m","add committed"]).current_dir(p).output().unwrap();
+
+        // Create uncommitted changes
+        fs::write(p.join("untracked.txt"), "u\n").unwrap();
+        fs::write(p.join("README.md"), "root-mod\n").unwrap();
+
+        let files = get_changed_files(p, "main").unwrap();
+        let paths: std::collections::HashSet<_> = files.iter().map(|f| f.path.as_str()).collect();
+
+        assert!(paths.contains("committed.txt"), "should include committed change relative to main");
+        assert!(paths.contains("untracked.txt"), "should include untracked file");
+        assert!(paths.contains("README.md"), "should include modified working file");
+    }
+
+    #[test]
+    fn excludes_changes_only_on_parent() {
+        let repo = init_repo();
+        let p = repo.path();
+
+        // Branch and make a feature commit
+        StdCommand::new("git").args(["checkout","-b","feature"]).current_dir(p).output().unwrap();
+        fs::write(p.join("feat.txt"), "f\n").unwrap();
+        StdCommand::new("git").args(["add","feat.txt"]).current_dir(p).output().unwrap();
+        StdCommand::new("git").args(["commit","-m","feat"]).current_dir(p).output().unwrap();
+
+        // Simulate main moving ahead with an unrelated commit (not merged)
+        StdCommand::new("git").args(["checkout","main"]).current_dir(p).output().unwrap();
+        fs::write(p.join("only_main.txt"), "m\n").unwrap();
+        StdCommand::new("git").args(["add","only_main.txt"]).current_dir(p).output().unwrap();
+        StdCommand::new("git").args(["commit","-m","main ahead"]).current_dir(p).output().unwrap();
+
+        // Back to feature, compute changes vs main using merge-base
+        StdCommand::new("git").args(["checkout","feature"]).current_dir(p).output().unwrap();
+        let files = get_changed_files(p, "main").unwrap();
+        let paths: std::collections::HashSet<_> = files.iter().map(|f| f.path.as_str()).collect();
+
+        assert!(paths.contains("feat.txt"));
+        assert!(!paths.contains("only_main.txt"), "should not include changes that exist only on parent branch");
+    }
 }
 
 #[cfg(test)]
