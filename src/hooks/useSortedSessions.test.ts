@@ -298,6 +298,8 @@ describe('useSortedSessions', () => {
             // Emit the event
             await act(async () => {
                 await refreshHandler!({ event: 'schaltwerk:sessions-refreshed', id: 1, payload: {} })
+                // Wait for debounce (increased to 200ms)
+                await new Promise(resolve => setTimeout(resolve, 250))
             })
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
@@ -320,6 +322,8 @@ describe('useSortedSessions', () => {
 
             await act(async () => {
                 await addHandler!({ event: 'schaltwerk:session-added', id: 1, payload: {} })
+                // Wait for debounce (increased to 200ms)
+                await new Promise(resolve => setTimeout(resolve, 250))
             })
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
@@ -342,6 +346,8 @@ describe('useSortedSessions', () => {
 
             await act(async () => {
                 await removeHandler!({ event: 'schaltwerk:session-removed', id: 2, payload: {} })
+                // Wait for debounce (increased to 200ms)
+                await new Promise(resolve => setTimeout(resolve, 250))
             })
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
@@ -563,6 +569,8 @@ describe('useSortedSessions', () => {
 
             await act(async () => {
                 await refreshHandler!({ event: 'schaltwerk:sessions-refreshed', id: 3, payload: {} })
+                // Wait for debounce (increased to 200ms)
+                await new Promise(resolve => setTimeout(resolve, 250))
             })
 
             // Resolve the original load

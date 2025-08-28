@@ -437,6 +437,26 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     useEffect(() => { latestSortedSessionsRef.current = sessions }, [sessions])
     useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
     useEffect(() => { latestSessionsRef.current = contextSessions }, [contextSessions])
+    
+    // Save filter and sort mode settings when they change
+    useEffect(() => {
+        if (!settingsLoaded || !projectPath) return
+        
+        const saveSettings = async () => {
+            try {
+                await invoke('set_project_sessions_settings', {
+                    settings: {
+                        filter_mode: filterMode,
+                        sort_mode: sortMode
+                    }
+                })
+            } catch (error) {
+                console.warn('Failed to save sessions settings:', error)
+            }
+        }
+        
+        saveSettings()
+    }, [filterMode, sortMode, settingsLoaded, projectPath])
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
@@ -446,25 +466,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             // Activity and git stats updates are handled by SessionsContext
 
             // Session added
-            const u3 = await listen<{
-                session_name: string
-                branch: string
-                worktree_path: string
-                parent_branch: string
-            }>('schaltwerk:session-added', (event) => {
-                const { session_name, worktree_path } = event.payload
-                // Auto-select the newly created session tab immediately
-                if (latestFilterModeRef.current === FilterMode.Plan) {
-                    setFilterMode(FilterMode.Running)
-                }
-                setSelection({ 
-                    kind: 'session', 
-                    payload: session_name,
-                    worktreePath: worktree_path,
-                    sessionState: 'running' // New sessions are always running, not plan
-                }, false, true) // Backend requested - intentional
-            })
-            unlisteners.push(u3)
+            // We don't listen to session-added here anymore - selection should only change
+            // when explicitly requested by the user through App.tsx, not through event listeners.
+            // This prevents unwanted selection changes when creating sessions that don't match
+            // the current filter.
 
             // Session removed
             const u4 = await listen<{ session_name: string }>('schaltwerk:session-removed', async (event) => {
@@ -617,9 +622,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 </div>
             </div>
             <div className="flex-1 overflow-y-auto px-2 pt-2">
-                {loading ? (
-                    <div className="text-center text-slate-500 py-4">Loading agents...</div>
-                ) : sessions.length === 0 ? (
+                {sessions.length === 0 && !loading ? (
                     <div className="text-center text-slate-500 py-4">No active agents</div>
                 ) : (
                     sessions.map((session, i) => {

@@ -211,8 +211,48 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             addListener(listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
                 try {
                     if (event.payload && event.payload.length > 0) {
-                        // Treat payload as authoritative for now to avoid test flakiness
-                        setSessions(event.payload)
+                        // Do a smart merge instead of replacing the entire array to reduce flashing
+                        setSessions(prev => {
+                            // Create a map of new sessions for quick lookup
+                            const newSessionsMap = new Map<string, EnrichedSession>()
+                            for (const session of event.payload) {
+                                newSessionsMap.set(session.info.session_id, session)
+                            }
+                            
+                            // Keep existing sessions if they haven't changed
+                            const updated: EnrichedSession[] = []
+                            const seenIds = new Set<string>()
+                            
+                            // Update existing sessions
+                            for (const existing of prev) {
+                                const newSession = newSessionsMap.get(existing.info.session_id)
+                                if (newSession) {
+                                    // Check if the session has actually changed
+                                    if (JSON.stringify(existing.info) !== JSON.stringify(newSession.info)) {
+                                        updated.push(newSession)
+                                    } else {
+                                        updated.push(existing) // Keep existing reference to avoid re-render
+                                    }
+                                    seenIds.add(existing.info.session_id)
+                                }
+                            }
+                            
+                            // Add new sessions
+                            for (const newSession of event.payload) {
+                                if (!seenIds.has(newSession.info.session_id)) {
+                                    updated.push(newSession)
+                                }
+                            }
+                            
+                            // Only update if something actually changed
+                            if (updated.length === prev.length && 
+                                updated.every((s, i) => s === prev[i])) {
+                                return prev // No change, keep same reference
+                            }
+                            
+                            return updated
+                        })
+                        
                         const next = new Map<string, string>()
                         for (const s of event.payload) next.set(s.info.session_id, mapSessionUiState(s.info))
                         prevStatesRef.current = next

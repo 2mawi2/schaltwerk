@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useProject } from '../contexts/ProjectContext'
@@ -45,6 +45,8 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
     const [sessions, setSessions] = useState<EnrichedSession[]>([])
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+    const isInitialLoadRef = useRef(true)
 
     const loadSortedSessions = useCallback(async () => {
         if (!projectPath) {
@@ -54,7 +56,10 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
         }
 
         try {
-            setLoading(true)
+            // Only show loading state on initial load
+            if (isInitialLoadRef.current) {
+                setLoading(true)
+            }
             setError(null)
             
             const sortedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions_sorted', {
@@ -63,6 +68,7 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
             })
             
             setSessions(sortedSessions || [])
+            isInitialLoadRef.current = false
         } catch (err) {
             console.error('Failed to load sorted sessions:', err)
             setError(err instanceof Error ? err.message : String(err))
@@ -70,9 +76,24 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
             setLoading(false)
         }
     }, [projectPath, sortMode, filterMode])
+    
+    // Debounced version to reduce flashing on rapid updates
+    const loadSortedSessionsDebounced = useCallback(() => {
+        // Clear any pending timeout
+        if (loadTimeoutRef.current) {
+            clearTimeout(loadTimeoutRef.current)
+        }
+        
+        // Set a new timeout to load sessions after a short delay
+        loadTimeoutRef.current = setTimeout(() => {
+            loadSortedSessions()
+        }, 200) // Increased to 200ms to reduce flashing further
+    }, [loadSortedSessions])
 
     // Load sessions when project or sort/filter options change
     useEffect(() => {
+        // Reset initial load flag when filter/sort changes
+        isInitialLoadRef.current = true
         loadSortedSessions()
     }, [loadSortedSessions])
 
@@ -82,22 +103,27 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
 
         const unlistenPromises = Promise.all([
             listen('schaltwerk:sessions-refreshed', () => {
-                loadSortedSessions()
+                loadSortedSessionsDebounced()
             }),
             listen('schaltwerk:session-added', () => {
-                loadSortedSessions()
+                loadSortedSessionsDebounced()
             }),
             listen('schaltwerk:session-removed', () => {
-                loadSortedSessions()
+                loadSortedSessionsDebounced()
             })
         ])
 
         return () => {
+            // Clear any pending timeout
+            if (loadTimeoutRef.current) {
+                clearTimeout(loadTimeoutRef.current)
+            }
+            
             unlistenPromises.then(unlisteners => {
                 unlisteners.forEach(unlisten => unlisten())
             })
         }
-    }, [projectPath, loadSortedSessions])
+    }, [projectPath, loadSortedSessionsDebounced])
 
     const reloadSessions = useCallback(() => {
         loadSortedSessions()

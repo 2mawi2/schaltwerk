@@ -535,6 +535,17 @@ export default function App() {
     draftContent?: string
   }) => {
     try {
+      // Get current filter settings to determine if we should select the new session
+      let currentFilterMode = 'all' // Default
+      try {
+        const settings = await invoke<{ filter_mode: string; sort_mode: string }>('get_project_sessions_settings')
+        if (settings) {
+          currentFilterMode = settings.filter_mode
+        }
+      } catch {
+        // If we can't get settings, assume 'all' filter
+      }
+      
       // If starting from an existing plan via the modal, convert that plan to active
       if (!data.isPlan && startFromDraftName && startFromDraftName === data.name) {
         // Ensure the plan content reflects latest prompt before starting
@@ -559,14 +570,18 @@ export default function App() {
         // Get the started session to get correct worktree path and state
         const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
-        // Switch to the now-running session - the SelectionContext will handle the state transition
-        // Backend will handle agent start automatically
-        await setSelection({
-          kind: 'session',
-          payload: data.name,
-          worktreePath: sessionData.worktree_path,
-          sessionState: 'running' // Plan has been started, it's now running
-        })
+        // Only switch to the session if it matches the current filter
+        // Running sessions are visible in 'all' and 'running' filters
+        if (currentFilterMode === 'all' || currentFilterMode === 'running') {
+          // Switch to the now-running session - the SelectionContext will handle the state transition
+          // Backend will handle agent start automatically
+          await setSelection({
+            kind: 'session',
+            payload: data.name,
+            worktreePath: sessionData.worktree_path,
+            sessionState: 'running' // Plan has been started, it's now running
+          })
+        }
         return
       }
 
@@ -581,16 +596,20 @@ export default function App() {
         // Get the created session to get the correct worktree path
         const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
-        // If in orchestrator, automatically enter plan mode with the new plan
-        if (selection.kind === 'orchestrator') {
-          setCommanderPlanModeSession(data.name)
-        } else {
-          // Otherwise switch to the new plan session
-          await setSelection({
-            kind: 'session',
-            payload: data.name,
-            worktreePath: sessionData.worktree_path
-          })
+        // Only select the new plan if it matches the current filter
+        // Plans are visible in 'all' and 'plan' filters
+        if (currentFilterMode === 'all' || currentFilterMode === 'plan') {
+          // If in orchestrator, automatically enter plan mode with the new plan
+          if (selection.kind === 'orchestrator') {
+            setCommanderPlanModeSession(data.name)
+          } else {
+            // Otherwise switch to the new plan session
+            await setSelection({
+              kind: 'session',
+              payload: data.name,
+              worktreePath: sessionData.worktree_path
+            })
+          }
         }
         
         // Dispatch event for other components to know a plan was created
@@ -610,12 +629,16 @@ export default function App() {
         // Get the created session to get the correct worktree path
         const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
-        // Switch to the new session immediately - context handles terminal creation and Claude start
-        await setSelection({
-          kind: 'session',
-          payload: data.name,
-          worktreePath: sessionData.worktree_path
-        })
+        // Only switch to the new session if it matches the current filter
+        // Running sessions are visible in 'all' and 'running' filters
+        if (currentFilterMode === 'all' || currentFilterMode === 'running') {
+          // Switch to the new session immediately - context handles terminal creation and Claude start
+          await setSelection({
+            kind: 'session',
+            payload: data.name,
+            worktreePath: sessionData.worktree_path
+          })
+        }
       }
     } catch (error) {
       console.error('Failed to create session:', error)
