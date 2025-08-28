@@ -324,6 +324,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession && !selectedSession.info.ready_to_merge) {
+                // Prevent marking plans as reviewed
+                if (isPlan(selectedSession.info)) {
+                    console.warn(`Cannot mark plan "${selectedSession.info.session_id}" as reviewed. Plans must be started as agents first.`)
+                    return
+                }
+
                 setMarkReadyModal({
                     open: true,
                     sessionName: selectedSession.info.session_id,

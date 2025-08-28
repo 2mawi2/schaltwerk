@@ -114,4 +114,93 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(orch.className).toContain('session-ring-blue')
     })
   })
+
+  it('prevents marking plan sessions as reviewed', async () => {
+    // Mock console.warn to verify it's called for plan sessions
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+    // Mock sessions with a plan session
+    const sessions = [
+      { info: { session_id: 'plan-session', branch: 'plan/branch', worktree_path: '/plan', base_branch: 'main', merge_mode: 'rebase', status: 'plan', session_state: 'plan', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+    ]
+
+    vi.mocked(invoke).mockImplementation(async (cmd) => {
+      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
+      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
+      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
+      if (cmd === 'get_current_directory') return '/cwd'
+      if (cmd === 'terminal_exists') return false
+      if (cmd === 'create_terminal') return true
+      if (cmd === 'list_available_open_apps') return [{ id: 'finder', name: 'Finder', kind: 'system' }]
+      if (cmd === 'get_default_open_app') return 'finder'
+      if (cmd === 'get_project_sessions_settings') {
+        return { filter_mode: 'all', sort_mode: 'name' }
+      }
+      if (cmd === 'set_project_sessions_settings') {
+        return undefined
+      }
+      return undefined as any
+    })
+
+    renderWithProviders(<Sidebar />)
+
+    await waitFor(() => {
+      expect(screen.getByText('plan-session')).toBeInTheDocument()
+      expect(screen.getByText('running-session')).toBeInTheDocument()
+    })
+
+    // Select the plan session
+    const planButton = screen.getByText('plan-session').closest('button')
+    if (planButton) {
+      planButton.click()
+    }
+
+    // Wait for selection to be updated
+    await waitFor(() => {
+      const selectedPlanButton = screen.getByText('plan-session').closest('button')
+      expect(selectedPlanButton?.className).toContain('session-ring')
+    })
+
+    // Try to mark plan as ready with Cmd+R - should log warning and not open modal
+    press('r', { metaKey: true })
+
+    // Verify warning was logged
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Cannot mark plan "plan-session" as reviewed')
+    )
+
+    // Modal should not appear
+    await waitFor(() => {
+      expect(screen.queryByText('Mark Session as Reviewed')).not.toBeInTheDocument()
+    })
+
+    // Now select the running session
+    const runningButton = screen.getByText('running-session').closest('button')
+    if (runningButton) {
+      runningButton.click()
+    }
+
+    // Wait for selection to be updated
+    await waitFor(() => {
+      const selectedRunningButton = screen.getByText('running-session').closest('button')
+      expect(selectedRunningButton?.className).toContain('session-ring')
+    })
+
+    // Clear previous console calls
+    consoleWarnSpy.mockClear()
+
+    // Try to mark running session as ready with Cmd+R - should open modal (no warning)
+    press('r', { metaKey: true })
+
+    // Verify no warning was logged for running session
+    expect(consoleWarnSpy).not.toHaveBeenCalled()
+
+    // Modal should appear
+    await waitFor(() => {
+      expect(screen.getByText('Mark Session as Reviewed')).toBeInTheDocument()
+    })
+
+    consoleWarnSpy.mockRestore()
+  })
 })
