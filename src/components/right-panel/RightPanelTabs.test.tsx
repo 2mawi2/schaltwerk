@@ -58,6 +58,13 @@ vi.mock('../plans/PlanInfoPanel', async () => {
   }
 })
 
+vi.mock('../plans/PlanMetadataPanel', async () => {
+  const React = await import('react')
+  return {
+    PlanMetadataPanel: () => React.createElement('div', { 'data-testid': 'plan-metadata' }, 'Plan Metadata'),
+  }
+})
+
 describe('RightPanelTabs', () => {
   const mockOnFileSelect = vi.fn()
   const mockUseSelection = vi.mocked(useSelection)
@@ -192,8 +199,8 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // Get the tab button specifically (has title="Plan")
-      const taskTab = screen.getByTitle('Plan')
+      // Get the tab button specifically (has title="Plan Info")
+      const taskTab = screen.getByTitle('Plan Info')
       expect(taskTab).toHaveClass('bg-slate-800/50')
       // Changes tab should not be present for plans
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
@@ -321,9 +328,9 @@ describe('RightPanelTabs', () => {
       
       // Changes tab should not be visible for plans
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
-      // Only Plan tab should be visible
-      expect(screen.getByTitle('Plan')).toBeInTheDocument()
-      expect(screen.getByTitle('Plan')).toHaveClass('bg-slate-800/50')
+      // Only Info tab should be visible for plans
+      expect(screen.getByTitle('Plan Info')).toBeInTheDocument()
+      expect(screen.getByTitle('Plan Info')).toHaveClass('bg-slate-800/50')
     })
   })
 })

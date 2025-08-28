@@ -136,7 +136,11 @@ describe('Sidebar filter functionality and persistence', () => {
       expect(allButton.textContent).toContain('4')
       
       // Sessions might not render in test, but filter counts should be correct
-      const sessionButtons = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
+      // Look for session buttons by their display names instead of branches (since plans don't show branches)
+      const sessionButtons = screen.getAllByRole('button').filter(b => {
+        const text = b.textContent || ''
+        return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
+      })
       if (sessionButtons.length === 0) {
         console.warn('Sessions not rendering in initial view - checking filter counts')
         expect(allButton.textContent).toContain('4')
@@ -202,7 +206,10 @@ describe('Sidebar filter functionality and persistence', () => {
     fireEvent.click(allButton!)
 
     await waitFor(() => {
-      const all = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
+      const all = screen.getAllByRole('button').filter(b => {
+        const text = b.textContent || ''
+        return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
+      })
       expect(all).toHaveLength(4)
     })
   })
@@ -264,7 +271,10 @@ describe('Sidebar filter functionality and persistence', () => {
       expect(allButton.textContent).toContain('4')
       
       // Sessions might not render in test, verify by filter counts
-      const sessionButtons = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
+      const sessionButtons = screen.getAllByRole('button').filter(b => {
+        const text = b.textContent || ''
+        return text.includes('alpha') || text.includes('bravo') || text.includes('charlie') || text.includes('delta')
+      })
       if (sessionButtons.length === 0) {
         console.warn('Sessions not rendering in persistence test - checking filter counts')
         expect(allButton.textContent).toContain('4')

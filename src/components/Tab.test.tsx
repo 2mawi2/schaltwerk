@@ -25,13 +25,13 @@ describe('Tab', () => {
   it('applies active styles when active', () => {
     render(<Tab {...mockProps} isActive={true} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button.className).toContain('text-blue-200')
+    expect(button.className).toContain('text-slate-100')
   })
 
   it('applies inactive styles when not active', () => {
     render(<Tab {...mockProps} isActive={false} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button.className).toContain('text-slate-400')
+    expect(button.className).toContain('text-slate-300')
   })
 
   it('calls onSelect when clicked', () => {

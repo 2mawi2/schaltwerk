@@ -125,7 +125,9 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
                     </div>
-                    <div className="text-[11px] text-slate-400 truncate">{s.branch}</div>
+                    {sessionState !== 'plan' && (
+                        <div className="text-[11px] text-slate-400 truncate">{s.branch}</div>
+                    )}
                 </div>
                 {!hideKeyboardShortcut && index !== undefined && index < 8 && (
                     <div className="flex items-center gap-2 flex-shrink-0">
@@ -228,9 +230,13 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
             
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
                 <div>
-                    {filesChanged > 0 && <span>{filesChanged} files, </span>}
-                    <span className="text-green-400">+{additions}</span>{' '}
-                    <span className="text-red-400">-{deletions}</span>
+                    {sessionState !== 'plan' && (
+                        <>
+                            {filesChanged > 0 && <span>{filesChanged} files, </span>}
+                            <span className="text-green-400">+{additions}</span>{' '}
+                            <span className="text-red-400">-{deletions}</span>
+                        </>
+                    )}
                 </div>
                 <div className="flex items-center gap-2">
                     {agentType && sessionState !== 'plan' && (

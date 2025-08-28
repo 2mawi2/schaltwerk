@@ -33,9 +33,9 @@ describe('TabBar', () => {
     
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
     
-    expect(tabs[0].className).toContain('text-slate-400')
-    expect(tabs[1].className).toContain('text-blue-200')
-    expect(tabs[2].className).toContain('text-slate-400')
+    expect(tabs[0].className).toContain('text-slate-300')
+    expect(tabs[1].className).toContain('text-slate-100')
+    expect(tabs[2].className).toContain('text-slate-300')
   })
 
   it('calls onSelectTab with correct path when tab clicked', () => {
@@ -74,7 +74,7 @@ describe('TabBar', () => {
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
     
     tabs.forEach(tab => {
-      expect(tab.className).toContain('text-slate-400')
+      expect(tab.className).toContain('text-slate-300')
     })
   })
 

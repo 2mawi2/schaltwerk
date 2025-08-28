@@ -3,11 +3,12 @@ import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
-import { VscDiff, VscChevronLeft, VscNotebook } from 'react-icons/vsc'
+import { VscDiff, VscChevronLeft, VscNotebook, VscInfo } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { PlanContentView } from '../plans/PlanContentView'
 import { PlanListView } from '../plans/PlanListView'
 import { PlanInfoPanel } from '../plans/PlanInfoPanel'
+import { PlanMetadataPanel } from '../plans/PlanMetadataPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -19,15 +20,15 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
   const { selection, isPlan } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
-  const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | null>(null)
+  const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
   const [previewPlanName, setPreviewPlanName] = useState<string | null>(null)
   const [localFocus, setLocalFocus] = useState<boolean>(false)
 
   // Determine active tab based on user selection or smart defaults
-  // For plans, always show agent tab regardless of user selection
+  // For plans, always show info tab regardless of user selection
   const effectiveSelection = selectionOverride ?? selection
   const effectiveIsPlan = typeof isPlanOverride === 'boolean' ? isPlanOverride : isPlan
-  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsPlan) ? 'agent' : (
+  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsPlan) ? 'info' : (
     userSelectedTab || (
       effectiveSelection.kind === 'orchestrator' ? 'agent' : 'changes'
     )
@@ -62,6 +63,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
   const rightTabLabel = isCommander ? 'Plans' : 'Plan'
   const showBackButton = isCommander && !!previewPlanName
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
+  const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsPlan
 
   return (
     <div 
@@ -88,23 +90,44 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
             <span>Changes</span>
           </button>
         )}
-        <button
-          onClick={() => setUserSelectedTab('agent')}
-          className={clsx(
-            'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-            activeTab === 'agent' 
-              ? localFocus 
-                ? 'text-blue-200 bg-blue-800/30' 
-                : 'text-slate-200 bg-slate-800/50'
-              : localFocus
-                ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-          )}
-          title={`${rightTabLabel}`}
-        >
-          <VscNotebook className="text-sm" />
-          <span>{rightTabLabel}</span>
-        </button>
+        {showInfoTab && (
+          <button
+            onClick={() => setUserSelectedTab('info')}
+            className={clsx(
+              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+              activeTab === 'info' 
+                ? localFocus 
+                  ? 'text-blue-200 bg-blue-800/30' 
+                  : 'text-slate-200 bg-slate-800/50'
+                : localFocus
+                  ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            )}
+            title="Plan Info"
+          >
+            <VscInfo className="text-sm" />
+            <span>Info</span>
+          </button>
+        )}
+        {!showInfoTab && (
+          <button
+            onClick={() => setUserSelectedTab('agent')}
+            className={clsx(
+              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+              activeTab === 'agent' 
+                ? localFocus 
+                  ? 'text-blue-200 bg-blue-800/30' 
+                  : 'text-slate-200 bg-slate-800/50'
+                : localFocus
+                  ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+            )}
+            title={`${rightTabLabel}`}
+          >
+            <VscNotebook className="text-sm" />
+            <span>{rightTabLabel}</span>
+          </button>
+        )}
       </div>
       <div className={`h-[2px] flex-shrink-0 transition-opacity duration-200 ${
         localFocus
@@ -130,32 +153,37 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
       <div className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
           {activeTab === 'changes' ? (
-          <SimpleDiffPanel 
-            onFileSelect={onFileSelect} 
-            sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
-            isCommander={effectiveSelection.kind === 'orchestrator'}
-          />
-        ) : (
-          // Agent/Plans tab content
-          effectiveSelection.kind === 'session' ? (
-            // For plan sessions, show the info panel; for running sessions, show the agent content
-            effectiveIsPlan ? (
-              <PlanInfoPanel sessionName={effectiveSelection.payload!} />
-            ) : (
-              <PlanContentView 
-                sessionName={effectiveSelection.payload!} 
-                editable={false} 
-                debounceMs={1000} 
-              />
-            )
+            <SimpleDiffPanel 
+              onFileSelect={onFileSelect} 
+              sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
+              isCommander={effectiveSelection.kind === 'orchestrator'}
+            />
+          ) : activeTab === 'info' ? (
+            // Info tab for plans - shows metadata instead of changes
+            effectiveSelection.kind === 'session' && effectiveIsPlan ? (
+              <PlanMetadataPanel sessionName={effectiveSelection.payload!} />
+            ) : null
           ) : (
-            previewPlanName ? (
-              <PlanContentView sessionName={previewPlanName} editable debounceMs={1000} />
+            // Agent/Plans tab content
+            effectiveSelection.kind === 'session' ? (
+              // For plan sessions, show the info panel; for running sessions, show the agent content
+              effectiveIsPlan ? (
+                <PlanInfoPanel sessionName={effectiveSelection.payload!} />
+              ) : (
+                <PlanContentView 
+                  sessionName={effectiveSelection.payload!} 
+                  editable={false} 
+                  debounceMs={1000} 
+                />
+              )
             ) : (
-              <PlanListView onOpenPlan={(name: string) => setPreviewPlanName(name)} />
+              previewPlanName ? (
+                <PlanContentView sessionName={previewPlanName} editable debounceMs={1000} />
+              ) : (
+                <PlanListView onOpenPlan={(name: string) => setPreviewPlanName(name)} />
+              )
             )
-          )
-        )}
+          )}
         </div>
       </div>
     </div>
