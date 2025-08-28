@@ -363,6 +363,13 @@ impl TerminalBackend for LocalPtyAdapter {
         
         info!("Successfully spawned shell process for terminal {id} (spawn took {}ms)", start_time.elapsed().as_millis());
         
+        // Start process monitoring for automatic cleanup
+        Self::start_process_monitor(
+            id.clone(),
+            Arc::clone(&self.terminals),
+            Arc::clone(&self.app_handle),
+        ).await;
+        
         let writer = pair
             .master
             .take_writer()
@@ -490,16 +497,39 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn close(&self, id: &str) -> Result<(), String> {
         info!("Closing terminal: {id}");
         
-        // Remove from all maps
+        // Force kill the child process with timeout for robustness
         if let Some(mut child) = PTY_CHILDREN.lock().await.remove(id) {
+            // Try graceful termination first
             if let Err(e) = child.kill() {
                 warn!("Failed to kill terminal process {id}: {e}");
+            } else {
+                // Wait briefly for process to exit gracefully
+                let timeout = tokio::time::Duration::from_millis(100);
+                match tokio::time::timeout(timeout, async {
+                    loop {
+                        match child.try_wait() {
+                            Ok(Some(_)) => break, // Process exited
+                            Ok(None) => {
+                                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                            }
+                            Err(_) => break, // Process is gone or error
+                        }
+                    }
+                }).await {
+                    Ok(()) => debug!("Terminal {id} process exited gracefully"),
+                    Err(_) => debug!("Terminal {id} process didn't exit within timeout, continuing cleanup"),
+                }
             }
         }
         
+        // Clean up all resources
         PTY_MASTERS.lock().await.remove(id);
         PTY_WRITERS.lock().await.remove(id);
         self.terminals.write().await.remove(id);
+        
+        // Clear emit buffers
+        self.emit_buffers.write().await.remove(id);
+        self.emit_scheduled.write().await.remove(id);
         
         info!("Terminal {id} closed");
         Ok(())
@@ -560,6 +590,122 @@ impl LocalPtyAdapter {
         }
         
         results
+    }
+    
+    async fn start_process_monitor(
+        id: String,
+        terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
+        app_handle: Arc<Mutex<Option<AppHandle>>>,
+    ) {
+        let monitor_id = id.clone();
+        
+        // Use exponential backoff for better performance
+        let mut check_interval = tokio::time::Duration::from_secs(1);
+        let max_interval = tokio::time::Duration::from_secs(30);
+        
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(check_interval).await;
+                
+                // Check if child process is still alive - do this first to avoid races
+                let should_cleanup = {
+                    let child_guard = PTY_CHILDREN.lock().await;
+                    match child_guard.get(&monitor_id) {
+                        Some(_child) => {
+                            // Process exists, continue monitoring
+                            false
+                        }
+                        None => {
+                            debug!("Terminal {monitor_id} child process not found, stopping monitor");
+                            true // Process gone, stop monitoring
+                        }
+                    }
+                };
+                
+                if should_cleanup {
+                    break;
+                }
+                
+                // Check if terminal state still exists
+                if !terminals.read().await.contains_key(&monitor_id) {
+                    debug!("Terminal {monitor_id} state removed, stopping process monitor");
+                    break;
+                }
+                
+                // Check if process has exited (separate scope to avoid deadlocks)
+                let process_status = {
+                    let mut child_guard = PTY_CHILDREN.lock().await;
+                    if let Some(child) = child_guard.get_mut(&monitor_id) {
+                        match child.try_wait() {
+                            Ok(Some(status)) => {
+                                info!("Terminal {monitor_id} process exited with status: {status:?}");
+                                Some(status)
+                            }
+                            Ok(None) => {
+                                // Process is still running, continue monitoring
+                                None
+                            }
+                            Err(e) => {
+                                warn!("Failed to check terminal {monitor_id} process status: {e}");
+                                // Assume process is dead - create a dummy status
+                                Some(portable_pty::ExitStatus::with_exit_code(1))
+                            }
+                        }
+                    } else {
+                        // Process disappeared
+                        debug!("Terminal {monitor_id} process disappeared during check");
+                        break;
+                    }
+                };
+                
+                // Handle process exit outside of locks
+                if process_status.is_some() {
+                    Self::cleanup_dead_terminal(
+                        monitor_id.clone(),
+                        Arc::clone(&terminals),
+                        Arc::clone(&app_handle),
+                    ).await;
+                    break;
+                }
+                
+                // Increase interval for better performance (exponential backoff)
+                check_interval = std::cmp::min(check_interval * 2, max_interval);
+            }
+            
+            debug!("Process monitor for terminal {monitor_id} terminated");
+        });
+    }
+
+    async fn cleanup_dead_terminal(
+        id: String,
+        terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
+        app_handle: Arc<Mutex<Option<AppHandle>>>,
+    ) {
+        info!("Cleaning up dead terminal: {id}");
+        
+        // Remove from all maps
+        PTY_CHILDREN.lock().await.remove(&id);
+        PTY_MASTERS.lock().await.remove(&id);
+        PTY_WRITERS.lock().await.remove(&id);
+        terminals.write().await.remove(&id);
+        
+        // Emit terminal closed event
+        let handle_guard = app_handle.lock().await;
+        match handle_guard.as_ref() {
+            Some(handle) => {
+                if let Err(e) = handle.emit(
+                    "schaltwerk:terminal-closed",
+                    &serde_json::json!({"terminal_id": id}),
+                ) {
+                    warn!("Failed to emit terminal-closed event for {id}: {e}");
+                }
+            }
+            None => {
+                debug!("Skipping terminal-closed event during app shutdown for terminal {id}");
+            }
+        }
+        
+        info!("Dead terminal {id} cleanup completed");
     }
 }
 

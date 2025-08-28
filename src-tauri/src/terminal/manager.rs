@@ -1,5 +1,5 @@
 use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_shell_binary};
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use std::collections::HashSet;
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -228,7 +228,37 @@ impl TerminalManager {
     }
     
     pub async fn cleanup_all(&self) -> Result<(), String> {
-        self.close_all().await
+        info!("Starting comprehensive terminal cleanup");
+        
+        // First try to close all known terminals
+        let close_result = self.close_all().await;
+        
+        // Force cleanup any orphaned processes that might have been missed
+        self.cleanup_orphaned_processes().await;
+        
+        close_result
+    }
+    
+    async fn cleanup_orphaned_processes(&self) {
+        info!("Checking for orphaned terminal processes");
+        
+        // Get all terminal IDs that we know about
+        let known_ids: std::collections::HashSet<String> = self.active_ids.read().await.clone();
+        
+        // Check backend for any additional orphaned terminals
+        // Note: accessing concrete method since LocalPtyAdapter is the only implementation
+        let backend_terminals = self.backend.get_all_terminal_activity().await;
+        
+        for (id, _is_stuck, _elapsed) in backend_terminals {
+            if !known_ids.contains(&id) {
+                warn!("Found orphaned terminal: {id}, cleaning up");
+                if let Err(e) = self.backend.close(&id).await {
+                    error!("Failed to cleanup orphaned terminal {id}: {e}");
+                }
+            }
+        }
+        
+        info!("Orphaned process cleanup completed");
     }
     
     async fn start_event_bridge(&self, id: String) {
