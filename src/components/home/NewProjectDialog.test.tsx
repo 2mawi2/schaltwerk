@@ -112,7 +112,7 @@ describe('NewProjectDialog', () => {
     
     for (const name of validNames) {
       invoke.mockResolvedValue(`/home/user/${name}`)
-      const { unmount } = setup()
+      const { unmount, onClose } = setup()
       
       const nameInput = screen.getByPlaceholderText(/my-awesome-project/i)
       await user.type(nameInput, name)
@@ -125,6 +125,11 @@ describe('NewProjectDialog', () => {
           name: name,
           parentPath: '/home/user'
         })
+      })
+      
+      // Wait for the dialog to close (which happens after setIsCreating(false))
+      await waitFor(() => {
+        expect(onClose).toHaveBeenCalled()
       })
       
       unmount()
@@ -175,6 +180,13 @@ describe('NewProjectDialog', () => {
     await user.click(createBtn)
     
     expect(await screen.findByText(/Failed to create project/i)).toBeInTheDocument()
+    
+    // Wait for isCreating to be reset to avoid state update after unmount
+    await waitFor(() => {
+      const button = screen.getByRole('button', { name: /create project/i })
+      expect(button).not.toBeDisabled()
+    })
+    
     expect(onProjectCreated).not.toHaveBeenCalled()
   })
 
