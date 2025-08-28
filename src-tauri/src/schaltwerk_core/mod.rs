@@ -24,6 +24,8 @@ mod tests;
 mod session_sorting;
 #[cfg(test)]
 mod session_core_test;
+#[cfg(test)]
+pub mod session_benchmark;
 
 pub use database::Database;
 pub use session_core::SessionManager;

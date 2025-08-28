@@ -323,50 +323,111 @@ pub async fn schaltwerk_core_get_session_agent_content(name: String) -> Result<(
 pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Starting cancel session: {name}");
     
-    let core = get_schaltwerk_core().await?;
-    let core = core.lock().await;
-    let manager = core.session_manager();
-    
-    match manager.cancel_session(&name) {
-        Ok(()) => {
-            log::info!("Successfully canceled session: {name}");
-            #[derive(serde::Serialize, Clone)]
-            struct SessionRemovedPayload { session_name: String }
-            let _ = app.emit(
-                "schaltwerk:session-removed",
-                SessionRemovedPayload { session_name: name.clone() },
-            );
-            
-            // Also emit sessions-refreshed for consistency
-            // Invalidate cache before emitting refreshed event
-                        if let Ok(sessions) = manager.list_enriched_sessions() {
-                log::info!("Emitting sessions-refreshed event after canceling session");
-                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
-                    log::warn!("Could not emit sessions refreshed: {e}");
-                }
+    let session_exists = {
+        let core = get_schaltwerk_core().await?;
+        let core = core.lock().await;
+        let manager = core.session_manager();
+        
+        match manager.get_session(&name) {
+            Ok(_) => true,
+            Err(e) => {
+                log::error!("Cancel {name}: Session not found: {e}");
+                return Err(format!("Session not found: {e}"));
             }
-            
-            if let Ok(manager) = get_terminal_manager().await {
-                let ids = vec![
-                    format!("session-{}-top", name),
-                    format!("session-{}-bottom", name),
-                ];
-                for id in ids {
-                    if let Ok(true) = manager.terminal_exists(&id).await {
-                        if let Err(e) = manager.close_terminal(id.clone()).await {
-                            log::warn!("Failed to close terminal {id} on cancel: {e}");
-                        }
+        }
+    };
+    
+    if !session_exists {
+        return Err("Session not found".to_string());
+    }
+    
+    // Emit a "cancelling" event instead of "removed"
+    #[derive(serde::Serialize, Clone)]
+    struct SessionCancellingPayload { session_name: String }
+    let _ = app.emit(
+        "schaltwerk:session-cancelling", 
+        SessionCancellingPayload { session_name: name.clone() }
+    );
+    
+    let app_for_refresh = app.clone();
+    let name_for_bg = name.clone();
+    tokio::spawn(async move {
+        log::debug!("Cancel {name_for_bg}: Starting background work");
+        
+        let cancel_result = if let Ok(core) = get_schaltwerk_core().await {
+            let core = core.lock().await;
+            let manager = core.session_manager();
+            // Use fast async cancellation
+            manager.fast_cancel_session(&name_for_bg).await
+        } else {
+            Err(anyhow::anyhow!("Could not get core"))
+        };
+        
+        match cancel_result {
+            Ok(()) => {
+                log::info!("Cancel {name_for_bg}: Successfully completed in background");
+                
+                // Now emit the actual removal event after successful cancellation
+                #[derive(serde::Serialize, Clone)]
+                struct SessionRemovedPayload { session_name: String }
+                let _ = app_for_refresh.emit(
+                    "schaltwerk:session-removed", 
+                    SessionRemovedPayload { session_name: name_for_bg.clone() }
+                );
+                
+                if let Ok(core) = get_schaltwerk_core().await {
+                    let core = core.lock().await;
+                    let manager = core.session_manager();
+                    if let Ok(sessions) = manager.list_enriched_sessions() {
+                        let _ = app_for_refresh.emit("schaltwerk:sessions-refreshed", &sessions);
+                    }
+                }
+            },
+            Err(e) => {
+                log::error!("CRITICAL: Background cancel failed for {name_for_bg}: {e}");
+                
+                #[derive(serde::Serialize, Clone)]
+                struct CancelErrorPayload { 
+                    session_name: String,
+                    error: String 
+                }
+                let _ = app_for_refresh.emit(
+                    "schaltwerk:cancel-error", 
+                    CancelErrorPayload { 
+                        session_name: name_for_bg.clone(),
+                        error: e.to_string()
+                    }
+                );
+                
+                if let Ok(core) = get_schaltwerk_core().await {
+                    let core = core.lock().await;
+                    let manager = core.session_manager();
+                    if let Ok(sessions) = manager.list_enriched_sessions() {
+                        let _ = app_for_refresh.emit("schaltwerk:sessions-refreshed", &sessions);
                     }
                 }
             }
-            Ok(())
-        },
-        Err(e) => {
-            log::error!("Failed to cancel session {name}: {e}");
-            Err(format!("Failed to cancel session: {e}"))
         }
-    }
+        
+        if let Ok(terminal_manager) = get_terminal_manager().await {
+            let ids = vec![
+                format!("session-{}-top", name_for_bg),
+                format!("session-{}-bottom", name_for_bg),
+            ];
+            
+            for id in ids {
+                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
+                    log::debug!("Terminal {id} cleanup: {e}");
+                }
+            }
+        }
+        
+        log::info!("Cancel {name_for_bg}: All background work completed");
+    });
+    
+    Ok(())
 }
+
 
 #[tauri::command]
 pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, name: String) -> Result<(), String> {

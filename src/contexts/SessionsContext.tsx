@@ -51,9 +51,10 @@ const SessionsContext = createContext<SessionsContextValue | undefined>(undefine
 export function SessionsProvider({ children }: { children: ReactNode }) {
     const { projectPath } = useProject()
     const [sessions, setSessions] = useState<EnrichedSession[]>([])
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
     const prevStatesRef = useRef<Map<string, string>>(new Map())
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null)
+    const hasInitialLoadCompleted = useRef(false)
 
     // Normalize backend info into UI categories
     const mapSessionUiState = (info: SessionInfo): 'plan' | 'running' | 'reviewed' => {
@@ -76,11 +77,15 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         if (!projectPath) {
             setSessions([])
             setLoading(false)
+            hasInitialLoadCompleted.current = false
             return
         }
 
         try {
-            setLoading(true)
+            // Only show loading state on initial load
+            if (!hasInitialLoadCompleted.current) {
+                setLoading(true)
+            }
             const enrichedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
             const enriched = enrichedSessions || []
             // If enriched already contains plans, use it as-is
@@ -129,6 +134,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setSessions([])
         } finally {
             setLoading(false)
+            hasInitialLoadCompleted.current = true
         }
     }, [projectPath])
 
@@ -175,6 +181,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         // Only reload sessions when projectPath actually changes
         if (projectPath !== lastProjectPath) {
             setLastProjectPath(projectPath)
+            hasInitialLoadCompleted.current = false
             if (projectPath) {
                 reloadSessions()
             } else {
@@ -284,7 +291,22 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             })
             unlisteners.push(uAdded)
 
-            // Session removed
+            // Session cancelling (marks as cancelling but doesn't remove)
+            const uCancelling = await listen<{ session_name: string }>('schaltwerk:session-cancelling', (event) => {
+                setSessions(prev => prev.map(s => {
+                    if (s.info.session_id !== event.payload.session_name) return s
+                    return {
+                        ...s,
+                        info: {
+                            ...s.info,
+                            status: 'cancelling' as any
+                        }
+                    }
+                }))
+            })
+            unlisteners.push(uCancelling)
+
+            // Session removed (actual removal after cancellation completes)
             const uRemoved = await listen<{ session_name: string }>('schaltwerk:session-removed', (event) => {
                 setSessions(prev => prev.filter(s => s.info.session_id !== event.payload.session_name))
             })

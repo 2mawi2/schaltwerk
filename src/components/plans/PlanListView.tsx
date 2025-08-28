@@ -1,6 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { useState, useMemo } from 'react'
+import { useSessions } from '../../contexts/SessionsContext'
 import { VscAdd, VscCopy } from 'react-icons/vsc'
 
 interface PlanSession {
@@ -16,37 +15,21 @@ interface Props {
 }
 
 export function PlanListView({ onOpenPlan }: Props) {
-  const [plans, setPlans] = useState<PlanSession[]>([])
-  const [loading, setLoading] = useState(true)
+  const { sessions } = useSessions()
   const [copying, setCopying] = useState<string | null>(null)
 
-  const fetchDrafts = useCallback(async () => {
-    setLoading(true)
-    try {
-      const sessions = await invoke<PlanSession[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
-      setPlans(sessions || [])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchDrafts()
-  }, [fetchDrafts])
-
-  useEffect(() => {
-    let unlisten: (() => void) | null = null
-    const attach = async () => {
-      try {
-        unlisten = await listen('schaltwerk:sessions-refreshed', () => { fetchDrafts() })
-      } catch (e) {
-        // In tests, tauri event bridge may not exist; ignore
-        console.warn('[DraftListView] Failed to attach sessions-refreshed listener', e)
-      }
-    }
-    attach()
-    return () => { try { if (unlisten) unlisten() } catch {} }
-  }, [fetchDrafts])
+  // Extract plan sessions from the global sessions context
+  const plans = useMemo(() => {
+    return sessions.filter(session => 
+      session.info.status === 'plan' || session.info.session_state === 'plan'
+    ).map(session => ({
+      name: session.info.session_id,
+      created_at: session.info.created_at || '',
+      initial_prompt: session.info.current_task || '',
+      draft_content: '', // This would need to be fetched separately if needed
+      state: 'plan' as const
+    }))
+  }, [sessions])
 
   const handleCopy = async (plan: PlanSession, event: React.MouseEvent) => {
     event.stopPropagation()
@@ -55,14 +38,10 @@ export function PlanListView({ onOpenPlan }: Props) {
       const contentToCopy = plan.draft_content || plan.initial_prompt || ''
       await navigator.clipboard.writeText(contentToCopy)
     } catch (err) {
-      console.error('[DraftListView] Failed to copy content:', err)
+      console.error('[PlanListView] Failed to copy content:', err)
     } finally {
       setTimeout(() => setCopying(null), 1000)
     }
-  }
-
-  if (loading) {
-    return <div className="h-full flex items-center justify-center text-slate-400">Loading plans…</div>
   }
 
   if (plans.length === 0) {

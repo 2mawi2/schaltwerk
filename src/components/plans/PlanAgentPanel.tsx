@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
+import { useState, lazy, Suspense, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { useSessions } from '../../contexts/SessionsContext'
 import { VscEdit, VscPlay, VscTrash, VscSave, VscClose, VscAdd, VscCopy } from 'react-icons/vsc'
 import { ConfirmModal } from '../modals/ConfirmModal'
 import clsx from 'clsx'
@@ -16,8 +16,7 @@ interface PlanSession {
 }
 
 export function PlanAgentPanel() {
-  const [plans, setDrafts] = useState<PlanSession[]>([])
-  const [loading, setLoading] = useState(true)
+  const { sessions } = useSessions()
   const [error, setError] = useState<string | null>(null)
   const [editingDraft, setEditingDraft] = useState<string | null>(null)
   const [editContent, setEditContent] = useState('')
@@ -27,39 +26,18 @@ export function PlanAgentPanel() {
   const [starting, setStarting] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
 
-  const fetchDrafts = useCallback(async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const sessions = await invoke<PlanSession[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
-      setDrafts(sessions || [])
-    } catch (err) {
-      console.error('[PlanAgentPanel] Failed to fetch plans:', err)
-      setError('Failed to load plan agents')
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    fetchDrafts()
-  }, [fetchDrafts])
-  
-  // Listen for sessions-refreshed events from backend
-  useEffect(() => {
-    const setupListener = async () => {
-      const unlisten = await listen('schaltwerk:sessions-refreshed', () => {
-        fetchDrafts()
-      })
-      
-      return unlisten
-    }
-    
-    const cleanupPromise = setupListener()
-    return () => {
-      cleanupPromise.then(fn => fn())
-    }
-  }, [fetchDrafts])
+  // Extract plan sessions from the global sessions context
+  const plans = useMemo(() => {
+    return sessions.filter(session => 
+      session.info.status === 'plan' || session.info.session_state === 'plan'
+    ).map(session => ({
+      name: session.info.session_id,
+      created_at: session.info.created_at || '',
+      initial_prompt: session.info.current_task || '',
+      draft_content: '', // This would need to be fetched separately if needed
+      state: 'plan' as const
+    }))
+  }, [sessions])
 
   const handleEdit = (plan: PlanSession) => {
     setEditingDraft(plan.name)
@@ -80,7 +58,6 @@ export function PlanAgentPanel() {
         name: editingDraft, 
         content: editContent 
       })
-      await fetchDrafts()
       setEditingDraft(null)
       setEditContent('')
     } catch (err) {
@@ -111,7 +88,6 @@ export function PlanAgentPanel() {
     try {
       setDeleting(true)
       await invoke('schaltwerk_core_cancel_session', { name: deleteConfirm })
-      await fetchDrafts()
       setDeleteConfirm(null)
     } catch (err) {
       console.error('[PlanAgentPanel] Failed to delete plan:', err)
@@ -155,16 +131,6 @@ export function PlanAgentPanel() {
     }
   }
 
-  if (loading) {
-    return (
-      <div className="h-full flex items-center justify-center text-slate-400">
-        <div className="text-center">
-          <div className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-slate-600 border-t-transparent mb-2" />
-          <p>Loading plan agents...</p>
-        </div>
-      </div>
-    )
-  }
 
   if (error) {
     return (
@@ -172,7 +138,7 @@ export function PlanAgentPanel() {
         <div className="text-center">
           <p className="mb-2">{error}</p>
           <button
-            onClick={fetchDrafts}
+            onClick={() => window.location.reload()}
             className="px-3 py-1 text-sm bg-slate-800 hover:bg-slate-700 rounded border border-slate-700"
           >
             Retry

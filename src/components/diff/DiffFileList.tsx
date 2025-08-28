@@ -58,6 +58,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   
   // Store the load function in a ref so it doesn't change between renders
   const loadChangedFilesRef = useRef<() => Promise<void>>(() => Promise.resolve())
+  const cancelledSessionsRef = useRef<Set<string>>(new Set())
+  
   loadChangedFilesRef.current = async () => {
     if (isLoading) return // Prevent concurrent loads
     
@@ -67,6 +69,11 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // CRITICAL: Get current values from ref to avoid stale closures
       const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
       const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
+      
+      // Don't try to load files for cancelled sessions
+      if (currentSession && cancelledSessionsRef.current.has(currentSession)) {
+        return
+      }
       
       // For orchestrator mode (no session), get working changes
       if (currentIsCommander && !currentSession) {
@@ -121,8 +128,11 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
           headCommit
         })
       }
-    } catch (error) {
-      console.error(`Failed to load changed files:`, error)
+    } catch (error: any) {
+      // Only log error if it's not a "session not found" error (which is expected after cancellation)
+      if (!error?.toString()?.includes('not found')) {
+        console.error(`Failed to load changed files:`, error)
+      }
       // Clear data on error to prevent showing stale data from previous session
       setFiles([])
       setBranchInfo(null)
@@ -169,12 +179,38 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
     let pollInterval: NodeJS.Timeout | null = null
     let eventUnlisten: (() => void) | null = null
+    let sessionCancellingUnlisten: (() => void) | null = null
+    let isCancelled = false
 
     // Setup async operations
     const setup = async () => {
+      // Listen for session cancelling to stop polling immediately
+      if (currentSession) {
+        sessionCancellingUnlisten = await listen<{ session_name: string }>('schaltwerk:session-cancelling', (event) => {
+          if (event.payload.session_name === currentSession) {
+            console.log(`Session ${currentSession} is being cancelled, stopping file watcher and polling`)
+            isCancelled = true
+            // Mark session as cancelled to prevent future loads
+            cancelledSessionsRef.current.add(currentSession)
+            // Clear data immediately
+            setFiles([])
+            setBranchInfo(null)
+            // Stop polling
+            if (pollInterval) {
+              clearInterval(pollInterval)
+              pollInterval = null
+            }
+          }
+        }) as any
+      }
+      
       // For orchestrator mode, poll less frequently since working directory changes are less frequent
       if (currentIsCommander && !currentSession) {
-        pollInterval = setInterval(loadChangedFiles, 5000) // Poll every 5 seconds for orchestrator
+        pollInterval = setInterval(() => {
+          if (!isCancelled) {
+            loadChangedFiles()
+          }
+        }, 5000) // Poll every 5 seconds for orchestrator
         return
       }
       
@@ -185,7 +221,11 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       } catch (error) {
         console.error('Failed to start file watcher, falling back to polling:', error)
         // Fallback to polling if file watcher fails
-        pollInterval = setInterval(loadChangedFiles, 3000)
+        pollInterval = setInterval(() => {
+          if (!isCancelled) {
+            loadChangedFiles()
+          }
+        }, 3000)
       }
 
       // Always set up event listener (even if watcher failed, in case it recovers)
@@ -225,9 +265,12 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       if (currentSession) {
         invoke('stop_file_watcher', { sessionName: currentSession }).catch(console.error)
       }
-      // Clean up event listener
+      // Clean up event listeners
       if (eventUnlisten) {
         eventUnlisten()
+      }
+      if (sessionCancellingUnlisten) {
+        sessionCancellingUnlisten()
       }
       // Clean up polling if active
       if (pollInterval) {

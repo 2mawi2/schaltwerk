@@ -322,7 +322,12 @@ mod tests {
         assert!(branch_exists(&repo.repo_path, &archived_name)?);
         assert!(archived_name.starts_with("schaltwerk/archived/"));
         assert!(archived_name.ends_with("/session1"));
-        assert!(archived_name.contains("20"));
+        // Unix timestamp should be numeric (at least 10 digits for modern timestamps)
+        let timestamp_part = archived_name.strip_prefix("schaltwerk/archived/")
+            .and_then(|s| s.split('/').next())
+            .expect("Should contain timestamp");
+        assert!(timestamp_part.parse::<u64>().is_ok(), "Timestamp should be numeric");
+        assert!(timestamp_part.len() >= 10, "Timestamp should be at least 10 digits");
         
         Ok(())
     }

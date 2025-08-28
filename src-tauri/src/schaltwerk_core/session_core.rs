@@ -50,9 +50,7 @@ impl SessionManager {
         }
         
         let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
-        
         let session_id = SessionUtils::generate_session_id();
-        
         self.utils.cleanup_existing_worktree(&worktree_path)?;
         
         let parent_branch = if let Some(base) = base_branch {
@@ -146,11 +144,13 @@ impl SessionManager {
         }
         
         self.cache_manager.unreserve_name(&unique_name);
+        log::info!("Successfully created session '{name}'");
         Ok(session)
     }
 
     pub fn cancel_session(&self, name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(name)?;
+        log::debug!("Cancel {name}: Retrieved session");
         
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
@@ -166,6 +166,7 @@ impl SessionManager {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
                 return Err(anyhow!("Failed to remove worktree: {}", e));
             }
+            log::debug!("Cancel {name}: Removed worktree");
         } else {
             log::warn!(
                 "Worktree path missing, continuing cancellation: {}",
@@ -182,11 +183,124 @@ impl SessionManager {
                     log::warn!("Failed to archive branch '{}': {}", session.branch, e);
                 }
             }
+        } else {
+            log::debug!("Cancel {name}: Branch doesn't exist, skipping archive");
         }
         
         self.db_manager.update_session_status(&session.id, SessionStatus::Cancelled)?;
+        log::info!("Cancel {name}: Session cancelled successfully");
         Ok(())
     }
+    
+    /// Fast asynchronous session cancellation with parallel operations
+    pub async fn fast_cancel_session(&self, name: &str) -> Result<()> {
+        use tokio::process::Command;
+        
+        let session = self.db_manager.get_session_by_name(name)?;
+        log::info!("Fast cancel {name}: Starting optimized cancellation");
+        
+        // Check uncommitted changes early (non-blocking)
+        let has_uncommitted = if session.worktree_path.exists() {
+            git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
+        } else {
+            false
+        };
+        
+        if has_uncommitted {
+            log::warn!("Fast canceling session '{name}' with uncommitted changes");
+        }
+        
+        // Start parallel operations
+        let worktree_future = if session.worktree_path.exists() {
+            let repo_path = self.repo_path.clone();
+            let worktree_path = session.worktree_path.clone();
+            Some(tokio::spawn(async move {
+                let output = Command::new("git")
+                    .arg("worktree")
+                    .arg("remove")
+                    .arg("-f")
+                    .arg(&worktree_path)
+                    .current_dir(&repo_path)
+                    .output()
+                    .await;
+                
+                match output {
+                    Ok(out) if out.status.success() => Ok(()),
+                    Ok(out) => {
+                        let stderr = String::from_utf8_lossy(&out.stderr);
+                        if stderr.contains("is not a working tree") {
+                            Ok(())
+                        } else {
+                            Err(anyhow::anyhow!("Failed to remove worktree: {}", stderr))
+                        }
+                    }
+                    Err(e) => Err(anyhow::anyhow!("Command failed: {}", e))
+                }
+            }))
+        } else {
+            None
+        };
+        
+        let branch_future = if git::branch_exists(&self.repo_path, &session.branch)? {
+            let repo_path = self.repo_path.clone();
+            let branch = session.branch.clone();
+            let session_name = session.name.clone();
+            
+            Some(tokio::spawn(async move {
+                let archive_name = format!("archive/{}-{}", 
+                    session_name, 
+                    chrono::Utc::now().format("%Y%m%d-%H%M%S")
+                );
+                
+                // Create tag and delete branch in parallel
+                let tag_future = Command::new("git")
+                    .args(["tag", "-f", &archive_name, &branch])
+                    .current_dir(&repo_path)
+                    .output();
+                
+                let delete_future = Command::new("git")
+                    .args(["branch", "-D", &branch])
+                    .current_dir(&repo_path)
+                    .output();
+                
+                let (tag_result, delete_result) = tokio::join!(tag_future, delete_future);
+                
+                match (tag_result, delete_result) {
+                    (Ok(_), Ok(_)) => {
+                        log::info!("Archived branch '{branch}' to '{archive_name}'");
+                        Ok::<(), anyhow::Error>(())
+                    }
+                    (Err(e), _) | (_, Err(e)) => {
+                        log::warn!("Branch operation partially failed: {e}");
+                        Ok::<(), anyhow::Error>(()) // Continue anyway
+                    }
+                }
+            }))
+        } else {
+            log::debug!("Fast cancel {name}: Branch doesn't exist, skipping archive");
+            None
+        };
+        
+        // Wait for parallel operations
+        if let Some(worktree_handle) = worktree_future {
+            if let Err(e) = worktree_handle.await {
+                log::warn!("Fast cancel {name}: Worktree task error: {e}");
+            }
+        }
+        
+        if let Some(branch_handle) = branch_future {
+            if let Err(e) = branch_handle.await {
+                log::warn!("Fast cancel {name}: Branch task error: {e}");
+            }
+        }
+        
+        // Update database status
+        self.db_manager.update_session_status(&session.id, SessionStatus::Cancelled)?;
+        log::info!("Fast cancel {name}: Successfully completed");
+        
+        Ok(())
+    }
+
 
     pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(name)?;
