@@ -712,8 +712,8 @@ mod tests {
             id: id.clone(),
             cwd: "/tmp".to_string(),
             app: Some(ApplicationSpec {
-                command: "sleep".to_string(),
-                args: vec!["0.5".to_string()],
+                command: "sh".to_string(),
+                args: vec!["-c".to_string(), "echo test && sleep 1".to_string()],
                 env: vec![("TEST_VAR".to_string(), "test_value".to_string())],
                 ready_timeout_ms: 1000,
             }),
@@ -1209,8 +1209,8 @@ mod tests {
             id: id.clone(),
             cwd: "/tmp".to_string(),
             app: Some(ApplicationSpec {
-                command: "sleep".to_string(),
-                args: vec!["0.5".to_string()],
+                command: "sh".to_string(),
+                args: vec!["-c".to_string(), "echo test && sleep 1".to_string()],
                 env: vec![
                     ("CUSTOM_VAR".to_string(), "custom_value".to_string()),
                     ("PATH".to_string(), "/custom/path:/usr/bin".to_string()),
