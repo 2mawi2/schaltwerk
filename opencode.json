@@ -1,9 +1,0 @@
-{
-  "mcp": {
-    "schaltwerk": {
-      "type": "local",
-      "command": ["node", "/Users/marius.wichtner/Documents/git/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js"],
-      "enabled": true
-    }
-  }
-}
