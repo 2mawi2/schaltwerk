@@ -156,7 +156,12 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
     useLayoutEffect(() => {
         if (open) {
-            console.log('[NewSessionModal] Modal opened, isPrefillPending:', isPrefillPending, 'hasPrefillData:', hasPrefillData)
+            console.log('[NewSessionModal] Modal opened with:', {
+                initialIsDraft,
+                isPrefillPending,
+                hasPrefillData,
+                currentCreateAsDraft: createAsDraft
+            })
             
             setCreating(false)
             // Generate a fresh Docker-style name each time the modal opens
@@ -165,7 +170,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             
             // Only reset state if we're not expecting prefill data AND don't already have it
             if (!isPrefillPending && !hasPrefillData) {
-                console.log('[NewSessionModal] Resetting modal state (no prefill pending or data)')
+                console.log('[NewSessionModal] Resetting modal state - reason: no prefill pending or data')
                 setName(gen)
                 setWasEdited(false)
                 wasEditedRef.current = false
@@ -174,7 +179,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
             } else {
-                console.log('[NewSessionModal] Skipping state reset (prefill pending or has data)')
+                console.log('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data')
                 // Still need to reset some state
                 setValidationError('')
                 setCreating(false)
@@ -211,9 +216,16 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 promptTextareaRef.current?.focus()
             }, 100)
         } else {
-            // Reset prefill flags when modal closes
+            // Reset ALL state when modal closes to prevent stale state
+            console.log('[NewSessionModal] Modal closed - resetting all state')
             setIsPrefillPending(false)
             setHasPrefillData(false)
+            setCreateAsDraft(false)
+            setNameLocked(false)
+            setTaskContent('')
+            setName('')
+            setValidationError('')
+            setCreating(false)
         }
     }, [open, getSkipPermissions, getAgentType, initialIsDraft, isPrefillPending, hasPrefillData])
 
@@ -221,7 +233,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // This ensures we can catch events that are dispatched right when the modal opens
     useEffect(() => {
         const prefillHandler = (event: any) => {
-            console.log('[NewSessionModal] Received prefill event:', event?.detail)
+            console.log('[NewSessionModal] Received prefill event with detail:', event?.detail)
             const detail = event?.detail || {}
             const nameFromDraft: string | undefined = detail.name
             const taskContentFromDraft: string | undefined = detail.taskContent
@@ -247,7 +259,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             }
             // If running from an existing plan, don't create another plan
             if (fromDraft) {
-                console.log('[NewSessionModal] Setting createAsDraft to false (running from existing plan)')
+                console.log('[NewSessionModal] Running from existing plan - forcing createAsDraft to false')
                 setCreateAsDraft(false)
             }
             
@@ -297,7 +309,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
         // Use capture phase so this handler runs before others and can stop propagation
         window.addEventListener('keydown', handleKeyDown, true)
-        const setDraftHandler = () => setCreateAsDraft(true)
+        const setDraftHandler = () => {
+            console.log('[NewSessionModal] Received set-plan event - setting createAsDraft to true')
+            setCreateAsDraft(true)
+        }
         window.addEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)

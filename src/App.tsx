@@ -225,8 +225,10 @@ export default function App() {
 
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
+          console.log('[App] Cmd+N triggered - opening new session modal (agent mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
+          setOpenAsDraft(false) // Explicitly set to false for Cmd+N
           setNewSessionOpen(true)
         }
       }
@@ -237,6 +239,7 @@ export default function App() {
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
+          console.log('[App] Cmd+Shift+N triggered - opening new session modal (plan mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
           setOpenAsDraft(true)
@@ -273,8 +276,10 @@ export default function App() {
     const handleGlobalNewSession = () => {
       // Handle ⌘N from terminal (custom event)
       if (!newSessionOpen && !cancelModalOpen) {
+        console.log('[App] Global new session shortcut triggered (agent mode)')
         // Store current focus before opening modal
         previousFocusRef.current = document.activeElement
+        setOpenAsDraft(false) // Explicitly set to false for global shortcut
         setNewSessionOpen(true)
       }
     }
@@ -314,6 +319,7 @@ export default function App() {
   // Open NewSessionModal directly in plan mode when requested
   useEffect(() => {
     const handler = () => {
+      console.log('[App] schaltwerk:new-plan event received - opening modal in plan mode')
       previousFocusRef.current = document.activeElement
       setOpenAsDraft(true)
       setNewSessionOpen(true)
@@ -368,6 +374,7 @@ export default function App() {
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
+      console.log('[App] schaltwerk:new-session event received - opening modal in agent mode')
       previousFocusRef.current = document.activeElement
       setOpenAsDraft(false)
       setNewSessionOpen(true)
@@ -926,8 +933,9 @@ export default function App() {
             open={newSessionOpen}
             initialIsDraft={openAsDraft}
             onClose={() => {
+              console.log('[App] NewSessionModal closing - resetting state')
               setNewSessionOpen(false)
-              setOpenAsDraft(false)
+              setOpenAsDraft(false) // Always reset to false when closing
               setStartFromDraftName(null)
               // Restore focus after modal closes
               if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
