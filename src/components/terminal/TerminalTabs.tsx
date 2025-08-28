@@ -1,6 +1,8 @@
 import { useRef, forwardRef, useImperativeHandle } from 'react'
 import { Terminal, TerminalHandle } from './Terminal'
 import { useTerminalTabs } from '../../hooks/useTerminalTabs'
+import { UnifiedTab } from '../UnifiedTab'
+import { theme } from '../../common/theme'
 
 interface TerminalTabsProps {
   baseTerminalId: string
@@ -59,74 +61,64 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
      }
    }), [activeTab, tabs])
 
-  const handleTabClick = (e: React.MouseEvent, tabIndex: number) => {
-    e.stopPropagation()
-    setActiveTab(tabIndex)
-    // Focus the terminal after DOM update
-    requestAnimationFrame(() => {
-      const activeTerminalRef = terminalRefs.current.get(tabIndex)
-      if (activeTerminalRef) {
-        activeTerminalRef.focus()
-      }
-    })
-  }
-
-  const handleTabClose = (e: React.MouseEvent, tabIndex: number) => {
-    e.stopPropagation()
-    closeTab(tabIndex)
-  }
-
-  const handleTabMouseDown = (e: React.MouseEvent, tabIndex: number) => {
-    if (e.button === 1) {
-      e.stopPropagation()
-      closeTab(tabIndex)
-    }
-  }
 
 
   return (
     <div className={`h-full flex flex-col ${className}`}>
-      <div className="h-8 flex-shrink-0 bg-slate-900/50">
-        <div className="h-full flex items-center overflow-x-auto scrollbar-hide">
-          {tabs.map((tab) => (
-            <div
-              key={tab.index}
-              className={`
-                relative h-full flex items-center px-3 text-xs cursor-pointer border-r border-slate-800/50 min-w-0 max-w-32 transition-all duration-200
-                ${tab.index === activeTab 
-                  ? 'bg-blue-900/30 text-blue-200' 
-                  : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
+      <div 
+        className="h-12 flex-shrink-0 flex items-stretch overflow-x-auto scrollbar-hide"
+        style={{ backgroundColor: theme.colors.background.primary }}
+      >
+        {tabs.map((tab) => (
+          <UnifiedTab
+            key={tab.index}
+            id={tab.index}
+            label={tab.label}
+            isActive={tab.index === activeTab}
+            onSelect={() => {
+              setActiveTab(tab.index)
+              requestAnimationFrame(() => {
+                const activeTerminalRef = terminalRefs.current.get(tab.index)
+                if (activeTerminalRef) {
+                  activeTerminalRef.focus()
                 }
-              `}
-              onClick={(e) => handleTabClick(e, tab.index)}
-              onMouseDown={(e) => handleTabMouseDown(e, tab.index)}
-            >
-              <span className="truncate flex-1">{tab.label}</span>
-              {tabs.length > 1 && (
-                <button
-                  onClick={(e) => handleTabClose(e, tab.index)}
-                  className="ml-2 w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-slate-700/50 text-slate-500 hover:text-slate-300"
-                  title="Close tab"
-                >
-                  ×
-                </button>
-              )}
-              {tab.index === activeTab && (
-                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-blue-500/80" />
-              )}
-            </div>
-          ))}
-          
-          {canAddTab && (
-            <button
-              onClick={addTab}
-              className="flex items-center justify-center w-8 h-8 text-slate-400 hover:text-slate-300 hover:bg-slate-800/50 border-r border-slate-800/50"
-              title="Add new terminal"
-            >
-              +
-            </button>
-          )}
-        </div>
+              })
+            }}
+            onClose={tabs.length > 1 ? () => closeTab(tab.index) : undefined}
+            onMiddleClick={tabs.length > 1 ? () => closeTab(tab.index) : undefined}
+            showCloseButton={tabs.length > 1}
+            className="h-full"
+            style={{
+              maxWidth: '150px',
+              minWidth: '100px'
+            }}
+          />
+        ))}
+        
+        {canAddTab && (
+          <button
+            onClick={addTab}
+            className="flex items-center justify-center w-12 h-full transition-all duration-200"
+            style={{
+              color: theme.colors.text.tertiary,
+              borderRight: `1px solid ${theme.colors.border.default}`,
+              borderTop: `2px solid transparent`,
+              fontSize: theme.fontSize.body,
+              backgroundColor: theme.colors.background.secondary
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = theme.colors.text.primary
+              e.currentTarget.style.backgroundColor = theme.colors.background.hover
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = theme.colors.text.tertiary
+              e.currentTarget.style.backgroundColor = theme.colors.background.secondary
+            }}
+            title="Add new terminal"
+          >
+            +
+          </button>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 relative">

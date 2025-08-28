@@ -679,7 +679,7 @@ export default function App() {
           onCloseTab={() => {}}
           onOpenSettings={() => setSettingsOpen(true)}
         />
-        <div className="pt-[28px] h-full">
+        <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
         </div>
         <SettingsModal
@@ -705,7 +705,7 @@ export default function App() {
 
       {/* Show home screen if requested, or no active tab */}
       {showHome && (
-        <div className="pt-[28px] h-full">
+        <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
         </div>
       )}
@@ -713,7 +713,7 @@ export default function App() {
       {/* Show project content when a tab is active */}
       {!showHome && activeTabPath && (
         <>
-          <Split className="h-full w-full flex pt-[28px]" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
+          <Split className="h-full w-full flex pt-[32px]" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
             <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
               <div className="h-full flex flex-col">
                 <div className="flex-1 overflow-y-auto">

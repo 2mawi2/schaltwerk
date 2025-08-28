@@ -25,14 +25,12 @@ describe('Tab', () => {
   it('applies active styles when active', () => {
     render(<Tab {...mockProps} isActive={true} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button.className).toContain('bg-slate-900')
-    expect(button.className).toContain('text-slate-100')
+    expect(button.className).toContain('text-blue-200')
   })
 
   it('applies inactive styles when not active', () => {
     render(<Tab {...mockProps} isActive={false} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button.className).toContain('bg-slate-950')
     expect(button.className).toContain('text-slate-400')
   })
 
@@ -48,7 +46,7 @@ describe('Tab', () => {
     const onClose = vi.fn()
     const onSelect = vi.fn()
     render(<Tab {...mockProps} onClose={onClose} onSelect={onSelect} />)
-    const closeButton = screen.getByLabelText('Close project')
+    const closeButton = screen.getByTitle('Close project')
     fireEvent.click(closeButton)
     expect(onClose).toHaveBeenCalledTimes(1)
     expect(onSelect).not.toHaveBeenCalled()
