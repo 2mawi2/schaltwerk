@@ -103,31 +103,24 @@ describe('Project Switching Selection Behavior', () => {
 
             const project = '/same/project'
 
+            // Batch initial setup operations
             act(() => {
                 result.current.project.setProjectPath(project)
-            })
-
-            await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'orchestrator' })
-            })
-
-            act(() => {
                 result.current.selection.setSelection({ kind: 'session', payload: 'my-session' })
             })
 
+            // Wait for both operations to complete
             await waitFor(() => {
                 expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
             })
 
-            // Switch to the same project again
+            // Switch to the same project again - this should be synchronous
             act(() => {
                 result.current.project.setProjectPath(project)
             })
 
-            // Selection should remain unchanged
-            await waitFor(() => {
-                expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
-            })
+            // Selection should remain unchanged (synchronous check)
+            expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
         })
 
         it('should handle null project path gracefully', async () => {

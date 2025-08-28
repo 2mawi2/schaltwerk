@@ -10,6 +10,8 @@ use std::path::PathBuf;
 use std::process::Command;
 #[cfg(test)]
 use anyhow::Result;
+#[cfg(test)]
+use git2;
 
 // Import database traits for method access in tests
 #[cfg(test)]
@@ -31,36 +33,27 @@ struct TestEnvironment {
             let repo_dir = TempDir::new()?;
             let repo_path = repo_dir.path().to_path_buf();
             let db_path = repo_path.join("test.db");
-            
-            // Initialize a git repository in the temp directory
-            Command::new("git")
-                .args(["init"])
-                .current_dir(&repo_path)
-                .output()?;
-            
-            // Configure git user for commits
-            Command::new("git")
-                .args(["config", "user.email", "test@example.com"])
-                .current_dir(&repo_path)
-                .output()?;
-            
-            Command::new("git")
-                .args(["config", "user.name", "Test User"])
-                .current_dir(&repo_path)
-                .output()?;
-            
-            // Create initial commit
+
+            // Initialize a git repository using git2 (much faster than spawning git commands)
+            git2::Repository::init(&repo_path)?;
+
+            // Configure git user for commits using git2
+            let repo = git2::Repository::open(&repo_path)?;
+            let mut config = repo.config()?;
+            config.set_str("user.email", "test@example.com")?;
+            config.set_str("user.name", "Test User")?;
+
+            // Create initial commit using git2
             std::fs::write(repo_path.join("README.md"), "# Test Repository")?;
-            Command::new("git")
-                .args(["add", "."])
-                .current_dir(&repo_path)
-                .output()?;
-            
-            Command::new("git")
-                .args(["commit", "-m", "Initial commit"])
-                .current_dir(&repo_path)
-                .output()?;
-            
+            let mut index = repo.index()?;
+            index.add_path(std::path::Path::new("README.md"))?;
+            index.write()?;
+
+            let tree_id = index.write_tree()?;
+            let tree = repo.find_tree(tree_id)?;
+            let signature = git2::Signature::now("Test User", "test@example.com")?;
+            repo.commit(Some("HEAD"), &signature, &signature, "Initial commit", &tree, &[])?;
+
             Ok(Self {
                 _repo_dir: repo_dir,
                 repo_path,
