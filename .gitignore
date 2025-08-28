@@ -35,3 +35,6 @@ coverage/
 # Schaltwerk launch profiles
 *.launch
 .schaltwerk_state/
+
+# OpenCode configuration file
+opencode.json
