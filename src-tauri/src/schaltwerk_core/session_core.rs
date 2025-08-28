@@ -945,6 +945,16 @@ impl SessionManager {
         info!("SessionCore: Updating plan content for session '{}', content length: {}", session_name, content.len());
         let session = self.db_manager.get_session_by_name(session_name)?;
         info!("SessionCore: Found session with id: {}, state: {:?}", session.id, session.session_state);
+        
+        // Only allow updating content for sessions in Plan state
+        if session.session_state != SessionState::Plan {
+            return Err(anyhow::anyhow!(
+                "Cannot update content for session '{}': only Plan sessions can have their content updated. Current state: {:?}",
+                session_name,
+                session.session_state
+            ));
+        }
+        
         self.db_manager.update_plan_content(&session.id, content)?;
         info!("SessionCore: Successfully updated plan content in database for session '{session_name}'");
         Ok(())
@@ -953,6 +963,16 @@ impl SessionManager {
     pub fn append_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
         info!("SessionCore: Appending plan content for session '{}', additional content length: {}", session_name, content.len());
         let session = self.db_manager.get_session_by_name(session_name)?;
+        
+        // Only allow appending content for sessions in Plan state
+        if session.session_state != SessionState::Plan {
+            return Err(anyhow::anyhow!(
+                "Cannot append content to session '{}': only Plan sessions can have content appended. Current state: {:?}",
+                session_name,
+                session.session_state
+            ));
+        }
+        
         self.db_manager.append_plan_content(&session.id, content)?;
         info!("SessionCore: Successfully appended plan content in database for session '{session_name}'");
         Ok(())

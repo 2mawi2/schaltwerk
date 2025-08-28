@@ -770,4 +770,106 @@ mod tests {
             .unwrap();
         assert!(status_output.stdout.is_empty(), "Should have no uncommitted changes");
     }
+
+    #[test]
+    fn test_update_plan_content_only_allows_plan_state() {
+        let setup = TestSetup::new();
+        
+        // Create a plan session
+        setup.manager.create_draft_session("test-plan", "Initial content").unwrap();
+        
+        // Should succeed for Plan state
+        setup.manager.update_plan_content("test-plan", "Updated content").unwrap();
+        let session = setup.manager.get_session("test-plan").unwrap();
+        assert_eq!(session.plan_content, Some("Updated content".to_string()));
+        
+        // Start the plan to make it Running
+        setup.manager.start_draft_session_with_config("test-plan", None, None, None).unwrap();
+        
+        // Should fail for Running state
+        let result = setup.manager.update_plan_content("test-plan", "Should fail");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have their content updated"));
+        
+        // Mark as reviewed
+        setup.manager.mark_session_as_reviewed("test-plan").unwrap();
+        
+        // Should still fail for Reviewed state
+        let result = setup.manager.update_plan_content("test-plan", "Should also fail");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have their content updated"));
+    }
+
+    #[test]
+    fn test_append_plan_content_only_allows_plan_state() {
+        let setup = TestSetup::new();
+        
+        // Create a plan session
+        setup.manager.create_draft_session("test-plan-append", "Initial").unwrap();
+        
+        // Should succeed for Plan state
+        setup.manager.append_plan_content("test-plan-append", " content").unwrap();
+        let session = setup.manager.get_session("test-plan-append").unwrap();
+        assert_eq!(session.plan_content, Some("Initial\n content".to_string()));
+        
+        // Start the plan to make it Running
+        setup.manager.start_draft_session_with_config("test-plan-append", None, None, None).unwrap();
+        
+        // Should fail for Running state
+        let result = setup.manager.append_plan_content("test-plan-append", " more");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have content appended"));
+        
+        // Mark as reviewed
+        setup.manager.mark_session_as_reviewed("test-plan-append").unwrap();
+        
+        // Should still fail for Reviewed state
+        let result = setup.manager.append_plan_content("test-plan-append", " even more");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have content appended"));
+    }
+
+    #[test]
+    fn test_plan_content_operations_with_nonexistent_session() {
+        let setup = TestSetup::new();
+        
+        // Should fail for non-existent session
+        let result = setup.manager.update_plan_content("nonexistent", "content");
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("nonexistent") || error_msg.contains("not found") || error_msg.contains("No session"),
+                "Expected error about missing session, got: {}", error_msg);
+        
+        let result = setup.manager.append_plan_content("nonexistent", "content");
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("nonexistent") || error_msg.contains("not found") || error_msg.contains("No session"),
+                "Expected error about missing session, got: {}", error_msg);
+    }
+
+    #[test]
+    fn test_plan_content_preserved_when_converting_states() {
+        let setup = TestSetup::new();
+        
+        // Create a plan with content
+        setup.manager.create_draft_session("test-preserve", "Important content").unwrap();
+        setup.manager.update_plan_content("test-preserve", "Very important content").unwrap();
+        
+        // Start the plan (convert to Running)
+        setup.manager.start_draft_session_with_config("test-preserve", None, None, None).unwrap();
+        
+        // Content should be preserved but not modifiable
+        let session = setup.manager.get_session("test-preserve").unwrap();
+        assert_eq!(session.plan_content, Some("Very important content".to_string()));
+        assert_eq!(session.session_state, SessionState::Running);
+        
+        // Convert back to plan
+        setup.manager.convert_session_to_plan("test-preserve").unwrap();
+        
+        // Should be able to modify again
+        setup.manager.append_plan_content("test-preserve", "\nAdditional notes").unwrap();
+        let session = setup.manager.get_session("test-preserve").unwrap();
+        assert_eq!(session.plan_content, Some("Very important content\n\nAdditional notes".to_string()));
+        assert_eq!(session.session_state, SessionState::Plan);
+    }
 }
