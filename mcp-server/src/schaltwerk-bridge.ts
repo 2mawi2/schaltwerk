@@ -3,6 +3,7 @@ import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs'
 import { execSync } from 'child_process'
+import { createHash } from 'crypto'
 
 export interface Session {
   id: string
@@ -44,18 +45,106 @@ interface GitStatusResult {
   changedFiles: string[]
 }
 
+interface ProjectContext {
+  path: string
+  canonicalPath: string
+  hash: string
+  name: string
+  identifier: string
+}
+
+function detectProjectPath(): string {
+  try {
+    // First try the environment variable (if set by Tauri app)
+    if (process.env.SCHALTWERK_PROJECT_PATH) {
+      return process.env.SCHALTWERK_PROJECT_PATH
+    }
+    
+    // Otherwise, find the git root from current working directory
+    const gitRoot = execSync('git rev-parse --show-toplevel', {
+      cwd: process.cwd(),
+      stdio: 'pipe',
+      encoding: 'utf8'
+    }).toString().trim()
+    
+    return gitRoot
+  } catch (error) {
+    console.warn('Could not detect project path from git root, using current directory:', error)
+    return process.cwd()
+  }
+}
+
+function createProjectContext(projectPath: string): ProjectContext {
+  try {
+    // Get canonical path (matching Rust backend logic)
+    const canonicalPath = fs.realpathSync(projectPath)
+    
+    // Create hash of the full path (matching Rust backend SHA256 logic)
+    const hash = createHash('sha256')
+      .update(canonicalPath)
+      .digest('hex')
+      .substring(0, 16) // Take first 16 characters like Rust backend
+    
+    // Get project name for readability (matching Rust backend logic)
+    const projectName = path.basename(canonicalPath) || 'unknown'
+    const safeName = projectName.replace(/[^a-zA-Z0-9\-_]/g, '_')
+    
+    // Create identifier: "projectname_hash" (matching Rust backend format)
+    const identifier = `${safeName}_${hash}`
+    
+    return {
+      path: projectPath,
+      canonicalPath,
+      hash,
+      name: projectName,
+      identifier
+    }
+  } catch (error) {
+    console.error('Failed to create project context:', error)
+    // Fallback context
+    const safePath = projectPath.replace(/[^a-zA-Z0-9\-_]/g, '_')
+    return {
+      path: projectPath,
+      canonicalPath: projectPath,
+      hash: 'unknown',
+      name: path.basename(projectPath),
+      identifier: `${safePath}_fallback`
+    }
+  }
+}
+
 export class SchaltwerkBridge {
   private apiUrl: string = 'http://127.0.0.1:8547'
   private webhookUrl: string = 'http://127.0.0.1:8547'
+  private projectContext: ProjectContext
 
   constructor() {
+    // Detect and establish project context
+    const projectPath = detectProjectPath()
+    this.projectContext = createProjectContext(projectPath)
+    
+    console.error(`MCP Bridge initialized for project: ${this.projectContext.name}`)
+    console.error(`Project path: ${this.projectContext.canonicalPath}`)
+    console.error(`Project identifier: ${this.projectContext.identifier}`)
+  }
+
+  private getProjectHeaders(): Record<string, string> {
+    return {
+      'X-Project-Path': this.projectContext.canonicalPath,
+      'X-Project-Hash': this.projectContext.hash,
+      'X-Project-Name': this.projectContext.name,
+      'X-Project-Identifier': this.projectContext.identifier
+    }
   }
 
   async listSessions(): Promise<Session[]> {
     try {
       const response = await fetch(`${this.apiUrl}/api/sessions`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 
+          'Accept': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
       
       if (!response.ok) {
@@ -119,7 +208,10 @@ export class SchaltwerkBridge {
     try {
       const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(name)}`, {
         method: 'GET',
-        headers: { 'Accept': 'application/json' }
+        headers: { 
+          'Accept': 'application/json',
+          ...this.getProjectHeaders()
+        }
       })
       
       if (response.status === 404) {
@@ -141,7 +233,10 @@ export class SchaltwerkBridge {
     try {
       const response = await fetch(`${this.apiUrl}/api/sessions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.getProjectHeaders()
+        },
         body: JSON.stringify({
           name,
           prompt,
@@ -242,7 +337,8 @@ export class SchaltwerkBridge {
     // Cancel session via API
     try {
       const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(name)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: this.getProjectHeaders()
       })
       
       if (!response.ok) {
@@ -479,7 +575,10 @@ export class SchaltwerkBridge {
     try {
       const response = await fetch(`${this.apiUrl}/api/plans`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...this.getProjectHeaders()
+        },
         body: JSON.stringify({
           name,
           content: content || '',
@@ -549,7 +648,8 @@ export class SchaltwerkBridge {
   async deleteDraftSession(sessionName: string): Promise<void> {
     try {
       const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}`, {
-        method: 'DELETE'
+        method: 'DELETE',
+        headers: this.getProjectHeaders()
       })
       
       if (!response.ok) {
