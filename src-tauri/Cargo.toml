@@ -105,3 +105,9 @@ debug = false
 opt-level = 3
 debug = false
 
+[profile.test]
+inherits = "dev"
+opt-level = 1
+debug = 0
+incremental = true
+

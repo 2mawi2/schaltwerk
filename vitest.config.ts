@@ -6,6 +6,14 @@ export default defineConfig({
     environment: 'happy-dom',
     globals: true,
     setupFiles: ['./src/test/setup.ts'],
+    pool: 'threads',
+    poolOptions: {
+      threads: {
+        singleThread: false,
+        minThreads: 1,
+        maxThreads: 4
+      }
+    },
     include: [
       'src/**/*.test.ts',
       'src/**/*.test.tsx'
