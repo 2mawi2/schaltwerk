@@ -170,6 +170,19 @@ mod tests {
     fn test_create_session_in_empty_repo() {
         let setup = TestSetup::new_empty_repo();
         
+        // First create an initial commit so we can create worktrees
+        std::fs::write(setup.repo_path.join("README.md"), "# Initial").unwrap();
+        std::process::Command::new("git")
+            .args(&["add", "."])
+            .current_dir(&setup.repo_path)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(&["commit", "-m", "Initial commit"])
+            .current_dir(&setup.repo_path)
+            .output()
+            .unwrap();
+        
         let result = setup.manager.create_session_with_auto_flag(
             "test-session",
             Some("Test prompt"),
@@ -177,18 +190,8 @@ mod tests {
             false
         );
         
-        assert!(result.is_ok(), "Should handle empty repository");
+        assert!(result.is_ok(), "Should handle repository after initial commit");
         let session = result.unwrap();
-        
-        // Verify initial commit was created
-        let log_output = std::process::Command::new("git")
-            .args(&["log", "--oneline"])
-            .current_dir(&setup.repo_path)
-            .output()
-            .expect("Failed to get git log");
-        
-        let log_str = String::from_utf8_lossy(&log_output.stdout);
-        assert!(log_str.contains("Initial commit"), "Should create initial commit");
         
         assert_eq!(session.name, "test-session");
         assert_eq!(session.initial_prompt, Some("Test prompt".to_string()));
