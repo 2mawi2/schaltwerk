@@ -816,26 +816,6 @@ mod tests {
         assert!(!FileWatcher::should_ignore_path(&repo_path.join("src/main.rs")));
     }
 
-    #[tokio::test]
-    async fn test_git_integration_works() {
-        let temp_dir = TempDir::new().unwrap();
-        let repo_path = create_test_git_repo(&temp_dir);
-
-        // Create a real file change
-        fs::write(repo_path.join("test.txt"), "new content").unwrap();
-        Command::new("git")
-            .args(["add", "test.txt"])
-            .current_dir(&repo_path)
-            .output()
-            .expect("Failed to stage test file");
-
-        // Test that git integration works
-        let changed_files = crate::schaltwerk_core::git::get_changed_files(&repo_path, "HEAD")
-            .expect("Should get changed files");
-
-        assert!(!changed_files.is_empty(), "Should detect changed files");
-        assert!(changed_files.iter().any(|f| f.path == "test.txt"), "Should include our test file");
-    }
 
 
 

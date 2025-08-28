@@ -365,6 +365,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
 
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
+    // For sessions, only show committed changes between the base branch and HEAD
+    // We don't include staged, unstaged, or untracked files for sessions
     let mut file_map: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     let committed_output = Command::new("git")
@@ -377,48 +379,6 @@ pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Ve
         for line in String::from_utf8_lossy(&committed_output.stdout).lines() {
             if let Some((status, path)) = parse_name_status_line(line) {
                 file_map.insert(path.to_string(), status.to_string());
-            }
-        }
-    }
-
-    let staged_output = Command::new("git")
-        .args([
-            "-C", worktree_path.to_str().unwrap(),
-            "diff", "--name-status", "--cached"
-        ])
-        .output()?;
-    if staged_output.status.success() {
-        for line in String::from_utf8_lossy(&staged_output.stdout).lines() {
-            if let Some((status, path)) = parse_name_status_line(line) {
-                file_map.insert(path.to_string(), status.to_string());
-            }
-        }
-    }
-
-    let unstaged_output = Command::new("git")
-        .args([
-            "-C", worktree_path.to_str().unwrap(),
-            "diff", "--name-status"
-        ])
-        .output()?;
-    if unstaged_output.status.success() {
-        for line in String::from_utf8_lossy(&unstaged_output.stdout).lines() {
-            if let Some((status, path)) = parse_name_status_line(line) {
-                file_map.insert(path.to_string(), status.to_string());
-            }
-        }
-    }
-
-    let untracked_output = Command::new("git")
-        .args([
-            "-C", worktree_path.to_str().unwrap(),
-            "ls-files", "--others", "--exclude-standard"
-        ])
-        .output()?;
-    if untracked_output.status.success() {
-        for line in String::from_utf8_lossy(&untracked_output.stdout).lines() {
-            if !line.is_empty() {
-                file_map.insert(line.to_string(), "added".to_string());
             }
         }
     }

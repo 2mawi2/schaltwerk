@@ -244,16 +244,16 @@ mod tests {
         let mut files = get_changed_files(&repo.repo_path, "main")?;
         files.sort_by(|a, b| a.path.cmp(&b.path));
         
-        assert_eq!(files.len(), 3);
+        // After the fix, get_changed_files only returns committed changes
+        // It no longer includes staged or uncommitted files for sessions
+        assert_eq!(files.len(), 1);
         
         let feature_file = files.iter().find(|f| f.path == "feature.txt").unwrap();
         assert_eq!(feature_file.change_type, "added");
         
-        let staged_file = files.iter().find(|f| f.path == "staged.txt").unwrap();
-        assert_eq!(staged_file.change_type, "added");
-        
-        let uncommitted_file = files.iter().find(|f| f.path == "uncommitted.txt").unwrap();
-        assert_eq!(uncommitted_file.change_type, "added");
+        // Staged and uncommitted files are no longer included
+        assert!(files.iter().find(|f| f.path == "staged.txt").is_none());
+        assert!(files.iter().find(|f| f.path == "uncommitted.txt").is_none());
         
         Ok(())
     }
