@@ -161,6 +161,10 @@ impl TerminalManager {
     pub async fn write_terminal(&self, id: String, data: Vec<u8>) -> Result<(), String> {
         self.backend.write(&id, &data).await
     }
+
+    pub async fn write_terminal_immediate(&self, id: String, data: Vec<u8>) -> Result<(), String> {
+        self.backend.write_immediate(&id, &data).await
+    }
     
     pub async fn paste_and_submit_terminal(&self, id: String, data: Vec<u8>) -> Result<(), String> {
         // Send bracketed paste start sequence

@@ -387,17 +387,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }, 3000);
         }
 
-        // Flush queued writes once per frame
+        // Flush queued writes with minimal delay for responsiveness
         const flushQueuedWrites = () => {
             if (flushTimerRef.current) return;
-            // Use a short timeout to coalesce multiple events and be test-friendly with fake timers
+            // Use a very short timeout to coalesce multiple events while maintaining responsiveness
             flushTimerRef.current = setTimeout(() => {
                 flushTimerRef.current = null;
                 if (!terminal.current || writeQueueRef.current.length === 0) return;
                 const chunk = writeQueueRef.current.join('');
                 writeQueueRef.current = [];
                 terminal.current.write(chunk);
-            }, 16);
+            }, 2);
         };
 
         // Immediate flush helper (no debounce), used during hydration transitions

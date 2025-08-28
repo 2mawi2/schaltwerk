@@ -208,10 +208,10 @@ impl LocalPtyAdapter {
                                     let emit_buffers_for_task = Arc::clone(&emit_buffers_clone);
                                     let emit_scheduled_for_task = Arc::clone(&emit_scheduled_clone);
                                     let id_for_task = id_clone.clone();
-                                    // Flush after ~16ms (one frame)
-                                    tokio::spawn(async move {
-                                        use tokio::time::{sleep, Duration};
-                                        sleep(Duration::from_millis(16)).await;
+                                     // Flush after ~2ms for immediate responsiveness
+                                     tokio::spawn(async move {
+                                         use tokio::time::{sleep, Duration};
+                                         sleep(Duration::from_millis(2)).await;
                                         // Take buffer
                                         let data_to_emit: Option<Vec<u8>> = {
                                             let mut buffers = emit_buffers_for_task.write().await;
@@ -410,32 +410,60 @@ impl TerminalBackend for LocalPtyAdapter {
     
     async fn write(&self, id: &str, data: &[u8]) -> Result<(), String> {
         let start = Instant::now();
-        
+
         if let Some(writer) = PTY_WRITERS.lock().await.get_mut(id) {
             writer
                 .write_all(data)
                 .map_err(|e| format!("Write failed: {e}"))?;
-            
-            // Smart flushing: only flush on important characters that need immediate response
-            // This reduces flush overhead for regular typing while maintaining responsiveness
-            let needs_immediate_flush = data.contains(&b'\n') || // newline/enter
-                                      data.contains(&b'\r') || // carriage return
-                                      data.starts_with(b"\x1b"); // escape sequences (arrows, etc)
-            
-            if needs_immediate_flush {
-                writer
-                    .flush()
-                    .map_err(|e| format!("Flush failed: {e}"))?;
-            }
-            
+
+            // Always flush immediately to ensure input appears without delay
+            // This is critical for responsive terminal behavior, especially for pasted text
+            writer
+                .flush()
+                .map_err(|e| format!("Flush failed: {e}"))?;
+
             let elapsed = start.elapsed();
             if elapsed.as_millis() > 20 {
                 warn!("Terminal {id} slow write: {}ms", elapsed.as_millis());
             }
-            
+
             Ok(())
         } else {
             warn!("Terminal {id} not found for write");
+            Ok(())
+        }
+    }
+
+    async fn write_immediate(&self, id: &str, data: &[u8]) -> Result<(), String> {
+        let start = Instant::now();
+
+        if let Some(writer) = PTY_WRITERS.lock().await.get_mut(id) {
+            writer
+                .write_all(data)
+                .map_err(|e| format!("Immediate write failed: {e}"))?;
+
+            // Always flush immediately to ensure input appears without delay
+            writer
+                .flush()
+                .map_err(|e| format!("Immediate flush failed: {e}"))?;
+
+            // Emit output immediately without coalescing delay for critical input
+            if let Some(handle) = self.app_handle.lock().await.as_ref() {
+                let event_name = format!("terminal-output-{id}");
+                let payload = String::from_utf8_lossy(data).to_string();
+                if let Err(e) = handle.emit(&event_name, payload) {
+                    warn!("Failed to emit immediate terminal output: {e}");
+                }
+            }
+
+            let elapsed = start.elapsed();
+            if elapsed.as_millis() > 10 {
+                warn!("Terminal {id} slow immediate write: {}ms", elapsed.as_millis());
+            }
+
+            Ok(())
+        } else {
+            warn!("Terminal {id} not found for immediate write");
             Ok(())
         }
     }
