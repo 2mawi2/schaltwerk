@@ -14,9 +14,6 @@ interface AsciiBuilderLogoProps {
   shakeIntensity?: number
   shadingCharset?: string
   groupOrder?: 'center-out' | 'left-to-right' | 'right-to-left'
-  // Shorter intro tease (few early artifacts)
-  introTeaseMs?: number
-  introTeaseFraction?: number
   // End motion style
   idleMode?: 'artifact' | 'artifact+pulse' | 'pulse' | 'wobble' | 'still'
   // Camera pulse settings (if pulse or artifact+pulse)
@@ -46,15 +43,12 @@ export function AsciiBuilderLogo({
   // Assembly
   settleDurationMs = 900,
   spinDurationMs = 2600,
-  fallDurationMs = 1400,
+  fallDurationMs = 600,
   groupGapMs = 140,
   cameraDollyMs = 900,
   shakeIntensity = 0.6,
   shadingCharset = ' .,:;irsXA253hMHGS#9B&@',
   groupOrder = 'center-out',
-  // Ultra-short intro tease
-  introTeaseMs = 24,
-  introTeaseFraction = 0.006,
   // Idle style defaults to artifact echoes
   idleMode = 'artifact', // 'artifact' | 'artifact+pulse' | 'pulse' | 'wobble' | 'still'
   // Pulse settings
@@ -200,13 +194,13 @@ export function AsciiBuilderLogo({
     }
   }, [asciiArt, groupOrder])
 
-  // Particles
+  // Particles (main build only — no intro flicker/teasers)
   const particlesRef = useRef<Array<{
     id: number
     char: string
     // target
     tx: number; ty: number; tz: number
-    // start
+    // start for main build
     sx: number; sy: number; sz: number
     delayMs: number
     fallMs: number
@@ -221,7 +215,7 @@ export function AsciiBuilderLogo({
   // Group -> particle ids (for idle artifact selection)
   const groupToParticleIdsRef = useRef<number[][]>([])
 
-  // Intro/pulse RNG
+  // Pulse RNG/scheduling
   const pulseSeedRef = useRef<number>(0)
   const lastPulseAtRef = useRef<number>(-Infinity)
   const nextPulseDelayRef = useRef<number>(0)
@@ -262,7 +256,7 @@ export function AsciiBuilderLogo({
     const baseSettle = settleDurationMs
     const perGroupDelay = groupGapMs
 
-    // Build particles
+    // Build particles (main build timeline only)
     for (let i = 0; i < targetCells.length; i++) {
       const { x, y, char } = targetCells[i]
       const segmentId = cellToGroup[i]
@@ -272,17 +266,19 @@ export function AsciiBuilderLogo({
       const ty = y - centerY
       const tz = 0
 
+      // Main build spawn (farther, full fall)
       const angle = rand() * Math.PI * 2
       const radius = spawnR * (0.6 + 0.4 * rand())
       const sx = (Math.cos(angle) * radius) + (rand() - 0.5) * span * 0.3
       const sy = -(height * 0.9 + 8 + rand() * 8)
       const sz = 16 + rand() * 18
 
-      // Ultra-short, tiny intro teaser
-      const isTeaser = (groupRank <= 1) && (rand() < introTeaseFraction)
-      const delayMs = isTeaser
-        ? Math.floor(rand() * 18) // ultra-short 0–18ms
-        : introTeaseMs + groupRank * perGroupDelay + Math.floor(rand() * 120)
+      // Start immediately, but: no per-particle jitter for the very first group
+      // to avoid any pre-build flicker. Later groups keep some jitter.
+      const jitter = groupRank <= 1 ? 0 : Math.floor(rand() * 120)
+
+
+      const delayMs = groupRank * perGroupDelay + jitter
 
       const fallMs = baseFall + Math.floor((rand() - 0.5) * 250)
       const settleMs = baseSettle + Math.floor((rand() - 0.5) * 150)
@@ -323,8 +319,7 @@ export function AsciiBuilderLogo({
   }, [
     width, height, targetCells, cellToGroup,
     groups, centerX, centerY,
-    fallDurationMs, settleDurationMs, groupGapMs,
-    introTeaseMs, introTeaseFraction
+    fallDurationMs, settleDurationMs, groupGapMs
   ])
 
   useEffect(() => {
@@ -437,7 +432,7 @@ export function AsciiBuilderLogo({
       const allSet = particlesRef.current.every(p => (elapsed - p.delayMs - p.fallMs) >= p.settleMs)
       if (allSet && allSetAtRef.current < 0) {
         allSetAtRef.current = elapsed
-        // give it a brief beat before the first idle artifact
+        // brief beat before the first idle artifact
         lastArtifactAtRef.current = elapsed
         nextArtifactDelayRef.current = Math.max(idleArtifactMinDelayMs * 0.7, 900)
       }
@@ -446,8 +441,7 @@ export function AsciiBuilderLogo({
       let extraRotX = 0
       let extraRotY = 0
       if (allSet) {
-        if ((idleMode === 'wobble') || (idleMode === 'pulse' && false)) {
-          // keep wobble only if explicitly chosen
+        if (idleMode === 'wobble') {
           const wobblePhase = (elapsed % spinDurationMs) / spinDurationMs
           const amp = 0.6 * Math.PI / 180
           extraRotX = Math.sin(wobblePhase * Math.PI * 2) * amp
@@ -555,7 +549,6 @@ export function AsciiBuilderLogo({
             if (te >= 1) {
               echoStatesRef.current.delete(particle.id)
             } else {
-              // Symmetric out-and-back envelope
               const amp = Math.sin(Math.PI * te) // 0..1..0
               const theta = es.baseAngle + te * 5.3
               const rad = es.mag * amp
@@ -595,7 +588,7 @@ export function AsciiBuilderLogo({
           if (d > depth[idx]) {
             depth[idx] = d
 
-            // Shade during fall or echo; flash on snap-in (intro or echo)
+            // Shade during fall or echo; flash on snap-in
             if (inFall || echoActive) {
               const lambert = Math.max(0, particle.nx * lx + particle.ny * ly + particle.nz * lz)
               const ambient = 0.25
