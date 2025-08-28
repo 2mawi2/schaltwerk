@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{Utc, TimeZone};
+use log::{info, warn};
 use crate::schaltwerk_core::{
     database::Database,
     git,
@@ -722,6 +723,62 @@ impl SessionManager {
         }
     }
 
+    pub fn mark_session_as_reviewed(&self, session_name: &str) -> Result<()> {
+        // Get session and validate state
+        let session = self.db_manager.get_session_by_name(session_name)?;
+
+        // Validate that the session is in a valid state for marking as reviewed
+        if session.session_state == SessionState::Plan {
+            return Err(anyhow!("Cannot mark plan session '{}' as reviewed. Start the plan first with schaltwerk_draft_start.", session_name));
+        }
+
+        if session.ready_to_merge {
+            return Err(anyhow!("Session '{}' is already marked as reviewed", session_name));
+        }
+
+        // Use existing mark_session_ready logic (with auto_commit=false)
+        self.mark_session_ready(session_name, false)?;
+        Ok(())
+    }
+
+    pub fn convert_session_to_plan(&self, session_name: &str) -> Result<()> {
+        // Get session and validate state
+        let session = self.db_manager.get_session_by_name(session_name)?;
+
+        // Validate that the session is in a valid state for conversion
+        if session.session_state == SessionState::Plan {
+            return Err(anyhow!("Session '{}' is already a plan", session_name));
+        }
+
+        // Use existing convert_session_to_draft logic
+        self.convert_session_to_draft(session_name)?;
+        Ok(())
+    }
+
+    pub fn start_draft_session_with_config(&self, session_name: &str, base_branch: Option<&str>, agent_type: Option<&str>, skip_permissions: Option<bool>) -> Result<()> {
+        // Set global agent type if provided
+        if let Some(agent_type) = agent_type {
+            if let Err(e) = self.set_global_agent_type(agent_type) {
+                warn!("Failed to set global agent type to '{agent_type}': {e}");
+            } else {
+                info!("Set global agent type to '{agent_type}' for session '{session_name}'");
+            }
+        }
+
+        // Set global skip permissions if provided
+        if let Some(skip_permissions) = skip_permissions {
+            if let Err(e) = self.set_global_skip_permissions(skip_permissions) {
+                warn!("Failed to set global skip permissions to '{skip_permissions}': {e}");
+            } else {
+                info!("Set global skip permissions to '{skip_permissions}' for session '{session_name}'");
+            }
+        }
+
+        // Start the draft session
+        self.start_draft_session(session_name, base_branch)?;
+        Ok(())
+    }
+
     pub fn mark_session_ready(&self, session_name: &str, auto_commit: bool) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         
@@ -873,6 +930,16 @@ impl SessionManager {
         self.db_manager.update_session_state(&session.id, state)?;
         Ok(())
     }
+
+    pub fn set_global_agent_type(&self, agent_type: &str) -> Result<()> {
+        self.db_manager.set_agent_type(agent_type)
+    }
+
+    pub fn set_global_skip_permissions(&self, skip: bool) -> Result<()> {
+        self.db_manager.set_skip_permissions(skip)
+    }
+
+
 
     pub fn update_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(session_name)?;

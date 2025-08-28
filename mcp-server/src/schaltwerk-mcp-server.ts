@@ -68,6 +68,14 @@ interface SchaltwerkDraftDeleteArgs {
   session_name: string
 }
 
+interface SchaltwerkMarkReviewedArgs {
+  session_name: string
+}
+
+interface SchaltwerkConvertToPlanArgs {
+  session_name: string
+}
+
 const bridge = new SchaltwerkBridge()
 
 const server = new Server({
@@ -478,9 +486,74 @@ schaltwerk_draft_delete(session_name: "old-plan")
           },
           required: ["session_name"]
         }
-      },
-      {
-        name: "schaltwerk_get_current_tasks",
+       },
+       {
+         name: "schaltwerk_mark_session_reviewed",
+         description: `Mark a running session as reviewed and ready for merge.
+
+🎯 PURPOSE: Mark active development sessions as complete and ready for code review/merge.
+
+📋 USAGE:
+schaltwerk_mark_session_reviewed(session_name: "feature-auth")
+
+⚡ WHAT HAPPENS:
+1. Sets the session's ready_to_merge flag to true
+2. Session status changes from 'running' to 'reviewed'
+3. Session appears in reviewed sessions list
+4. Worktree and branch are preserved for potential rollback
+
+✅ WHEN TO USE:
+- Development work is complete and tested
+- Session is ready to be marked as reviewed
+- Want to mark session as done without deleting it
+
+⚠️ IMPORTANT: This is reversible - you can convert reviewed sessions back to plans for rework.`,
+         inputSchema: {
+           type: "object",
+           properties: {
+             session_name: {
+               type: "string",
+               description: "Name of the running session to mark as reviewed"
+             }
+           },
+           required: ["session_name"]
+         }
+       },
+       {
+         name: "schaltwerk_convert_to_plan",
+         description: `Convert a running or reviewed session back to plan state for rework.
+
+🎯 PURPOSE: Convert active or reviewed sessions back to plan state when changes are needed.
+
+📋 USAGE:
+schaltwerk_convert_to_plan(session_name: "feature-auth")
+
+⚡ WHAT HAPPENS:
+1. Session state changes from 'running'/'reviewed' to 'plan'
+2. ready_to_merge flag is reset to false
+3. Worktree is removed (branch preserved)
+4. Session content becomes plan content for refinement
+5. Can be started again with schaltwerk_draft_start
+
+✅ WHEN TO USE:
+- Need to rework a session after review
+- Want to convert a running session to plan for planning
+- Session needs significant changes before completion
+
+⚠️ IMPORTANT: Worktree is removed but branch and all commits are preserved.`,
+         inputSchema: {
+           type: "object",
+           properties: {
+             session_name: {
+               type: "string",
+               description: "Name of the running or reviewed session to convert back to plan"
+             }
+           },
+           required: ["session_name"]
+         }
+       },
+       {
+         name: "schaltwerk_get_current_tasks",
         description: `Get current agents with flexible field selection to manage response size.
 
 🎯 PURPOSE: Retrieve agent information with control over which fields to include, preventing large responses.
@@ -875,10 +948,28 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         
         result = JSON.stringify(formattedTasks, null, 2)
         break
-      }
+       }
 
-      default:
-        throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
+       case "schaltwerk_mark_session_reviewed": {
+         const markReviewedArgs = args as unknown as SchaltwerkMarkReviewedArgs
+
+         await bridge.markSessionReviewed(markReviewedArgs.session_name)
+
+         result = `Session '${markReviewedArgs.session_name}' has been marked as reviewed and is ready for merge`
+         break
+       }
+
+       case "schaltwerk_convert_to_plan": {
+         const convertToPlanArgs = args as unknown as SchaltwerkConvertToPlanArgs
+
+         await bridge.convertToPlan(convertToPlanArgs.session_name)
+
+         result = `Session '${convertToPlanArgs.session_name}' has been converted back to plan state for rework`
+         break
+       }
+
+       default:
+         throw new McpError(ErrorCode.MethodNotFound, `Unknown tool: ${name}`)
     }
 
     return {

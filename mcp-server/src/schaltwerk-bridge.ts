@@ -667,12 +667,44 @@ export class SchaltwerkBridge {
         this.listSessions(),
         this.listDraftSessions()
       ])
-      
+
       // Combine and return all current agents
       return [...activeSessions, ...draftSessions]
     } catch (error) {
       console.error('Failed to get current agents via API:', error)
       return []
+    }
+  }
+
+  async markSessionReviewed(sessionName: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/mark-reviewed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to mark session as reviewed: ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Failed to mark session as reviewed via API:', error)
+      throw error
+    }
+  }
+
+  async convertToPlan(sessionName: string): Promise<void> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/convert-to-plan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to convert session to plan: ${response.statusText}`)
+      }
+    } catch (error) {
+      console.error('Failed to convert session to plan via API:', error)
+      throw error
     }
   }
 }

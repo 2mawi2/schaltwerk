@@ -38,6 +38,14 @@ pub async fn handle_mcp_request(
             let name = extract_session_name(path);
             delete_session(&name, app).await
         }
+        (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/mark-reviewed") => {
+            let name = extract_session_name_for_action(path, "/mark-reviewed");
+            mark_session_reviewed(&name, app).await
+        }
+        (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/convert-to-plan") => {
+            let name = extract_session_name_for_action(path, "/convert-to-plan");
+            convert_session_to_plan(&name, app).await
+        }
         _ => Ok(not_found_response()),
     }
 }
@@ -57,6 +65,13 @@ fn extract_draft_name_for_start(path: &str) -> String {
 fn extract_session_name(path: &str) -> String {
     let prefix = "/api/sessions/";
     let name = &path[prefix.len()..];
+    urlencoding::decode(name).unwrap_or(std::borrow::Cow::Borrowed(name)).to_string()
+}
+
+fn extract_session_name_for_action(path: &str, action: &str) -> String {
+    let prefix = "/api/sessions/";
+    let suffix = action;
+    let name = &path[prefix.len()..path.len() - suffix.len()];
     urlencoding::decode(name).unwrap_or(std::borrow::Cow::Borrowed(name)).to_string()
 }
 
@@ -214,32 +229,36 @@ async fn start_draft_session(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
-    let base_branch = if let Ok(body) = req.into_body().collect().await {
-        let body_bytes = body.to_bytes();
-        if let Ok(payload) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
-            payload["base_branch"].as_str().map(|s| s.to_string())
-        } else {
-            None
+    let body = req.into_body();
+    let body_bytes = body.collect().await?.to_bytes();
+    let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
+        Ok(p) => p,
+        Err(e) => {
+            error!("Failed to parse start draft session request: {e}");
+            return Ok(error_response(StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")));
         }
-    } else {
-        None
     };
-    
+
+    let base_branch = payload["base_branch"].as_str().map(|s| s.to_string());
+    let agent_type = payload["agent_type"].as_str();
+    let skip_permissions = payload["skip_permissions"].as_bool();
+
     let core = match get_schaltwerk_core().await {
         Ok(c) => c,
         Err(e) => {
-            error!("Failed to get para core: {e}");
+            error!("Failed to get schaltwerk core: {e}");
             return Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Internal error: {e}")));
         }
     };
-    
+
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
-    
-    match manager.start_draft_session(name, base_branch.as_deref()) {
+
+    // Use the manager method that encapsulates all configuration and session starting logic
+    match manager.start_draft_session_with_config(name, base_branch.as_deref(), agent_type, skip_permissions) {
         Ok(()) => {
             info!("Started plan session via API: {name}");
-            
+
             if let Ok(sessions) = manager.list_enriched_sessions() {
                 if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
                     warn!("Could not emit sessions refreshed: {e}");
@@ -440,14 +459,14 @@ async fn delete_session(
             return Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Internal error: {e}")));
         }
     };
-    
+
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
-    
+
     match manager.cancel_session(name) {
         Ok(()) => {
             info!("Deleted session via API: {name}");
-            
+
             #[derive(serde::Serialize, Clone)]
             struct SessionRemovedPayload { session_name: String }
             let _ = app.emit(
@@ -459,6 +478,78 @@ async fn delete_session(
         Err(e) => {
             error!("Failed to cancel session: {e}");
             Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to cancel session: {e}")))
+        }
+    }
+}
+
+async fn mark_session_reviewed(
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let core = match get_schaltwerk_core().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Failed to get schaltwerk core: {e}");
+            return Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Internal error: {e}")));
+        }
+    };
+
+    let core_lock = core.lock().await;
+    let manager = core_lock.session_manager();
+
+    // Use the manager method that encapsulates all validation and business logic
+    match manager.mark_session_as_reviewed(name) {
+        Ok(()) => {
+            info!("Marked session '{name}' as reviewed via API");
+
+            // Emit events to update UI
+            if let Ok(sessions) = manager.list_enriched_sessions() {
+                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                    warn!("Could not emit sessions refreshed: {e}");
+                }
+            }
+
+            Ok(Response::new("OK".to_string()))
+        },
+        Err(e) => {
+            error!("Failed to mark session '{name}' as reviewed: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to mark session as reviewed: {e}")))
+        }
+    }
+}
+
+async fn convert_session_to_plan(
+    name: &str,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
+    let core = match get_schaltwerk_core().await {
+        Ok(c) => c,
+        Err(e) => {
+            error!("Failed to get schaltwerk core: {e}");
+            return Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Internal error: {e}")));
+        }
+    };
+
+    let core_lock = core.lock().await;
+    let manager = core_lock.session_manager();
+
+    // Use the manager method that encapsulates all validation and business logic
+    match manager.convert_session_to_plan(name) {
+        Ok(()) => {
+            info!("Converted session '{name}' to plan via API");
+
+            // Emit events to update UI
+            if let Ok(sessions) = manager.list_enriched_sessions() {
+                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                    warn!("Could not emit sessions refreshed: {e}");
+                }
+            }
+
+            Ok(Response::new("OK".to_string()))
+        },
+        Err(e) => {
+            error!("Failed to convert session '{name}' to plan: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to convert session to plan: {e}")))
         }
     }
 }

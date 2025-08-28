@@ -140,6 +140,11 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to set skip permissions: {}", e))
     }
 
+    pub fn set_agent_type(&self, agent_type: &str) -> Result<()> {
+        self.db.set_agent_type(agent_type)
+            .map_err(|e| anyhow!("Failed to set agent type: {}", e))
+    }
+
     pub fn get_enriched_git_stats(&self, session: &Session) -> Result<Option<GitStats>> {
         match self.get_git_stats(&session.id)? {
             Some(existing) => {
