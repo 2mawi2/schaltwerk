@@ -6,6 +6,7 @@ import { WebglAddon } from '@xterm/addon-webgl';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
+import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import 'xterm/css/xterm.css';
 
@@ -32,6 +33,7 @@ export interface TerminalHandle {
 
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick }, ref) => {
     const { terminalFontSize } = useFontSize();
+    const { addEventListener, addResizeObserver, addTimeout } = useCleanupRegistry();
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -521,7 +523,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }, 100);
         };
 
-        window.addEventListener('font-size-changed', handleFontSizeChange);
+        addEventListener(window, 'font-size-changed', handleFontSizeChange);
 
         // Send input to backend
         terminal.current.onData((data) => {
@@ -604,7 +606,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Use ResizeObserver with more stable debouncing to prevent jitter
         let resizeTimeout: NodeJS.Timeout | null = null;
         let lastResizeTime = 0;
-        const resizeObserver = new ResizeObserver(() => {
+        
+        addResizeObserver(termRef.current, () => {
             // Skip resize work while user drags the split for smoother UI
             if (document.body.classList.contains('is-split-dragging')) {
                 return;
@@ -624,9 +627,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 handleResize();
             }, debounceTime);
         });
-        resizeObserver.observe(termRef.current);
+        
         // Initial fit pass after mount
-        const mountTimeout = setTimeout(() => handleResize(), 60);
+        addTimeout(() => handleResize(), 60);
 
         // After split drag ends, perform a strong fit + resize
         const doFinalFit = () => {
@@ -637,9 +640,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     lastSize.current = { cols, rows };
                     invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
                 }
-            } catch {}
+            } catch (error) {
+                console.error(`[Terminal ${terminalId}] Final fit error:`, error);
+            }
         };
-        window.addEventListener('terminal-split-drag-end', doFinalFit);
+        addEventListener(window, 'terminal-split-drag-end', doFinalFit);
 
         // Cleanup - dispose UI but keep terminal process running
         // Terminal processes will be cleaned up when the app exits
@@ -649,21 +654,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             
             if (resizeTimeout) clearTimeout(resizeTimeout);
             if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
-            clearTimeout(mountTimeout);
-            window.removeEventListener('terminal-split-drag-end', doFinalFit);
+            
             // Synchronously detach if possible to avoid races in tests
             const fn = unlistenRef.current;
-            if (fn) { try { fn(); } catch { /* ignore */ } }
+            if (fn) { try { fn(); } catch (error) {
+                console.error(`[Terminal ${terminalId}] Event listener cleanup error:`, error);
+            }}
             else if (unlistenPromiseRef.current) {
                 // Detach once promise resolves
-                unlistenPromiseRef.current.then((resolved) => { try { resolved(); } catch { /* ignore */ } });
+                unlistenPromiseRef.current.then((resolved) => { 
+                    try { resolved(); } catch (error) {
+                        console.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
+                    }
+                });
             }
-            window.removeEventListener('font-size-changed', handleFontSizeChange);
+            
             webglAddon.current?.dispose();
             webglAddon.current = null;
             terminal.current?.dispose();
             terminal.current = null;
-            resizeObserver.disconnect();
             setHydrated(false);
             pendingOutput.current = [];
             writeQueueRef.current = [];
@@ -671,6 +680,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
+            // useCleanupRegistry handles other cleanup automatically
         };
     }, [terminalId, terminalFontSize]); // Recreate when terminalId or fontSize changes
 

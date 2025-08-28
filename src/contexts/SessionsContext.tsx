@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, useRef, Re
 import { invoke } from '@tauri-apps/api/core'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useProject } from './ProjectContext'
+import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 
 interface DiffStats {
     files_changed: number
@@ -50,6 +51,7 @@ const SessionsContext = createContext<SessionsContextValue | undefined>(undefine
 
 export function SessionsProvider({ children }: { children: ReactNode }) {
     const { projectPath } = useProject()
+    const { addCleanup } = useCleanupRegistry()
     const [sessions, setSessions] = useState<EnrichedSession[]>([])
     const [loading, setLoading] = useState(true)
     const prevStatesRef = useRef<Map<string, string>>(new Map())
@@ -177,6 +179,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
     }, [reloadSessions])
 
+    const addListener = useCallback((unlistenPromise: Promise<UnlistenFn>) => {
+        if (!unlistenPromise || typeof unlistenPromise.then !== 'function') {
+            console.warn('[SessionsContext] Invalid listener promise received:', unlistenPromise)
+            return
+        }
+        unlistenPromise.then(cleanup => {
+            addCleanup(cleanup)
+        }).catch(error => {
+            console.error('[SessionsContext] Failed to add listener:', error)
+        })
+    }, [addCleanup])
+
     useEffect(() => {
         // Only reload sessions when projectPath actually changes
         if (projectPath !== lastProjectPath) {
@@ -190,11 +204,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
         }
 
-        let unlisteners: UnlistenFn[] = []
+        // Previous listeners will be cleaned up automatically by useCleanupRegistry
 
         const setupListeners = async () => {
             // Full refresh (authoritative list) + plans merge
-            const uRefresh = await listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
+            addListener(listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
                 try {
                     if (event.payload && event.payload.length > 0) {
                         // Treat payload as authoritative for now to avoid test flakiness
@@ -206,13 +220,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         await reloadSessions()
                     }
                 } catch (e) {
-                    console.error('Failed to reload sessions:', e)
+                    console.error('[SessionsContext] Failed to reload sessions:', e)
                 }
-            })
-            unlisteners.push(uRefresh)
+            }))
 
             // Activity updates
-            const uActivity = await listen<{ 
+            addListener(listen<{ 
                 session_name: string; 
                 last_activity_ts: number;
                 current_task?: string;
@@ -234,11 +247,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         }
                     }
                 }))
-            })
-            unlisteners.push(uActivity)
+            }))
 
             // Git stats updates
-            const uGit = await listen<{ session_name: string; files_changed: number; lines_added: number; lines_removed: number; has_uncommitted: boolean }>('schaltwerk:session-git-stats', (event) => {
+            addListener(listen<{ session_name: string; files_changed: number; lines_added: number; lines_removed: number; has_uncommitted: boolean }>('schaltwerk:session-git-stats', (event) => {
                 const { session_name, files_changed, lines_added, lines_removed, has_uncommitted } = event.payload
                 setSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
@@ -257,11 +269,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         }
                     }
                 }))
-            })
-            unlisteners.push(uGit)
+            }))
 
             // Session added
-            const uAdded = await listen<{ session_name: string; branch: string; worktree_path: string; parent_branch: string }>('schaltwerk:session-added', (event) => {
+            addListener(listen<{ session_name: string; branch: string; worktree_path: string; parent_branch: string }>('schaltwerk:session-added', (event) => {
                 const { session_name, branch, worktree_path, parent_branch } = event.payload
                 setSessions(prev => {
                     if (prev.some(s => s.info.session_id === session_name)) return prev
@@ -288,11 +299,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     const enriched: EnrichedSession = { info, status: undefined, terminals }
                     return [enriched, ...prev]
                 })
-            })
-            unlisteners.push(uAdded)
+            }))
 
             // Session cancelling (marks as cancelling but doesn't remove)
-            const uCancelling = await listen<{ session_name: string }>('schaltwerk:session-cancelling', (event) => {
+            addListener(listen<{ session_name: string }>('schaltwerk:session-cancelling', (event) => {
                 setSessions(prev => prev.map(s => {
                     if (s.info.session_id !== event.payload.session_name) return s
                     return {
@@ -303,24 +313,16 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         }
                     }
                 }))
-            })
-            unlisteners.push(uCancelling)
+            }))
 
             // Session removed (actual removal after cancellation completes)
-            const uRemoved = await listen<{ session_name: string }>('schaltwerk:session-removed', (event) => {
+            addListener(listen<{ session_name: string }>('schaltwerk:session-removed', (event) => {
                 setSessions(prev => prev.filter(s => s.info.session_id !== event.payload.session_name))
-            })
-            unlisteners.push(uRemoved)
+            }))
         }
 
         setupListeners()
-
-        return () => {
-            unlisteners.forEach(u => {
-                try { (u as any)() } catch {}
-            })
-        }
-    }, [projectPath, reloadSessions, lastProjectPath])
+    }, [projectPath, reloadSessions, lastProjectPath, addListener])
 
     return (
         <SessionsContext.Provider value={{
