@@ -1089,6 +1089,10 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + K</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
+                                    <span className="text-slate-300">Enter Plan Mode (Orchestrator)</span>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + P</kbd>
+                                </li>
+                                <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Finish Review (in diff viewer)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
                                 </li>

@@ -1,4 +1,4 @@
-import { VscHome, VscSettingsGear, VscListFlat } from 'react-icons/vsc'
+import { VscHome, VscSettingsGear, VscListFlat, VscSplitHorizontal } from 'react-icons/vsc'
 import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
@@ -13,6 +13,9 @@ interface TopBarProps {
   onCloseTab: (path: string) => void
   onOpenSettings: () => void
   onOpenKanban?: () => void
+  isOrchestratorActive?: boolean
+  isPlanModeActive?: boolean
+  onTogglePlanMode?: () => void
 }
 
 export function TopBar({
@@ -22,7 +25,10 @@ export function TopBar({
   onSelectTab,
   onCloseTab,
   onOpenSettings,
-  onOpenKanban
+  onOpenKanban,
+  isOrchestratorActive = false,
+  isPlanModeActive = false,
+  onTogglePlanMode
 }: TopBarProps) {
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
@@ -121,6 +127,23 @@ export function TopBar({
               resolvePath={async () => activeTabPath}
             />
           </div>
+        )}
+        
+        {/* Plan Mode button - only show in orchestrator */}
+        {isOrchestratorActive && onTogglePlanMode && (
+          <button
+            onClick={onTogglePlanMode}
+            className={`h-6 px-2 inline-flex items-center justify-center rounded transition-colors mr-2 text-xs gap-1 ${
+              isPlanModeActive 
+                ? 'bg-amber-600/20 text-amber-300 hover:bg-amber-600/30' 
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+            title="Plan Mode (⌘⇧P)"
+            aria-label="Plan Mode"
+          >
+            <VscSplitHorizontal className="text-[14px]" />
+            <span>Plan Mode</span>
+          </button>
         )}
         
         {/* Agent Board button - only show when a project is open */}

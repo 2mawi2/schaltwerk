@@ -942,14 +942,19 @@ impl SessionManager {
 
 
     pub fn update_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
+        info!("SessionCore: Updating plan content for session '{}', content length: {}", session_name, content.len());
         let session = self.db_manager.get_session_by_name(session_name)?;
+        info!("SessionCore: Found session with id: {}, state: {:?}", session.id, session.session_state);
         self.db_manager.update_plan_content(&session.id, content)?;
+        info!("SessionCore: Successfully updated plan content in database for session '{session_name}'");
         Ok(())
     }
 
     pub fn append_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
+        info!("SessionCore: Appending plan content for session '{}', additional content length: {}", session_name, content.len());
         let session = self.db_manager.get_session_by_name(session_name)?;
         self.db_manager.append_plan_content(&session.id, content)?;
+        info!("SessionCore: Successfully appended plan content in database for session '{session_name}'");
         Ok(())
     }
 

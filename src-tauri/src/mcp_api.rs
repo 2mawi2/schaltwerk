@@ -46,6 +46,9 @@ pub async fn handle_mcp_request(
             let name = extract_session_name_for_action(path, "/convert-to-plan");
             convert_session_to_plan(&name, app).await
         }
+        (&Method::GET, "/api/current-plan-mode-session") => {
+            get_current_plan_mode_session(app).await
+        }
         _ => Ok(not_found_response()),
     }
 }
@@ -208,11 +211,30 @@ async fn update_plan_content(
         manager.update_plan_content(name, content)
     } {
         Ok(()) => {
-            info!("Updated plan content via API: {name}");
+            info!("Updated plan content via API: {name} (append={append}, content_len={})", content.len());
             
-            // Emit events to update UI
-            if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<serde_json::Value>::new()) {
-                error!("Failed to emit sessions-refreshed event: {e}");
+            // Emit sessions-refreshed event with actual sessions to update UI
+            match manager.list_enriched_sessions() {
+                Ok(sessions) => {
+                    info!("MCP API: Emitting sessions-refreshed with {} sessions", sessions.len());
+                    // Log details about plan sessions
+                    for session in &sessions {
+                        if session.info.session_state == crate::schaltwerk_core::SessionState::Plan {
+                            info!("MCP API: Plan session {} has content: {} chars", 
+                                session.info.session_id, 
+                                session.info.plan_content.as_ref().map(|c| c.len()).unwrap_or(0)
+                            );
+                        }
+                    }
+                    if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                        error!("Failed to emit sessions-refreshed event: {e}");
+                    } else {
+                        info!("MCP API: Successfully emitted sessions-refreshed event");
+                    }
+                }
+                Err(e) => {
+                    error!("MCP API: Failed to list sessions for event emission: {e}");
+                }
             }
             
             Ok(Response::new("OK".to_string()))
@@ -552,4 +574,10 @@ async fn convert_session_to_plan(
             Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to convert session to plan: {e}")))
         }
     }
+}
+
+async fn get_current_plan_mode_session(_app: tauri::AppHandle) -> Result<Response<String>, hyper::Error> {
+    // For now, return not found since we don't have persistent state tracking
+    // This could be enhanced later with proper state management
+    Ok(error_response(StatusCode::NOT_FOUND, "Plan mode session tracking not yet implemented. Use schaltwerk_draft_update with explicit session name.".to_string()))
 }

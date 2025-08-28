@@ -1066,7 +1066,7 @@ pub async fn schaltwerk_core_update_session_state(name: String, state: String) -
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_update_plan_content(name: String, content: String) -> Result<(), String> {
+pub async fn schaltwerk_core_update_plan_content(app: tauri::AppHandle, name: String, content: String) -> Result<(), String> {
     log::info!("Updating plan content for session: {name}");
     
     let core = get_schaltwerk_core().await?;
@@ -1074,7 +1074,16 @@ pub async fn schaltwerk_core_update_plan_content(name: String, content: String) 
     let manager = core_lock.session_manager();
     
     manager.update_plan_content(&name, &content)
-        .map_err(|e| format!("Failed to update plan content: {e}"))
+        .map_err(|e| format!("Failed to update plan content: {e}"))?;
+    
+    // Emit sessions-refreshed event to update UI
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]

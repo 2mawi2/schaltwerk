@@ -53,6 +53,11 @@ interface SchaltwerkDraftUpdateArgs {
   append?: boolean
 }
 
+interface SchaltwerkCurrentPlanUpdateArgs {
+  content: string
+  append?: boolean
+}
+
 interface SchaltwerkDraftStartArgs {
   session_name: string
   agent_type?: 'claude' | 'cursor' | 'opencode'
@@ -386,6 +391,39 @@ schaltwerk_pause(session_name: "feature-auth")
             }
           },
           required: ["session_name", "content"]
+        }
+      },
+      {
+        name: "schaltwerk_current_plan_update",
+        description: `Update the currently active plan in Plan Mode.
+
+🎯 PURPOSE: Quickly update the plan that's currently being viewed in Plan Mode without needing to specify the plan name.
+
+📋 USAGE:
+- Replace content: schaltwerk_current_plan_update(content: "# Updated Plan\\n\\nNew content here...")  
+- Append content: schaltwerk_current_plan_update(content: "\\n\\n## Additional Section", append: true)
+
+📝 UPDATE MODES:
+- Replace (default): Completely replace existing content
+- Append: Add to existing content with newline separator
+
+💡 CONVENIENCE: Automatically targets the plan currently open in Plan Mode - no need to specify session_name.
+
+⚠️ NOTE: Only works when Plan Mode is active with a plan selected.`,
+        inputSchema: {
+          type: "object",
+          properties: {
+            content: {
+              type: "string",
+              description: "New or additional content in Markdown format"
+            },
+            append: {
+              type: "boolean",
+              description: "Append to existing content instead of replacing (default: false)",
+              default: false
+            }
+          },
+          required: ["content"]
         }
       },
       {
@@ -796,6 +834,32 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         
         result = `Plan '${draftUpdateArgs.session_name}' updated successfully.
 - Update Mode: ${draftUpdateArgs.append ? 'Append' : 'Replace'}
+- Content Preview: ${contentPreview}`
+        break
+      }
+
+      case "schaltwerk_current_plan_update": {
+        const currentPlanUpdateArgs = args as unknown as SchaltwerkCurrentPlanUpdateArgs
+        
+        // Get the currently active plan in Plan Mode
+        const currentPlan = await bridge.getCurrentPlanModeSession()
+        if (!currentPlan) {
+          result = 'Plan mode session tracking not yet implemented. Please use schaltwerk_draft_update with explicit session name instead.\n\nAlternatively, check available plans with schaltwerk_draft_list first.'
+          break
+        }
+        
+        await bridge.updateDraftContent(
+          currentPlan,
+          currentPlanUpdateArgs.content,
+          currentPlanUpdateArgs.append
+        )
+        
+        const contentPreview = currentPlanUpdateArgs.content.length > 100 
+          ? currentPlanUpdateArgs.content.substring(0, 100) + '...'
+          : currentPlanUpdateArgs.content
+        
+        result = `Current plan '${currentPlan}' updated successfully.
+- Update Mode: ${currentPlanUpdateArgs.append ? 'Append' : 'Replace'}
 - Content Preview: ${contentPreview}`
         break
       }

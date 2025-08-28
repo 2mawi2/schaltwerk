@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
@@ -16,12 +17,17 @@ export function PlanEditor({ sessionName, onStart }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [hasLocalChanges, setHasLocalChanges] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastSessionNameRef = useRef<string>(sessionName)
 
+  // Load initial content
   useEffect(() => {
     let mounted = true
+    lastSessionNameRef.current = sessionName
     setLoading(true)
     setError(null)
+    setHasLocalChanges(false)
     invoke<[string | null, string | null]>('schaltwerk_core_get_session_agent_content', { name: sessionName })
       .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
@@ -36,13 +42,16 @@ export function PlanEditor({ sessionName, onStart }: Props) {
     return () => { mounted = false }
   }, [sessionName])
 
-  // Auto-save content
+  // Auto-save content only when there are local changes
   useEffect(() => {
+    if (!hasLocalChanges) return
+    
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSaving(true)
         await invoke('schaltwerk_core_update_plan_content', { name: sessionName, content })
+        setHasLocalChanges(false)
       } catch (e) {
         console.error('[DraftEditor] Failed to save plan:', e)
       } finally {
@@ -50,7 +59,12 @@ export function PlanEditor({ sessionName, onStart }: Props) {
       }
     }, 1000)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
-  }, [content, sessionName])
+  }, [content, sessionName, hasLocalChanges])
+
+  const handleContentChange = (newContent: string) => {
+    setContent(newContent)
+    setHasLocalChanges(true)
+  }
 
   const handleCopy = async () => {
     try {
@@ -76,6 +90,66 @@ export function PlanEditor({ sessionName, onStart }: Props) {
       setStarting(false)
     }
   }
+
+  // Listen for sessions refreshed events (e.g., from MCP updates)
+  useEffect(() => {
+    console.log('[PlanEditor] Setting up sessions-refreshed listener for session:', sessionName)
+    
+    const unlistenPromise = listen('schaltwerk:sessions-refreshed', async (event) => {
+      console.log('[PlanEditor] Received sessions-refreshed event')
+      const sessions = event.payload as any[]
+      console.log('[PlanEditor] Total sessions in event:', sessions.length)
+      
+      // Log all plan sessions for debugging
+      const planSessions = sessions.filter((s: any) => 
+        s.info?.session_state === 'Plan' || s.info?.status === 'plan'
+      )
+      console.log('[PlanEditor] Plan sessions found:', planSessions.map((s: any) => ({
+        id: s.info?.session_id,
+        state: s.info?.session_state,
+        status: s.info?.status,
+        has_content: !!s.info?.plan_content,
+        content_length: s.info?.plan_content?.length || 0
+      })))
+      
+      const planSession = sessions.find((s: any) => 
+        s.info?.session_id === sessionName && 
+        (s.info?.session_state === 'Plan' || s.info?.status === 'plan')
+      )
+      
+      console.log('[PlanEditor] Looking for session:', sessionName)
+      console.log('[PlanEditor] Found matching session:', !!planSession)
+      
+      if (planSession) {
+        console.log('[PlanEditor] Plan session details:', {
+          id: planSession.info?.session_id,
+          has_plan_content: planSession.info?.plan_content !== undefined,
+          content_length: planSession.info?.plan_content?.length || 0,
+          current_content_length: content.length
+        })
+        
+        if (planSession.info?.plan_content !== undefined) {
+          // Only update if content actually changed to avoid infinite loops
+          if (planSession.info.plan_content !== content) {
+            console.log('[PlanEditor] Content changed, updating from', content.length, 'to', planSession.info.plan_content.length, 'chars')
+            setContent(planSession.info.plan_content || '')
+            setHasLocalChanges(false)
+          } else {
+            console.log('[PlanEditor] Content unchanged, skipping update')
+          }
+        } else {
+          console.log('[PlanEditor] No plan_content field in session data')
+        }
+      } else {
+        console.log('[PlanEditor] No matching plan session found for:', sessionName)
+      }
+    })
+    
+    return () => {
+      console.log('[PlanEditor] Cleaning up sessions-refreshed listener for:', sessionName)
+      unlistenPromise.then(unlisten => unlisten())
+    }
+  }, [sessionName, content])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -138,7 +212,7 @@ export function PlanEditor({ sessionName, onStart }: Props) {
         }>
           <MarkdownEditor
             value={content}
-            onChange={setContent}
+            onChange={handleContentChange}
             placeholder="Enter agent description in markdown…"
             className="h-full"
           />

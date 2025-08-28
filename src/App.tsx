@@ -21,6 +21,8 @@ import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
+import { useSessions } from './contexts/SessionsContext'
+import { PlanModeLayout } from './components/plans/PlanModeLayout'
 import { theme } from './common/theme'
 
 // Simple debounce utility
@@ -50,6 +52,7 @@ function getBasename(path: string): string {
 export default function App() {
   const { selection, setSelection } = useSelection()
   const { projectPath, setProjectPath } = useProject()
+  const { sessions } = useSessions()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
@@ -69,6 +72,7 @@ export default function App() {
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsDraft] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
+  const [commanderPlanModeSession, setCommanderPlanModeSession] = useState<string | null>(null)
   const projectSwitchInProgressRef = useRef(false)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const isKanbanOpenRef = useRef(false)
@@ -318,6 +322,49 @@ export default function App() {
     return () => window.removeEventListener('schaltwerk:new-plan', handler as any)
   }, [])
   
+  // Auto-enter plan mode when a new plan is created
+  useEffect(() => {
+    const handlePlanCreated = (event: CustomEvent<{ name: string }>) => {
+      if (selection.kind === 'orchestrator') {
+        // Automatically switch to the newly created plan in plan mode
+        setCommanderPlanModeSession(event.detail.name)
+      }
+    }
+    window.addEventListener('schaltwerk:plan-created' as any, handlePlanCreated)
+    return () => window.removeEventListener('schaltwerk:plan-created' as any, handlePlanCreated)
+  }, [selection])
+  
+  // Handle MCP plan updates - detect new plans and focus them in plan mode
+  useEffect(() => {
+    const handleSessionsRefreshed = () => {
+      // Check if we're in orchestrator and plan mode
+      if (selection.kind === 'orchestrator' && commanderPlanModeSession) {
+        // Check if a new plan was created that we should focus
+        const planSessions = sessions.filter(session => 
+          session.info.status === 'plan' || session.info.session_state === 'plan'
+        )
+        
+        // If we don't have a valid plan selected but plans exist, select the first one
+        if (!planSessions.find(p => p.info.session_id === commanderPlanModeSession) && planSessions.length > 0) {
+          // The current plan doesn't exist anymore, switch to the newest plan
+          const newestPlan = planSessions.sort((a, b) => {
+            const aTime = new Date(a.info.created_at || '').getTime()
+            const bTime = new Date(b.info.created_at || '').getTime()
+            return bTime - aTime  // Sort newest first
+          })[0]
+          setCommanderPlanModeSession(newestPlan.info.session_id)
+        }
+      }
+    }
+    
+    // Use Tauri's listen for the sessions-refreshed event
+    const unlisten = listen('schaltwerk:sessions-refreshed', handleSessionsRefreshed)
+    
+    return () => {
+      unlisten.then(unlistenFn => unlistenFn())
+    }
+  }, [selection, commanderPlanModeSession, sessions])
+  
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
@@ -370,6 +417,59 @@ export default function App() {
     return () => window.removeEventListener('schaltwerk:start-agent-from-plan' as any, handler)
   }, [fetchSessionForPrefill])
 
+  // Handle entering plan mode
+  useEffect(() => {
+    const handleEnterPlanMode = (event: CustomEvent<{ sessionName: string }>) => {
+      const { sessionName } = event.detail
+      if (sessionName && selection.kind === 'orchestrator') {
+        setCommanderPlanModeSession(sessionName)
+      }
+    }
+    
+    window.addEventListener('schaltwerk:enter-plan-mode' as any, handleEnterPlanMode)
+    return () => window.removeEventListener('schaltwerk:enter-plan-mode' as any, handleEnterPlanMode)
+  }, [selection])
+  
+  // Handle exiting plan mode
+  const handleExitPlanMode = useCallback(() => {
+    setCommanderPlanModeSession(null)
+  }, [])
+  
+  // Exit plan mode if selection changes away from orchestrator
+  useEffect(() => {
+    if (selection.kind !== 'orchestrator') {
+      setCommanderPlanModeSession(null)
+    }
+  }, [selection])
+  
+  // Handle keyboard shortcut for plan mode (Cmd+Shift+P in orchestrator)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+        if (selection.kind === 'orchestrator') {
+          e.preventDefault()
+          if (commanderPlanModeSession) {
+            // Exit plan mode
+            setCommanderPlanModeSession(null)
+          } else {
+            // Enter plan mode with first available plan
+            const planSessions = sessions.filter(session => 
+              session.info.status === 'plan' || session.info.session_state === 'plan'
+            )
+            if (planSessions.length > 0) {
+              setCommanderPlanModeSession(planSessions[0].info.session_id)
+            } else {
+              // No plans available, create a new one
+              window.dispatchEvent(new CustomEvent('schaltwerk:new-plan'))
+            }
+          }
+        }
+      }
+    }
+    
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [selection, commanderPlanModeSession, sessions])
 
   const handleCancelSession = async (_force: boolean) => {
     if (!currentSession) return
@@ -472,12 +572,22 @@ export default function App() {
         // Get the created session to get the correct worktree path
         const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
 
-        // Switch to the new plan session - no agent will start
-        await setSelection({
-          kind: 'session',
-          payload: data.name,
-          worktreePath: sessionData.worktree_path
-        })
+        // If in orchestrator, automatically enter plan mode with the new plan
+        if (selection.kind === 'orchestrator') {
+          setCommanderPlanModeSession(data.name)
+        } else {
+          // Otherwise switch to the new plan session
+          await setSelection({
+            kind: 'session',
+            payload: data.name,
+            worktreePath: sessionData.worktree_path
+          })
+        }
+        
+        // Dispatch event for other components to know a plan was created
+        window.dispatchEvent(new CustomEvent('schaltwerk:plan-created', {
+          detail: { name: data.name }
+        }))
       } else {
         // Create regular session
         await invoke('schaltwerk_core_create_session', {
@@ -701,6 +811,24 @@ export default function App() {
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenKanban={() => setIsKanbanOpen(true)}
+        isOrchestratorActive={selection.kind === 'orchestrator'}
+        isPlanModeActive={!!commanderPlanModeSession}
+        onTogglePlanMode={() => {
+          if (commanderPlanModeSession) {
+            setCommanderPlanModeSession(null)
+          } else {
+            // Select the first available plan
+            const planSessions = sessions.filter(session => 
+              session.info.status === 'plan' || session.info.session_state === 'plan'
+            )
+            if (planSessions.length > 0) {
+              setCommanderPlanModeSession(planSessions[0].info.session_id)
+            } else {
+              // No plans available, could show a message or create a new plan
+              window.dispatchEvent(new CustomEvent('schaltwerk:new-plan'))
+            }
+          }
+        }}
       />
 
       {/* Show home screen if requested, or no active tab */}
@@ -770,16 +898,27 @@ export default function App() {
             </div>
 
             <div className="relative h-full">
-              {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
-              <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
-              <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
-                <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
-                  <TerminalGrid />
-                </main>
-                <section className="overflow-hidden">
-                  <RightPanelTabs onFileSelect={handleFileSelect} />
-                </section>
-              </Split>
+              {/* Show Plan Mode Layout when active in orchestrator */}
+              {selection.kind === 'orchestrator' && commanderPlanModeSession ? (
+                <PlanModeLayout
+                  sessionName={commanderPlanModeSession}
+                  onExit={handleExitPlanMode}
+                  onSwitchPlan={(newPlanName) => setCommanderPlanModeSession(newPlanName)}
+                />
+              ) : (
+                <>
+                  {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
+                  <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
+                  <Split className="h-full w-full flex" sizes={[70, 30]} minSize={[400, 280]} gutterSize={8}>
+                    <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                      <TerminalGrid />
+                    </main>
+                    <section className="overflow-hidden">
+                      <RightPanelTabs onFileSelect={handleFileSelect} />
+                    </section>
+                  </Split>
+                </>
+              )}
             </div>
           </Split>
 

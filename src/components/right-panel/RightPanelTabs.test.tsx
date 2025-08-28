@@ -161,13 +161,13 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // User's choice of Plan should persist (shown as "Plans" in orchestrator)
-      // Note: still has focus styling from the click
-      expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-blue-800/30')
+      // In orchestrator, only Changes tab is shown (no Plans tab anymore)
+      expect(screen.getByRole('button', { name: /Changes/i })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Plans/i })).not.toBeInTheDocument()
     })
     
     it('should use smart defaults when user has not made a selection', () => {
-      // Test orchestrator defaults to Plan/Plans (no Changes tab in orchestrator)
+      // Test orchestrator only shows Changes tab (Plans accessed via Plan Mode)
       mockUseSelection.mockReturnValue({
         selection: { kind: 'orchestrator' },
         isPlan: false,
@@ -181,9 +181,9 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      expect(screen.getByRole('button', { name: /Plans/i })).toHaveClass('bg-slate-800/50')
-      // Changes tab should be present in orchestrator
-      expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
+      // In orchestrator, only Changes tab is shown
+      expect(screen.getByRole('button', { name: /Changes/i })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Plans/i })).not.toBeInTheDocument()
       
       // Test plan session defaults to Plan and changes tab is hidden
       mockUseSelection.mockReturnValue({
@@ -267,7 +267,7 @@ describe('RightPanelTabs', () => {
       // Changes tab is now active (with focus styling since we clicked)
       expect(screen.getByRole('button', { name: /Changes/i })).toHaveClass('bg-blue-800/30')
       
-      // Switch to orchestrator - Plan tab is shown as "Plans"
+      // Switch to orchestrator - only Changes tab is shown
       mockUseSelection.mockReturnValue({
         selection: { kind: 'orchestrator' },
         isPlan: false,
@@ -281,9 +281,9 @@ describe('RightPanelTabs', () => {
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
       
-      // In orchestrator, both Changes and Plans tabs should be visible
-      expect(screen.getByRole('button', { name: /Plans/i })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /Changes/i })).toBeInTheDocument()
+      // In orchestrator, only Changes tab is shown (Plans accessed via Plan Mode)
+      expect(screen.getByRole('button', { name: /Changes/i })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /Plans/i })).not.toBeInTheDocument()
     })
   })
   

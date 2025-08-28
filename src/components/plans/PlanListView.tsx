@@ -70,7 +70,13 @@ export function PlanListView({ onOpenPlan }: Props) {
         <div
           key={d.name}
           className="group w-full bg-slate-900/40 hover:bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 cursor-pointer transition-colors"
-          onClick={() => onOpenPlan(d.name)}
+          onClick={() => {
+            // Dispatch event to enter plan mode
+            window.dispatchEvent(new CustomEvent('schaltwerk:enter-plan-mode', {
+              detail: { sessionName: d.name }
+            }))
+            onOpenPlan(d.name)
+          }}
         >
           <div className="flex items-center justify-between gap-2">
             <div className="text-sm font-medium text-slate-200 truncate">{d.name}</div>

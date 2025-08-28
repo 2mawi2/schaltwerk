@@ -707,4 +707,26 @@ export class SchaltwerkBridge {
       throw error
     }
   }
+
+  async getCurrentPlanModeSession(): Promise<string | null> {
+    try {
+      const response = await fetch(`${this.apiUrl}/api/current-plan-mode-session`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          return null // No active plan mode session
+        }
+        throw new Error(`Failed to get current plan mode session: ${response.statusText}`)
+      }
+
+      const data = await response.json() as { session_name: string }
+      return data.session_name
+    } catch (error) {
+      console.error('Failed to get current plan mode session:', error)
+      return null
+    }
+  }
 }

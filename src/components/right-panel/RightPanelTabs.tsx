@@ -34,15 +34,9 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
     )
   )
 
-  // Reset preview when leaving orchestrator
-  useEffect(() => {
-    if (selection.kind !== 'orchestrator') setPreviewPlanName(null)
-  }, [selection])
-
   // Reset state when project changes
   useEffect(() => {
     setUserSelectedTab(null)
-    setPreviewPlanName(null)
   }, [projectPath])
   
   // Update local focus state when global focus changes
@@ -60,8 +54,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
 
   // Unified header with tabs
   const isCommander = effectiveSelection.kind === 'orchestrator'
-  const rightTabLabel = isCommander ? 'Plans' : 'Plan'
-  const showBackButton = isCommander && !!previewPlanName
+  const rightTabLabel = 'Plan'
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
   const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsPlan
 
@@ -75,7 +68,8 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           <button
             onClick={() => setUserSelectedTab('changes')}
             className={clsx(
-              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+              'h-full px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+              isCommander ? 'flex-1' : '',
               activeTab === 'changes' 
                 ? localFocus 
                   ? 'text-blue-200 bg-blue-800/30' 
@@ -134,21 +128,6 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
           : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
       }`} />
-
-      {/* Back/breadcrumb row when previewing a plan in orchestrator */}
-      {showBackButton && (
-        <div className="px-3 py-1.5 border-b border-slate-800 flex items-center gap-2">
-          <button
-            className="px-2 py-1 text-xs rounded bg-slate-800 hover:bg-slate-700 border border-slate-700 flex items-center gap-1"
-            onClick={() => setPreviewPlanName(null)}
-            title="Back to plans"
-          >
-            <VscChevronLeft />
-            Back
-          </button>
-          <div className="text-xs text-slate-400">Viewing plan: {previewPlanName}</div>
-        </div>
-      )}
 
       <div className="flex-1 overflow-hidden relative">
         <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
