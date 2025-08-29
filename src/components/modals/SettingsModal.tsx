@@ -1076,14 +1076,18 @@ fi`}
                                     <span className="text-slate-300">Force Cancel Session</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + D</kbd>
                                 </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Mark Ready for Review</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + R</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Open Diff Viewer (Session/Orchestrator)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + G</kbd>
-                                </li>
+                                 <li className="flex justify-between items-center">
+                                     <span className="text-slate-300">Mark Ready for Review</span>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + R</kbd>
+                                 </li>
+                                 <li className="flex justify-between items-center">
+                                     <span className="text-slate-300">Convert Session to Plan</span>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + P</kbd>
+                                 </li>
+                                 <li className="flex justify-between items-center">
+                                     <span className="text-slate-300">Open Diff Viewer (Session/Orchestrator)</span>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + G</kbd>
+                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Open Agent Board (Kanban)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + K</kbd>

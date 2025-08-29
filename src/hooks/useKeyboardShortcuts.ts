@@ -5,6 +5,7 @@ interface KeyboardShortcutsProps {
     onSelectSession: (index: number) => void
     onCancelSelectedSession?: (immediate: boolean) => void
     onMarkSelectedSessionReady?: () => void
+    onPlanSession?: () => void
     sessionCount: number
     onSelectPrevSession?: () => void
     onSelectNextSession?: () => void
@@ -17,7 +18,7 @@ interface KeyboardShortcutsProps {
     isDiffViewerOpen?: boolean
 }
 
-export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen }: KeyboardShortcutsProps) {
+export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onPlanSession, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen }: KeyboardShortcutsProps) {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const modifierKey = navigator.userAgent.includes('Mac') ? event.metaKey : event.ctrlKey
@@ -68,12 +69,17 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
                     event.preventDefault()
                     onOpenDiffViewer()
                 }
-            } else if (key === 'r' || key === 'R') {
-                if (onMarkSelectedSessionReady) {
-                    event.preventDefault()
-                    onMarkSelectedSessionReady()
-                }
-            } else if (key === 't' || key === 'T') {
+             } else if (key === 'r' || key === 'R') {
+                 if (onMarkSelectedSessionReady) {
+                     event.preventDefault()
+                     onMarkSelectedSessionReady()
+                 }
+             } else if (key === 'p' || key === 'P') {
+                 if (onPlanSession && !event.shiftKey) {
+                     event.preventDefault()
+                     onPlanSession()
+                 }
+             } else if (key === 't' || key === 'T') {
                 if (onFocusClaude) {
                     event.preventDefault()
                     onFocusClaude()
@@ -91,5 +97,5 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
         }
-    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen])
+    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onPlanSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen])
 }

@@ -513,24 +513,62 @@ describe('useKeyboardShortcuts', () => {
   })
 
   describe('Session management shortcuts', () => {
-    it('marks session ready with Cmd+R', () => {
-      const onMarkSelectedSessionReady = vi.fn()
-      const onSelectOrchestrator = vi.fn()
-      const onSelectSession = vi.fn()
+   it('marks session ready with Cmd+R', () => {
+       const onMarkSelectedSessionReady = vi.fn()
+       const onSelectOrchestrator = vi.fn()
+       const onSelectSession = vi.fn()
 
-      renderHook(() => useKeyboardShortcuts({ 
-        onSelectOrchestrator, 
-        onSelectSession, 
-        onMarkSelectedSessionReady,
-        sessionCount: 1
-      }))
+       renderHook(() => useKeyboardShortcuts({
+           onSelectOrchestrator,
+           onSelectSession,
+           onMarkSelectedSessionReady,
+           sessionCount: 1
+       }))
 
-      pressKey('r', { metaKey: true })
-      expect(onMarkSelectedSessionReady).toHaveBeenCalledTimes(1)
+       pressKey('r', { metaKey: true })
+       expect(onMarkSelectedSessionReady).toHaveBeenCalledTimes(1)
 
-      pressKey('R', { metaKey: true })
-      expect(onMarkSelectedSessionReady).toHaveBeenCalledTimes(2)
-    })
+       pressKey('R', { metaKey: true })
+       expect(onMarkSelectedSessionReady).toHaveBeenCalledTimes(2)
+   })
+
+   it('converts session to plan with Cmd+P', () => {
+       const onPlanSession = vi.fn()
+       const onSelectOrchestrator = vi.fn()
+       const onSelectSession = vi.fn()
+
+       renderHook(() => useKeyboardShortcuts({
+           onSelectOrchestrator,
+           onSelectSession,
+           onPlanSession,
+           sessionCount: 1
+       }))
+
+       pressKey('p', { metaKey: true })
+       expect(onPlanSession).toHaveBeenCalledTimes(1)
+
+       pressKey('P', { metaKey: true })
+       expect(onPlanSession).toHaveBeenCalledTimes(2)
+   })
+
+   it('does not trigger plan shortcut with Cmd+Shift+P', () => {
+       const onPlanSession = vi.fn()
+       const onSelectOrchestrator = vi.fn()
+       const onSelectSession = vi.fn()
+
+       renderHook(() => useKeyboardShortcuts({
+           onSelectOrchestrator,
+           onSelectSession,
+           onPlanSession,
+           sessionCount: 1
+       }))
+
+       pressKey('p', { metaKey: true, shiftKey: true })
+       expect(onPlanSession).not.toHaveBeenCalled()
+
+       pressKey('P', { metaKey: true, shiftKey: true })
+       expect(onPlanSession).not.toHaveBeenCalled()
+   })
 
     it('does not mark session ready when callback is undefined', () => {
       const onSelectOrchestrator = vi.fn()

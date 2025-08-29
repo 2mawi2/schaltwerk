@@ -339,6 +339,21 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
+    const handlePlanSelectedSession = () => {
+        if (selection.kind === 'session') {
+            const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
+            if (selectedSession && !isPlan(selectedSession.info)) {
+                // Only allow converting running sessions to plans, not plans themselves
+                setConvertToDraftModal({
+                    open: true,
+                    sessionName: selectedSession.info.session_id,
+                    sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                    hasUncommitted: selectedSession.info.has_uncommitted_changes || false
+                })
+            }
+        }
+    }
+
     // Project switching functions
     const handleSelectPrevProject = () => {
         if (onSelectPrevProject && openTabs.length > 1) {
@@ -357,6 +372,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onSelectSession: handleSelectSession,
         onCancelSelectedSession: handleCancelSelectedSession,
         onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
+        onPlanSession: handlePlanSelectedSession,
         sessionCount: sessions.length,
         onSelectPrevSession: selectPrev,
         onSelectNextSession: selectNext,
