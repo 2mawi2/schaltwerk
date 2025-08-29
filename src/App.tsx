@@ -216,7 +216,8 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0
+      // Check if we're on macOS using userAgent (platform is deprecated)
+      const isMac = navigator.userAgent.toUpperCase().includes('MAC')
       const modifierKey = isMac ? e.metaKey : e.ctrlKey
 
       if (modifierKey && e.key === 'n') {
@@ -743,22 +744,39 @@ export default function App() {
     const tabIndex = openTabs.findIndex(tab => tab.projectPath === path)
     if (tabIndex === -1) return
 
-    // Remove the tab
-    const newTabs = openTabs.filter(tab => tab.projectPath !== path)
-    setOpenTabs(newTabs)
-
-    // If this was the active tab, handle navigation
+    // If this was the active tab, handle navigation first
     if (path === activeTabPath) {
-      if (newTabs.length > 0) {
-        // Switch to adjacent tab
-        const newIndex = Math.min(tabIndex, newTabs.length - 1)
-        const newActiveTab = newTabs[newIndex]
-        setActiveTabPath(newActiveTab.projectPath)
-        setProjectPath(newActiveTab.projectPath)
+      if (openTabs.length > 1) {
+        // Switch to adjacent tab before closing current one
+        const newIndex = Math.min(tabIndex, openTabs.length - 2) // -2 because we're removing one
+        const newActiveTab = openTabs[newIndex]
+        if (newActiveTab && newActiveTab.projectPath !== path) {
+          // Switch to the new project in backend first
+          try {
+            await invoke('initialize_project', { path: newActiveTab.projectPath })
+            setActiveTabPath(newActiveTab.projectPath)
+            setProjectPath(newActiveTab.projectPath)
+          } catch (error) {
+            console.error('Failed to switch to new project:', error)
+            // Continue with tab removal even if backend switch fails
+          }
+        }
       } else {
         // No more tabs, go home
         handleGoHome()
       }
+    }
+
+    // Remove the tab from UI
+    const newTabs = openTabs.filter(tab => tab.projectPath !== path)
+    setOpenTabs(newTabs)
+
+    // Clean up the closed project in backend
+    try {
+      await invoke('close_project', { path })
+    } catch (error) {
+      console.warn('Failed to cleanup closed project:', error)
+      // Don't fail the UI operation if cleanup fails
     }
   }
 

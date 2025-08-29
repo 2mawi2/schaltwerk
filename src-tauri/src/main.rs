@@ -732,6 +732,7 @@ fn main() {
             list_project_branches,
             repository_is_empty,
             get_active_project_path,
+            close_project,
             // Settings commands
             get_project_default_base_branch,
             set_project_default_base_branch,

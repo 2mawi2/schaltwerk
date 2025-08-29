@@ -255,22 +255,34 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (remembered.kind === 'orchestrator') {
             return remembered
         }
-        
-        // For sessions, check if it still exists
+
+        // For sessions, check if it still exists and worktree is valid
         if (remembered.kind === 'session' && remembered.payload) {
             try {
                 const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: remembered.payload })
-                // Session exists - we could check state here if needed
-                // const state = sessionData?.state || sessionData?.session_state
-                
-                // Update worktreePath if it has changed
                 const worktreePath = sessionData?.worktree_path || remembered.worktreePath
-                
-                // Return the validated selection with updated worktree path
+
+                // Check if worktree directory still exists
+                if (worktreePath) {
+                    try {
+                        const exists = await invoke<boolean>('directory_exists', { path: worktreePath })
+                        if (!exists) {
+                            console.log(`[SelectionContext] Worktree directory ${worktreePath} no longer exists for session ${remembered.payload}, falling back to orchestrator`)
+                            return { kind: 'orchestrator' }
+                        }
+                    } catch (error) {
+                        console.warn(`[SelectionContext] Failed to check worktree directory ${worktreePath}:`, error)
+                        // If we can't check, assume it's invalid to be safe
+                        return { kind: 'orchestrator' }
+                    }
+                }
+
+                // Session and worktree are valid
                 return {
                     kind: 'session',
                     payload: remembered.payload,
-                    worktreePath
+                    worktreePath,
+                    sessionState: sessionData?.session_state
                 }
             } catch (error) {
                 console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
@@ -278,7 +290,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 return { kind: 'orchestrator' }
             }
         }
-        
+
         // Default fallback
         return { kind: 'orchestrator' }
     }, [])
@@ -497,8 +509,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     isRestoringRef.current = false
                 }
             } else {
-                // First initialization, use default
-                targetSelection = await getDefaultSelection()
+                // First initialization, use default but validate it
+                const defaultSelection = await getDefaultSelection()
+                targetSelection = await validateAndRestoreSelection(defaultSelection)
             }
             
             console.log('[SelectionContext] Setting selection to:', targetSelection)

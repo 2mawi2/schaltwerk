@@ -84,9 +84,13 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
         // Find the selected session
         const selectedIndex = selectedSessionId ? sessions.findIndex(s => s.info.session_id === selectedSessionId) : -1
-        
-        // Sort the sessions
-        const sorted = [...sessions].sort((a, b) => {
+
+        // Separate reviewed and unreviewed sessions (matching backend logic)
+        const reviewed = sessions.filter(s => s.info.ready_to_merge)
+        const unreviewed = sessions.filter(s => !s.info.ready_to_merge)
+
+        // Sort unreviewed sessions by the current sort mode
+        const sortedUnreviewed = [...unreviewed].sort((a, b) => {
             switch (sortMode) {
                 case SortMode.Name:
                     return a.info.session_id.localeCompare(b.info.session_id)
@@ -103,10 +107,16 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
         })
 
+        // Sort reviewed sessions alphabetically (matching backend logic)
+        const sortedReviewed = [...reviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+
+        // Combine: unreviewed first, then reviewed
+        const sorted = [...sortedUnreviewed, ...sortedReviewed]
+
         // If there was a selected session, try to preserve its relative position to reduce visual jumping
         if (selectedIndex >= 0 && selectedSessionId) {
             const newSelectedIndex = sorted.findIndex(s => s.info.session_id === selectedSessionId)
-            
+
             if (newSelectedIndex >= 0 && newSelectedIndex !== selectedIndex) {
                 // The selected session moved in the sorted list
                 // This is expected behavior for sorting, so we don't need to do anything special
