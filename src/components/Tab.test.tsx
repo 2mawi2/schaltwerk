@@ -25,7 +25,7 @@ describe('Tab', () => {
   it('applies active styles when active', () => {
     render(<Tab {...mockProps} isActive={true} />)
     const button = screen.getByTitle('/Users/test/project')
-    expect(button.className).toContain('text-slate-100')
+    expect(button.className).toContain('text-white')
   })
 
   it('applies inactive styles when not active', () => {

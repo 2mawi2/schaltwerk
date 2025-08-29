@@ -30,25 +30,25 @@ export function TerminalGrid() {
     const [agentType, setAgentType] = useState<string>('claude')
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const containerRef = useRef<HTMLDivElement>(null)
-    const [collapsedPercent, setCollapsedPercent] = useState<number>(6) // fallback ~ header height in %
+    const [collapsedPercent, setCollapsedPercent] = useState<number>(8) // fallback ~ header height in %
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
     const initialPersistKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
     const initialIsCollapsed = (sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
     const initialExpanded = (() => {
         const rawExpanded = sessionStorage.getItem(`schaltwerk:terminal-grid:lastExpandedBottom:${initialPersistKey}`)
         const v = rawExpanded ? Number(rawExpanded) : NaN
-        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 28
+        return !Number.isNaN(v) && v > 0 && v < 100 ? v : 30
     })()
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
     const [sizes, setSizes] = useState<number[]>(() => {
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
-        let base: number[] = [72, 28]
+        let base: number[] = [70, 30]
         if (raw) {
             try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {}
         }
         if (initialIsCollapsed) {
-            const pct = 6
+            const pct = 8
             return [100 - pct, pct]
         }
         return base
@@ -371,10 +371,10 @@ export function TerminalGrid() {
                 }}
             >
                 <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'claude' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
-                    <div 
-                        className={`h-8 px-3 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
-                            localFocus === 'claude' 
-                                ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40' 
+                    <div
+                        className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
+                            localFocus === 'claude'
+                                ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
                                 : 'text-slate-400 border-slate-800 hover:bg-slate-800'
                         }`}
                         onClick={handleClaudeSessionClick}
@@ -493,15 +493,15 @@ export function TerminalGrid() {
                     </div>
                 </div>
                 <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
-                    <div 
-                        data-bottom-header
-                        className={`h-8 px-3 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
-                            localFocus === 'terminal'
-                                ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
-                                : 'text-slate-400 border-slate-800 hover:bg-slate-800'
-                        }`}
-                        onClick={handleTerminalClick}
-                    >
+                     <div
+                         data-bottom-header
+                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
+                             localFocus === 'terminal'
+                                 ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
+                                 : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                         }`}
+                         onClick={handleTerminalClick}
+                     >
                         <span className="absolute left-0 right-0 text-center pointer-events-none">
                             Terminal — {selection.kind === 'orchestrator' ? 'main' : selection.payload}
                         </span>

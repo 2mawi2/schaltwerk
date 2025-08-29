@@ -30,11 +30,11 @@ describe('TabBar', () => {
 
   it('marks correct tab as active', () => {
     render(<TabBar {...mockProps} activeTabPath="/Users/test/project2" />)
-    
+
     const tabs = screen.getAllByTitle(/\/Users\/test\/project/)
-    
+
     expect(tabs[0].className).toContain('text-slate-300')
-    expect(tabs[1].className).toContain('text-slate-100')
+    expect(tabs[1].className).toContain('text-white')
     expect(tabs[2].className).toContain('text-slate-300')
   })
 
