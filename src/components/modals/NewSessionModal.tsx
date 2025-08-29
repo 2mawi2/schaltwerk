@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
-import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
-import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
-import { ModelSelector } from '../inputs/ModelSelector'
+import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
 import { theme } from '../../common/theme'
 
 interface Props {
@@ -25,11 +23,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
     const [baseBranch, setBaseBranch] = useState('')
-    const [branches, setBranches] = useState<string[]>([])
-    const [loadingBranches, setLoadingBranches] = useState(false)
-    const [isValidBranch, setIsValidBranch] = useState(true)
-    const [skipPermissions, setSkipPermissions] = useState(false)
     const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'>('claude')
+    const [skipPermissions, setSkipPermissions] = useState(false)
     const [validationError, setValidationError] = useState('')
     const [creating, setCreating] = useState(false)
     const [createAsDraft, setCreateAsDraft] = useState(false)
@@ -37,21 +32,26 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
     const [isPrefillPending, setIsPrefillPending] = useState(false)
     const [hasPrefillData, setHasPrefillData] = useState(false)
-    const { getSkipPermissions, setSkipPermissions: saveSkipPermissions, getAgentType, setAgentType: saveAgentType } = useClaudeSession()
     const nameInputRef = useRef<HTMLInputElement>(null)
     const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
     const wasEditedRef = useRef(false)
     const createRef = useRef<() => void>(() => {})
     const initialGeneratedNameRef = useRef<string>('')
 
-    const handleSkipPermissionsChange = async (checked: boolean) => {
-        setSkipPermissions(checked)
-        await saveSkipPermissions(checked)
+    const handleBranchChange = (branch: string) => {
+        setBaseBranch(branch)
+        // Clear validation error when user changes branch
+        if (validationError && validationError.includes('Branch')) {
+            setValidationError('')
+        }
     }
 
-    const handleAgentTypeChange = async (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
+    const handleAgentTypeChange = (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
         setAgentType(type)
-        await saveAgentType(type)
+    }
+
+    const handleSkipPermissionsChange = (enabled: boolean) => {
+        setSkipPermissions(enabled)
     }
 
     const validateSessionName = useCallback((sessionName: string): string | null => {
@@ -92,18 +92,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             return
         }
         
-        // Validate that base branch is selected and exists
-        if (!createAsDraft) {
-            if (!baseBranch) {
-                setValidationError('Please select a base branch')
-                return
-            }
-            
-            // Check if the branch exists in the repository
-            if (!branches.includes(baseBranch)) {
-                setValidationError(`Branch "${baseBranch}" does not exist in the repository`)
-                return
-            }
+        // Validate that base branch is selected
+        if (!createAsDraft && !baseBranch) {
+            setValidationError('Please select a base branch')
+            return
         }
         
         // Validate plan content if creating as plan
@@ -122,11 +114,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         try {
             setCreating(true)
             
-            // Save the selected branch as the project default for next time
-            if (!createAsDraft) {
-                await invoke('set_project_default_base_branch', { branch: baseBranch })
-                    .catch(err => console.warn('Failed to save default branch:', err))
-            }
             
             const createData = {
                 name: finalName,
@@ -149,7 +136,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             // Parent handles showing the error; re-enable to allow retry
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, branches])
+    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -185,31 +172,13 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setCreating(false)
             }
             
-            // Fetch available branches and the project-specific default branch
-            setLoadingBranches(true)
-            Promise.all([
-                invoke<string[]>('list_project_branches'),
-                invoke<string | null>('get_project_default_base_branch'),
-                invoke<string>('get_project_default_branch'),
-                invoke<boolean>('repository_is_empty')
-            ])
-                .then(([branchList, savedDefaultBranch, gitDefaultBranch, isEmpty]) => {
-                    setBranches(branchList)
-                    // Use saved default if available, otherwise use git default
-                    const defaultBranch = savedDefaultBranch || gitDefaultBranch
-                    setBaseBranch(defaultBranch)
-                    setRepositoryIsEmpty(isEmpty)
-                })
+            // Check if repository is empty for display purposes
+            invoke<boolean>('repository_is_empty')
+                .then(setRepositoryIsEmpty)
                 .catch(err => {
-                    console.warn('Failed to get branches:', err)
-                    setBranches([])
-                    setBaseBranch('')
+                    console.warn('Failed to check if repository is empty:', err)
                     setRepositoryIsEmpty(false)
                 })
-                .finally(() => setLoadingBranches(false))
-            
-            getSkipPermissions().then(setSkipPermissions)
-            getAgentType().then(type => setAgentType(type as 'claude' | 'cursor' | 'opencode' | 'gemini'))
             
             // Focus the prompt textarea when modal opens
             setTimeout(() => {
@@ -227,7 +196,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setValidationError('')
             setCreating(false)
         }
-    }, [open, getSkipPermissions, getAgentType, initialIsDraft, isPrefillPending, hasPrefillData])
+    }, [open, initialIsDraft, isPrefillPending, hasPrefillData])
 
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens
@@ -408,55 +377,17 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         </div>
                     )}
 
-                    <div className="grid grid-cols-3 gap-3">
-                        {!createAsDraft && (
-                            <div>
-                                <label className="block text-sm text-slate-300 mb-1">Base branch</label>
-                                {loadingBranches ? (
-                                    <input 
-                                        value="Loading branches..." 
-                                        disabled
-                                        className="w-full bg-slate-800 text-slate-500 rounded px-3 py-2 border border-slate-700" 
-                                    />
-                                ) : (
-                                    <BranchAutocomplete
-                                        value={baseBranch}
-                                        onChange={(value) => {
-                                            setBaseBranch(value)
-                                            // Clear validation error when user changes branch
-                                            if (validationError && validationError.includes('Branch')) {
-                                                setValidationError('')
-                                            }
-                                        }}
-                                        branches={branches}
-                                        disabled={branches.length === 0}
-                                         placeholder={branches.length === 0 ? "No branches available" : "Type to search branches... (Tab to autocomplete)"}
-                                        onValidationChange={setIsValidBranch}
-                                    />
-                                )}
-                                <p className="text-xs text-slate-400 mt-1">Branch from which to create the worktree</p>
-                            </div>
-                        )}
-                        {!createAsDraft && (
-                        <div>
-                            <label className="block text-sm text-slate-300 mb-2">Agent</label>
-                            <ModelSelector
-                                value={agentType}
-                                onChange={handleAgentTypeChange}
-                                disabled={false}
-                            />
-                            <p className="text-xs text-slate-400 mt-2">AI agent to use for this session</p>
-                        </div>
-                        )}
-                        {!createAsDraft && agentType !== 'opencode' && (
-                            <div className="flex items-center gap-2">
-                                <input id="skipPerms" type="checkbox" checked={skipPermissions} onChange={e => handleSkipPermissionsChange(e.target.checked)} />
-                                <label htmlFor="skipPerms" className="text-sm text-slate-300">
-                                    {agentType === 'cursor' ? 'Force flag' : 'Skip permissions'}
-                                </label>
-                            </div>
-                        )}
-                    </div>
+                    {!createAsDraft && (
+                        <SessionConfigurationPanel
+                            variant="modal"
+                            onBaseBranchChange={handleBranchChange}
+                            onAgentTypeChange={handleAgentTypeChange}
+                            onSkipPermissionsChange={handleSkipPermissionsChange}
+                            initialBaseBranch={baseBranch}
+                            initialAgentType={agentType}
+                            initialSkipPermissions={skipPermissions}
+                        />
+                    )}
                 </div>
                 <div className="px-4 py-3 border-t border-slate-800 flex justify-end gap-2">
                     <button 
@@ -469,9 +400,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     </button>
                     <button 
                         onClick={handleCreate} 
-                        disabled={!name.trim() || (!createAsDraft && (!baseBranch || !isValidBranch)) || creating || (createAsDraft && !taskContent.trim())}
+                        disabled={!name.trim() || (!createAsDraft && !baseBranch) || creating || (createAsDraft && !taskContent.trim())}
                         className={`px-3 py-1.5 ${createAsDraft ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2`}
-                        title={!isValidBranch ? "Please select a valid branch" : createAsDraft ? "Create plan (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
+                        title={createAsDraft ? "Create plan (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
                     >
                         {creating && (
                             <span

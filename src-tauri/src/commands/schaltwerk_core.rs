@@ -1284,3 +1284,4 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
     log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
     Ok(command)
 }
+

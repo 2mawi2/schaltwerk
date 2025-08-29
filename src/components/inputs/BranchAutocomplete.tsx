@@ -30,7 +30,7 @@ export function BranchAutocomplete({
 
     // Filter branches based on input
     useEffect(() => {
-        if (!value) {
+        if (!value || typeof value !== 'string') {
             setFilteredBranches(branches.slice(0, 10)) // Show first 10 when empty
         } else {
             const searchTerm = value.toLowerCase()

@@ -7,6 +7,7 @@ import { RightPanelTabs } from '../right-panel/RightPanelTabs'
 import { PlanEditor } from '../plans/PlanEditor'
 import { Component, ReactNode } from 'react'
 import { useState, useCallback } from 'react'
+import { theme } from '../../common/theme'
 
 const ItemType = 'SESSION'
 
@@ -106,7 +107,13 @@ function Column({
             return item.currentStatus !== status
         },
         drop: (item: DragItem) => {
-            onStatusChange(item.sessionId, status)
+            console.log('[KanbanView] Drop initiated:', { sessionId: item.sessionId, fromStatus: item.currentStatus, toStatus: status })
+            try {
+                onStatusChange(item.sessionId, status)
+            } catch (error) {
+                console.error('[KanbanView] Drop handler error:', error)
+                alert('Failed to move session: ' + error)
+            }
         },
         collect: (monitor) => ({
             isOver: !!monitor.isOver(),
@@ -191,27 +198,41 @@ export function KanbanView() {
     const [selectedForDetails, setSelectedForDetails] = useState<{ kind: 'session'; payload: string; isPlan?: boolean } | null>(null)
 
     const handleStatusChange = async (sessionId: string, newStatus: string) => {
+        console.log('[KanbanView] handleStatusChange called:', { sessionId, newStatus })
         const session = sessions.find(s => s.info.session_id === sessionId)
-        if (!session) return
+        if (!session) {
+            console.error('[KanbanView] Session not found:', sessionId)
+            alert('Session not found: ' + sessionId)
+            return
+        }
+
+        console.log('[KanbanView] Found session:', { sessionId: session.info.session_id, currentStatus: session.info.status, readyToMerge: session.info.ready_to_merge })
 
         try {
             if (newStatus === 'plan') {
                 // Convert to plan
                 await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
-                // If it's a plan, start it; if ready_to_merge, unmark it
+                // If it's a plan, open modal to start it; if ready_to_merge, unmark it
                 if (session.info.status === 'plan') {
-                    await invoke('schaltwerk_core_start_draft_session', { name: sessionId })
+                    console.log('[KanbanView] Opening modal to start plan session:', sessionId)
+                    // Open Start agent modal prefilled from plan
+                    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionId } }))
+                    return // Don't reload sessions yet, modal will handle the start
                 } else if (session.info.ready_to_merge) {
+                    console.log('[KanbanView] Unmarking session as ready:', sessionId)
                     await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
                 // Mark as ready to merge
+                console.log('[KanbanView] Marking session as ready:', sessionId)
                 await invoke('schaltwerk_core_mark_session_ready', { name: sessionId, autoCommit: false })
             }
+            console.log('[KanbanView] Reloading sessions after status change')
             await reloadSessions()
+            console.log('[KanbanView] Status change completed successfully')
         } catch (error) {
-            console.error('Failed to change status:', error)
+            console.error('[KanbanView] Failed to change status:', error)
             alert('Failed to change status: ' + error)
         }
     }
@@ -272,10 +293,11 @@ export function KanbanView() {
 
     const handleRunDraft = async (sessionId: string) => {
         try {
-            await invoke('schaltwerk_core_start_draft_session', { name: sessionId })
-            await reloadSessions()
+            console.log('[KanbanView] Opening modal to start plan session:', sessionId)
+            // Open Start agent modal prefilled from plan
+            window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionId } }))
         } catch (error) {
-            console.error('Failed to run plan:', error)
+            console.error('Failed to open start modal for plan:', error)
         }
     }
 
@@ -303,13 +325,19 @@ export function KanbanView() {
 
     if (!sessions || sessions.length === 0) {
         return (
-            <div className="flex items-center justify-center h-full">
+            <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="text-gray-400 mb-4">No agents or plans found</div>
+                    <div className="mb-4" style={{ color: theme.colors.text.muted }}>
+                        No agents or plans found
+                    </div>
                     <div className="flex gap-2 justify-center">
                         <button 
                             onClick={() => window.dispatchEvent(new CustomEvent('schaltwerk:new-session'))} 
-                            className="bg-slate-800/60 hover:bg-slate-700/60 text-sm px-3 py-1.5 rounded group flex items-center justify-between gap-2"
+                            className="text-sm px-3 py-1.5 rounded group flex items-center justify-between gap-2 hover:opacity-80"
+                            style={{
+                                backgroundColor: theme.colors.background.elevated,
+                                color: theme.colors.text.primary
+                            }}
                             title="Start new agent (⌘N)"
                         >
                             <span>Start agent</span>
@@ -317,7 +345,12 @@ export function KanbanView() {
                         </button>
                         <button 
                             onClick={handleCreateDraft} 
-                            className="bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between gap-2 border border-amber-700/40"
+                            className="text-sm px-3 py-1.5 rounded group flex items-center justify-between gap-2 border hover:opacity-80"
+                            style={{
+                                backgroundColor: theme.colors.accent.amber.bg,
+                                color: theme.colors.text.primary,
+                                borderColor: theme.colors.accent.amber.border
+                            }}
                             title="Create plan (⇧⌘N)"
                         >
                             <span>Create plan</span>
@@ -332,7 +365,7 @@ export function KanbanView() {
     // Unified view for all sessions
     return (
         <div className="h-full w-full flex">
-          <div className="flex-1 flex gap-3 p-6 h-full overflow-x-auto">
+            <div className="flex-1 flex gap-3 p-6 h-full overflow-x-auto">
             <Column
                 title="Plan"
                 status="plan"
@@ -376,33 +409,42 @@ export function KanbanView() {
                 onRunDraft={handleRunDraft}
                 onDeletePlan={handleDeleteDraft}
             />
-          </div>
-          <div className="w-[480px] min-w-[480px] max-w-[600px] overflow-hidden border-l border-slate-800 bg-panel flex flex-col transition-all duration-300 ease-in-out">
-            <div className="flex-1 overflow-hidden relative">
-              {selectedForDetails ? (
-                <div className="absolute inset-0 animate-fadeIn">
-                  {selectedForDetails.isPlan === true ? (
-                    <PlanEditor 
-                      sessionName={selectedForDetails.payload}
-                      onStart={() => handleRunDraft(selectedForDetails.payload)}
-                    />
-                  ) : (
-                    <SilentErrorBoundary>
-                      <RightPanelTabs 
-                        onFileSelect={handleOpenDiff}
-                        selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
-                        isPlanOverride={false}
-                      />
-                    </SilentErrorBoundary>
-                  )}
-                </div>
-              ) : (
-                <div className="h-full flex items-center justify-center text-xs text-slate-400">
-                  Select a agent to view details
-                </div>
-              )}
             </div>
-          </div>
+            <div 
+                className="w-[480px] min-w-[480px] max-w-[600px] overflow-hidden border-l flex flex-col transition-all duration-300 ease-in-out"
+                style={{ 
+                    borderLeftColor: theme.colors.border.default,
+                    backgroundColor: theme.colors.background.elevated 
+                }}
+            >
+                <div className="flex-1 overflow-hidden relative">
+                    {selectedForDetails ? (
+                        <div className="absolute inset-0 animate-fadeIn">
+                            {selectedForDetails.isPlan === true ? (
+                                <PlanEditor 
+                                    sessionName={selectedForDetails.payload}
+                                    onStart={() => handleRunDraft(selectedForDetails.payload)}
+                                />
+                            ) : (
+                                <SilentErrorBoundary>
+                                    <RightPanelTabs 
+                                        onFileSelect={handleOpenDiff}
+                                        selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
+                                        isPlanOverride={false}
+                                    />
+                                </SilentErrorBoundary>
+                            )}
+                        </div>
+                    ) : (
+                        <div 
+                            className="h-full flex items-center justify-center text-xs"
+                            style={{ color: theme.colors.text.muted }}
+                        >
+                            Select a agent to view details
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     )
 }
