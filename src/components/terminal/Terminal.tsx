@@ -412,7 +412,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
-        unlistenPromiseRef.current = listen(`terminal-output-${terminalId}`, (event) => {
+        const channel = agentType === 'codex' ? `terminal-output-normalized-${terminalId}` : `terminal-output-${terminalId}`;
+        unlistenPromiseRef.current = listen(channel, (event) => {
             if (cancelled) return;
             const output = event.payload as string;
             if (!hydratedRef.current) {

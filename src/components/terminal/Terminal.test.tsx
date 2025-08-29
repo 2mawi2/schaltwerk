@@ -352,6 +352,26 @@ describe('Terminal component', () => {
     expect(xterm.write.mock.calls[0][0]).toBe('SNAPAB')
   })
 
+  it('normalizes Codex CR output into persistent lines', async () => {
+    ;(TauriCore as any).__setInvokeHandler('get_terminal_buffer', () => '')
+
+    renderTerminal({ terminalId: 'orchestrator-codex-top', isCommander: true, agentType: 'codex' as any })
+
+    await flushAll()
+
+    // Simulate CR style progress updates delivered on normalized channel
+    ;(TauriEvent as any).__emit('terminal-output-normalized-orchestrator-codex-top', '\r')
+    ;(TauriEvent as any).__emit('terminal-output-normalized-orchestrator-codex-top', 'a\r')
+    ;(TauriEvent as any).__emit('terminal-output-normalized-orchestrator-codex-top', 'ab\r')
+    ;(TauriEvent as any).__emit('terminal-output-normalized-orchestrator-codex-top', 'abc\n')
+
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const writes = xterm.write.mock.calls.map((c: any[]) => c[0]).join('')
+    expect(writes).toContain('abc\n')
+  })
+
   it('sends input data to backend', async () => {
     renderTerminal({ terminalId: "session-io-top", sessionName: "io" })
     await flushAll()

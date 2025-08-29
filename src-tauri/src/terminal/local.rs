@@ -32,6 +32,10 @@ pub struct LocalPtyAdapter {
     emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     // Tracks whether a flush agent is scheduled per terminal id
     emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
+    // Normalized (CR→LF with cross-chunk handling) buffers per terminal id
+    emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+    // Track if previous raw chunk ended with CR for each terminal
+    norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
 }
 
 impl Default for LocalPtyAdapter {
@@ -48,6 +52,8 @@ impl LocalPtyAdapter {
             app_handle: Arc::new(Mutex::new(None)),
             emit_buffers: Arc::new(RwLock::new(HashMap::new())),
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -133,6 +139,8 @@ impl LocalPtyAdapter {
         app_handle: Arc<Mutex<Option<AppHandle>>>,
         emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
         emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
+        emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+        norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
     ) {
         tokio::task::spawn_blocking(move || {
             let runtime = tokio::runtime::Handle::current();
@@ -172,6 +180,8 @@ impl LocalPtyAdapter {
                         let app_handle_clone = Arc::clone(&app_handle);
                         let emit_buffers_clone = Arc::clone(&emit_buffers);
                         let emit_scheduled_clone = Arc::clone(&emit_scheduled);
+                        let emit_buffers_norm_clone = Arc::clone(&emit_buffers_norm);
+                        let norm_last_cr_clone = Arc::clone(&norm_last_cr);
                         
                         runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
@@ -194,6 +204,30 @@ impl LocalPtyAdapter {
                                     let buf_ref = buffers.entry(id_clone.clone()).or_insert_with(Vec::new);
                                     buf_ref.extend_from_slice(&data);
                                 }
+                                // Maintain a normalized coalesced buffer as well
+                                {
+                                    let mut last_map = norm_last_cr_clone.write().await;
+                                    let prev_last_cr = *last_map.get(&id_clone).unwrap_or(&false);
+                                    let raw_ended_with_cr = data.last().copied() == Some(b'\r');
+                                    let mut s = String::from_utf8_lossy(&data).to_string();
+                                    let mut out = String::new();
+                                    if prev_last_cr {
+                                        if s.starts_with('\n') {
+                                            s.remove(0);
+                                        } else {
+                                            out.push('\n');
+                                        }
+                                    }
+                                    s = s.replace("\r\n", "\n").replace("\r", "\n");
+                                    out.push_str(&s);
+                                    if raw_ended_with_cr {
+                                        out.push('\n');
+                                    }
+                                    last_map.insert(id_clone.clone(), raw_ended_with_cr);
+                                    let mut buffers_n = emit_buffers_norm_clone.write().await;
+                                    let buf_ref_n = buffers_n.entry(id_clone.clone()).or_insert_with(Vec::new);
+                                    buf_ref_n.extend_from_slice(out.as_bytes());
+                                }
                                 let mut should_schedule = false;
                                 {
                                     let mut scheduled = emit_scheduled_clone.write().await;
@@ -207,6 +241,7 @@ impl LocalPtyAdapter {
                                     let app_for_emit = Arc::clone(&app_handle_clone);
                                     let emit_buffers_for_task = Arc::clone(&emit_buffers_clone);
                                     let emit_scheduled_for_task = Arc::clone(&emit_scheduled_clone);
+                                    let emit_buffers_norm_for_task = Arc::clone(&emit_buffers_norm_clone);
                                     let id_for_task = id_clone.clone();
                                      // Flush after ~2ms for immediate responsiveness
                                      tokio::spawn(async move {
@@ -216,6 +251,10 @@ impl LocalPtyAdapter {
                                         let data_to_emit: Option<Vec<u8>> = {
                                             let mut buffers = emit_buffers_for_task.write().await;
                                             buffers.remove(&id_for_task)
+                                        };
+                                        let data_to_emit_norm: Option<Vec<u8>> = {
+                                            let mut buffers_n = emit_buffers_norm_for_task.write().await;
+                                            buffers_n.remove(&id_for_task)
                                         };
                                         // Mark unscheduled
                                         {
@@ -230,6 +269,15 @@ impl LocalPtyAdapter {
                                                 let payload = String::from_utf8_lossy(&bytes).to_string();
                                                 if let Err(e) = handle.emit(&event_name, payload) {
                                                     warn!("Failed to emit terminal output: {e}");
+                                                }
+                                            }
+                                        }
+                                        if let Some(bytes_n) = data_to_emit_norm {
+                                            if let Some(handle) = app_for_emit.lock().await.as_ref() {
+                                                let event_name_n = format!("terminal-output-normalized-{id_for_task}");
+                                                let payload_n = String::from_utf8_lossy(&bytes_n).to_string();
+                                                if let Err(e) = handle.emit(&event_name_n, payload_n) {
+                                                    warn!("Failed to emit normalized terminal output: {e}");
                                                 }
                                             }
                                         }
@@ -401,6 +449,8 @@ impl TerminalBackend for LocalPtyAdapter {
             Arc::clone(&self.app_handle),
             Arc::clone(&self.emit_buffers),
             Arc::clone(&self.emit_scheduled),
+            Arc::clone(&self.emit_buffers_norm),
+            Arc::clone(&self.norm_last_cr),
         )
         .await;
         
@@ -529,6 +579,8 @@ impl TerminalBackend for LocalPtyAdapter {
         
         // Clear emit buffers
         self.emit_buffers.write().await.remove(id);
+        self.emit_buffers_norm.write().await.remove(id);
+        self.norm_last_cr.write().await.remove(id);
         self.emit_scheduled.write().await.remove(id);
         
         info!("Terminal {id} closed");
