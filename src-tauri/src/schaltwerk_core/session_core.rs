@@ -535,20 +535,26 @@ impl SessionManager {
                 ))
             }
             _ => {
-                // Always start fresh - no session discovery for new sessions
-                log::info!("Starting fresh Claude session '{}' with initial_prompt={:?}", 
-                    session_name, session.initial_prompt);
+                // Try to resume existing session, or start fresh if none exists
+                let existing_session_id = crate::schaltwerk_core::claude::find_claude_session(&session.worktree_path);
+
+                if let Some(session_id) = &existing_session_id {
+                    log::info!("Resuming existing Claude session '{}' in worktree: {}", session_id, session.worktree_path.display());
+                } else {
+                    log::info!("Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                }
+
                 self.cache_manager.mark_session_prompted(&session.worktree_path);
                 let prompt_to_use = session.initial_prompt.as_deref();
-                
+
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
-                
+
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &session.worktree_path,
-                    None, // No session ID - always start fresh
+                    existing_session_id.as_deref(),
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
@@ -705,13 +711,14 @@ impl SessionManager {
                 let config = crate::schaltwerk_core::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
-                
+
+                // Always try to find a session for resumption - Claude will handle the case where no session exists
                 let session_id = if resume_session {
                     crate::schaltwerk_core::claude::find_claude_session(&self.repo_path)
                 } else {
                     None
                 };
-                
+
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),

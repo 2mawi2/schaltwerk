@@ -46,7 +46,6 @@ fn sanitize_path_for_claude(path: &Path) -> String {
 
 pub fn build_claude_command_with_config(
     worktree_path: &Path,
-    session_id: Option<&str>,
     initial_prompt: Option<&str>,
     skip_permissions: bool,
     config: Option<&ClaudeConfig>,
@@ -67,18 +66,21 @@ pub fn build_claude_command_with_config(
         "claude"
     };
     let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
-    
+
     if skip_permissions {
         cmd.push_str(" --dangerously-skip-permissions");
     }
-    
-    if let Some(id) = session_id {
-        cmd.push_str(&format!(r#" -r "{id}""#));
-    } else if let Some(prompt) = initial_prompt {
+
+    // Always use --continue to let Claude naturally resume the most recent session
+    // If no session exists, Claude will start a new one automatically
+    if let Some(prompt) = initial_prompt {
         let escaped = prompt.replace('"', r#"\""#);
         cmd.push_str(&format!(r#" "{escaped}""#));
+    } else {
+        // No prompt provided - use --continue to resume existing session or start new
+        cmd.push_str(" --continue");
     }
-    
+
     cmd
 }
 
@@ -118,7 +120,7 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && claude -r "12345678-1234-1234-1234-123456789012""#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && claude --continue"#);
     }
 
 
@@ -205,7 +207,7 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && claude");
+        assert_eq!(cmd, "cd /path/to/worktree && claude --continue");
     }
 
     #[test]
@@ -220,7 +222,7 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions -r "session-123""#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions --continue"#);
     }
 
     #[test]
