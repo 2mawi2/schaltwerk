@@ -51,7 +51,7 @@ function DraggableSessionCard({
     return (
         <div ref={drag as any} className={clsx(
             "cursor-move mb-2 transition-all duration-200 ease-in-out",
-            isDragging ? "opacity-50 scale-95" : "hover:scale-[1.02]"
+            isDragging ? "opacity-50 scale-95" : "hover:scale-[1.005]"
         )}>
             <SessionCard
                 session={session}
@@ -132,7 +132,7 @@ function Column({
         <div
             ref={drop as any}
             className={clsx(
-                'flex-1 flex flex-col bg-gray-900 rounded-lg p-3',
+                'flex-1 flex flex-col bg-gray-900 rounded-lg p-4',
                 'border-2 transition-all duration-300 ease-in-out',
                 'min-w-[300px] max-w-[480px] min-h-0',
                 isOver && canDrop ? 'border-blue-500 bg-gray-850 scale-[1.02]' : 'border-gray-800'
