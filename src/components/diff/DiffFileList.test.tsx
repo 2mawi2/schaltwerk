@@ -4,6 +4,8 @@ import { DiffFileList } from './DiffFileList'
 import { SelectionProvider, useSelection } from '../../contexts/SelectionContext'
 import { ProjectProvider, useProject } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
+import { FocusProvider } from '../../contexts/FocusContext'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -25,6 +27,11 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'get_current_directory') return '/test/project'
     if (cmd === 'terminal_exists') return false
     if (cmd === 'create_terminal') return undefined
+    if (cmd === 'schaltwerk_core_list_enriched_sessions') return []
+    if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
+    if (cmd === 'set_project_sessions_settings') return undefined
+    if (cmd === 'get_project_selection') return null
+    if (cmd === 'set_project_selection') return undefined
     return undefined
   }),
 }))
@@ -60,11 +67,15 @@ function Wrapper({ children, sessionName }: { children: React.ReactNode, session
   return (
     <ProjectProvider>
       <FontSizeProvider>
-        <SelectionProvider>
-          <TestWrapper sessionName={sessionName}>
-            {children}
-          </TestWrapper>
-        </SelectionProvider>
+        <FocusProvider>
+          <SessionsProvider>
+            <SelectionProvider>
+              <TestWrapper sessionName={sessionName}>
+                {children}
+              </TestWrapper>
+            </SelectionProvider>
+          </SessionsProvider>
+        </FocusProvider>
       </FontSizeProvider>
     </ProjectProvider>
   )

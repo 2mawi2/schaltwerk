@@ -10,6 +10,7 @@ import { SelectionProvider, useSelection } from './SelectionContext'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { FocusProvider } from './FocusContext'
 import { FontSizeProvider } from './FontSizeContext'
+import { SessionsProvider } from './SessionsContext'
 
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = vi.mocked(invoke)
@@ -32,7 +33,9 @@ const wrapper = ({ children }: { children: ReactNode }) => (
     <TestProjectInitializer>
       <FontSizeProvider>
         <FocusProvider>
-          <SelectionProvider>{children}</SelectionProvider>
+          <SessionsProvider>
+            <SelectionProvider>{children}</SelectionProvider>
+          </SessionsProvider>
         </FocusProvider>
       </FontSizeProvider>
     </TestProjectInitializer>
@@ -61,6 +64,12 @@ describe('SelectionContext', () => {
         case 'get_project_selection':
           return Promise.resolve(null)
         case 'set_project_selection':
+          return Promise.resolve()
+        case 'schaltwerk_core_list_enriched_sessions':
+          return Promise.resolve([])
+        case 'get_project_sessions_settings':
+          return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+        case 'set_project_sessions_settings':
           return Promise.resolve()
         default:
           return Promise.resolve()

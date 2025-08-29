@@ -5,6 +5,7 @@ import { SelectionProvider, useSelection } from './SelectionContext'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { FocusProvider } from './FocusContext'
 import { FontSizeProvider } from './FontSizeContext'
+import { SessionsProvider } from './SessionsContext'
 import React from 'react'
 
 // Mock Tauri API
@@ -24,9 +25,11 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
         <FontSizeProvider>
             <FocusProvider>
-                <SelectionProvider>
-                    {children}
-                </SelectionProvider>
+                <SessionsProvider>
+                    <SelectionProvider>
+                        {children}
+                    </SelectionProvider>
+                </SessionsProvider>
             </FocusProvider>
         </FontSizeProvider>
     </ProjectProvider>
@@ -56,6 +59,12 @@ describe('Project Switching Selection Behavior', () => {
                     return Promise.resolve(null)
                 case 'set_project_selection':
                     // Database saves selection
+                    return Promise.resolve()
+                case 'schaltwerk_core_list_enriched_sessions':
+                    return Promise.resolve([])
+                case 'get_project_sessions_settings':
+                    return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+                case 'set_project_sessions_settings':
                     return Promise.resolve()
                 default:
                     return Promise.resolve()

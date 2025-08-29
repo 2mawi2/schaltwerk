@@ -85,7 +85,12 @@ describe('SessionsContext', () => {
 
     it('should load sessions when project is available', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockResolvedValue(mockSessions)
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === 'set_project_sessions_settings') return undefined
+            return undefined
+        })
 
         // Mock ProjectProvider to have a project
         const wrapperWithProject = ({ children }: { children: ReactNode }) => (
@@ -109,7 +114,9 @@ describe('SessionsContext', () => {
             expect(result.current.loading).toBe(false)
         })
 
-        expect(result.current.sessions).toEqual(mockSessions)
+        // Sessions are now sorted alphabetically by name (SortMode.Name is default)
+        const expectedSessions = [...mockSessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        expect(result.current.sessions).toEqual(expectedSessions)
     })
 
     it('should update session status from plan to active', async () => {
@@ -203,7 +210,12 @@ describe('SessionsContext', () => {
         })
 
         const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockResolvedValue(mockSessions)
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === 'set_project_sessions_settings') return undefined
+            return undefined
+        })
 
         const { result } = renderHook(() => useSessions(), { wrapper })
 
@@ -230,7 +242,9 @@ describe('SessionsContext', () => {
             }
         })
 
-        expect(result.current.sessions).toEqual(newSessions)
+        // Sessions are now sorted alphabetically by name (SortMode.Name is default)
+        const expectedSessions = [...newSessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        expect(result.current.sessions).toEqual(expectedSessions)
     })
 
     it('should handle session removal events', async () => {
@@ -243,13 +257,19 @@ describe('SessionsContext', () => {
         })
 
         const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockResolvedValue(mockSessions)
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
+            if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === 'set_project_sessions_settings') return undefined
+            return undefined
+        })
 
         const { result } = renderHook(() => useSessions(), { wrapper })
 
-        // Wait for initial load
+        // Wait for initial load - sessions are sorted alphabetically
+        const expectedSessions = [...mockSessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         await waitFor(() => {
-            expect(result.current.sessions).toEqual(mockSessions)
+            expect(result.current.sessions).toEqual(expectedSessions)
         })
 
         // Simulate removal event
