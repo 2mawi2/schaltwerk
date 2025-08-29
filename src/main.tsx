@@ -10,6 +10,7 @@ import { ProjectProvider } from './contexts/ProjectContext'
 import { FontSizeProvider } from './contexts/FontSizeContext'
 import { SessionsProvider } from './contexts/SessionsContext'
 import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
+import ErrorBoundary from './components/ErrorBoundary'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -42,23 +43,25 @@ const AppLoader: React.FC = () => {
   }
 
   return (
-    <FontSizeProvider>
-      <ProjectProvider>
-        <SessionsProvider>
-          <ActionButtonsProvider>
-            <SelectionProvider>
-              <FocusProvider>
-                <ReviewProvider>
-                  <div className="h-screen w-screen">
-                    <App />
-                  </div>
-                </ReviewProvider>
-              </FocusProvider>
-            </SelectionProvider>
-          </ActionButtonsProvider>
-        </SessionsProvider>
-      </ProjectProvider>
-    </FontSizeProvider>
+    <ErrorBoundary name="Root">
+      <FontSizeProvider>
+        <ProjectProvider>
+          <SessionsProvider>
+            <ActionButtonsProvider>
+              <SelectionProvider>
+                <FocusProvider>
+                  <ReviewProvider>
+                    <div className="h-screen w-screen">
+                      <App />
+                    </div>
+                  </ReviewProvider>
+                </FocusProvider>
+              </SelectionProvider>
+            </ActionButtonsProvider>
+          </SessionsProvider>
+        </ProjectProvider>
+      </FontSizeProvider>
+    </ErrorBoundary>
   )
 }
 
