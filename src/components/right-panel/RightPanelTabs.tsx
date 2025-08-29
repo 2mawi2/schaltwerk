@@ -68,8 +68,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
           <button
             onClick={() => setUserSelectedTab('changes')}
             className={clsx(
-              'h-full px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-              isCommander ? 'flex-1' : '',
+              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
               activeTab === 'changes' 
                 ? localFocus 
                   ? 'text-blue-200 bg-blue-800/30' 
