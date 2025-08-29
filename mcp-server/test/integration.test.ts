@@ -80,21 +80,21 @@ describe('MCP API Integration Tests', () => {
       const draftName = `test-plan-${Date.now()}`
       const draftContent = 'Test content for plan'
       
-      const plan = await bridge.createDraftSession(draftName, draftContent)
+      const plan = await bridge.createSpecSession(draftName, draftContent)
       
-      expect(plan.status).toBe('plan')
+      expect(plan.status).toBe('spec')
       expect(plan.draft_content).toBe(draftContent)
       expect(plan.session_state).toBe('Plan')
       expect(plan.name).toBe(draftName)
       
       const retrievedDraft = await bridge.getSession(draftName)
       expect(retrievedDraft).toBeDefined()
-      expect(retrievedDraft?.status).toBe('plan')
+      expect(retrievedDraft?.status).toBe('spec')
     })
     
     test('Update plan content', async () => {
       const draftName = `update-test-${Date.now()}`
-      await bridge.createDraftSession(draftName, 'initial')
+      await bridge.createSpecSession(draftName, 'initial')
       
       await bridge.updateDraftContent(draftName, 'new', false)
       
@@ -105,7 +105,7 @@ describe('MCP API Integration Tests', () => {
     
     test('Append to plan content', async () => {
       const draftName = `append-test-${Date.now()}`
-      await bridge.createDraftSession(draftName, 'initial')
+      await bridge.createSpecSession(draftName, 'initial')
       
       await bridge.updateDraftContent(draftName, 'appended', true)
       
@@ -114,11 +114,11 @@ describe('MCP API Integration Tests', () => {
       expect(plan?.draft_content).toBe('initial\nappended')
     })
     
-    test('Start plan session transitions to active', async () => {
+    test('Start spec session transitions to active', async () => {
       const draftName = `start-test-${Date.now()}`
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', draftName)
       
-      await bridge.createDraftSession(draftName, 'content')
+      await bridge.createSpecSession(draftName, 'content')
       await bridge.startDraftSession(draftName, 'claude', false)
       
       const session = await bridge.getSession(draftName)
@@ -128,9 +128,9 @@ describe('MCP API Integration Tests', () => {
       expect(session?.initial_prompt).toBe('content')
     })
     
-    test('Delete plan session', async () => {
+    test('Delete spec session', async () => {
       const draftName = `delete-test-${Date.now()}`
-      await bridge.createDraftSession(draftName, 'to delete')
+      await bridge.createSpecSession(draftName, 'to delete')
       
       await bridge.deleteDraftSession(draftName)
       
@@ -144,16 +144,16 @@ describe('MCP API Integration Tests', () => {
       await bridge['db']!.run('DELETE FROM sessions')
     })
 
-    test('List only plan sessions', async () => {
-      await bridge.createDraftSession('draft1', 'content1')
-      await bridge.createDraftSession('draft2', 'content2')
+    test('List only spec sessions', async () => {
+      await bridge.createSpecSession('draft1', 'content1')
+      await bridge.createSpecSession('draft2', 'content2')
       
       bridge['createWorktree'] = async (_, name) => path.join(testRepoPath, '.schaltwerk', 'worktrees', name)
       await bridge.createSession('active1', 'prompt1')
       
       const plans = await bridge.listDraftSessions()
       expect(plans.length).toBe(2)
-      expect(plans.every(s => s.status === 'plan')).toBe(true)
+      expect(plans.every(s => s.status === 'spec')).toBe(true)
       
       const sessions = await bridge.listSessions()
       expect(sessions.length).toBe(1)
@@ -161,7 +161,7 @@ describe('MCP API Integration Tests', () => {
     })
     
     test('List sessions by state', async () => {
-      await bridge.createDraftSession('plan-state', 'plan')
+      await bridge.createSpecSession('plan-state', 'spec')
       bridge['createWorktree'] = async (_, name) => path.join(testRepoPath, '.schaltwerk', 'worktrees', name)
       await bridge.createSession('active-state', 'active')
       
@@ -172,14 +172,14 @@ describe('MCP API Integration Tests', () => {
       expect(activeSessions.length).toBe(1)
       expect(activeSessions[0].status).toBe('active')
       
-      const draftSessions = await bridge.listSessionsByState('plan')
+      const draftSessions = await bridge.listSessionsByState('spec')
       expect(draftSessions.length).toBe(1)
-      expect(draftSessions[0].status).toBe('plan')
+      expect(draftSessions[0].status).toBe('spec')
     })
   })
 
   describe('Error Handling', () => {
-    test('Cannot update non-plan session as plan', async () => {
+    test('Cannot update non-spec session as plan', async () => {
       bridge['createWorktree'] = async (_, name) => path.join(testRepoPath, '.schaltwerk', 'worktrees', name)
       await bridge.createSession('active-no-plan', 'active')
       
@@ -194,7 +194,7 @@ describe('MCP API Integration Tests', () => {
       ).rejects.toThrow("not found")
     })
     
-    test('Cannot delete non-plan session', async () => {
+    test('Cannot delete non-spec session', async () => {
       bridge['createWorktree'] = async (_, name) => path.join(testRepoPath, '.schaltwerk', 'worktrees', name)
       await bridge.createSession('active-no-delete', 'active')
       
@@ -219,13 +219,13 @@ describe('MCP API Integration Tests', () => {
       }) as any
       
       const draftName = `webhook-test-${Date.now()}`
-      await bridge.createDraftSession(draftName, 'webhook content')
+      await bridge.createSpecSession(draftName, 'webhook content')
       
       expect(webhookCalled).toBe(true)
       expect(webhookPayload).toMatchObject({
         session_name: draftName,
         draft_content: 'webhook content',
-        status: 'plan'
+        status: 'spec'
       })
       
       global.fetch = originalFetch
@@ -247,7 +247,7 @@ describe('MCP API Integration Tests', () => {
       const draftName = `start-webhook-${Date.now()}`
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', draftName)
       
-      await bridge.createDraftSession(draftName, 'content')
+      await bridge.createSpecSession(draftName, 'content')
       webhookCalled = false
       await bridge.startDraftSession(draftName)
       
@@ -264,20 +264,20 @@ describe('MCP API Integration Tests', () => {
   describe('Database to API Migration', () => {
     test('Sessions retrieved consistently', async () => {
       const sessionName = `consistency-${Date.now()}`
-      await bridge.createDraftSession(sessionName, 'content')
+      await bridge.createSpecSession(sessionName, 'content')
       
       const fromDB = await bridge.getSession(sessionName)
       
       expect(fromDB).toBeDefined()
       expect(fromDB?.name).toBe(sessionName)
-      expect(fromDB?.status).toBe('plan')
+      expect(fromDB?.status).toBe('spec')
     })
     
     test('Concurrent operations handled correctly', async () => {
       const baseName = `concurrent-${Date.now()}`
       
       const promises = Array.from({ length: 5 }, (_, i) => 
-        bridge.createDraftSession(`${baseName}-${i}`, `content-${i}`)
+        bridge.createSpecSession(`${baseName}-${i}`, `content-${i}`)
       )
       
       const results = await Promise.all(promises)
@@ -298,7 +298,7 @@ describe('MCP API Integration Tests', () => {
     test('Plan operations complete within acceptable time', async () => {
       const startCreate = Date.now()
       const draftName = `perf-test-${Date.now()}`
-      await bridge.createDraftSession(draftName, 'performance test')
+      await bridge.createSpecSession(draftName, 'performance test')
       const createTime = Date.now() - startCreate
       
       expect(createTime).toBeLessThan(100)

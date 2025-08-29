@@ -92,7 +92,7 @@ impl SessionManager {
             original_skip_permissions: None,
             pending_name_generation: was_auto_generated,
             was_auto_generated,
-            plan_content: None,
+            spec_content: None,
             session_state: SessionState::Running,
         };
         
@@ -310,7 +310,7 @@ impl SessionManager {
             return Err(anyhow!("Session '{}' is not in running state", name));
         }
         
-        log::info!("Converting session '{name}' from running to plan");
+        log::info!("Converting session '{name}' from running to spec");
         
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
@@ -319,12 +319,12 @@ impl SessionManager {
         };
         
         if has_uncommitted {
-            log::warn!("Converting session '{name}' to plan with uncommitted changes");
+            log::warn!("Converting session '{name}' to spec with uncommitted changes");
         }
         
         if session.worktree_path.exists() {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
-                return Err(anyhow!("Failed to remove worktree when converting to plan: {}", e));
+                return Err(anyhow!("Failed to remove worktree when converting to spec: {}", e));
             }
         }
         
@@ -334,8 +334,8 @@ impl SessionManager {
             }
         }
         
-        self.db_manager.update_session_status(&session.id, SessionStatus::Plan)?;
-        self.db_manager.update_session_state(&session.id, SessionState::Plan)?;
+        self.db_manager.update_session_status(&session.id, SessionStatus::Spec)?;
+        self.db_manager.update_session_state(&session.id, SessionState::Spec)?;
         
         clear_session_prompted_non_test(&session.worktree_path);
         
@@ -384,7 +384,7 @@ impl SessionManager {
             let status_type = match session.status {
                 SessionStatus::Active => SessionStatusType::Active,
                 SessionStatus::Cancelled => SessionStatusType::Archived,
-                SessionStatus::Plan => SessionStatusType::Plan,
+                SessionStatus::Spec => SessionStatusType::Spec,
             };
             
             let original_agent_type = session
@@ -410,7 +410,7 @@ impl SessionManager {
                 current_task: session.initial_prompt.clone(),
                 diff_stats: diff_stats.clone(),
                 ready_to_merge: session.ready_to_merge,
-                plan_content: session.plan_content.clone(),
+                spec_content: session.spec_content.clone(),
                 session_state: session.session_state.clone(),
             };
 
@@ -735,8 +735,8 @@ impl SessionManager {
         let session = self.db_manager.get_session_by_name(session_name)?;
 
         // Validate that the session is in a valid state for marking as reviewed
-        if session.session_state == SessionState::Plan {
-            return Err(anyhow!("Cannot mark plan session '{}' as reviewed. Start the plan first with schaltwerk_draft_start.", session_name));
+        if session.session_state == SessionState::Spec {
+            return Err(anyhow!("Cannot mark spec session '{session_name}' as reviewed. Start the spec first with schaltwerk_draft_start."));
         }
 
         if session.ready_to_merge {
@@ -748,13 +748,13 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn convert_session_to_plan(&self, session_name: &str) -> Result<()> {
+    pub fn convert_session_to_spec(&self, session_name: &str) -> Result<()> {
         // Get session and validate state
         let session = self.db_manager.get_session_by_name(session_name)?;
 
         // Validate that the session is in a valid state for conversion
-        if session.session_state == SessionState::Plan {
-            return Err(anyhow!("Session '{}' is already a plan", session_name));
+        if session.session_state == SessionState::Spec {
+            return Err(anyhow!("Session '{session_name}' is already a spec"));
         }
 
         // Use existing convert_session_to_draft logic
@@ -762,7 +762,7 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn start_draft_session_with_config(&self, session_name: &str, base_branch: Option<&str>, agent_type: Option<&str>, skip_permissions: Option<bool>) -> Result<()> {
+    pub fn start_spec_session_with_config(&self, session_name: &str, base_branch: Option<&str>, agent_type: Option<&str>, skip_permissions: Option<bool>) -> Result<()> {
         // Set global agent type if provided
         if let Some(agent_type) = agent_type {
             if let Err(e) = self.set_global_agent_type(agent_type) {
@@ -782,7 +782,7 @@ impl SessionManager {
         }
 
         // Start the draft session
-        self.start_draft_session(session_name, base_branch)?;
+        self.start_spec_session(session_name, base_branch)?;
         Ok(())
     }
 
@@ -809,8 +809,8 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn create_draft_session(&self, name: &str, plan_content: &str) -> Result<Session> {
-        log::info!("Creating plan session '{}' in repository: {}", name, self.repo_path.display());
+    pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Session> {
+        log::info!("Creating spec session '{}' in repository: {}", name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
@@ -834,7 +834,7 @@ impl SessionManager {
             branch: branch.clone(),
             parent_branch: "main".to_string(),
             worktree_path: worktree_path.clone(),
-            status: SessionStatus::Plan,
+            status: SessionStatus::Spec,
             created_at: now,
             updated_at: now,
             last_activity: None,
@@ -844,29 +844,29 @@ impl SessionManager {
             original_skip_permissions: None,
             pending_name_generation: false,
             was_auto_generated: false,
-            plan_content: Some(plan_content.to_string()),
-            session_state: SessionState::Plan,
+            spec_content: Some(spec_content.to_string()),
+            session_state: SessionState::Spec,
         };
         
         if let Err(e) = self.db_manager.create_session(&session) {
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save plan session to database: {}", e));
+            return Err(anyhow!("Failed to save spec session to database: {}", e));
         }
         
         self.cache_manager.unreserve_name(&unique_name);
         Ok(session)
     }
 
-    pub fn start_draft_session(&self, session_name: &str, base_branch: Option<&str>) -> Result<()> {
-        log::info!("Starting plan session '{}' in repository: {}", session_name, self.repo_path.display());
+    pub fn start_spec_session(&self, session_name: &str, base_branch: Option<&str>) -> Result<()> {
+        log::info!("Starting spec session '{}' in repository: {}", session_name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
         
         let session = self.db_manager.get_session_by_name(session_name)?;
         
-        if session.session_state != SessionState::Plan {
-            return Err(anyhow!("Session '{}' is not in plan state", session_name));
+        if session.session_state != SessionState::Spec {
+            return Err(anyhow!("Session '{}' is not in spec state", session_name));
         }
         
         let parent_branch = if let Some(base) = base_branch {
@@ -907,13 +907,13 @@ impl SessionManager {
         self.db_manager.update_session_status(&session.id, SessionStatus::Active)?;
         self.db_manager.update_session_state(&session.id, SessionState::Running)?;
         
-        if let Some(plan_content) = session.plan_content {
-            log::info!("Copying plan content to initial_prompt for session '{session_name}': '{plan_content}'");
-            self.db_manager.update_session_initial_prompt(&session.id, &plan_content)?;
+        if let Some(spec_content) = session.spec_content {
+            log::info!("Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'");
+            self.db_manager.update_session_initial_prompt(&session.id, &spec_content)?;
             clear_session_prompted_non_test(&session.worktree_path);
-            log::info!("Cleared prompt state for session '{session_name}' to ensure plan content is used");
+            log::info!("Cleared prompt state for session '{session_name}' to ensure spec content is used");
         } else {
-            log::warn!("No plan_content found for session '{session_name}' - initial_prompt will not be set");
+            log::warn!("No spec_content found for session '{session_name}' - initial_prompt will not be set");
         }
         
         let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
@@ -948,40 +948,40 @@ impl SessionManager {
 
 
 
-    pub fn update_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
-        info!("SessionCore: Updating plan content for session '{}', content length: {}", session_name, content.len());
+    pub fn update_spec_content(&self, session_name: &str, content: &str) -> Result<()> {
+        info!("SessionCore: Updating spec content for session '{}', content length: {}", session_name, content.len());
         let session = self.db_manager.get_session_by_name(session_name)?;
         info!("SessionCore: Found session with id: {}, state: {:?}", session.id, session.session_state);
         
-        // Only allow updating content for sessions in Plan state
-        if session.session_state != SessionState::Plan {
+        // Only allow updating content for sessions in Spec state
+        if session.session_state != SessionState::Spec {
             return Err(anyhow::anyhow!(
-                "Cannot update content for session '{}': only Plan sessions can have their content updated. Current state: {:?}",
+                "Cannot update content for session '{}': only Spec sessions can have their content updated. Current state: {:?}",
                 session_name,
                 session.session_state
             ));
         }
         
-        self.db_manager.update_plan_content(&session.id, content)?;
-        info!("SessionCore: Successfully updated plan content in database for session '{session_name}'");
+        self.db_manager.update_spec_content(&session.id, content)?;
+        info!("SessionCore: Successfully updated spec content in database for session '{session_name}'");
         Ok(())
     }
 
-    pub fn append_plan_content(&self, session_name: &str, content: &str) -> Result<()> {
-        info!("SessionCore: Appending plan content for session '{}', additional content length: {}", session_name, content.len());
+    pub fn append_spec_content(&self, session_name: &str, content: &str) -> Result<()> {
+        info!("SessionCore: Appending spec content for session '{}', additional content length: {}", session_name, content.len());
         let session = self.db_manager.get_session_by_name(session_name)?;
         
-        // Only allow appending content for sessions in Plan state
-        if session.session_state != SessionState::Plan {
+        // Only allow appending content for sessions in Spec state
+        if session.session_state != SessionState::Spec {
             return Err(anyhow::anyhow!(
-                "Cannot append content to session '{}': only Plan sessions can have content appended. Current state: {:?}",
+                "Cannot append content to session '{}': only Spec sessions can have content appended. Current state: {:?}",
                 session_name,
                 session.session_state
             ));
         }
         
-        self.db_manager.append_plan_content(&session.id, content)?;
-        info!("SessionCore: Successfully appended plan content in database for session '{session_name}'");
+        self.db_manager.append_spec_content(&session.id, content)?;
+        info!("SessionCore: Successfully appended spec content in database for session '{session_name}'");
         Ok(())
     }
 

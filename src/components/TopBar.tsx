@@ -14,8 +14,8 @@ interface TopBarProps {
   onOpenSettings: () => void
   onOpenKanban?: () => void
   isOrchestratorActive?: boolean
-  isPlanModeActive?: boolean
-  onTogglePlanMode?: () => void
+  isSpecModeActive?: boolean
+   onToggleSpecMode?: () => void
 }
 
 export function TopBar({
@@ -27,8 +27,8 @@ export function TopBar({
   onOpenSettings,
   onOpenKanban,
   isOrchestratorActive = false,
-  isPlanModeActive = false,
-  onTogglePlanMode
+  isSpecModeActive = false,
+   onToggleSpecMode
 }: TopBarProps) {
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
@@ -129,22 +129,22 @@ export function TopBar({
           </div>
         )}
         
-        {/* Plan Mode button - only show in orchestrator */}
-        {isOrchestratorActive && onTogglePlanMode && (
-          <button
-            onClick={onTogglePlanMode}
-            className={`h-6 px-2 inline-flex items-center justify-center rounded transition-colors mr-2 text-xs gap-1 ${
-              isPlanModeActive 
-                ? 'bg-amber-600/20 text-amber-300 hover:bg-amber-600/30' 
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-            }`}
-            title="Plan Mode (⌘⇧P)"
-            aria-label="Plan Mode"
-          >
-            <VscSplitHorizontal className="text-[14px]" />
-            <span>Plan Mode</span>
-          </button>
-        )}
+         {/* Spec Mode button - only show in orchestrator */}
+         {isOrchestratorActive && onToggleSpecMode && (
+           <button
+             onClick={onToggleSpecMode}
+             className={`h-6 px-2 inline-flex items-center justify-center rounded transition-colors mr-2 text-xs gap-1 ${
+               isSpecModeActive
+                 ? 'bg-amber-600/20 text-amber-300 hover:bg-amber-600/30'
+                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+             }`}
+             title="Spec Mode (⌘⇧P)"
+             aria-label="Spec Mode"
+           >
+             <VscSplitHorizontal className="text-[14px]" />
+             <span>Spec Mode</span>
+           </button>
+         )}
         
         {/* Agent Board button - only show when a project is open */}
         {activeTabPath && onOpenKanban && (

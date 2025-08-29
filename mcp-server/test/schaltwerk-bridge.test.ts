@@ -82,16 +82,16 @@ describe('SchaltwerkBridge Plan Sessions', () => {
   })
 
   describe('Plan Creation and Retrieval', () => {
-    it('should create a plan session and be able to retrieve it', async () => {
-      // Create a plan session
+    it('should create a spec session and be able to retrieve it', async () => {
+      // Create a spec session
       const draftName = 'test-plan-session'
       const draftContent = '# Test Plan\n\nThis is a test plan content.'
       
-      const createdDraft = await bridge.createDraftSession(draftName, draftContent)
+      const createdDraft = await bridge.createSpecSession(draftName, draftContent)
       
       // Verify the created plan has correct properties
       expect(createdDraft.name).toBe(draftName)
-      expect(createdDraft.status).toBe('plan')
+      expect(createdDraft.status).toBe('spec')
       expect(createdDraft.session_state).toBe('Plan')
       expect(createdDraft.draft_content).toBe(draftContent)
       expect(createdDraft.branch).toBe(`schaltwerk/${draftName}`)
@@ -100,25 +100,25 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       const retrievedSession = await bridge.getSession(draftName)
       
       // THIS TEST SHOULD FAIL if the bug exists
-      // getSession filters by status IN ('active', 'paused') which excludes 'plan'
+      // getSession filters by status IN ('active', 'paused') which excludes 'spec'
       expect(retrievedSession).toBeDefined()
       expect(retrievedSession?.name).toBe(draftName)
-      expect(retrievedSession?.status).toBe('plan')
+      expect(retrievedSession?.status).toBe('spec')
       expect(retrievedSession?.draft_content).toBe(draftContent)
     })
 
-    it('should list plan sessions separately from active sessions', async () => {
+    it('should list spec sessions separately from active sessions', async () => {
       // Create a plan and an active session
       const draftName = 'plan-test-2'
       const activeName = 'active-test-1'
       
-      await bridge.createDraftSession(draftName, 'Plan content')
+      await bridge.createSpecSession(draftName, 'Plan content')
       
       // Create an active session (mock the worktree creation)
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', activeName)
       await bridge.createSession(activeName, 'Active session prompt')
       
-      // List plan sessions
+      // List spec sessions
       const plans = await bridge.listDraftSessions()
       const draftNames = plans.map(d => d.name)
       
@@ -138,7 +138,7 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       const initialContent = 'Initial content'
       const updatedContent = 'Updated content'
       
-      await bridge.createDraftSession(draftName, initialContent)
+      await bridge.createSpecSession(draftName, initialContent)
       
       // Update the plan content
       await bridge.updateDraftContent(draftName, updatedContent, false)
@@ -151,7 +151,7 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       expect(session?.draft_content).toBe(updatedContent)
     })
 
-    it('should fail to update non-plan sessions', async () => {
+    it('should fail to update non-spec sessions', async () => {
       const activeName = 'active-no-update'
       
       // Create an active session
@@ -167,8 +167,8 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       // Database no longer directly accessed - would need to call API to clean up
       
       // Create various types of sessions
-      await bridge.createDraftSession('plan-filter-1', 'Plan 1')
-      await bridge.createDraftSession('plan-filter-2', 'Plan 2')
+      await bridge.createSpecSession('plan-filter-1', 'Plan 1')
+      await bridge.createSpecSession('plan-filter-2', 'Plan 2')
       
       bridge['createWorktree'] = async (_, name) => path.join(testRepoPath, '.schaltwerk', 'worktrees', name)
       await bridge.createSession('active-filter-1', 'Active 1')
@@ -177,24 +177,24 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       // Test different filters
       const allSessions = await bridge.listSessionsByState('all')
       const activeSessions = await bridge.listSessionsByState('active')
-      const draftSessions = await bridge.listSessionsByState('plan')
+      const draftSessions = await bridge.listSessionsByState('spec')
       
       expect(allSessions.length).toBe(4)
       expect(activeSessions.length).toBe(2)
       expect(draftSessions.length).toBe(2)
       
-      expect(draftSessions.every(s => s.status === 'plan')).toBe(true)
+      expect(draftSessions.every(s => s.status === 'spec')).toBe(true)
       expect(activeSessions.every(s => s.status === 'active')).toBe(true)
     })
   })
 
   describe('Plan to Active Transition', () => {
-    it('should start a plan session and transition it to active', async () => {
+    it('should start a spec session and transition it to active', async () => {
       const draftName = 'plan-to-start'
       const draftContent = '# Agent\n\nImplement feature X'
       
       // Create plan
-      await bridge.createDraftSession(draftName, draftContent)
+      await bridge.createSpecSession(draftName, draftContent)
       
       // Mock worktree creation
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', draftName)

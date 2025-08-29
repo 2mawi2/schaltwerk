@@ -175,29 +175,29 @@ describe('App.tsx', () => {
     }, { timeout: 3000 })
   })
 
-  describe('Plan Starting', () => {
+  describe('Spec Starting', () => {
     beforeEach(() => {
       // Setup project state for plan tests
       mockState.isGitRepo = true
     })
 
-    it('handles schaltwerk:start-agent-from-plan event by prefilling new session modal', async () => {
+    it('handles schaltwerk:start-agent-from-spec event by prefilling new session modal', async () => {
       renderApp()
 
       // Trigger the plan start event
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', {
+      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', {
         detail: { name: 'test-plan' }
       }))
 
       // Wait for the event to be processed
       await waitFor(() => {
-        // The app should set up event listeners for plan starting
+        // The app should set up event listeners for spec starting
         // This is verified by the fact that the app renders without errors
         expect(screen.getByTestId('home-screen')).toBeInTheDocument()
       })
     })
 
-    it('sets up event listeners for plan starting functionality', () => {
+    it('sets up event listeners for spec starting functionality', () => {
       renderApp()
       
       // Verify the app renders and would have set up the event listeners

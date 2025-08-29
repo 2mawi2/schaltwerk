@@ -15,7 +15,7 @@ interface Session {
   branch: string
   parent_branch: string
   worktree_path: string
-  status: 'active' | 'cancelled' | 'paused' | 'plan'
+  status: 'active' | 'cancelled' | 'paused' | 'spec'
   created_at: number
   updated_at: number
   ready_to_merge: boolean
@@ -456,7 +456,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
             branch: 'schaltwerk/minimal',
             base_branch: 'main',
             worktree_path: '/test/minimal',
-            session_state: 'plan',
+            session_state: 'spec',
             display_name: null,
             created_at: null,
             last_modified: null,
@@ -597,7 +597,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
       mockFetch.mockImplementation(async (url: any, options?: any) => {
         const urlString = typeof url === 'string' ? url : url.toString()
         
-        if (urlString.includes('/api/plans') && urlString.includes('/start')) {
+        if (urlString.includes('/api/specs') && urlString.includes('/start')) {
           const match = urlString.match(/\/api\/plans\/([^\/]+)\/start/)
           const sessionName = match ? decodeURIComponent(match[1]) : 'unknown'
           
@@ -616,13 +616,13 @@ describe('SchaltwerkBridge Complex API Integration', () => {
           return { ok: true, status: 200 } as any
         }
         
-        if (urlString.includes('/api/plans') && options?.method === 'POST') {
+        if (urlString.includes('/api/specs') && options?.method === 'POST') {
           return {
             ok: true,
             status: 200,
             json: async () => ({
               name: 'race-test',
-              status: 'plan',
+              status: 'spec',
               draft_content: 'content'
             })
           } as any
@@ -631,7 +631,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
         return { ok: true, status: 200, json: async () => ({}) } as any
       })
 
-      await bridge.createDraftSession('race-test', 'content')
+      await bridge.createSpecSession('race-test', 'content')
 
       const startPromises = Array.from({ length: 5 }, () => 
         bridge.startDraftSession('race-test', 'claude', false)
@@ -731,13 +731,13 @@ describe('SchaltwerkBridge Complex API Integration', () => {
           return { ok: true, status: 200 } as any
         }
         
-        if (urlString.includes('/api/plans')) {
+        if (urlString.includes('/api/specs')) {
           return {
             ok: true,
             status: 200,
             json: async () => ({
               name: 'payload-test',
-              status: 'plan',
+              status: 'spec',
               draft_content: 'test content',
               parent_branch: 'main'
             })
@@ -747,7 +747,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
         return { ok: true, status: 200 } as any
       })
 
-      await bridge.createDraftSession('payload-test', 'test content', 'main')
+      await bridge.createSpecSession('payload-test', 'test content', 'main')
       
       expect(capturedPayloads).toHaveLength(1)
       expect(capturedPayloads[0]).toMatchObject({
@@ -756,7 +756,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
           session_name: 'payload-test',
           draft_content: 'test content',
           parent_branch: 'main',
-          status: 'plan'
+          status: 'spec'
         }
       })
     })

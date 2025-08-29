@@ -99,10 +99,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         }
         
         // Validate plan content if creating as plan
-        if (createAsDraft && !taskContent.trim()) {
-            setValidationError('Please enter plan content')
-            return
-        }
+         if (createAsDraft && !taskContent.trim()) {
+             setValidationError('Please enter plan content')
+             return
+         }
         
         // Replace spaces with underscores for the actual session name
         finalName = finalName.replace(/ /g, '_')
@@ -227,10 +227,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setBaseBranch(baseBranchFromDraft)
             }
             // If running from an existing plan, don't create another plan
-            if (fromDraft) {
-                console.log('[NewSessionModal] Running from existing plan - forcing createAsDraft to false')
-                setCreateAsDraft(false)
-            }
+             if (fromDraft) {
+                 console.log('[NewSessionModal] Running from existing plan - forcing createAsDraft to false')
+                 setCreateAsDraft(false)
+             }
             
             // Clear the prefill pending flag and mark that we have data
             setIsPrefillPending(false)
@@ -279,13 +279,13 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         // Use capture phase so this handler runs before others and can stop propagation
         window.addEventListener('keydown', handleKeyDown, true)
         const setDraftHandler = () => {
-            console.log('[NewSessionModal] Received set-plan event - setting createAsDraft to true')
+            console.log('[NewSessionModal] Received set-spec event - setting createAsDraft to true')
             setCreateAsDraft(true)
         }
-        window.addEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
+        window.addEventListener('schaltwerk:new-session:set-spec' as any, setDraftHandler)
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)
-            window.removeEventListener('schaltwerk:new-session:set-plan' as any, setDraftHandler)
+            window.removeEventListener('schaltwerk:new-session:set-spec' as any, setDraftHandler)
         }
     }, [open, onClose])
 
@@ -294,7 +294,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ backgroundColor: theme.colors.overlay.backdrop }}>
             <div className="w-[720px] max-w-[95vw] rounded-xl shadow-xl" style={{ backgroundColor: theme.colors.background.tertiary, borderColor: theme.colors.border.subtle, border: '1px solid' }}>
-                <div className="px-4 py-3 border-b font-medium" style={{ borderBottomColor: theme.colors.border.default, color: theme.colors.text.primary }}>{createAsDraft ? "Create new plan" : "Start new agent"}</div>
+                <div className="px-4 py-3 border-b font-medium" style={{ borderBottomColor: theme.colors.border.default, color: theme.colors.text.primary }}>{createAsDraft ? "Create new spec" : "Start new agent"}</div>
                 <div className="p-4 space-y-4">
                     <div>
                         <label className="block text-sm text-slate-300 mb-1">Agent name</label>

@@ -35,13 +35,13 @@ global.prompt = vi.fn()
 const mockSessions = [
     {
         info: {
-            session_id: 'plan-1',
-            display_name: 'Plan Session 1',
-            branch: 'feature/plan-1',
-            worktree_path: '/path/to/plan-1',
+            session_id: 'spec-1',
+            display_name: 'Spec Session 1',
+            branch: 'feature/spec-1',
+            worktree_path: '/path/to/spec-1',
             base_branch: 'main',
             merge_mode: 'rebase',
-            status: 'plan',
+            status: 'spec',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: false,
@@ -104,7 +104,7 @@ describe('KanbanView', () => {
         expect(screen.getByText('Loading sessions...')).toBeInTheDocument()
     })
 
-    it('should display three columns: Plan, Running, and Reviewed', async () => {
+    it('should display three columns: Spec, Running, and Reviewed', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
 
@@ -127,8 +127,8 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            // Plan column
-            expect(screen.getByText('Plan Session 1')).toBeInTheDocument()
+            // Spec column
+            expect(screen.getByText('Spec Session 1')).toBeInTheDocument()
             
             // Running column
             expect(screen.getByText('Active Session 1')).toBeInTheDocument()
@@ -147,7 +147,7 @@ describe('KanbanView', () => {
         await waitFor(() => {
             // Find the count badges
             const counts = screen.getAllByText(/^[0-9]+$/)
-            // Should have 1 plan, 1 running, 1 reviewed
+            // Should have 1 spec, 1 running, 1 reviewed
             expect(counts).toHaveLength(3)
             expect(counts.some(el => el.textContent === '1')).toBe(true)
         })
@@ -166,7 +166,7 @@ describe('KanbanView', () => {
         })
     })
 
-    it('should show "Create plan" button in Plan column and "Start agent" in Running column', async () => {
+    it('should show "Create plan" button in Spec column and "Start agent" in Running column', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
 
@@ -178,7 +178,7 @@ describe('KanbanView', () => {
         })
     })
 
-    it('should handle creating a new plan', async () => {
+    it('should handle creating a new spec', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
         
@@ -196,12 +196,12 @@ describe('KanbanView', () => {
         // Should dispatch event to open new session modal in plan mode
         expect(dispatchEventSpy).toHaveBeenCalledWith(
             expect.objectContaining({
-                type: 'schaltwerk:new-plan'
+                type: 'schaltwerk:new-spec'
             })
         )
     })
 
-    it('should dispatch event when create plan button is clicked', async () => {
+    it('should dispatch event when create spec button is clicked', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
         
@@ -216,28 +216,28 @@ describe('KanbanView', () => {
         const createButton = screen.getByText('Create plan')
         await userEvent.click(createButton)
         
-        // Should dispatch the new-plan event
+        // Should dispatch the new-spec event
         expect(dispatchEventSpy).toHaveBeenCalledWith(
             expect.objectContaining({
-                type: 'schaltwerk:new-plan'
+                type: 'schaltwerk:new-spec'
             })
         )
     })
 
-    it('should show "No agents or plans found" when there are no sessions', async () => {
+    it('should show "No agents or specs found" when there are no sessions', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue([])
 
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('No agents or plans found')).toBeInTheDocument()
+            expect(screen.getByText('No agents or specs found')).toBeInTheDocument()
             expect(screen.getByText('Start agent')).toBeInTheDocument()
             expect(screen.getByText('Create plan')).toBeInTheDocument()
         })
     })
 
-    it('should dispatch event when create first plan button is clicked', async () => {
+    it('should dispatch event when create first spec button is clicked', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue([])
         
@@ -252,10 +252,10 @@ describe('KanbanView', () => {
         const createButton = screen.getByText('Create plan')
         await userEvent.click(createButton)
         
-        // Should dispatch the new-plan event
+        // Should dispatch the new-spec event
         expect(dispatchEventSpy).toHaveBeenCalledWith(
             expect.objectContaining({
-                type: 'schaltwerk:new-plan'
+                type: 'schaltwerk:new-spec'
             })
         )
     })

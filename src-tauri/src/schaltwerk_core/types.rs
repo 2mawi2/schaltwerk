@@ -26,7 +26,7 @@ impl FromStr for SortMode {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum FilterMode {
     All,
-    Plan,
+    Spec,
     Running,
     Reviewed,
 }
@@ -37,7 +37,7 @@ impl FromStr for FilterMode {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "all" => Ok(FilterMode::All),
-            "plan" => Ok(FilterMode::Plan),
+            "spec" => Ok(FilterMode::Spec),
             "running" => Ok(FilterMode::Running),
             "reviewed" => Ok(FilterMode::Reviewed),
             _ => Err(format!("Invalid filter mode: {s}")),
@@ -76,9 +76,9 @@ pub struct Session {
     pub pending_name_generation: bool,
     // True if the session name was auto-generated (e.g., docker-style names)
     pub was_auto_generated: bool,
-    // Content for plan agents (markdown format)
-    pub plan_content: Option<String>,
-    // Current session state (Plan, Running, Reviewed)
+    // Content for spec agents (markdown format)
+    pub spec_content: Option<String>,
+    // Current session state (Spec, Running, Reviewed)
     pub session_state: SessionState,
 }
 
@@ -87,13 +87,13 @@ pub struct Session {
 pub enum SessionStatus {
     Active,
     Cancelled,
-    Plan,
+    Spec,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum SessionState {
-    Plan,
+    Spec,
     Running,
     Reviewed,
 }
@@ -103,7 +103,7 @@ impl SessionStatus {
         match self {
             SessionStatus::Active => "active",
             SessionStatus::Cancelled => "cancelled",
-            SessionStatus::Plan => "plan",
+            SessionStatus::Spec => "spec",
         }
     }
 }
@@ -115,7 +115,7 @@ impl FromStr for SessionStatus {
         match s {
             "active" => Ok(SessionStatus::Active),
             "cancelled" => Ok(SessionStatus::Cancelled),
-            "plan" => Ok(SessionStatus::Plan),
+            "spec" => Ok(SessionStatus::Spec),
             _ => Err(format!("Invalid session status: {s}")),
         }
     }
@@ -124,7 +124,7 @@ impl FromStr for SessionStatus {
 impl SessionState {
     pub fn as_str(&self) -> &str {
         match self {
-            SessionState::Plan => "plan",
+            SessionState::Spec => "spec",
             SessionState::Running => "running", 
             SessionState::Reviewed => "reviewed",
         }
@@ -136,7 +136,7 @@ impl FromStr for SessionState {
     
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "plan" => Ok(SessionState::Plan),
+            "spec" => Ok(SessionState::Spec),
             "running" => Ok(SessionState::Running),
             "reviewed" => Ok(SessionState::Reviewed),
             _ => Err(format!("Invalid session state: {s}")),
@@ -191,7 +191,7 @@ pub enum SessionStatusType {
     Dirty,
     Missing,
     Archived,
-    Plan,
+    Spec,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -237,7 +237,7 @@ pub struct SessionInfo {
     #[serde(default)]
     pub ready_to_merge: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub plan_content: Option<String>,
+    pub spec_content: Option<String>,
     pub session_state: SessionState,
 }
 

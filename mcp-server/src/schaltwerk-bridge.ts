@@ -14,7 +14,7 @@ export interface Session {
   branch: string
   parent_branch: string
   worktree_path: string
-  status: 'active' | 'cancelled' | 'paused' | 'plan'
+  status: 'active' | 'cancelled' | 'paused' | 'spec'
   session_state?: 'Plan' | 'Running' | 'Reviewed'
   created_at: number
   updated_at: number
@@ -183,7 +183,7 @@ export class SchaltwerkBridge {
         branch: es.info.branch,
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
-        status: es.info.session_state === 'plan' ? 'plan' as const : 'active' as const,
+        status: es.info.session_state === 'spec' ? 'spec' as const : 'active' as const,
         session_state: es.info.session_state as 'Plan' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
@@ -518,7 +518,7 @@ export class SchaltwerkBridge {
         session_name: session.name,
         draft_content: session.draft_content,
         parent_branch: session.parent_branch,
-        status: 'plan'
+        status: 'spec'
       }
       
       await fetch(`${this.webhookUrl}/webhook/plan-created`, {
@@ -571,9 +571,9 @@ export class SchaltwerkBridge {
     }
   }
 
-  async createDraftSession(name: string, content?: string, baseBranch?: string): Promise<Session> {
+  async createSpecSession(name: string, content?: string, baseBranch?: string): Promise<Session> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/plans`, {
+      const response = await fetch(`${this.apiUrl}/api/specs`, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -601,7 +601,7 @@ export class SchaltwerkBridge {
 
   async updateDraftContent(sessionName: string, content: string, append: boolean = false): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}`, {
+      const response = await fetch(`${this.apiUrl}/api/specs/${encodeURIComponent(sessionName)}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -621,7 +621,7 @@ export class SchaltwerkBridge {
 
   async startDraftSession(sessionName: string, agentType?: string, skipPermissions?: boolean, baseBranch?: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}/start`, {
+      const response = await fetch(`${this.apiUrl}/api/specs/${encodeURIComponent(sessionName)}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -632,7 +632,7 @@ export class SchaltwerkBridge {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to start plan session: ${response.statusText}`)
+        throw new Error(`Failed to start spec session: ${response.statusText}`)
       }
       
       const updatedSession = await this.getSession(sessionName)
@@ -640,14 +640,14 @@ export class SchaltwerkBridge {
         await this.notifySessionAdded(updatedSession)
       }
     } catch (error) {
-      console.error('Failed to start plan session via API:', error)
+      console.error('Failed to start spec session via API:', error)
       throw error
     }
   }
 
   async deleteDraftSession(sessionName: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/plans/${encodeURIComponent(sessionName)}`, {
+      const response = await fetch(`${this.apiUrl}/api/specs/${encodeURIComponent(sessionName)}`, {
         method: 'DELETE',
         headers: this.getProjectHeaders()
       })
@@ -658,14 +658,14 @@ export class SchaltwerkBridge {
       
       await this.notifySessionRemoved(sessionName)
     } catch (error) {
-      console.error('Failed to delete plan session via API:', error)
+      console.error('Failed to delete spec session via API:', error)
       throw error
     }
   }
 
   async listDraftSessions(): Promise<Session[]> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/plans`, {
+      const response = await fetch(`${this.apiUrl}/api/specs`, {
         method: 'GET',
         headers: { 'Accept': 'application/json' }
       })
@@ -676,14 +676,14 @@ export class SchaltwerkBridge {
       
       return await response.json() as Session[]
     } catch (error) {
-      console.error('Failed to list plan sessions via API:', error)
+      console.error('Failed to list spec sessions via API:', error)
       return []
     }
   }
 
-  async listSessionsByState(filter?: 'all' | 'active' | 'plan' | 'reviewed'): Promise<Session[]> {
+  async listSessionsByState(filter?: 'all' | 'active' | 'spec' | 'reviewed'): Promise<Session[]> {
     try {
-      if (filter === 'plan') {
+      if (filter === 'spec') {
         return this.listDraftSessions()
       }
       
@@ -737,7 +737,7 @@ export class SchaltwerkBridge {
         branch: es.info.branch,
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
-        status: es.info.session_state === 'plan' ? 'plan' as const : 'active' as const,
+        status: es.info.session_state === 'spec' ? 'spec' as const : 'active' as const,
         session_state: es.info.session_state as 'Plan' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),

@@ -104,7 +104,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
         await waitFor(() => {
             // Should have the checkbox checked for draft mode
-            const checkbox = screen.getByLabelText(/Create as plan/)
+            const checkbox = screen.getByLabelText(/Create as spec/)
             expect(checkbox).toBeChecked()
         })
 
@@ -126,7 +126,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Toggle draft mode
-        const checkbox = screen.getByLabelText(/Create as plan/)
+        const checkbox = screen.getByLabelText(/Create as spec/)
         fireEvent.click(checkbox)
 
         // Configuration panel should be hidden

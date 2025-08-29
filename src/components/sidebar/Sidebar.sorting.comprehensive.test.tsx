@@ -32,7 +32,7 @@ interface SessionInfo {
   worktree_path: string
   base_branch: string
   merge_mode: string
-  status: 'active' | 'dirty' | 'missing' | 'archived'
+  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
   created_at?: string
   last_modified?: string
   has_uncommitted_changes?: boolean
@@ -314,11 +314,11 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const plans = sessions.filter(s => (s.info as any).session_state === 'plan')
+        const specs = sessions.filter(s => (s.info as any).session_state === 'plan')
         const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'plan')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         if (mode === 'created') {
-          // created: newest first among unreviewed, then reviewed (alpha), then plans (alpha)
+          // created: newest first among unreviewed, then reviewed (alpha), then specs (alpha)
           const withTs = unreviewed.filter(s => !!s.info.created_at)
           const without = unreviewed.filter(s => !s.info.created_at).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
           withTs.sort((a, b) => {
@@ -326,7 +326,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
             const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
-          const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
           return [...withTs, ...without, ...reviewed, ...draftsSorted]
         }
         if (mode === 'last-edited') {
@@ -335,12 +335,12 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
             const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
-          const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
           return [...sortedUnreviewed, ...reviewed, ...draftsSorted]
         }
-        // name mode: unreviewed (alpha), then reviewed (alpha), then plans (alpha)
+        // name mode: unreviewed (alpha), then reviewed (alpha), then specs (alpha)
         const unrevAlpha = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...unrevAlpha, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -412,7 +412,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const plans = sessions.filter(s => (s.info as any).session_state === 'plan')
+        const specs = sessions.filter(s => (s.info as any).session_state === 'plan')
         const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'plan')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         let sorted: any[]
@@ -431,8 +431,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         } else {
           sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         }
-        // Order: unreviewed first (by current mode) then reviewed (alpha), then plans (alpha)
-        const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        // Order: unreviewed first (by current mode) then reviewed (alpha), then specs (alpha)
+        const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'get_current_directory') return '/test/dir'

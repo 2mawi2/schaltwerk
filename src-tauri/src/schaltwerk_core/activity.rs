@@ -391,7 +391,7 @@ mod tests {
                 original_skip_permissions: None,
                 pending_name_generation: false,
                 was_auto_generated: false,
-                plan_content: None,
+                spec_content: None,
                 session_state: SessionState::Running,
             };
             db.create_session(&session).unwrap();
@@ -447,7 +447,7 @@ mod tests {
                 original_skip_permissions: None,
                 pending_name_generation: false,
                 was_auto_generated: false,
-                plan_content: None,
+                spec_content: None,
                 session_state: SessionState::Running,
             };
             db.create_session(&session).unwrap();

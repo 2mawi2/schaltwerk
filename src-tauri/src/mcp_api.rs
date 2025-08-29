@@ -14,18 +14,18 @@ pub async fn handle_mcp_request(
     let path = req.uri().path().to_string();
     
     match (&method, path.as_str()) {
-        (&Method::POST, "/api/plans") => create_draft(req).await,
-        (&Method::GET, "/api/plans") => list_drafts().await,
-        (&Method::PATCH, path) if path.starts_with("/api/plans/") && !path.ends_with("/start") => {
-            let name = extract_draft_name(path, "/api/plans/");
-            update_plan_content(req, &name, app).await
+        (&Method::POST, "/api/specs") => create_draft(req).await,
+        (&Method::GET, "/api/specs") => list_drafts().await,
+        (&Method::PATCH, path) if path.starts_with("/api/specs/") && !path.ends_with("/start") => {
+            let name = extract_draft_name(path, "/api/specs/");
+            update_spec_content(req, &name, app).await
         }
-        (&Method::POST, path) if path.starts_with("/api/plans/") && path.ends_with("/start") => {
+        (&Method::POST, path) if path.starts_with("/api/specs/") && path.ends_with("/start") => {
             let name = extract_draft_name_for_start(path);
-            start_draft_session(req, &name, app).await
+            start_spec_session(req, &name, app).await
         }
-        (&Method::DELETE, path) if path.starts_with("/api/plans/") => {
-            let name = extract_draft_name(path, "/api/plans/");
+        (&Method::DELETE, path) if path.starts_with("/api/specs/") => {
+            let name = extract_draft_name(path, "/api/specs/");
             delete_draft(&name, app).await
         }
         (&Method::POST, "/api/sessions") => create_session(req, app).await,
@@ -42,12 +42,12 @@ pub async fn handle_mcp_request(
             let name = extract_session_name_for_action(path, "/mark-reviewed");
             mark_session_reviewed(&name, app).await
         }
-        (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/convert-to-plan") => {
-            let name = extract_session_name_for_action(path, "/convert-to-plan");
-            convert_session_to_plan(&name, app).await
+        (&Method::POST, path) if path.starts_with("/api/sessions/") && path.ends_with("/convert-to-spec") => {
+            let name = extract_session_name_for_action(path, "/convert-to-spec");
+            convert_session_to_spec(&name, app).await
         }
-        (&Method::GET, "/api/current-plan-mode-session") => {
-            get_current_plan_mode_session(app).await
+        (&Method::GET, "/api/current-spec-mode-session") => {
+            get_current_spec_mode_session(app).await
         }
         _ => Ok(not_found_response()),
     }
@@ -59,7 +59,7 @@ fn extract_draft_name(path: &str, prefix: &str) -> String {
 }
 
 fn extract_draft_name_for_start(path: &str) -> String {
-    let prefix = "/api/plans/";
+    let prefix = "/api/specs/";
     let suffix = "/start";
     let name = &path[prefix.len()..path.len() - suffix.len()];
     urlencoding::decode(name).unwrap_or(std::borrow::Cow::Borrowed(name)).to_string()
@@ -103,7 +103,7 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
         Ok(p) => p,
         Err(e) => {
-            error!("Failed to parse plan creation request: {e}");
+            error!("Failed to parse spec creation request: {e}");
             return Ok(error_response(StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")));
         }
     };
@@ -127,9 +127,9 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    match manager.create_draft_session(name, content) {
+    match manager.create_spec_session(name, content) {
         Ok(session) => {
-            info!("Created plan session via API: {name}");
+            info!("Created spec session via API: {name}");
             let json = serde_json::to_string(&session).unwrap_or_else(|e| {
                 error!("Failed to serialize session: {e}");
                 "{}".to_string()
@@ -137,8 +137,8 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
             Ok(json_response(StatusCode::CREATED, json))
         },
         Err(e) => {
-            error!("Failed to create plan session: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create plan: {e}")))
+            error!("Failed to create spec session: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create spec: {e}")))
         }
     }
 }
@@ -155,7 +155,7 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    match manager.list_sessions_by_state(SessionState::Plan) {
+    match manager.list_sessions_by_state(SessionState::Spec) {
         Ok(sessions) => {
             let json = serde_json::to_string(&sessions).unwrap_or_else(|e| {
                 error!("Failed to serialize sessions: {e}");
@@ -164,13 +164,13 @@ async fn list_drafts() -> Result<Response<String>, hyper::Error> {
             Ok(json_response(StatusCode::OK, json))
         },
         Err(e) => {
-            error!("Failed to list plan sessions: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list plans: {e}")))
+            error!("Failed to list spec sessions: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to list specs: {e}")))
         }
     }
 }
 
-async fn update_plan_content(
+async fn update_spec_content(
     req: Request<Incoming>,
     name: &str,
     app: tauri::AppHandle,
@@ -180,7 +180,7 @@ async fn update_plan_content(
     let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
         Ok(p) => p,
         Err(e) => {
-            error!("Failed to parse plan update request: {e}");
+            error!("Failed to parse spec update request: {e}");
             return Ok(error_response(StatusCode::BAD_REQUEST, format!("Invalid JSON: {e}")));
         }
     };
@@ -206,23 +206,23 @@ async fn update_plan_content(
     let manager = core_lock.session_manager();
     
     match if append {
-        manager.append_plan_content(name, content)
+        manager.append_spec_content(name, content)
     } else {
-        manager.update_plan_content(name, content)
+        manager.update_spec_content(name, content)
     } {
         Ok(()) => {
-            info!("Updated plan content via API: {name} (append={append}, content_len={})", content.len());
+            info!("Updated spec content via API: {name} (append={append}, content_len={})", content.len());
             
             // Emit sessions-refreshed event with actual sessions to update UI
             match manager.list_enriched_sessions() {
                 Ok(sessions) => {
                     info!("MCP API: Emitting sessions-refreshed with {} sessions", sessions.len());
-                    // Log details about plan sessions
+                    // Log details about spec sessions
                     for session in &sessions {
-                        if session.info.session_state == crate::schaltwerk_core::SessionState::Plan {
-                            info!("MCP API: Plan session {} has content: {} chars", 
+                        if session.info.session_state == crate::schaltwerk_core::SessionState::Spec {
+                            info!("MCP API: Spec session {} has content: {} chars", 
                                 session.info.session_id, 
-                                session.info.plan_content.as_ref().map(|c| c.len()).unwrap_or(0)
+                                session.info.spec_content.as_ref().map(|c| c.len()).unwrap_or(0)
                             );
                         }
                     }
@@ -240,13 +240,13 @@ async fn update_plan_content(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to update plan content: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update plan: {e}")))
+            error!("Failed to update spec content: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to update spec: {e}")))
         }
     }
 }
 
-async fn start_draft_session(
+async fn start_spec_session(
     req: Request<Incoming>,
     name: &str,
     app: tauri::AppHandle,
@@ -277,9 +277,9 @@ async fn start_draft_session(
     let manager = core_lock.session_manager();
 
     // Use the manager method that encapsulates all configuration and session starting logic
-    match manager.start_draft_session_with_config(name, base_branch.as_deref(), agent_type, skip_permissions) {
+    match manager.start_spec_session_with_config(name, base_branch.as_deref(), agent_type, skip_permissions) {
         Ok(()) => {
-            info!("Started plan session via API: {name}");
+            info!("Started spec session via API: {name}");
 
             if let Ok(sessions) = manager.list_enriched_sessions() {
                 if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
@@ -289,8 +289,8 @@ async fn start_draft_session(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to start plan session: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start plan: {e}")))
+            error!("Failed to start spec session: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to start spec: {e}")))
         }
     }
 }
@@ -312,7 +312,7 @@ async fn delete_draft(
     
     match manager.cancel_session(name) {
         Ok(()) => {
-            info!("Deleted plan session via API: {name}");
+            info!("Deleted spec session via API: {name}");
             
             #[derive(serde::Serialize, Clone)]
             struct SessionRemovedPayload { session_name: String }
@@ -323,8 +323,8 @@ async fn delete_draft(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to delete plan session: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete plan: {e}")))
+            error!("Failed to delete spec session: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete spec: {e}")))
         }
     }
 }
@@ -402,8 +402,8 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
         filter_state = Some(SessionState::Reviewed);
     } else if query.contains("state=running") {
         filter_state = Some(SessionState::Running);
-    } else if query.contains("state=plan") {
-        filter_state = Some(SessionState::Plan);
+    } else if query.contains("state=spec") {
+        filter_state = Some(SessionState::Spec);
     }
     
     let core = match get_schaltwerk_core().await {
@@ -425,7 +425,7 @@ async fn list_sessions(req: Request<Incoming>) -> Result<Response<String>, hyper
                     match state {
                         SessionState::Reviewed => s.info.ready_to_merge,
                         SessionState::Running => !s.info.ready_to_merge && s.info.session_state == SessionState::Running,
-                        SessionState::Plan => s.info.session_state == SessionState::Plan,
+                        SessionState::Spec => s.info.session_state == SessionState::Spec,
                     }
                 });
             }
@@ -540,7 +540,7 @@ async fn mark_session_reviewed(
     }
 }
 
-async fn convert_session_to_plan(
+async fn convert_session_to_spec(
     name: &str,
     app: tauri::AppHandle,
 ) -> Result<Response<String>, hyper::Error> {
@@ -556,9 +556,9 @@ async fn convert_session_to_plan(
     let manager = core_lock.session_manager();
 
     // Use the manager method that encapsulates all validation and business logic
-    match manager.convert_session_to_plan(name) {
+    match manager.convert_session_to_spec(name) {
         Ok(()) => {
-            info!("Converted session '{name}' to plan via API");
+            info!("Converted session '{name}' to spec via API");
 
             // Emit events to update UI
             if let Ok(sessions) = manager.list_enriched_sessions() {
@@ -570,14 +570,14 @@ async fn convert_session_to_plan(
             Ok(Response::new("OK".to_string()))
         },
         Err(e) => {
-            error!("Failed to convert session '{name}' to plan: {e}");
-            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to convert session to plan: {e}")))
+            error!("Failed to convert session '{name}' to spec: {e}");
+            Ok(error_response(StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to convert session '{name}' to spec: {e}")))
         }
     }
 }
 
-async fn get_current_plan_mode_session(_app: tauri::AppHandle) -> Result<Response<String>, hyper::Error> {
+async fn get_current_spec_mode_session(_app: tauri::AppHandle) -> Result<Response<String>, hyper::Error> {
     // For now, return not found since we don't have persistent state tracking
     // This could be enhanced later with proper state management
-    Ok(error_response(StatusCode::NOT_FOUND, "Plan mode session tracking not yet implemented. Use schaltwerk_draft_update with explicit session name.".to_string()))
+    Ok(error_response(StatusCode::NOT_FOUND, "Spec mode session tracking not yet implemented. Use schaltwerk_draft_update with explicit session name.".to_string()))
 }

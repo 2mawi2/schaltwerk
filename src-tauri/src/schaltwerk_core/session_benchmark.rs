@@ -237,10 +237,10 @@ impl SessionBenchmark {
             let session_name = format!("bench-start-{}", uuid::Uuid::new_v4());
             
             // Create draft session
-            self.manager.create_draft_session(&session_name, "Benchmark test")?;
+            self.manager.create_spec_session(&session_name, "Benchmark test")?;
             
             // Start it
-            self.manager.start_draft_session(&session_name, None)?;
+            self.manager.start_spec_session(&session_name, None)?;
             
             // Clean up
             self.manager.cancel_session(&session_name)?;

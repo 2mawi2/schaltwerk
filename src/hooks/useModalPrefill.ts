@@ -51,7 +51,7 @@ export function processPrefillData(
     setBaseBranch(detail.baseBranch)
   }
 
-  // If running from an existing plan, don't create another plan
+  // If running from an existing spec, don't create another spec
   if (detail.fromDraft) {
     setCreateAsDraft(false)
   }

@@ -11,19 +11,19 @@ export interface SessionPrefillData {
 
 export interface SessionData {
   draft_content?: string | null
-  plan_content?: string | null
+  spec_content?: string | null
   initial_prompt?: string | null
   parent_branch?: string | null
 }
 
 /**
  * Extracts the session content from the session data
- * Prioritizes plan_content, then draft_content, then initial_prompt
+ * Prioritizes spec_content, then draft_content, then initial_prompt
  */
 export function extractSessionContent(sessionData: SessionData | null): string {
   if (!sessionData) return ''
-  // Check plan_content first (for plan sessions), then draft_content, then initial_prompt
-  return sessionData.plan_content ?? sessionData.draft_content ?? sessionData.initial_prompt ?? ''
+  // Check spec_content first (for spec sessions), then draft_content, then initial_prompt
+  return sessionData.spec_content ?? sessionData.draft_content ?? sessionData.initial_prompt ?? ''
 }
 
 /**

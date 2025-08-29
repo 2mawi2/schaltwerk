@@ -44,9 +44,9 @@ export function PlanContentView({ sessionName, editable = true, debounceMs = 100
       if (!editable) return
       try {
         setSaving(true)
-        await invoke('schaltwerk_core_update_plan_content', { name: sessionName, content })
+        await invoke('schaltwerk_core_update_spec_content', { name: sessionName, content })
       } catch (e) {
-        console.error('[DraftContentView] Failed to save plan:', e)
+        console.error('[DraftContentView] Failed to save spec:', e)
       } finally {
         setSaving(false)
       }
@@ -75,7 +75,7 @@ export function PlanContentView({ sessionName, editable = true, debounceMs = 100
       <div className="h-full flex flex-col">
         <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
           <div className="text-xs text-slate-400">
-            {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing plan'}
+            {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing spec'}
           </div>
           <button
             onClick={handleCopy}

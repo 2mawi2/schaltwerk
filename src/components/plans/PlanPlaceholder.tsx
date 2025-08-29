@@ -9,12 +9,12 @@ export function PlanPlaceholder() {
 
   const handleRun = useCallback(async () => {
     if (!sessionName) return
-    // Open Start new agent modal prefilled from plan instead of starting directly
-    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionName } }))
+    // Open Start new agent modal prefilled from spec instead of starting directly
+    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
   }, [sessionName])
 
   if (!sessionName) {
-    return <div className="h-full flex items-center justify-center text-slate-400">No plan selected</div>
+    return <div className="h-full flex items-center justify-center text-slate-400">No spec selected</div>
   }
 
   return <PlanEditor sessionName={sessionName} onStart={handleRun} />

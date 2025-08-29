@@ -9,7 +9,7 @@ export interface Selection {
     kind: 'session' | 'orchestrator'
     payload?: string
     worktreePath?: string
-    sessionState?: 'plan' | 'running' | 'reviewed'  // Pass from Sidebar to avoid async fetch
+    sessionState?: 'spec' | 'running' | 'reviewed'  // Pass from Sidebar to avoid async fetch
 }
 
 interface TerminalSet {
@@ -169,7 +169,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
         const ids = getTerminalIds(sel)
 
-        // Orchestrator always has terminals and is never a plan
+        // Orchestrator always has terminals and is never a spec
         if (sel.kind === 'orchestrator') {
             setIsPlan(false)
             const cwd = projectPath || await invoke<string>('get_current_directory')
@@ -179,7 +179,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Sessions: Use passed sessionState if available to avoid async fetch
         if (sel.sessionState) {
-            const isPlanSession = sel.sessionState === 'plan'
+            const isPlanSession = sel.sessionState === 'spec'
             setIsPlan(isPlanSession)
             
             if (isPlanSession) {
@@ -203,7 +203,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sel.worktreePath || sessionData?.worktree_path
-            const isPlanSession = state === 'plan'
+            const isPlanSession = state === 'spec'
             setIsPlan(!!isPlanSession)
 
             if (isPlanSession) {
@@ -322,7 +322,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const isStateTransition = selection.kind === 'session' && 
             newSelection.kind === 'session' && 
             selection.payload === newSelection.payload &&
-            isPlan !== (newSelection.sessionState === 'plan')
+            isPlan !== (newSelection.sessionState === 'spec')
         
         // Check if we're actually changing selection or terminals (but allow initial setup, force recreate, or state transitions)
         if (!forceRecreate && !isStateTransition && isReady && 
@@ -352,10 +352,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 // CRITICAL: Update isPlan state based on the new selection
                 // This was missing and causing stale isPlan when switching from plan to running
                 if (newSelection.kind === 'session') {
-                    const isPlanSession = newSelection.sessionState === 'plan'
+                    const isPlanSession = newSelection.sessionState === 'spec'
                     setIsPlan(isPlanSession)
                 } else {
-                    // Orchestrator is never a plan
+                    // Orchestrator is never a spec
                     setIsPlan(false)
                 }
                 
@@ -429,18 +429,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
                         const worktreePath: string | undefined = sessionData?.worktree_path
-                        const nowPlan = state === 'plan'
+                        const nowPlan = state === 'spec'
                         const wasPlan = isPlan
-                        
+
                         // Update isPlan state
                         setIsPlan(!!nowPlan)
-                        
+
                         // If state changed from plan to running, update selection and ensure terminals
                         if (wasPlan && !nowPlan) {
                             // Session became running - update the selection's sessionState
                             const updatedSelection = {
                                 ...selection,
-                                sessionState: state as 'plan' | 'running' | 'reviewed' | undefined,
+                                sessionState: state as 'spec' | 'running' | 'reviewed' | undefined,
                                 worktreePath: worktreePath || selection.worktreePath
                             }
                             setSelectionState(updatedSelection)

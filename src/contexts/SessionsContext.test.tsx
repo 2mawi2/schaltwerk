@@ -22,7 +22,7 @@ const mockSessions = [
             worktree_path: '/path/to/plan',
             base_branch: 'main',
             merge_mode: 'rebase',
-            status: 'plan',
+            status: 'spec',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: false
@@ -126,7 +126,7 @@ describe('SessionsContext', () => {
             callCount++
             if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'schaltwerk_core_start_draft_session') return undefined
+            if (cmd === 'schaltwerk_core_start_spec_session') return undefined
             return undefined
         })
 
@@ -138,7 +138,7 @@ describe('SessionsContext', () => {
 
         // First call is to get current sessions, second is start_draft_session, third is reload
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_draft_session', { name: 'test-plan' })
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_spec_session', { name: 'test-plan' })
     })
 
     it('should update session status from active to plan', async () => {
@@ -179,12 +179,12 @@ describe('SessionsContext', () => {
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_mark_ready', { name: 'test-active' })
     })
 
-    it('should create a new plan session', async () => {
+    it('should create a new spec session', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'schaltwerk_core_create_draft_session') return undefined
+            if (cmd === 'schaltwerk_core_create_spec_session') return undefined
             return undefined
         })
 
@@ -194,9 +194,9 @@ describe('SessionsContext', () => {
             await result.current.createDraft('new-plan', '# New Plan')
         })
 
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_create_draft_session', {
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_create_spec_session', {
             name: 'new-plan',
-            planContent: '# New Plan'
+            draftContent: '# New Plan'
         })
     })
 

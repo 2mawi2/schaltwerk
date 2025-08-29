@@ -71,14 +71,14 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to update session initial prompt: {}", e))
     }
 
-    pub fn update_plan_content(&self, session_id: &str, content: &str) -> Result<()> {
-        self.db.update_plan_content(session_id, content)
-            .map_err(|e| anyhow!("Failed to update plan content: {}", e))
+    pub fn update_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
+        self.db.update_spec_content(session_id, content)
+            .map_err(|e| anyhow!("Failed to update spec content: {}", e))
     }
 
-    pub fn append_plan_content(&self, session_id: &str, content: &str) -> Result<()> {
-        self.db.append_plan_content(session_id, content)
-            .map_err(|e| anyhow!("Failed to append plan content: {}", e))
+    pub fn append_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
+        self.db.append_spec_content(session_id, content)
+            .map_err(|e| anyhow!("Failed to append spec content: {}", e))
     }
 
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
@@ -98,7 +98,7 @@ impl SessionDbManager {
 
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
         self.db.rename_draft_session(&self.repo_path, old_name, new_name)
-            .map_err(|e| anyhow!("Failed to rename plan session: {}", e))
+            .map_err(|e| anyhow!("Failed to rename spec session: {}", e))
     }
 
     pub fn save_git_stats(&self, stats: &GitStats) -> Result<()> {

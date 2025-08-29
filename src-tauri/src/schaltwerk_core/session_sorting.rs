@@ -36,8 +36,8 @@ mod session_sorting_tests {
             original_skip_permissions: Some(false),
             pending_name_generation: false,
             was_auto_generated: false,
-            plan_content: if state == SessionState::Plan { 
-                Some(format!("Plan content for {}", name)) 
+            spec_content: if state == SessionState::Spec { 
+                Some(format!("Spec content for {}", name)) 
             } else { 
                 None 
             },
@@ -58,9 +58,9 @@ mod session_sorting_tests {
         // Create test sessions with different states and timestamps - using the actual repo path
         let repo_path = temp_dir.path().to_path_buf();
         let sessions = vec![
-            // Plan sessions
-            create_test_session_with_repo("plan-alpha", SessionStatus::Plan, SessionState::Plan, false, 60, None, &repo_path),
-            create_test_session_with_repo("plan-beta", SessionStatus::Plan, SessionState::Plan, false, 30, None, &repo_path),
+            // Spec sessions
+            create_test_session_with_repo("spec-alpha", SessionStatus::Spec, SessionState::Spec, false, 60, None, &repo_path),
+            create_test_session_with_repo("spec-beta", SessionStatus::Spec, SessionState::Spec, false, 30, None, &repo_path),
             
             // Running sessions (different last activity)
             create_test_session_with_repo("running-charlie", SessionStatus::Active, SessionState::Running, false, 90, Some(5), &repo_path),
@@ -95,7 +95,7 @@ mod session_sorting_tests {
             .map(|s| s.info.session_id.as_str())
             .collect();
             
-        assert_eq!(session_names, vec!["plan-alpha", "plan-beta", "running-charlie", "running-delta", "running-echo"]);
+        assert_eq!(session_names, vec!["spec-alpha", "spec-beta", "running-charlie", "running-delta", "running-echo"]);
         
         // Check that reviewed sessions are at the end and also sorted by name
         let reviewed_names: Vec<&str> = sorted_sessions.iter()
@@ -121,8 +121,8 @@ mod session_sorting_tests {
             .map(|s| s.info.session_id.as_str())
             .collect();
             
-        // Expected order: running-echo (20min ago), plan-beta (30min ago), running-delta (45min ago), plan-alpha (60min ago), running-charlie (90min ago)
-        assert_eq!(session_names, vec!["running-echo", "plan-beta", "running-delta", "plan-alpha", "running-charlie"]);
+        // Expected order: running-echo (20min ago), spec-beta (30min ago), running-delta (45min ago), spec-alpha (60min ago), running-charlie (90min ago)
+        assert_eq!(session_names, vec!["running-echo", "spec-beta", "running-delta", "spec-alpha", "running-charlie"]);
         
         // Reviewed sessions should still be at the end, sorted by name
         let reviewed_names: Vec<&str> = sorted_sessions.iter()
@@ -148,8 +148,8 @@ mod session_sorting_tests {
             .map(|s| s.info.session_id.as_str())
             .collect();
             
-        // Expected order by last activity: running-charlie (5min ago), running-delta (10min ago), running-echo (15min ago), then plans by created time
-        assert_eq!(session_names, vec!["running-charlie", "running-delta", "running-echo", "plan-beta", "plan-alpha"]);
+        // Expected order by last activity: running-charlie (5min ago), running-delta (10min ago), running-echo (15min ago), then specs by created time
+        assert_eq!(session_names, vec!["running-charlie", "running-delta", "running-echo", "spec-beta", "spec-alpha"]);
     }
 
     #[tokio::test] 
@@ -158,19 +158,19 @@ mod session_sorting_tests {
         
         let filtered_sessions = manager.list_enriched_sessions_sorted(
             SortMode::Name,
-            FilterMode::Plan
+            FilterMode::Spec
         ).unwrap();
 
-        // Should only have plan sessions
+        // Should only have spec sessions
         assert_eq!(filtered_sessions.len(), 2);
         let session_names: Vec<&str> = filtered_sessions.iter()
             .map(|s| s.info.session_id.as_str())
             .collect();
-        assert_eq!(session_names, vec!["plan-alpha", "plan-beta"]);
+        assert_eq!(session_names, vec!["spec-alpha", "spec-beta"]);
         
-        // All sessions should have plan state
+        // All sessions should have spec state
         for session in &filtered_sessions {
-            assert_eq!(session.info.session_state, SessionState::Plan);
+            assert_eq!(session.info.session_state, SessionState::Spec);
         }
     }
 
@@ -183,16 +183,16 @@ mod session_sorting_tests {
             FilterMode::Running
         ).unwrap();
 
-        // Should only have running (not plan, not reviewed) sessions
+        // Should only have running (not spec, not reviewed) sessions
         assert_eq!(filtered_sessions.len(), 3);
         let session_names: Vec<&str> = filtered_sessions.iter()
             .map(|s| s.info.session_id.as_str())
             .collect();
         assert_eq!(session_names, vec!["running-charlie", "running-delta", "running-echo"]);
         
-        // All sessions should not be plans and not ready for merge
+        // All sessions should not be specs and not ready for merge
         for session in &filtered_sessions {
-            assert_ne!(session.info.session_state, SessionState::Plan);
+            assert_ne!(session.info.session_state, SessionState::Spec);
             assert!(!session.info.ready_to_merge);
         }
     }
@@ -250,15 +250,15 @@ mod session_sorting_tests {
     async fn test_combined_sort_and_filter() {
         let (_temp_dir, manager, _sessions) = setup_test_sessions();
         
-        // Test plan sessions sorted by creation time
+        // Test spec sessions sorted by creation time
         let draft_by_created = manager.list_enriched_sessions_sorted(
             SortMode::Created,
-            FilterMode::Plan
+            FilterMode::Spec
         ).unwrap();
         
         assert_eq!(draft_by_created.len(), 2);
-        // Should be sorted newest first: plan-beta (30min ago), plan-alpha (60min ago)
+        // Should be sorted newest first: spec-beta (30min ago), spec-alpha (60min ago)
         let names: Vec<&str> = draft_by_created.iter().map(|s| s.info.session_id.as_str()).collect();
-        assert_eq!(names, vec!["plan-beta", "plan-alpha"]);
+        assert_eq!(names, vec!["spec-beta", "spec-alpha"]);
     }
 }

@@ -4,7 +4,7 @@ import { useSessions } from '../../contexts/SessionsContext'
 import { SessionCard } from '../shared/SessionCard'
 import { invoke } from '@tauri-apps/api/core'
 import { RightPanelTabs } from '../right-panel/RightPanelTabs'
-import { PlanEditor } from '../plans/PlanEditor'
+import { PlanEditor as SpecEditor } from '../plans/PlanEditor'
 import { Component, ReactNode } from 'react'
 import { useState, useCallback } from 'react'
 import { theme } from '../../common/theme'
@@ -22,9 +22,9 @@ interface DraggableSessionCardProps {
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady?: (sessionId: string) => void
     onCancel?: (sessionId: string, hasUncommitted: boolean) => void
-    onConvertToPlan?: (sessionId: string) => void
+    onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
-    onDeletePlan?: (sessionId: string) => void
+    onDeleteSpec?: (sessionId: string) => void
 }
 
 function DraggableSessionCard({ 
@@ -33,9 +33,9 @@ function DraggableSessionCard({
     onMarkReady,
     onUnmarkReady,
     onCancel,
-    onConvertToPlan,
+    onConvertToSpec,
     onRunDraft,
-    onDeletePlan
+    onDeleteSpec
 }: DraggableSessionCardProps) {
     const [{ isDragging }, drag] = useDrag(() => ({
         type: ItemType,
@@ -61,9 +61,9 @@ function DraggableSessionCard({
                 onMarkReady={onMarkReady}
                 onUnmarkReady={onUnmarkReady}
                 onCancel={onCancel}
-                onConvertToPlan={onConvertToPlan}
+                onConvertToSpec={onConvertToSpec}
                 onRunDraft={onRunDraft}
-                onDeletePlan={onDeletePlan}
+                onDeleteSpec={onDeleteSpec}
             />
         </div>
     )
@@ -71,18 +71,18 @@ function DraggableSessionCard({
 
 interface ColumnProps {
     title: string
-    status: 'plan' | 'active' | 'dirty'
+    status: 'spec' | 'active' | 'dirty'
     sessions: any[]
     onStatusChange: (sessionId: string, newStatus: string) => void
     selectedSessionId?: string | null
-    onSelectSession: (sessionId: string, isPlan: boolean) => void
+    onSelectSession: (sessionId: string, isSpec: boolean) => void
     onCreateDraft?: () => void
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady?: (sessionId: string) => void
     onCancel?: (sessionId: string, hasUncommitted: boolean) => void
-    onConvertToPlan?: (sessionId: string) => void
+    onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
-    onDeletePlan?: (sessionId: string) => void
+    onDeleteSpec?: (sessionId: string) => void
 }
 
 function Column({ 
@@ -96,9 +96,9 @@ function Column({
     onMarkReady,
     onUnmarkReady,
     onCancel,
-    onConvertToPlan,
+    onConvertToSpec,
     onRunDraft,
-    onDeletePlan
+    onDeleteSpec
 }: ColumnProps) {
     const [{ isOver, canDrop }, drop] = useDrop(() => ({
         accept: ItemType,
@@ -122,7 +122,7 @@ function Column({
     }))
 
     const columnSessions = sessions.filter(s => {
-        if (status === 'plan') return s.info.status === 'plan'
+        if (status === 'spec') return s.info.status === 'spec'
         if (status === 'active') return (s.info.status === 'active' || s.info.status === 'missing') && !s.info.ready_to_merge
         if (status === 'dirty') return s.info.ready_to_merge === true
         return false
@@ -147,8 +147,8 @@ function Column({
                 <div className="pr-1 pb-2">
                     {columnSessions.map(session => (
                         <div key={session.info.session_id} onClick={() => {
-                            const isPlan = session.info.status === 'plan'
-                            onSelectSession(session.info.session_id, isPlan)
+                            const isSpec = session.info.status === 'spec'
+                            onSelectSession(session.info.session_id, isSpec)
                           }}>
                           <DraggableSessionCard
                             session={session}
@@ -156,22 +156,22 @@ function Column({
                             onMarkReady={onMarkReady}
                             onUnmarkReady={onUnmarkReady}
                             onCancel={onCancel}
-                            onConvertToPlan={onConvertToPlan}
+                            onConvertToSpec={onConvertToSpec}
                             onRunDraft={onRunDraft}
-                            onDeletePlan={onDeletePlan}
+                            onDeleteSpec={onDeleteSpec}
                           />
                         </div>
                     ))}
                 </div>
             </div>
 
-            {status === 'plan' && (
+            {status === 'spec' && (
                 <button
                     onClick={onCreateDraft}
                     className="mt-4 w-full bg-amber-800/40 hover:bg-amber-700/40 text-sm px-3 py-1.5 rounded group flex items-center justify-between border border-amber-700/40 flex-shrink-0"
-                    title="Create new plan (⇧⌘N)"
+                    title="Create new spec (⇧⌘N)"
                 >
-                    <span>Create plan</span>
+                    <span>Create spec</span>
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
                 </button>
             )}
@@ -195,7 +195,7 @@ function Column({
 
 export function KanbanView() {
     const { sessions, loading, reloadSessions } = useSessions()
-    const [selectedForDetails, setSelectedForDetails] = useState<{ kind: 'session'; payload: string; isPlan?: boolean } | null>(null)
+    const [selectedForDetails, setSelectedForDetails] = useState<{ kind: 'session'; payload: string; isSpec?: boolean } | null>(null)
 
     const handleStatusChange = async (sessionId: string, newStatus: string) => {
         console.log('[KanbanView] handleStatusChange called:', { sessionId, newStatus })
@@ -209,15 +209,15 @@ export function KanbanView() {
         console.log('[KanbanView] Found session:', { sessionId: session.info.session_id, currentStatus: session.info.status, readyToMerge: session.info.ready_to_merge })
 
         try {
-            if (newStatus === 'plan') {
-                // Convert to plan
+            if (newStatus === 'spec') {
+                // Convert to spec
                 await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
-                // If it's a plan, open modal to start it; if ready_to_merge, unmark it
-                if (session.info.status === 'plan') {
-                    console.log('[KanbanView] Opening modal to start plan session:', sessionId)
+                // If it's a spec, open modal to start it; if ready_to_merge, unmark it
+                if (session.info.status === 'spec') {
+                    console.log('[KanbanView] Opening modal to start spec session:', sessionId)
                     // Open Start agent modal prefilled from plan
-                    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionId } }))
+                    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                     return // Don't reload sessions yet, modal will handle the start
                 } else if (session.info.ready_to_merge) {
                     console.log('[KanbanView] Unmarking session as ready:', sessionId)
@@ -239,7 +239,7 @@ export function KanbanView() {
 
     const handleCreateDraft = async () => {
         // Dispatch event to open new session modal in plan mode
-        window.dispatchEvent(new CustomEvent('schaltwerk:new-plan'))
+        window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
     }
 
     const handleMarkReady = async (sessionId: string, hasUncommitted: boolean) => {
@@ -282,32 +282,32 @@ export function KanbanView() {
         }
     }
 
-    const handleConvertToDraft = async (sessionId: string) => {
+    const handleConvertToSpec = async (sessionId: string) => {
         try {
             await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to convert to plan:', error)
+            console.error('Failed to convert to spec:', error)
         }
     }
 
     const handleRunDraft = async (sessionId: string) => {
         try {
-            console.log('[KanbanView] Opening modal to start plan session:', sessionId)
+            console.log('[KanbanView] Opening modal to start spec session:', sessionId)
             // Open Start agent modal prefilled from plan
-            window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionId } }))
+            window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
         } catch (error) {
-            console.error('Failed to open start modal for plan:', error)
+            console.error('Failed to open start modal for spec:', error)
         }
     }
 
-    const handleDeleteDraft = async (sessionId: string) => {
-        // No confirmation for plans - consistent with sidebar behavior
+    const handleDeleteSpec = async (sessionId: string) => {
+        // No confirmation for specs - consistent with sidebar behavior
         try {
             await invoke('schaltwerk_core_cancel_session', { name: sessionId })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to delete plan:', error)
+            console.error('Failed to delete spec:', error)
         }
     }
 
@@ -328,7 +328,7 @@ export function KanbanView() {
             <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
                     <div className="mb-4" style={{ color: theme.colors.text.muted }}>
-                        No agents or plans found
+                        No agents or specs found
                     </div>
                     <div className="flex gap-2 justify-center">
                         <button 
@@ -351,9 +351,9 @@ export function KanbanView() {
                                 color: theme.colors.text.primary,
                                 borderColor: theme.colors.accent.amber.border
                             }}
-                            title="Create plan (⇧⌘N)"
+                            title="Create spec (⇧⌘N)"
                         >
-                            <span>Create plan</span>
+                    <span>Create spec</span>
                             <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
                         </button>
                     </div>
@@ -367,19 +367,19 @@ export function KanbanView() {
         <div className="h-full w-full flex">
             <div className="flex-1 flex gap-3 p-6 h-full overflow-x-auto">
             <Column
-                title="Plan"
-                status="plan"
+                title="Spec"
+                status="spec"
                 sessions={sessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
-                onSelectSession={(id, isPlan) => setSelectedForDetails({ kind: 'session', payload: id, isPlan })}
+                onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
                 onCreateDraft={handleCreateDraft}
                 onMarkReady={handleMarkReady}
                 onUnmarkReady={handleUnmarkReady}
                 onCancel={handleCancel}
-                onConvertToPlan={handleConvertToDraft}
+                onConvertToSpec={handleConvertToSpec}
                 onRunDraft={handleRunDraft}
-                onDeletePlan={handleDeleteDraft}
+                onDeleteSpec={handleDeleteSpec}
             />
             <Column
                 title="Running"
@@ -387,13 +387,13 @@ export function KanbanView() {
                 sessions={sessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
-                onSelectSession={(id, isPlan) => setSelectedForDetails({ kind: 'session', payload: id, isPlan })}
+                onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
                 onMarkReady={handleMarkReady}
                 onUnmarkReady={handleUnmarkReady}
                 onCancel={handleCancel}
-                onConvertToPlan={handleConvertToDraft}
+                onConvertToSpec={handleConvertToSpec}
                 onRunDraft={handleRunDraft}
-                onDeletePlan={handleDeleteDraft}
+                onDeleteSpec={handleDeleteSpec}
             />
             <Column
                 title="Reviewed"
@@ -401,13 +401,13 @@ export function KanbanView() {
                 sessions={sessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
-                onSelectSession={(id, isPlan) => setSelectedForDetails({ kind: 'session', payload: id, isPlan })}
+                onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
                 onMarkReady={handleMarkReady}
                 onUnmarkReady={handleUnmarkReady}
                 onCancel={handleCancel}
-                onConvertToPlan={handleConvertToDraft}
+                onConvertToSpec={handleConvertToSpec}
                 onRunDraft={handleRunDraft}
-                onDeletePlan={handleDeleteDraft}
+                onDeleteSpec={handleDeleteSpec}
             />
             </div>
             <div 
@@ -420,8 +420,8 @@ export function KanbanView() {
                 <div className="flex-1 overflow-hidden relative">
                     {selectedForDetails ? (
                         <div className="absolute inset-0 animate-fadeIn">
-                            {selectedForDetails.isPlan === true ? (
-                                <PlanEditor 
+                            {selectedForDetails.isSpec === true ? (
+                                <SpecEditor 
                                     sessionName={selectedForDetails.payload}
                                     onStart={() => handleRunDraft(selectedForDetails.payload)}
                                 />
@@ -430,7 +430,7 @@ export function KanbanView() {
                                     <RightPanelTabs 
                                         onFileSelect={handleOpenDiff}
                                         selectionOverride={{ kind: 'session', payload: selectedForDetails.payload }}
-                                        isPlanOverride={false}
+                                        isSpecOverride={false}
                                     />
                                 </SilentErrorBoundary>
                             )}

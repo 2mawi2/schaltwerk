@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { VscCalendar, VscWatch, VscNotebook } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
 
-interface PlanMetadata {
+interface SpecMetadata {
   created_at?: string
   updated_at?: string
   agent_content?: string
@@ -14,7 +14,7 @@ interface Props {
 }
 
 export function PlanMetadataPanel({ sessionName }: Props) {
-  const [metadata, setMetadata] = useState<PlanMetadata>({})
+  const [metadata, setMetadata] = useState<SpecMetadata>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -28,7 +28,7 @@ export function PlanMetadataPanel({ sessionName }: Props) {
           agent_content: session.current_task
         })
       } catch (error) {
-        console.error('[PlanMetadataPanel] Failed to load plan metadata:', error)
+        console.error('[PlanMetadataPanel] Failed to load spec metadata:', error)
         setMetadata({})
       } finally {
         setLoading(false)
@@ -58,7 +58,7 @@ export function PlanMetadataPanel({ sessionName }: Props) {
     return (
       <div className="h-full flex items-center justify-center p-6">
         <div style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.body }}>
-          Loading plan information...
+          Loading spec information...
         </div>
       </div>
     )
@@ -83,10 +83,10 @@ export function PlanMetadataPanel({ sessionName }: Props) {
             fontWeight: 600,
             marginBottom: '2px'
           }}>
-            Plan Information
+            Spec Information
           </h3>
           <p style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}>
-            View plan metadata
+            View spec metadata
           </p>
         </div>
       </div>

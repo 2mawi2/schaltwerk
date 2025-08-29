@@ -19,27 +19,27 @@ describe('useSessionPrefill', () => {
       expect(extractSessionContent(null)).toBe('')
     })
 
-    it('returns plan_content when available', () => {
+    it('returns spec_content when available', () => {
       const sessionData = {
-        plan_content: 'Plan content',
-        draft_content: 'Plan content',
+        spec_content: 'Spec content',
+        draft_content: 'Spec content',
         initial_prompt: 'Initial prompt',
       }
-      expect(extractSessionContent(sessionData)).toBe('Plan content')
+      expect(extractSessionContent(sessionData)).toBe('Spec content')
     })
 
-    it('returns draft_content when plan_content is null', () => {
+    it('returns draft_content when spec_content is null', () => {
       const sessionData = {
-        plan_content: null,
-        draft_content: 'Plan content',
+        spec_content: null,
+        draft_content: 'Spec content',
         initial_prompt: 'Initial prompt',
       }
-      expect(extractSessionContent(sessionData)).toBe('Plan content')
+      expect(extractSessionContent(sessionData)).toBe('Spec content')
     })
 
-    it('returns initial_prompt when plan_content and draft_content are null', () => {
+    it('returns initial_prompt when spec_content and draft_content are null', () => {
       const sessionData = {
-        plan_content: null,
+        spec_content: null,
         draft_content: null,
         initial_prompt: 'Initial prompt',
       }
@@ -48,27 +48,27 @@ describe('useSessionPrefill', () => {
 
     it('returns empty string when all content fields are null', () => {
       const sessionData = {
-        plan_content: null,
+        spec_content: null,
         draft_content: null,
         initial_prompt: null,
       }
       expect(extractSessionContent(sessionData)).toBe('')
     })
 
-    it('prioritizes plan_content over draft_content and initial_prompt', () => {
+    it('prioritizes spec_content over draft_content and initial_prompt', () => {
       const sessionData = {
-        plan_content: 'Plan',
-        draft_content: 'Plan',
+        spec_content: 'Spec',
+        draft_content: 'Spec',
         initial_prompt: 'Prompt',
       }
-      expect(extractSessionContent(sessionData)).toBe('Plan')
+      expect(extractSessionContent(sessionData)).toBe('Spec')
     })
   })
 
   describe('fetchSessionForPrefill', () => {
     it('fetches and transforms session data successfully', async () => {
       const mockSessionData = {
-        draft_content: '# Plan Content',
+        draft_content: '# Spec Content',
         initial_prompt: 'Initial prompt',
         parent_branch: 'main',
       }
@@ -84,7 +84,7 @@ describe('useSessionPrefill', () => {
 
       expect(prefillData).toEqual({
         name: 'test-session',
-        taskContent: '# Plan Content',
+        taskContent: '# Spec Content',
         baseBranch: 'main',
         lockName: true,
         fromDraft: true,

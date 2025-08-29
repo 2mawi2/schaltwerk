@@ -178,9 +178,9 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         "ALTER TABLE sessions ADD COLUMN was_auto_generated BOOLEAN DEFAULT FALSE",
         [],
     );
-    // Add plan_content column if it doesn't exist (migration)
+    // Add spec_content column if it doesn't exist (migration)
     let _ = conn.execute(
-        "ALTER TABLE sessions ADD COLUMN plan_content TEXT",
+        "ALTER TABLE sessions ADD COLUMN spec_content TEXT",
         [],
     );
     
@@ -190,9 +190,9 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
-    // Migrate old "plan" session_state values to "plan"
+    // Migrate old "spec" session_state values to "spec"
     let _ = conn.execute(
-        "UPDATE sessions SET session_state = 'plan' WHERE session_state = 'plan'",
+        "UPDATE sessions SET session_state = 'spec' WHERE session_state = 'spec'",
         [],
     );
     

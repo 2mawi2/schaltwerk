@@ -8,19 +8,19 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
-import { ConvertToPlanConfirmation } from '../modals/ConvertToPlanConfirmation'
+import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { SessionButton } from './SessionButton'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
 
 // Normalize backend states to UI categories
-function mapSessionUiState(info: SessionInfo): 'plan' | 'running' | 'reviewed' {
-    if (info.session_state === 'plan' || info.status === 'plan') return 'plan'
+function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
+    if (info.session_state === 'spec' || info.status === 'spec') return 'spec'
     if (info.ready_to_merge) return 'reviewed'
     return 'running'
 }
 
-function isPlan(info: SessionInfo): boolean { return mapSessionUiState(info) === 'plan' }
+function isPlan(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
 interface DiffStats {
@@ -37,7 +37,7 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'plan'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
@@ -343,7 +343,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onSelectSession: handleSelectSession,
         onCancelSelectedSession: handleCancelSelectedSession,
         onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
-        onPlanSession: handlePlanSelectedSession,
+        onSpecSession: handlePlanSelectedSession,
         sessionCount: sessions.length,
         onSelectPrevSession: selectPrev,
         onSelectNextSession: selectNext,
@@ -521,9 +521,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             All <span className="text-slate-400">({allSessions.length})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.Plan ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
-                            onClick={() => setFilterMode(FilterMode.Plan)}
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
+                                filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            onClick={() => setFilterMode(FilterMode.Spec)}
                             title="Show plan agents"
                         >
                             Plans <span className="text-slate-400">({allSessions.filter(s => isPlan(s.info)).length})</span>
@@ -597,7 +597,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         // Reload both regular and plan sessions to avoid dropping plans
                                         await Promise.all([
                                             invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
+                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {
@@ -616,7 +616,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                     }))
                                 }}
-                                onConvertToPlan={(sessionId) => {
+                                onConvertToSpec={(sessionId) => {
                                     // Open confirmation modal
                                     setConvertToDraftModal({
                                         open: true,
@@ -628,18 +628,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 onRunDraft={async (sessionId) => {
                                     try {
                                         // Open Start agent modal prefilled from plan
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionId } }))
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                                     } catch (err) {
                                         console.error('Failed to open start modal from plan:', err)
                                     }
                                 }}
-                                onDeletePlan={async (sessionId) => {
+                                onDeleteSpec={async (sessionId) => {
                                     try {
                                         await invoke('schaltwerk_core_cancel_session', { name: sessionId })
                                         // Reload both regular and plan sessions to ensure remaining plans persist
                                         await Promise.all([
                                             invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
+                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {
@@ -667,7 +667,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     await reloadSessions()
                 }}
             />
-            <ConvertToPlanConfirmation
+            <ConvertToSpecConfirmation
                 open={convertToPlanModal.open}
                 sessionName={convertToPlanModal.sessionName}
                 sessionDisplayName={convertToPlanModal.sessionDisplayName}

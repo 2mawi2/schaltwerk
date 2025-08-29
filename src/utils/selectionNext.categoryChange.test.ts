@@ -109,22 +109,22 @@ describe('Real-world Category Change Scenarios', () => {
     expect(newSelection.info.session_id).toBe('session-bugfix')
   })
 
-  it('handles changing filter from All to Plans', () => {
+  it('handles changing filter from All to Specs', () => {
     // Initial state: All sessions with mixed types, user selects session at index 3
-    const allSessions = sessions(['plan-a', 'running-b', 'running-c', 'plan-d', 'running-e'])
-    const selectedId = 'plan-d'
+    const allSessions = sessions(['plan-a', 'running-b', 'running-c', 'spec-d', 'running-e'])
+    const selectedId = 'spec-d'
     const prevIndex = findPreviousSessionIndex(allSessions, selectedId)
     
-    // User switches to Plans filter, only plan sessions visible
-    const planSessions = sessions(['plan-a', 'plan-d'])
+    // User switches to Specs filter, only plan sessions visible
+    const specSessions = sessions(['plan-a', 'spec-d'])
     
-    // Since plan-d is still visible, but we're testing the general logic:
-    // If plan-d disappeared, we'd select the session at position 3 or last available
-    const targetIndex = Math.min(prevIndex, planSessions.length - 1)
-    const newSelection = planSessions[targetIndex]
+    // Since spec-d is still visible, but we're testing the general logic:
+    // If spec-d disappeared, we'd select the session at position 3 or last available
+    const targetIndex = Math.min(prevIndex, specSessions.length - 1)
+    const newSelection = specSessions[targetIndex]
     
     expect(prevIndex).toBe(3)
     expect(targetIndex).toBe(1) // Clamped to last available
-    expect(newSelection.info.session_id).toBe('plan-d')
+    expect(newSelection.info.session_id).toBe('spec-d')
   })
 })

@@ -78,13 +78,13 @@ describe('NewSessionModal', () => {
     expect(call.userEditedName).toBe(false)
   })
 
-  it('responds to plan-mode event by checking Create as plan', async () => {
+  it('responds to spec-mode event by checking Create as spec', async () => {
     const { act } = await import('@testing-library/react')
     render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
-    const checkbox = screen.getByLabelText(/Create as plan/i) as HTMLInputElement
+    const checkbox = screen.getByLabelText(/Create as spec/i) as HTMLInputElement
     expect(checkbox.checked).toBe(false)
     await act(async () => {
-      window.dispatchEvent(new Event('schaltwerk:new-session:set-plan'))
+      window.dispatchEvent(new Event('schaltwerk:new-session:set-spec'))
     })
     await waitFor(() => expect(checkbox.checked).toBe(true))
   })
@@ -98,14 +98,14 @@ describe('NewSessionModal', () => {
     expect(taskTextarea.value).toBe('')
     
     // Dispatch the prefill event with plan content
-    const planContent = '# My Plan\n\nThis is the plan content that should be prefilled.'
-    const planName = 'test-plan'
+    const draftContent = '# My Spec\n\nThis is the plan content that should be prefilled.'
+    const specName = 'test-plan'
     
     await act(async () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
         detail: {
-          name: planName,
-          taskContent: planContent,
+          name: specName,
+          taskContent: draftContent,
           baseBranch: 'main',
           lockName: true,
           fromDraft: true,
@@ -115,12 +115,12 @@ describe('NewSessionModal', () => {
     
     // Wait for the content to be prefilled
     await waitFor(() => {
-      expect(taskTextarea.value).toBe(planContent)
+      expect(taskTextarea.value).toBe(draftContent)
     })
     
     // Also check that the name was prefilled
     const nameInput = screen.getByPlaceholderText('eager_cosmos') as HTMLInputElement
-    expect(nameInput.value).toBe(planName)
+    expect(nameInput.value).toBe(specName)
   })
 
   it('handles race condition when prefill event is dispatched right after modal opens', async () => {
@@ -130,15 +130,15 @@ describe('NewSessionModal', () => {
     const { rerender: rerenderFn } = render(<NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} />)
     
     // Dispatch the prefill event BEFORE opening modal (simulating the race condition)
-    const planContent = '# My Plan\n\nThis is the plan content that should be prefilled.'
-    const planName = 'test-plan'
+    const draftContent = '# My Spec\n\nThis is the plan content that should be prefilled.'
+    const specName = 'test-plan'
     
     // Schedule the event to be dispatched slightly after the modal opens
     setTimeout(() => {
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
         detail: {
-          name: planName,
-          taskContent: planContent,
+          name: specName,
+          taskContent: draftContent,
           baseBranch: 'main',
           lockName: true,
           fromDraft: true,
@@ -156,11 +156,11 @@ describe('NewSessionModal', () => {
     
     // Check if the content was prefilled
     const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
-    expect(taskTextarea.value).toBe(planContent)
+    expect(taskTextarea.value).toBe(draftContent)
     
     // Also check that the name was prefilled
     const nameInput = screen.getByPlaceholderText('eager_cosmos') as HTMLInputElement
-    expect(nameInput.value).toBe(planName)
+    expect(nameInput.value).toBe(specName)
   })
 
   // Skipping edge-case validation UI assertion to avoid flakiness in CI
@@ -261,31 +261,31 @@ describe('NewSessionModal', () => {
     expect(await screen.findByText('Agent name must be 100 characters or less')).toBeInTheDocument()
   })
 
-  it('shows correct labels and placeholders when starting agent from plan', async () => {
+  it('shows correct labels and placeholders when starting agent from spec', async () => {
     const { act } = await import('@testing-library/react')
     render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
     
-    // Dispatch the prefill event to simulate starting from a plan
-    const planContent = '# My Plan\n\nThis is the plan content.'
+    // Dispatch the prefill event to simulate starting from a spec
+    const draftContent = '# My Spec\n\nThis is the plan content.'
     await act(async () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
         detail: {
           name: 'test-plan',
-          taskContent: planContent,
-          fromDraft: true, // This should make createAsDraft false (starting agent from plan)
+          taskContent: draftContent,
+          fromDraft: true, // This should make createAsDraft false (starting agent from spec)
         }
       }))
     })
     
-    // Check that the label is "Initial prompt (optional)" when starting agent from plan
+    // Check that the label is "Initial prompt (optional)" when starting agent from spec
     expect(screen.getByText('Initial prompt (optional)')).toBeInTheDocument()
     
     // Check that the textarea contains the plan content
     const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
-    expect(taskTextarea.value).toBe(planContent)
+    expect(taskTextarea.value).toBe(draftContent)
     
-    // Check that "Create as plan" checkbox is unchecked
-    const checkbox = screen.getByLabelText(/Create as plan/i) as HTMLInputElement
+    // Check that "Create as spec" checkbox is unchecked
+    const checkbox = screen.getByLabelText(/Create as spec/i) as HTMLInputElement
     expect(checkbox.checked).toBe(false)
   })
 

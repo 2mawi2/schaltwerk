@@ -208,7 +208,7 @@ export const getSessionColor = (status: string) => {
       return theme.colors.accent.blue
     case 'completed':
       return theme.colors.accent.green
-    case 'plan':
+    case 'spec':
       return theme.colors.accent.amber
     case 'error':
       return theme.colors.accent.red

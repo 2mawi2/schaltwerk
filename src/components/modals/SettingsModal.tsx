@@ -1065,7 +1065,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + N</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">New Plan</span>
+                                    <span className="text-slate-300">New Spec</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + N</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1081,7 +1081,7 @@ fi`}
                                      <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + R</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
-                                     <span className="text-slate-300">Convert Session to Plan</span>
+                                     <span className="text-slate-300">Convert Session to Spec</span>
                                      <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + P</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
@@ -1093,7 +1093,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + K</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Enter Plan Mode (Orchestrator)</span>
+                                    <span className="text-slate-300">Enter Spec Mode (Orchestrator)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + P</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
@@ -1105,7 +1105,7 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Enter</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Run Plan Agent (when focused)</span>
+                                    <span className="text-slate-300">Run Spec Agent (when focused)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
                                 </li>
                             </ul>

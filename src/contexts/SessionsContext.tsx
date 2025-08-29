@@ -19,7 +19,7 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'plan'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
@@ -72,8 +72,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [settingsLoaded, setSettingsLoaded] = useState(false)
 
     // Normalize backend info into UI categories
-    const mapSessionUiState = (info: SessionInfo): 'plan' | 'running' | 'reviewed' => {
-        if (info.session_state === 'plan' || info.status === 'plan') return 'plan'
+    const mapSessionUiState = (info: SessionInfo): 'spec' | 'running' | 'reviewed' => {
+        if (info.session_state === 'spec' || info.status === 'spec') return 'spec'
         if (info.ready_to_merge) return 'reviewed'
         return 'running'
     }
@@ -132,8 +132,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         switch (filterMode) {
             case FilterMode.All:
                 return sessions
-            case FilterMode.Plan:
-                return sessions.filter(s => mapSessionUiState(s.info) === 'plan')
+            case FilterMode.Spec:
+                return sessions.filter(s => mapSessionUiState(s.info) === 'spec')
             case FilterMode.Running:
                 return sessions.filter(s => mapSessionUiState(s.info) === 'running')
             case FilterMode.Reviewed:
@@ -162,7 +162,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         for (const s of base) byId.set(s.info.session_id, s)
         for (const d of plans) {
             const existing = byId.get(d.info.session_id)
-            if (!existing || mapSessionUiState(existing.info) !== 'plan') byId.set(d.info.session_id, d)
+            if (!existing || mapSessionUiState(existing.info) !== 'spec') byId.set(d.info.session_id, d)
         }
         return Array.from(byId.values())
     }
@@ -183,7 +183,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             const enrichedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
             const enriched = enrichedSessions || []
             // If enriched already contains plans, use it as-is
-            if (enriched.some(s => mapSessionUiState(s.info) === 'plan')) {
+            if (enriched.some(s => mapSessionUiState(s.info) === 'spec')) {
                 setAllSessions(enriched)
                 const nextStates = new Map<string, string>()
                 for (const s of enriched) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
@@ -203,8 +203,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 worktree_path: plan.worktree_path || '',
                                 base_branch: plan.parent_branch,
                                 merge_mode: 'rebase',
-                                status: 'plan' as any,
-                                session_state: 'plan',
+                                status: 'spec' as any,
+                                session_state: 'spec',
                                 created_at: plan.created_at ? new Date(plan.created_at).toISOString() : undefined,
                                 last_modified: plan.updated_at ? new Date(plan.updated_at).toISOString() : undefined,
                                 has_uncommitted_changes: false,
@@ -243,11 +243,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 return
             }
 
-            if (newStatus === 'plan') {
+            if (newStatus === 'spec') {
                 await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
-                if (session.info.status === 'plan') {
-                    await invoke('schaltwerk_core_start_draft_session', { name: sessionId })
+                if (session.info.status === 'spec') {
+                    await invoke('schaltwerk_core_start_spec_session', { name: sessionId })
                 } else if (session.info.ready_to_merge) {
                     await invoke('schaltwerk_core_unmark_ready', { name: sessionId })
                 }
@@ -263,7 +263,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const createDraft = useCallback(async (name: string, content: string) => {
         try {
-            await invoke('schaltwerk_core_create_draft_session', { name, planContent: content })
+            await invoke('schaltwerk_core_create_spec_session', { name, draftContent: content })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to create plan:', error)

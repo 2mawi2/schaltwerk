@@ -509,7 +509,7 @@ mod tests {
         let temp_dir = TempDir::new().unwrap();
         
         // File with spaces and special characters
-        let special_path = temp_dir.path().join("test file (2023) [plan].txt");
+        let special_path = temp_dir.path().join("test file (2023) [spec].txt");
         fs::write(&special_path, "content").unwrap();
         let result = is_file_diffable(&special_path).unwrap();
         assert!(result, "File with special characters in name should be diffable if content is text");

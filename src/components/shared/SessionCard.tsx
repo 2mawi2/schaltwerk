@@ -16,7 +16,7 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'plan'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
@@ -46,9 +46,9 @@ export interface SessionCardProps {
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady?: (sessionId: string) => void
     onCancel?: (sessionId: string, hasUncommitted: boolean) => void
-    onConvertToPlan?: (sessionId: string) => void
+    onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
-    onDeletePlan?: (sessionId: string) => void
+    onDeleteSpec?: (sessionId: string) => void
     className?: string
     index?: number
 }
@@ -63,9 +63,9 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     onMarkReady,
     onUnmarkReady,
     onCancel,
-    onConvertToPlan,
+    onConvertToSpec,
     onRunDraft,
-    onDeletePlan,
+    onDeleteSpec,
     className,
     index
 }, ref) => {
@@ -82,7 +82,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     
     // Determine session state
     const sessionState = isReadyToMerge ? 'reviewed' : 
-                        s.status === 'plan' ? 'plan' :
+                        s.status === 'spec' ? 'plan' :
                         s.session_state === 'plan' ? 'plan' : 'running'
     
     // Get background color based on state
@@ -181,12 +181,12 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                             <span 
                                 onClick={(e) => {
                                     e.stopPropagation()
-                                    onConvertToPlan?.(s.session_id)
+                                    onConvertToSpec?.(s.session_id)
                                 }}
                                 className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/60"
-                                title="Convert back to plan"
+                                title="Convert back to spec"
                             >
-                                Plan
+                                Spec
                             </span>
                             <span 
                                 onClick={(e) => {
@@ -204,10 +204,10 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         <span
                             onClick={(e) => {
                                 e.stopPropagation()
-                                onDeletePlan?.(s.session_id)
+                                onDeleteSpec?.(s.session_id)
                             }}
                             className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800/60"
-                            title="Delete plan"
+                            title="Delete spec"
                         >
                             Delete
                         </span>

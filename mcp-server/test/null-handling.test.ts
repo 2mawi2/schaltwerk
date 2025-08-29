@@ -34,7 +34,7 @@ describe('MCP Server Null Handling', () => {
       type Session = {
         name: string
         display_name?: string
-        status: 'active' | 'plan'
+        status: 'active' | 'spec'
         ready_to_merge: boolean
         original_agent_type?: string
         last_activity?: number
@@ -43,7 +43,7 @@ describe('MCP Server Null Handling', () => {
       }
 
       const formatSessionText = (s: Session) => {
-        if (s.status === 'plan') {
+        if (s.status === 'spec') {
           const created = new Date(s.created_at).toLocaleDateString()
           const contentLength = s.draft_content?.length || 0
           const name = s.display_name || s.name
@@ -60,7 +60,7 @@ describe('MCP Server Null Handling', () => {
       const formatSessionJson = (s: Session) => ({
         name: s.name,
         display_name: s.display_name || s.name,
-        status: s.status === 'plan' ? 'plan' : (s.ready_to_merge ? 'reviewed' : 'new'),
+        status: s.status === 'spec' ? 'spec' : (s.ready_to_merge ? 'reviewed' : 'new'),
         created_at: new Date(s.created_at).toISOString(),
         last_activity: s.last_activity ? new Date(s.last_activity).toISOString() : null,
         agent_type: s.original_agent_type || 'claude'

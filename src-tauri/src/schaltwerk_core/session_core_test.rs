@@ -458,35 +458,35 @@ mod tests {
         assert!(command_fresh.contains("claude"));
     }
 
-    // Tests for start_draft_session() - State transitions
+    // Tests for start_spec_session() - State transitions
 
     #[test]
-    fn test_start_draft_session_plan_to_running_transition() {
+    fn test_start_spec_session_spec_to_running_transition() {
         let setup = TestSetup::new();
         
-        // Create a plan session first
-        let plan = setup.manager.create_draft_session(
-            "test-plan",
-            "This is a plan content"
+        // Create a spec session first
+        let spec = setup.manager.create_spec_session(
+            "test-spec",
+            "This is a spec content"
         ).unwrap();
         
-        assert_eq!(plan.status, SessionStatus::Plan);
-        assert_eq!(plan.session_state, SessionState::Plan);
-        assert_eq!(plan.plan_content, Some("This is a plan content".to_string()));
+        assert_eq!(spec.status, SessionStatus::Spec);
+        assert_eq!(spec.session_state, SessionState::Spec);
+        assert_eq!(spec.spec_content, Some("This is a spec content".to_string()));
         
-        // Start the plan session
-        let result = setup.manager.start_draft_session("test-plan", None);
+        // Start the spec session
+        let result = setup.manager.start_spec_session("test-spec", None);
         assert!(result.is_ok());
         
         // Verify state transition
-        let session = setup.manager.get_session("test-plan").unwrap();
+        let session = setup.manager.get_session("test-spec").unwrap();
         assert_eq!(session.status, SessionStatus::Active);
         assert_eq!(session.session_state, SessionState::Running);
-        assert_eq!(session.initial_prompt, Some("This is a plan content".to_string()));
+        assert_eq!(session.initial_prompt, Some("This is a spec content".to_string()));
     }
 
     #[test]
-    fn test_start_draft_session_not_in_plan_state_error() {
+    fn test_start_spec_session_not_in_spec_state_error() {
         let setup = TestSetup::new();
         
         // Create a regular running session
@@ -499,16 +499,16 @@ mod tests {
         
         assert_eq!(session.session_state, SessionState::Running);
         
-        // Try to start it as a plan - should fail
-        let result = setup.manager.start_draft_session("running-session", None);
+        // Try to start it as a spec - should fail
+        let result = setup.manager.start_spec_session("running-session", None);
         
         assert!(result.is_err());
         let err = result.unwrap_err();
-        assert!(err.to_string().contains("not in plan state"));
+        assert!(err.to_string().contains("not in spec state"));
     }
 
     #[test]
-    fn test_start_draft_session_with_custom_base_branch() {
+    fn test_start_spec_session_with_custom_base_branch() {
         let setup = TestSetup::new();
         
         // Create a custom branch
@@ -518,59 +518,59 @@ mod tests {
             .output()
             .expect("Failed to create branch");
         
-        // Create and start plan with custom base
-        setup.manager.create_draft_session("test-plan", "Plan content").unwrap();
+        // Create and start spec with custom base
+        setup.manager.create_spec_session("test-spec", "Spec content").unwrap();
         
-        let result = setup.manager.start_draft_session(
-            "test-plan",
+        let result = setup.manager.start_spec_session(
+            "test-spec",
             Some("feature-branch")
         );
         
         assert!(result.is_ok());
         
         // Verify the worktree was created from the custom branch
-        let session = setup.manager.get_session("test-plan").unwrap();
+        let session = setup.manager.get_session("test-spec").unwrap();
         assert!(session.worktree_path.exists());
     }
 
     #[test]
-    fn test_start_draft_session_preserves_plan_content_in_initial_prompt() {
+    fn test_start_spec_session_preserves_spec_content_in_initial_prompt() {
         let setup = TestSetup::new();
         
-        let plan_content = "Step 1: Do this\nStep 2: Do that\nStep 3: Finish";
+        let spec_content = "Step 1: Do this\nStep 2: Do that\nStep 3: Finish";
         
-        // Create plan with plan content
-        setup.manager.create_draft_session("test-plan", plan_content).unwrap();
+        // Create spec with spec content
+        setup.manager.create_spec_session("test-spec", spec_content).unwrap();
         
-        // Start the plan
-        setup.manager.start_draft_session("test-plan", None).unwrap();
+        // Start the spec
+        setup.manager.start_spec_session("test-spec", None).unwrap();
         
-        // Verify plan content moved to initial_prompt
-        let session = setup.manager.get_session("test-plan").unwrap();
-        assert_eq!(session.initial_prompt, Some(plan_content.to_string()));
+        // Verify spec content moved to initial_prompt
+        let session = setup.manager.get_session("test-spec").unwrap();
+        assert_eq!(session.initial_prompt, Some(spec_content.to_string()));
         assert_eq!(session.session_state, SessionState::Running);
     }
 
     #[test]
-    fn test_start_draft_session_concurrent_starts() {
+    fn test_start_spec_session_concurrent_starts() {
         use std::sync::Arc;
         use std::thread;
         
         let setup = TestSetup::new();
         let manager = Arc::new(setup.manager);
         
-        // Create a plan session
-        manager.create_draft_session("concurrent-test", "Plan").unwrap();
+        // Create a spec session
+        manager.create_spec_session("concurrent-spec", "Spec").unwrap();
         
         // Try to start it from multiple threads
         let manager1 = manager.clone();
         let handle1 = thread::spawn(move || {
-            manager1.start_draft_session("concurrent-test", None)
+            manager1.start_spec_session("concurrent-spec", None)
         });
         
         let manager2 = manager.clone();
         let handle2 = thread::spawn(move || {
-            manager2.start_draft_session("concurrent-test", None)
+            manager2.start_spec_session("concurrent-spec", None)
         });
         
         let result1 = handle1.join().unwrap();
@@ -581,26 +581,26 @@ mod tests {
         assert!(successes <= 1, "Only one thread should successfully start the session");
         
         // Verify final state
-        let session = manager.get_session("concurrent-test").unwrap();
+        let session = manager.get_session("concurrent-spec").unwrap();
         if successes == 1 {
             assert_eq!(session.session_state, SessionState::Running);
         }
     }
 
     #[test]
-    fn test_start_draft_session_error_during_worktree_creation() {
+    fn test_start_spec_session_error_during_worktree_creation() {
         let setup = TestSetup::new();
         
-        // Create plan
-        setup.manager.create_draft_session("test-error", "Plan").unwrap();
+        // Create spec
+        setup.manager.create_spec_session("test-error", "Spec").unwrap();
         
         // Delete the repository to cause worktree creation to fail
         fs::remove_dir_all(&setup.repo_path.join(".git")).ok();
         
-        let result = setup.manager.start_draft_session("test-error", None);
+        let result = setup.manager.start_spec_session("test-error", None);
         
         assert!(result.is_err());
-        // Session should remain in Plan state
+        // Session should remain in Spec state
         // Note: This might fail since we broke the git repo, but testing error handling is important
     }
 
@@ -687,15 +687,15 @@ mod tests {
             .output()
             .unwrap();
         
-        // Convert to plan
+        // Convert to spec
         let result = setup.manager.convert_session_to_draft("test-convert");
         assert!(result.is_ok());
         
         // Verify conversion
-        let plan = setup.manager.get_session("test-convert").unwrap();
-        assert_eq!(plan.status, SessionStatus::Plan);
-        assert_eq!(plan.session_state, SessionState::Plan);
-        assert!(!plan.worktree_path.exists());
+        let spec = setup.manager.get_session("test-convert").unwrap();
+        assert_eq!(spec.status, SessionStatus::Spec);
+        assert_eq!(spec.session_state, SessionState::Spec);
+        assert!(!spec.worktree_path.exists());
     }
 
     // Test complex scenarios
@@ -704,11 +704,11 @@ mod tests {
     fn test_create_start_cancel_cycle() {
         let setup = TestSetup::new();
         
-        // Create plan
-        setup.manager.create_draft_session("lifecycle", "Plan content").unwrap();
+        // Create spec
+        setup.manager.create_spec_session("lifecycle", "Spec content").unwrap();
         
         // Start it
-        setup.manager.start_draft_session("lifecycle", None).unwrap();
+        setup.manager.start_spec_session("lifecycle", None).unwrap();
         
         // Verify it's running
         let running = setup.manager.get_session("lifecycle").unwrap();
@@ -772,75 +772,75 @@ mod tests {
     }
 
     #[test]
-    fn test_update_plan_content_only_allows_plan_state() {
+    fn test_update_spec_content_only_allows_spec_state() {
         let setup = TestSetup::new();
         
-        // Create a plan session
-        setup.manager.create_draft_session("test-plan", "Initial content").unwrap();
+        // Create a spec session
+        setup.manager.create_spec_session("test-spec", "Initial content").unwrap();
         
-        // Should succeed for Plan state
-        setup.manager.update_plan_content("test-plan", "Updated content").unwrap();
-        let session = setup.manager.get_session("test-plan").unwrap();
-        assert_eq!(session.plan_content, Some("Updated content".to_string()));
+        // Should succeed for Spec state
+        setup.manager.update_spec_content("test-spec", "Updated content").unwrap();
+        let session = setup.manager.get_session("test-spec").unwrap();
+        assert_eq!(session.spec_content, Some("Updated content".to_string()));
         
-        // Start the plan to make it Running
-        setup.manager.start_draft_session_with_config("test-plan", None, None, None).unwrap();
+        // Start the spec to make it Running
+        setup.manager.start_spec_session_with_config("test-spec", None, None, None).unwrap();
         
         // Should fail for Running state
-        let result = setup.manager.update_plan_content("test-plan", "Should fail");
+        let result = setup.manager.update_spec_content("test-spec", "Should fail");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have their content updated"));
+        assert!(result.unwrap_err().to_string().contains("only Spec sessions can have their content updated"));
         
         // Mark as reviewed
-        setup.manager.mark_session_as_reviewed("test-plan").unwrap();
+        setup.manager.mark_session_as_reviewed("test-spec").unwrap();
         
         // Should still fail for Reviewed state
-        let result = setup.manager.update_plan_content("test-plan", "Should also fail");
+        let result = setup.manager.update_spec_content("test-spec", "Should also fail");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have their content updated"));
+        assert!(result.unwrap_err().to_string().contains("only Spec sessions can have their content updated"));
     }
 
     #[test]
-    fn test_append_plan_content_only_allows_plan_state() {
+    fn test_append_spec_content_only_allows_spec_state() {
         let setup = TestSetup::new();
         
-        // Create a plan session
-        setup.manager.create_draft_session("test-plan-append", "Initial").unwrap();
+        // Create a spec session
+        setup.manager.create_spec_session("test-spec-append", "Initial").unwrap();
         
-        // Should succeed for Plan state
-        setup.manager.append_plan_content("test-plan-append", " content").unwrap();
-        let session = setup.manager.get_session("test-plan-append").unwrap();
-        assert_eq!(session.plan_content, Some("Initial\n content".to_string()));
+        // Should succeed for Spec state
+        setup.manager.append_spec_content("test-spec-append", " content").unwrap();
+        let session = setup.manager.get_session("test-spec-append").unwrap();
+        assert_eq!(session.spec_content, Some("Initial\n content".to_string()));
         
-        // Start the plan to make it Running
-        setup.manager.start_draft_session_with_config("test-plan-append", None, None, None).unwrap();
+        // Start the spec to make it Running
+        setup.manager.start_spec_session_with_config("test-spec-append", None, None, None).unwrap();
         
         // Should fail for Running state
-        let result = setup.manager.append_plan_content("test-plan-append", " more");
+        let result = setup.manager.append_spec_content("test-spec-append", " more");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have content appended"));
+        assert!(result.unwrap_err().to_string().contains("only Spec sessions can have content appended"));
         
         // Mark as reviewed
-        setup.manager.mark_session_as_reviewed("test-plan-append").unwrap();
+        setup.manager.mark_session_as_reviewed("test-spec-append").unwrap();
         
         // Should still fail for Reviewed state
-        let result = setup.manager.append_plan_content("test-plan-append", " even more");
+        let result = setup.manager.append_spec_content("test-spec-append", " even more");
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("only Plan sessions can have content appended"));
+        assert!(result.unwrap_err().to_string().contains("only Spec sessions can have content appended"));
     }
 
     #[test]
-    fn test_plan_content_operations_with_nonexistent_session() {
+    fn test_spec_content_operations_with_nonexistent_session() {
         let setup = TestSetup::new();
         
         // Should fail for non-existent session
-        let result = setup.manager.update_plan_content("nonexistent", "content");
+        let result = setup.manager.update_spec_content("nonexistent", "content");
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         assert!(error_msg.contains("nonexistent") || error_msg.contains("not found") || error_msg.contains("No session"),
                 "Expected error about missing session, got: {}", error_msg);
         
-        let result = setup.manager.append_plan_content("nonexistent", "content");
+        let result = setup.manager.append_spec_content("nonexistent", "content");
         assert!(result.is_err());
         let error_msg = result.unwrap_err().to_string();
         assert!(error_msg.contains("nonexistent") || error_msg.contains("not found") || error_msg.contains("No session"),
@@ -848,28 +848,28 @@ mod tests {
     }
 
     #[test]
-    fn test_plan_content_preserved_when_converting_states() {
+    fn test_spec_content_preserved_when_converting_states() {
         let setup = TestSetup::new();
         
-        // Create a plan with content
-        setup.manager.create_draft_session("test-preserve", "Important content").unwrap();
-        setup.manager.update_plan_content("test-preserve", "Very important content").unwrap();
+        // Create a spec with content
+        setup.manager.create_spec_session("test-preserve", "Important content").unwrap();
+        setup.manager.update_spec_content("test-preserve", "Very important content").unwrap();
         
-        // Start the plan (convert to Running)
-        setup.manager.start_draft_session_with_config("test-preserve", None, None, None).unwrap();
+        // Start the spec (convert to Running)
+        setup.manager.start_spec_session_with_config("test-preserve", None, None, None).unwrap();
         
         // Content should be preserved but not modifiable
         let session = setup.manager.get_session("test-preserve").unwrap();
-        assert_eq!(session.plan_content, Some("Very important content".to_string()));
+        assert_eq!(session.spec_content, Some("Very important content".to_string()));
         assert_eq!(session.session_state, SessionState::Running);
         
-        // Convert back to plan
-        setup.manager.convert_session_to_plan("test-preserve").unwrap();
+        // Convert back to spec
+        setup.manager.convert_session_to_spec("test-preserve").unwrap();
         
         // Should be able to modify again
-        setup.manager.append_plan_content("test-preserve", "\nAdditional notes").unwrap();
+        setup.manager.append_spec_content("test-preserve", "\nAdditional notes").unwrap();
         let session = setup.manager.get_session("test-preserve").unwrap();
-        assert_eq!(session.plan_content, Some("Very important content\n\nAdditional notes".to_string()));
-        assert_eq!(session.session_state, SessionState::Plan);
+        assert_eq!(session.spec_content, Some("Very important content\n\nAdditional notes".to_string()));
+        assert_eq!(session.session_state, SessionState::Spec);
     }
 }

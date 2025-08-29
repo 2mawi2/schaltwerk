@@ -58,11 +58,11 @@ describe('Sidebar - Selection on State Changes', () => {
     })
 
     it('selects first visible session when current selection disappears due to filter', async () => {
-        const draftSession = mockDraftSession('plan-agent')
+        const draftSession = mockDraftSession('spec-agent')
         const runningSession1 = mockEnrichedSession('running-agent-1', 'active', false)
         const runningSession2 = mockEnrichedSession('running-agent-2', 'active', false)
 
-        // Start with a plan and two running sessions
+        // Start with a spec and two running sessions
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [draftSession, runningSession1, runningSession2]
@@ -92,21 +92,21 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for sessions to load
         await waitFor(() => {
-            expect(screen.getByText('plan-agent')).toBeInTheDocument()
+            expect(screen.getByText('spec-agent')).toBeInTheDocument()
             expect(screen.getByText('running-agent-1')).toBeInTheDocument()
             expect(screen.getByText('running-agent-2')).toBeInTheDocument()
         })
 
-        // Select the plan agent
-        await userEvent.click(screen.getByText('plan-agent'))
+        // Select the spec agent
+        await userEvent.click(screen.getByText('spec-agent'))
         
-        // Verify plan is selected
+        // Verify spec is selected
         await waitFor(() => {
-            const draftButton = screen.getByText('plan-agent').closest('button')
+            const draftButton = screen.getByText('spec-agent').closest('button')
             expect(draftButton).toHaveClass('session-ring-blue')
         })
 
-        // Switch to running filter (plan will disappear)
+        // Switch to running filter (spec will disappear)
         const runningFilterButton = screen.getByTitle('Show running agents')
         await userEvent.click(runningFilterButton)
 
@@ -118,7 +118,7 @@ describe('Sidebar - Selection on State Changes', () => {
     })
 
     it('selects orchestrator when no sessions are visible after filter change', async () => {
-        const draftSession = mockDraftSession('plan-agent')
+        const draftSession = mockDraftSession('spec-agent')
 
         // Start with only a plan session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
@@ -150,11 +150,11 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for sessions to load
         await waitFor(() => {
-            expect(screen.getByText('plan-agent')).toBeInTheDocument()
+            expect(screen.getByText('spec-agent')).toBeInTheDocument()
         })
 
-        // Select the plan agent
-        await userEvent.click(screen.getByText('plan-agent'))
+        // Select the spec agent
+        await userEvent.click(screen.getByText('spec-agent'))
 
         // Switch to running filter (no sessions will be visible)
         const runningFilterButton = screen.getByTitle('Show running agents')
@@ -230,19 +230,19 @@ describe('Sidebar - Selection on State Changes', () => {
         })
     })
 
-    it('selects orchestrator when no sessions visible after filter change with selected plan', async () => {
-        const planAgent = mockDraftSession('plan-agent')
+    it('selects orchestrator when no sessions visible after filter change with selected spec', async () => {
+        const specAgent = mockDraftSession('spec-agent')
         const runningTask = mockEnrichedSession('running-agent', 'active', false)
 
-        // Start with a plan and a running session
+        // Start with a spec and a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') {
-                return [planAgent, runningTask]
+                return [specAgent, runningTask]
             }
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
-                const all = [planAgent, runningTask]
-                if (fm === 'plan') return [planAgent]
+                const all = [specAgent, runningTask]
+                if (fm === 'plan') return [specAgent]
                 if (fm === 'running') return [runningTask]
                 if (fm === 'reviewed') return []
                 return all
@@ -264,25 +264,25 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Wait for sessions to load
         await waitFor(() => {
-            expect(screen.getByText('plan-agent')).toBeInTheDocument()
+            expect(screen.getByText('spec-agent')).toBeInTheDocument()
             expect(screen.getByText('running-agent')).toBeInTheDocument()
         })
 
         // First select the running agent in all view
         await userEvent.click(screen.getByText('running-agent'))
         
-        // Switch to plan filter (running agent disappears)
-        const draftFilterButton = screen.getByTitle('Show plan agents')
+        // Switch to spec filter (running agent disappears)
+        const draftFilterButton = screen.getByTitle('Show spec agents')
         await userEvent.click(draftFilterButton)
         
-        // Verify plan agent is automatically selected (first visible)
+        // Verify spec agent is automatically selected (first visible)
         await waitFor(() => {
-            const draftButton = screen.getByText('plan-agent').closest('button')
+            const draftButton = screen.getByText('spec-agent').closest('button')
             expect(draftButton).toHaveClass('session-ring-blue')
         })
 
-        // Now select the plan and switch to running filter
-        await userEvent.click(screen.getByText('plan-agent'))
+        // Now select the spec and switch to running filter
+        await userEvent.click(screen.getByText('spec-agent'))
         const runningFilterButton = screen.getByTitle('Show running agents')
         await userEvent.click(runningFilterButton)
 

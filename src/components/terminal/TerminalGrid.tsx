@@ -334,7 +334,7 @@ export function TerminalGrid() {
         )
     }
 
-    // Plan sessions show placeholder instead of terminals
+    // Spec sessions show placeholder instead of terminals
     if (selection.kind === 'session' && isPlan) {
         return (
             <div className="h-full p-2 relative">

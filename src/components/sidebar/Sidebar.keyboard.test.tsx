@@ -121,7 +121,7 @@ describe('Sidebar keyboard navigation basic', () => {
 
     // Mock sessions with a plan session
     const sessions = [
-      { info: { session_id: 'plan-session', branch: 'plan/branch', worktree_path: '/plan', base_branch: 'main', merge_mode: 'rebase', status: 'plan', session_state: 'plan', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
       { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
     ]
 
@@ -146,28 +146,28 @@ describe('Sidebar keyboard navigation basic', () => {
     renderWithProviders(<Sidebar />)
 
     await waitFor(() => {
-      expect(screen.getByText('plan-session')).toBeInTheDocument()
+      expect(screen.getByText('spec-session')).toBeInTheDocument()
       expect(screen.getByText('running-session')).toBeInTheDocument()
     })
 
     // Select the plan session
-    const planButton = screen.getByText('plan-session').closest('button')
-    if (planButton) {
-      planButton.click()
+    const specButton = screen.getByText('spec-session').closest('button')
+    if (specButton) {
+      specButton.click()
     }
 
     // Wait for selection to be updated
     await waitFor(() => {
-      const selectedPlanButton = screen.getByText('plan-session').closest('button')
-      expect(selectedPlanButton?.className).toContain('session-ring')
+      const selectedSpecButton = screen.getByText('spec-session').closest('button')
+      expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
-    // Try to mark plan as ready with Cmd+R - should log warning and not open modal
+    // Try to mark spec as ready with Cmd+R - should log warning and not open modal
     press('r', { metaKey: true })
 
     // Verify warning was logged
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      expect.stringContaining('Cannot mark plan "plan-session" as reviewed')
+      expect.stringContaining('Cannot mark spec "spec-session" as reviewed')
     )
 
     // Modal should not appear
@@ -204,10 +204,10 @@ describe('Sidebar keyboard navigation basic', () => {
     consoleWarnSpy.mockRestore()
   })
 
-  it('prevents converting plan sessions to plans with Cmd+P', async () => {
+  it('prevents converting plan sessions to specs with Cmd+P', async () => {
     // Mock sessions with a plan session and a running session
     const sessions = [
-      { info: { session_id: 'plan-session', branch: 'plan/branch', worktree_path: '/plan', base_branch: 'main', merge_mode: 'rebase', status: 'plan', session_state: 'plan', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
       { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
     ]
 
@@ -232,28 +232,28 @@ describe('Sidebar keyboard navigation basic', () => {
     renderWithProviders(<Sidebar />)
 
     await waitFor(() => {
-      expect(screen.getByText('plan-session')).toBeInTheDocument()
+      expect(screen.getByText('spec-session')).toBeInTheDocument()
       expect(screen.getByText('running-session')).toBeInTheDocument()
     })
 
     // Select the plan session
-    const planButton = screen.getByText('plan-session').closest('button')
-    if (planButton) {
-      planButton.click()
+    const specButton = screen.getByText('spec-session').closest('button')
+    if (specButton) {
+      specButton.click()
     }
 
     // Wait for selection to be updated
     await waitFor(() => {
-      const selectedPlanButton = screen.getByText('plan-session').closest('button')
-      expect(selectedPlanButton?.className).toContain('session-ring')
+      const selectedSpecButton = screen.getByText('spec-session').closest('button')
+      expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
-    // Try to convert plan to plan with Cmd+P - should not open modal
+    // Try to convert spec to spec with Cmd+P - should not open modal
     press('p', { metaKey: true })
 
     // Modal should not appear
     await waitFor(() => {
-      expect(screen.queryByText('Convert to Plan')).not.toBeInTheDocument()
+      expect(screen.queryByText('Convert to Spec')).not.toBeInTheDocument()
     })
 
     // Now select the running session
@@ -268,12 +268,12 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(selectedRunningButton?.className).toContain('session-ring')
     })
 
-    // Try to convert running session to plan with Cmd+P - should open modal
+    // Try to convert running session to spec with Cmd+P - should open modal
     press('p', { metaKey: true })
 
     // Modal should appear
     await waitFor(() => {
-      expect(screen.getByText('Convert to Plan')).toBeInTheDocument()
+      expect(screen.getByText('Convert to Spec')).toBeInTheDocument()
     })
   })
 })

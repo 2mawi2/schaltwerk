@@ -8,7 +8,7 @@ import { UnifiedDiffModal } from './components/diff/UnifiedDiffModal'
 import Split from 'react-split'
 import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
-import { DeletePlanConfirmation } from './components/modals/DeletePlanConfirmation'
+import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -69,12 +69,12 @@ export default function App() {
   const [showHome, setShowHome] = useState(true)
   const [openTabs, setOpenTabs] = useState<ProjectTab[]>([])
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null)
-  const [startFromDraftName, setStartFromDraftName] = useState<string | null>(null)
+  const [startFromDraftName, setStartFromPlanName] = useState<string | null>(null)
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
-  const [openAsDraft, setOpenAsDraft] = useState(false)
+  const [openAsDraft, setOpenAsPlan] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
-  const [commanderPlanModeSession, setCommanderPlanModeSession] = useState<string | null>(null)
+  const [commanderSpecModeSession, setCommanderSpecModeSession] = useState<string | null>(null)
   const projectSwitchInProgressRef = useRef(false)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const isKanbanOpenRef = useRef(false)
@@ -205,7 +205,7 @@ export default function App() {
         // perform cancel directly
         setCancelModalOpen(false)
         void handleCancelSession(hasUncommittedChanges)
-      } else if (action === 'delete-plan') {
+      } else if (action === 'delete-spec') {
         setDeletePlanModalOpen(true)
       }
     }
@@ -231,21 +231,21 @@ export default function App() {
           console.log('[App] Cmd+N triggered - opening new session modal (agent mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
-          setOpenAsDraft(false) // Explicitly set to false for Cmd+N
+           setOpenAsPlan(false) // Explicitly set to false for Cmd+N
           setNewSessionOpen(true)
         }
       }
-      // New Plan shortcut: Cmd+Shift+N (deterministic open-as-plan)
+      // New Spec shortcut: Cmd+Shift+N (deterministic open-as-spec)
       if (modifierKey && e.shiftKey && (e.key === 'n' || e.key === 'N')) {
         const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
                                document.activeElement?.tagName === 'TEXTAREA' ||
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
-          console.log('[App] Cmd+Shift+N triggered - opening new session modal (plan mode)')
+          console.log('[App] Cmd+Shift+N triggered - opening new session modal (spec mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
-          setOpenAsDraft(true)
+          setOpenAsPlan(true)
           setNewSessionOpen(true)
         }
       }
@@ -282,7 +282,7 @@ export default function App() {
         console.log('[App] Global new session shortcut triggered (agent mode)')
         // Store current focus before opening modal
         previousFocusRef.current = document.activeElement
-        setOpenAsDraft(false) // Explicitly set to false for global shortcut
+         setOpenAsPlan(false) // Explicitly set to false for global shortcut
         setNewSessionOpen(true)
       }
     }
@@ -319,97 +319,97 @@ export default function App() {
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
-  // Open NewSessionModal directly in plan mode when requested
+  // Open NewSessionModal directly in spec mode when requested
   useEffect(() => {
     const handler = () => {
-      console.log('[App] schaltwerk:new-plan event received - opening modal in plan mode')
+      console.log('[App] schaltwerk:new-spec event received - opening modal in spec mode')
       previousFocusRef.current = document.activeElement
-      setOpenAsDraft(true)
+                       setOpenAsPlan(true)
       setNewSessionOpen(true)
     }
-    window.addEventListener('schaltwerk:new-plan', handler as any)
-    return () => window.removeEventListener('schaltwerk:new-plan', handler as any)
+    window.addEventListener('schaltwerk:new-spec', handler as any)
+    return () => window.removeEventListener('schaltwerk:new-spec', handler as any)
   }, [])
   
-  // Auto-enter plan mode when a new plan is created
+  // Auto-enter spec mode when a new spec is created
   useEffect(() => {
-    const handlePlanCreated = (event: CustomEvent<{ name: string }>) => {
+    const handleSpecCreated = (event: CustomEvent<{ name: string }>) => {
       if (selection.kind === 'orchestrator') {
-        // Automatically switch to the newly created plan in plan mode
-        setCommanderPlanModeSession(event.detail.name)
+        // Automatically switch to the newly created spec in spec mode
+        setCommanderSpecModeSession(event.detail.name)
       }
     }
-    window.addEventListener('schaltwerk:plan-created' as any, handlePlanCreated)
-    return () => window.removeEventListener('schaltwerk:plan-created' as any, handlePlanCreated)
+    window.addEventListener('schaltwerk:spec-created' as any, handleSpecCreated)
+    return () => window.removeEventListener('schaltwerk:spec-created' as any, handleSpecCreated)
   }, [selection])
   
-  // Handle MCP plan updates - detect new plans and focus them in plan mode
+  // Handle MCP spec updates - detect new specs and focus them in spec mode
   useEffect(() => {
     const handleSessionsRefreshed = () => {
-      // Check if we're in orchestrator and plan mode
-      if (selection.kind === 'orchestrator' && commanderPlanModeSession) {
-        // Check if a new plan was created that we should focus
-        const planSessions = sessions.filter(session => 
-          session.info.status === 'plan' || session.info.session_state === 'plan'
-        )
-        
-        // If we don't have a valid plan selected but plans exist, select the first one
-        if (!planSessions.find(p => p.info.session_id === commanderPlanModeSession) && planSessions.length > 0) {
-          // The current plan doesn't exist anymore, switch to the newest plan
-          const newestPlan = planSessions.sort((a, b) => {
+      // Check if we're in orchestrator and spec mode
+      if (selection.kind === 'orchestrator' && commanderSpecModeSession) {
+        // Check if a new spec was created that we should focus
+              const specSessions = sessions.filter(session =>
+                session.info.status === 'spec' || session.info.session_state === 'spec'
+              )
+
+        // If we don't have a valid spec selected but specs exist, select the first one
+        if (!specSessions.find(p => p.info.session_id === commanderSpecModeSession) && specSessions.length > 0) {
+          // The current spec doesn't exist anymore, switch to the newest spec
+          const newestSpec = specSessions.sort((a, b) => {
             const aTime = new Date(a.info.created_at || '').getTime()
             const bTime = new Date(b.info.created_at || '').getTime()
             return bTime - aTime  // Sort newest first
           })[0]
-          setCommanderPlanModeSession(newestPlan.info.session_id)
+          setCommanderSpecModeSession(newestSpec.info.session_id)
         }
       }
     }
-    
+
     // Use Tauri's listen for the sessions-refreshed event
     const unlisten = listen('schaltwerk:sessions-refreshed', handleSessionsRefreshed)
-    
+
     return () => {
       unlisten.then(unlistenFn => unlistenFn())
     }
-  }, [selection, commanderPlanModeSession, sessions])
+  }, [selection, commanderSpecModeSession, sessions])
   
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
       console.log('[App] schaltwerk:new-session event received - opening modal in agent mode')
       previousFocusRef.current = document.activeElement
-      setOpenAsDraft(false)
+       setOpenAsPlan(false)
       setNewSessionOpen(true)
     }
     window.addEventListener('schaltwerk:new-session', handler as any)
     return () => window.removeEventListener('schaltwerk:new-session', handler as any)
   }, [])
 
-  // Open Start Agent modal prefilled from an existing plan
+  // Open Start Agent modal prefilled from an existing spec
   useEffect(() => {
     const handler = async (event: any) => {
-      console.log('[App] Received start-agent-from-plan event:', event?.detail)
+      console.log('[App] Received start-agent-from-spec event:', event?.detail)
       const name = event?.detail?.name as string | undefined
       if (!name) {
-        console.warn('[App] No name provided in start-agent-from-plan event')
+        console.warn('[App] No name provided in start-agent-from-spec event')
         return
       }
       // Store focus and open modal
       previousFocusRef.current = document.activeElement
-      
+
       // Notify modal that prefill is coming
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill-pending'))
-      
-      // Fetch plan content first, then open modal with prefilled data
+
+      // Fetch spec content first, then open modal with prefilled data
       console.log('[App] Fetching session data for prefill:', name)
       const prefillData = await fetchSessionForPrefill(name)
       console.log('[App] Fetched prefill data:', prefillData)
-      
+
       // Open modal after data is ready
       setNewSessionOpen(true)
-      setStartFromDraftName(name)
-      
+      setStartFromPlanName(name)
+
       // Dispatch prefill event with fetched data
       if (prefillData) {
         // Use requestAnimationFrame to ensure modal is rendered before dispatching
@@ -423,63 +423,63 @@ export default function App() {
         console.warn('[App] No prefill data fetched for session:', name)
       }
     }
-    window.addEventListener('schaltwerk:start-agent-from-plan' as any, handler)
-    return () => window.removeEventListener('schaltwerk:start-agent-from-plan' as any, handler)
+    window.addEventListener('schaltwerk:start-agent-from-spec' as any, handler)
+    return () => window.removeEventListener('schaltwerk:start-agent-from-spec' as any, handler)
   }, [fetchSessionForPrefill])
 
-  // Handle entering plan mode
+  // Handle entering spec mode
   useEffect(() => {
-    const handleEnterPlanMode = (event: CustomEvent<{ sessionName: string }>) => {
+    const handleEnterSpecMode = (event: CustomEvent<{ sessionName: string }>) => {
       const { sessionName } = event.detail
       if (sessionName && selection.kind === 'orchestrator') {
-        setCommanderPlanModeSession(sessionName)
+        setCommanderSpecModeSession(sessionName)
       }
     }
-    
-    window.addEventListener('schaltwerk:enter-plan-mode' as any, handleEnterPlanMode)
-    return () => window.removeEventListener('schaltwerk:enter-plan-mode' as any, handleEnterPlanMode)
+
+    window.addEventListener('schaltwerk:enter-spec-mode' as any, handleEnterSpecMode)
+    return () => window.removeEventListener('schaltwerk:enter-spec-mode' as any, handleEnterSpecMode)
   }, [selection])
-  
-  // Handle exiting plan mode
-  const handleExitPlanMode = useCallback(() => {
-    setCommanderPlanModeSession(null)
+
+  // Handle exiting spec mode
+  const handleExitSpecMode = useCallback(() => {
+    setCommanderSpecModeSession(null)
   }, [])
   
-  // Exit plan mode if selection changes away from orchestrator
+  // Exit spec mode if selection changes away from orchestrator
   useEffect(() => {
     if (selection.kind !== 'orchestrator') {
-      setCommanderPlanModeSession(null)
+      setCommanderSpecModeSession(null)
     }
   }, [selection])
   
-  // Handle keyboard shortcut for plan mode (Cmd+Shift+P in orchestrator)
+  // Handle keyboard shortcut for spec mode (Cmd+Shift+P in orchestrator)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
         if (selection.kind === 'orchestrator') {
           e.preventDefault()
-          if (commanderPlanModeSession) {
-            // Exit plan mode
-            setCommanderPlanModeSession(null)
+          if (commanderSpecModeSession) {
+            // Exit spec mode
+            setCommanderSpecModeSession(null)
           } else {
-            // Enter plan mode with first available plan
-            const planSessions = sessions.filter(session => 
-              session.info.status === 'plan' || session.info.session_state === 'plan'
+            // Enter spec mode with first available spec
+            const specSessions = sessions.filter(session =>
+              session.info.status === 'spec' || session.info.session_state === 'spec'
             )
-            if (planSessions.length > 0) {
-              setCommanderPlanModeSession(planSessions[0].info.session_id)
+            if (specSessions.length > 0) {
+              setCommanderSpecModeSession(specSessions[0].info.session_id)
             } else {
-              // No plans available, create a new one
-              window.dispatchEvent(new CustomEvent('schaltwerk:new-plan'))
+              // No specs available, create a new one
+              window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
             }
           }
         }
       }
     }
-    
+
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selection, commanderPlanModeSession, sessions])
+  }, [selection, commanderSpecModeSession, sessions])
 
   const handleCancelSession = async (_force: boolean) => {
     if (!currentSession) return
@@ -499,7 +499,7 @@ export default function App() {
     }
   }
 
-  const handleDeletePlan = async () => {
+  const handleDeleteSpec = async () => {
     if (!currentSession) return
 
     try {
@@ -511,8 +511,8 @@ export default function App() {
       // Reload sessions to update the list
       await invoke('schaltwerk_core_list_enriched_sessions')
     } catch (error) {
-      console.error('Failed to delete plan:', error)
-      alert(`Failed to delete plan: ${error}`)
+      console.error('Failed to delete spec:', error)
+      alert(`Failed to delete spec: ${error}`)
     } finally {
       setIsCancelling(false)
     }
@@ -547,23 +547,23 @@ export default function App() {
         // If we can't get settings, assume 'all' filter
       }
       
-      // If starting from an existing plan via the modal, convert that plan to active
-      if (!data.isPlan && startFromDraftName && startFromDraftName === data.name) {
-        // Ensure the plan content reflects latest prompt before starting
-        const contentToUse = data.prompt || ''
-        if (contentToUse.trim().length > 0) {
-          await invoke('schaltwerk_core_update_plan_content', {
-            name: data.name,
-            content: contentToUse,
-          })
-        }
-        // Start the plan session (transitions plan -> active and creates worktree)
-        await invoke('schaltwerk_core_start_draft_session', {
-          name: data.name,
-          baseBranch: data.baseBranch || null,
-        })
-        setNewSessionOpen(false)
-        setStartFromDraftName(null)
+       // If starting from an existing spec via the modal, convert that spec to active
+       if (!data.isPlan && startFromDraftName && startFromDraftName === data.name) {
+         // Ensure the spec content reflects latest prompt before starting
+         const contentToUse = data.prompt || ''
+         if (contentToUse.trim().length > 0) {
+           await invoke('schaltwerk_core_update_spec_content', {
+             name: data.name,
+             content: contentToUse,
+           })
+         }
+         // Start the spec session (transitions spec -> active and creates worktree)
+         await invoke('schaltwerk_core_start_spec_session', {
+           name: data.name,
+           baseBranch: data.baseBranch || null,
+         })
+         setNewSessionOpen(false)
+         setStartFromPlanName(null)
 
         // Small delay to ensure sessions list is updated
         await new Promise(resolve => setTimeout(resolve, 200))
@@ -580,41 +580,31 @@ export default function App() {
             kind: 'session',
             payload: data.name,
             worktreePath: sessionData.worktree_path,
-            sessionState: 'running' // Plan has been started, it's now running
+            sessionState: 'running' // Spec has been started, it's now running
           })
         }
         return
       }
 
       if (data.isPlan) {
-        // Create plan session
-        await invoke('schaltwerk_core_create_draft_session', {
-          name: data.name,
-          planContent: data.draftContent || '',
-        })
+         // Create spec session
+         await invoke('schaltwerk_core_create_spec_session', {
+           name: data.name,
+           draftContent: data.draftContent || '',
+         })
         setNewSessionOpen(false)
 
-        // Get the created session to get the correct worktree path
-        const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
-
-        // Only select the new plan if it matches the current filter
-        // Plans are visible in 'all' and 'plan' filters
-        if (currentFilterMode === 'all' || currentFilterMode === 'plan') {
-          // If in orchestrator, automatically enter plan mode with the new plan
-          if (selection.kind === 'orchestrator') {
-            setCommanderPlanModeSession(data.name)
-          } else {
-            // Otherwise switch to the new plan session
-            await setSelection({
-              kind: 'session',
-              payload: data.name,
-              worktreePath: sessionData.worktree_path
-            })
-          }
+        // Only select the new spec if it matches the current filter
+        // Specs are visible in 'all' and 'spec' filters
+        if (currentFilterMode === 'all' || currentFilterMode === 'spec') {
+           // If in orchestrator, automatically enter spec mode with the new spec
+           if (selection.kind === 'orchestrator') {
+             setCommanderSpecModeSession(data.name)
+           }
         }
         
-        // Dispatch event for other components to know a plan was created
-        window.dispatchEvent(new CustomEvent('schaltwerk:plan-created', {
+        // Dispatch event for other components to know a spec was created
+        window.dispatchEvent(new CustomEvent('schaltwerk:spec-created', {
           detail: { name: data.name }
         }))
       } else {
@@ -862,23 +852,23 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenKanban={() => setIsKanbanOpen(true)}
         isOrchestratorActive={selection.kind === 'orchestrator'}
-        isPlanModeActive={!!commanderPlanModeSession}
-        onTogglePlanMode={() => {
-          if (commanderPlanModeSession) {
-            setCommanderPlanModeSession(null)
-          } else {
-            // Select the first available plan
-            const planSessions = sessions.filter(session => 
-              session.info.status === 'plan' || session.info.session_state === 'plan'
-            )
-            if (planSessions.length > 0) {
-              setCommanderPlanModeSession(planSessions[0].info.session_id)
-            } else {
-              // No plans available, could show a message or create a new plan
-              window.dispatchEvent(new CustomEvent('schaltwerk:new-plan'))
-            }
-          }
-        }}
+         isSpecModeActive={!!commanderSpecModeSession}
+         onToggleSpecMode={() => {
+           if (commanderSpecModeSession) {
+              setCommanderSpecModeSession(null)
+           } else {
+             // Select the first available spec
+             const specSessions = sessions.filter(session =>
+               session.info.status === 'spec' || session.info.session_state === 'spec'
+             )
+             if (specSessions.length > 0) {
+               setCommanderSpecModeSession(specSessions[0].info.session_id)
+             } else {
+               // No specs available, could show a message or create a new spec
+               window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
+             }
+           }
+         }}
       />
 
       {/* Show home screen if requested, or no active tab */}
@@ -927,7 +917,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       previousFocusRef.current = document.activeElement
-                      setOpenAsDraft(true)
+                      setOpenAsPlan(true)
                       setNewSessionOpen(true)
                     }}
                     className="w-full text-sm px-3 py-1.5 rounded group flex items-center justify-between border transition-colors"
@@ -942,9 +932,9 @@ export default function App() {
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
                     }}
-                    title="Create plan (⇧⌘N)"
+                    title="Create spec (⇧⌘N)"
                   >
-                    <span>Create Plan</span>
+                    <span>Create Spec</span>
                     <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
                   </button>
                 </div>
@@ -952,14 +942,14 @@ export default function App() {
             </div>
 
             <div className="relative h-full">
-              {/* Show Plan Mode Layout when active in orchestrator */}
-              {selection.kind === 'orchestrator' && commanderPlanModeSession ? (
-                <PlanModeLayout
-                  sessionName={commanderPlanModeSession}
-                  onExit={handleExitPlanMode}
-                  onSwitchPlan={(newPlanName) => setCommanderPlanModeSession(newPlanName)}
-                />
-              ) : (
+              {/* Show Spec Mode Layout when active in orchestrator */}
+               {selection.kind === 'orchestrator' && commanderSpecModeSession ? (
+                 <PlanModeLayout
+                   sessionName={commanderSpecModeSession}
+                   onExit={handleExitSpecMode}
+                   onSwitchSpec={(newPlanName: string) => setCommanderSpecModeSession(newPlanName)}
+                 />
+               ) : (
                 <>
                   {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
                   <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
@@ -980,27 +970,27 @@ export default function App() {
             </div>
           </Split>
 
-          <NewSessionModal
-            open={newSessionOpen}
-            initialIsDraft={openAsDraft}
-            onClose={() => {
-              console.log('[App] NewSessionModal closing - resetting state')
-              setNewSessionOpen(false)
-              setOpenAsDraft(false) // Always reset to false when closing
-              setStartFromDraftName(null)
-              // Restore focus after modal closes
-              if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
-                setTimeout(() => {
-                  try {
-                    (previousFocusRef.current as HTMLElement).focus()
-                  } catch (error) {
-                    console.warn('[App] Failed to restore focus after NewSessionModal closed:', error)
-                  }
-                }, 100)
-              }
-            }}
-            onCreate={handleCreateSession}
-          />
+           <NewSessionModal
+             open={newSessionOpen}
+             initialIsDraft={openAsDraft}
+             onClose={() => {
+               console.log('[App] NewSessionModal closing - resetting state')
+               setNewSessionOpen(false)
+               setOpenAsPlan(false) // Always reset to false when closing
+               setStartFromPlanName(null)
+               // Restore focus after modal closes
+               if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
+                 setTimeout(() => {
+                   try {
+                     (previousFocusRef.current as HTMLElement).focus()
+                   } catch (error) {
+                     console.warn('[App] Failed to restore focus after NewSessionModal closed:', error)
+                   }
+                 }, 100)
+               }
+             }}
+             onCreate={handleCreateSession}
+           />
 
           {currentSession && (
             <>
@@ -1013,13 +1003,13 @@ export default function App() {
                 onCancel={() => setCancelModalOpen(false)}
                 loading={isCancelling}
               />
-              <DeletePlanConfirmation
-                open={deletePlanModalOpen}
-                displayName={currentSession.displayName}
-                onConfirm={handleDeletePlan}
-                onCancel={() => setDeletePlanModalOpen(false)}
-                loading={isCancelling}
-              />
+               <DeleteSpecConfirmation
+                 open={deletePlanModalOpen}
+                 displayName={currentSession.displayName}
+                 onConfirm={handleDeleteSpec}
+                 onCancel={() => setDeletePlanModalOpen(false)}
+                 loading={isCancelling}
+               />
             </>
           )}
 

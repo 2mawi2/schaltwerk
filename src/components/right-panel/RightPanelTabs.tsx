@@ -5,30 +5,30 @@ import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { VscDiff, VscNotebook, VscInfo } from 'react-icons/vsc'
 import clsx from 'clsx'
-import { PlanContentView } from '../plans/PlanContentView'
-import { PlanListView } from '../plans/PlanListView'
-import { PlanInfoPanel } from '../plans/PlanInfoPanel'
-import { PlanMetadataPanel } from '../plans/PlanMetadataPanel'
+import { PlanContentView as SpecContentView } from '../plans/PlanContentView'
+import { PlanListView as SpecListView } from '../plans/PlanListView'
+import { PlanInfoPanel as SpecInfoPanel } from '../plans/PlanInfoPanel'
+import { PlanMetadataPanel as SpecMetadataPanel } from '../plans/PlanMetadataPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
   selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
-  isPlanOverride?: boolean
+  isSpecOverride?: boolean
 }
 
-export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride }: RightPanelTabsProps) {
+export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride }: RightPanelTabsProps) {
   const { selection, isPlan } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
-  const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
-  const [previewPlanName, setPreviewPlanName] = useState<string | null>(null)
-  const [localFocus, setLocalFocus] = useState<boolean>(false)
+   const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
+   const [previewSpecName, setPreviewSpecName] = useState<string | null>(null)
+   const [localFocus, setLocalFocus] = useState<boolean>(false)
 
-  // Determine active tab based on user selection or smart defaults
-  // For plans, always show info tab regardless of user selection
-  const effectiveSelection = selectionOverride ?? selection
-  const effectiveIsPlan = typeof isPlanOverride === 'boolean' ? isPlanOverride : isPlan
-  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsPlan) ? 'info' : (
+   // Determine active tab based on user selection or smart defaults
+   // For specs, always show info tab regardless of user selection
+   const effectiveSelection = selectionOverride ?? selection
+   const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isPlan
+  const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec) ? 'info' : (
     userSelectedTab || (
       effectiveSelection.kind === 'orchestrator' ? 'agent' : 'changes'
     )
@@ -50,13 +50,13 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
     setLocalFocus(true)
   }
 
-  // Note: removed Cmd+D toggle to reserve shortcut for New Plan
+  // Note: removed Cmd+D toggle to reserve shortcut for New Spec
 
   // Unified header with tabs
   const isCommander = effectiveSelection.kind === 'orchestrator'
-  const rightTabLabel = 'Plan'
-  const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsPlan) || isCommander
-  const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsPlan
+  const rightTabLabel = 'Spec'
+  const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsSpec) || isCommander
+  const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsSpec
 
   return (
     <div 
@@ -96,7 +96,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
                   ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
             )}
-            title="Plan Info"
+            title="Spec Info"
           >
             <VscInfo className="text-sm" />
             <span>Info</span>
@@ -137,28 +137,28 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isPlanOverride
               isCommander={effectiveSelection.kind === 'orchestrator'}
             />
           ) : activeTab === 'info' ? (
-            // Info tab for plans - shows metadata instead of changes
-            effectiveSelection.kind === 'session' && effectiveIsPlan ? (
-              <PlanMetadataPanel sessionName={effectiveSelection.payload!} />
+            // Info tab for specs - shows metadata instead of changes
+            effectiveSelection.kind === 'session' && effectiveIsSpec ? (
+              <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
             ) : null
           ) : (
-            // Agent/Plans tab content
+            // Agent/Specs tab content
             effectiveSelection.kind === 'session' ? (
-              // For plan sessions, show the info panel; for running sessions, show the agent content
-              effectiveIsPlan ? (
-                <PlanInfoPanel sessionName={effectiveSelection.payload!} />
+              // For spec sessions, show the info panel; for running sessions, show the agent content
+              effectiveIsSpec ? (
+                <SpecInfoPanel sessionName={effectiveSelection.payload!} />
               ) : (
-                <PlanContentView 
+                <SpecContentView 
                   sessionName={effectiveSelection.payload!} 
                   editable={false} 
                   debounceMs={1000} 
                 />
               )
             ) : (
-              previewPlanName ? (
-                <PlanContentView sessionName={previewPlanName} editable debounceMs={1000} />
+              previewSpecName ? (
+                <SpecContentView sessionName={previewSpecName} editable debounceMs={1000} />
               ) : (
-                <PlanListView onOpenPlan={(name: string) => setPreviewPlanName(name)} />
+                <SpecListView onOpenSpec={(name: string) => setPreviewSpecName(name)} />
               )
             )
           )}

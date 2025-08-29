@@ -29,7 +29,7 @@ describe('useSortedSessions', () => {
     const mockSessions = [
         mockEnrichedSession('session-a', 'active'),
         mockEnrichedSession('session-b', 'dirty'),
-        mockDraftSession('plan-c')
+        mockDraftSession('spec-c')
     ]
 
     beforeEach(() => {
@@ -177,7 +177,7 @@ describe('useSortedSessions', () => {
     describe('sort and filter modes', () => {
         it.each([
             [SortMode.Name, FilterMode.All],
-            [SortMode.Created, FilterMode.Plan],
+            [SortMode.Created, FilterMode.Spec],
             [SortMode.LastEdited, FilterMode.Running],
             [SortMode.Name, FilterMode.Reviewed]
         ])('should load sessions with sortMode=%s and filterMode=%s', async (sortMode, filterMode) => {
@@ -232,7 +232,7 @@ describe('useSortedSessions', () => {
 
             expect(mockInvoke).toHaveBeenCalledTimes(1)
 
-            rerender({ filterMode: FilterMode.Plan })
+            rerender({ filterMode: FilterMode.Spec })
 
             await act(async () => {
                 await new Promise(resolve => setTimeout(resolve, 0))
@@ -241,7 +241,7 @@ describe('useSortedSessions', () => {
             expect(mockInvoke).toHaveBeenCalledTimes(2)
             expect(mockInvoke).toHaveBeenLastCalledWith('schaltwerk_core_list_enriched_sessions_sorted', {
                 sortMode: SortMode.Name,
-                filterMode: FilterMode.Plan
+                filterMode: FilterMode.Spec
             })
         })
     })

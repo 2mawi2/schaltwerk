@@ -532,42 +532,42 @@ describe('useKeyboardShortcuts', () => {
        expect(onMarkSelectedSessionReady).toHaveBeenCalledTimes(2)
    })
 
-   it('converts session to plan with Cmd+P', () => {
-       const onPlanSession = vi.fn()
+   it('converts session to spec with Cmd+P', () => {
+       const onSpecSession = vi.fn()
        const onSelectOrchestrator = vi.fn()
        const onSelectSession = vi.fn()
 
        renderHook(() => useKeyboardShortcuts({
            onSelectOrchestrator,
            onSelectSession,
-           onPlanSession,
+           onSpecSession,
            sessionCount: 1
        }))
 
        pressKey('p', { metaKey: true })
-       expect(onPlanSession).toHaveBeenCalledTimes(1)
+       expect(onSpecSession).toHaveBeenCalledTimes(1)
 
        pressKey('P', { metaKey: true })
-       expect(onPlanSession).toHaveBeenCalledTimes(2)
+       expect(onSpecSession).toHaveBeenCalledTimes(2)
    })
 
-   it('does not trigger plan shortcut with Cmd+Shift+P', () => {
-       const onPlanSession = vi.fn()
+   it('does not trigger spec shortcut with Cmd+Shift+P', () => {
+       const onSpecSession = vi.fn()
        const onSelectOrchestrator = vi.fn()
        const onSelectSession = vi.fn()
 
        renderHook(() => useKeyboardShortcuts({
            onSelectOrchestrator,
            onSelectSession,
-           onPlanSession,
+           onSpecSession,
            sessionCount: 1
        }))
 
        pressKey('p', { metaKey: true, shiftKey: true })
-       expect(onPlanSession).not.toHaveBeenCalled()
+       expect(onSpecSession).not.toHaveBeenCalled()
 
        pressKey('P', { metaKey: true, shiftKey: true })
-       expect(onPlanSession).not.toHaveBeenCalled()
+       expect(onSpecSession).not.toHaveBeenCalled()
    })
 
     it('does not mark session ready when callback is undefined', () => {

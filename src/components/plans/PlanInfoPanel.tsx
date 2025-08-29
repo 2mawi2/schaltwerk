@@ -13,9 +13,9 @@ export function PlanInfoPanel({ sessionName }: Props) {
     try {
       setStarting(true)
       setError(null)
-      console.log('[PlanInfoPanel] Dispatching start-agent-from-plan event for:', sessionName)
-      // Open Start new agent modal prefilled from plan instead of starting directly
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionName } }))
+      console.log('[PlanInfoPanel] Dispatching start-agent-from-spec event for:', sessionName)
+      // Open Start new agent modal prefilled from spec instead of starting directly
+      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
     } catch (e: any) {
       console.error('[PlanInfoPanel] Failed to open start modal from plan:', e)
       setError(String(e))
@@ -30,7 +30,7 @@ export function PlanInfoPanel({ sessionName }: Props) {
         <div className="mx-auto mb-4 h-10 w-10 rounded-lg bg-slate-800/50 border border-slate-700 flex items-center justify-center">
           <VscRocket className="text-slate-300 text-lg" />
         </div>
-        <h3 className="text-slate-100 text-sm font-semibold mb-2">Plan Agent</h3>
+        <h3 className="text-slate-100 text-sm font-semibold mb-2">Spec Agent</h3>
         <p className="text-slate-400 text-xs mb-4">
           Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.
         </p>

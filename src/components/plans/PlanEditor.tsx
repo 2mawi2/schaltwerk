@@ -50,10 +50,10 @@ export function PlanEditor({ sessionName, onStart }: Props) {
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSaving(true)
-        await invoke('schaltwerk_core_update_plan_content', { name: sessionName, content })
+        await invoke('schaltwerk_core_update_spec_content', { name: sessionName, content })
         setHasLocalChanges(false)
       } catch (e) {
-        console.error('[DraftEditor] Failed to save plan:', e)
+        console.error('[DraftEditor] Failed to save spec:', e)
       } finally {
         setSaving(false)
       }
@@ -84,7 +84,7 @@ export function PlanEditor({ sessionName, onStart }: Props) {
       setError(null)
       onStart()
     } catch (e: any) {
-      console.error('[DraftEditor] Failed to start plan:', e)
+      console.error('[DraftEditor] Failed to start spec:', e)
       setError(String(e))
     } finally {
       setStarting(false)
@@ -101,44 +101,44 @@ export function PlanEditor({ sessionName, onStart }: Props) {
       console.log('[PlanEditor] Total sessions in event:', sessions.length)
       
       // Log all plan sessions for debugging
-      const planSessions = sessions.filter((s: any) => 
-        s.info?.session_state === 'Plan' || s.info?.status === 'plan'
+      const specSessions = sessions.filter((s: any) => 
+        s.info?.session_state === 'plan' || s.info?.status === 'plan'
       )
-      console.log('[PlanEditor] Plan sessions found:', planSessions.map((s: any) => ({
+      console.log('[PlanEditor] specSessions.map:', specSessions.map((s: any) => ({
         id: s.info?.session_id,
         state: s.info?.session_state,
         status: s.info?.status,
-        has_content: !!s.info?.plan_content,
-        content_length: s.info?.plan_content?.length || 0
+        has_content: !!s.info?.spec_content,
+        content_length: s.info?.spec_content?.length || 0
       })))
       
-      const planSession = sessions.find((s: any) => 
+      const specSession = sessions.find((s: any) => 
         s.info?.session_id === sessionName && 
-        (s.info?.session_state === 'Plan' || s.info?.status === 'plan')
+        (s.info?.session_state === 'plan' || s.info?.status === 'plan')
       )
       
       console.log('[PlanEditor] Looking for session:', sessionName)
-      console.log('[PlanEditor] Found matching session:', !!planSession)
+      console.log('[PlanEditor] Found matching session:', !!specSession)
       
-      if (planSession) {
-        console.log('[PlanEditor] Plan session details:', {
-          id: planSession.info?.session_id,
-          has_plan_content: planSession.info?.plan_content !== undefined,
-          content_length: planSession.info?.plan_content?.length || 0,
+      if (specSession) {
+        console.log('[PlanEditor] Spec session details:', {
+          id: specSession.info?.session_id,
+          has_spec_content: specSession.info?.spec_content !== undefined,
+          content_length: specSession.info?.spec_content?.length || 0,
           current_content_length: content.length
         })
         
-        if (planSession.info?.plan_content !== undefined) {
+        if (specSession.info?.spec_content !== undefined) {
           // Only update if content actually changed to avoid infinite loops
-          if (planSession.info.plan_content !== content) {
-            console.log('[PlanEditor] Content changed, updating from', content.length, 'to', planSession.info.plan_content.length, 'chars')
-            setContent(planSession.info.plan_content || '')
+          if (specSession.info.spec_content !== content) {
+            console.log('[PlanEditor] Content changed, updating from', content.length, 'to', specSession.info.spec_content.length, 'chars')
+            setContent(specSession.info.spec_content || '')
             setHasLocalChanges(false)
           } else {
             console.log('[PlanEditor] Content unchanged, skipping update')
           }
         } else {
-          console.log('[PlanEditor] No plan_content field in session data')
+          console.log('[PlanEditor] No spec_content field in session data')
         }
       } else {
         console.log('[PlanEditor] No matching plan session found for:', sessionName)
@@ -199,7 +199,7 @@ export function PlanEditor({ sessionName, onStart }: Props) {
       {/* Status bar */}
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">
-          {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing plan'}
+          {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing spec'}
         </div>
       </div>
       

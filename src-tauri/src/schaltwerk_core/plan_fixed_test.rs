@@ -57,21 +57,21 @@ mod draft_fixed_tests {
     fn test_draft_sessions_have_draft_status() {
         let (_temp_dir, manager) = setup_test_env();
         
-        // Create a plan session
-        let draft_session = manager.create_draft_session("test-plan", "Plan content").unwrap();
+        // Create a spec session
+        let draft_session = manager.create_spec_session("test-spec", "Spec content").unwrap();
         
-        // FIX VERIFIED: Plan sessions now have SessionStatus::Plan
+        // FIX VERIFIED: Spec sessions now have SessionStatus::Spec
         assert_eq!(
             draft_session.status, 
-            SessionStatus::Plan,
-            "Plan sessions should have SessionStatus::Plan"
+            SessionStatus::Spec,
+            "Spec sessions should have SessionStatus::Spec"
         );
         
-        // Also verify session_state is Plan
+        // Also verify session_state is Spec
         assert_eq!(
             draft_session.session_state,
-            SessionState::Plan,
-            "Plan sessions should have SessionState::Plan"
+            SessionState::Spec,
+            "Spec sessions should have SessionState::Spec"
         );
     }
 
@@ -79,8 +79,8 @@ mod draft_fixed_tests {
     fn test_draft_sessions_separate_from_active() {
         let (_temp_dir, manager) = setup_test_env();
         
-        // Create a plan session
-        let plan = manager.create_draft_session("test-plan", "Plan content").unwrap();
+        // Create a spec session
+        let spec = manager.create_spec_session("test-spec", "Spec content").unwrap();
         
         // Create an active session
         let active = manager.create_session("test-active", Some("Active prompt"), None).unwrap();
@@ -90,17 +90,17 @@ mod draft_fixed_tests {
         
         // FIX VERIFIED: Can now distinguish by SessionStatus
         let draft_count = all_sessions.iter()
-            .filter(|s| s.status == SessionStatus::Plan)
+            .filter(|s| s.status == SessionStatus::Spec)
             .count();
         let active_count = all_sessions.iter()
             .filter(|s| s.status == SessionStatus::Active)
             .count();
         
-        assert_eq!(draft_count, 1, "Should have exactly 1 plan session");
+        assert_eq!(draft_count, 1, "Should have exactly 1 spec session");
         assert_eq!(active_count, 1, "Should have exactly 1 active session");
         
         // Verify the specific sessions have correct status
-        assert_eq!(plan.status, SessionStatus::Plan);
+        assert_eq!(spec.status, SessionStatus::Spec);
         assert_eq!(active.status, SessionStatus::Active);
     }
 
@@ -109,33 +109,33 @@ mod draft_fixed_tests {
         let (_temp_dir, manager) = setup_test_env();
         
         // Create sessions
-        manager.create_draft_session("ui-plan", "UI Plan").unwrap();
+        manager.create_spec_session("ui-spec", "UI Spec").unwrap();
         manager.create_session("ui-active", Some("UI Active"), None).unwrap();
         
         let all_sessions = manager.list_sessions().unwrap();
         
         // FIX VERIFIED: UI can now properly filter by SessionStatus
-        let plans: Vec<_> = all_sessions.iter()
-            .filter(|s| s.status == SessionStatus::Plan)
+        let specs: Vec<_> = all_sessions.iter()
+            .filter(|s| s.status == SessionStatus::Spec)
             .collect();
         
         let actives: Vec<_> = all_sessions.iter()
             .filter(|s| s.status == SessionStatus::Active)
             .collect();
         
-        assert_eq!(plans.len(), 1, "UI can filter exactly 1 plan");
+        assert_eq!(specs.len(), 1, "UI can filter exactly 1 spec");
         assert_eq!(actives.len(), 1, "UI can filter exactly 1 active");
         
-        // Plan should NOT appear in active sessions
+        // Spec should NOT appear in active sessions
         assert!(
-            !actives.iter().any(|s| s.name == "ui-plan"),
-            "Plan session should not appear in active sessions list"
+            !actives.iter().any(|s| s.name == "ui-spec"),
+            "Spec session should not appear in active sessions list"
         );
         
-        // Plan should appear in plan sessions
+        // Spec should appear in spec sessions
         assert!(
-            plans.iter().any(|s| s.name == "ui-plan"),
-            "Plan session should appear in plan sessions list"
+            specs.iter().any(|s| s.name == "ui-spec"),
+            "Spec session should appear in spec sessions list"
         );
     }
 
@@ -143,30 +143,30 @@ mod draft_fixed_tests {
     fn test_draft_transitions_to_active_when_started() {
         let (_temp_dir, manager) = setup_test_env();
         
-        // Create a plan
-        let plan = manager.create_draft_session("transition-plan", "Plan to start").unwrap();
-        assert_eq!(plan.status, SessionStatus::Plan);
-        assert_eq!(plan.session_state, SessionState::Plan);
+        // Create a spec
+        let spec = manager.create_spec_session("transition-spec", "Spec to start").unwrap();
+        assert_eq!(spec.status, SessionStatus::Spec);
+        assert_eq!(spec.session_state, SessionState::Spec);
         
-        // Start the plan session
-        manager.start_draft_session("transition-plan", None).unwrap();
+        // Start the spec session
+        manager.start_spec_session("transition-spec", None).unwrap();
         
         // Get the updated session - retrieve via list_sessions
         let sessions = manager.list_sessions().unwrap();
         let started = sessions.into_iter()
-            .find(|s| s.name == "transition-plan")
-            .expect("Should find the started plan session");
+            .find(|s| s.name == "transition-spec")
+            .expect("Should find the started spec session");
         
         // FIX VERIFIED: After starting, status changes to Active
         assert_eq!(
             started.status,
             SessionStatus::Active,
-            "Started plan should have Active status"
+            "Started spec should have Active status"
         );
         assert_eq!(
             started.session_state,
             SessionState::Running,
-            "Started plan should have Running state"
+            "Started spec should have Running state"
         );
     }
 }

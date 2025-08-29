@@ -302,9 +302,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 window.dispatchEvent(new CustomEvent('global-kanban-shortcut'))
                 return false
             }
-            // Prefer Shift+Cmd/Ctrl+N as "New plan"
+            // Prefer Shift+Cmd/Ctrl+N as "New spec"
             if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
-                window.dispatchEvent(new CustomEvent('schaltwerk:new-plan'))
+                window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
                 return false
             }
             // Plain Cmd/Ctrl+N opens the regular new session modal

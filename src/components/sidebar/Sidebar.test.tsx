@@ -63,7 +63,7 @@ interface SessionInfo {
   worktree_path: string
   base_branch: string
   merge_mode: string
-  status: 'active' | 'dirty' | 'missing' | 'archived'
+  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
   created_at?: string
   last_modified?: string
   has_uncommitted_changes?: boolean
@@ -232,7 +232,7 @@ describe('Sidebar', () => {
 
   describe('session list rendering', () => {
     it('should show empty state when no sessions', async () => {
-      // Mock both the regular sessions and plans calls
+      // Mock both the regular sessions and specs calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'schaltwerk_core_list_enriched_sessions':
@@ -286,7 +286,7 @@ describe('Sidebar', () => {
         }
       ]
 
-      // Mock both the regular sessions and plans calls
+      // Mock both the regular sessions and specs calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'schaltwerk_core_list_enriched_sessions':
@@ -548,7 +548,7 @@ describe('Sidebar', () => {
         }
       ]
 
-      // Mock both the regular sessions and plans calls
+      // Mock both the regular sessions and specs calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'schaltwerk_core_list_enriched_sessions':

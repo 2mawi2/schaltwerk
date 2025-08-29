@@ -9,7 +9,7 @@ interface DeleteDraftConfirmationProps {
   loading?: boolean
 }
 
-export function DeletePlanConfirmation({ 
+export function DeleteSpecConfirmation({ 
   open, 
   displayName,
   onConfirm, 
@@ -34,12 +34,12 @@ export function DeletePlanConfirmation({
   return (
     <ConfirmModal
       open={open}
-      title={<span>Delete Plan: {displayName}?</span>}
+      title={<span>Delete Spec: {displayName}?</span>}
       body={body}
-      confirmText="Delete Plan"
-      confirmTitle="Delete plan (Enter)"
-      cancelText="Keep Plan"
-      cancelTitle="Keep plan (Esc)"
+      confirmText="Delete Spec"
+      confirmTitle="Delete spec (Enter)"
+      cancelText="Keep Spec"
+      cancelTitle="Keep spec (Esc)"
       onConfirm={handleConfirm}
       onCancel={onCancel}
       loading={loading}

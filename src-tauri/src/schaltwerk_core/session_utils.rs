@@ -209,9 +209,9 @@ impl SessionUtils {
     pub fn apply_session_filter(&self, sessions: Vec<EnrichedSession>, filter_mode: &FilterMode) -> Vec<EnrichedSession> {
         match filter_mode {
             FilterMode::All => sessions,
-            FilterMode::Plan => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Plan).collect(),
+            FilterMode::Spec => sessions.into_iter().filter(|s| s.info.session_state == SessionState::Spec).collect(),
             FilterMode::Running => sessions.into_iter().filter(|s| {
-                s.info.session_state != SessionState::Plan && !s.info.ready_to_merge
+                s.info.session_state != SessionState::Spec && !s.info.ready_to_merge
             }).collect(),
             FilterMode::Reviewed => sessions.into_iter().filter(|s| s.info.ready_to_merge).collect(),
         }
@@ -233,7 +233,25 @@ impl SessionUtils {
         match sort_mode {
             SortMode::Name => {
                 sessions.sort_by(|a, b| {
-                    a.info.session_id.to_lowercase().cmp(&b.info.session_id.to_lowercase())
+                    // First sort by session state priority (Spec > Running)
+                    let a_priority = match a.info.session_state {
+                        SessionState::Spec => 0,
+                        SessionState::Running => 1,
+                        SessionState::Reviewed => 2,
+                    };
+                    let b_priority = match b.info.session_state {
+                        SessionState::Spec => 0,
+                        SessionState::Running => 1,
+                        SessionState::Reviewed => 2,
+                    };
+
+                    match a_priority.cmp(&b_priority) {
+                        std::cmp::Ordering::Equal => {
+                            // If same priority, sort by name
+                            a.info.session_id.to_lowercase().cmp(&b.info.session_id.to_lowercase())
+                        }
+                        ordering => ordering,
+                    }
                 });
             }
             SortMode::Created => {

@@ -34,12 +34,12 @@ describe('useModalPrefill', () => {
 
     it('updates agent content when provided', () => {
       const detail: PrefillEventDetail = {
-        taskContent: '# Plan content\n\nDescription',
+        taskContent: '# Spec content\n\nDescription',
       }
 
       processPrefillData(detail, handlers)
 
-      expect(handlers.setTaskContent).toHaveBeenCalledWith('# Plan content\n\nDescription')
+      expect(handlers.setTaskContent).toHaveBeenCalledWith('# Spec content\n\nDescription')
     })
 
     it('updates base branch when provided', () => {

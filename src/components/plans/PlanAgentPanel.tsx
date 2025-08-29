@@ -7,7 +7,7 @@ import clsx from 'clsx'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
-interface PlanSession {
+interface SpecSession {
   name: string
   created_at: string
   initial_prompt?: string
@@ -27,9 +27,9 @@ export function PlanAgentPanel() {
   const [copying, setCopying] = useState<string | null>(null)
 
   // Extract plan sessions from the global sessions context
-  const plans = useMemo(() => {
+  const specs = useMemo(() => {
     return sessions.filter(session => 
-      session.info.status === 'plan' || session.info.session_state === 'plan'
+      session.info.status === 'spec' || session.info.session_state === 'spec'
     ).map(session => ({
       name: session.info.session_id,
       created_at: session.info.created_at || '',
@@ -39,9 +39,9 @@ export function PlanAgentPanel() {
     }))
   }, [sessions])
 
-  const handleEdit = (plan: PlanSession) => {
-    setEditingDraft(plan.name)
-    setEditContent(plan.draft_content || plan.initial_prompt || '')
+  const handleEdit = (spec: SpecSession) => {
+    setEditingDraft(spec.name)
+    setEditContent(spec.draft_content || spec.initial_prompt || '')
   }
 
   const handleCancelEdit = () => {
@@ -54,15 +54,15 @@ export function PlanAgentPanel() {
     
     try {
       setSaving(true)
-      await invoke('schaltwerk_core_update_plan_content', { 
+      await invoke('schaltwerk_core_update_spec_content', { 
         name: editingDraft, 
         content: editContent 
       })
       setEditingDraft(null)
       setEditContent('')
     } catch (err) {
-      console.error('[PlanAgentPanel] Failed to save plan:', err)
-      setError('Failed to save plan changes')
+      console.error('[PlanAgentPanel] Failed to save spec:', err)
+      setError('Failed to save spec changes')
     } finally {
       setSaving(false)
     }
@@ -72,8 +72,8 @@ export function PlanAgentPanel() {
     try {
       setStarting(sessionName)
       setError(null)
-      // Open Start new agent modal prefilled from plan instead of starting directly
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-plan', { detail: { name: sessionName } }))
+      // Open Start new agent modal prefilled from spec instead of starting directly
+      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
     } catch (err) {
       console.error('[PlanAgentPanel] Failed to open start modal from plan:', err)
       setError('Failed to open start modal')
@@ -97,10 +97,10 @@ export function PlanAgentPanel() {
     }
   }
 
-  const handleCopy = async (plan: PlanSession) => {
+  const handleCopy = async (spec: SpecSession) => {
     try {
-      setCopying(plan.name)
-      const contentToCopy = plan.draft_content || plan.initial_prompt || ''
+      setCopying(spec.name)
+      const contentToCopy = spec.draft_content || spec.initial_prompt || ''
       await navigator.clipboard.writeText(contentToCopy)
     } catch (err) {
       console.error('[PlanAgentPanel] Failed to copy content:', err)
@@ -148,12 +148,12 @@ export function PlanAgentPanel() {
     )
   }
 
-  if (plans.length === 0) {
+  if (specs.length === 0) {
     return (
       <div className="h-full flex items-center justify-center text-slate-400">
         <div className="text-center">
           <VscAdd className="text-4xl mx-auto mb-3 opacity-50" />
-          <p className="mb-1">No plan agents</p>
+          <p className="mb-1">No spec agents</p>
           <p className="text-sm text-slate-500">Create one to get started!</p>
         </div>
       </div>
@@ -163,20 +163,20 @@ export function PlanAgentPanel() {
   return (
     <div className="h-full flex flex-col">
       <div className="px-4 py-3 border-b border-slate-800">
-        <h2 className="text-sm font-semibold text-slate-200">Plan Agents</h2>
-        <p className="text-xs text-slate-400 mt-0.5">{plans.length} plan{plans.length !== 1 ? 's' : ''}</p>
+        <h2 className="text-sm font-semibold text-slate-200">Spec Agents</h2>
+        <p className="text-xs text-slate-400 mt-0.5">{specs.length} spec{specs.length !== 1 ? 's' : ''}</p>
       </div>
       
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
-        {plans.map((plan) => (
+        {specs.map((spec) => (
           <div
-            key={plan.name}
+            key={spec.name}
             className="bg-slate-800/50 border border-slate-700 rounded-lg p-3 hover:border-slate-600 transition-colors"
           >
-            {editingDraft === plan.name ? (
+            {editingDraft === spec.name ? (
               <div className="space-y-3">
                 <div className="flex items-center justify-between mb-2">
-                  <h3 className="text-sm font-medium text-slate-200">{plan.name}</h3>
+                  <h3 className="text-sm font-medium text-slate-200">{spec.name}</h3>
                   <div className="flex gap-2">
                     <button
                       onClick={handleSaveEdit}
@@ -221,19 +221,19 @@ export function PlanAgentPanel() {
               <>
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-sm font-medium text-slate-200 truncate">{plan.name}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(plan.created_at)}</p>
+                    <h3 className="text-sm font-medium text-slate-200 truncate">{spec.name}</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">{formatDate(spec.created_at)}</p>
                   </div>
                 </div>
                 
                 <div className="mb-3">
-                  {(plan.draft_content || plan.initial_prompt) ? (
+                  {(spec.draft_content || spec.initial_prompt) ? (
                     <div className="text-xs text-slate-300 bg-slate-800/50 rounded overflow-hidden max-h-20">
                       <Suspense fallback={
                         <div className="p-2 text-slate-400">Loading preview...</div>
                       }>
                         <MarkdownEditor
-                          value={getPreview(plan.draft_content || plan.initial_prompt)}
+                          value={getPreview(spec.draft_content || spec.initial_prompt)}
                           onChange={() => {}}
                           readOnly={true}
                           className="h-20"
@@ -247,16 +247,16 @@ export function PlanAgentPanel() {
                 
                 <div className="flex gap-2">
                   <button
-                    onClick={() => handleStart(plan.name)}
-                    disabled={starting === plan.name}
+                    onClick={() => handleStart(spec.name)}
+                    disabled={starting === spec.name}
                     className="px-2 py-1 text-xs rounded bg-green-700 hover:bg-green-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Start this agent"
                   >
                     <VscPlay />
-                    {starting === plan.name ? 'Starting...' : 'Start'}
+                    {starting === spec.name ? 'Starting...' : 'Start'}
                   </button>
                   <button
-                    onClick={() => handleEdit(plan)}
+                    onClick={() => handleEdit(spec)}
                     className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center gap-1"
                     title="Edit plan content"
                   >
@@ -264,18 +264,18 @@ export function PlanAgentPanel() {
                     Edit
                   </button>
                   <button
-                    onClick={() => handleCopy(plan)}
-                    disabled={copying === plan.name}
+                    onClick={() => handleCopy(spec)}
+                    disabled={copying === spec.name}
                     className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Copy agent content"
                   >
                     <VscCopy />
-                    {copying === plan.name ? 'Copied!' : 'Copy'}
+                    {copying === spec.name ? 'Copied!' : 'Copy'}
                   </button>
                   <button
-                    onClick={() => setDeleteConfirm(plan.name)}
+                    onClick={() => setDeleteConfirm(spec.name)}
                     className="px-2 py-1 text-xs rounded bg-red-700 hover:bg-red-600 text-white flex items-center gap-1"
-                    title="Delete plan"
+                    title="Delete spec"
                   >
                     <VscTrash />
                     Delete
@@ -289,7 +289,7 @@ export function PlanAgentPanel() {
 
       <ConfirmModal
         open={!!deleteConfirm}
-        title="Delete Plan Agent"
+        title="Delete Spec Agent"
         body={
           <p className="text-sm text-slate-300">
             Are you sure you want to delete <strong className="text-slate-100">{deleteConfirm}</strong>? 

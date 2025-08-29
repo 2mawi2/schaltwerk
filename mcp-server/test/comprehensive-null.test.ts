@@ -1,7 +1,7 @@
 const formatListJson = (s: any) => ({
   name: s.name,
   display_name: s.display_name || s.name,
-  status: s.status === 'plan' ? 'plan' : (s.ready_to_merge ? 'reviewed' : 'new'),
+  status: s.status === 'spec' ? 'spec' : (s.ready_to_merge ? 'reviewed' : 'new'),
   state: s.session_state,
   created_at: s.created_at ? new Date(s.created_at).toISOString() : null,
   last_activity: s.last_activity ? new Date(s.last_activity).toISOString() : null,
@@ -13,7 +13,7 @@ const formatListJson = (s: any) => ({
 })
 
 const formatListText = (s: any) => {
-  if (s.status === 'plan') {
+  if (s.status === 'spec') {
     const created = s.created_at ? new Date(s.created_at).toLocaleDateString() : 'unknown'
     const contentLength = s.draft_content?.length || 0
     const name = s.display_name || s.name
@@ -87,14 +87,14 @@ const validateSessionFormatting = (session: any) => {
   const text = formatListText(session)
   
   if (!session.created_at) {
-    if (session.status === 'plan') {
+    if (session.status === 'spec') {
       expect(text).toContain('Created: unknown')
     }
     expect(json.created_at).toBeNull()
   }
   
   if (!session.last_activity) {
-    if (session.status !== 'plan') {
+    if (session.status !== 'spec') {
       expect(text).toContain('Modified: never')
     }
     expect(json.last_activity).toBeNull()
@@ -156,8 +156,8 @@ describe('Comprehensive MCP Null Handling', () => {
       const testSessions = [
         { name: 'test1', status: 'active', created_at: null, last_activity: null },
         { name: 'test2', status: 'active', created_at: undefined, last_activity: undefined },
-        { name: 'test3', status: 'plan', created_at: null, last_activity: null },
-        { name: 'test4', status: 'plan', created_at: undefined, last_activity: undefined },
+        { name: 'test3', status: 'spec', created_at: null, last_activity: null },
+        { name: 'test4', status: 'spec', created_at: undefined, last_activity: undefined },
         { name: 'test5', status: 'active', created_at: Date.now(), last_activity: Date.now() },
       ]
 
@@ -179,9 +179,9 @@ describe('Comprehensive MCP Null Handling', () => {
     it('should handle null/undefined dates in schaltwerk_get_current_tasks', () => {
       const testTasks = [
         { name: 'task1', status: 'active', created_at: null, last_activity: null },
-        { name: 'task2', status: 'plan', created_at: undefined, last_activity: undefined },
+        { name: 'task2', status: 'spec', created_at: undefined, last_activity: undefined },
         { name: 'task3', status: 'active', created_at: 0, last_activity: 0 },
-        { name: 'task4', status: 'plan', created_at: Date.now(), last_activity: null },
+        { name: 'task4', status: 'spec', created_at: Date.now(), last_activity: null },
         { name: 'task5', status: 'active', created_at: Date.now(), last_activity: Date.now() },
       ]
 

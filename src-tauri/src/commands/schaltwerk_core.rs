@@ -431,7 +431,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
 
 #[tauri::command]
 pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, name: String) -> Result<(), String> {
-    log::info!("Converting session to plan: {name}");
+    log::info!("Converting session to spec: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
@@ -439,7 +439,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
     
     match manager.convert_session_to_draft(&name) {
         Ok(()) => {
-            log::info!("Successfully converted session to plan: {name}");
+            log::info!("Successfully converted session to spec: {name}");
             
             // Close associated terminals
             if let Ok(terminal_manager) = get_terminal_manager().await {
@@ -450,7 +450,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
                 for id in ids {
                     if let Ok(true) = terminal_manager.terminal_exists(&id).await {
                         if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                            log::warn!("Failed to close terminal {id} on convert to plan: {e}");
+                            log::warn!("Failed to close terminal {id} on convert to spec: {e}");
                         }
                     }
                 }
@@ -465,8 +465,8 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
             Ok(())
         },
         Err(e) => {
-            log::error!("Failed to convert session {name} to plan: {e}");
-            Err(format!("Failed to convert session to plan: {e}"))
+            log::error!("Failed to convert session '{name}' to spec: {e}");
+            Err(format!("Failed to convert session '{name}' to spec: {e}"))
         }
     }
 }
@@ -996,20 +996,20 @@ pub async fn schaltwerk_core_unmark_session_ready(app: tauri::AppHandle, name: S
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_create_draft_session(app: tauri::AppHandle, name: String, plan_content: String) -> Result<Session, String> {
-    log::info!("Creating plan session: {name}");
+pub async fn schaltwerk_core_create_spec_session(app: tauri::AppHandle, name: String, spec_content: String) -> Result<Session, String> {
+    log::info!("Creating spec session: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    let session = manager.create_draft_session(&name, &plan_content)
-        .map_err(|e| format!("Failed to create plan session: {e}"))?;
+    let session = manager.create_spec_session(&name, &spec_content)
+        .map_err(|e| format!("Failed to create spec session: {e}"))?;
     
     // Emit event with actual sessions list
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after creating plan session");
+        log::info!("Emitting sessions-refreshed event after creating spec session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
@@ -1019,19 +1019,19 @@ pub async fn schaltwerk_core_create_draft_session(app: tauri::AppHandle, name: S
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_start_draft_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
-    log::info!("Starting plan session: {name}");
+pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
+    log::info!("Starting spec session: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.start_draft_session(&name, base_branch.as_deref())
-        .map_err(|e| format!("Failed to start plan session: {e}"))?;
+    manager.start_spec_session(&name, base_branch.as_deref())
+        .map_err(|e| format!("Failed to start spec session: {e}"))?;
     
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after starting plan session");
+        log::info!("Emitting sessions-refreshed event after starting spec session");
         if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
@@ -1040,10 +1040,10 @@ pub async fn schaltwerk_core_start_draft_session(app: tauri::AppHandle, name: St
     // Drop the lock before starting Claude to avoid deadlock
     drop(core_lock);
     
-    // Automatically start the AI agent for the newly started plan session
-    log::info!("Auto-starting AI agent for plan session: {name}");
+    // Automatically start the AI agent for the newly started spec session
+    log::info!("Auto-starting AI agent for spec session: {name}");
     if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone()).await {
-        log::warn!("Failed to auto-start AI agent for plan session {name}: {e}");
+        log::warn!("Failed to auto-start AI agent for spec session {name}: {e}");
         // Don't fail the whole operation if agent start fails - session is already created
     }
     
@@ -1066,15 +1066,15 @@ pub async fn schaltwerk_core_update_session_state(name: String, state: String) -
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_update_plan_content(app: tauri::AppHandle, name: String, content: String) -> Result<(), String> {
-    log::info!("Updating plan content for session: {name}");
+pub async fn schaltwerk_core_update_spec_content(app: tauri::AppHandle, name: String, content: String) -> Result<(), String> {
+    log::info!("Updating spec content for session: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.update_plan_content(&name, &content)
-        .map_err(|e| format!("Failed to update plan content: {e}"))?;
+    manager.update_spec_content(&name, &content)
+        .map_err(|e| format!("Failed to update spec content: {e}"))?;
     
     // Emit sessions-refreshed event to update UI
     if let Ok(sessions) = manager.list_enriched_sessions() {
@@ -1088,14 +1088,14 @@ pub async fn schaltwerk_core_update_plan_content(app: tauri::AppHandle, name: St
 
 #[tauri::command]
 pub async fn schaltwerk_core_rename_draft_session(app: tauri::AppHandle, old_name: String, new_name: String) -> Result<(), String> {
-    log::info!("Renaming plan session from '{old_name}' to '{new_name}'");
+    log::info!("Renaming spec session from '{old_name}' to '{new_name}'");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
     manager.rename_draft_session(&old_name, &new_name)
-        .map_err(|e| format!("Failed to rename plan session: {e}"))?;
+        .map_err(|e| format!("Failed to rename spec session: {e}"))?;
     
     // Emit sessions-refreshed event to update UI
     if let Ok(sessions) = manager.list_enriched_sessions() {
@@ -1108,15 +1108,15 @@ pub async fn schaltwerk_core_rename_draft_session(app: tauri::AppHandle, old_nam
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_append_plan_content(name: String, content: String) -> Result<(), String> {
-    log::info!("Appending to plan content for session: {name}");
+pub async fn schaltwerk_core_append_spec_content(name: String, content: String) -> Result<(), String> {
+    log::info!("Appending to spec content for session: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.append_plan_content(&name, &content)
-        .map_err(|e| format!("Failed to append plan content: {e}"))
+    manager.append_spec_content(&name, &content)
+        .map_err(|e| format!("Failed to append spec content: {e}"))
 }
 
 #[tauri::command]

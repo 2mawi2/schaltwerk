@@ -474,28 +474,28 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 
                 Ok(Response::new("OK".to_string()))
             }
-            (&hyper::Method::POST, "/webhook/plan-created") => {
-                // Parse the JSON body for plan creation notification
+            (&hyper::Method::POST, "/webhook/spec-created") => {
+                // Parse the JSON body for spec creation notification
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
                 
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
-                        log::info!("Received plan-created webhook: {payload}");
+                        log::info!("Received spec-created webhook: {payload}");
                         
                         if let Some(draft_name) = payload.get("session_name").and_then(|v| v.as_str()) {
-                            log::info!("Plan created via MCP: {draft_name}");
+                            log::info!("Spec created via MCP: {draft_name}");
                             
                             // Emit sessions-refreshed event to trigger UI updates
                             // We emit with empty array since UI components will fetch what they need
-                            // (plans via list_sessions_by_state, sessions via list_enriched_sessions)
-                            log::info!("Emitting sessions-refreshed event after MCP plan creation");
+                            // (specs via list_sessions_by_state, sessions via list_enriched_sessions)
+                            log::info!("Emitting sessions-refreshed event after MCP spec creation");
                             if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<schaltwerk_core::EnrichedSession>::new()) {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
                             
-                            // Emit selection event to automatically open the plan
-                            log::info!("Emitting selection event to open plan: {draft_name}");
+                            // Emit selection event to automatically open the spec
+                            log::info!("Emitting selection event to open spec: {draft_name}");
                             let selection = serde_json::json!({
                                 "kind": "session",
                                 "payload": draft_name
@@ -504,13 +504,13 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 log::error!("Failed to emit selection event: {e}");
                             }
                         } else {
-                            log::warn!("Plan-created webhook payload missing 'name' field");
+                            log::warn!("Spec-created webhook payload missing 'name' field");
                         }
                     } else {
-                        log::warn!("Failed to parse plan-created webhook JSON payload");
+                        log::warn!("Failed to parse spec-created webhook JSON payload");
                     }
                 } else {
-                    log::warn!("Failed to convert plan-created webhook body to UTF-8");
+                    log::warn!("Failed to convert spec-created webhook body to UTF-8");
                 }
                 
                 Ok(Response::new("OK".to_string()))
@@ -695,11 +695,11 @@ fn main() {
             schaltwerk_core_get_agent_type,
             schaltwerk_core_get_font_sizes,
             schaltwerk_core_set_font_sizes,
-            schaltwerk_core_create_draft_session,
-            schaltwerk_core_start_draft_session,
+            schaltwerk_core_create_spec_session,
+            schaltwerk_core_start_spec_session,
             schaltwerk_core_update_session_state,
-            schaltwerk_core_update_plan_content,
-            schaltwerk_core_append_plan_content,
+            schaltwerk_core_update_spec_content,
+            schaltwerk_core_append_spec_content,
             schaltwerk_core_rename_draft_session,
             schaltwerk_core_list_sessions_by_state,
             // Open apps commands (from module)

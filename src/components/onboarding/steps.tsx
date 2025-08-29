@@ -35,7 +35,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     <li><strong>Left Sidebar:</strong> Agent list and project navigation</li>
                     <li><strong>Center Panel:</strong> AI Agent workspace (Claude, Cursor, Gemini, etc.)</li>
                     <li><strong>Bottom Terminals:</strong> Command-line access for development agents</li>
-                    <li><strong>Right Panel:</strong> Diff viewer for changes or Agents/Plans overview</li>
+                    <li><strong>Right Panel:</strong> Diff viewer for changes or Agents/Specs overview</li>
                 </ul>
                 <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
                     <div className="flex items-start gap-2">
@@ -69,13 +69,13 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                         <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">⌘N</kbd>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-amber-400 font-medium mb-2">Plans</h4>
-                        <p className="text-sm text-slate-300 mb-2">Create a workspace to plan your agent before starting the AI agent.</p>
+                        <h4 className="text-amber-400 font-medium mb-2">Specs</h4>
+                        <p className="text-sm text-slate-300 mb-2">Create a workspace to spec your agent before starting the AI agent.</p>
                         <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">⇧⌘N</kbd>
                     </div>
                 </div>
                 <p className="text-sm text-slate-400">
-                    Use plans to gather requirements, design solutions, or prepare context before the AI agent begins work.
+                    Use specs to gather requirements, design solutions, or prepare context before the AI agent begins work.
                 </p>
             </div>
         ),
@@ -102,7 +102,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                                 Connect the MCP server to enable natural language commands:
                             </p>
                             <ul className="text-xs text-purple-300/70 space-y-1 list-disc list-inside">
-                                <li>"Which of my plans are most important to continue?"</li>
+                                <li>"Which of my specs are most important to continue?"</li>
                                 <li>"Review agents X, Y, Z and mark them as reviewed"</li>
                                 <li>"Squash merge all reviewed agents into main"</li>
                                 <li>"Split this feature into parallel agents and start them"</li>
@@ -114,7 +114,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </div>
                 <div className="text-sm text-slate-400">
                     <p className="mb-2">
-                        <strong>Ideal workflow:</strong> Create plans → Start agents → Review (manually or via orchestrator) → Merge & integrate
+                        <strong>Ideal workflow:</strong> Create specs → Start agents → Review (manually or via orchestrator) → Merge & integrate
                     </p>
                     <p>
                         Access with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘1</kbd> • Connect MCP in Settings
@@ -325,7 +325,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                         <div>
                             <h4 className="text-slate-200 font-medium mb-2">Getting Started</h4>
                             <ul className="space-y-1 text-slate-400">
-                                <li>• Start agents with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘N</kbd> or plans with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⇧⌘N</kbd></li>
+                                <li>• Start agents with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘N</kbd> or specs with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⇧⌘N</kbd></li>
                                 <li>• Switch agents instantly with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘↑/↓</kbd></li>
                                 <li>• Focus panels with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘T</kbd> (agent) or <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘/</kbd> (terminal)</li>
                                 <li>• Use action buttons <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">F1-F6</kbd> for AI prompts</li>

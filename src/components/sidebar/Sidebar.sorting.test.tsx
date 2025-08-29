@@ -34,7 +34,7 @@ interface SessionInfo {
   worktree_path: string
   base_branch: string
   merge_mode: string
-  status: 'active' | 'dirty' | 'missing' | 'archived'
+  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
   created_at?: string
   last_modified?: string
   has_uncommitted_changes?: boolean
@@ -111,7 +111,7 @@ describe('Sidebar sorting functionality', () => {
         const mode = args?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const plans = sessions.filter(s => s.info.session_state === 'plan')
+        const specs = sessions.filter(s => s.info.session_state === 'plan')
         const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'plan')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         let sorted: any[] = []
@@ -130,7 +130,7 @@ describe('Sidebar sorting functionality', () => {
         } else {
           sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         }
-        const draftsSorted = plans.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
