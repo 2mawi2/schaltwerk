@@ -30,6 +30,7 @@ export interface DiffViewerProps {
   toggleCollapsed: (idx: string | number) => void
   handleLineMouseDown: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
   handleLineMouseEnter: (lineNum: number, side: 'old' | 'new') => void
+  handleLineMouseLeave: () => void
   handleLineMouseUp: (event: React.MouseEvent) => void
   lineSelection: {
     isLineSelected: (lineNum: number, side: 'old' | 'new') => boolean
@@ -56,6 +57,7 @@ export function DiffViewer({
   toggleCollapsed,
   handleLineMouseDown,
   handleLineMouseEnter,
+  handleLineMouseLeave,
   handleLineMouseUp,
   lineSelection
 }: DiffViewerProps) {
@@ -180,10 +182,12 @@ export function DiffViewer({
                             isSelected={false}
                             onLineMouseDown={handleLineMouseDown}
                             onLineMouseEnter={handleLineMouseEnter}
+                            onLineMouseLeave={handleLineMouseLeave}
                             onLineMouseUp={handleLineMouseUp}
                             onToggleCollapse={() => toggleCollapsed(globalIdx)}
                             isCollapsed={!isExpanded}
                             highlightedContent={undefined}
+                            filePath={file.path}
                           />
                         )
                         
@@ -200,10 +204,12 @@ export function DiffViewer({
                                 isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
                                 onLineMouseDown={handleLineMouseDown}
                                 onLineMouseEnter={handleLineMouseEnter}
+                                onLineMouseLeave={handleLineMouseLeave}
                                 onLineMouseUp={handleLineMouseUp}
                                 highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
                                 hasComment={!!collapsedComment}
                                 commentText={collapsedComment?.comment}
+                                filePath={file.path}
                               />
                             )
                           })
@@ -221,10 +227,12 @@ export function DiffViewer({
                           isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
                           onLineMouseDown={handleLineMouseDown}
                           onLineMouseEnter={handleLineMouseEnter}
+                          onLineMouseLeave={handleLineMouseLeave}
                           onLineMouseUp={handleLineMouseUp}
                           highlightedContent={line.content ? highlightCode(line.content) : undefined}
                           hasComment={!!comment}
                           commentText={comment?.comment}
+                          filePath={file.path}
                         />
                       )
                     })}
@@ -319,10 +327,12 @@ export function DiffViewer({
                           isSelected={false}
                           onLineMouseDown={handleLineMouseDown}
                           onLineMouseEnter={handleLineMouseEnter}
+                          onLineMouseLeave={handleLineMouseLeave}
                           onLineMouseUp={handleLineMouseUp}
                           onToggleCollapse={() => toggleCollapsed(globalIdx)}
                           isCollapsed={!isExpanded}
                           highlightedContent={undefined}
+                          filePath={file.path}
                         />
                       )
                       
@@ -339,10 +349,12 @@ export function DiffViewer({
                               isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
                               onLineMouseDown={handleLineMouseDown}
                               onLineMouseEnter={handleLineMouseEnter}
+                              onLineMouseLeave={handleLineMouseLeave}
                               onLineMouseUp={handleLineMouseUp}
                               highlightedContent={shouldHighlight && collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
                               hasComment={!!collapsedComment}
                               commentText={collapsedComment?.comment}
+                              filePath={file.path}
                             />
                           )
                         })
@@ -360,10 +372,12 @@ export function DiffViewer({
                         isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
                         onLineMouseDown={handleLineMouseDown}
                         onLineMouseEnter={handleLineMouseEnter}
+                        onLineMouseLeave={handleLineMouseLeave}
                         onLineMouseUp={handleLineMouseUp}
                         highlightedContent={shouldHighlight && line.content ? highlightCode(line.content) : undefined}
                         hasComment={!!comment}
                         commentText={comment?.comment}
+                        filePath={file.path}
                       />
                     )
                   })}

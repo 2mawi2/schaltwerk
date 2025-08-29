@@ -1097,6 +1097,10 @@ fi`}
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
+                                    <span className="text-slate-300">Add Comment (hover over diff line)</span>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Enter</kbd>
+                                </li>
+                                <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Run Plan Agent (when focused)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
                                 </li>

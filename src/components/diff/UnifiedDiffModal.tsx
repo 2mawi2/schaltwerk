@@ -4,6 +4,7 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useReview } from '../../contexts/ReviewContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useLineSelection } from '../../hooks/useLineSelection'
+import { useDiffHover } from '../../hooks/useDiffHover'
 // getFileLanguage now comes from Rust backend via fileInfo in diff responses
 import { loadFileDiff, type FileDiffData } from './loadDiffs'
 import { useReviewComments } from '../../hooks/useReviewComments'
@@ -33,6 +34,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const lineSelection = useLineSelection()
   const lineSelectionRef = useRef(lineSelection)
   lineSelectionRef.current = lineSelection
+  
+  const { setHoveredLineInfo, clearHoveredLine, useHoverKeyboardShortcuts } = useDiffHover()
   
   const [files, setFiles] = useState<ChangedFile[]>([])
   const [selectedFile, setSelectedFile] = useState<string | null>(filePath)
@@ -701,7 +704,30 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       // Extend selection while dragging
       lineSelection.extendSelection(lineNum, side)
     }
-  }, [isDraggingSelection, lineSelection])
+    
+    // Update hover tracking for keyboard shortcuts
+    if (selectedFile) {
+      setHoveredLineInfo(lineNum, side, selectedFile)
+    }
+  }, [isDraggingSelection, lineSelection, selectedFile, setHoveredLineInfo])
+  
+  const handleLineMouseLeave = useCallback(() => {
+    clearHoveredLine()
+  }, [clearHoveredLine])
+  
+  const startCommentOnLine = useCallback((lineNum: number, side: 'old' | 'new', _filePath: string) => {
+    // Clear any existing selection first
+    lineSelection.clearSelection()
+    
+    // Create a new single-line selection using handleLineClick
+    lineSelection.handleLineClick(lineNum, side)
+    
+    // The useEffect will automatically show the comment form when selection is set
+    setShowCommentForm(true)
+  }, [lineSelection])
+  
+  // Enable keyboard shortcuts for hovered lines
+  useHoverKeyboardShortcuts(startCommentOnLine, isOpen)
 
   const handleLineMouseUp = useCallback((event: React.MouseEvent) => {
     if (isDraggingSelection) {
@@ -899,7 +925,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       
       {/* Modal */}
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800 animate-slideUp">
+        <div 
+          className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800 animate-slideUp"
+          data-testid="diff-modal"
+          data-selected-file={selectedFile || ''}
+        >
           {/* Header */}
           <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
             <div className="flex items-center gap-4">
@@ -965,6 +995,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 toggleCollapsed={toggleCollapsed}
                 handleLineMouseDown={handleLineMouseDown}
                 handleLineMouseEnter={handleLineMouseEnter}
+                handleLineMouseLeave={handleLineMouseLeave}
                 handleLineMouseUp={handleLineMouseUp}
                 lineSelection={lineSelection}
               />

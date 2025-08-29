@@ -1,4 +1,4 @@
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight, VscComment } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
@@ -9,12 +9,14 @@ interface DiffLineRowProps {
   isSelected: boolean
   onLineMouseDown?: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
   onLineMouseEnter?: (lineNum: number, side: 'old' | 'new') => void
+  onLineMouseLeave?: () => void
   onLineMouseUp?: (event: React.MouseEvent) => void
   onToggleCollapse?: () => void
   isCollapsed?: boolean
   highlightedContent?: string
   hasComment?: boolean
   commentText?: string
+  filePath?: string
 }
 
 function DiffLineRowComponent({
@@ -22,6 +24,7 @@ function DiffLineRowComponent({
   isSelected,
   onLineMouseDown,
   onLineMouseEnter,
+  onLineMouseLeave,
   onLineMouseUp,
   onToggleCollapse,
   isCollapsed,
@@ -29,6 +32,7 @@ function DiffLineRowComponent({
   hasComment,
   commentText
 }: DiffLineRowProps) {
+  const [isHovered, setIsHovered] = useState(false)
   if (line.isCollapsible) {
     return (
       <tr className="hover:bg-slate-900/50 group">
@@ -58,17 +62,34 @@ function DiffLineRowComponent({
   const lineNum = line.oldLineNumber || line.newLineNumber
   const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
   
+  const handleMouseEnter = () => {
+    setIsHovered(true)
+    if (lineNum && onLineMouseEnter) {
+      onLineMouseEnter(lineNum, side)
+    }
+  }
+
+  const handleMouseLeave = () => {
+    setIsHovered(false)
+    if (onLineMouseLeave) {
+      onLineMouseLeave()
+    }
+  }
+
   return (
     <tr
       className={clsx(
-        "group transition-colors",
+        "group transition-colors relative",
         line.type === 'added' && "bg-green-900/20 hover:bg-green-900/30",
-        line.type === 'removed' && "bg-red-900/20 hover:bg-red-900/30",
+        line.type === 'removed' && "bg-red-900/20 hover:bg-red-900/30", 
         line.type === 'unchanged' && "hover:bg-slate-900/30",
-        isSelected && "!bg-blue-500/20 hover:!bg-blue-500/25"
+        isSelected && "!bg-blue-500/20 hover:!bg-blue-500/25",
+        isHovered && "ring-1 ring-blue-500/30"
       )}
       data-line-num={lineNum}
       data-side={side}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
     >
       {/* Selection button */}
       <td className="w-10 text-center select-none">
@@ -125,12 +146,20 @@ function DiffLineRowComponent({
           ) : (
             <code className="text-slate-300 inline-block whitespace-pre">{line.content}</code>
           )}
-          {hasComment && (
-            <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 rounded text-xs text-blue-400" title={commentText}>
-              <VscComment />
-              <span>Comment</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {hasComment && (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 rounded text-xs text-blue-400" title={commentText}>
+                <VscComment />
+                <span>Comment</span>
+              </div>
+            )}
+            {isHovered && lineNum && (
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-slate-700/70 rounded text-xs text-slate-300 opacity-75">
+                <VscComment />
+                <span>Press Enter to comment</span>
+              </div>
+            )}
+          </div>
         </div>
       </td>
     </tr>
@@ -147,8 +176,10 @@ function areEqual(prev: DiffLineRowProps, next: DiffLineRowProps) {
     prev.hasComment === next.hasComment &&
     prev.commentText === next.commentText &&
     prev.highlightedContent === next.highlightedContent &&
+    prev.filePath === next.filePath &&
     prev.onLineMouseDown === next.onLineMouseDown &&
     prev.onLineMouseEnter === next.onLineMouseEnter &&
+    prev.onLineMouseLeave === next.onLineMouseLeave &&
     prev.onLineMouseUp === next.onLineMouseUp &&
     prev.onToggleCollapse === next.onToggleCollapse
   )
