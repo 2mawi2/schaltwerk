@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 
 interface FontSizeContextType {
@@ -23,6 +23,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
   const [terminalFontSize, setTerminalFontSize] = useState(DEFAULT_TERMINAL_FONT_SIZE)
   const [uiFontSize, setUiFontSize] = useState(DEFAULT_UI_FONT_SIZE)
   const [initialized, setInitialized] = useState(false)
+  const lastSavedRef = useRef<{ terminal: number; ui: number } | null>(null)
 
   // Load font sizes from database on mount
   useEffect(() => {
@@ -42,22 +43,41 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
-  // Save font sizes to database when they change
+  // Save font sizes to database when they change (debounced) and update CSS vars/events immediately
   useEffect(() => {
     if (!initialized) return
-    
-    invoke('schaltwerk_core_set_font_sizes', { 
-      terminalFontSize, 
-      uiFontSize 
-    })
-      .catch(err => console.error('Failed to save font sizes:', err))
-    
+
     document.documentElement.style.setProperty('--terminal-font-size', `${terminalFontSize}px`)
     document.documentElement.style.setProperty('--ui-font-size', `${uiFontSize}px`)
-    
-    window.dispatchEvent(new CustomEvent('font-size-changed', { 
-      detail: { terminalFontSize, uiFontSize } 
+
+    window.dispatchEvent(new CustomEvent('font-size-changed', {
+      detail: { terminalFontSize, uiFontSize }
     }))
+
+    const pending = { terminal: terminalFontSize, ui: uiFontSize }
+
+    // Skip invoke if values match last saved to avoid redundant writes
+    if (lastSavedRef.current &&
+        lastSavedRef.current.terminal === pending.terminal &&
+        lastSavedRef.current.ui === pending.ui) {
+      return
+    }
+
+    const t = setTimeout(() => {
+      // Double-check before saving
+      if (lastSavedRef.current &&
+          lastSavedRef.current.terminal === pending.terminal &&
+          lastSavedRef.current.ui === pending.ui) {
+        return
+      }
+      lastSavedRef.current = pending
+      invoke('schaltwerk_core_set_font_sizes', {
+        terminalFontSize: pending.terminal,
+        uiFontSize: pending.ui
+      }).catch(err => console.error('Failed to save font sizes:', err))
+    }, 400)
+
+    return () => clearTimeout(t)
   }, [terminalFontSize, uiFontSize, initialized])
 
   const handleSetTerminalFontSize = (size: number) => {

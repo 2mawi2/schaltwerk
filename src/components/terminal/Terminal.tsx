@@ -495,23 +495,26 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Handle font size changes with better debouncing
         let fontSizeChangeTimer: NodeJS.Timeout | null = null;
-        const handleFontSizeChange = () => {
+        const handleFontSizeChange = (ev: Event) => {
             if (!terminal.current) return;
-            
+
+            const detail = (ev as CustomEvent<{ terminalFontSize: number; uiFontSize: number }>).detail;
+            const newTerminalFontSize = detail?.terminalFontSize;
+            if (typeof newTerminalFontSize === 'number') {
+                terminal.current.options.fontSize = newTerminalFontSize;
+            }
+
             // Clear any pending font size change
             if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
-            
-            // Update font immediately for visual feedback
-            terminal.current.options.fontSize = terminalFontSize;
-            
+
             // Debounce the fit operation to prevent rapid resizes
             fontSizeChangeTimer = setTimeout(() => {
                 if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
-                
+
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    
+
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
@@ -682,7 +685,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, terminalFontSize]); // Recreate when terminalId or fontSize changes
+    }, [terminalId]); // Recreate only when terminalId changes
 
 
     // Automatically start Claude for top terminals when hydrated and first ready
