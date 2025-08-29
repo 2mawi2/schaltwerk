@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
+import { useSessions } from './SessionsContext'
 
 export interface Selection {
     kind: 'session' | 'orchestrator'
@@ -31,6 +32,7 @@ const SelectionContext = createContext<SelectionContextType | null>(null)
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
     const { terminalFontSize } = useFontSize()
+    const { setCurrentSelection } = useSessions()
     const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({
         top: 'orchestrator-default-top',
@@ -349,6 +351,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 setSelectionState(newSelection)
                 setTerminals(newTerminalIds)
                 
+                // Notify SessionsContext about the selection change to preserve position during sorting
+                setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
+                
                 // Save to database if this is an intentional change and not during restoration
                 if (isIntentional && !isRestoringRef.current && projectPath) {
                     try {
@@ -374,6 +379,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Now atomically update both selection and terminals
             setSelectionState(newSelection)
             setTerminals(terminalIds)
+            
+            // Notify SessionsContext about the selection change to preserve position during sorting
+            setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
             
             // Save to database if this is an intentional change and not during restoration
             if (isIntentional && !isRestoringRef.current && projectPath) {

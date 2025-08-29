@@ -6,13 +6,11 @@ import { useFocus } from '../../contexts/FocusContext'
 import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
-import { useSortedSessions } from '../../hooks/useSortedSessions'
-import { useProject } from '../../contexts/ProjectContext'
 import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToPlanConfirmation } from '../modals/ConvertToPlanConfirmation'
 import { SessionButton } from './SessionButton'
-import { FilterMode, SortMode, isValidFilterMode, isValidSortMode, getDefaultFilterMode, getDefaultSortMode } from '../../types/sessionFilters'
+import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
 
 // Normalize backend states to UI categories
@@ -81,14 +79,18 @@ interface SidebarProps {
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
     const { selection, setSelection } = useSelection()
-    const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
-    const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
-    const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
-    const { sessions: contextSessions, reloadSessions } = useSessions()
-    const { sessions: sortedSessions, loading: sortedLoading } = useSortedSessions({ sortMode, filterMode })
-    // loading is provided by SessionsContext
-    const [settingsLoaded, setSettingsLoaded] = useState(false)
+    const { 
+        sessions, 
+        allSessions, 
+        loading, 
+        sortMode, 
+        filterMode, 
+        setSortMode, 
+        setFilterMode, 
+        setCurrentSelection, 
+        reloadSessions 
+    } = useSessions()
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
@@ -111,41 +113,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
-    
-    // Use backend-sorted sessions directly
-    const sessions = sortedSessions
-    const loading = sortedLoading
-    
-    // Load settings when project changes
-    useEffect(() => {
-        if (!projectPath) return
-        
-        const loadProjectSettings = async () => {
-            try {
-                const settings = await invoke<{ filter_mode: string; sort_mode: string }>('get_project_sessions_settings')
-                if (settings) {
-                    // Validate and set filter mode with fallback
-                    const filterMode = isValidFilterMode(settings.filter_mode) 
-                        ? settings.filter_mode as FilterMode
-                        : getDefaultFilterMode()
-                    setFilterMode(filterMode)
-                    
-                    // Validate and set sort mode with fallback
-                    const sortMode = isValidSortMode(settings.sort_mode)
-                        ? settings.sort_mode as SortMode
-                        : getDefaultSortMode()
-                    setSortMode(sortMode)
-                    
-                    setSettingsLoaded(true)
-                }
-            } catch (error) {
-                console.warn('Failed to load project sessions settings:', error)
-                setSettingsLoaded(true)
-            }
-        }
-        
-        loadProjectSettings()
-    }, [projectPath])
     
     // Auto-select appropriate session when current selection disappears from view
     useEffect(() => {
@@ -196,7 +163,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const recomputeIdle = () => {
             const now = Date.now()
             const next = new Set<string>()
-            for (const s of contextSessions) {
+            for (const s of allSessions) {
                 const ts: number | undefined = (s.info as any).last_modified_ts
                 const plan = isPlan(s.info)
                 const reviewed = isReviewed(s.info)
@@ -211,9 +178,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         recomputeIdle()
         const t = setInterval(recomputeIdle, 30_000)
         return () => clearInterval(t)
-    }, [contextSessions])
+    }, [allSessions])
 
     const handleSelectOrchestrator = async () => {
+        setCurrentSelection(null) // Notify SessionsContext that orchestrator is selected
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }
     
@@ -229,6 +197,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 updated.delete(s.session_id)
                 return updated
             })
+            
+            // Notify SessionsContext about the current selection to preserve it during sorting
+            setCurrentSelection(s.session_id)
             
             // Directly set selection to minimize latency in switching
             await setSelection({
@@ -408,29 +379,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         isDiffViewerOpen
     })
 
-    // Persist user preferences to backend
-    useEffect(() => {
-        if (!settingsLoaded || !projectPath) return
-        
-        const saveSettings = async () => {
-            try {
-                await invoke('set_project_sessions_settings', { 
-                    settings: {
-                        filter_mode: filterMode,
-                        sort_mode: sortMode
-                    }
-                })
-            } catch (error) {
-                console.warn('Failed to save sessions settings:', error)
-            }
-        }
-        
-        saveSettings()
-    }, [filterMode, sortMode, settingsLoaded, projectPath])
-
-    // Sessions are now managed by SessionsContext
-    
-    // Sessions refresh handling moved into SessionsContext
+    // Sessions are now managed by SessionsContext with integrated sorting/filtering
     
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
@@ -447,32 +396,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const latestSelectionRef = useRef(selection)
     const latestSortedSessionsRef = useRef(sessions)
     const latestFilterModeRef = useRef(filterMode)
-    const latestSessionsRef = useRef(contextSessions)
+    const latestSessionsRef = useRef(allSessions)
 
     useEffect(() => { latestSelectionRef.current = selection }, [selection])
     useEffect(() => { latestSortedSessionsRef.current = sessions }, [sessions])
     useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
-    useEffect(() => { latestSessionsRef.current = contextSessions }, [contextSessions])
-    
-    // Save filter and sort mode settings when they change
-    useEffect(() => {
-        if (!settingsLoaded || !projectPath) return
-        
-        const saveSettings = async () => {
-            try {
-                await invoke('set_project_sessions_settings', {
-                    settings: {
-                        filter_mode: filterMode,
-                        sort_mode: sortMode
-                    }
-                })
-            } catch (error) {
-                console.warn('Failed to save sessions settings:', error)
-            }
-        }
-        
-        saveSettings()
-    }, [filterMode, sortMode, settingsLoaded, projectPath])
+    useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
 
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
@@ -589,7 +518,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all agents"
                         >
-                            All <span className="text-slate-400">({contextSessions.length})</span>
+                            All <span className="text-slate-400">({allSessions.length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -597,7 +526,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Plan)}
                             title="Show plan agents"
                         >
-                            Plans <span className="text-slate-400">({contextSessions.filter(s => isPlan(s.info)).length})</span>
+                            Plans <span className="text-slate-400">({allSessions.filter(s => isPlan(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -605,7 +534,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running agents"
                         >
-                            Running <span className="text-slate-400">({contextSessions.filter(s => !isReviewed(s.info) && !isPlan(s.info)).length})</span>
+                            Running <span className="text-slate-400">({allSessions.filter(s => !isReviewed(s.info) && !isPlan(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -613,7 +542,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed agents"
                         >
-                            Reviewed <span className="text-slate-400">({contextSessions.filter(s => isReviewed(s.info)).length})</span>
+                            Reviewed <span className="text-slate-400">({allSessions.filter(s => isReviewed(s.info)).length})</span>
                         </button>
                         <button
                             className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
