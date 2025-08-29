@@ -93,7 +93,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
             expect(screen.getByText('Running')).toBeInTheDocument()
             expect(screen.getByText('Reviewed')).toBeInTheDocument()
         })
@@ -104,10 +104,10 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
         })
 
-        const runDraftButton = screen.getByTestId('run-draft-test-spec')
+        const runDraftButton = screen.getByTestId('run-draft-test-plan')
         fireEvent.click(runDraftButton)
 
         await waitFor(() => {
@@ -126,10 +126,10 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
         })
 
-        const runDraftButton = screen.getByTestId('run-draft-test-spec')
+        const runDraftButton = screen.getByTestId('run-draft-test-plan')
         fireEvent.click(runDraftButton)
 
         // Should not directly call backend commands, only dispatch event to open modal
@@ -144,13 +144,13 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
             expect(screen.getByText('Running')).toBeInTheDocument()
             expect(screen.getByText('Reviewed')).toBeInTheDocument()
         })
 
         // Check that sessions are in correct columns
-        expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+        expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-active')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-reviewed')).toBeInTheDocument()
     })
@@ -160,11 +160,11 @@ describe('KanbanView Drag and Drop Logic', () => {
 
         await waitFor(() => {
             // Each column should show the count of sessions
-            const specColumn = screen.getByText('Plan').closest('div')
+            const specColumn = screen.getByText('Spec').closest('div')
             const runningColumn = screen.getByText('Running').closest('div')
             const reviewedColumn = screen.getByText('Reviewed').closest('div')
 
-            expect(specColumn).toContainHTML('1') // test-spec
+            expect(specColumn).toContainHTML('1') // test-plan
             expect(runningColumn).toContainHTML('1') // test-active
             expect(reviewedColumn).toContainHTML('1') // test-reviewed
         })
@@ -188,7 +188,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
         })
 
         // We can't easily test actual drag and drop in jsdom, but we can test the handler logic
@@ -204,7 +204,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
             expect(screen.getByText('Running')).toBeInTheDocument() 
             expect(screen.getByText('Reviewed')).toBeInTheDocument()
         })
@@ -216,7 +216,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
         })
 
         // Component should render correctly even if there are errors
@@ -229,7 +229,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         const { rerender } = renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
         })
 
         rerender(
@@ -240,7 +240,7 @@ describe('KanbanView Drag and Drop Logic', () => {
 
         // Columns should still be visible after rerender
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
             expect(screen.getByText('Running')).toBeInTheDocument()
             expect(screen.getByText('Reviewed')).toBeInTheDocument()
         })
@@ -261,11 +261,11 @@ describe('KanbanView Complex Scenarios', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
         })
 
         // Simulate multiple rapid operations
-        const runButton = screen.getByTestId('run-draft-test-spec')
+        const runButton = screen.getByTestId('run-draft-test-plan')
         
         fireEvent.click(runButton)
         fireEvent.click(runButton)
@@ -283,11 +283,11 @@ describe('KanbanView Complex Scenarios', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByText('Plan')).toBeInTheDocument()
+            expect(screen.getByText('Spec')).toBeInTheDocument()
         })
 
         // Test that all session cards are properly interactive
-        expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+        expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-active')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-reviewed')).toBeInTheDocument()
     })

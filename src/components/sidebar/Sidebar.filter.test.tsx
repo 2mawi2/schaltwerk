@@ -49,7 +49,7 @@ interface EnrichedSession {
   terminals: string[]
 }
 
-const createSession = (id: string, readyToMerge = false, sessionState?: 'plan' | 'active'): EnrichedSession => ({
+const createSession = (id: string, readyToMerge = false, sessionState?: 'spec' | 'active'): EnrichedSession => ({
   info: {
     session_id: id,
     branch: `para/${id}`,
@@ -89,9 +89,9 @@ describe('Sidebar filter functionality and persistence', () => {
     localStorage.clear()
 
     const sessions = [
-      createSession('alpha', false, 'plan'),
+      createSession('alpha', false, 'spec'),
       createSession('bravo', true, 'active'),  // reviewed
-      createSession('charlie', false, 'plan'),
+      createSession('charlie', false, 'spec'),
       createSession('delta', true, 'active'),  // reviewed
     ]
 

@@ -192,7 +192,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 // Try to fetch explicit plans; if shape is unexpected, ignore
                 let all = enriched
                 try {
-                    const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'plan' })
+                    const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                     if (Array.isArray(draftSessions) && draftSessions.some(d => d && (d.name || d.id))) {
                         const enrichedDrafts: EnrichedSession[] = draftSessions.map(plan => ({
                             id: plan.id,

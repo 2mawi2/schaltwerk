@@ -297,7 +297,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             if (selectedSession && !selectedSession.info.ready_to_merge) {
                 // Prevent marking plans as reviewed
                 if (isPlan(selectedSession.info)) {
-                    console.warn(`Cannot mark plan "${selectedSession.info.session_id}" as reviewed. Plans must be started as agents first.`)
+                    console.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
                     return
                 }
 
@@ -524,9 +524,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
                                 filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
                             onClick={() => setFilterMode(FilterMode.Spec)}
-                            title="Show plan agents"
+                            title="Show spec agents"
                         >
-                            Plans <span className="text-slate-400">({allSessions.filter(s => isPlan(s.info)).length})</span>
+                            Specs <span className="text-slate-400">({allSessions.filter(s => isPlan(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 

@@ -554,7 +554,6 @@ impl SessionManager {
 
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &session.worktree_path,
-                    existing_session_id.as_deref(),
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
@@ -713,15 +712,10 @@ impl SessionManager {
                 };
 
                 // Always try to find a session for resumption - Claude will handle the case where no session exists
-                let session_id = if resume_session {
-                    crate::schaltwerk_core::claude::find_claude_session(&self.repo_path)
-                } else {
-                    None
-                };
+                // Claude will handle session discovery automatically with --continue
 
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &self.repo_path,
-                    session_id.as_deref(),
                     None,
                     skip_permissions,
                     Some(&config),

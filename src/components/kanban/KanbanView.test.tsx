@@ -114,7 +114,7 @@ describe('KanbanView', () => {
             // Look for column headings specifically
             const headings = screen.getAllByRole('heading', { level: 3 })
             const headingTexts = headings.map(h => h.textContent)
-            expect(headingTexts).toContain('Plan')
+            expect(headingTexts).toContain('Spec')
             expect(headingTexts).toContain('Running')
             expect(headingTexts).toContain('Reviewed')
         })
@@ -166,14 +166,14 @@ describe('KanbanView', () => {
         })
     })
 
-    it('should show "Create plan" button in Spec column and "Start agent" in Running column', async () => {
+    it('should show "Create spec" button in Spec column and "Start agent" in Running column', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockResolvedValue(mockSessions)
 
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('Create plan')).toBeInTheDocument()
+            expect(screen.getByText('Create spec')).toBeInTheDocument()
             expect(screen.getByText('Start agent')).toBeInTheDocument()
         })
     })
@@ -187,10 +187,10 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('Create plan')).toBeInTheDocument()
+            expect(screen.getByText('Create spec')).toBeInTheDocument()
         })
 
-        const createButton = screen.getByText('Create plan')
+        const createButton = screen.getByText('Create spec')
         await userEvent.click(createButton)
         
         // Should dispatch event to open new session modal in plan mode
@@ -210,10 +210,10 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('Create plan')).toBeInTheDocument()
+            expect(screen.getByText('Create spec')).toBeInTheDocument()
         })
 
-        const createButton = screen.getByText('Create plan')
+        const createButton = screen.getByText('Create spec')
         await userEvent.click(createButton)
         
         // Should dispatch the new-spec event
@@ -233,7 +233,7 @@ describe('KanbanView', () => {
         await waitFor(() => {
             expect(screen.getByText('No agents or specs found')).toBeInTheDocument()
             expect(screen.getByText('Start agent')).toBeInTheDocument()
-            expect(screen.getByText('Create plan')).toBeInTheDocument()
+            expect(screen.getByText('Create spec')).toBeInTheDocument()
         })
     })
 
@@ -246,10 +246,10 @@ describe('KanbanView', () => {
         render(<KanbanView />, { wrapper })
 
         await waitFor(() => {
-            expect(screen.getByText('Create plan')).toBeInTheDocument()
+            expect(screen.getByText('Create spec')).toBeInTheDocument()
         })
 
-        const createButton = screen.getByText('Create plan')
+        const createButton = screen.getByText('Create spec')
         await userEvent.click(createButton)
         
         // Should dispatch the new-spec event

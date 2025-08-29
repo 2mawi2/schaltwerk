@@ -100,7 +100,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         
         // Validate plan content if creating as plan
          if (createAsDraft && !taskContent.trim()) {
-             setValidationError('Please enter plan content')
+             setValidationError('Please enter spec content')
              return
          }
         
@@ -329,12 +329,12 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                             onChange={e => setCreateAsDraft(e.target.checked)} 
                             className="text-blue-600"
                         />
-                        <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as plan (no agent will start)</label>
+                        <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
                     </div>
 
                     <div>
                         <label className="block text-sm text-slate-300 mb-1">
-                            {createAsDraft ? 'Plan content' : 'Initial prompt (optional)'}
+                            {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
                         </label>
                         <textarea 
                             ref={promptTextareaRef}
@@ -347,7 +347,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                 }
                             }} 
                             className="w-full h-32 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm" 
-                            placeholder={createAsDraft ? "Enter plan content in markdown..." : "Describe the agent for the Claude session"} 
+                            placeholder={createAsDraft ? "Enter spec content in markdown..." : "Describe the agent for the Claude session"} 
                         />
                         <p className="text-xs text-slate-400 mt-1">
                             {createAsDraft ? (
@@ -355,7 +355,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                     <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                                     </svg>
-                                    Plan agents are saved for later. You can start them when ready.
+                                    Spec agents are saved for later. You can start them when ready.
                                 </>
                             ) : (
                                 <>Equivalent to: schaltwerk start &lt;name&gt; -p "&lt;prompt&gt;"</>
@@ -402,7 +402,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         onClick={handleCreate} 
                         disabled={!name.trim() || (!createAsDraft && !baseBranch) || creating || (createAsDraft && !taskContent.trim())}
                         className={`px-3 py-1.5 ${createAsDraft ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2`}
-                        title={createAsDraft ? "Create plan (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
+                        title={createAsDraft ? "Create spec (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
                     >
                         {creating && (
                             <span
@@ -410,7 +410,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                 aria-hidden="true"
                             />
                         )}
-                        <span>{createAsDraft ? "Create Plan" : "Start Agent"}</span>
+                        <span>{createAsDraft ? "Create Spec" : "Start Agent"}</span>
                         {!creating && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">⌘↵</span>}
                     </button>
                 </div>

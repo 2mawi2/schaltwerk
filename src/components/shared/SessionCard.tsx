@@ -120,7 +120,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                         : 'bg-amber-900/30 text-amber-300 border-amber-700/50'
                                 )}
                             >
-                                {sessionState === 'running' ? 'Running' : 'Plan'}
+                                {sessionState === 'running' ? 'Running' : 'Spec'}
                             </span>
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}

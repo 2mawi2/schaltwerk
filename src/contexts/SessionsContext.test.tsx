@@ -141,7 +141,7 @@ describe('SessionsContext', () => {
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_spec_session', { name: 'test-plan' })
     })
 
-    it('should update session status from active to plan', async () => {
+    it('should update session status from active to spec', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
@@ -153,7 +153,7 @@ describe('SessionsContext', () => {
         const { result } = renderHook(() => useSessions(), { wrapper })
 
         await act(async () => {
-            await result.current.updateSessionStatus('test-active', 'plan')
+            await result.current.updateSessionStatus('test-active', 'spec')
         })
 
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')

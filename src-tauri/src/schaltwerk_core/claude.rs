@@ -100,7 +100,6 @@ mod tests {
         };
         let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
-            None,
             Some("implement feature X"),
             true,
             Some(&config),
@@ -115,7 +114,6 @@ mod tests {
         };
         let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("12345678-1234-1234-1234-123456789012"),
             None,
             false,
             Some(&config),
@@ -203,7 +201,6 @@ mod tests {
         let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
             None,
-            None,
             false,
             Some(&config),
         );
@@ -217,12 +214,11 @@ mod tests {
         };
         let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("session-123"),
             Some("ignored prompt"),
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions --continue"#);
+        assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions "ignored prompt""#);
     }
 
     #[test]
@@ -232,7 +228,6 @@ mod tests {
         };
         let cmd = build_claude_command_with_config(
             Path::new("/path/to/worktree"),
-            None,
             Some(r#"implement "feature" with quotes"#),
             false,
             Some(&config),
