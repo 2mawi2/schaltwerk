@@ -38,6 +38,15 @@ pub struct LocalPtyAdapter {
     norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
 }
 
+struct ReaderState {
+    terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
+    app_handle: Arc<Mutex<Option<AppHandle>>>,
+    emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+    emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
+    emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
+    norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
+}
+
 impl Default for LocalPtyAdapter {
     fn default() -> Self {
         Self::new()
@@ -132,15 +141,11 @@ impl LocalPtyAdapter {
         cmd.env("CLICOLOR_FORCE", "1");
     }
 
+
     async fn start_reader(
         id: String,
         mut reader: Box<dyn Read + Send>,
-        terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
-        app_handle: Arc<Mutex<Option<AppHandle>>>,
-        emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-        emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
-        emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-        norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
+        reader_state: ReaderState,
     ) {
         tokio::task::spawn_blocking(move || {
             let runtime = tokio::runtime::Handle::current();
@@ -152,8 +157,8 @@ impl LocalPtyAdapter {
                         info!("Terminal {id} EOF");
                         // Clean up terminal maps and notify UI about closure
                         let id_clone_for_cleanup = id.clone();
-                        let terminals_clone2 = Arc::clone(&terminals);
-                        let app_handle_clone2 = Arc::clone(&app_handle);
+                        let terminals_clone2 = Arc::clone(&reader_state.terminals);
+                        let app_handle_clone2 = Arc::clone(&reader_state.app_handle);
                         runtime.block_on(async move {
                             // Remove terminal state
                             terminals_clone2.write().await.remove(&id_clone_for_cleanup);
@@ -176,12 +181,12 @@ impl LocalPtyAdapter {
                     Ok(n) => {
                         let data = buf[..n].to_vec();
                         let id_clone = id.clone();
-                        let terminals_clone = Arc::clone(&terminals);
-                        let app_handle_clone = Arc::clone(&app_handle);
-                        let emit_buffers_clone = Arc::clone(&emit_buffers);
-                        let emit_scheduled_clone = Arc::clone(&emit_scheduled);
-                        let emit_buffers_norm_clone = Arc::clone(&emit_buffers_norm);
-                        let norm_last_cr_clone = Arc::clone(&norm_last_cr);
+                        let terminals_clone = Arc::clone(&reader_state.terminals);
+                        let app_handle_clone = Arc::clone(&reader_state.app_handle);
+                        let emit_buffers_clone = Arc::clone(&reader_state.emit_buffers);
+                        let emit_scheduled_clone = Arc::clone(&reader_state.emit_scheduled);
+                        let emit_buffers_norm_clone = Arc::clone(&reader_state.emit_buffers_norm);
+                        let norm_last_cr_clone = Arc::clone(&reader_state.norm_last_cr);
                         
                         runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
@@ -291,8 +296,8 @@ impl LocalPtyAdapter {
                             error!("Terminal {id} read error: {e}");
                             // On read error, clean up and notify
                             let id_clone_for_cleanup = id.clone();
-                            let terminals_clone2 = Arc::clone(&terminals);
-                            let app_handle_clone2 = Arc::clone(&app_handle);
+                            let terminals_clone2 = Arc::clone(&reader_state.terminals);
+                            let app_handle_clone2 = Arc::clone(&reader_state.app_handle);
                             runtime.block_on(async move {
                                 terminals_clone2.write().await.remove(&id_clone_for_cleanup);
                                 if let Some(mut child) = PTY_CHILDREN.lock().await.remove(&id_clone_for_cleanup) {
@@ -445,12 +450,14 @@ impl TerminalBackend for LocalPtyAdapter {
         Self::start_reader(
             id.clone(),
             reader,
-            Arc::clone(&self.terminals),
-            Arc::clone(&self.app_handle),
-            Arc::clone(&self.emit_buffers),
-            Arc::clone(&self.emit_scheduled),
-            Arc::clone(&self.emit_buffers_norm),
-            Arc::clone(&self.norm_last_cr),
+            ReaderState {
+                terminals: Arc::clone(&self.terminals),
+                app_handle: Arc::clone(&self.app_handle),
+                emit_buffers: Arc::clone(&self.emit_buffers),
+                emit_scheduled: Arc::clone(&self.emit_scheduled),
+                emit_buffers_norm: Arc::clone(&self.emit_buffers_norm),
+                norm_last_cr: Arc::clone(&self.norm_last_cr),
+            },
         )
         .await;
         
