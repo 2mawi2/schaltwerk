@@ -40,7 +40,8 @@ function DraggableSessionCard({
     const [{ isDragging }, drag] = useDrag(() => ({
         type: ItemType,
         item: () => {
-            const status = session.info.ready_to_merge ? 'dirty' : session.info.status
+            const status = session.info.ready_to_merge ? 'dirty' : 
+                           session.info.session_state === 'spec' ? 'spec' : 'active'
             return { sessionId: session.info.session_id, currentStatus: status }
         },
         collect: (monitor) => ({
@@ -122,8 +123,8 @@ function Column({
     }))
 
     const columnSessions = sessions.filter(s => {
-        if (status === 'spec') return s.info.status === 'spec'
-        if (status === 'active') return (s.info.status === 'active' || s.info.status === 'missing') && !s.info.ready_to_merge
+        if (status === 'spec') return s.info.session_state === 'spec'
+        if (status === 'active') return s.info.session_state === 'running' && !s.info.ready_to_merge
         if (status === 'dirty') return s.info.ready_to_merge === true
         return false
     })
@@ -147,7 +148,7 @@ function Column({
                 <div className="pr-1 pb-2">
                     {columnSessions.map(session => (
                         <div key={session.info.session_id} onClick={() => {
-                            const isSpec = session.info.status === 'spec'
+                            const isSpec = session.info.session_state === 'spec'
                             onSelectSession(session.info.session_id, isSpec)
                           }}>
                           <DraggableSessionCard
@@ -214,7 +215,7 @@ export function KanbanView() {
                 await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             } else if (newStatus === 'active') {
                 // If it's a spec, open modal to start it; if ready_to_merge, unmark it
-                if (session.info.status === 'spec') {
+                if (session.info.session_state === 'spec') {
                     console.log('[KanbanView] Opening modal to start spec session:', sessionId)
                     // Open Start agent modal prefilled from spec
                     window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))

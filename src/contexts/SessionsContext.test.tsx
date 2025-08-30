@@ -201,7 +201,7 @@ describe('SessionsContext', () => {
 
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_create_spec_session', {
             name: 'new-spec',
-            draftContent: '# New Spec'
+            specContent: '# New Spec'
         })
     })
 
