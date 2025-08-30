@@ -1,5 +1,7 @@
 import { useState, useCallback } from 'react'
-import { VscPlay, VscRocket } from 'react-icons/vsc'
+import { VscPlay, VscRocket, VscTrash } from 'react-icons/vsc'
+import { invoke } from '@tauri-apps/api/core'
+import { IconButton } from '../common/IconButton'
 
 interface Props {
   sessionName: string
@@ -7,6 +9,7 @@ interface Props {
 
 export function SpecInfoPanel({ sessionName }: Props) {
   const [starting, setStarting] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const handleRun = useCallback(async () => {
@@ -24,6 +27,20 @@ export function SpecInfoPanel({ sessionName }: Props) {
     }
   }, [sessionName])
 
+  const handleDelete = useCallback(async () => {
+    try {
+      setDeleting(true)
+      setError(null)
+      await invoke('schaltwerk_core_cancel_session', { name: sessionName })
+      // The parent component should handle the refresh
+    } catch (e: any) {
+      console.error('[SpecInfoPanel] Failed to delete spec:', e)
+      setError(String(e))
+    } finally {
+      setDeleting(false)
+    }
+  }, [sessionName])
+
   return (
     <div className="h-full flex items-center justify-center p-6">
       <div className="text-center max-w-[280px]">
@@ -34,15 +51,27 @@ export function SpecInfoPanel({ sessionName }: Props) {
         <p className="text-slate-400 text-xs mb-4">
           Start the agent to create a worktree and launch the agent. You can edit the content in the main editor.
         </p>
-        <button
-          onClick={handleRun}
-          disabled={starting}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded bg-green-600 hover:bg-green-500 text-white text-xs disabled:opacity-60 disabled:cursor-not-allowed"
-          title="Run agent (⌘⏎)"
-        >
-          <VscPlay className="text-xs" />
-          {starting ? 'Starting...' : 'Run Agent'}
-        </button>
+        
+        {/* Icon buttons instead of text button */}
+        <div className="flex items-center justify-center gap-2">
+          <IconButton
+            icon={<VscPlay />}
+            onClick={handleRun}
+            ariaLabel="Run spec"
+            tooltip="Run spec"
+            variant="success"
+            disabled={starting || deleting}
+          />
+          <IconButton
+            icon={<VscTrash />}
+            onClick={handleDelete}
+            ariaLabel="Delete spec"
+            tooltip="Delete spec"
+            variant="danger"
+            disabled={starting || deleting}
+          />
+        </div>
+        
         {error && (
           <div className="mt-3 text-xs text-red-400">{error}</div>
         )}

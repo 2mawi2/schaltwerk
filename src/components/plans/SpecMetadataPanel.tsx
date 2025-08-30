@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { VscCalendar, VscWatch, VscNotebook } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
+import { SessionActions } from '../session/SessionActions'
 
 interface SpecMetadata {
   created_at?: string
@@ -63,31 +64,51 @@ export function SpecMetadataPanel({ sessionName }: Props) {
     )
   }
 
+  const handleRunSpec = () => {
+    window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
+  }
+
+  const handleDeleteSpec = async () => {
+    try {
+      await invoke('schaltwerk_core_cancel_session', { name: sessionName })
+    } catch (error) {
+      console.error('[SpecMetadataPanel] Failed to delete spec:', error)
+    }
+  }
+
   return (
     <div className="h-full flex flex-col p-6" style={{ backgroundColor: theme.colors.background.primary }}>
-      <div className="flex items-center gap-2 mb-6">
-        <div 
-          className="h-10 w-10 rounded-lg flex items-center justify-center"
-          style={{ 
-            backgroundColor: theme.colors.background.elevated,
-            border: `1px solid ${theme.colors.border.subtle}`
-          }}
-        >
-          <VscNotebook style={{ color: theme.colors.text.secondary, fontSize: '18px' }} />
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+          <div 
+            className="h-10 w-10 rounded-lg flex items-center justify-center"
+            style={{ 
+              backgroundColor: theme.colors.background.elevated,
+              border: `1px solid ${theme.colors.border.subtle}`
+            }}
+          >
+            <VscNotebook style={{ color: theme.colors.text.secondary, fontSize: '18px' }} />
+          </div>
+          <div>
+            <h3 style={{ 
+              color: theme.colors.text.primary, 
+              fontSize: theme.fontSize.heading,
+              fontWeight: 600,
+              marginBottom: '2px'
+            }}>
+              Spec Information
+            </h3>
+            <p style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}>
+              View spec metadata
+            </p>
+          </div>
         </div>
-        <div>
-          <h3 style={{ 
-            color: theme.colors.text.primary, 
-            fontSize: theme.fontSize.heading,
-            fontWeight: 600,
-            marginBottom: '2px'
-          }}>
-            Spec Information
-          </h3>
-          <p style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.caption }}>
-            View spec metadata
-          </p>
-        </div>
+        <SessionActions
+          sessionState="spec"
+          sessionId={sessionName}
+          onRunSpec={handleRunSpec}
+          onDeleteSpec={handleDeleteSpec}
+        />
       </div>
 
       <div className="space-y-4">

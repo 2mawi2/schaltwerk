@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
+import { SessionActions } from '../session/SessionActions'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -9,9 +10,10 @@ interface Props {
   sessionName: string
   editable?: boolean
   debounceMs?: number
+  sessionState?: 'spec' | 'running' | 'reviewed'
 }
 
-export function SpecContentView({ sessionName, editable = true, debounceMs = 1000 }: Props) {
+export function SpecContentView({ sessionName, editable = true, debounceMs = 1000, sessionState = 'running' }: Props) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -108,19 +110,57 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     )
   }
 
+  const handleMarkReviewed = () => {
+    window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
+      detail: {
+        action: 'mark-reviewed',
+        sessionId: sessionName
+      }
+    }))
+  }
+
+  const handleCancel = () => {
+    window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
+      detail: {
+        action: 'cancel',
+        sessionId: sessionName
+      }
+    }))
+  }
+
+  const handleConvertToSpec = () => {
+    window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
+      detail: {
+        action: 'convert-to-spec',
+        sessionId: sessionName
+      }
+    }))
+  }
+
   return (
     <div className="h-full flex flex-col">
       <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">Agent content</div>
-        <button
-          onClick={handleCopy}
-          disabled={copying || !content}
-          className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Copy agent content"
-        >
-          <VscCopy />
-          {copying ? 'Copied!' : 'Copy'}
-        </button>
+        <div className="flex items-center gap-2">
+          {sessionState === 'running' && (
+            <SessionActions
+              sessionState="running"
+              sessionId={sessionName}
+              onMarkReviewed={handleMarkReviewed}
+              onCancel={handleCancel}
+              onConvertToSpec={handleConvertToSpec}
+            />
+          )}
+          <button
+            onClick={handleCopy}
+            disabled={copying || !content}
+            className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Copy agent content"
+          >
+            <VscCopy />
+            {copying ? 'Copied!' : 'Copy'}
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-auto">
         <Suspense fallback={

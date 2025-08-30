@@ -1,6 +1,7 @@
 import { memo, forwardRef } from 'react'
 import { clsx } from 'clsx'
 import { formatLastActivity } from '../../utils/time'
+import { SessionActions } from '../session/SessionActions'
 
 interface DiffStats {
     files_changed: number
@@ -137,83 +138,23 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
             </div>
             
             {!hideActions && (
-                <div className="-mt-4 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity whitespace-nowrap">
-                    {sessionState === 'spec' ? (
-                        <span 
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                if (onRunDraft) {
-                                    onRunDraft(s.session_id)
-                                }
-                            }}
-                            className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-green-800/60 hover:bg-green-700/60"
-                            title="Run agent"
-                        >
-                            Run
-                        </span>
-                    ) : (
-                        <>
-                            {!isReadyToMerge ? (
-                                <span 
-                                    onClick={(e) => {
-                                        e.stopPropagation()
-                                        onMarkReady?.(s.session_id, s.has_uncommitted_changes || false)
-                                    }}
-                                    className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-green-800/60 hover:bg-green-700/60"
-                                    title="Mark as reviewed"
-                                >
-                                    Mark Reviewed
-                                </span>
-                            ) : (
-                                <span 
-                                    onClick={async (e) => {
-                                        e.stopPropagation()
-                                        onUnmarkReady?.(s.session_id)
-                                    }}
-                                    className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-slate-700/60 hover:bg-slate-600/60"
-                                    title="Unmark as reviewed"
-                                >
-                                    Unmark
-                                </span>
-                            )}
-                            <span 
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    onConvertToSpec?.(s.session_id)
-                                }}
-                                className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/60"
-                                title="Convert back to spec"
-                            >
-                                Spec
-                            </span>
-                            <span 
-                                onClick={(e) => {
-                                    e.stopPropagation()
-                                    onCancel?.(s.session_id, s.has_uncommitted_changes || false)
-                                }}
-                                className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-red-800/60 hover:bg-red-700/60"
-                                title="Cancel session"
-                            >
-                                Cancel
-                            </span>
-                        </>
-                    )}
-                    {sessionState === 'spec' && (
-                        <span
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onDeleteSpec?.(s.session_id)
-                            }}
-                            className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-red-900/60 hover:bg-red-800/60"
-                            title="Delete spec"
-                        >
-                            Delete
-                        </span>
-                    )}
+                <div className="flex items-center justify-end mt-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                    <SessionActions
+                        sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
+                        sessionId={s.session_id}
+                        hasUncommittedChanges={s.has_uncommitted_changes}
+                        branch={s.branch}
+                        onRunSpec={onRunDraft}
+                        onDeleteSpec={onDeleteSpec}
+                        onMarkReviewed={onMarkReady}
+                        onUnmarkReviewed={onUnmarkReady}
+                        onCancel={onCancel}
+                        onConvertToSpec={onConvertToSpec}
+                    />
                 </div>
             )}
             
-            <div className="mt-1 text-[12px] text-slate-400 truncate">{currentAgent}</div>
+            <div className="mt-2 text-[12px] text-slate-400 truncate">{currentAgent}</div>
             
             {progressPercent > 0 && (
                 <>

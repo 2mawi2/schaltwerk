@@ -260,7 +260,7 @@ export function KanbanView() {
 
     const handleUnmarkReady = async (sessionId: string) => {
         try {
-            await invoke('schaltwerk_core_unmark_ready', { name: sessionId })
+            await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             console.error('Failed to unmark ready:', error)
