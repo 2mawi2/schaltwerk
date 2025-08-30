@@ -402,6 +402,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const chunk = writeQueueRef.current.join('');
                 writeQueueRef.current = [];
                 terminal.current.write(chunk);
+                
+                // Only auto-scroll if user is already at bottom
+                requestAnimationFrame(() => {
+                    if (terminal.current) {
+                        try {
+                            const buffer = terminal.current.buffer.active;
+                            const isAtBottom = buffer.viewportY === buffer.baseY;
+                            if (isAtBottom) {
+                                terminal.current.scrollToBottom();
+                            }
+                        } catch (error) {
+                            // Silently ignore scroll errors during normal operation
+                        }
+                    }
+                });
             }, 2);
         };
 
@@ -411,6 +426,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];
             terminal.current.write(chunk);
+            
+            // Only auto-scroll if user is already at bottom
+            requestAnimationFrame(() => {
+                if (terminal.current) {
+                    try {
+                        const buffer = terminal.current.buffer.active;
+                        const isAtBottom = buffer.viewportY === buffer.baseY;
+                        if (isAtBottom) {
+                            terminal.current.scrollToBottom();
+                        }
+                    } catch (error) {
+                        // Silently ignore scroll errors during flush
+                    }
+                }
+            });
         };
 
         // Listen for terminal output from backend (buffer until hydrated)
@@ -446,6 +476,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                   hydratedRef.current = true;
                   // Flush immediately to avoid dropping output on rapid remounts/tests
                   flushNow();
+                  
+                  // Scroll to bottom after hydration to show latest content
+                  requestAnimationFrame(() => {
+                      if (terminal.current) {
+                          try {
+                              terminal.current.scrollToBottom();
+                          } catch (error) {
+                              console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration:`, error);
+                          }
+                      }
+                  });
 
                   // Emit terminal ready event for focus management
                   if (typeof window !== 'undefined') {
@@ -466,6 +507,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     pendingOutput.current = [];
                     // Flush immediately; subsequent events will be batched
                     flushNow();
+                    
+                    // Scroll to bottom even on hydration failure
+                    requestAnimationFrame(() => {
+                        if (terminal.current) {
+                            try {
+                                terminal.current.scrollToBottom();
+                            } catch (error) {
+                                console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
+                            }
+                        }
+                    });
                 }
             }
         };
