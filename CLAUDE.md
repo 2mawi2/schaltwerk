@@ -407,6 +407,26 @@ But NEVER skip tests. Skipping tests is not a solution - it's avoiding the probl
 - Terminal cleanup on app exit
 - Memory leaks from event listeners
 
+### Manual Testing Instructions in Final Summaries
+
+**MANDATORY**: When providing final summaries of completed work, ALWAYS include a short description of how to manually test the changes if the change can be manually tested.
+
+**Requirements for Manual Testing Instructions:**
+1. **Include in ALL final summaries** - Every completed task/agent must have testing instructions
+2. **Be specific and actionable** - Provide clear steps the user can follow
+3. **Cover key functionality** - Focus on the most important aspects to test
+4. **Include edge cases** - Mention any special scenarios or error conditions to test
+5. **Keep it concise** - 2-4 bullet points maximum
+
+**Example Format:**
+```
+## Manual Testing
+- **Basic functionality**: [Specific test steps]
+- **Edge cases**: [Special scenarios to test]
+- **Error handling**: [How to test error conditions]
+- **UI verification**: [Visual checks to perform]
+```
+
 ## Code Style Requirements
 
 ### TypeScript/React
