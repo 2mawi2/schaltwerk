@@ -445,6 +445,13 @@ But NEVER skip tests. Skipping tests is not a solution - it's avoiding the probl
 
 ## Critical Implementation Details
 
+### CRITICAL: Session Lifecycle Rules
+- **NEVER** cancel sessions automatically except for explicit user action
+- **NEVER** cancel sessions on project close/switch
+- **NEVER** cancel sessions on app restart
+- **ALWAYS** require explicit confirmation for bulk operations
+- **ALWAYS** log session cancellations with full context
+
 ### Terminal Lifecycle
 1. **Creation**: PTY process spawned on first session access
 2. **Switching**: Frontend switches terminal IDs, backend processes persist

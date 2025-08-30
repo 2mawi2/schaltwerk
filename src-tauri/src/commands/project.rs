@@ -105,44 +105,21 @@ pub async fn get_active_project_path() -> Result<Option<String>, String> {
 pub async fn close_project(path: String) -> Result<(), String> {
     log::info!("🧹 Close project command called with path: {path}");
 
-    let path_buf = std::path::PathBuf::from(&path);
     let manager = get_project_manager().await;
 
-    // Get the project instance to clean up its resources
-    if let Ok(project) = manager.get_schaltwerk_core_for_path(&path_buf).await {
-        // Cancel all sessions for this project
-        let schaltwerk_core = project.lock().await;
-        let session_manager = schaltwerk_core.session_manager();
-        let sessions = session_manager.list_sessions()
-            .map_err(|e| format!("Failed to list sessions: {e}"))?;
-
-        for session in sessions {
-            if let Err(e) = session_manager.cancel_session(&session.name) {
-                log::warn!("Failed to cancel session {name} during project close: {e}", name = session.name);
-            }
+    // CRITICAL: Do NOT cancel sessions on project close - sessions should persist
+    // Sessions represent user work that should only be cancelled by explicit user action
+    // See CLAUDE.md for session lifecycle rules
+    
+    // Close all terminals for this project (terminals can be safely cleaned up)
+    if let Ok(terminal_manager) = manager.current_terminal_manager().await {
+        if let Err(e) = terminal_manager.cleanup_all().await {
+            log::warn!("Failed to cleanup terminals for project {path}: {e}");
         }
-        drop(schaltwerk_core);
-
-        // Close all terminals for this project
-        if let Ok(terminal_manager) = manager.current_terminal_manager().await {
-            if let Err(e) = terminal_manager.cleanup_all().await {
-                log::warn!("Failed to cleanup terminals for project {path}: {e}");
-            }
-        }
-
-        // Clear the saved selection for this project since all sessions are cancelled
-        let schaltwerk_core = project.lock().await;
-        let db = schaltwerk_core.database();
-        use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
-        if let Err(e) = db.set_project_selection(&path_buf, &crate::schaltwerk_core::db_project_config::ProjectSelection {
-            kind: "orchestrator".to_string(),
-            payload: None,
-        }) {
-            log::warn!("Failed to clear saved selection for project {path}: {e}");
-        }
-    } else {
-        log::warn!("Project {path} not found for cleanup");
     }
+
+    // Note: We do NOT clear the saved selection or cancel sessions
+    // Sessions and selection should persist for when the project is reopened
 
     log::info!("✅ Project {path} closed and cleaned up");
     Ok(())
