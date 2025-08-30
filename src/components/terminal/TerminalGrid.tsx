@@ -46,7 +46,9 @@ export function TerminalGrid() {
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
         let base: number[] = [70, 30]
         if (raw) {
-            try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {}
+            try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) base = parsed } catch {
+                // JSON parsing failed, use default
+            }
         }
         if (initialIsCollapsed) {
             const pct = 8
@@ -232,7 +234,9 @@ export function TerminalGrid() {
         let expandedBottom = 28
         
         if (raw) {
-            try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed } catch {}
+            try { const parsed = JSON.parse(raw) as number[]; if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed } catch {
+                // JSON parsing failed, use default
+            }
         }
         if (rawExpanded) { const v = Number(rawExpanded); if (!Number.isNaN(v) && v > 0 && v < 100) expandedBottom = v }
         

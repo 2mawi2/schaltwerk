@@ -126,9 +126,9 @@ describe('SessionsContext', () => {
 
     it('should update session status from spec to active', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
-        let callCount = 0
+        let _callCount = 0
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            callCount++
+            _callCount++
             if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
             if (cmd === 'schaltwerk_core_start_spec_session') return undefined

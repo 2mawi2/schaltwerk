@@ -182,13 +182,14 @@ beforeEach(() => {
       case 'terminal_exists':
         // Terminal doesn't exist initially, forcing creation
         return Promise.resolve(false)
-      case 'create_terminal':
+      case 'create_terminal': {
         // Mark as created
         const terminalId = args?.id
         if (terminalId) {
           mountCount.set(terminalId, 0) // Mark as created but not yet mounted
         }
         return Promise.resolve()
+      }
       case 'schaltwerk_core_get_session':
         return Promise.resolve({
           worktree_path: '/session/worktree',

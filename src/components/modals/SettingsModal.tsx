@@ -228,7 +228,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         const newCaret = selectionStart + replacement.length
         applyValue(next)
         requestAnimationFrame(() => {
-            try { target.setSelectionRange(newCaret, newCaret) } catch {}
+            try { target.setSelectionRange(newCaret, newCaret) } catch {
+                // Selection range failed, ignore
+            }
         })
     }
 
@@ -252,7 +254,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         const newCaret = selectionStart + replacement.length
         applyValue(next)
         requestAnimationFrame(() => {
-            try { target.setSelectionRange(newCaret, newCaret) } catch {}
+            try { target.setSelectionRange(newCaret, newCaret) } catch {
+                // Selection range failed, ignore
+            }
         })
     }
 

@@ -462,7 +462,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
         attach()
-        return () => { try { if (unlisten) unlisten() } catch {} }
+        return () => { try { if (unlisten) unlisten() } catch {
+            // Cleanup failed, ignore
+        } }
     }, [selection, ensureTerminals, getTerminalIds, isSpec])
     
     // Initialize on mount and when project path changes

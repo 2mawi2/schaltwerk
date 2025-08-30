@@ -94,14 +94,16 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             switch (sortMode) {
                 case SortMode.Name:
                     return a.info.session_id.localeCompare(b.info.session_id)
-                case SortMode.Created:
+                case SortMode.Created: {
                     const aCreated = new Date(a.info.created_at || 0).getTime()
                     const bCreated = new Date(b.info.created_at || 0).getTime()
                     return bCreated - aCreated // Newest first
-                case SortMode.LastEdited:
+                }
+                case SortMode.LastEdited: {
                     const aModified = new Date(a.info.last_modified || 0).getTime()
                     const bModified = new Date(b.info.last_modified || 0).getTime()
                     return bModified - aModified // Most recently edited first
+                }
                 default:
                     return 0
             }
@@ -221,7 +223,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         }))
                         all = mergeSessionsPreferDraft(enriched, enrichedDrafts)
                     }
-                } catch {}
+                } catch {
+                    // Failed to fetch draft sessions, continue with enriched only
+                }
                 setAllSessions(all)
                 const nextStates = new Map<string, string>()
                 for (const s of all) nextStates.set(s.info.session_id, mapSessionUiState(s.info))

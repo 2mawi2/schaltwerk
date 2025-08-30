@@ -31,7 +31,7 @@ export function useDiffHover() {
     }, 100)
   }, [])
   
-  const useHoverKeyboardShortcuts = useCallback((
+  const useHoverKeyboardShortcuts = (
     onStartComment: (lineNum: number, side: 'old' | 'new', filePath: string) => void,
     isModalOpen: boolean = true
   ) => {
@@ -87,7 +87,7 @@ export function useDiffHover() {
         }
       }
     }, [hoveredLine, onStartComment, isModalOpen])
-  }, [])
+  }
   
   return {
     hoveredLine,

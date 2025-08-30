@@ -55,7 +55,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
       return
     }
 
-    const invalidChars = /[<>:"|?*\/\\]/
+    const invalidChars = /[<>:"|?*/\\]/
     if (invalidChars.test(projectName)) {
       setError('Project name contains invalid characters')
       return
