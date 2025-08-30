@@ -45,7 +45,7 @@ vi.mock('./components/TopBar', () => ({
 
 // ---- Mock: HomeScreen to drive transitions via onOpenProject ----
 vi.mock('./components/home/HomeScreen', () => ({
-  HomeScreen: ({ onOpenProject }: { onOpenProject: (p: string) => void }) => (
+  HomeScreen: ({ onOpenProject }: { onOpenProject: (path: string) => void }) => (
     <div data-testid="home-screen">
       <button data-testid="open-project" onClick={() => onOpenProject('/Users/me/sample-project')}>Open</button>
     </div>
@@ -60,7 +60,7 @@ const mockState = {
 }
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async (cmd: string, _args?: any) => {
+  invoke: vi.fn(async (cmd: string) => {
     switch (cmd) {
       case 'get_current_directory':
         return mockState.currentDir

@@ -4,7 +4,7 @@ import { useReviewComments } from '../../hooks/useReviewComments'
 
 interface ReviewCommentsListProps {
   comments: ReviewComment[]
-  onDeleteComment: (id: string) => void
+  onDeleteComment: (_id: string) => void
 }
 
 export function ReviewCommentsList({ comments, onDeleteComment }: ReviewCommentsListProps) {

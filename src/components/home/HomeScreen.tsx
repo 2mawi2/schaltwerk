@@ -12,7 +12,7 @@ interface RecentProject {
 }
 
 interface HomeScreenProps {
-  onOpenProject: (path: string) => void
+  onOpenProject: (_path: string) => void
 }
 
 export function HomeScreen({ onOpenProject }: HomeScreenProps) {

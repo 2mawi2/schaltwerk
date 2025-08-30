@@ -7,10 +7,10 @@ interface DiffLineRowProps {
   line: LineInfo
   index: number | string
   isSelected: boolean
-  onLineMouseDown?: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
-  onLineMouseEnter?: (lineNum: number, side: 'old' | 'new') => void
+  onLineMouseDown?: (_lineNum: number, _side: 'old' | 'new', _event: React.MouseEvent) => void
+  onLineMouseEnter?: (_lineNum: number, _side: 'old' | 'new') => void
   onLineMouseLeave?: () => void
-  onLineMouseUp?: (event: React.MouseEvent) => void
+  onLineMouseUp?: (_event: React.MouseEvent) => void
   onToggleCollapse?: () => void
   isCollapsed?: boolean
   highlightedContent?: string

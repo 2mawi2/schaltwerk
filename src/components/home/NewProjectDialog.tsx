@@ -7,7 +7,7 @@ import { homeDir } from '@tauri-apps/api/path'
 interface NewProjectDialogProps {
   isOpen: boolean
   onClose: () => void
-  onProjectCreated: (path: string) => void
+  onProjectCreated: (_path: string) => void
 }
 
 export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProjectDialogProps) {

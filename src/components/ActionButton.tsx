@@ -18,13 +18,13 @@ export function ActionButton({ action, projectId, onExecute }: ActionButtonProps
   const handleClick = async () => {
     try {
       const terminalId = `orchestrator-${projectId}-top`
-      
+
       // Use paste_and_submit_terminal to properly paste into AI session
-      await invoke('paste_and_submit_terminal', { 
-        id: terminalId, 
-        data: action.prompt 
+      await invoke('paste_and_submit_terminal', {
+        id: terminalId,
+        data: action.prompt
       })
-      
+
       onExecute?.(action)
     } catch (error) {
       console.error(`Failed to execute action "${action.label}":`, error)

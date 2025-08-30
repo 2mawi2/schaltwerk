@@ -14,9 +14,9 @@ export interface DiffFileExplorerProps {
   visibleFilePath: string | null
   onFileSelect: (filePath: string, index: number) => void
   getCommentsForFile: (filePath: string) => any[]
-  currentReview: { 
+  currentReview: {
     sessionName: string
-    comments: any[] 
+    comments: any[]
   } | null
   onFinishReview: () => void
   onCancelReview: () => void

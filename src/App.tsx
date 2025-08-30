@@ -204,7 +204,7 @@ export default function App() {
       } else if (action === 'cancel-immediate') {
         // perform cancel directly
         setCancelModalOpen(false)
-        void handleCancelSession(hasUncommittedChanges)
+        void handleCancelSession()
       } else if (action === 'delete-spec') {
         setDeleteSpecModalOpen(true)
       }
@@ -481,7 +481,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selection, commanderSpecModeSession, sessions])
 
-  const handleCancelSession = async (_force: boolean) => {
+  const handleCancelSession = async () => {
     if (!currentSession) return
 
     try {
