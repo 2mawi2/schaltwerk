@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { AsciiBuilderLogo } from './AsciiBuilderLogo'
 import { NewProjectDialog } from './NewProjectDialog'
+import { getHomeLogoPositionStyles, getContentAreaStyles } from '../../constants/layout'
 
 interface RecentProject {
   path: string
@@ -116,13 +117,18 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
   }
 
   return (
-    <div className="h-screen w-screen bg-slate-950 flex flex-col items-center justify-center p-8">
-      <div className="max-w-4xl w-full">
-        <div className="mb-12 text-center">
-          <div className="inline-flex items-center gap-3">
-            <AsciiBuilderLogo colorClassName="text-cyan-400" />
-          </div>
+    <div className="h-screen w-screen bg-slate-950 relative">
+      {/* Logo positioned higher for HomeScreen layout */}
+      <div style={getHomeLogoPositionStyles()}>
+        <div className="inline-flex items-center gap-3">
+          <AsciiBuilderLogo colorClassName="text-cyan-400" idleMode="artifact" />
         </div>
+      </div>
+
+      {/* Content area positioned using layout constants for perfect centering */}
+      <div style={getContentAreaStyles()}>
+        <div className="flex flex-col items-center justify-center h-full p-8">
+          <div className="max-w-4xl w-full">
 
         {error && (
           <div className="mb-6 p-4 bg-red-950/50 border border-red-800 rounded-lg flex items-start gap-3">
@@ -192,6 +198,8 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
             </div>
           </div>
         )}
+          </div>
+        </div>
       </div>
       
       <NewProjectDialog

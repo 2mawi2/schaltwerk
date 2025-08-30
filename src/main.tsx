@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
 import App from './App'
-import { LoadingSpinner } from './components/common/LoadingSpinner'
+import { EntryAnimation } from './components/EntryAnimation'
 import { SelectionProvider } from './contexts/SelectionContext'
 import { FocusProvider } from './contexts/FocusContext'
 import { ReviewProvider } from './contexts/ReviewContext'
@@ -26,42 +26,36 @@ const AppLoader: React.FC = () => {
       }, 300)
     }
 
-    // Show loading spinner for a brief moment to ensure smooth transition
+    // Allow time for initial setup and logo animation
     const timer = setTimeout(() => {
       setIsLoading(false)
-    }, 800)
+    }, 500)
 
     return () => clearTimeout(timer)
   }, [])
 
-  if (isLoading) {
-    return (
-      <div className="h-screen w-screen flex items-center justify-center bg-primary">
-        <LoadingSpinner size="lg" message="Initializing Schaltwerk..." />
-      </div>
-    )
-  }
-
   return (
-    <ErrorBoundary name="Root">
-      <FontSizeProvider>
-        <ProjectProvider>
-          <SessionsProvider>
-            <ActionButtonsProvider>
-              <SelectionProvider>
-                <FocusProvider>
-                  <ReviewProvider>
-                    <div className="h-screen w-screen">
-                      <App />
-                    </div>
-                  </ReviewProvider>
-                </FocusProvider>
-              </SelectionProvider>
-            </ActionButtonsProvider>
-          </SessionsProvider>
-        </ProjectProvider>
-      </FontSizeProvider>
-    </ErrorBoundary>
+    <EntryAnimation isLoading={isLoading}>
+      <ErrorBoundary name="Root">
+        <FontSizeProvider>
+          <ProjectProvider>
+            <SessionsProvider>
+              <ActionButtonsProvider>
+                <SelectionProvider>
+                  <FocusProvider>
+                    <ReviewProvider>
+                      <div className="h-screen w-screen">
+                        <App />
+                      </div>
+                    </ReviewProvider>
+                  </FocusProvider>
+                </SelectionProvider>
+              </ActionButtonsProvider>
+            </SessionsProvider>
+          </ProjectProvider>
+        </FontSizeProvider>
+      </ErrorBoundary>
+    </EntryAnimation>
   )
 }
 
