@@ -315,13 +315,30 @@ use tokio::net::TcpListener;
 use http_body_util::BodyExt;
 
 async fn find_available_port(base_port: u16) -> u16 {
-    for port in base_port..base_port + 100 {
+    // Try the base port first
+    if let Ok(listener) = TcpListener::bind(("127.0.0.1", base_port)).await {
+        drop(listener);
+        return base_port;
+    }
+
+    // Try a few common alternative ports (reduced from 6 to 3 for speed)
+    let preferred_ports = [8548, 8549, 8550];
+    for port in preferred_ports {
         if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)).await {
             drop(listener);
             return port;
         }
     }
-    base_port // Fallback to base port if no port found
+
+    // Fallback to sequential search with smaller range (reduced from 20 to 5)
+    for port in base_port + 1..base_port + 6 {
+        if let Ok(listener) = TcpListener::bind(("127.0.0.1", port)).await {
+            drop(listener);
+            return port;
+        }
+    }
+
+    base_port // Ultimate fallback
 }
 
 fn calculate_project_port(project_path: &str) -> u16 {
@@ -611,15 +628,14 @@ fn main() {
     let dir_str = dir_path.to_string_lossy().to_string();
 
     let initial_directory = if dir_path.is_dir() {
-        // Check if it's a Git repository
-        let git_check = std::process::Command::new("git")
+        // Check if it's a Git repository asynchronously to avoid blocking startup
+        match std::process::Command::new("git")
             .arg("-C")
             .arg(&dir_str)
             .arg("rev-parse")
             .arg("--git-dir")
-            .output();
-
-        match git_check {
+            .output()
+        {
             Ok(output) if output.status.success() => {
                 log::info!("✅ Opening Schaltwerk with Git repository: {}", dir_path.display());
                 Some((dir_str.clone(), true))
@@ -772,42 +788,51 @@ fn main() {
             get_active_file_watchers
         ])
         .setup(move |app| {
-            // Get current git branch and update window title
-            let branch_result = std::process::Command::new("git")
-                .arg("branch")
-                .arg("--show-current")
-                .output();
-            
-            if let Some(window) = app.get_webview_window("main") {
-                let title = match branch_result {
-                    Ok(output) if output.status.success() => {
-                        let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                        if !branch.is_empty() {
-                            format!("Schaltwerk - {branch}")
-                        } else {
-                            "Schaltwerk".to_string()
+            // Get current git branch and update window title asynchronously
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let branch_result = tokio::process::Command::new("git")
+                    .arg("branch")
+                    .arg("--show-current")
+                    .output()
+                    .await;
+
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let title = match branch_result {
+                        Ok(output) if output.status.success() => {
+                            let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                            if !branch.is_empty() {
+                                format!("Schaltwerk - {branch}")
+                            } else {
+                                "Schaltwerk".to_string()
+                            }
                         }
+                        _ => "Schaltwerk".to_string()
+                    };
+
+                    if let Err(e) = window.set_title(&title) {
+                        log::warn!("Failed to set window title: {e}");
+                    } else {
+                        log::info!("Window title set to: {title}");
                     }
-                    _ => "Schaltwerk".to_string()
-                };
-                
-                if let Err(e) = window.set_title(&title) {
-                    log::warn!("Failed to set window title: {e}");
-                } else {
-                    log::info!("Window title set to: {title}");
                 }
-            }
+            });
             
-            // If we have an initial Git directory, set it as the active project immediately to avoid race with frontend listener
+            // If we have an initial Git directory, set it as the active project asynchronously to avoid blocking startup
             if let Some((dir, is_git)) = initial_directory.clone() {
                 if is_git {
                     let dir_path = std::path::PathBuf::from(&dir);
-                    tauri::async_runtime::block_on(async {
+                    let app_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
                         let manager = get_project_manager().await;
                         if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
                             log::error!("Failed to set initial project: {e}");
                         } else {
                             log::info!("Initial project set to: {}", dir_path.display());
+                            // Emit project-ready event to notify frontend
+                            if let Err(e) = app_handle.emit("schaltwerk:project-ready", &dir_path.display().to_string()) {
+                                log::error!("Failed to emit project-ready event: {e}");
+                            }
                         }
                     });
                 }
@@ -835,12 +860,13 @@ fn main() {
                 });
             }
             
-            // Initialize settings manager
+            // Initialize settings manager asynchronously
             let settings_handle = app.handle().clone();
-            tauri::async_runtime::block_on(async {
+            tauri::async_runtime::spawn(async move {
                 match SettingsManager::new(&settings_handle) {
                     Ok(manager) => {
                         let _ = SETTINGS_MANAGER.set(Arc::new(Mutex::new(manager)));
+                        log::info!("Settings manager initialized successfully");
                     }
                     Err(e) => {
                         log::error!("Failed to initialize settings manager: {e}");
