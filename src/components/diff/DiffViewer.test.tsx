@@ -60,7 +60,10 @@ describe('DiffViewer', () => {
 
   it('renders loading state when no files', () => {
     render(<DiffViewer {...mockProps as DiffViewerProps} files={[]} selectedFile={null} />)
-    expect(screen.getByText('Loading files...')).toBeInTheDocument()
+    // Should render AnimatedText instead of "Loading files..."
+    const preElement = document.querySelector('pre')
+    expect(preElement).toBeInTheDocument()
+    expect(preElement).toHaveAttribute('aria-label', 'SCHALTWERK 3D assembled logo')
   })
 
   it('displays error message when fileError is present', () => {
@@ -106,7 +109,10 @@ describe('DiffViewer', () => {
     }
     
     render(<DiffViewer {...props as DiffViewerProps} />)
-    expect(screen.getByText('Loading diff...')).toBeInTheDocument()
+    // Should render AnimatedText instead of "Loading diff..."
+    const preElement = document.querySelector('pre')
+    expect(preElement).toBeInTheDocument()
+    expect(preElement).toHaveAttribute('aria-label', 'SCHALTWERK 3D assembled logo')
   })
 
   it('renders diff lines correctly', () => {

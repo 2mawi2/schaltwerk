@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { VscPlay, VscRocket } from 'react-icons/vsc'
+import { AnimatedText } from '../common/AnimatedText'
 
 interface Props {
   sessionName: string
@@ -41,7 +42,9 @@ export function SpecInfoPanel({ sessionName }: Props) {
           title="Run agent (⌘⏎)"
         >
           <VscPlay className="text-xs" />
-          {starting ? 'Starting…' : 'Run Agent'}
+          {starting ? (
+            <AnimatedText text="starting" colorClassName="text-white" size="xs" centered={false} />
+          ) : 'Run Agent'}
         </button>
         {error && (
           <div className="mt-3 text-xs text-red-400">{error}</div>

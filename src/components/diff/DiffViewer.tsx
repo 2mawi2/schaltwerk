@@ -5,6 +5,7 @@ import { getFileIcon } from '../../utils/fileIcons'
 import { DiffLineRow } from './DiffLineRow'
 import { ChangedFile } from './DiffFileExplorer'
 import { FileDiffData } from './loadDiffs'
+import { AnimatedText } from '../common/AnimatedText'
 
 export interface DiffViewerProps {
   files: ChangedFile[]
@@ -65,7 +66,7 @@ export function DiffViewer({
   if (!selectedFile && files.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <div className="text-slate-500">Loading files...</div>
+        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
       </div>
     )
   }
@@ -161,7 +162,7 @@ export function DiffViewer({
                 {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
                   <div className="px-4 py-8 text-center text-slate-500">
-                    <div className="animate-pulse">Loading diff...</div>
+                    <AnimatedText text="loading" colorClassName="text-slate-500" size="sm" />
                   </div>
                 ) : (
                 <table className="w-full" style={{ tableLayout: 'fixed' }}>
@@ -300,7 +301,7 @@ export function DiffViewer({
               {!fileDiff ? (
                 <div className="px-4 py-8 text-center text-slate-500">
                   {isLoading ? (
-                    <div className="animate-pulse">Loading diff...</div>
+                    <AnimatedText text="loading" colorClassName="text-slate-500" size="sm" />
                   ) : (
                     <div className="text-slate-600">
                       {/* Placeholder maintains scroll position */}

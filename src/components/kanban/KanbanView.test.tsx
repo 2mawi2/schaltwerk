@@ -101,7 +101,10 @@ describe('KanbanView', () => {
 
     it('should display loading state initially', () => {
         render(<KanbanView />, { wrapper })
-        expect(screen.getByText('Loading sessions...')).toBeInTheDocument()
+        // Should render AnimatedText instead of "Loading sessions..."
+        const preElement = document.querySelector('pre')
+        expect(preElement).toBeInTheDocument()
+        expect(preElement).toHaveAttribute('aria-label', 'SCHALTWERK 3D assembled logo')
     })
 
     it('should display three columns: Spec, Running, and Reviewed', async () => {

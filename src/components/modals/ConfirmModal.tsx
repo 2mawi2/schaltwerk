@@ -4,7 +4,7 @@ interface ConfirmModalProps {
   open: boolean
   title: React.ReactNode
   body?: React.ReactNode
-  confirmText: string
+  confirmText: React.ReactNode
   cancelText?: string
   confirmTitle?: string
   cancelTitle?: string

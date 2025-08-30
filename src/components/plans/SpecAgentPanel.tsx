@@ -4,6 +4,7 @@ import { useSessions } from '../../contexts/SessionsContext'
 import { VscEdit, VscPlay, VscTrash, VscSave, VscClose, VscAdd, VscCopy } from 'react-icons/vsc'
 import { ConfirmModal } from '../modals/ConfirmModal'
 import clsx from 'clsx'
+import { AnimatedText } from '../common/AnimatedText'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -189,7 +190,9 @@ export function SpecAgentPanel() {
                       title="Save changes"
                     >
                       <VscSave />
-                      {saving ? 'Saving...' : 'Save'}
+                      {saving ? (
+                        <AnimatedText text="saving" colorClassName="text-white" size="xs" centered={false} />
+                      ) : 'Save'}
                     </button>
                     <button
                       onClick={handleCancelEdit}
@@ -204,8 +207,8 @@ export function SpecAgentPanel() {
                 </div>
                 <div className="h-48 border border-slate-700 rounded overflow-hidden">
                   <Suspense fallback={
-                    <div className="h-full flex items-center justify-center text-slate-400">
-                      Loading editor...
+                    <div className="h-full flex items-center justify-center">
+                      <AnimatedText text="loading" colorClassName="text-slate-400" size="sm" />
                     </div>
                   }>
                     <MarkdownEditor
@@ -230,7 +233,9 @@ export function SpecAgentPanel() {
                   {(spec.draft_content || spec.initial_prompt) ? (
                     <div className="text-xs text-slate-300 bg-slate-800/50 rounded overflow-hidden max-h-20">
                       <Suspense fallback={
-                        <div className="p-2 text-slate-400">Loading preview...</div>
+                        <div className="p-2 text-slate-400">
+                          <AnimatedText text="loading" colorClassName="text-slate-400" size="xs" />
+                        </div>
                       }>
                         <MarkdownEditor
                           value={getPreview(spec.draft_content || spec.initial_prompt)}

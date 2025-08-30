@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCalendar, VscWatch, VscNotebook } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
+import { AnimatedText } from '../common/AnimatedText'
 
 interface SpecMetadata {
   created_at?: string
@@ -57,9 +58,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center p-6">
-        <div style={{ color: theme.colors.text.muted, fontSize: theme.fontSize.body }}>
-          Loading spec information...
-        </div>
+        <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
       </div>
     )
   }

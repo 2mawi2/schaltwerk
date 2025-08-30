@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
+import { AnimatedText } from '../common/AnimatedText'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -164,7 +165,11 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   }, [handleRun, starting])
 
   if (loading) {
-    return <div className="h-full flex items-center justify-center text-slate-400">Loading…</div>
+    return (
+      <div className="h-full flex items-center justify-center">
+        <AnimatedText text="loading" colorClassName="text-slate-400" size="md" />
+      </div>
+    )
   }
 
   return (
@@ -182,7 +187,11 @@ export function SpecEditor({ sessionName, onStart }: Props) {
             title="Run agent (⌘⏎)"
           >
             <VscPlay />
-            {starting ? 'Starting…' : 'Run Agent'}
+            {starting ? (
+              <div className="flex items-center">
+                <AnimatedText text="starting" colorClassName="text-white" size="xs" centered={false} />
+              </div>
+            ) : 'Run Agent'}
           </button>
           <button
             onClick={handleCopy}
@@ -206,8 +215,8 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       {/* Editor */}
       <div className="flex-1 overflow-hidden">
         <Suspense fallback={
-          <div className="h-full flex items-center justify-center text-slate-400">
-            Loading editor...
+          <div className="h-full flex items-center justify-center">
+            <AnimatedText text="loading" colorClassName="text-slate-400" size="md" />
           </div>
         }>
           <MarkdownEditor

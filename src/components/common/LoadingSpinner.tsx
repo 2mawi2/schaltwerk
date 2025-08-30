@@ -1,5 +1,6 @@
 import React from 'react'
 import { theme } from '../../common/theme'
+import { AnimatedText } from './AnimatedText'
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg'
@@ -12,48 +13,15 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
   message = 'Loading...',
   className = ''
 }) => {
-  const sizeClasses = {
-    sm: 'w-4 h-4',
-    md: 'w-8 h-8',
-    lg: 'w-12 h-12'
-  }
-
-  const textSizeClasses = {
-    sm: 'text-sm',
-    md: 'text-base',
-    lg: 'text-lg'
-  }
+  const animatedTextSize = size === 'sm' ? 'xs' : size === 'lg' ? 'lg' : 'md'
 
   return (
-    <div className={`flex flex-col items-center justify-center space-y-4 ${className}`}>
-      <div className="relative">
-        {/* Outer ring */}
-        <div
-          className={`${sizeClasses[size]} rounded-full border-2 animate-spin`}
-          style={{
-            borderColor: `${theme.colors.accent.blue.DEFAULT}33`,
-            borderTopColor: theme.colors.accent.blue.DEFAULT
-          }}
-        />
-        {/* Inner ring for layered effect */}
-        <div
-          className={`absolute inset-1 ${size === 'sm' ? 'w-2 h-2' : size === 'md' ? 'w-6 h-6' : 'w-10 h-10'} rounded-full border-2 animate-spin`}
-          style={{
-            borderColor: `${theme.colors.accent.blue.light}22`,
-            borderTopColor: theme.colors.accent.blue.light,
-            animationDirection: 'reverse',
-            animationDuration: '1.5s'
-          }}
-        />
-      </div>
-      {message && (
-        <p
-          className={`${textSizeClasses[size]} font-medium animate-pulse`}
-          style={{ color: theme.colors.text.secondary }}
-        >
-          {message}
-        </p>
-      )}
+    <div className={`flex flex-col items-center justify-center ${className}`}>
+      <AnimatedText 
+        text={message.toLowerCase().replace(/[^\w\s]/g, '')} 
+        colorClassName={theme.colors.text.secondary}
+        size={animatedTextSize}
+      />
     </div>
   )
 }

@@ -13,6 +13,7 @@ import { clearTerminalStartedTracking } from './Terminal'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
+import { AnimatedText } from '../common/AnimatedText'
 import { useRef, useEffect, useState } from 'react'
 
 export function TerminalGrid() {
@@ -329,7 +330,7 @@ export function TerminalGrid() {
     if (!isReady) {
         return (
             <div className="h-full p-2 relative flex items-center justify-center">
-                <div className="text-slate-500 text-sm">Initializing terminals...</div>
+                <AnimatedText text="initializing" colorClassName="text-slate-500" size="md" />
             </div>
         )
     }

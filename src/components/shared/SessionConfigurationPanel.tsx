@@ -5,6 +5,7 @@ import { ModelSelector } from '../inputs/ModelSelector'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
+import { AnimatedText } from '../common/AnimatedText'
 
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
@@ -130,11 +131,10 @@ export function SessionConfigurationPanel({
                         <div 
                             className="px-2 py-1 rounded text-xs"
                             style={{ 
-                                backgroundColor: theme.colors.background.elevated,
-                                color: theme.colors.text.muted 
+                                backgroundColor: theme.colors.background.elevated
                             }}
                         >
-                            Loading...
+                            <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="xs" />
                         </div>
                     ) : (
                         <div className="min-w-[120px]">
@@ -194,16 +194,15 @@ export function SessionConfigurationPanel({
                     Base branch
                 </label>
                 {loadingBranches ? (
-                    <input 
-                        value="Loading branches..." 
-                        disabled
-                        className="w-full rounded px-3 py-2 border" 
+                    <div 
+                        className="w-full rounded px-3 py-2 border flex items-center justify-center" 
                         style={{
                             backgroundColor: theme.colors.background.elevated,
-                            color: theme.colors.text.muted,
                             borderColor: theme.colors.border.default
                         }}
-                    />
+                    >
+                        <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="xs" />
+                    </div>
                 ) : (
                     <BranchAutocomplete
                         value={baseBranch}
