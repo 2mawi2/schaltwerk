@@ -62,12 +62,7 @@ vi.mock('../specs/SpecContentView', async () => {
   }
 })
 
-vi.mock('../specs/SpecListView', async () => {
-  const React = await import('react')
-  return {
-    SpecListView: () => React.createElement('div', { 'data-testid': 'spec-list' }, 'Spec List'),
-  }
-})
+
 
 vi.mock('../specs/SpecInfoPanel', async () => {
   const React = await import('react')
@@ -315,21 +310,21 @@ describe('RightPanelTabs', () => {
         clearTerminalTracking: vi.fn(),
         isReady: true
       })
-      
+
       render(
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
-      
+
       // Initially shows Changes content (SimpleDiffPanel)
       expect(screen.getByTestId('diff-panel')).toBeInTheDocument()
-      
+
       // Click Spec tab
       fireEvent.click(screen.getByTitle('Spec'))
-      
+
       // Should now show Spec content (DraftContentView)
       expect(screen.queryByTestId('diff-panel')).not.toBeInTheDocument()
     })
-    
+
     it('should hide changes tab for spec sessions', () => {
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'draft1' },
@@ -339,11 +334,11 @@ describe('RightPanelTabs', () => {
         clearTerminalTracking: vi.fn(),
         isReady: true
       })
-      
+
       render(
         <RightPanelTabs onFileSelect={mockOnFileSelect} />
       )
-      
+
       // Changes tab should not be visible for specs
       expect(screen.queryByRole('button', { name: /Changes/i })).not.toBeInTheDocument()
       // Only Info tab should be visible for specs
@@ -351,4 +346,6 @@ describe('RightPanelTabs', () => {
       expect(screen.getByTitle('Spec Info')).toHaveClass('bg-slate-800/50')
     })
   })
+
+
 })

@@ -199,10 +199,12 @@ describe('App.tsx', () => {
 
     it('sets up event listeners for spec starting functionality', () => {
       renderApp()
-      
+
       // Verify the app renders and would have set up the event listeners
       // The actual functionality is tested through integration with the real modal
       expect(screen.getByTestId('home-screen')).toBeInTheDocument()
     })
   })
+
+
 })

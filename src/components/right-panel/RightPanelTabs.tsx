@@ -6,7 +6,6 @@ import { useFocus } from '../../contexts/FocusContext'
 import { VscDiff, VscNotebook, VscInfo } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
-import { SpecListView as SpecListView } from '../plans/SpecListView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
 
@@ -20,9 +19,8 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
   const { selection, isSpec } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
-   const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
-   const [previewSpecName, setPreviewSpecName] = useState<string | null>(null)
-   const [localFocus, setLocalFocus] = useState<boolean>(false)
+    const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
+    const [localFocus, setLocalFocus] = useState<boolean>(false)
 
    // Determine active tab based on user selection or smart defaults
    // For specs, always show info tab regardless of user selection
@@ -54,9 +52,9 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
   // Unified header with tabs
   const isCommander = effectiveSelection.kind === 'orchestrator'
-  const rightTabLabel = 'Spec'
   const showChangesTab = (effectiveSelection.kind === 'session' && !effectiveIsSpec) || isCommander
   const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsSpec
+  const showSpecTab = effectiveSelection.kind === 'session' && !effectiveIsSpec
 
   return (
     <div 
@@ -102,23 +100,23 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             <span>Info</span>
           </button>
         )}
-        {!showInfoTab && (
+        {showSpecTab && (
           <button
             onClick={() => setUserSelectedTab('agent')}
             className={clsx(
               'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-              activeTab === 'agent' 
-                ? localFocus 
-                  ? 'text-blue-200 bg-blue-800/30' 
+              activeTab === 'agent'
+                ? localFocus
+                  ? 'text-blue-200 bg-blue-800/30'
                   : 'text-slate-200 bg-slate-800/50'
                 : localFocus
                   ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
             )}
-            title={`${rightTabLabel}`}
+            title="Spec"
           >
             <VscNotebook className="text-sm" />
-            <span>{rightTabLabel}</span>
+            <span>Spec</span>
           </button>
         )}
       </div>
@@ -141,27 +139,28 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             effectiveSelection.kind === 'session' && effectiveIsSpec ? (
               <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
             ) : null
-          ) : (
-            // Agent/Specs tab content
-            effectiveSelection.kind === 'session' ? (
-              // For spec sessions, show the info panel; for running sessions, show the agent content
-              effectiveIsSpec ? (
-                <SpecInfoPanel sessionName={effectiveSelection.payload!} />
-              ) : (
-                <SpecContentView 
-                  sessionName={effectiveSelection.payload!} 
-                  editable={false} 
-                  debounceMs={1000} 
-                />
-              )
-            ) : (
-              previewSpecName ? (
-                <SpecContentView sessionName={previewSpecName} editable debounceMs={1000} />
-              ) : (
-                <SpecListView onOpenSpec={(name: string) => setPreviewSpecName(name)} />
-              )
-            )
-          )}
+           ) : (
+             // Agent/Specs tab content
+             effectiveSelection.kind === 'session' ? (
+               // For spec sessions, show the info panel; for running sessions, show the agent content
+               effectiveIsSpec ? (
+                 <SpecInfoPanel sessionName={effectiveSelection.payload!} />
+               ) : (
+                 <SpecContentView
+                   sessionName={effectiveSelection.payload!}
+                   editable={false}
+                   debounceMs={1000}
+                 />
+               )
+             ) : (
+               // For orchestrator, show diff panel in the agent tab (since spec tab is removed)
+               <SimpleDiffPanel
+                 onFileSelect={onFileSelect}
+                 sessionNameOverride={undefined}
+                 isCommander={true}
+               />
+             )
+           )}
         </div>
       </div>
     </div>
