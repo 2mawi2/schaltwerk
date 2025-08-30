@@ -473,11 +473,15 @@ impl SessionManager {
     }
 
     pub fn start_claude_in_session(&self, session_name: &str) -> Result<String> {
-        self.start_claude_in_session_with_args(session_name, None)
+        self.start_claude_in_session_with_restart(session_name, false)
+    }
+    
+    pub fn start_claude_in_session_with_restart(&self, session_name: &str, force_restart: bool) -> Result<String> {
+        self.start_claude_in_session_with_restart_and_binary(session_name, force_restart, &HashMap::new())
     }
     
     pub fn start_claude_in_session_with_binary(&self, session_name: &str, binary_paths: &HashMap<String, String>) -> Result<String> {
-        self.start_claude_in_session_with_args_and_binary(session_name, None, binary_paths)
+        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
     
     pub fn start_claude_in_session_with_args(&self, session_name: &str, _cli_args: Option<&str>) -> Result<String> {
@@ -485,6 +489,10 @@ impl SessionManager {
     }
     
     pub fn start_claude_in_session_with_args_and_binary(&self, session_name: &str, _cli_args: Option<&str>, binary_paths: &HashMap<String, String>) -> Result<String> {
+        self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
+    }
+    
+    pub fn start_claude_in_session_with_restart_and_binary(&self, session_name: &str, force_restart: bool, binary_paths: &HashMap<String, String>) -> Result<String> {
         let session = self.db_manager.get_session_by_name(session_name)?;
         let skip_permissions = session.original_skip_permissions.unwrap_or(self.db_manager.get_skip_permissions()?);
         let agent_type = session.original_agent_type.clone().unwrap_or(self.db_manager.get_agent_type()?);
@@ -568,17 +576,34 @@ impl SessionManager {
                 ))
             }
             _ => {
-                // Try to resume existing session, or start fresh if none exists
-                let existing_session_id = crate::schaltwerk_core::claude::find_claude_session(&session.worktree_path);
-
-                if let Some(session_id) = &existing_session_id {
-                    log::info!("Resuming existing Claude session '{}' in worktree: {}", session_id, session.worktree_path.display());
+                log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
+                log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
+                
+                // Check for existing Claude session to determine if we should resume or start fresh
+                let resumable_session_id = crate::schaltwerk_core::claude::find_resumable_claude_session(&session.worktree_path);
+                log::info!("Session manager: find_resumable_claude_session returned: {resumable_session_id:?}");
+                
+                // Determine session_id and prompt based on force_restart and existing session
+                let (session_id_to_use, prompt_to_use) = if force_restart {
+                    // Explicit restart - always use initial prompt, no session resumption
+                    log::info!("Session manager: Force restarting Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                    (None, session.initial_prompt.as_deref())
+                } else if let Some(session_id) = resumable_session_id {
+                    // Session exists with actual conversation content and not forcing restart - resume with session ID
+                    log::info!("Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
+                    (Some(session_id), None)
                 } else {
-                    log::info!("Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                    // No resumable session - use initial prompt for first start or empty sessions
+                    log::info!("Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                    (None, session.initial_prompt.as_deref())
+                };
+                
+                log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
+                
+                // Only mark session as prompted if we're actually using the prompt
+                if prompt_to_use.is_some() {
+                    self.cache_manager.mark_session_prompted(&session.worktree_path);
                 }
-
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
-                let prompt_to_use = session.initial_prompt.as_deref();
 
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::claude::ClaudeConfig {
@@ -587,6 +612,7 @@ impl SessionManager {
 
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &session.worktree_path,
+                    session_id_to_use.as_deref(),
                     prompt_to_use,
                     skip_permissions,
                     Some(&config),
@@ -744,11 +770,15 @@ impl SessionManager {
                     binary_path: Some(binary_path),
                 };
 
-                // Always try to find a session for resumption - Claude will handle the case where no session exists
-                // Claude will handle session discovery automatically with --continue
+                let session_id_to_use = if resume_session {
+                    crate::schaltwerk_core::claude::find_resumable_claude_session(&self.repo_path)
+                } else {
+                    None
+                };
 
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &self.repo_path,
+                    session_id_to_use.as_deref(),
                     None,
                     skip_permissions,
                     Some(&config),

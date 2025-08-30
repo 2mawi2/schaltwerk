@@ -493,6 +493,11 @@ pub async fn schaltwerk_core_cleanup_orphaned_worktrees() -> Result<(), String> 
 
 #[tauri::command]
 pub async fn schaltwerk_core_start_claude(app: tauri::AppHandle, session_name: String) -> Result<String, String> {
+    schaltwerk_core_start_claude_with_restart(app, session_name, false).await
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, session_name: String, force_restart: bool) -> Result<String, String> {
     log::info!("Starting Claude for session: {session_name}");
     
     let core = get_schaltwerk_core().await?;
@@ -519,7 +524,7 @@ pub async fn schaltwerk_core_start_claude(app: tauri::AppHandle, session_name: S
         std::collections::HashMap::new()
     };
     
-    let command = manager.start_claude_in_session_with_binary(&session_name, &binary_paths)
+    let command = manager.start_claude_in_session_with_restart_and_binary(&session_name, force_restart, &binary_paths)
         .map_err(|e| {
             log::error!("Failed to build Claude command for session {session_name}: {e}");
             format!("Failed to start Claude in session: {e}")

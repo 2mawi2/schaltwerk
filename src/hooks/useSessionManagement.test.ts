@@ -71,8 +71,9 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith('close_terminal', {
                 id: 'test-terminal-top'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', {
-                sessionName: 'test-session'
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_with_restart', {
+                sessionName: 'test-session',
+                forceRestart: true
             })
             expect(mockDispatchEvent).toHaveBeenCalledWith(
                 expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
@@ -96,8 +97,9 @@ describe('useSessionManagement', () => {
             })
 
             expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', {
-                sessionName: 'test-session'
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_with_restart', {
+                sessionName: 'test-session',
+                forceRestart: true
             })
         })
 
@@ -211,8 +213,9 @@ describe('useSessionManagement', () => {
                 sessionName: 'test-session',
                 agentType: 'cursor'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', {
-                sessionName: 'test-session'
+            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_with_restart', {
+                sessionName: 'test-session',
+                forceRestart: true
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
             expect(mockClearTerminalStartedTracking).toHaveBeenCalledWith(['test-terminal-top'])

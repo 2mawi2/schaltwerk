@@ -38,7 +38,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const restartClaudeInSession = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke('schaltwerk_core_start_claude', { sessionName })
+        await invoke('schaltwerk_core_start_claude_with_restart', { sessionName, forceRestart: true })
     }, [])
 
     const waitForTerminalCleanup = useCallback(async (): Promise<void> => {
@@ -123,7 +123,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke('schaltwerk_core_start_claude', { sessionName })
+        await invoke('schaltwerk_core_start_claude_with_restart', { sessionName, forceRestart: true })
     }, [])
 
     const restartWithNewModel = useCallback(async (

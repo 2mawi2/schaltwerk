@@ -685,6 +685,7 @@ fn main() {
             schaltwerk_core_update_git_stats,
             schaltwerk_core_cleanup_orphaned_worktrees,
             schaltwerk_core_start_claude,
+            schaltwerk_core_start_claude_with_restart,
             schaltwerk_core_start_claude_orchestrator,
             schaltwerk_core_start_fresh_orchestrator,
             schaltwerk_core_reset_orchestrator,
