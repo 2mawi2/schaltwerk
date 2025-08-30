@@ -939,11 +939,25 @@ pub async fn schaltwerk_core_set_font_sizes(terminal_font_size: i32, ui_font_siz
 pub async fn schaltwerk_core_mark_session_ready(app: tauri::AppHandle, name: String, auto_commit: bool) -> Result<bool, String> {
     log::info!("Marking session {name} as reviewed (auto_commit: {auto_commit})");
     
+    // If auto_commit is false, check global auto-commit setting
+    let effective_auto_commit = if auto_commit {
+        true
+    } else {
+        // Check global auto-commit setting
+        let settings_manager = crate::SETTINGS_MANAGER
+            .get()
+            .ok_or_else(|| "Settings manager not initialized".to_string())?;
+        let manager = settings_manager.lock().await;
+        manager.get_auto_commit_on_review()
+    };
+    
+    log::info!("Effective auto_commit setting: {effective_auto_commit}");
+    
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
     
-    let result = manager.mark_session_ready(&name, auto_commit)
+    let result = manager.mark_session_ready(&name, effective_auto_commit)
         .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
     
     // Emit event to notify frontend of the change

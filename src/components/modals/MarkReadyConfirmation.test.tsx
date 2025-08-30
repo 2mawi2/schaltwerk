@@ -32,6 +32,11 @@ describe('MarkReadyConfirmation', () => {
 
     render(<MarkReadyConfirmation {...baseProps} onClose={onClose} onSuccess={onSuccess} />)
 
+    // Wait for the loading state to resolve and show the actual dialog
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Mark as Reviewed/ })).toBeInTheDocument()
+    })
+
     fireEvent.click(screen.getByRole('button', { name: /Mark as Reviewed/ }))
 
     await waitFor(() => {
@@ -42,12 +47,17 @@ describe('MarkReadyConfirmation', () => {
   })
 
   it('requires auto-commit when uncommitted; toggling checkbox enables confirm', async () => {
-    // Freshness check => true (dirty)
+    // First call: freshness check => true (dirty)
     mockInvoke.mockResolvedValueOnce(true)
-    // Mark session => success
+    // Second call: mark session => success
     mockInvoke.mockResolvedValueOnce(true)
 
     render(<MarkReadyConfirmation {...baseProps} hasUncommittedChanges={true} />)
+
+    // Wait for the loading state to resolve and show the actual dialog
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Mark as Reviewed/ })).toBeInTheDocument()
+    })
 
     const confirmBtn = screen.getByRole('button', { name: /Mark as Reviewed/ }) as HTMLButtonElement
     // Initially autoCommit = true => enabled
@@ -67,21 +77,39 @@ describe('MarkReadyConfirmation', () => {
     })
   })
 
-  it('handles keyboard Esc and Enter', async () => {
-    // Freshness check => false
+  it('handles keyboard Esc', async () => {
+    // First call: freshness check => false
     mockInvoke.mockResolvedValueOnce(false)
-    // Mark session => success
-    mockInvoke.mockResolvedValueOnce(true)
+    
     const onClose = vi.fn()
     render(<MarkReadyConfirmation {...baseProps} onClose={onClose} />)
 
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Mark as Reviewed/ })).toBeInTheDocument()
+    })
+
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('handles keyboard Enter', async () => {
+    // First call: freshness check => false
+    mockInvoke.mockResolvedValueOnce(false)
+    // Second call: mark session => success
+    mockInvoke.mockResolvedValueOnce(true)
 
     render(<MarkReadyConfirmation {...baseProps} />)
+    
+    // Wait for loading to complete
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Mark as Reviewed/ })).toBeInTheDocument()
+    })
+    
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await waitFor(() => {
       expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
     })
   })
+
 })

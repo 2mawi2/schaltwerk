@@ -35,6 +35,11 @@ pub struct DiffViewPreferences {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct SessionPreferences {
+    pub auto_commit_on_review: bool,  // automatically commit changes when marking sessions as reviewed
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSettings {
     pub shell: Option<String>,
@@ -66,6 +71,7 @@ pub struct Settings {
     pub terminal: TerminalSettings,
     pub agent_binaries: AgentBinaryConfigs,
     pub diff_view: DiffViewPreferences,
+    pub session: SessionPreferences,
 }
 
 pub struct SettingsManager {
@@ -267,6 +273,24 @@ impl SettingsManager {
     
     pub fn set_diff_view_preferences(&mut self, preferences: DiffViewPreferences) -> Result<(), String> {
         self.settings.diff_view = preferences;
+        self.save()
+    }
+    
+    pub fn get_session_preferences(&self) -> SessionPreferences {
+        self.settings.session.clone()
+    }
+    
+    pub fn set_session_preferences(&mut self, preferences: SessionPreferences) -> Result<(), String> {
+        self.settings.session = preferences;
+        self.save()
+    }
+    
+    pub fn get_auto_commit_on_review(&self) -> bool {
+        self.settings.session.auto_commit_on_review
+    }
+    
+    pub fn set_auto_commit_on_review(&mut self, auto_commit: bool) -> Result<(), String> {
+        self.settings.session.auto_commit_on_review = auto_commit;
         self.save()
     }
     

@@ -4,6 +4,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event'
 import { useProject } from './ProjectContext'
 import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
+import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 
 interface DiffStats {
     files_changed: number
@@ -32,6 +33,7 @@ interface SessionInfo {
     is_blocked?: boolean
     diff_stats?: DiffStats
     ready_to_merge?: boolean
+    spec_content?: string
 }
 
 interface EnrichedSession {
@@ -48,8 +50,10 @@ interface SessionsContextValue {
     loading: boolean
     sortMode: SortMode
     filterMode: FilterMode
+    searchQuery: string
     setSortMode: (mode: SortMode) => void
     setFilterMode: (mode: FilterMode) => void
+    setSearchQuery: (query: string) => void
     setCurrentSelection: (sessionId: string | null) => void
     reloadSessions: () => Promise<void>
     updateSessionStatus: (sessionId: string, newStatus: string) => Promise<void>
@@ -65,19 +69,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [loading, setLoading] = useState(true)
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
     const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
+    const [searchQuery, setSearchQuery] = useState<string>('')
     const prevStatesRef = useRef<Map<string, string>>(new Map())
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null)
     const hasInitialLoadCompleted = useRef(false)
     const currentSelectionRef = useRef<string | null>(null)
     const [settingsLoaded, setSettingsLoaded] = useState(false)
 
-    // Normalize backend info into UI categories
-    const mapSessionUiState = (info: SessionInfo): 'spec' | 'running' | 'reviewed' => {
-        // The backend provides session_state that directly maps to our UI categories
-        if (info.session_state === 'spec') return 'spec'
-        if (info.session_state === 'reviewed' || info.ready_to_merge) return 'reviewed'  
-        return 'running' // session_state === 'running'
-    }
+    // Note: mapSessionUiState function moved to utils/sessionFilters.ts
 
     // Sort sessions while preserving the currently selected session's position in the list
     const sortSessionsStable = useCallback((sessions: EnrichedSession[], selectedSessionId: string | null): EnrichedSession[] => {
@@ -128,6 +127,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         return sorted
     }, [sortMode])
 
+    // Note: searchSessions function moved to utils/sessionFilters.ts
+    const searchSessions = useCallback((sessions: EnrichedSession[]): EnrichedSession[] => {
+        return searchSessionsUtil(sessions, searchQuery)
+    }, [searchQuery])
+
     // Filter sessions based on the current filter mode
     const filterSessions = useCallback((sessions: EnrichedSession[]): EnrichedSession[] => {
         switch (filterMode) {
@@ -144,13 +148,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
     }, [filterMode])
 
-    // Get filtered sessions
-    const filteredSessions = filterSessions(allSessions)
-    
-    // Get sorted sessions (filtered first, then sorted)
+    // Apply search first, then filter mode, then sort
+    const searchedSessions = searchSessions(allSessions)
+    const filteredSessions = filterSessions(searchedSessions)
     const sortedSessions = sortSessionsStable(filteredSessions, currentSelectionRef.current)
     
-    // Sessions is the final result (sorted and filtered)
+    // Sessions is the final result (searched, filtered, and sorted)
     const sessions = sortedSessions
 
     // Function to update the current selection (used by SelectionContext)
@@ -521,8 +524,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             loading,
             sortMode,
             filterMode,
+            searchQuery,
             setSortMode,
             setFilterMode,
+            setSearchQuery,
             setCurrentSelection,
             reloadSessions,
             updateSessionStatus,

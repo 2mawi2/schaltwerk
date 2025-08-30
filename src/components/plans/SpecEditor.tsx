@@ -187,11 +187,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
             title="Run agent (⌘⏎)"
           >
             <VscPlay />
-            {starting ? (
-              <div className="flex items-center">
-                <AnimatedText text="starting" colorClassName="text-white" size="xs" centered={false} />
-              </div>
-            ) : 'Run Agent'}
+            {starting ? 'Starting...' : 'Run Agent'}
           </button>
           <button
             onClick={handleCopy}

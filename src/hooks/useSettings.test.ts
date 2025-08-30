@@ -213,18 +213,23 @@ describe('useSettings', () => {
         shellArgs: []
       }
 
+      const sessionPreferences = {
+        auto_commit_on_review: false
+      }
+
       const saveResult = await act(async () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
           projectSettings,
-          terminalSettings
+          terminalSettings,
+          sessionPreferences
         )
       })
 
       expect(saveResult).toEqual({
         success: true,
-        savedSettings: ['agent configurations', 'project settings', 'terminal settings'],
+        savedSettings: ['agent configurations', 'project settings', 'terminal settings', 'session preferences'],
         failedSettings: []
       })
       expect(result.current.saving).toBe(false)
@@ -266,18 +271,23 @@ describe('useSettings', () => {
         shellArgs: []
       }
 
+      const sessionPreferences = {
+        auto_commit_on_review: false
+      }
+
       const saveResult = await act(async () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
           projectSettings,
-          terminalSettings
+          terminalSettings,
+          sessionPreferences
         )
       })
 
       expect(saveResult).toEqual({
         success: false,
-        savedSettings: ['project settings', 'terminal settings'],
+        savedSettings: ['project settings', 'terminal settings', 'session preferences'],
         failedSettings: ['agent configurations']
       })
     })

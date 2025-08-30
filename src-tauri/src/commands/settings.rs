@@ -5,7 +5,7 @@ use crate::{
     get_schaltwerk_core,
     PROJECT_MANAGER,
 };
-use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences};
+use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences, SessionPreferences};
 use crate::schaltwerk_core::db_app_config::AppConfigMethods;
 use crate::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
 
@@ -294,6 +294,46 @@ pub async fn set_diff_view_preferences(preferences: DiffViewPreferences) -> Resu
     
     let mut manager = settings_manager.lock().await;
     manager.set_diff_view_preferences(preferences)
+}
+
+#[tauri::command]
+pub async fn get_session_preferences() -> Result<SessionPreferences, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_session_preferences())
+}
+
+#[tauri::command]
+pub async fn set_session_preferences(preferences: SessionPreferences) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let mut manager = settings_manager.lock().await;
+    manager.set_session_preferences(preferences)
+}
+
+#[tauri::command]
+pub async fn get_auto_commit_on_review() -> Result<bool, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_auto_commit_on_review())
+}
+
+#[tauri::command]
+pub async fn set_auto_commit_on_review(auto_commit: bool) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+    
+    let mut manager = settings_manager.lock().await;
+    manager.set_auto_commit_on_review(auto_commit)
 }
 
 #[tauri::command]

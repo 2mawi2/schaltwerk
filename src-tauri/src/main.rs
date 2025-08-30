@@ -628,27 +628,14 @@ fn main() {
     let dir_str = dir_path.to_string_lossy().to_string();
 
     let initial_directory = if dir_path.is_dir() {
-        // Check if it's a Git repository asynchronously to avoid blocking startup
-        match std::process::Command::new("git")
-            .arg("-C")
-            .arg(&dir_str)
-            .arg("rev-parse")
-            .arg("--git-dir")
-            .output()
-        {
-            Ok(output) if output.status.success() => {
+        // Check if it's a Git repository using libgit2 (much faster than spawning git process)
+        match git2::Repository::discover(&dir_path) {
+            Ok(_) => {
                 log::info!("✅ Opening Schaltwerk with Git repository: {}", dir_path.display());
                 Some((dir_str.clone(), true))
             }
-            Ok(output) => {
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!("Git check failed for {}: {}", dir_path.display(), stderr);
-                log::warn!("Directory {} is not a Git repository, will open at home screen", dir_path.display());
-                Some((dir_str.clone(), false))
-            }
-            Err(e) => {
-                log::error!("Failed to run git command: {e}");
-                log::warn!("Could not verify if {} is a Git repository", dir_path.display());
+            Err(_) => {
+                log::info!("Directory {} is not a Git repository, will open at home screen", dir_path.display());
                 Some((dir_str.clone(), false))
             }
         }
@@ -763,6 +750,10 @@ fn main() {
             set_terminal_settings,
             get_diff_view_preferences,
             set_diff_view_preferences,
+            get_session_preferences,
+            set_session_preferences,
+            get_auto_commit_on_review,
+            set_auto_commit_on_review,
             get_project_settings,
             set_project_settings,
             get_project_selection,

@@ -14,6 +14,10 @@ interface TerminalSettings {
     shellArgs: string[]
 }
 
+interface SessionPreferences {
+    auto_commit_on_review: boolean
+}
+
 export interface SettingsSaveResult {
     success: boolean
     savedSettings: string[]
@@ -57,11 +61,16 @@ export const useSettings = () => {
         await invoke('set_terminal_settings', { terminal: terminalSettings })
     }, [])
     
+    const saveSessionPreferences = useCallback(async (sessionPreferences: SessionPreferences): Promise<void> => {
+        await invoke('set_session_preferences', { preferences: sessionPreferences })
+    }, [])
+    
     const saveAllSettings = useCallback(async (
         envVars: Record<AgentType, Array<{key: string, value: string}>>,
         cliArgs: Record<AgentType, string>,
         projectSettings: ProjectSettings,
-        terminalSettings: TerminalSettings
+        terminalSettings: TerminalSettings,
+        sessionPreferences: SessionPreferences
     ): Promise<SettingsSaveResult> => {
         setSaving(true)
         
@@ -90,6 +99,14 @@ export const useSettings = () => {
             console.log('Terminal settings not saved - requires active project')
         }
         
+        try {
+            await saveSessionPreferences(sessionPreferences)
+            savedSettings.push('session preferences')
+        } catch (error) {
+            console.error('Failed to save session preferences:', error)
+            failedSettings.push('session preferences')
+        }
+        
         setSaving(false)
         
         return {
@@ -97,7 +114,7 @@ export const useSettings = () => {
             savedSettings,
             failedSettings
         }
-    }, [saveAgentSettings, saveProjectSettings, saveTerminalSettings])
+    }, [saveAgentSettings, saveProjectSettings, saveTerminalSettings, saveSessionPreferences])
     
     const loadEnvVars = useCallback(async (): Promise<Record<AgentType, Array<{key: string, value: string}>>> => {
         setLoading(true)
@@ -169,6 +186,16 @@ export const useSettings = () => {
         }
     }, [])
     
+    const loadSessionPreferences = useCallback(async (): Promise<SessionPreferences> => {
+        try {
+            const preferences = await invoke<SessionPreferences>('get_session_preferences')
+            return preferences || { auto_commit_on_review: false }
+        } catch (error) {
+            console.error('Failed to load session preferences:', error)
+            return { auto_commit_on_review: false }
+        }
+    }, [])
+    
     return {
         loading,
         saving,
@@ -176,9 +203,11 @@ export const useSettings = () => {
         saveAgentSettings,
         saveProjectSettings,
         saveTerminalSettings,
+        saveSessionPreferences,
         loadEnvVars,
         loadCliArgs,
         loadProjectSettings,
-        loadTerminalSettings
+        loadTerminalSettings,
+        loadSessionPreferences
     }
 }

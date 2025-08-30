@@ -8,6 +8,7 @@ import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
+import { AnimatedText } from '../common/AnimatedText';
 import 'xterm/css/xterm.css';
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
@@ -41,6 +42,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const webglAddon = useRef<WebglAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const [hydrated, setHydrated] = useState(false);
+    const [agentLoading, setAgentLoading] = useState(false);
     const hydratedRef = useRef<boolean>(false);
     const pendingOutput = useRef<string[]>([]);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -54,6 +56,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const startAttempts = useRef<Map<string, number>>(new Map());
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
+    const previousTerminalId = useRef<string>(terminalId);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -431,31 +434,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 
                 if (snapshot) {
                     writeQueueRef.current.push(snapshot);
-                    
-                    // Smart auto-scroll: only scroll to bottom if user was already at bottom
-                    // This preserves manual scroll position but shows latest output when appropriate
-                    const shouldAutoScroll = terminalId.endsWith('-top') && 
-                        (terminalId.includes('session-') || terminalId.includes('orchestrator-'));
-                    
-                    if (shouldAutoScroll) {
-                        // Check if user was at the bottom before hydration
-                        requestAnimationFrame(() => {
-                            if (terminal.current && terminal.current.buffer && terminal.current.buffer.active) {
-                                try {
-                                    const viewport = terminal.current.buffer.active.viewportY;
-                                    const baseY = terminal.current.buffer.active.baseY;
-                                    const isAtBottom = viewport >= baseY;
-                                    
-                                    // Only auto-scroll if user was already at the bottom
-                                    if (isAtBottom) {
-                                        terminal.current.scrollToBottom();
-                                    }
-                                } catch (error) {
-                                    console.warn(`[Terminal ${terminalId}] Failed to check scroll position during hydration:`, error);
-                                }
-                            }
-                        });
-                    }
                 }
                 // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
@@ -463,17 +441,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         writeQueueRef.current.push(output);
                     }
                     pendingOutput.current = [];
-                }
-                 setHydrated(true);
-                 hydratedRef.current = true;
-                 // Flush immediately to avoid dropping output on rapid remounts/tests
-                 flushNow();
+                 }
+                  setHydrated(true);
+                  hydratedRef.current = true;
+                  // Flush immediately to avoid dropping output on rapid remounts/tests
+                  flushNow();
 
-                 // Emit terminal ready event for focus management
-                 if (typeof window !== 'undefined') {
-                     window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', {
-                         detail: { terminalId }
-                     }));
+                  // Emit terminal ready event for focus management
+                  if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', {
+                          detail: { terminalId }
+                      }));
                  }
                 
             } catch (error) {
@@ -557,19 +535,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
 
-            // Check if at bottom before resize to maintain position
-            let wasAtBottom = false;
-            try {
-                if (terminal.current.buffer && terminal.current.buffer.active) {
-                    const buffer = terminal.current.buffer.active;
-                    const viewport = buffer.viewportY;
-                    const totalLines = buffer.length;
-                    wasAtBottom = viewport === totalLines - terminal.current.rows;
-                }
-            } catch (e) {
-                // Buffer API might not be available
-            }
-
             try {
                 fitAddon.current.fit();
             } catch (e) {
@@ -577,7 +542,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
             const { cols, rows } = terminal.current;
-            
+
             // Only send resize if dimensions actually changed
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                 // For OpenCode session terminals, prevent downgrading to small sizes
@@ -585,25 +550,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const isSessionTerminal = terminalId.includes('session-') && !terminalId.includes('orchestrator');
                 const isDowngrading = (cols < lastSize.current.cols || rows < lastSize.current.rows);
                 const isTooSmall = cols < 100 || rows < 30;
-                
+
                 if (isSessionTerminal && isDowngrading && isTooSmall) {
                     console.log(`[Terminal ${terminalId}] Ignoring small resize: ${cols}x${rows} (was ${lastSize.current.cols}x${lastSize.current.rows})`);
                     return;
                 }
-                
+
                 lastSize.current = { cols, rows };
                 invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
-                
-                // If was at bottom before resize, keep at bottom after resize
-                if (wasAtBottom) {
-                    requestAnimationFrame(() => {
-                        try {
-                            terminal.current?.scrollToBottom();
-                        } catch (e) {
-                            // Scroll API might not be available
-                        }
-                    });
-                }
             }
         };
 
@@ -700,6 +654,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
             startingTerminals.current.set(terminalId, true);
+            setAgentLoading(true);
             try {
                 if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                     const exists = await invoke<boolean>('terminal_exists', { id: terminalId });
@@ -717,14 +672,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
                      try {
-                          await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
-                          // Focus the terminal after Claude starts successfully
-                          requestAnimationFrame(() => {
-                              if (terminal.current) {
-                                  terminal.current.focus();
-                              }
-                          });
-                     } catch (e) {
+                            await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
+                            // Focus the terminal after Claude starts successfully
+                            requestAnimationFrame(() => {
+                                if (terminal.current) {
+                                    terminal.current.focus();
+                                }
+                            });
+                            // Ensure terminal is fully ready before showing it
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    setAgentLoading(false);
+                                });
+                            });
+                      } catch (e) {
                          // Roll back start flags on failure to allow retry
                          startedGlobal.delete(terminalId);
                          console.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
@@ -748,16 +709,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             window.dispatchEvent(new CustomEvent('schaltwerk:spawn-error', {
                                 detail: { error: errorMessage, terminalId }
                             }));
-                        } else if (errorMessage.includes('not a git repository')) {
-                            // Handle non-git repository error
-                            console.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
-                            window.dispatchEvent(new CustomEvent('schaltwerk:not-git-error', {
-                                detail: { error: errorMessage, terminalId }
-                            }));
-                        }
-                        throw e;
-                    }
-                    startingTerminals.current.set(terminalId, false);
+                         } else if (errorMessage.includes('not a git repository')) {
+                             // Handle non-git repository error
+                             console.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
+                             window.dispatchEvent(new CustomEvent('schaltwerk:not-git-error', {
+                                 detail: { error: errorMessage, terminalId }
+                             }));
+                         }
+                         throw e;
+                     }
+                     // Ensure terminal state is properly reset
+                     requestAnimationFrame(() => {
+                         requestAnimationFrame(() => {
+                             setAgentLoading(false);
+                         });
+                     });
+                     startingTerminals.current.set(terminalId, false);
                 } else {
                     const expectedId = sessionName ? `session-${sessionName}-top` : null;
                     if (!sessionName) {
@@ -783,14 +750,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
                      try {
-                          await invoke('schaltwerk_core_start_claude', { sessionName });
-                          // Focus the terminal after Claude starts successfully
-                          requestAnimationFrame(() => {
-                              if (terminal.current) {
-                                  terminal.current.focus();
-                              }
-                          });
-                     } catch (e) {
+                           await invoke('schaltwerk_core_start_claude', { sessionName });
+                           // Focus the terminal after Claude starts successfully
+                           requestAnimationFrame(() => {
+                               if (terminal.current) {
+                                   terminal.current.focus();
+                               }
+                           });
+                           // Ensure terminal is fully ready before showing it
+                           requestAnimationFrame(() => {
+                               requestAnimationFrame(() => {
+                                   setAgentLoading(false);
+                               });
+                           });
+                      } catch (e) {
                          // Roll back start flags on failure to allow retry
                          startedGlobal.delete(terminalId);
                          console.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
@@ -801,21 +774,50 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
                                 detail: { error: errorMessage }
                             }));
-                        }
-                        throw e;
-                    }
-                    startingTerminals.current.set(terminalId, false);
-                }
-            } catch (error) {
-                console.error(`[Terminal ${terminalId}] Failed to auto-start Claude:`, error);
-                startingTerminals.current.set(terminalId, false);
-            }
+                         }
+                         throw e;
+                     }
+                     // Ensure terminal state is properly reset
+                     requestAnimationFrame(() => {
+                         requestAnimationFrame(() => {
+                             setAgentLoading(false);
+                         });
+                     });
+                     startingTerminals.current.set(terminalId, false);
+                 }
+              } catch (error) {
+                  console.error(`[Terminal ${terminalId}] Failed to auto-start Claude:`, error);
+                  // Ensure terminal state is properly reset
+                  requestAnimationFrame(() => {
+                      requestAnimationFrame(() => {
+                          setAgentLoading(false);
+                      });
+                  });
+                  startingTerminals.current.set(terminalId, false);
+              }
         };
 
         // Delay a tick to ensure xterm is laid out
         const t = setTimeout(start, 0);
         return () => clearTimeout(t);
     }, [hydrated, terminalId, isCommander, sessionName]);
+
+    // Force scroll to bottom when switching sessions
+    useEffect(() => {
+        if (previousTerminalId.current !== terminalId) {
+            // Terminal ID changed - this is a session switch
+            if (terminal.current) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.scrollToBottom();
+                    } catch (error) {
+                        console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
+                    }
+                });
+            }
+            previousTerminalId.current = terminalId;
+        }
+    }, [terminalId]);
 
 
     const handleTerminalClick = () => {
@@ -830,8 +832,18 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }
 
     return (
-        <div className={`h-full w-full ${className}`} onClick={handleTerminalClick}>
+        <div className={`h-full w-full relative ${className}`} onClick={handleTerminalClick}>
             <div ref={termRef} className="h-full w-full" />
+            {(!hydrated || agentLoading) && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
+                    <AnimatedText
+                        text={!hydrated ? "initializing" : "starting"}
+                        colorClassName={!hydrated ? theme.colors.text.secondary : "text-cyan-400"}
+                        size="md"
+                        speedMultiplier={3}
+                    />
+                </div>
+            )}
             {/* Search UI opens via keyboard shortcut only (Cmd/Ctrl+F) */}
             {isSearchVisible && (
                 <div className="absolute top-2 right-2 flex items-center bg-panel border border-slate-700 rounded px-2 py-1 z-10">

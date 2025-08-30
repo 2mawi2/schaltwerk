@@ -330,7 +330,7 @@ export function TerminalGrid() {
     if (!isReady) {
         return (
             <div className="h-full p-2 relative flex items-center justify-center">
-                <AnimatedText text="initializing" colorClassName="text-slate-500" size="md" />
+                <AnimatedText text="initializing" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
             </div>
         )
     }

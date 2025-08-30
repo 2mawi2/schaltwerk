@@ -9,6 +9,7 @@ interface AnimatedTextProps {
   className?: string
   idleMode?: 'artifact' | 'artifact+pulse' | 'pulse' | 'wobble' | 'still'
   centered?: boolean
+  speedMultiplier?: number
 }
 
 const textToAsciiMap: Record<string, string> = {
@@ -107,7 +108,8 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
   paused = false,
   className = '',
   idleMode = 'artifact',
-  centered = true
+  centered = true,
+  speedMultiplier = 1
 }) => {
   const sizeClasses = {
     xs: 'text-[3px]',
@@ -145,12 +147,12 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
           paused={paused}
           idleMode={idleMode}
           groupOrder="center-out"
-          fallDurationMs={400}
-          settleDurationMs={600}
-          groupGapMs={80}
+          fallDurationMs={400 / speedMultiplier}
+          settleDurationMs={600 / speedMultiplier}
+          groupGapMs={80 / speedMultiplier}
           idleArtifactMagnitude={2.8}
-          idleArtifactMinDelayMs={1200}
-          idleArtifactMaxDelayMs={2000}
+          idleArtifactMinDelayMs={1200 / speedMultiplier}
+          idleArtifactMaxDelayMs={2000 / speedMultiplier}
         />
       </div>
     </div>

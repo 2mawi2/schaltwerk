@@ -11,6 +11,7 @@ import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { SessionButton } from './SessionButton'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { calculateFilterCounts } from '../../utils/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
 
 // Normalize backend states to UI categories
@@ -85,9 +86,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         allSessions, 
         loading, 
         sortMode, 
-        filterMode, 
+        filterMode,
+        searchQuery,
         setSortMode, 
-        setFilterMode, 
+        setFilterMode,
+        setSearchQuery,
         setCurrentSelection, 
         reloadSessions 
     } = useSessions()
@@ -95,6 +98,20 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
+    const [isSearchVisible, setIsSearchVisible] = useState<boolean>(false)
+    
+    // Close search when query is cleared
+    useEffect(() => {
+        if (isSearchVisible && !searchQuery.trim()) {
+            // Small delay to allow for typing
+            const timeout = setTimeout(() => {
+                if (!searchQuery.trim()) {
+                    setIsSearchVisible(false)
+                }
+            }, 2000)
+            return () => clearTimeout(timeout)
+        }
+    }, [searchQuery, isSearchVisible])
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
         sessionName: '',
@@ -291,6 +308,48 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
+    const handleMarkReady = async (sessionId: string, hasUncommitted: boolean) => {
+        try {
+            // Check global auto-commit setting first
+            const globalAutoCommit = await invoke<boolean>('get_auto_commit_on_review')
+            
+            if (globalAutoCommit) {
+                // Auto-commit is enabled, execute directly without modal
+                try {
+                    const success = await invoke<boolean>('schaltwerk_core_mark_session_ready', {
+                        name: sessionId,
+                        autoCommit: true // Explicitly commit when global auto-commit is enabled
+                    })
+                    
+                    if (success) {
+                        // Reload sessions to reflect the change
+                        await reloadSessions()
+                    } else {
+                        alert('Failed to mark session as reviewed automatically.')
+                    }
+                } catch (error) {
+                    console.error('Failed to auto-mark session as reviewed:', error)
+                    alert(`Failed to mark session as reviewed: ${error}`)
+                }
+            } else {
+                // Auto-commit is disabled, show modal for confirmation
+                setMarkReadyModal({
+                    open: true,
+                    sessionName: sessionId,
+                    hasUncommitted
+                })
+            }
+        } catch (error) {
+            console.error('Failed to load auto-commit setting:', error)
+            // If settings check fails, fall back to showing the modal
+            setMarkReadyModal({
+                open: true,
+                sessionName: sessionId,
+                hasUncommitted
+            })
+        }
+    }
+
     const handleMarkSelectedSessionReady = () => {
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
@@ -301,11 +360,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     return
                 }
 
-                setMarkReadyModal({
-                    open: true,
-                    sessionName: selectedSession.info.session_id,
-                    hasUncommitted: selectedSession.info.has_uncommitted_changes || false
-                })
+                handleMarkReady(selectedSession.info.session_id, selectedSession.info.has_uncommitted_changes || false)
             }
         }
     }
@@ -488,6 +543,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Attach once on mount; use refs above for latest values inside handlers
     }, [setSelection])
 
+    // Calculate counts based on search and current filter state
+    const sessionsToCount = searchQuery ? sessions : allSessions
+    const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(sessionsToCount)
+
     return (
         <div ref={sidebarRef} className="h-full flex flex-col">
             <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
@@ -512,13 +571,24 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 <div className="flex items-center gap-2 w-full">
                     <span className="text-xs flex-shrink-0">Agents</span>
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto">
+                        {/* Search Icon */}
+                        <button
+                            onClick={() => setIsSearchVisible(true)}
+                            className={clsx('px-1 py-0.5 rounded hover:bg-slate-700/50 flex items-center flex-shrink-0',
+                                isSearchVisible ? 'bg-slate-700/50 text-white' : 'text-slate-400 hover:text-white')}
+                            title="Search sessions"
+                        >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                            </svg>
+                        </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
                             onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all agents"
                         >
-                            All <span className="text-slate-400">({allSessions.length})</span>
+                            All <span className="text-slate-400">({allCount})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
@@ -526,7 +596,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Spec)}
                             title="Show spec agents"
                         >
-                            Specs <span className="text-slate-400">({allSessions.filter(s => isSpec(s.info)).length})</span>
+                            Specs <span className="text-slate-400">({specsCount})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -534,7 +604,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running agents"
                         >
-                            Running <span className="text-slate-400">({allSessions.filter(s => !isReviewed(s.info) && !isSpec(s.info)).length})</span>
+                            Running <span className="text-slate-400">({runningCount})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -542,7 +612,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed agents"
                         >
-                            Reviewed <span className="text-slate-400">({allSessions.filter(s => isReviewed(s.info)).length})</span>
+                            Reviewed <span className="text-slate-400">({reviewedCount})</span>
                         </button>
                         <button
                             className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
@@ -566,6 +636,42 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     </div>
                 </div>
             </div>
+            
+            {/* Search Line - appears below filters when active */}
+            {isSearchVisible && (
+                <div className="h-8 px-3 border-b border-slate-800 bg-slate-900/50 flex items-center">
+                    <div className="flex items-center gap-2 w-full">
+                        <svg className="w-3 h-3 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+                        </svg>
+                        <input
+                            type="text"
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            placeholder="Search sessions..."
+                            className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
+                            autoFocus
+                        />
+                        {searchQuery && (
+                            <span className="text-xs text-slate-400 whitespace-nowrap">
+                                {sessions.length} result{sessions.length !== 1 ? 's' : ''}
+                            </span>
+                        )}
+                        <button
+                            onClick={() => {
+                                setSearchQuery('')
+                                setIsSearchVisible(false)
+                            }}
+                            className="text-slate-400 hover:text-slate-200 p-0.5"
+                            title="Close search"
+                        >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            )}
             <div className="flex-1 overflow-y-auto px-2 pt-2">
                 {sessions.length === 0 && !loading ? (
                     <div className="text-center text-slate-500 py-4">No active agents</div>
@@ -585,11 +691,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 hasFollowUpMessage={hasFollowUpMessage}
                                 onSelect={handleSelectSession}
                                 onMarkReady={(sessionId, hasUncommitted) => {
-                                    setMarkReadyModal({
-                                        open: true,
-                                        sessionName: sessionId,
-                                        hasUncommitted
-                                    })
+                                    handleMarkReady(sessionId, hasUncommitted)
                                 }}
                                 onUnmarkReady={async (sessionId) => {
                                     try {

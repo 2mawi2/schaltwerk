@@ -11,12 +11,7 @@ use tokio::sync::{Mutex, RwLock};
 
 const MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
-// Global state maps to avoid Sync issues with trait objects
-lazy_static::lazy_static! {
-    static ref PTY_CHILDREN: Mutex<HashMap<String, Box<dyn Child + Send>>> = Mutex::new(HashMap::new());
-    static ref PTY_MASTERS: Mutex<HashMap<String, Box<dyn MasterPty + Send>>> = Mutex::new(HashMap::new());
-    static ref PTY_WRITERS: Mutex<HashMap<String, Box<dyn Write + Send>>> = Mutex::new(HashMap::new());
-}
+// PTY state maps moved to instance level to avoid test interference
 
 struct TerminalState {
     buffer: Vec<u8>,
@@ -28,6 +23,10 @@ pub struct LocalPtyAdapter {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
     creating: Arc<Mutex<HashSet<String>>>,
     app_handle: Arc<Mutex<Option<AppHandle>>>,
+    // PTY resource maps - moved from global statics to instance level
+    pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
+    pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
+    pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     // Coalesced emitter buffers per terminal id
     emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     // Tracks whether a flush agent is scheduled per terminal id
@@ -41,6 +40,9 @@ pub struct LocalPtyAdapter {
 struct ReaderState {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
     app_handle: Arc<Mutex<Option<AppHandle>>>,
+    pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
+    pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
+    pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
     emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
@@ -59,6 +61,9 @@ impl LocalPtyAdapter {
             terminals: Arc::new(RwLock::new(HashMap::new())),
             creating: Arc::new(Mutex::new(HashSet::new())),
             app_handle: Arc::new(Mutex::new(None)),
+            pty_children: Arc::new(Mutex::new(HashMap::new())),
+            pty_masters: Arc::new(Mutex::new(HashMap::new())),
+            pty_writers: Arc::new(Mutex::new(HashMap::new())),
             emit_buffers: Arc::new(RwLock::new(HashMap::new())),
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
@@ -163,11 +168,11 @@ impl LocalPtyAdapter {
                             // Remove terminal state
                             terminals_clone2.write().await.remove(&id_clone_for_cleanup);
                             // Remove PTY resources
-                            if let Some(mut child) = PTY_CHILDREN.lock().await.remove(&id_clone_for_cleanup) {
+                            if let Some(mut child) = reader_state.pty_children.lock().await.remove(&id_clone_for_cleanup) {
                                 let _ = child.kill();
                             }
-                            PTY_MASTERS.lock().await.remove(&id_clone_for_cleanup);
-                            PTY_WRITERS.lock().await.remove(&id_clone_for_cleanup);
+                            reader_state.pty_masters.lock().await.remove(&id_clone_for_cleanup);
+                            reader_state.pty_writers.lock().await.remove(&id_clone_for_cleanup);
                             // Emit terminal closed event
                             if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
                                 let _ = handle.emit(
@@ -300,11 +305,11 @@ impl LocalPtyAdapter {
                             let app_handle_clone2 = Arc::clone(&reader_state.app_handle);
                             runtime.block_on(async move {
                                 terminals_clone2.write().await.remove(&id_clone_for_cleanup);
-                                if let Some(mut child) = PTY_CHILDREN.lock().await.remove(&id_clone_for_cleanup) {
+                                if let Some(mut child) = reader_state.pty_children.lock().await.remove(&id_clone_for_cleanup) {
                                     let _ = child.kill();
                                 }
-                                PTY_MASTERS.lock().await.remove(&id_clone_for_cleanup);
-                                PTY_WRITERS.lock().await.remove(&id_clone_for_cleanup);
+                                reader_state.pty_masters.lock().await.remove(&id_clone_for_cleanup);
+                                reader_state.pty_writers.lock().await.remove(&id_clone_for_cleanup);
                                 if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
                                     let _ = handle.emit(
                                         "schaltwerk:terminal-closed",
@@ -416,13 +421,6 @@ impl TerminalBackend for LocalPtyAdapter {
         
         info!("Successfully spawned shell process for terminal {id} (spawn took {}ms)", start_time.elapsed().as_millis());
         
-        // Start process monitoring for automatic cleanup
-        Self::start_process_monitor(
-            id.clone(),
-            Arc::clone(&self.terminals),
-            Arc::clone(&self.app_handle),
-        ).await;
-        
         let writer = pair
             .master
             .take_writer()
@@ -434,9 +432,19 @@ impl TerminalBackend for LocalPtyAdapter {
             .map_err(|e| format!("Failed to get reader: {e}"))?;
         
         // Store the child and master in separate maps to avoid Sync issues
-        PTY_CHILDREN.lock().await.insert(id.clone(), child);
-        PTY_MASTERS.lock().await.insert(id.clone(), pair.master);
-        PTY_WRITERS.lock().await.insert(id.clone(), writer);
+        self.pty_children.lock().await.insert(id.clone(), child);
+        self.pty_masters.lock().await.insert(id.clone(), pair.master);
+        self.pty_writers.lock().await.insert(id.clone(), writer);
+        
+        // Start process monitoring AFTER PTY resources are stored
+        Self::start_process_monitor(
+            id.clone(),
+            Arc::clone(&self.terminals),
+            Arc::clone(&self.app_handle),
+            Arc::clone(&self.pty_children),
+            Arc::clone(&self.pty_masters),
+            Arc::clone(&self.pty_writers),
+        ).await;
         
         let state = TerminalState {
             buffer: Vec::new(),
@@ -453,6 +461,9 @@ impl TerminalBackend for LocalPtyAdapter {
             ReaderState {
                 terminals: Arc::clone(&self.terminals),
                 app_handle: Arc::clone(&self.app_handle),
+                pty_children: Arc::clone(&self.pty_children),
+                pty_masters: Arc::clone(&self.pty_masters),
+                pty_writers: Arc::clone(&self.pty_writers),
                 emit_buffers: Arc::clone(&self.emit_buffers),
                 emit_scheduled: Arc::clone(&self.emit_scheduled),
                 emit_buffers_norm: Arc::clone(&self.emit_buffers_norm),
@@ -475,7 +486,7 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn write(&self, id: &str, data: &[u8]) -> Result<(), String> {
         let start = Instant::now();
 
-        if let Some(writer) = PTY_WRITERS.lock().await.get_mut(id) {
+        if let Some(writer) = self.pty_writers.lock().await.get_mut(id) {
             writer
                 .write_all(data)
                 .map_err(|e| format!("Write failed: {e}"))?;
@@ -501,7 +512,7 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn write_immediate(&self, id: &str, data: &[u8]) -> Result<(), String> {
         let start = Instant::now();
 
-        if let Some(writer) = PTY_WRITERS.lock().await.get_mut(id) {
+        if let Some(writer) = self.pty_writers.lock().await.get_mut(id) {
             writer
                 .write_all(data)
                 .map_err(|e| format!("Immediate write failed: {e}"))?;
@@ -533,7 +544,7 @@ impl TerminalBackend for LocalPtyAdapter {
     }
     
     async fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
-        if let Some(master) = PTY_MASTERS.lock().await.get(id) {
+        if let Some(master) = self.pty_masters.lock().await.get(id) {
             master
                 .resize(PtySize {
                     rows,
@@ -555,7 +566,7 @@ impl TerminalBackend for LocalPtyAdapter {
         info!("Closing terminal: {id}");
         
         // Force kill the child process with timeout for robustness
-        if let Some(mut child) = PTY_CHILDREN.lock().await.remove(id) {
+        if let Some(mut child) = self.pty_children.lock().await.remove(id) {
             // Try graceful termination first
             if let Err(e) = child.kill() {
                 warn!("Failed to kill terminal process {id}: {e}");
@@ -580,8 +591,8 @@ impl TerminalBackend for LocalPtyAdapter {
         }
         
         // Clean up all resources
-        PTY_MASTERS.lock().await.remove(id);
-        PTY_WRITERS.lock().await.remove(id);
+        self.pty_masters.lock().await.remove(id);
+        self.pty_writers.lock().await.remove(id);
         self.terminals.write().await.remove(id);
         
         // Clear emit buffers
@@ -655,6 +666,9 @@ impl LocalPtyAdapter {
         id: String,
         terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
         app_handle: Arc<Mutex<Option<AppHandle>>>,
+        pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
+        pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
+        pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     ) {
         let monitor_id = id.clone();
         
@@ -668,7 +682,7 @@ impl LocalPtyAdapter {
                 
                 // Check if child process is still alive - do this first to avoid races
                 let should_cleanup = {
-                    let child_guard = PTY_CHILDREN.lock().await;
+                    let child_guard = pty_children.lock().await;
                     match child_guard.get(&monitor_id) {
                         Some(_child) => {
                             // Process exists, continue monitoring
@@ -693,7 +707,7 @@ impl LocalPtyAdapter {
                 
                 // Check if process has exited (separate scope to avoid deadlocks)
                 let process_status = {
-                    let mut child_guard = PTY_CHILDREN.lock().await;
+                    let mut child_guard = pty_children.lock().await;
                     if let Some(child) = child_guard.get_mut(&monitor_id) {
                         match child.try_wait() {
                             Ok(Some(status)) => {
@@ -723,6 +737,9 @@ impl LocalPtyAdapter {
                         monitor_id.clone(),
                         Arc::clone(&terminals),
                         Arc::clone(&app_handle),
+                        Arc::clone(&pty_children),
+                        Arc::clone(&pty_masters),
+                        Arc::clone(&pty_writers),
                     ).await;
                     break;
                 }
@@ -739,13 +756,16 @@ impl LocalPtyAdapter {
         id: String,
         terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
         app_handle: Arc<Mutex<Option<AppHandle>>>,
+        pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
+        pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
+        pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     ) {
         info!("Cleaning up dead terminal: {id}");
         
         // Remove from all maps
-        PTY_CHILDREN.lock().await.remove(&id);
-        PTY_MASTERS.lock().await.remove(&id);
-        PTY_WRITERS.lock().await.remove(&id);
+        pty_children.lock().await.remove(&id);
+        pty_masters.lock().await.remove(&id);
+        pty_writers.lock().await.remove(&id);
         terminals.write().await.remove(&id);
         
         // Emit terminal closed event

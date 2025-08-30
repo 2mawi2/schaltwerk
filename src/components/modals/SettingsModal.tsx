@@ -21,7 +21,7 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'actions'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'actions'
 
 interface DetectedBinary {
     path: string
@@ -92,6 +92,15 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
     {
+        id: 'sessions',
+        label: 'Sessions',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+        )
+    },
+    {
         id: 'actions',
         label: 'Action Buttons',
         icon: (
@@ -112,6 +121,10 @@ interface TerminalSettings {
     shellArgs: string[]
 }
 
+interface SessionPreferences {
+    auto_commit_on_review: boolean
+}
+
 export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const { terminalFontSize, uiFontSize, setTerminalFontSize, setUiFontSize } = useFontSize()
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
@@ -123,6 +136,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
         shell: null,
         shellArgs: []
+    })
+    const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
+        auto_commit_on_review: false
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
@@ -158,7 +174,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         loadEnvVars,
         loadCliArgs,
         loadProjectSettings,
-        loadTerminalSettings
+        loadTerminalSettings,
+        loadSessionPreferences
     } = useSettings()
     
     const {
@@ -264,17 +281,39 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     }, [actionButtons])
     
     const loadAllSettings = async () => {
-        const [loadedEnvVars, loadedCliArgs, loadedProjectSettings, loadedTerminalSettings] = await Promise.all([
+        // Load application-level settings (always available)
+        const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences] = await Promise.all([
             loadEnvVars(),
             loadCliArgs(),
-            loadProjectSettings(),
-            loadTerminalSettings()
+            loadSessionPreferences()
         ])
+        
+        // Load project-specific settings (may fail if no project is open)
+        let loadedProjectSettings: any = { setupScript: '', environmentVariables: [] }
+        let loadedTerminalSettings: any = { shell: null, shellArgs: [] }
+        
+        try {
+            const results = await Promise.allSettled([
+                loadProjectSettings(),
+                loadTerminalSettings()
+            ])
+            
+            if (results[0].status === 'fulfilled') {
+                loadedProjectSettings = results[0].value
+            }
+            if (results[1].status === 'fulfilled') {
+                loadedTerminalSettings = results[1].value
+            }
+        } catch (error) {
+            // Project settings not available (likely no project open) - use defaults
+            console.log('Project settings not available (no active project):', error)
+        }
         
         setEnvVars(loadedEnvVars)
         setCliArgs(loadedCliArgs)
         setProjectSettings(loadedProjectSettings)
         setTerminalSettings(loadedTerminalSettings)
+        setSessionPreferences(loadedSessionPreferences)
         
         loadBinaryConfigs()
     }
@@ -357,7 +396,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     }
 
     const handleSave = async () => {
-        const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings)
+        const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences)
         
         // Save action buttons if they've been modified
         if (hasUnsavedChanges) {
@@ -1372,6 +1411,56 @@ fi`}
         </div>
     )
     
+    const renderSessionSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">Session Review Settings</h3>
+                        <div className="text-sm text-slate-400 mb-4">
+                            Configure how sessions are handled when marked as reviewed.
+                        </div>
+                        
+                        <div className="space-y-4">
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={sessionPreferences.auto_commit_on_review}
+                                    onChange={(e) => setSessionPreferences({
+                                        ...sessionPreferences,
+                                        auto_commit_on_review: e.target.checked
+                                    })}
+                                    className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <div className="flex-1">
+                                    <div className="text-sm font-medium text-slate-200">
+                                        Auto-commit on Review
+                                    </div>
+                                    <div className="text-xs text-slate-400 mt-1">
+                                        Automatically commit all changes when marking a session as reviewed.
+                                        When disabled, you'll be prompted to commit changes manually.
+                                    </div>
+                                </div>
+                            </label>
+                        </div>
+                        
+                        <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-xs text-slate-400">
+                                <strong>How it works:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>When enabled: Sessions with uncommitted changes are automatically committed when marked as reviewed</li>
+                                    <li>When disabled: A confirmation dialog appears with the option to commit changes</li>
+                                    <li>Commit message format: "Mark session {'{session_name}'} as reviewed"</li>
+                                    <li>All file types are included: modified, deleted, and new untracked files</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+    
     const renderSettingsContent = () => {
         switch (activeCategory) {
             case 'appearance':
@@ -1384,6 +1473,8 @@ fi`}
                 return renderProjectSettings()
             case 'terminal':
                 return renderTerminalSettings()
+            case 'sessions':
+                return renderSessionSettings()
             case 'actions':
                 return renderActionButtonsSettings()
             default:
@@ -1485,9 +1576,7 @@ fi`}
                                 disabled={saving}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-                                {saving ? (
-                                    <AnimatedText text="saving" colorClassName="text-white" size="xs" centered={false} />
-                                ) : 'Save'}
+                                {saving ? 'Saving...' : 'Save'}
                             </button>
                         </div>
                     </div>

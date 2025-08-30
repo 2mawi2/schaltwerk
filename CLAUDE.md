@@ -215,6 +215,114 @@ Terminal components use the theme system for all colors:
 4. Test that colors match the rest of the application
 5. Never introduce new hardcoded colors
 
+## Loading Spinner System
+
+**MANDATORY**: Always use the `AnimatedText` component for loading states instead of static text or other spinner implementations.
+
+### Loading Spinner Architecture
+
+The application uses a sophisticated animated ASCII art system for all loading states:
+
+```
+src/
+├── components/
+│   ├── common/
+│   │   ├── AnimatedText.tsx          # Main loading component (single source of truth)
+│   │   └── AsciiBuilderLogo.tsx      # 3D particle animation engine
+```
+
+### Loading Spinner Usage Requirements
+
+1. **Always use AnimatedText** for loading states:
+   ```typescript
+   import { AnimatedText } from '../common/AnimatedText'
+
+   // For terminal initialization
+   <AnimatedText text="initializing" colorClassName="text-slate-500" size="md" />
+
+   // For general loading
+   <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="sm" />
+
+   // For AI/agent loading
+   <AnimatedText text="starting" colorClassName="text-cyan-400" size="md" />
+   ```
+
+2. **Predefined loading states** (use these exact text values):
+   - `"loading"` - General loading state
+   - `"starting"` - When starting processes or AI agents
+   - `"waiting"` - When waiting for external operations
+   - `"initializing"` - During terminal/component hydration
+   - `"connecting"` - Network or service connections
+   - `"saving"` - Save operations
+   - `"deleting"` - Delete operations
+   - `"creating"` - Creation operations
+   - `"converting"` - Conversion operations
+   - `"marking"` - Status/marking operations
+
+3. **Centering and positioning**:
+   ```typescript
+   // Centered (default)
+   <div className="h-full flex items-center justify-center">
+     <AnimatedText text="loading" size="md" />
+   </div>
+
+   // Left-aligned
+   <AnimatedText text="loading" size="sm" centered={false} />
+   ```
+
+4. **Color theming**:
+   - Use `theme.colors.text.muted` for subtle loading states
+   - Use `theme.colors.accent.blue` for primary loading states
+   - Use `text-slate-500` for neutral loading states
+   - Use `text-cyan-400` for AI/agent loading states
+
+### Critical Rules
+
+1. **NEVER use static text** for loading states:
+   - ❌ `<div>Loading...</div>`
+   - ❌ `<span>Please wait</span>`
+   - ✅ `<AnimatedText text="loading" />`
+
+2. **NEVER use other spinner libraries**:
+   - ❌ `<Spinner />`, `<Loader />`, CSS spinners
+   - ✅ `<AnimatedText text="loading" />`
+
+3. **ALWAYS center loading states** in containers:
+   - ✅ `<div className="h-full flex items-center justify-center">`
+   - ❌ `<div>Loading...</div>` (uncentered)
+
+4. **Use appropriate sizes**:
+   - `size="xs"` - Small inline loading (12-14px)
+   - `size="sm"` - Standard loading (16-18px)
+   - `size="md"` - Large loading (20-24px)
+   - `size="lg"` - Hero loading (28-32px)
+   - `size="xl"` - Maximum loading (36-40px)
+
+### Animation Features
+
+The `AnimatedText` component provides:
+- **3D particle physics** - Characters fall from above and assemble
+- **Lighting and shading** - Lambert shading with ASCII charset
+- **Idle animations** - Continuous subtle movements after assembly
+- **Multiple animation modes** - artifact echoes, pulsing, wobbling
+- **Responsive sizing** - Scales from 3px to 7px font sizes
+
+### When Adding New Loading States
+
+1. Check if predefined text exists in `textToAsciiMap`
+2. Use semantic text values that match existing patterns
+3. Follow centering and theming guidelines
+4. Test animation in both light and dark themes
+5. Ensure proper container sizing for centering
+
+### Benefits
+
+- **Consistent UX** - Uniform loading experience across the application
+- **Performance** - Lightweight ASCII animation vs heavy spinner libraries
+- **Accessibility** - Screen reader friendly text content
+- **Maintainability** - Single component for all loading states
+- **Visual appeal** - Sophisticated 3D particle animations
+
 ## Font Size System
 
 **MANDATORY**: Always use the standardized font size system instead of hardcoded font sizes for consistent typography across the UI.
@@ -442,6 +550,114 @@ But NEVER skip tests. Skipping tests is not a solution - it's avoiding the probl
 - Clean up resources (PTY processes, file handles)
 - No clippy warnings allowed
 - Use `#[warn(unused_imports)]` directive
+
+## Loading Spinner System
+
+**MANDATORY**: Always use the `AnimatedText` component for loading states instead of static text or other spinner implementations.
+
+### Loading Spinner Architecture
+
+The application uses a sophisticated animated ASCII art system for all loading states:
+
+```
+src/
+├── components/
+│   ├── common/
+│   │   ├── AnimatedText.tsx          # Main loading component (single source of truth)
+│   │   └── AsciiBuilderLogo.tsx      # 3D particle animation engine
+```
+
+### Loading Spinner Usage Requirements
+
+1. **Always use AnimatedText** for loading states:
+   ```typescript
+   import { AnimatedText } from '../common/AnimatedText'
+
+   // For terminal initialization
+   <AnimatedText text="initializing" colorClassName={theme.colors.text.secondary} size="md" />
+
+   // For general loading
+   <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="sm" />
+
+   // For AI/agent loading
+   <AnimatedText text="starting" colorClassName="text-cyan-400" size="md" />
+   ```
+
+2. **Predefined loading states** (use these exact text values):
+   - `"loading"` - General loading state
+   - `"starting"` - When starting processes or AI agents
+   - `"waiting"` - When waiting for external operations
+   - `"initializing"` - During terminal/component hydration
+   - `"connecting"` - Network or service connections
+   - `"saving"` - Save operations
+   - `"deleting"` - Delete operations
+   - `"creating"` - Creation operations
+   - `"converting"` - Conversion operations
+   - `"marking"` - Status/marking operations
+
+3. **Centering and positioning**:
+   ```typescript
+   // Centered (default)
+   <div className="h-full flex items-center justify-center">
+     <AnimatedText text="loading" size="md" />
+   </div>
+
+   // Left-aligned
+   <AnimatedText text="loading" size="sm" centered={false} />
+   ```
+
+4. **Color theming**:
+   - Use `theme.colors.text.secondary` for subtle loading states
+   - Use `theme.colors.accent.blue` for primary loading states
+   - Use `text-slate-400` for neutral loading states
+   - Use `text-cyan-400` for AI/agent loading states
+
+### Critical Rules
+
+1. **NEVER use static text** for loading states:
+   - ❌ `<div>Loading...</div>`
+   - ❌ `<span>Please wait</span>`
+   - ✅ `<AnimatedText text="loading" />`
+
+2. **NEVER use other spinner libraries**:
+   - ❌ `<Spinner />`, `<Loader />`, CSS spinners
+   - ✅ `<AnimatedText text="loading" />`
+
+3. **ALWAYS center loading states** in containers:
+   - ✅ `<div className="h-full flex items-center justify-center">`
+   - ❌ `<div>Loading...</div>` (uncentered)
+
+4. **Use appropriate sizes**:
+   - `size="xs"` - Small inline loading (12-14px)
+   - `size="sm"` - Standard loading (16-18px)
+   - `size="md"` - Large loading (20-24px)
+   - `size="lg"` - Hero loading (28-32px)
+   - `size="xl"` - Maximum loading (36-40px)
+
+### Animation Features
+
+The `AnimatedText` component provides:
+- **3D particle physics** - Characters fall from above and assemble
+- **Lighting and shading** - Lambert shading with ASCII charset
+- **Idle animations** - Continuous subtle movements after assembly
+- **Multiple animation modes** - artifact echoes, pulsing, wobbling
+- **Responsive sizing** - Scales from 3px to 7px font sizes
+
+### When Adding New Loading States
+
+1. Check if predefined text exists in `textToAsciiMap`
+2. Use semantic text values that match existing patterns
+3. Follow centering and theming guidelines
+4. Test animation in both light and dark themes
+5. Ensure proper container sizing for centering
+
+### Benefits
+
+- **Consistent UX** - Uniform loading experience across the application
+- **Performance** - Lightweight ASCII animation vs heavy spinner libraries
+- **Accessibility** - Screen reader friendly text content
+- **Maintainability** - Single component for all loading states
+- **Visual appeal** - Sophisticated 3D particle animations
 
 ## Critical Implementation Details
 

@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
-import { AnimatedText } from '../common/AnimatedText'
 
 interface MarkReadyConfirmationProps {
   open: boolean
@@ -22,24 +21,32 @@ export function MarkReadyConfirmation({
   const [loading, setLoading] = useState(false)
   const [freshHasUncommitted, setFreshHasUncommitted] = useState<boolean | null>(null)
 
-  // Refresh uncommitted-changes state when the modal opens to avoid stale UI info
+  // Load fresh uncommitted changes state when modal opens
   useEffect(() => {
     if (!open) {
       setFreshHasUncommitted(null)
       return
     }
+    
     let cancelled = false
     ;(async () => {
       try {
         const dirty = await invoke<boolean>('schaltwerk_core_has_uncommitted_changes', { name: sessionName })
-        if (!cancelled) setFreshHasUncommitted(dirty)
-      } catch {
-        // If check fails, fall back to prop
-        if (!cancelled) setFreshHasUncommitted(null)
+        
+        if (!cancelled) {
+          setFreshHasUncommitted(dirty)
+        }
+      } catch (error) {
+        console.error('Failed to check uncommitted changes:', error)
+        // If check fails, fall back to the passed value
+        if (!cancelled) {
+          setFreshHasUncommitted(hasUncommittedChanges)
+        }
       }
     })()
+    
     return () => { cancelled = true }
-  }, [open, sessionName])
+  }, [open, sessionName, hasUncommittedChanges])
 
   const effectiveHasUncommitted = useMemo(() => {
     return freshHasUncommitted ?? hasUncommittedChanges
@@ -92,6 +99,9 @@ export function MarkReadyConfirmation({
               Automatically commit all changes with message "Mark session {sessionName} as reviewed"
             </span>
           </label>
+          <p className="text-slate-500 text-xs mt-2">
+            💡 Tip: You can enable auto-commit globally in Settings → Sessions to skip this dialog entirely.
+          </p>
         </div>
       )}
       <p className="text-slate-400 text-sm">
@@ -105,9 +115,7 @@ export function MarkReadyConfirmation({
       open={open}
       title={"Mark Session as Reviewed"}
       body={body}
-      confirmText={loading ? (
-        <AnimatedText text="marking" colorClassName="text-white" size="xs" centered={false} />
-      ) : 'Mark as Reviewed'}
+       confirmText={loading ? 'Marking...' : 'Mark as Reviewed'}
       confirmTitle="Mark as reviewed (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"

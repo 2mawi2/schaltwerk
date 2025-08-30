@@ -190,9 +190,7 @@ export function SpecAgentPanel() {
                       title="Save changes"
                     >
                       <VscSave />
-                      {saving ? (
-                        <AnimatedText text="saving" colorClassName="text-white" size="xs" centered={false} />
-                      ) : 'Save'}
+                      {saving ? 'Saving...' : 'Save'}
                     </button>
                     <button
                       onClick={handleCancelEdit}
