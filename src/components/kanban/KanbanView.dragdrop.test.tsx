@@ -14,25 +14,25 @@ vi.mock('@tauri-apps/api/core', () => ({
 // Mock SessionsContext
 vi.mock('../../contexts/SessionsContext', () => ({
     useSessions: () => ({
-        sessions: [
+        allSessions: [
             {
                 info: {
                     session_id: 'test-spec',
-                    status: 'spec',
+                    session_state: 'spec',
                     ready_to_merge: false
                 }
             },
             {
                 info: {
                     session_id: 'test-active',
-                    status: 'active',
+                    session_state: 'running',
                     ready_to_merge: false
                 }
             },
             {
                 info: {
                     session_id: 'test-reviewed',
-                    status: 'active',
+                    session_state: 'running',
                     ready_to_merge: true
                 }
             }
@@ -244,6 +244,30 @@ describe('KanbanView Drag and Drop Logic', () => {
             expect(screen.getByText('Running')).toBeInTheDocument()
             expect(screen.getByText('Reviewed')).toBeInTheDocument()
         })
+    })
+
+    test('displays all sessions regardless of filter mode', async () => {
+        renderKanbanView()
+
+        await waitFor(() => {
+            expect(screen.getByText('Spec')).toBeInTheDocument()
+            expect(screen.getByText('Running')).toBeInTheDocument()
+            expect(screen.getByText('Reviewed')).toBeInTheDocument()
+        })
+
+        // Verify all sessions are displayed in their correct columns
+        expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
+        expect(screen.getByTestId('session-card-test-active')).toBeInTheDocument()
+        expect(screen.getByTestId('session-card-test-reviewed')).toBeInTheDocument()
+
+        // Verify session counts are correct (1 spec, 1 running, 1 reviewed)
+        const specColumn = screen.getByText('Spec').closest('div')
+        const runningColumn = screen.getByText('Running').closest('div')
+        const reviewedColumn = screen.getByText('Reviewed').closest('div')
+
+        expect(specColumn).toContainHTML('1') // test-spec
+        expect(runningColumn).toContainHTML('1') // test-active
+        expect(reviewedColumn).toContainHTML('1') // test-reviewed
     })
 })
 

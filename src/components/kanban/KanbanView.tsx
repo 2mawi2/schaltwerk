@@ -195,12 +195,12 @@ function Column({
 }
 
 export function KanbanView() {
-    const { sessions, loading, reloadSessions } = useSessions()
+    const { allSessions, loading, reloadSessions } = useSessions()
     const [selectedForDetails, setSelectedForDetails] = useState<{ kind: 'session'; payload: string; isSpec?: boolean } | null>(null)
 
     const handleStatusChange = async (sessionId: string, newStatus: string) => {
         console.log('[KanbanView] handleStatusChange called:', { sessionId, newStatus })
-        const session = sessions.find(s => s.info.session_id === sessionId)
+        const session = allSessions.find(s => s.info.session_id === sessionId)
         if (!session) {
             console.error('[KanbanView] Session not found:', sessionId)
             alert('Session not found: ' + sessionId)
@@ -324,7 +324,7 @@ export function KanbanView() {
         )
     }
 
-    if (!sessions || sessions.length === 0) {
+    if (!allSessions || allSessions.length === 0) {
         return (
             <div className="flex-1 flex items-center justify-center">
                 <div className="text-center">
@@ -370,7 +370,7 @@ export function KanbanView() {
             <Column
                 title="Spec"
                 status="spec"
-                sessions={sessions}
+                sessions={allSessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
                 onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
@@ -385,7 +385,7 @@ export function KanbanView() {
             <Column
                 title="Running"
                 status="active"
-                sessions={sessions}
+                sessions={allSessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
                 onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
@@ -399,7 +399,7 @@ export function KanbanView() {
             <Column
                 title="Reviewed"
                 status="dirty"
-                sessions={sessions}
+                sessions={allSessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
                 onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}

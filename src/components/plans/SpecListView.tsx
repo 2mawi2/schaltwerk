@@ -1,13 +1,14 @@
 import { useState, useMemo } from 'react'
 import { useSessions } from '../../contexts/SessionsContext'
 import { VscAdd, VscCopy } from 'react-icons/vsc'
+import clsx from 'clsx'
 
 interface SpecSession {
   name: string
   created_at: string
   initial_prompt?: string
   draft_content?: string
-  state: 'spec'
+  state: 'spec' | 'running'
 }
 
 interface Props {
@@ -15,21 +16,20 @@ interface Props {
 }
 
 export function SpecListView({ onOpenSpec }: Props) {
-  const { sessions } = useSessions()
+  const { allSessions } = useSessions()
   const [copying, setCopying] = useState<string | null>(null)
 
-  // Extract spec sessions from the global sessions context
+  // Extract ALL sessions from the global sessions context (unfiltered)
+  // This allows the agent board to show sessions from all categories
   const specs = useMemo(() => {
-    return sessions.filter(session => 
-      session.info.status === 'spec' || session.info.session_state === 'spec'
-    ).map(session => ({
+    return allSessions.map(session => ({
       name: session.info.session_id,
       created_at: session.info.created_at || '',
       initial_prompt: session.info.current_task || '',
       draft_content: '', // This would need to be fetched separately if needed
-      state: 'spec' as const
+      state: session.info.status === 'spec' || session.info.session_state === 'spec' ? 'spec' as const : 'running' as const
     }))
-  }, [sessions])
+  }, [allSessions])
 
   const handleCopy = async (spec: SpecSession, event: React.MouseEvent) => {
     event.stopPropagation()
@@ -90,7 +90,14 @@ export function SpecListView({ onOpenSpec }: Props) {
                 <VscCopy />
                 {copying === d.name ? 'Copied!' : ''}
               </button>
-              <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-900/20 text-amber-300 border-amber-700/40">Spec</span>
+               <span className={clsx(
+                 "text-[10px] px-1.5 py-0.5 rounded border",
+                 d.state === 'spec'
+                   ? "bg-amber-900/20 text-amber-300 border-amber-700/40"
+                   : "bg-blue-900/20 text-blue-300 border-blue-700/40"
+               )}>
+                 {d.state === 'spec' ? 'Spec' : 'Running'}
+               </span>
             </div>
           </div>
           <div className="text-xs text-slate-500 mt-0.5">{new Date(d.created_at).toLocaleString()}</div>
