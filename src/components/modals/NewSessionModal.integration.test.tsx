@@ -194,7 +194,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                     name: 'my_test_session',
                     baseBranch: 'develop', // Changed by change-branch button
                     userEditedName: true,
-                    isPlan: false
+                    isSpec: false
                 })
             )
         })
@@ -234,7 +234,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                     name: 'my_test_session',
                     baseBranch: 'develop', // Changed by change-branch button
                     userEditedName: true,
-                    isPlan: false
+                    isSpec: false
                 })
             )
         })
@@ -335,7 +335,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                 prompt: 'Test prompt',
                 baseBranch: 'develop',
                 userEditedName: true,
-                isPlan: false,
+                isSpec: false,
                 draftContent: undefined
             })
         })

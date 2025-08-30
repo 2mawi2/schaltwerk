@@ -20,7 +20,7 @@ function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
     return 'running'
 }
 
-function isPlan(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
+function isSpec(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
 interface DiffStats {
@@ -45,7 +45,7 @@ interface SessionInfo {
     session_type: 'worktree' | 'container'
     container_status?: string
     // Monitor fields
-    session_state?: string
+    session_state: 'spec' | 'running' | 'reviewed'
     current_task?: string
     todo_percentage?: number
     is_blocked?: boolean
@@ -100,7 +100,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         sessionName: '',
         hasUncommitted: false
     })
-    const [convertToPlanModal, setConvertToDraftModal] = useState<{ 
+    const [convertToSpecModal, setConvertToDraftModal] = useState<{ 
         open: boolean; 
         sessionName: string; 
         sessionDisplayName?: string;
@@ -165,9 +165,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             const next = new Set<string>()
             for (const s of allSessions) {
                 const ts: number | undefined = (s.info as any).last_modified_ts
-                const plan = isPlan(s.info)
+                const spec = isSpec(s.info)
                 const reviewed = isReviewed(s.info)
-                if (typeof ts === 'number' && !plan && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
+                if (typeof ts === 'number' && !spec && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
                     next.add(s.info.session_id)
                 }
             }
@@ -215,17 +215,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession) {
-                // Check if it's a plan
-                if (isPlan(selectedSession.info)) {
-                    // For plans, always show confirmation dialog (ignore immediate flag)
+                // Check if it's a spec
+                if (isSpec(selectedSession.info)) {
+                    // For specs, always show confirmation dialog (ignore immediate flag)
                     window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
                         detail: {
-                            action: 'delete-plan',
+                            action: 'delete-spec',
                             sessionId: selectedSession.info.session_id,
                             sessionName: selectedSession.info.session_id,
                             sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
                             branch: selectedSession.info.branch,
-                            hasUncommittedChanges: false // Plans don't have uncommitted changes
+                            hasUncommittedChanges: false // Specs don't have uncommitted changes
                         }
                     }))
                 } else {
@@ -295,8 +295,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession && !selectedSession.info.ready_to_merge) {
-                // Prevent marking plans as reviewed
-                if (isPlan(selectedSession.info)) {
+                // Prevent marking specs as reviewed
+                if (isSpec(selectedSession.info)) {
                     console.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
                     return
                 }
@@ -310,11 +310,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
-    const handlePlanSelectedSession = () => {
+    const handleSpecSelectedSession = () => {
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
-            if (selectedSession && !isPlan(selectedSession.info)) {
-                // Only allow converting running sessions to plans, not plans themselves
+            if (selectedSession && !isSpec(selectedSession.info)) {
+                // Only allow converting running sessions to specs, not specs themselves
                 setConvertToDraftModal({
                     open: true,
                     sessionName: selectedSession.info.session_id,
@@ -343,7 +343,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onSelectSession: handleSelectSession,
         onCancelSelectedSession: handleCancelSelectedSession,
         onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
-        onSpecSession: handlePlanSelectedSession,
+        onSpecSession: handleSpecSelectedSession,
         sessionCount: sessions.length,
         onSelectPrevSession: selectPrev,
         onSelectNextSession: selectNext,
@@ -526,7 +526,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Spec)}
                             title="Show spec agents"
                         >
-                            Specs <span className="text-slate-400">({allSessions.filter(s => isPlan(s.info)).length})</span>
+                            Specs <span className="text-slate-400">({allSessions.filter(s => isSpec(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -534,7 +534,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running agents"
                         >
-                            Running <span className="text-slate-400">({allSessions.filter(s => !isReviewed(s.info) && !isPlan(s.info)).length})</span>
+                            Running <span className="text-slate-400">({allSessions.filter(s => !isReviewed(s.info) && !isSpec(s.info)).length})</span>
                         </button>
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
@@ -594,7 +594,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 onUnmarkReady={async (sessionId) => {
                                     try {
                                         await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
-                                        // Reload both regular and plan sessions to avoid dropping plans
+                                        // Reload both regular and spec sessions to avoid dropping specs
                                         await Promise.all([
                                             invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
                                             invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
@@ -627,23 +627,23 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 }}
                                 onRunDraft={async (sessionId) => {
                                     try {
-                                        // Open Start agent modal prefilled from plan
+                                        // Open Start agent modal prefilled from spec
                                         window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                                     } catch (err) {
-                                        console.error('Failed to open start modal from plan:', err)
+                                        console.error('Failed to open start modal from spec:', err)
                                     }
                                 }}
                                 onDeleteSpec={async (sessionId) => {
                                     try {
                                         await invoke('schaltwerk_core_cancel_session', { name: sessionId })
-                                        // Reload both regular and plan sessions to ensure remaining plans persist
+                                        // Reload both regular and spec sessions to ensure remaining specs persist
                                         await Promise.all([
                                             invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
                                             invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                                         ])
                                         await reloadSessions()
                                     } catch (err) {
-                                        console.error('Failed to delete plan:', err)
+                                        console.error('Failed to delete spec:', err)
                                     }
                                 }}
                             />
@@ -663,15 +663,15 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 hasUncommittedChanges={markReadyModal.hasUncommitted}
                 onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
-                    // Reload both regular and plan sessions
+                    // Reload both regular and spec sessions
                     await reloadSessions()
                 }}
             />
             <ConvertToSpecConfirmation
-                open={convertToPlanModal.open}
-                sessionName={convertToPlanModal.sessionName}
-                sessionDisplayName={convertToPlanModal.sessionDisplayName}
-                hasUncommittedChanges={convertToPlanModal.hasUncommitted}
+                open={convertToSpecModal.open}
+                sessionName={convertToSpecModal.sessionName}
+                sessionDisplayName={convertToSpecModal.sessionDisplayName}
+                hasUncommittedChanges={convertToSpecModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
                     await reloadSessions()

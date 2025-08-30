@@ -13,7 +13,7 @@ interface Props {
         prompt?: string
         baseBranch: string
         userEditedName?: boolean
-        isPlan?: boolean
+        isSpec?: boolean
         draftContent?: string
     }) => void | Promise<void>
 }
@@ -98,7 +98,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             return
         }
         
-        // Validate plan content if creating as plan
+        // Validate spec content if creating as spec
          if (createAsDraft && !taskContent.trim()) {
              setValidationError('Please enter spec content')
              return
@@ -121,7 +121,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 baseBranch: createAsDraft ? '' : baseBranch,
                 // If user touched the input, treat name as manually edited
                 userEditedName: !!userEdited,
-                isPlan: createAsDraft,
+                isSpec: createAsDraft,
                 draftContent: createAsDraft ? taskContent : undefined,
             }
             console.log('[NewSessionModal] Creating session with data:', {
@@ -226,9 +226,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 console.log('[NewSessionModal] Setting base branch from prefill:', baseBranchFromDraft)
                 setBaseBranch(baseBranchFromDraft)
             }
-            // If running from an existing plan, don't create another plan
+            // If running from an existing spec, don't create another spec
              if (fromDraft) {
-                 console.log('[NewSessionModal] Running from existing plan - forcing createAsDraft to false')
+                 console.log('[NewSessionModal] Running from existing spec - forcing createAsDraft to false')
                  setCreateAsDraft(false)
              }
             

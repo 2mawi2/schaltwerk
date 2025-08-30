@@ -12,10 +12,10 @@ interface SpecSession {
   created_at: string
   initial_prompt?: string
   draft_content?: string
-  state: 'plan'
+  state: 'spec'
 }
 
-export function PlanAgentPanel() {
+export function SpecAgentPanel() {
   const { sessions } = useSessions()
   const [error, setError] = useState<string | null>(null)
   const [editingDraft, setEditingDraft] = useState<string | null>(null)
@@ -26,7 +26,7 @@ export function PlanAgentPanel() {
   const [starting, setStarting] = useState<string | null>(null)
   const [copying, setCopying] = useState<string | null>(null)
 
-  // Extract plan sessions from the global sessions context
+  // Extract spec sessions from the global sessions context
   const specs = useMemo(() => {
     return sessions.filter(session => 
       session.info.status === 'spec' || session.info.session_state === 'spec'
@@ -35,7 +35,7 @@ export function PlanAgentPanel() {
       created_at: session.info.created_at || '',
       initial_prompt: session.info.current_task || '',
       draft_content: '', // This would need to be fetched separately if needed
-      state: 'plan' as const
+      state: 'spec' as const
     }))
   }, [sessions])
 
@@ -61,7 +61,7 @@ export function PlanAgentPanel() {
       setEditingDraft(null)
       setEditContent('')
     } catch (err) {
-      console.error('[PlanAgentPanel] Failed to save spec:', err)
+      console.error('[SpecAgentPanel] Failed to save spec:', err)
       setError('Failed to save spec changes')
     } finally {
       setSaving(false)
@@ -75,7 +75,7 @@ export function PlanAgentPanel() {
       // Open Start new agent modal prefilled from spec instead of starting directly
       window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
     } catch (err) {
-      console.error('[PlanAgentPanel] Failed to open start modal from plan:', err)
+      console.error('[SpecAgentPanel] Failed to open start modal from spec:', err)
       setError('Failed to open start modal')
     } finally {
       setStarting(null)
@@ -90,8 +90,8 @@ export function PlanAgentPanel() {
       await invoke('schaltwerk_core_cancel_session', { name: deleteConfirm })
       setDeleteConfirm(null)
     } catch (err) {
-      console.error('[PlanAgentPanel] Failed to delete plan:', err)
-      setError('Failed to delete plan')
+      console.error('[SpecAgentPanel] Failed to delete spec:', err)
+      setError('Failed to delete spec')
     } finally {
       setDeleting(false)
     }
@@ -103,7 +103,7 @@ export function PlanAgentPanel() {
       const contentToCopy = spec.draft_content || spec.initial_prompt || ''
       await navigator.clipboard.writeText(contentToCopy)
     } catch (err) {
-      console.error('[PlanAgentPanel] Failed to copy content:', err)
+      console.error('[SpecAgentPanel] Failed to copy content:', err)
       setError('Failed to copy content')
     } finally {
       setTimeout(() => setCopying(null), 1000)
@@ -258,7 +258,7 @@ export function PlanAgentPanel() {
                   <button
                     onClick={() => handleEdit(spec)}
                     className="px-2 py-1 text-xs rounded bg-slate-700 hover:bg-slate-600 text-slate-200 flex items-center gap-1"
-                    title="Edit plan content"
+                    title="Edit spec content"
                   >
                     <VscEdit />
                     Edit

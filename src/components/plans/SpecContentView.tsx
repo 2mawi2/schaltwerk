@@ -10,7 +10,7 @@ interface Props {
   debounceMs?: number
 }
 
-export function PlanContentView({ sessionName, editable = true, debounceMs = 1000 }: Props) {
+export function SpecContentView({ sessionName, editable = true, debounceMs = 1000 }: Props) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)

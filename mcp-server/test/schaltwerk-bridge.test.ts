@@ -4,7 +4,7 @@ import * as path from 'path'
 import * as os from 'os'
 import { execSync } from 'child_process'
 
-describe('SchaltwerkBridge Plan Sessions', () => {
+describe('SchaltwerkBridge Spec Sessions', () => {
   let bridge: SchaltwerkBridge
   let testDbPath: string
   let testRepoPath: string
@@ -81,18 +81,18 @@ describe('SchaltwerkBridge Plan Sessions', () => {
     }
   })
 
-  describe('Plan Creation and Retrieval', () => {
+  describe('Spec Creation and Retrieval', () => {
     it('should create a spec session and be able to retrieve it', async () => {
       // Create a spec session
-      const draftName = 'test-plan-session'
-      const draftContent = '# Test Plan\n\nThis is a test plan content.'
+      const draftName = 'test-spec-session'
+      const draftContent = '# Test Spec\n\nThis is a test spec content.'
       
       const createdDraft = await bridge.createSpecSession(draftName, draftContent)
       
-      // Verify the created plan has correct properties
+      // Verify the created spec has correct properties
       expect(createdDraft.name).toBe(draftName)
       expect(createdDraft.status).toBe('spec')
-      expect(createdDraft.session_state).toBe('Plan')
+      expect(createdDraft.session_state).toBe('Spec')
       expect(createdDraft.draft_content).toBe(draftContent)
       expect(createdDraft.branch).toBe(`schaltwerk/${draftName}`)
       
@@ -108,19 +108,19 @@ describe('SchaltwerkBridge Plan Sessions', () => {
     })
 
     it('should list spec sessions separately from active sessions', async () => {
-      // Create a plan and an active session
-      const draftName = 'plan-test-2'
+      // Create a spec and an active session
+      const draftName = 'spec-test-2'
       const activeName = 'active-test-1'
       
-      await bridge.createSpecSession(draftName, 'Plan content')
+      await bridge.createSpecSession(draftName, 'Spec content')
       
       // Create an active session (mock the worktree creation)
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', activeName)
       await bridge.createSession(activeName, 'Active session prompt')
       
       // List spec sessions
-      const plans = await bridge.listDraftSessions()
-      const draftNames = plans.map(d => d.name)
+      const specs = await bridge.listDraftSessions()
+      const draftNames = specs.map(d => d.name)
       
       expect(draftNames).toContain(draftName)
       expect(draftNames).not.toContain(activeName)
@@ -133,20 +133,20 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       expect(sessionNames).not.toContain(draftName)
     })
 
-    it('should be able to update plan content', async () => {
-      const draftName = 'plan-to-update'
+    it('should be able to update spec content', async () => {
+      const draftName = 'spec-to-update'
       const initialContent = 'Initial content'
       const updatedContent = 'Updated content'
       
       await bridge.createSpecSession(draftName, initialContent)
       
-      // Update the plan content
+      // Update the spec content
       await bridge.updateDraftContent(draftName, updatedContent, false)
       
       // Retrieve and verify
       const session = await bridge.getSession(draftName)
       
-      // THIS WILL FAIL if getSession can't retrieve plans
+      // THIS WILL FAIL if getSession can't retrieve specs
       expect(session).toBeDefined()
       expect(session?.draft_content).toBe(updatedContent)
     })
@@ -158,7 +158,7 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', activeName)
       await bridge.createSession(activeName, 'Active session')
       
-      // Try to update as if it were a plan
+      // Try to update as if it were a spec
       await expect(bridge.updateDraftContent(activeName, 'New content')).rejects.toThrow()
     })
 
@@ -167,8 +167,8 @@ describe('SchaltwerkBridge Plan Sessions', () => {
       // Database no longer directly accessed - would need to call API to clean up
       
       // Create various types of sessions
-      await bridge.createSpecSession('plan-filter-1', 'Plan 1')
-      await bridge.createSpecSession('plan-filter-2', 'Plan 2')
+      await bridge.createSpecSession('spec-filter-1', 'Spec 1')
+      await bridge.createSpecSession('spec-filter-2', 'Spec 2')
       
       bridge['createWorktree'] = async (_, name) => path.join(testRepoPath, '.schaltwerk', 'worktrees', name)
       await bridge.createSession('active-filter-1', 'Active 1')
@@ -188,18 +188,18 @@ describe('SchaltwerkBridge Plan Sessions', () => {
     })
   })
 
-  describe('Plan to Active Transition', () => {
+  describe('Spec to Active Transition', () => {
     it('should start a spec session and transition it to active', async () => {
-      const draftName = 'plan-to-start'
+      const draftName = 'spec-to-start'
       const draftContent = '# Agent\n\nImplement feature X'
       
-      // Create plan
+      // Create spec
       await bridge.createSpecSession(draftName, draftContent)
       
       // Mock worktree creation
       bridge['createWorktree'] = async () => path.join(testRepoPath, '.schaltwerk', 'worktrees', draftName)
       
-      // Start the plan
+      // Start the spec
       await bridge.startDraftSession(draftName, 'claude', false)
       
       // Verify it's now active

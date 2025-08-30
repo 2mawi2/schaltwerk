@@ -15,7 +15,7 @@ export interface Session {
   parent_branch: string
   worktree_path: string
   status: 'active' | 'cancelled' | 'paused' | 'spec'
-  session_state?: 'Plan' | 'Running' | 'Reviewed'
+  session_state?: 'Spec' | 'Running' | 'Reviewed'
   created_at: number
   updated_at: number
   last_activity?: number
@@ -184,7 +184,7 @@ export class SchaltwerkBridge {
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
         status: es.info.session_state === 'spec' ? 'spec' as const : 'active' as const,
-        session_state: es.info.session_state as 'Plan' | 'Running' | 'Reviewed' | undefined,
+        session_state: es.info.session_state as 'Spec' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
         last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
@@ -521,7 +521,7 @@ export class SchaltwerkBridge {
         status: 'spec'
       }
       
-      await fetch(`${this.webhookUrl}/webhook/plan-created`, {
+      await fetch(`${this.webhookUrl}/webhook/spec-created`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -529,7 +529,7 @@ export class SchaltwerkBridge {
         body: JSON.stringify(payload),
       })
     } catch (error) {
-      console.warn('Failed to notify plan created:', error)
+      console.warn('Failed to notify spec created:', error)
     }
   }
 
@@ -594,7 +594,7 @@ export class SchaltwerkBridge {
       await this.notifyDraftCreated(session)
       return session
     } catch (error) {
-      console.error('Failed to create plan via API:', error)
+      console.error('Failed to create spec via API:', error)
       throw error
     }
   }
@@ -611,10 +611,10 @@ export class SchaltwerkBridge {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to update plan content: ${response.statusText}`)
+        throw new Error(`Failed to update spec content: ${response.statusText}`)
       }
     } catch (error) {
-      console.error('Failed to update plan content via API:', error)
+      console.error('Failed to update spec content via API:', error)
       throw error
     }
   }
@@ -653,7 +653,7 @@ export class SchaltwerkBridge {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to delete plan: ${response.statusText}`)
+        throw new Error(`Failed to delete spec: ${response.statusText}`)
       }
       
       await this.notifySessionRemoved(sessionName)
@@ -671,7 +671,7 @@ export class SchaltwerkBridge {
       })
       
       if (!response.ok) {
-        throw new Error(`Failed to list plans: ${response.statusText}`)
+        throw new Error(`Failed to list specs: ${response.statusText}`)
       }
       
       return await response.json() as Session[]
@@ -738,7 +738,7 @@ export class SchaltwerkBridge {
         parent_branch: es.info.base_branch,
         worktree_path: es.info.worktree_path,
         status: es.info.session_state === 'spec' ? 'spec' as const : 'active' as const,
-        session_state: es.info.session_state as 'Plan' | 'Running' | 'Reviewed' | undefined,
+        session_state: es.info.session_state as 'Spec' | 'Running' | 'Reviewed' | undefined,
         created_at: es.info.created_at ? new Date(es.info.created_at).getTime() : Date.now(),
         updated_at: es.info.updated_at ? new Date(es.info.updated_at).getTime() : Date.now(),
         last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
@@ -751,7 +751,7 @@ export class SchaltwerkBridge {
         was_auto_generated: false
       }))
       
-      // Don't duplicate plans - they're already included in enrichedSessions from API
+      // Don't duplicate specs - they're already included in enrichedSessions from API
       
       return sessions
     } catch (error) {
@@ -762,7 +762,7 @@ export class SchaltwerkBridge {
 
   async getCurrentTasks(): Promise<Session[]> {
     try {
-      // Get all sessions and plans
+      // Get all sessions and specs
       const [activeSessions, draftSessions] = await Promise.all([
         this.listSessions(),
         this.listDraftSessions()
@@ -792,40 +792,40 @@ export class SchaltwerkBridge {
     }
   }
 
-  async convertToPlan(sessionName: string): Promise<void> {
+  async convertToSpec(sessionName: string): Promise<void> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/convert-to-plan`, {
+      const response = await fetch(`${this.apiUrl}/api/sessions/${encodeURIComponent(sessionName)}/convert-to-spec`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to convert session to plan: ${response.statusText}`)
+        throw new Error(`Failed to convert session to spec: ${response.statusText}`)
       }
     } catch (error) {
-      console.error('Failed to convert session to plan via API:', error)
+      console.error('Failed to convert session to spec via API:', error)
       throw error
     }
   }
 
-  async getCurrentPlanModeSession(): Promise<string | null> {
+  async getCurrentSpecModeSession(): Promise<string | null> {
     try {
-      const response = await fetch(`${this.apiUrl}/api/current-plan-mode-session`, {
+      const response = await fetch(`${this.apiUrl}/api/current-spec-mode-session`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       })
 
       if (!response.ok) {
         if (response.status === 404) {
-          return null // No active plan mode session
+          return null // No active spec mode session
         }
-        throw new Error(`Failed to get current plan mode session: ${response.statusText}`)
+        throw new Error(`Failed to get current spec mode session: ${response.statusText}`)
       }
 
       const data = await response.json() as { session_name: string }
       return data.session_name
     } catch (error) {
-      console.error('Failed to get current plan mode session:', error)
+      console.error('Failed to get current spec mode session:', error)
       return null
     }
   }

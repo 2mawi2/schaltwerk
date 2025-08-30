@@ -115,11 +115,11 @@ describe('Sidebar keyboard navigation basic', () => {
     })
   })
 
-  it('prevents marking plan sessions as reviewed', async () => {
-    // Mock console.warn to verify it's called for plan sessions
+  it('prevents marking spec sessions as reviewed', async () => {
+    // Mock console.warn to verify it's called for spec sessions
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
 
-    // Mock sessions with a plan session
+    // Mock sessions with a spec session
     const sessions = [
       { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
       { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
@@ -150,7 +150,7 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(screen.getByText('running-session')).toBeInTheDocument()
     })
 
-    // Select the plan session
+    // Select the spec session
     const specButton = screen.getByText('spec-session').closest('button')
     if (specButton) {
       specButton.click()
@@ -204,8 +204,8 @@ describe('Sidebar keyboard navigation basic', () => {
     consoleWarnSpy.mockRestore()
   })
 
-  it('prevents converting plan sessions to specs with Cmd+P', async () => {
-    // Mock sessions with a plan session and a running session
+  it('prevents converting spec sessions to specs with Cmd+P', async () => {
+    // Mock sessions with a spec session and a running session
     const sessions = [
       { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
       { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
@@ -236,7 +236,7 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(screen.getByText('running-session')).toBeInTheDocument()
     })
 
-    // Select the plan session
+    // Select the spec session
     const specButton = screen.getByText('spec-session').closest('button')
     if (specButton) {
       specButton.click()

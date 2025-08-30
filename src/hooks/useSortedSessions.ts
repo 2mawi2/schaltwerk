@@ -19,7 +19,7 @@ interface EnrichedSession {
         is_current: boolean
         session_type: 'worktree' | 'container'
         container_status?: string
-        session_state?: string
+        session_state: 'spec' | 'running' | 'reviewed'
         current_task?: string
         todo_percentage?: number
         is_blocked?: boolean

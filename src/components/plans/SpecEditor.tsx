@@ -10,7 +10,7 @@ interface Props {
   onStart?: () => void
 }
 
-export function PlanEditor({ sessionName, onStart }: Props) {
+export function SpecEditor({ sessionName, onStart }: Props) {
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -93,18 +93,18 @@ export function PlanEditor({ sessionName, onStart }: Props) {
 
   // Listen for sessions refreshed events (e.g., from MCP updates)
   useEffect(() => {
-    console.log('[PlanEditor] Setting up sessions-refreshed listener for session:', sessionName)
+    console.log('[SpecEditor] Setting up sessions-refreshed listener for session:', sessionName)
     
     const unlistenPromise = listen('schaltwerk:sessions-refreshed', async (event) => {
-      console.log('[PlanEditor] Received sessions-refreshed event')
+      console.log('[SpecEditor] Received sessions-refreshed event')
       const sessions = event.payload as any[]
-      console.log('[PlanEditor] Total sessions in event:', sessions.length)
+      console.log('[SpecEditor] Total sessions in event:', sessions.length)
       
-      // Log all plan sessions for debugging
+      // Log all spec sessions for debugging
       const specSessions = sessions.filter((s: any) => 
-        s.info?.session_state === 'plan' || s.info?.status === 'plan'
+        s.info?.session_state === 'spec' || s.info?.status === 'spec'
       )
-      console.log('[PlanEditor] specSessions.map:', specSessions.map((s: any) => ({
+      console.log('[SpecEditor] specSessions.map:', specSessions.map((s: any) => ({
         id: s.info?.session_id,
         state: s.info?.session_state,
         status: s.info?.status,
@@ -114,14 +114,14 @@ export function PlanEditor({ sessionName, onStart }: Props) {
       
       const specSession = sessions.find((s: any) => 
         s.info?.session_id === sessionName && 
-        (s.info?.session_state === 'plan' || s.info?.status === 'plan')
+        (s.info?.session_state === 'spec' || s.info?.status === 'spec')
       )
       
-      console.log('[PlanEditor] Looking for session:', sessionName)
-      console.log('[PlanEditor] Found matching session:', !!specSession)
+      console.log('[SpecEditor] Looking for session:', sessionName)
+      console.log('[SpecEditor] Found matching session:', !!specSession)
       
       if (specSession) {
-        console.log('[PlanEditor] Spec session details:', {
+        console.log('[SpecEditor] Spec session details:', {
           id: specSession.info?.session_id,
           has_spec_content: specSession.info?.spec_content !== undefined,
           content_length: specSession.info?.spec_content?.length || 0,
@@ -131,22 +131,22 @@ export function PlanEditor({ sessionName, onStart }: Props) {
         if (specSession.info?.spec_content !== undefined) {
           // Only update if content actually changed to avoid infinite loops
           if (specSession.info.spec_content !== content) {
-            console.log('[PlanEditor] Content changed, updating from', content.length, 'to', specSession.info.spec_content.length, 'chars')
+            console.log('[SpecEditor] Content changed, updating from', content.length, 'to', specSession.info.spec_content.length, 'chars')
             setContent(specSession.info.spec_content || '')
             setHasLocalChanges(false)
           } else {
-            console.log('[PlanEditor] Content unchanged, skipping update')
+            console.log('[SpecEditor] Content unchanged, skipping update')
           }
         } else {
-          console.log('[PlanEditor] No spec_content field in session data')
+          console.log('[SpecEditor] No spec_content field in session data')
         }
       } else {
-        console.log('[PlanEditor] No matching plan session found for:', sessionName)
+        console.log('[SpecEditor] No matching spec session found for:', sessionName)
       }
     })
     
     return () => {
-      console.log('[PlanEditor] Cleaning up sessions-refreshed listener for:', sessionName)
+      console.log('[SpecEditor] Cleaning up sessions-refreshed listener for:', sessionName)
       unlistenPromise.then(unlisten => unlisten())
     }
   }, [sessionName, content])

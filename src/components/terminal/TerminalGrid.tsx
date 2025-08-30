@@ -1,6 +1,6 @@
 import { Terminal, TerminalHandle } from './Terminal'
 import { TerminalTabs, TerminalTabsHandle } from './TerminalTabs'
-import { PlanPlaceholder } from '../plans/PlanPlaceholder'
+import { SpecPlaceholder } from '../plans/SpecPlaceholder'
 import TerminalErrorBoundary from '../TerminalErrorBoundary'
 import Split from 'react-split'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
@@ -16,7 +16,7 @@ import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { useRef, useEffect, useState } from 'react'
 
 export function TerminalGrid() {
-    const { selection, terminals, isReady, isPlan, clearTerminalTracking } = useSelection()
+    const { selection, terminals, isReady, isSpec, clearTerminalTracking } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { getAgentType } = useClaudeSession()
     const { isResetting, resetSession, switchModel } = useSessionManagement()
@@ -335,11 +335,11 @@ export function TerminalGrid() {
     }
 
     // Spec sessions show placeholder instead of terminals
-    if (selection.kind === 'session' && isPlan) {
+    if (selection.kind === 'session' && isSpec) {
         return (
             <div className="h-full p-2 relative">
                 <div className="bg-panel rounded border border-slate-800 overflow-hidden min-h-0 h-full">
-                    <PlanPlaceholder />
+                    <SpecPlaceholder />
                 </div>
             </div>
         )

@@ -53,7 +53,7 @@ interface SchaltwerkDraftUpdateArgs {
   append?: boolean
 }
 
-interface SchaltwerkCurrentPlanUpdateArgs {
+interface SchaltwerkCurrentSpecUpdateArgs {
   content: string
   append?: boolean
 }
@@ -77,7 +77,7 @@ interface SchaltwerkMarkReviewedArgs {
   session_name: string
 }
 
-interface SchaltwerkConvertToPlanArgs {
+interface SchaltwerkConvertToSpecArgs {
   session_name: string
 }
 
@@ -321,8 +321,8 @@ schaltwerk_pause(session_name: "feature-auth")
 - With base branch: schaltwerk_draft_create(name: "hotfix", content: "Fix critical bug", base_branch: "production")
 
 ✏️ PLANS:
-- Plans are lightweight planning sessions
-- No worktree created until plan is started
+- Specs are lightweight specning sessions
+- No worktree created until spec is started
 - Content can be refined multiple times
 - Convert to active session when ready
 
@@ -332,7 +332,7 @@ schaltwerk_pause(session_name: "feature-auth")
 - More detail leads to better AI agent results
 
 ⚡ WORKFLOW:
-1. Create plan with initial idea
+1. Create spec with initial idea
 2. Refine content as needed (schaltwerk_draft_update)
 3. Start when ready (schaltwerk_draft_start)`,
         inputSchema: {
@@ -340,11 +340,11 @@ schaltwerk_pause(session_name: "feature-auth")
           properties: {
             name: {
               type: "string",
-              description: "Plan session name (alphanumeric, hyphens, underscores). Auto-generated if not provided."
+              description: "Spec session name (alphanumeric, hyphens, underscores). Auto-generated if not provided."
             },
             content: {
               type: "string",
-              description: "Initial plan content in Markdown format. Can be updated later."
+              description: "Initial spec content in Markdown format. Can be updated later."
             },
             base_branch: {
               type: "string",
@@ -358,7 +358,7 @@ schaltwerk_pause(session_name: "feature-auth")
         name: "schaltwerk_draft_update",
         description: `Update content of an existing spec session.
 
-🎯 PURPOSE: Refine and improve plan content before starting an agent.
+🎯 PURPOSE: Refine and improve spec content before starting an agent.
 
 📋 USAGE:
 - Replace content: schaltwerk_draft_update(session_name: "auth-feature", content: "# Updated Requirements...")
@@ -394,22 +394,22 @@ schaltwerk_pause(session_name: "feature-auth")
         }
       },
       {
-        name: "schaltwerk_current_plan_update",
-        description: `Update the currently active plan in Plan Mode.
+        name: "schaltwerk_current_spec_update",
+        description: `Update the currently active spec in Spec Mode.
 
-🎯 PURPOSE: Quickly update the plan that's currently being viewed in Plan Mode without needing to specify the plan name.
+🎯 PURPOSE: Quickly update the spec that's currently being viewed in Spec Mode without needing to specify the spec name.
 
 📋 USAGE:
-- Replace content: schaltwerk_current_plan_update(content: "# Updated Plan\\n\\nNew content here...")  
-- Append content: schaltwerk_current_plan_update(content: "\\n\\n## Additional Section", append: true)
+- Replace content: schaltwerk_current_spec_update(content: "# Updated Spec\\n\\nNew content here...")  
+- Append content: schaltwerk_current_spec_update(content: "\\n\\n## Additional Section", append: true)
 
 📝 UPDATE MODES:
 - Replace (default): Completely replace existing content
 - Append: Add to existing content with newline separator
 
-💡 CONVENIENCE: Automatically targets the plan currently open in Plan Mode - no need to specify session_name.
+💡 CONVENIENCE: Automatically targets the spec currently open in Spec Mode - no need to specify session_name.
 
-⚠️ NOTE: Only works when Plan Mode is active with a plan selected.`,
+⚠️ NOTE: Only works when Spec Mode is active with a spec selected.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -430,7 +430,7 @@ schaltwerk_pause(session_name: "feature-auth")
         name: "schaltwerk_draft_start",
         description: `Start a spec session with an AI agent.
 
-🎯 PURPOSE: Convert a refined plan into an active development session.
+🎯 PURPOSE: Convert a refined spec into an active development session.
 
 📋 USAGE:
 - Basic: schaltwerk_draft_start(session_name: "auth-feature")
@@ -445,11 +445,11 @@ schaltwerk_pause(session_name: "feature-auth")
 
 ⚡ WHAT HAPPENS:
 1. Creates Git worktree from base branch
-2. Starts selected AI agent with plan content
-3. Plan content becomes initial prompt
+2. Starts selected AI agent with spec content
+3. Spec content becomes initial prompt
 4. Session transitions to active state
 
-⚠️ IMPORTANT: Once started, plan cannot be reverted to spec state.`,
+⚠️ IMPORTANT: Once started, spec cannot be reverted to spec state.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -488,7 +488,7 @@ schaltwerk_pause(session_name: "feature-auth")
 - Text format: schaltwerk_draft_list()
 - JSON format: schaltwerk_draft_list(json: true)
 
-💡 Use this to review plans before starting them.`,
+💡 Use this to review specs before starting them.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -506,12 +506,12 @@ schaltwerk_pause(session_name: "feature-auth")
         description: `Delete a spec session permanently.
 
 ⚠️ DESTRUCTIVE OPERATION
-- Permanently removes plan from database
+- Permanently removes spec from database
 - Cannot be undone
-- No worktree to clean up (plans don't create worktrees)
+- No worktree to clean up (specs don't create worktrees)
 
 📋 USAGE:
-schaltwerk_draft_delete(session_name: "old-plan")
+schaltwerk_draft_delete(session_name: "old-spec")
 
 ✅ SAFE TO USE: Only affects database record, no files or branches.`,
         inputSchema: {
@@ -545,7 +545,7 @@ schaltwerk_mark_session_reviewed(session_name: "feature-auth")
 - Session is ready to be marked as reviewed
 - Want to mark session as done without deleting it
 
-⚠️ IMPORTANT: This is reversible - you can convert reviewed sessions back to plans for rework.`,
+⚠️ IMPORTANT: This is reversible - you can convert reviewed sessions back to specs for rework.`,
          inputSchema: {
            type: "object",
            properties: {
@@ -570,12 +570,12 @@ schaltwerk_convert_to_spec(session_name: "feature-auth")
 1. Session state changes from 'running'/'reviewed' to 'spec'
 2. ready_to_merge flag is reset to false
 3. Worktree is removed (branch preserved)
-4. Session content becomes plan content for refinement
+4. Session content becomes spec content for refinement
 5. Can be started again with schaltwerk_draft_start
 
 ✅ WHEN TO USE:
 - Need to rework a session after review
-- Want to convert a running session to plan for planning
+- Want to convert a running session to spec for specning
 - Session needs significant changes before completion
 
 ⚠️ IMPORTANT: Worktree is removed but branch and all commits are preserved.`,
@@ -584,7 +584,7 @@ schaltwerk_convert_to_spec(session_name: "feature-auth")
            properties: {
              session_name: {
                type: "string",
-               description: "Name of the running or reviewed session to convert back to plan"
+               description: "Name of the running or reviewed session to convert back to spec"
              }
            },
            required: ["session_name"]
@@ -603,14 +603,14 @@ Use the 'fields' parameter to specify which fields to include. This is critical 
 - name: Agent identifier (always included)
 - display_name: Human-readable name
 - status: 'active' | 'spec' | 'cancelled' | 'paused'
-- session_state: 'Plan' | 'Running' | 'Reviewed'
+- session_state: 'Spec' | 'Running' | 'Reviewed'
 - created_at: ISO timestamp
 - last_activity: ISO timestamp
 - branch: Git branch name
 - worktree_path: Local directory path
 - ready_to_merge: Boolean for review status
 - initial_prompt: Original agent description (can be large)
-- draft_content: Full plan content (can be VERY large)
+- draft_content: Full spec content (can be VERY large)
 
 📋 USAGE PATTERNS:
 
@@ -628,7 +628,7 @@ schaltwerk_get_current_tasks(
   status_filter: "spec",
   content_preview_length: 200
 )
-Use when: Browsing plans to find the right one to start
+Use when: Browsing specs to find the right one to start
 
 4️⃣ FULL DETAILS (use sparingly):
 schaltwerk_get_current_tasks(fields: ["all"])
@@ -637,7 +637,7 @@ Use when: Need complete information for specific analysis
 ⚠️ PERFORMANCE TIPS:
 - Never request 'draft_content' or 'initial_prompt' unless needed
 - Use status_filter to reduce dataset size
-- Use content_preview_length for plan browsing
+- Use content_preview_length for spec browsing
 - Default fields are optimized for common operations
 
 🎯 FILTERING:
@@ -696,12 +696,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             createArgs.base_branch
           )
           
-          result = `Plan session created successfully:
+          result = `Spec session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
 - Content Length: ${session.draft_content?.length || 0} characters
-- Status: Plan (ready for refinement)`
+- Status: Spec (ready for refinement)`
         } else {
           const session = await bridge.createSession(
             createArgs.name || `mcp_session_${Date.now()}`,
@@ -810,12 +810,12 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           draftCreateArgs.base_branch
         )
         
-        result = `Plan session created successfully:
+        result = `Spec session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
 - Base Branch: ${session.parent_branch}
 - Content Length: ${session.draft_content?.length || 0} characters
-- Status: Plan (ready for refinement)`
+- Status: Spec (ready for refinement)`
         break
       }
 
@@ -832,34 +832,34 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           ? draftUpdateArgs.content.substring(0, 100) + '...'
           : draftUpdateArgs.content
         
-        result = `Plan '${draftUpdateArgs.session_name}' updated successfully.
+        result = `Spec '${draftUpdateArgs.session_name}' updated successfully.
 - Update Mode: ${draftUpdateArgs.append ? 'Append' : 'Replace'}
 - Content Preview: ${contentPreview}`
         break
       }
 
-      case "schaltwerk_current_plan_update": {
-        const currentPlanUpdateArgs = args as unknown as SchaltwerkCurrentPlanUpdateArgs
+      case "schaltwerk_current_spec_update": {
+        const currentSpecUpdateArgs = args as unknown as SchaltwerkCurrentSpecUpdateArgs
         
-        // Get the currently active plan in Plan Mode
-        const currentPlan = await bridge.getCurrentPlanModeSession()
-        if (!currentPlan) {
-          result = 'Plan mode session tracking not yet implemented. Please use schaltwerk_draft_update with explicit session name instead.\n\nAlternatively, check available plans with schaltwerk_draft_list first.'
+        // Get the currently active spec in Spec Mode
+        const currentSpec = await bridge.getCurrentSpecModeSession()
+        if (!currentSpec) {
+          result = 'Spec mode session tracking not yet implemented. Please use schaltwerk_draft_update with explicit session name instead.\n\nAlternatively, check available specs with schaltwerk_draft_list first.'
           break
         }
         
         await bridge.updateDraftContent(
-          currentPlan,
-          currentPlanUpdateArgs.content,
-          currentPlanUpdateArgs.append
+          currentSpec,
+          currentSpecUpdateArgs.content,
+          currentSpecUpdateArgs.append
         )
         
-        const contentPreview = currentPlanUpdateArgs.content.length > 100 
-          ? currentPlanUpdateArgs.content.substring(0, 100) + '...'
-          : currentPlanUpdateArgs.content
+        const contentPreview = currentSpecUpdateArgs.content.length > 100 
+          ? currentSpecUpdateArgs.content.substring(0, 100) + '...'
+          : currentSpecUpdateArgs.content
         
-        result = `Current plan '${currentPlan}' updated successfully.
-- Update Mode: ${currentPlanUpdateArgs.append ? 'Append' : 'Replace'}
+        result = `Current spec '${currentSpec}' updated successfully.
+- Update Mode: ${currentSpecUpdateArgs.append ? 'Append' : 'Replace'}
 - Content Preview: ${contentPreview}`
         break
       }
@@ -874,7 +874,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           draftStartArgs.base_branch
         )
         
-        result = `Plan '${draftStartArgs.session_name}' started successfully:
+        result = `Spec '${draftStartArgs.session_name}' started successfully:
 - Agent Type: ${draftStartArgs.agent_type || 'claude'}
 - Skip Permissions: ${draftStartArgs.skip_permissions || false}
 - Status: Active (worktree created, agent ready)`
@@ -884,10 +884,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
       case "schaltwerk_draft_list": {
         const draftListArgs = args as SchaltwerkDraftListArgs
         
-        const plans = await bridge.listDraftSessions()
+        const specs = await bridge.listDraftSessions()
         
         if (draftListArgs.json) {
-          const essentialDrafts = plans.map(d => ({
+          const essentialDrafts = specs.map(d => ({
             name: d.name,
             display_name: d.display_name || d.name,
             created_at: d.created_at ? new Date(d.created_at).toISOString() : null,
@@ -898,10 +898,10 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
           }))
           result = JSON.stringify(essentialDrafts, null, 2)
         } else {
-          if (plans.length === 0) {
+          if (specs.length === 0) {
             result = 'No spec sessions found'
           } else {
-            const lines = plans.map((d: Session) => {
+            const lines = specs.map((d: Session) => {
               const name = d.display_name || d.name
               const created = d.created_at ? new Date(d.created_at).toLocaleDateString() : 'unknown'
               const updated = d.updated_at ? new Date(d.updated_at).toLocaleDateString() : 'unknown'
@@ -914,7 +914,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
   - Preview: ${preview}${contentLength > 50 ? '...' : ''}`
             })
             
-            result = `Plan Sessions (${plans.length}):\n\n${lines.join('\n\n')}`
+            result = `Spec Sessions (${specs.length}):\n\n${lines.join('\n\n')}`
           }
         }
         break
@@ -925,7 +925,7 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         
         await bridge.deleteDraftSession(draftDeleteArgs.session_name)
         
-        result = `Plan session '${draftDeleteArgs.session_name}' has been deleted permanently`
+        result = `Spec session '${draftDeleteArgs.session_name}' has been deleted permanently`
         break
       }
 
@@ -1024,11 +1024,11 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
        }
 
        case "schaltwerk_convert_to_spec": {
-         const convertToPlanArgs = args as unknown as SchaltwerkConvertToPlanArgs
+         const convertToSpecArgs = args as unknown as SchaltwerkConvertToSpecArgs
 
-         await bridge.convertToPlan(convertToPlanArgs.session_name)
+         await bridge.convertToSpec(convertToSpecArgs.session_name)
 
-         result = `Session '${convertToPlanArgs.session_name}' has been converted back to spec state for rework`
+         result = `Session '${convertToSpecArgs.session_name}' has been converted back to spec state for rework`
          break
        }
 
@@ -1072,14 +1072,14 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         mimeType: "application/json"
       },
       {
-        uri: "schaltwerk://plans",
-        name: "Plan Sessions",
+        uri: "schaltwerk://specs",
+        name: "Spec Sessions",
         description: "All spec sessions awaiting refinement and start",
         mimeType: "application/json"
       },
       {
-        uri: "schaltwerk://plans/{name}",
-        name: "Plan Content",
+        uri: "schaltwerk://specs/{name}",
+        name: "Spec Content",
         description: "Content of a specific spec session",
         mimeType: "text/markdown"
       }
@@ -1114,22 +1114,22 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
         break
       }
 
-      case "schaltwerk://plans": {
-        const plans = await bridge.listDraftSessions()
-        content = JSON.stringify(plans, null, 2)
+      case "schaltwerk://specs": {
+        const specs = await bridge.listDraftSessions()
+        content = JSON.stringify(specs, null, 2)
         break
       }
 
       default: {
-        // Check if it's a specific plan content request
-        const draftMatch = uri.match(/^schaltwerk:\/\/plans\/(.+)$/)
+        // Check if it's a specific spec content request
+        const draftMatch = uri.match(/^schaltwerk:\/\/specs\/(.+)$/)
         if (draftMatch) {
           const draftName = draftMatch[1]
-          const plans = await bridge.listDraftSessions()
-          const plan = plans.find(d => d.name === draftName)
+          const specs = await bridge.listDraftSessions()
+          const spec = specs.find(d => d.name === draftName)
           
-          if (!plan) {
-            throw new McpError(ErrorCode.InvalidRequest, `Plan '${draftName}' not found`)
+          if (!spec) {
+            throw new McpError(ErrorCode.InvalidRequest, `Spec '${draftName}' not found`)
           }
           
           return {
@@ -1137,7 +1137,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
               {
                 uri,
                 mimeType: "text/markdown",
-                text: plan.draft_content || ''
+                text: spec.draft_content || ''
               }
             ]
           }

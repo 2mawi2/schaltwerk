@@ -111,8 +111,8 @@ describe('Sidebar sorting functionality', () => {
         const mode = args?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const specs = sessions.filter(s => s.info.session_state === 'plan')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'plan')
+        const specs = sessions.filter(s => s.info.session_state === 'spec')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'spec')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         let sorted: any[] = []
         if (mode === SortMode.Created) {

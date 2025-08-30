@@ -1,8 +1,8 @@
 import { useCallback } from 'react'
 import { useSelection } from '../../contexts/SelectionContext'
-import { PlanEditor } from './PlanEditor'
+import { SpecEditor } from './SpecEditor'
 
-export function PlanPlaceholder() {
+export function SpecPlaceholder() {
   const { selection } = useSelection()
 
   const sessionName = selection.kind === 'session' ? selection.payload : undefined
@@ -17,5 +17,5 @@ export function PlanPlaceholder() {
     return <div className="h-full flex items-center justify-center text-slate-400">No spec selected</div>
   }
 
-  return <PlanEditor sessionName={sessionName} onStart={handleRun} />
+  return <SpecEditor sessionName={sessionName} onStart={handleRun} />
 }

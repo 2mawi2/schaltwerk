@@ -13,7 +13,7 @@ interface Props {
   sessionName: string
 }
 
-export function PlanMetadataPanel({ sessionName }: Props) {
+export function SpecMetadataPanel({ sessionName }: Props) {
   const [metadata, setMetadata] = useState<SpecMetadata>({})
   const [loading, setLoading] = useState(true)
 
@@ -28,7 +28,7 @@ export function PlanMetadataPanel({ sessionName }: Props) {
           agent_content: session.current_task
         })
       } catch (error) {
-        console.error('[PlanMetadataPanel] Failed to load spec metadata:', error)
+        console.error('[SpecMetadataPanel] Failed to load spec metadata:', error)
         setMetadata({})
       } finally {
         setLoading(false)

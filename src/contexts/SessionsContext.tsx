@@ -26,7 +26,7 @@ interface SessionInfo {
     is_current: boolean
     session_type: 'worktree' | 'container'
     container_status?: string
-    session_state?: string
+    session_state: 'spec' | 'running' | 'reviewed'
     current_task?: string
     todo_percentage?: number
     is_blocked?: boolean
@@ -73,9 +73,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     // Normalize backend info into UI categories
     const mapSessionUiState = (info: SessionInfo): 'spec' | 'running' | 'reviewed' => {
-        if (info.session_state === 'spec' || info.status === 'spec') return 'spec'
-        if (info.ready_to_merge) return 'reviewed'
-        return 'running'
+        // The backend provides session_state that directly maps to our UI categories
+        if (info.session_state === 'spec') return 'spec'
+        if (info.session_state === 'reviewed' || info.ready_to_merge) return 'reviewed'  
+        return 'running' // session_state === 'running'
     }
 
     // Sort sessions while preserving the currently selected session's position in the list
@@ -157,10 +158,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         currentSelectionRef.current = sessionId
     }, [])
 
-    const mergeSessionsPreferDraft = (base: EnrichedSession[], plans: EnrichedSession[]): EnrichedSession[] => {
+    const mergeSessionsPreferDraft = (base: EnrichedSession[], specs: EnrichedSession[]): EnrichedSession[] => {
         const byId = new Map<string, EnrichedSession>()
         for (const s of base) byId.set(s.info.session_id, s)
-        for (const d of plans) {
+        for (const d of specs) {
             const existing = byId.get(d.info.session_id)
             if (!existing || mapSessionUiState(existing.info) !== 'spec') byId.set(d.info.session_id, d)
         }
@@ -182,38 +183,38 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
             const enrichedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
             const enriched = enrichedSessions || []
-            // If enriched already contains plans, use it as-is
+            // If enriched already contains specs, use it as-is
             if (enriched.some(s => mapSessionUiState(s.info) === 'spec')) {
                 setAllSessions(enriched)
                 const nextStates = new Map<string, string>()
                 for (const s of enriched) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
                 prevStatesRef.current = nextStates
             } else {
-                // Try to fetch explicit plans; if shape is unexpected, ignore
+                // Try to fetch explicit specs; if shape is unexpected, ignore
                 let all = enriched
                 try {
                     const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                     if (Array.isArray(draftSessions) && draftSessions.some(d => d && (d.name || d.id))) {
-                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(plan => ({
-                            id: plan.id,
+                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(spec => ({
+                            id: spec.id,
                             info: {
-                                session_id: plan.name,
-                                display_name: plan.display_name || plan.name,
-                                branch: plan.branch,
-                                worktree_path: plan.worktree_path || '',
-                                base_branch: plan.parent_branch,
+                                session_id: spec.name,
+                                display_name: spec.display_name || spec.name,
+                                branch: spec.branch,
+                                worktree_path: spec.worktree_path || '',
+                                base_branch: spec.parent_branch,
                                 merge_mode: 'rebase',
                                 status: 'spec' as any,
                                 session_state: 'spec',
-                                created_at: plan.created_at ? new Date(plan.created_at).toISOString() : undefined,
-                                last_modified: plan.updated_at ? new Date(plan.updated_at).toISOString() : undefined,
+                                created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
+                                last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
                                 has_uncommitted_changes: false,
                                 ready_to_merge: false,
                                 diff_stats: undefined,
                                 is_current: false,
                                 session_type: 'worktree' as any,
                             },
-                            terminals: [`session-${plan.name}-top`, `session-${plan.name}-bottom`]
+                            terminals: [`session-${spec.name}-top`, `session-${spec.name}-bottom`]
                         }))
                         all = mergeSessionsPreferDraft(enriched, enrichedDrafts)
                     }
@@ -263,10 +264,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const createDraft = useCallback(async (name: string, content: string) => {
         try {
-            await invoke('schaltwerk_core_create_spec_session', { name, draftContent: content })
+            await invoke('schaltwerk_core_create_spec_session', { name, specContent: content })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to create plan:', error)
+            console.error('Failed to create spec:', error)
             throw error
         }
     }, [reloadSessions])
@@ -352,7 +353,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         // Previous listeners will be cleaned up automatically by useCleanupRegistry
 
         const setupListeners = async () => {
-            // Full refresh (authoritative list) + plans merge
+            // Full refresh (authoritative list) + specs merge
             addListener(listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
                 try {
                     if (event.payload && event.payload.length > 0) {
@@ -475,7 +476,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         is_current: false,
                         session_type: 'worktree',
                         container_status: undefined,
-                        session_state: 'active',
+                        session_state: 'running',
                         current_task: undefined,
                         todo_percentage: undefined,
                         is_blocked: undefined,

@@ -5,10 +5,10 @@ import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { VscDiff, VscNotebook, VscInfo } from 'react-icons/vsc'
 import clsx from 'clsx'
-import { PlanContentView as SpecContentView } from '../plans/PlanContentView'
-import { PlanListView as SpecListView } from '../plans/PlanListView'
-import { PlanInfoPanel as SpecInfoPanel } from '../plans/PlanInfoPanel'
-import { PlanMetadataPanel as SpecMetadataPanel } from '../plans/PlanMetadataPanel'
+import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
+import { SpecListView as SpecListView } from '../plans/SpecListView'
+import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
+import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -17,7 +17,7 @@ interface RightPanelTabsProps {
 }
 
 export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride }: RightPanelTabsProps) {
-  const { selection, isPlan } = useSelection()
+  const { selection, isSpec } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
    const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
@@ -27,7 +27,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
    // Determine active tab based on user selection or smart defaults
    // For specs, always show info tab regardless of user selection
    const effectiveSelection = selectionOverride ?? selection
-   const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isPlan
+   const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
   const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec) ? 'info' : (
     userSelectedTab || (
       effectiveSelection.kind === 'orchestrator' ? 'agent' : 'changes'

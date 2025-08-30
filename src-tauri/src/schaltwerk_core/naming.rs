@@ -151,7 +151,7 @@ Rules:
 - 20 characters or less preferred
 - Use only lowercase letters, numbers, hyphens
 - Be concise - capture the essence, not details
-- Return ONLY the name, no quotes or explanation
+- Return ONLY the name, no quotes or exspecation
 - Do NOT use tools or commands
 
 Examples of good names:

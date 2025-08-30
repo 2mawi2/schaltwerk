@@ -193,7 +193,7 @@ describe('KanbanView', () => {
         const createButton = screen.getByText('Create spec')
         await userEvent.click(createButton)
         
-        // Should dispatch event to open new session modal in plan mode
+        // Should dispatch event to open new session modal in spec mode
         expect(dispatchEventSpy).toHaveBeenCalledWith(
             expect.objectContaining({
                 type: 'schaltwerk:new-spec'

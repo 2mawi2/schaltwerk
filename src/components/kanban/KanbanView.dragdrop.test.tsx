@@ -17,7 +17,7 @@ vi.mock('../../contexts/SessionsContext', () => ({
         sessions: [
             {
                 info: {
-                    session_id: 'test-plan',
+                    session_id: 'test-spec',
                     status: 'spec',
                     ready_to_merge: false
                 }
@@ -63,9 +63,9 @@ vi.mock('../right-panel/RightPanelTabs', () => ({
     RightPanelTabs: () => <div data-testid="right-panel-tabs">Right Panel</div>
 }))
 
-// Mock PlanEditor
-vi.mock('../specs/PlanEditor', () => ({
-    PlanEditor: ({ sessionName, onStart }: any) => (
+// Mock SpecEditor
+vi.mock('../specs/SpecEditor', () => ({
+    SpecEditor: ({ sessionName, onStart }: any) => (
         <div data-testid="spec-editor">
             Spec Editor for {sessionName}
             <button onClick={() => onStart?.()}>Start Spec</button>
@@ -104,17 +104,17 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
         })
 
-        const runDraftButton = screen.getByTestId('run-draft-test-plan')
+        const runDraftButton = screen.getByTestId('run-draft-test-spec')
         fireEvent.click(runDraftButton)
 
         await waitFor(() => {
             expect(dispatchSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
                     type: 'schaltwerk:start-agent-from-spec',
-                    detail: { name: 'test-plan' }
+                    detail: { name: 'test-spec' }
                 })
             )
         })
@@ -126,10 +126,10 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
         })
 
-        const runDraftButton = screen.getByTestId('run-draft-test-plan')
+        const runDraftButton = screen.getByTestId('run-draft-test-spec')
         fireEvent.click(runDraftButton)
 
         // Should not directly call backend commands, only dispatch event to open modal
@@ -150,7 +150,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         })
 
         // Check that sessions are in correct columns
-        expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
+        expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-active')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-reviewed')).toBeInTheDocument()
     })
@@ -164,7 +164,7 @@ describe('KanbanView Drag and Drop Logic', () => {
             const runningColumn = screen.getByText('Running').closest('div')
             const reviewedColumn = screen.getByText('Reviewed').closest('div')
 
-            expect(specColumn).toContainHTML('1') // test-plan
+            expect(specColumn).toContainHTML('1') // test-spec
             expect(runningColumn).toContainHTML('1') // test-active
             expect(reviewedColumn).toContainHTML('1') // test-reviewed
         })
@@ -188,7 +188,7 @@ describe('KanbanView Drag and Drop Logic', () => {
         renderKanbanView()
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
         })
 
         // We can't easily test actual drag and drop in jsdom, but we can test the handler logic
@@ -261,11 +261,11 @@ describe('KanbanView Complex Scenarios', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
+            expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
         })
 
         // Simulate multiple rapid operations
-        const runButton = screen.getByTestId('run-draft-test-plan')
+        const runButton = screen.getByTestId('run-draft-test-spec')
         
         fireEvent.click(runButton)
         fireEvent.click(runButton)
@@ -287,7 +287,7 @@ describe('KanbanView Complex Scenarios', () => {
         })
 
         // Test that all session cards are properly interactive
-        expect(screen.getByTestId('session-card-test-plan')).toBeInTheDocument()
+        expect(screen.getByTestId('session-card-test-spec')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-active')).toBeInTheDocument()
         expect(screen.getByTestId('session-card-test-reviewed')).toBeInTheDocument()
     })

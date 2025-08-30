@@ -5,7 +5,7 @@ interface Props {
   sessionName: string
 }
 
-export function PlanInfoPanel({ sessionName }: Props) {
+export function SpecInfoPanel({ sessionName }: Props) {
   const [starting, setStarting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -13,11 +13,11 @@ export function PlanInfoPanel({ sessionName }: Props) {
     try {
       setStarting(true)
       setError(null)
-      console.log('[PlanInfoPanel] Dispatching start-agent-from-spec event for:', sessionName)
+      console.log('[SpecInfoPanel] Dispatching start-agent-from-spec event for:', sessionName)
       // Open Start new agent modal prefilled from spec instead of starting directly
       window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
     } catch (e: any) {
-      console.error('[PlanInfoPanel] Failed to open start modal from plan:', e)
+      console.error('[SpecInfoPanel] Failed to open start modal from spec:', e)
       setError(String(e))
     } finally {
       setStarting(false)

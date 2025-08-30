@@ -70,9 +70,9 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [draftSession, runningSession1, runningSession2]
-                if (fm === 'plan') return [draftSession]
+                if (fm === 'spec') return [draftSession]
                 if (fm === 'reviewed') return all.filter(s => s.info.ready_to_merge)
-                if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'plan')
+                if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'spec')
                 return all
             }
             if (cmd === 'schaltwerk_core_list_sessions_by_state') {
@@ -120,7 +120,7 @@ describe('Sidebar - Selection on State Changes', () => {
     it('selects orchestrator when no sessions are visible after filter change', async () => {
         const draftSession = mockDraftSession('spec-agent')
 
-        // Start with only a plan session
+        // Start with only a spec session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [draftSession]
@@ -128,7 +128,7 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [draftSession]
-                if (fm === 'plan') return all
+                if (fm === 'spec') return all
                 if (fm === 'running') return []
                 if (fm === 'reviewed') return []
                 return all
@@ -242,7 +242,7 @@ describe('Sidebar - Selection on State Changes', () => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
                 const fm = args?.filterMode || 'all'
                 const all = [specAgent, runningTask]
-                if (fm === 'plan') return [specAgent]
+                if (fm === 'spec') return [specAgent]
                 if (fm === 'running') return [runningTask]
                 if (fm === 'reviewed') return []
                 return all

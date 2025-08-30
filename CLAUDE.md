@@ -92,7 +92,7 @@ All git functionality is centralized in `src-tauri/src/schaltwerk_core/git/` mod
 - **Lazy creation**: Terminals created only when first needed
 - **Persistent state**: Terminals keep running when switching sessions
 - **Proper cleanup**: All processes killed when app exits
-- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Agents/Plans for orchestrator
+- **Right panel**: Not a terminal - shows Changes/Diffs for sessions or Agents/Specs for orchestrator
 
 ### Terminal ID Convention (required)
 ```
@@ -641,7 +641,7 @@ grep -E "slow|WARN|ERROR" ~/Library/Application\ Support/schaltwerk/logs/schaltw
 ### Architecture Principles
 - **MCP server must use REST API calls only**: Never directly access the SQLite database
 - **Stateless design**: MCP server should be a stateless HTTP client to the Rust backend
-- **Database operations**: All session/plan operations must go through `src-tauri/src/mcp_api.rs` endpoints
+- **Database operations**: All session/spec operations must go through `src-tauri/src/mcp_api.rs` endpoints
 
 ### MCP Development Workflow
 ```bash
@@ -652,17 +652,17 @@ npm run build          # Rebuild MCP server
 ```
 
 ### Key API Endpoints
-- `POST /api/plans` - Create plan session
-- `PATCH /api/plans/{name}` - Update plan content (supports append=true)
-- `POST /api/plans/{name}/start` - Start plan as active session
-- `DELETE /api/plans/{name}` - Delete plan session
+- `POST /api/specs` - Create spec session
+- `PATCH /api/specs/{name}` - Update spec content (supports append=true)
+- `POST /api/specs/{name}/start` - Start spec as active session
+- `DELETE /api/specs/{name}` - Delete spec session
 
 ### Performance Patterns
-- **Use atomic operations**: For plan content updates, use `append_draft_content()` instead of get-then-update pattern
+- **Use atomic operations**: For spec content updates, use `append_draft_content()` instead of get-then-update pattern
 - **Avoid double database calls**: All operations should be single transactions where possible
 
 ### Webhook Integration
-- `POST /webhook/plan-created` - When plan is created
+- `POST /webhook/spec-created` - When spec is created
 - `POST /webhook/session-added` - When session becomes active
 - `POST /webhook/session-removed` - When session is deleted
 
@@ -725,12 +725,12 @@ open -a Schaltwerk
 
 ### Testing MCP Changes
 ```bash
-# Test MCP plan creation
-echo '{"name": "test-plan", "content": "# Test Plan"}' | json_pp
-# Verify plan appears in UI plans section, not running sessions
+# Test MCP spec creation
+echo '{"name": "test-spec", "content": "# Test Spec"}' | json_pp
+# Verify spec appears in UI specs section, not running sessions
 
 # Test API endpoints directly
-curl -X POST http://127.0.0.1:8547/api/plans -H "Content-Type: application/json" -d '{"name":"test","content":"test"}'
+curl -X POST http://127.0.0.1:8547/api/specs -H "Content-Type: application/json" -d '{"name":"test","content":"test"}'
 ```
 
 ### Code Quality

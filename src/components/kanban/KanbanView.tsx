@@ -4,7 +4,7 @@ import { useSessions } from '../../contexts/SessionsContext'
 import { SessionCard } from '../shared/SessionCard'
 import { invoke } from '@tauri-apps/api/core'
 import { RightPanelTabs } from '../right-panel/RightPanelTabs'
-import { PlanEditor as SpecEditor } from '../plans/PlanEditor'
+import { SpecEditor as SpecEditor } from '../plans/SpecEditor'
 import { Component, ReactNode } from 'react'
 import { useState, useCallback } from 'react'
 import { theme } from '../../common/theme'
@@ -216,7 +216,7 @@ export function KanbanView() {
                 // If it's a spec, open modal to start it; if ready_to_merge, unmark it
                 if (session.info.status === 'spec') {
                     console.log('[KanbanView] Opening modal to start spec session:', sessionId)
-                    // Open Start agent modal prefilled from plan
+                    // Open Start agent modal prefilled from spec
                     window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                     return // Don't reload sessions yet, modal will handle the start
                 } else if (session.info.ready_to_merge) {
@@ -238,7 +238,7 @@ export function KanbanView() {
     }
 
     const handleCreateDraft = async () => {
-        // Dispatch event to open new session modal in plan mode
+        // Dispatch event to open new session modal in spec mode
         window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
     }
 
@@ -294,7 +294,7 @@ export function KanbanView() {
     const handleRunDraft = async (sessionId: string) => {
         try {
             console.log('[KanbanView] Opening modal to start spec session:', sessionId)
-            // Open Start agent modal prefilled from plan
+            // Open Start agent modal prefilled from spec
             window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
         } catch (error) {
             console.error('Failed to open start modal for spec:', error)

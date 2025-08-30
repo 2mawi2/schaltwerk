@@ -23,7 +23,7 @@ interface SessionInfo {
     is_current: boolean
     session_type: 'worktree' | 'container'
     container_status?: string
-    session_state?: string
+    session_state: 'spec' | 'running' | 'reviewed'
     original_agent_type?: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
     current_task?: string
     todo_percentage?: number
@@ -80,10 +80,8 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     const isBlocked = s.is_blocked || false
     const isReadyToMerge = s.ready_to_merge || false
     
-    // Determine session state
-    const sessionState = isReadyToMerge ? 'reviewed' : 
-                        s.status === 'spec' ? 'plan' :
-                        s.session_state === 'plan' ? 'plan' : 'running'
+    // Determine session state - use the backend session_state directly
+    const sessionState = isReadyToMerge ? 'reviewed' : s.session_state
     
     // Get background color based on state
     const getStateBackground = () => {
@@ -91,7 +89,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
         if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
-        if (sessionState === 'plan') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
+        if (sessionState === 'spec') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
         return 'border-slate-800 bg-slate-900/40 hover:bg-slate-800/30'
     }
 
@@ -125,7 +123,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
                     </div>
-                    {sessionState !== 'plan' && (
+                    {sessionState !== 'spec' && (
                         <div className="text-[11px] text-slate-400 truncate">{s.branch}</div>
                     )}
                 </div>
@@ -140,7 +138,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
             
             {!hideActions && (
                 <div className="-mt-4 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity whitespace-nowrap">
-                    {sessionState === 'plan' ? (
+                    {sessionState === 'spec' ? (
                         <span 
                             onClick={(e) => {
                                 e.stopPropagation()
@@ -200,7 +198,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                             </span>
                         </>
                     )}
-                    {sessionState === 'plan' && (
+                    {sessionState === 'spec' && (
                         <span
                             onClick={(e) => {
                                 e.stopPropagation()
@@ -230,7 +228,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
             
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
                 <div>
-                    {sessionState !== 'plan' && (
+                    {sessionState !== 'spec' && (
                         <>
                             {filesChanged > 0 && <span>{filesChanged} files, </span>}
                             <span className="text-green-400">+{additions}</span>{' '}
@@ -239,7 +237,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {agentType && sessionState !== 'plan' && (
+                    {agentType && sessionState !== 'spec' && (
                         <span
                             className={clsx(
                                 'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',

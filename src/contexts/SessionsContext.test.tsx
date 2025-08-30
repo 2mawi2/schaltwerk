@@ -16,18 +16,19 @@ vi.mock('@tauri-apps/api/event', () => ({
 const mockSessions = [
     {
         info: {
-            session_id: 'test-plan',
-            display_name: 'Test Plan',
-            branch: 'feature/test-plan',
-            worktree_path: '/path/to/plan',
+            session_id: 'test-spec',
+            display_name: 'Test Spec',
+            branch: 'feature/test-spec',
+            worktree_path: '/path/to/spec',
             base_branch: 'main',
             merge_mode: 'rebase',
             status: 'spec',
+            session_state: 'spec',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: false
         },
-        terminals: ['session-test-plan-top', 'session-test-plan-bottom']
+        terminals: ['session-test-spec-top', 'session-test-spec-bottom']
     },
     {
         info: {
@@ -38,6 +39,7 @@ const mockSessions = [
             base_branch: 'main',
             merge_mode: 'rebase',
             status: 'active',
+            session_state: 'running',
             is_current: true,
             session_type: 'worktree',
             ready_to_merge: false
@@ -53,6 +55,7 @@ const mockSessions = [
             base_branch: 'main',
             merge_mode: 'rebase',
             status: 'dirty',
+            session_state: 'reviewed',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: true
@@ -114,12 +117,14 @@ describe('SessionsContext', () => {
             expect(result.current.loading).toBe(false)
         })
 
-        // Sessions are now sorted alphabetically by name (SortMode.Name is default)
-        const expectedSessions = [...mockSessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        // Sessions are sorted with unreviewed first (alphabetically), then reviewed at bottom (alphabetically)
+        const unreviewed = mockSessions.filter(s => !s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const reviewed = mockSessions.filter(s => s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const expectedSessions = [...unreviewed, ...reviewed]
         expect(result.current.sessions).toEqual(expectedSessions)
     })
 
-    it('should update session status from plan to active', async () => {
+    it('should update session status from spec to active', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         let callCount = 0
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
@@ -133,12 +138,12 @@ describe('SessionsContext', () => {
         const { result } = renderHook(() => useSessions(), { wrapper })
 
         await act(async () => {
-            await result.current.updateSessionStatus('test-plan', 'active')
+            await result.current.updateSessionStatus('test-spec', 'active')
         })
 
         // First call is to get current sessions, second is start_draft_session, third is reload
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_spec_session', { name: 'test-plan' })
+        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_spec_session', { name: 'test-spec' })
     })
 
     it('should update session status from active to spec', async () => {
@@ -191,12 +196,12 @@ describe('SessionsContext', () => {
         const { result } = renderHook(() => useSessions(), { wrapper })
 
         await act(async () => {
-            await result.current.createDraft('new-plan', '# New Plan')
+            await result.current.createDraft('new-spec', '# New Spec')
         })
 
         expect(invoke).toHaveBeenCalledWith('schaltwerk_core_create_spec_session', {
-            name: 'new-plan',
-            draftContent: '# New Plan'
+            name: 'new-spec',
+            draftContent: '# New Spec'
         })
     })
 
@@ -228,6 +233,7 @@ describe('SessionsContext', () => {
                 base_branch: 'main',
                 merge_mode: 'rebase',
                 status: 'active',
+                session_state: 'running',
                 is_current: false,
                 session_type: 'worktree',
                 ready_to_merge: false
@@ -242,8 +248,10 @@ describe('SessionsContext', () => {
             }
         })
 
-        // Sessions are now sorted alphabetically by name (SortMode.Name is default)
-        const expectedSessions = [...newSessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        // Sessions are sorted with unreviewed first (alphabetically), then reviewed at bottom (alphabetically)
+        const unreviewedNew = newSessions.filter(s => !s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const reviewedNew = newSessions.filter(s => s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const expectedSessions = [...unreviewedNew, ...reviewedNew]
         expect(result.current.sessions).toEqual(expectedSessions)
     })
 
@@ -266,8 +274,10 @@ describe('SessionsContext', () => {
 
         const { result } = renderHook(() => useSessions(), { wrapper })
 
-        // Wait for initial load - sessions are sorted alphabetically
-        const expectedSessions = [...mockSessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        // Wait for initial load - sessions are sorted with unreviewed first, then reviewed at bottom
+        const unreviewedMock = mockSessions.filter(s => !s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const reviewedMock = mockSessions.filter(s => s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const expectedSessions = [...unreviewedMock, ...reviewedMock]
         await waitFor(() => {
             expect(result.current.sessions).toEqual(expectedSessions)
         })
@@ -275,11 +285,11 @@ describe('SessionsContext', () => {
         // Simulate removal event
         act(() => {
             if (listeners['schaltwerk:session-removed']) {
-                listeners['schaltwerk:session-removed']({ payload: { session_name: 'test-plan' } })
+                listeners['schaltwerk:session-removed']({ payload: { session_name: 'test-spec' } })
             }
         })
 
         expect(result.current.sessions).toHaveLength(2)
-        expect(result.current.sessions.find(s => s.info.session_id === 'test-plan')).toBeUndefined()
+        expect(result.current.sessions.find(s => s.info.session_id === 'test-spec')).toBeUndefined()
     })
 })

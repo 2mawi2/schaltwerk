@@ -15,7 +15,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('../../contexts/SelectionContext', () => ({
   useSelection: vi.fn(() => ({
     selection: { kind: 'session', payload: 'test' },
-    isPlan: false,
+    isSpec: false,
   })),
 }))
 
@@ -23,6 +23,24 @@ vi.mock('../../contexts/ProjectContext', () => ({
   useProject: vi.fn(() => ({
     projectPath: '/test/project',
     projectName: 'test-project',
+  })),
+}))
+
+vi.mock('../../contexts/SessionsContext', () => ({
+  useSessions: vi.fn(() => ({
+    sessions: [],
+    allSessions: [],
+    filteredSessions: [],
+    sortedSessions: [],
+    loading: false,
+    sortMode: 'name',
+    filterMode: 'all',
+    setSortMode: vi.fn(),
+    setFilterMode: vi.fn(),
+    setCurrentSelection: vi.fn(),
+    reloadSessions: vi.fn(),
+    updateSessionStatus: vi.fn(),
+    createDraft: vi.fn(),
   })),
 }))
 
@@ -37,31 +55,31 @@ vi.mock('../diff/SimpleDiffPanel', () => ({
   SimpleDiffPanel: () => <div data-testid="diff-panel">Diff Panel</div>,
 }))
 
-vi.mock('../plans/PlanContentView', async () => {
+vi.mock('../specs/SpecContentView', async () => {
   const React = await import('react')
   return {
-    PlanContentView: () => React.createElement('div', { 'data-testid': 'spec-content' }, 'Spec Content'),
+    SpecContentView: () => React.createElement('div', { 'data-testid': 'spec-content' }, 'Spec Content'),
   }
 })
 
-vi.mock('../plans/PlanListView', async () => {
+vi.mock('../specs/SpecListView', async () => {
   const React = await import('react')
   return {
-    PlanListView: () => React.createElement('div', { 'data-testid': 'spec-list' }, 'Spec List'),
+    SpecListView: () => React.createElement('div', { 'data-testid': 'spec-list' }, 'Spec List'),
   }
 })
 
-vi.mock('../plans/PlanInfoPanel', async () => {
+vi.mock('../specs/SpecInfoPanel', async () => {
   const React = await import('react')
   return {
-    PlanInfoPanel: () => React.createElement('div', { 'data-testid': 'spec-info' }, 'Spec Info'),
+    SpecInfoPanel: () => React.createElement('div', { 'data-testid': 'spec-info' }, 'Spec Info'),
   }
 })
 
-vi.mock('../plans/PlanMetadataPanel', async () => {
+vi.mock('../specs/SpecMetadataPanel', async () => {
   const React = await import('react')
   return {
-    PlanMetadataPanel: () => React.createElement('div', { 'data-testid': 'spec-metadata' }, 'Spec Metadata'),
+    SpecMetadataPanel: () => React.createElement('div', { 'data-testid': 'spec-metadata' }, 'Spec Metadata'),
   }
 })
 
@@ -74,7 +92,7 @@ describe('RightPanelTabs', () => {
     // Reset to default mock
     mockUseSelection.mockReturnValue({
       selection: { kind: 'session', payload: 'test' },
-      isPlan: false,
+      isSpec: false,
       terminals: { top: 'test-top', bottomBase: 'test-bottom', workingDirectory: '/test' },
       setSelection: vi.fn(),
       clearTerminalTracking: vi.fn(),
@@ -87,7 +105,7 @@ describe('RightPanelTabs', () => {
       // Start with a running session (defaults to Changes)
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session1' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session1-top', bottomBase: 'session1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -112,7 +130,7 @@ describe('RightPanelTabs', () => {
       // Switch to a different session
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session2' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session2-top', bottomBase: 'session2-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -132,7 +150,7 @@ describe('RightPanelTabs', () => {
     it('should persist user tab selection when switching to orchestrator', async () => {
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session1' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session1-top', bottomBase: 'session1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -150,7 +168,7 @@ describe('RightPanelTabs', () => {
       // Switch to orchestrator
       mockUseSelection.mockReturnValue({
         selection: { kind: 'orchestrator' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'orchestrator-top', bottomBase: 'orchestrator-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -170,7 +188,7 @@ describe('RightPanelTabs', () => {
       // Test orchestrator only shows Changes tab (Specs accessed via Spec Mode)
       mockUseSelection.mockReturnValue({
         selection: { kind: 'orchestrator' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'orchestrator-top', bottomBase: 'orchestrator-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -188,7 +206,7 @@ describe('RightPanelTabs', () => {
       // Test spec session defaults to Spec and changes tab is hidden
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'draft1' },
-        isPlan: true,
+        isSpec: true,
         terminals: { top: 'draft1-top', bottomBase: 'draft1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -208,7 +226,7 @@ describe('RightPanelTabs', () => {
       // Test running session defaults to Changes
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session1' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session1-top', bottomBase: 'session1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -227,7 +245,7 @@ describe('RightPanelTabs', () => {
       // Start with a running session that has both tabs
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session1' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session1-top', bottomBase: 'session1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -248,7 +266,7 @@ describe('RightPanelTabs', () => {
       // Switch to another session - Spec should stay selected
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session2' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session2-top', bottomBase: 'session2-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -270,7 +288,7 @@ describe('RightPanelTabs', () => {
       // Switch to orchestrator - only Changes tab is shown
       mockUseSelection.mockReturnValue({
         selection: { kind: 'orchestrator' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'orchestrator-top', bottomBase: 'orchestrator-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -291,7 +309,7 @@ describe('RightPanelTabs', () => {
     it('should render correct content based on active tab', () => {
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'session1' },
-        isPlan: false,
+        isSpec: false,
         terminals: { top: 'session1-top', bottomBase: 'session1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),
@@ -315,7 +333,7 @@ describe('RightPanelTabs', () => {
     it('should hide changes tab for spec sessions', () => {
       mockUseSelection.mockReturnValue({
         selection: { kind: 'session', payload: 'draft1' },
-        isPlan: true,
+        isSpec: true,
         terminals: { top: 'draft1-top', bottomBase: 'draft1-bottom', workingDirectory: '/test' },
         setSelection: vi.fn(),
         clearTerminalTracking: vi.fn(),

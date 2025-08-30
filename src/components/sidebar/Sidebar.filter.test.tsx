@@ -102,10 +102,10 @@ describe('Sidebar filter functionality and persistence', () => {
         const filtered = fm === FilterMode.All
           ? sessions
           : fm === FilterMode.Spec
-            ? sessions.filter(s => (s.info as any).session_state === 'plan')
+            ? sessions.filter(s => (s.info as any).session_state === 'spec')
             : fm === FilterMode.Reviewed
               ? sessions.filter(s => s.info.ready_to_merge)
-              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as any).session_state !== 'plan')
+              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as any).session_state !== 'spec')
         return filtered
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -243,9 +243,9 @@ describe('Sidebar filter functionality and persistence', () => {
         ]
         const fm = (args?.filterMode || FilterMode.All) as FilterMode
         if (fm === FilterMode.All) return all
-        if (fm === FilterMode.Spec) return all.filter(s => (s.info as any).session_state === 'plan')
+        if (fm === FilterMode.Spec) return all.filter(s => (s.info as any).session_state === 'spec')
         if (fm === FilterMode.Reviewed) return all.filter(s => s.info.ready_to_merge)
-        return all.filter(s => !s.info.ready_to_merge && (s.info as any).session_state !== 'plan')
+        return all.filter(s => !s.info.ready_to_merge && (s.info as any).session_state !== 'spec')
       }
       if (command === 'schaltwerk_core_list_enriched_sessions') {
         return [

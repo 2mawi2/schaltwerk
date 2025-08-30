@@ -314,8 +314,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const specs = sessions.filter(s => (s.info as any).session_state === 'plan')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'plan')
+        const specs = sessions.filter(s => (s.info as any).session_state === 'spec')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'spec')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         if (mode === 'created') {
           // created: newest first among unreviewed, then reviewed (alpha), then specs (alpha)
@@ -412,8 +412,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const specs = sessions.filter(s => (s.info as any).session_state === 'plan')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'plan')
+        const specs = sessions.filter(s => (s.info as any).session_state === 'spec')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'spec')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         let sorted: any[]
         if (mode === 'created') {

@@ -16,14 +16,14 @@ interface SessionInfo {
     worktree_path: string
     base_branch: string
     merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec' | 'plan'
+    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec' | 'spec'
     created_at?: string
     last_modified?: string
     has_uncommitted_changes?: boolean
     is_current: boolean
     session_type: 'worktree' | 'container'
     container_status?: string
-    session_state?: string
+    session_state: 'spec' | 'running' | 'reviewed'
     original_agent_type?: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
     current_task?: string
     todo_percentage?: number
@@ -92,10 +92,8 @@ export const SessionButton = memo<SessionButtonProps>(({
     const agentLabel = agentKey
     const agentColor = agentKey === 'claude' ? 'blue' : agentKey === 'cursor' ? 'purple' : agentKey === 'opencode' ? 'green' : agentKey === 'gemini' ? 'orange' : agentKey === 'codex' ? 'red' : ''
     
-    // Determine session state
-    const sessionState = isReadyToMerge ? 'reviewed' : 
-                        s.session_state === 'active' ? 'running' : 
-                        (s.session_state === 'plan' ? 'plan' : 'running')
+    // Determine session state - use the backend session_state directly
+    const sessionState = isReadyToMerge ? 'reviewed' : s.session_state
     
     // State icon removed - no longer using emojis
 
@@ -104,7 +102,7 @@ export const SessionButton = memo<SessionButtonProps>(({
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
         if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
-        if (sessionState === 'plan') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
+        if (sessionState === 'spec') return 'border-slate-800 bg-slate-900/30 hover:bg-slate-800/30 opacity-85'
         return 'border-slate-800 bg-slate-900/40 hover:bg-slate-800/30'
     }
 
@@ -144,7 +142,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                                         : 'bg-amber-900/30 text-amber-300 border-amber-700/50'
                                 )}
                             >
-                                {sessionState === 'running' ? 'Running' : 'Plan'}
+                                {sessionState === 'running' ? 'Running' : 'Spec'}
                             </span>
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
@@ -165,7 +163,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                             </span>
                         )}
                     </div>
-                    {sessionState !== 'plan' && (
+                    {sessionState !== 'spec' && (
                         <div className="text-[11px] text-slate-400 truncate">{s.branch}</div>
                     )}
                 </div>
@@ -178,7 +176,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                 </div>
             </div>
             <div className="-mt-4 flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity whitespace-nowrap">
-                {sessionState === 'plan' ? (
+                {sessionState === 'spec' ? (
                     <span 
                         onClick={(e) => {
                             e.stopPropagation()
@@ -238,8 +236,8 @@ export const SessionButton = memo<SessionButtonProps>(({
                         </span>
                     </>
                 )}
-                {/* Show Delete for plans */}
-                {sessionState === 'plan' && (
+                {/* Show Delete for specs */}
+                {sessionState === 'spec' && (
                     <span
                         onClick={(e) => {
                             e.stopPropagation()
@@ -269,7 +267,7 @@ export const SessionButton = memo<SessionButtonProps>(({
             )}
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
                 <div>
-                    {sessionState !== 'plan' && (
+                    {sessionState !== 'spec' && (
                         <>
                             {filesChanged > 0 && <span>{filesChanged} files, </span>}
                             <span className="text-green-400">+{additions}</span>{' '}
@@ -278,7 +276,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {agentType && sessionState !== 'plan' && (
+                    {agentType && sessionState !== 'spec' && (
                         <span
                             className={clsx(
                                 'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',

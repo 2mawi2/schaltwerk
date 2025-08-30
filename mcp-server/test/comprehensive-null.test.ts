@@ -101,19 +101,19 @@ const validateSessionFormatting = (session: any) => {
   }
 }
 
-const validateDraftFormatting = (plan: any) => {
-  expect(() => formatDraftJson(plan)).not.toThrow()
-  expect(() => formatDraftText(plan)).not.toThrow()
+const validateDraftFormatting = (spec: any) => {
+  expect(() => formatDraftJson(spec)).not.toThrow()
+  expect(() => formatDraftText(spec)).not.toThrow()
   
-  const json = formatDraftJson(plan)
-  const text = formatDraftText(plan)
+  const json = formatDraftJson(spec)
+  const text = formatDraftText(spec)
   
-  if (!plan.created_at) {
+  if (!spec.created_at) {
     expect(text).toContain('Created: unknown')
     expect(json.created_at).toBeNull()
   }
   
-  if (!plan.updated_at) {
+  if (!spec.updated_at) {
     expect(text).toContain('Updated: unknown')
     expect(json.updated_at).toBeNull()
   }

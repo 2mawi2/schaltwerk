@@ -420,7 +420,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
             created_at: '2024-01-15T10:30:00Z',
             last_modified: '2024-01-15T11:00:00Z',
             current_task: 'Implement feature',
-            draft_content: 'Plan content',
+            draft_content: 'Spec content',
             ready_to_merge: true
           }
         }
@@ -444,7 +444,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
           status: 'active',
           session_state: 'Running',
           initial_prompt: 'Implement feature',
-          draft_content: 'Plan content',
+          draft_content: 'Spec content',
           ready_to_merge: true
         })
       })
@@ -598,7 +598,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
         const urlString = typeof url === 'string' ? url : url.toString()
         
         if (urlString.includes('/api/specs') && urlString.includes('/start')) {
-          const match = urlString.match(/\/api\/plans\/([^\/]+)\/start/)
+          const match = urlString.match(/\/api\/specs\/([^\/]+)\/start/)
           const sessionName = match ? decodeURIComponent(match[1]) : 'unknown'
           
           await new Promise(resolve => setTimeout(resolve, Math.random() * 100))
@@ -751,7 +751,7 @@ describe('SchaltwerkBridge Complex API Integration', () => {
       
       expect(capturedPayloads).toHaveLength(1)
       expect(capturedPayloads[0]).toMatchObject({
-        url: expect.stringContaining('/webhook/plan-created'),
+        url: expect.stringContaining('/webhook/spec-created'),
         body: {
           session_name: 'payload-test',
           draft_content: 'test content',

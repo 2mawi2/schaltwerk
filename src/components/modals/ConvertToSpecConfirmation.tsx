@@ -86,7 +86,7 @@ export function ConvertToSpecConfirmation({
       title="Convert Session to Spec"
       body={body}
       confirmText={loading ? 'Converting…' : 'Convert to Spec'}
-      confirmTitle="Convert to plan (Enter)"
+      confirmTitle="Convert to spec (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"
       onConfirm={handleConfirm}

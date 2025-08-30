@@ -126,7 +126,7 @@ describe('App.tsx', () => {
     await waitFor(() => {
       expect(screen.getByTestId('sidebar')).toBeInTheDocument()
       expect(screen.getByTestId('terminal-grid')).toBeInTheDocument()
-      // Right panel can be in Plans tab by default; diff panel may not be present
+      // Right panel can be in Specs tab by default; diff panel may not be present
     })
 
     // Click the global Home button to return
@@ -177,16 +177,16 @@ describe('App.tsx', () => {
 
   describe('Spec Starting', () => {
     beforeEach(() => {
-      // Setup project state for plan tests
+      // Setup project state for spec tests
       mockState.isGitRepo = true
     })
 
     it('handles schaltwerk:start-agent-from-spec event by prefilling new session modal', async () => {
       renderApp()
 
-      // Trigger the plan start event
+      // Trigger the spec start event
       window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', {
-        detail: { name: 'test-plan' }
+        detail: { name: 'test-spec' }
       }))
 
       // Wait for the event to be processed

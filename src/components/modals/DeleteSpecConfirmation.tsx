@@ -24,7 +24,7 @@ export function DeleteSpecConfirmation({
 
   const body = (
     <p className="text-zinc-300">
-      This will permanently delete the plan session.
+      This will permanently delete the spec session.
       <span className="block mt-2 text-zinc-400">
         This action cannot be undone.
       </span>

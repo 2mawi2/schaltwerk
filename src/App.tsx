@@ -24,7 +24,7 @@ import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useSessions } from './contexts/SessionsContext'
-import { PlanModeLayout } from './components/plans/PlanModeLayout'
+import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
 
 // Simple debounce utility
@@ -61,7 +61,7 @@ export default function App() {
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
-  const [deletePlanModalOpen, setDeletePlanModalOpen] = useState(false)
+  const [deleteSpecModalOpen, setDeleteSpecModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [currentSession, setCurrentSession] = useState<{ id: string; name: string; displayName: string; branch: string; hasUncommittedChanges: boolean } | null>(null)
   const [selectedDiffFile, setSelectedDiffFile] = useState<string | null>(null)
@@ -69,10 +69,10 @@ export default function App() {
   const [showHome, setShowHome] = useState(true)
   const [openTabs, setOpenTabs] = useState<ProjectTab[]>([])
   const [activeTabPath, setActiveTabPath] = useState<string | null>(null)
-  const [startFromDraftName, setStartFromPlanName] = useState<string | null>(null)
+  const [startFromDraftName, setStartFromSpecName] = useState<string | null>(null)
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
-  const [openAsDraft, setOpenAsPlan] = useState(false)
+  const [openAsDraft, setOpenAsSpec] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
   const [commanderSpecModeSession, setCommanderSpecModeSession] = useState<string | null>(null)
   const projectSwitchInProgressRef = useRef(false)
@@ -206,7 +206,7 @@ export default function App() {
         setCancelModalOpen(false)
         void handleCancelSession(hasUncommittedChanges)
       } else if (action === 'delete-spec') {
-        setDeletePlanModalOpen(true)
+        setDeleteSpecModalOpen(true)
       }
     }
 
@@ -231,7 +231,7 @@ export default function App() {
           console.log('[App] Cmd+N triggered - opening new session modal (agent mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
-           setOpenAsPlan(false) // Explicitly set to false for Cmd+N
+           setOpenAsSpec(false) // Explicitly set to false for Cmd+N
           setNewSessionOpen(true)
         }
       }
@@ -245,7 +245,7 @@ export default function App() {
           console.log('[App] Cmd+Shift+N triggered - opening new session modal (spec mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
-          setOpenAsPlan(true)
+          setOpenAsSpec(true)
           setNewSessionOpen(true)
         }
       }
@@ -282,7 +282,7 @@ export default function App() {
         console.log('[App] Global new session shortcut triggered (agent mode)')
         // Store current focus before opening modal
         previousFocusRef.current = document.activeElement
-         setOpenAsPlan(false) // Explicitly set to false for global shortcut
+         setOpenAsSpec(false) // Explicitly set to false for global shortcut
         setNewSessionOpen(true)
       }
     }
@@ -324,7 +324,7 @@ export default function App() {
     const handler = () => {
       console.log('[App] schaltwerk:new-spec event received - opening modal in spec mode')
       previousFocusRef.current = document.activeElement
-                       setOpenAsPlan(true)
+                       setOpenAsSpec(true)
       setNewSessionOpen(true)
     }
     window.addEventListener('schaltwerk:new-spec', handler as any)
@@ -379,7 +379,7 @@ export default function App() {
     const handler = () => {
       console.log('[App] schaltwerk:new-session event received - opening modal in agent mode')
       previousFocusRef.current = document.activeElement
-       setOpenAsPlan(false)
+       setOpenAsSpec(false)
       setNewSessionOpen(true)
     }
     window.addEventListener('schaltwerk:new-session', handler as any)
@@ -408,7 +408,7 @@ export default function App() {
 
       // Open modal after data is ready
       setNewSessionOpen(true)
-      setStartFromPlanName(name)
+      setStartFromSpecName(name)
 
       // Dispatch prefill event with fetched data
       if (prefillData) {
@@ -507,7 +507,7 @@ export default function App() {
       await invoke('schaltwerk_core_cancel_session', {
         name: currentSession.name
       })
-      setDeletePlanModalOpen(false)
+      setDeleteSpecModalOpen(false)
       // Reload sessions to update the list
       await invoke('schaltwerk_core_list_enriched_sessions')
     } catch (error) {
@@ -532,7 +532,7 @@ export default function App() {
     prompt?: string
     baseBranch: string
     userEditedName?: boolean
-    isPlan?: boolean
+    isSpec?: boolean
     draftContent?: string
   }) => {
     try {
@@ -548,7 +548,7 @@ export default function App() {
       }
       
        // If starting from an existing spec via the modal, convert that spec to active
-       if (!data.isPlan && startFromDraftName && startFromDraftName === data.name) {
+       if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
          // Ensure the spec content reflects latest prompt before starting
          const contentToUse = data.prompt || ''
          if (contentToUse.trim().length > 0) {
@@ -563,7 +563,7 @@ export default function App() {
            baseBranch: data.baseBranch || null,
          })
          setNewSessionOpen(false)
-         setStartFromPlanName(null)
+         setStartFromSpecName(null)
 
         // Small delay to ensure sessions list is updated
         await new Promise(resolve => setTimeout(resolve, 200))
@@ -586,11 +586,11 @@ export default function App() {
         return
       }
 
-      if (data.isPlan) {
+      if (data.isSpec) {
          // Create spec session
          await invoke('schaltwerk_core_create_spec_session', {
            name: data.name,
-           draftContent: data.draftContent || '',
+           specContent: data.draftContent || '',
          })
         setNewSessionOpen(false)
 
@@ -917,7 +917,7 @@ export default function App() {
                   <button
                     onClick={() => {
                       previousFocusRef.current = document.activeElement
-                      setOpenAsPlan(true)
+                      setOpenAsSpec(true)
                       setNewSessionOpen(true)
                     }}
                     className="w-full text-sm px-3 py-1.5 rounded group flex items-center justify-between border transition-colors"
@@ -944,10 +944,10 @@ export default function App() {
             <div className="relative h-full">
               {/* Show Spec Mode Layout when active in orchestrator */}
                {selection.kind === 'orchestrator' && commanderSpecModeSession ? (
-                 <PlanModeLayout
+                 <SpecModeLayout
                    sessionName={commanderSpecModeSession}
                    onExit={handleExitSpecMode}
-                   onSwitchSpec={(newPlanName: string) => setCommanderSpecModeSession(newPlanName)}
+                   onSwitchSpec={(newSpecName: string) => setCommanderSpecModeSession(newSpecName)}
                  />
                ) : (
                 <>
@@ -976,8 +976,8 @@ export default function App() {
              onClose={() => {
                console.log('[App] NewSessionModal closing - resetting state')
                setNewSessionOpen(false)
-               setOpenAsPlan(false) // Always reset to false when closing
-               setStartFromPlanName(null)
+               setOpenAsSpec(false) // Always reset to false when closing
+               setStartFromSpecName(null)
                // Restore focus after modal closes
                if (previousFocusRef.current && previousFocusRef.current instanceof HTMLElement) {
                  setTimeout(() => {
@@ -1004,10 +1004,10 @@ export default function App() {
                 loading={isCancelling}
               />
                <DeleteSpecConfirmation
-                 open={deletePlanModalOpen}
+                 open={deleteSpecModalOpen}
                  displayName={currentSession.displayName}
                  onConfirm={handleDeleteSpec}
-                 onCancel={() => setDeletePlanModalOpen(false)}
+                 onCancel={() => setDeleteSpecModalOpen(false)}
                  loading={isCancelling}
                />
             </>

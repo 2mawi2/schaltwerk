@@ -350,7 +350,7 @@ describe('SelectionContext', () => {
   })
 
   describe('State Transitions', () => {
-    it('should detect state transitions from plan to running', () => {
+    it('should detect state transitions from spec to running', () => {
       // Function to test the state transition logic
       const testStateTransition = (
         currentPayload: string,
@@ -362,7 +362,7 @@ describe('SelectionContext', () => {
         const newSelection = { 
           kind: 'session' as const, 
           payload: newPayload, 
-          sessionState: newIsDraft ? 'plan' : 'running' as const 
+          sessionState: newIsDraft ? 'spec' : 'running' as const 
         }
 
         return currentSelection.kind === 'session' && 
@@ -374,7 +374,7 @@ describe('SelectionContext', () => {
       expect(testStateTransition('test-session', 'test-session', true, false)).toBe(true)
     })
 
-    it('should detect state transitions from running to plan', () => {
+    it('should detect state transitions from running to spec', () => {
       // Function to test the state transition logic
       const testStateTransition = (
         currentPayload: string,
@@ -386,7 +386,7 @@ describe('SelectionContext', () => {
         const newSelection = { 
           kind: 'session' as const, 
           payload: newPayload, 
-          sessionState: newIsDraft ? 'plan' : 'running' as const 
+          sessionState: newIsDraft ? 'spec' : 'running' as const 
         }
 
         return currentSelection.kind === 'session' && 
@@ -410,7 +410,7 @@ describe('SelectionContext', () => {
         const newSelection = { 
           kind: 'session' as const, 
           payload: newPayload, 
-          sessionState: newIsDraft ? 'plan' : 'running' as const 
+          sessionState: newIsDraft ? 'spec' : 'running' as const 
         }
 
         return currentSelection.kind === 'session' && 

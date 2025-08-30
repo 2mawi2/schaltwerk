@@ -89,7 +89,7 @@ describe('NewSessionModal', () => {
     await waitFor(() => expect(checkbox.checked).toBe(true))
   })
 
-  it('prefills plan content when schaltwerk:new-session:prefill event is dispatched', async () => {
+  it('prefills spec content when schaltwerk:new-session:prefill event is dispatched', async () => {
     const { act } = await import('@testing-library/react')
     render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
     
@@ -97,9 +97,9 @@ describe('NewSessionModal', () => {
     const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
     expect(taskTextarea.value).toBe('')
     
-    // Dispatch the prefill event with plan content
-    const draftContent = '# My Spec\n\nThis is the plan content that should be prefilled.'
-    const specName = 'test-plan'
+    // Dispatch the prefill event with spec content
+    const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'
+    const specName = 'test-spec'
     
     await act(async () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
@@ -130,8 +130,8 @@ describe('NewSessionModal', () => {
     const { rerender: rerenderFn } = render(<NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} />)
     
     // Dispatch the prefill event BEFORE opening modal (simulating the race condition)
-    const draftContent = '# My Spec\n\nThis is the plan content that should be prefilled.'
-    const specName = 'test-plan'
+    const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'
+    const specName = 'test-spec'
     
     // Schedule the event to be dispatched slightly after the modal opens
     setTimeout(() => {
@@ -266,11 +266,11 @@ describe('NewSessionModal', () => {
     render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
     
     // Dispatch the prefill event to simulate starting from a spec
-    const draftContent = '# My Spec\n\nThis is the plan content.'
+    const draftContent = '# My Spec\n\nThis is the spec content.'
     await act(async () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
         detail: {
-          name: 'test-plan',
+          name: 'test-spec',
           taskContent: draftContent,
           fromDraft: true, // This should make createAsDraft false (starting agent from spec)
         }
@@ -280,7 +280,7 @@ describe('NewSessionModal', () => {
     // Check that the label is "Initial prompt (optional)" when starting agent from spec
     expect(screen.getByText('Initial prompt (optional)')).toBeInTheDocument()
     
-    // Check that the textarea contains the plan content
+    // Check that the textarea contains the spec content
     const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
     expect(taskTextarea.value).toBe(draftContent)
     

@@ -24,7 +24,7 @@ interface SelectionContextType {
     setSelection: (selection: Selection, forceRecreate?: boolean, isIntentional?: boolean) => Promise<void>
     clearTerminalTracking: (terminalIds: string[]) => Promise<void>
     isReady: boolean
-    isPlan: boolean
+    isSpec: boolean
 }
 
 const SelectionContext = createContext<SelectionContextType | null>(null)
@@ -41,7 +41,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     })
     // Start as not ready, will become ready once we have initialized with a project
     const [isReady, setIsReady] = useState(false)
-    const [isPlan, setIsPlan] = useState(false)
+    const [isSpec, setIsSpec] = useState(false)
     const previousProjectPath = useRef<string | null>(null)
     const hasInitialized = useRef(false)
     
@@ -171,7 +171,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Orchestrator always has terminals and is never a spec
         if (sel.kind === 'orchestrator') {
-            setIsPlan(false)
+            setIsSpec(false)
             const cwd = projectPath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
             return ids
@@ -179,15 +179,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Sessions: Use passed sessionState if available to avoid async fetch
         if (sel.sessionState) {
-            const isPlanSession = sel.sessionState === 'spec'
-            setIsPlan(isPlanSession)
+            const isSpecSession = sel.sessionState === 'spec'
+            setIsSpec(isSpecSession)
             
-            if (isPlanSession) {
-                // Do not create terminals for plans
+            if (isSpecSession) {
+                // Do not create terminals for specs
                 return ids
             }
             
-            // Create terminals for non-plan sessions
+            // Create terminals for non-spec sessions
             const cwd = sel.worktreePath || await invoke<string>('get_current_directory')
             await createTerminal(ids.top, cwd)
             await createTerminal(ids.bottomBase, cwd)
@@ -203,11 +203,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sel.worktreePath || sessionData?.worktree_path
-            const isPlanSession = state === 'spec'
-            setIsPlan(!!isPlanSession)
+            const isSpecSession = state === 'spec'
+            setIsSpec(!!isSpecSession)
 
-            if (isPlanSession) {
-                // Do not create terminals for plans
+            if (isSpecSession) {
+                // Do not create terminals for specs
                 return ids
             }
 
@@ -221,7 +221,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         } catch (e) {
             console.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
-            setIsPlan(false)
+            setIsSpec(false)
             // Don't create terminals if we can't determine session state
             return ids
         }
@@ -318,11 +318,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Get the new terminal IDs to check if they're changing
         const newTerminalIds = getTerminalIds(newSelection)
         
-        // Check if session state is changing from plan to running (or vice versa)
+        // Check if session state is changing from spec to running (or vice versa)
         const isStateTransition = selection.kind === 'session' && 
             newSelection.kind === 'session' && 
             selection.payload === newSelection.payload &&
-            isPlan !== (newSelection.sessionState === 'spec')
+            isSpec !== (newSelection.sessionState === 'spec')
         
         // Check if we're actually changing selection or terminals (but allow initial setup, force recreate, or state transitions)
         if (!forceRecreate && !isStateTransition && isReady && 
@@ -349,14 +349,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // If terminal already exists, update state immediately for instant switch
             if (terminalAlreadyExists && !forceRecreate) {
-                // CRITICAL: Update isPlan state based on the new selection
-                // This was missing and causing stale isPlan when switching from plan to running
+                // CRITICAL: Update isSpec state based on the new selection
+                // This was missing and causing stale isSpec when switching from spec to running
                 if (newSelection.kind === 'session') {
-                    const isPlanSession = newSelection.sessionState === 'spec'
-                    setIsPlan(isPlanSession)
+                    const isSpecSession = newSelection.sessionState === 'spec'
+                    setIsSpec(isSpecSession)
                 } else {
                     // Orchestrator is never a spec
-                    setIsPlan(false)
+                    setIsSpec(false)
                 }
                 
                 // Update selection and terminals immediately
@@ -417,7 +417,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
     }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath])
 
-    // React to backend session refreshes (e.g., plan -> running)
+    // React to backend session refreshes (e.g., spec -> running)
     useEffect(() => {
         let unlisten: (() => void) | null = null
         const attach = async () => {
@@ -429,14 +429,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
                         const worktreePath: string | undefined = sessionData?.worktree_path
-                        const nowPlan = state === 'spec'
-                        const wasPlan = isPlan
+                        const nowSpec = state === 'spec'
+                        const wasSpec = isSpec
 
-                        // Update isPlan state
-                        setIsPlan(!!nowPlan)
+                        // Update isSpec state
+                        setIsSpec(!!nowSpec)
 
-                        // If state changed from plan to running, update selection and ensure terminals
-                        if (wasPlan && !nowPlan) {
+                        // If state changed from spec to running, update selection and ensure terminals
+                        if (wasSpec && !nowSpec) {
                             // Session became running - update the selection's sessionState
                             const updatedSelection = {
                                 ...selection,
@@ -463,7 +463,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
         attach()
         return () => { try { if (unlisten) unlisten() } catch {} }
-    }, [selection, ensureTerminals, getTerminalIds, isPlan])
+    }, [selection, ensureTerminals, getTerminalIds, isSpec])
     
     // Initialize on mount and when project path changes
     useEffect(() => {
@@ -529,7 +529,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         })
     }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection]) // Re-run when projectPath changes
     
-    // Listen for selection events from backend (e.g., when MCP creates/updates plans)
+    // Listen for selection events from backend (e.g., when MCP creates/updates specs)
     useEffect(() => {
         let unlisten: (() => void) | undefined
         
@@ -537,7 +537,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 unlisten = await listen<Selection>('schaltwerk:selection', async (event) => {
                     console.log('Received selection event from backend:', event.payload)
-                    // Set the selection to the requested session/plan - this is intentional (backend requested)
+                    // Set the selection to the requested session/spec - this is intentional (backend requested)
                     await setSelection(event.payload, false, true)
                 })
             } catch (e) {
@@ -562,7 +562,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setSelection,
             clearTerminalTracking,
             isReady,
-            isPlan
+            isSpec
         }}>
             {children}
         </SelectionContext.Provider>

@@ -7,18 +7,18 @@ interface SpecSession {
   created_at: string
   initial_prompt?: string
   draft_content?: string
-  state: 'plan'
+  state: 'spec'
 }
 
 interface Props {
   onOpenSpec: (name: string) => void
 }
 
-export function PlanListView({ onOpenSpec }: Props) {
+export function SpecListView({ onOpenSpec }: Props) {
   const { sessions } = useSessions()
   const [copying, setCopying] = useState<string | null>(null)
 
-  // Extract plan sessions from the global sessions context
+  // Extract spec sessions from the global sessions context
   const specs = useMemo(() => {
     return sessions.filter(session => 
       session.info.status === 'spec' || session.info.session_state === 'spec'
@@ -27,7 +27,7 @@ export function PlanListView({ onOpenSpec }: Props) {
       created_at: session.info.created_at || '',
       initial_prompt: session.info.current_task || '',
       draft_content: '', // This would need to be fetched separately if needed
-      state: 'plan' as const
+      state: 'spec' as const
     }))
   }, [sessions])
 
@@ -38,7 +38,7 @@ export function PlanListView({ onOpenSpec }: Props) {
       const contentToCopy = spec.draft_content || spec.initial_prompt || ''
       await navigator.clipboard.writeText(contentToCopy)
     } catch (err) {
-      console.error('[PlanListView] Failed to copy content:', err)
+      console.error('[SpecListView] Failed to copy content:', err)
     } finally {
       setTimeout(() => setCopying(null), 1000)
     }
@@ -71,8 +71,8 @@ export function PlanListView({ onOpenSpec }: Props) {
           key={d.name}
           className="group w-full bg-slate-900/40 hover:bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-lg px-3 py-2 cursor-pointer transition-colors"
           onClick={() => {
-            // Dispatch event to enter plan mode
-            window.dispatchEvent(new CustomEvent('schaltwerk:enter-plan-mode', {
+            // Dispatch event to enter spec mode
+            window.dispatchEvent(new CustomEvent('schaltwerk:enter-spec-mode', {
               detail: { sessionName: d.name }
             }))
             onOpenSpec(d.name)

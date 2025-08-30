@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import Split from 'react-split'
 import { TerminalGrid } from '../terminal/TerminalGrid'
-import { PlanEditor } from './PlanEditor'
+import { SpecEditor } from './SpecEditor'
 import { VscClose, VscChevronDown, VscAdd } from 'react-icons/vsc'
 import { useSessions } from '../../contexts/SessionsContext'
 import { theme } from '../../common/theme'
@@ -13,10 +13,10 @@ interface Props {
   onSwitchSpec: (newSpecName: string) => void
 }
 
-export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
+export function SpecModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
   const { sessions } = useSessions()
   const [splitSizes, setSplitSizes] = useState<[number, number]>([60, 40])
-  const [showPlanDropdown, setShowPlanDropdown] = useState(false)
+  const [showSpecDropdown, setShowSpecDropdown] = useState(false)
   
   useEffect(() => {
     const savedSizes = localStorage.getItem('schaltwerk:spec-mode:split-sizes')
@@ -27,7 +27,7 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
           setSplitSizes(parsed as [number, number])
         }
       } catch (error) {
-        console.error('[PlanModeLayout] Failed to parse saved split sizes:', error)
+        console.error('[SpecModeLayout] Failed to parse saved split sizes:', error)
       }
     }
   }, [])
@@ -39,8 +39,8 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
     }
   }, [])
   
-  // Get available plans
-  const plans = useMemo(() => {
+  // Get available specs
+  const specs = useMemo(() => {
     return sessions.filter(session => 
       session.info.status === 'spec' || session.info.session_state === 'spec'
     ).map(session => ({
@@ -52,8 +52,8 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (showPlanDropdown) {
-          setShowPlanDropdown(false)
+        if (showSpecDropdown) {
+          setShowSpecDropdown(false)
         } else {
           e.preventDefault()
           onExit()
@@ -63,29 +63,29 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onExit, showPlanDropdown])
+  }, [onExit, showSpecDropdown])
   
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const target = e.target as HTMLElement
       if (!target.closest('.spec-dropdown-container')) {
-        setShowPlanDropdown(false)
+        setShowSpecDropdown(false)
       }
     }
 
-    if (showPlanDropdown) {
+    if (showSpecDropdown) {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [showPlanDropdown])
+  }, [showSpecDropdown])
   
-  const handleStartPlan = useCallback(async () => {
+  const handleStartSpec = useCallback(async () => {
     try {
       await invoke('schaltwerk_core_start_spec_session', { name: sessionName })
       onExit()
     } catch (error) {
-      console.error('[PlanModeLayout] Failed to start spec:', error)
+      console.error('[SpecModeLayout] Failed to start spec:', error)
     }
   }, [sessionName, onExit])
   
@@ -108,22 +108,22 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
           </span>
            <div className="relative spec-dropdown-container">
              <button
-               onClick={() => setShowPlanDropdown(!showPlanDropdown)}
+               onClick={() => setShowSpecDropdown(!showSpecDropdown)}
                className="flex items-center gap-1 px-2 py-1 rounded hover:bg-opacity-10"
                style={{
                  fontSize: theme.fontSize.body,
                  color: theme.colors.text.primary,
-                 backgroundColor: showPlanDropdown ? theme.colors.background.hover : 'transparent'
+                 backgroundColor: showSpecDropdown ? theme.colors.background.hover : 'transparent'
                }}
              >
                <span className="font-medium">{sessionName}</span>
                <VscChevronDown className="text-xs" />
-               {plans.length > 1 && (
-                 <span className="text-xs opacity-60">({plans.length})</span>
+               {specs.length > 1 && (
+                 <span className="text-xs opacity-60">({specs.length})</span>
                )}
             </button>
             
-             {showPlanDropdown && (
+             {showSpecDropdown && (
                <div
                  className="absolute top-full left-0 mt-1 py-1 rounded shadow-lg border min-w-[200px] max-h-[300px] overflow-auto z-50"
                  style={{
@@ -131,22 +131,22 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
                    borderColor: theme.colors.border.default
                  }}
                >
-                 {plans.map((plan) => (
+                 {specs.map((spec) => (
                    <button
-                     key={plan.name}
+                     key={spec.name}
                      onClick={() => {
-                       onSwitchSpec(plan.name)
-                       setShowPlanDropdown(false)
+                       onSwitchSpec(spec.name)
+                       setShowSpecDropdown(false)
                      }}
                      className="w-full text-left px-3 py-1.5 hover:bg-opacity-10 flex items-center justify-between group"
                      style={{
                        fontSize: theme.fontSize.body,
-                       color: plan.name === sessionName ? theme.colors.accent.blue.DEFAULT : theme.colors.text.primary,
-                       backgroundColor: plan.name === sessionName ? theme.colors.accent.blue.bg : 'transparent'
+                       color: spec.name === sessionName ? theme.colors.accent.blue.DEFAULT : theme.colors.text.primary,
+                       backgroundColor: spec.name === sessionName ? theme.colors.accent.blue.bg : 'transparent'
                      }}
                    >
-                     <span className="truncate">{plan.name}</span>
-                     {plan.name === sessionName && (
+                     <span className="truncate">{spec.name}</span>
+                     {spec.name === sessionName && (
                        <span className="text-xs opacity-60">Current</span>
                      )}
                    </button>
@@ -155,7 +155,7 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
                  <button
                    onClick={() => {
                      window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
-                     setShowPlanDropdown(false)
+                     setShowSpecDropdown(false)
                    }}
                    className="w-full text-left px-3 py-1.5 hover:bg-opacity-10 flex items-center gap-2"
                    style={{
@@ -209,9 +209,9 @@ export function PlanModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
             className="overflow-hidden"
             style={{ backgroundColor: theme.colors.background.secondary }}
           >
-             <PlanEditor
+             <SpecEditor
                sessionName={sessionName}
-               onStart={handleStartPlan}
+               onStart={handleStartSpec}
              />
           </div>
         </Split>

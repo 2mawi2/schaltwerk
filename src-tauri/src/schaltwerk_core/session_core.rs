@@ -364,15 +364,37 @@ impl SessionManager {
 
     pub fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>> {
         let sessions = self.db_manager.list_sessions()?;
+        log::info!("list_enriched_sessions: Found {} total sessions in database", sessions.len());
         let mut enriched = Vec::new();
         
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
                 continue;
             }
+            log::debug!("Processing session '{}': status={:?}, session_state={:?}", 
+                       session.name, session.status, session.session_state);
+            
+            // Check if worktree exists for non-spec sessions
+            let worktree_exists = session.worktree_path.exists();
+            let is_spec_session = session.session_state == SessionState::Spec;
+            
+            // For spec sessions, we don't need worktrees to exist
+            // For running sessions, skip if worktree is missing (unless in test mode)
+            if !is_spec_session && !worktree_exists && !cfg!(test) {
+                log::warn!(
+                    "Skipping session '{}' - worktree missing: {}",
+                    session.name,
+                    session.worktree_path.display()
+                );
+                continue;
+            }
             
             let git_stats = self.db_manager.get_enriched_git_stats(&session)?;
-            let has_uncommitted = git_stats.as_ref().map(|s| s.has_uncommitted).unwrap_or(false);
+            let has_uncommitted = if worktree_exists {
+                git_stats.as_ref().map(|s| s.has_uncommitted).unwrap_or(false)
+            } else {
+                false
+            };
             
             let diff_stats = git_stats.as_ref().map(|stats| DiffStats {
                 files_changed: stats.files_changed as usize,
@@ -381,10 +403,20 @@ impl SessionManager {
                 insertions: stats.lines_added as usize,
             });
             
-            let status_type = match session.status {
-                SessionStatus::Active => SessionStatusType::Active,
-                SessionStatus::Cancelled => SessionStatusType::Archived,
-                SessionStatus::Spec => SessionStatusType::Spec,
+            let status_type = if !worktree_exists && !is_spec_session {
+                SessionStatusType::Missing
+            } else {
+                match session.status {
+                    SessionStatus::Active => {
+                        if has_uncommitted {
+                            SessionStatusType::Dirty
+                        } else {
+                            SessionStatusType::Active
+                        }
+                    },
+                    SessionStatus::Cancelled => SessionStatusType::Archived,
+                    SessionStatus::Spec => SessionStatusType::Spec,
+                }
             };
             
             let original_agent_type = session
@@ -426,6 +458,7 @@ impl SessionManager {
             });
         }
         
+        log::info!("list_enriched_sessions: Returning {} enriched sessions", enriched.len());
         Ok(enriched)
     }
 

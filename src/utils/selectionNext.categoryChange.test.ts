@@ -111,12 +111,12 @@ describe('Real-world Category Change Scenarios', () => {
 
   it('handles changing filter from All to Specs', () => {
     // Initial state: All sessions with mixed types, user selects session at index 3
-    const allSessions = sessions(['plan-a', 'running-b', 'running-c', 'spec-d', 'running-e'])
+    const allSessions = sessions(['spec-a', 'running-b', 'running-c', 'spec-d', 'running-e'])
     const selectedId = 'spec-d'
     const prevIndex = findPreviousSessionIndex(allSessions, selectedId)
     
-    // User switches to Specs filter, only plan sessions visible
-    const specSessions = sessions(['plan-a', 'spec-d'])
+    // User switches to Specs filter, only spec sessions visible
+    const specSessions = sessions(['spec-a', 'spec-d'])
     
     // Since spec-d is still visible, but we're testing the general logic:
     // If spec-d disappeared, we'd select the session at position 3 or last available
