@@ -53,7 +53,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const unlistenRef = useRef<UnlistenFn | null>(null);
     const unlistenPromiseRef = useRef<Promise<UnlistenFn> | null>(null);
-    const startAttempts = useRef<Map<string, number>>(new Map());
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
@@ -709,34 +708,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             setAgentLoading(true);
             try {
                 if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
-                    const exists = await invoke<boolean>('terminal_exists', { id: terminalId });
-                    if (!exists) {
-                        const attempts = (startAttempts.current.get(terminalId) || 0) + 1;
-                        if (attempts <= 10) {
-                            startAttempts.current.set(terminalId, attempts);
-                            startingTerminals.current.set(terminalId, false);
-                            setTimeout(start, 150);
-                            return;
-                        }
-                        startingTerminals.current.set(terminalId, false);
-                        return;
-                    }
+                    // OPTIMIZATION: Skip terminal_exists check - trust that hydrated terminals are ready
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
                      try {
                             await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
-                            // Focus the terminal after Claude starts successfully
-                            requestAnimationFrame(() => {
-                                if (terminal.current) {
-                                    terminal.current.focus();
-                                }
-                            });
-                            // Ensure terminal is fully ready before showing it
-                            requestAnimationFrame(() => {
-                                requestAnimationFrame(() => {
-                                    setAgentLoading(false);
-                                });
-                            });
+                            // OPTIMIZATION: Immediate focus and loading state update
+                            if (terminal.current) {
+                                terminal.current.focus();
+                            }
+                            setAgentLoading(false);
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
                          startedGlobal.delete(terminalId);
@@ -770,12 +751,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                          }
                          throw e;
                      }
-                     // Ensure terminal state is properly reset
-                     requestAnimationFrame(() => {
-                         requestAnimationFrame(() => {
-                             setAgentLoading(false);
-                         });
-                     });
+                     // OPTIMIZATION: Immediate state reset
+                     setAgentLoading(false);
                      startingTerminals.current.set(terminalId, false);
                 } else {
                     const expectedId = sessionName ? `session-${sessionName}-top` : null;
@@ -787,18 +764,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         startingTerminals.current.set(terminalId, false);
                         return;
                     }
-                    const exists = await invoke<boolean>('terminal_exists', { id: terminalId });
-                    if (!exists) {
-                        const attempts = (startAttempts.current.get(terminalId) || 0) + 1;
-                        if (attempts <= 10) {
-                            startAttempts.current.set(terminalId, attempts);
-                            startingTerminals.current.set(terminalId, false);
-                            setTimeout(start, 150);
-                            return;
-                        }
-                        startingTerminals.current.set(terminalId, false);
-                        return;
-                    }
+                    // OPTIMIZATION: Skip session terminal_exists check too
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
                      try {
@@ -829,12 +795,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                          }
                          throw e;
                      }
-                     // Ensure terminal state is properly reset
-                     requestAnimationFrame(() => {
-                         requestAnimationFrame(() => {
-                             setAgentLoading(false);
-                         });
-                     });
+                     // OPTIMIZATION: Immediate state reset
+                     setAgentLoading(false);
                      startingTerminals.current.set(terminalId, false);
                  }
               } catch (error) {

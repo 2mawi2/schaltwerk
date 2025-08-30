@@ -396,21 +396,3 @@ mod tests {
         assert!(!paths.contains("only_main.txt"), "should not include changes that exist only on parent branch");
     }
 }
-
-#[cfg(test)]
-pub fn parse_numstat_line(line: &str) -> Option<(u32, u32, &str)> {
-    if line.is_empty() {
-        return None;
-    }
-    
-    let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.len() < 3 {
-        return None;
-    }
-    
-    let added = if parts[0] == "-" { 0 } else { parts[0].parse().unwrap_or(0) };
-    let removed = if parts[1] == "-" { 0 } else { parts[1].parse().unwrap_or(0) };
-    let file = parts[2];
-    
-    Some((added, removed, file))
-}

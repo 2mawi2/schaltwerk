@@ -5,13 +5,6 @@ mod worktrees;
 mod stats;
 mod operations;
 
-#[cfg(test)]
-mod worktree_benchmark;
-#[cfg(test)]
-mod branches_benchmark;
-#[cfg(test)]
-mod stats_benchmark;
-
 pub use repository::{discover_repository, get_default_branch, init_repository, repository_has_commits, create_initial_commit, INITIAL_COMMIT_MESSAGE};
 
 #[cfg(test)]
@@ -23,14 +16,6 @@ pub use worktrees::{create_worktree_from_base, remove_worktree, list_worktrees, 
 pub use worktrees::is_worktree_registered;
 pub use stats::{calculate_git_stats_fast, get_changed_files};
 pub use operations::{has_uncommitted_changes, commit_all_changes, is_valid_session_name};
-
-
-
-
-
-
-
-
 
 
 

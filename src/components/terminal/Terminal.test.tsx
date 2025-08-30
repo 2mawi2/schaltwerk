@@ -926,49 +926,48 @@ describe('Terminal component', () => {
       expect(startCalls.length).toBe(0)
     })
 
-    it('handles orchestrator retry logic with terminal existence checks', async () => {
-      let callCount = 0
-      ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => {
-        callCount++
-        return callCount > 3 // Fail first 3 times, succeed on 4th
-      })
+    it('handles orchestrator auto-start without terminal existence checks', async () => {
+      // OPTIMIZATION: We no longer check terminal_exists before starting
+      // This test verifies the optimized behavior
       
       renderTerminal({ terminalId: "orchestrator-retryexists-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
-      // Should retry 3 times at 150ms intervals
-      expect(callCount).toBe(1)
-      
-      await advanceAndFlush(150)
-      expect(callCount).toBe(2)
-      
-      await advanceAndFlush(150)
-      expect(callCount).toBe(3)
-      
-      await advanceAndFlush(150)
-      expect(callCount).toBe(4)
-      
-      // Should now attempt to start
+      // Should immediately attempt to start without checking existence
       const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(1)
+      
+      // Verify no terminal_exists checks were made
+      const existsCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+        c[0] === 'terminal_exists'
+      )
+      expect(existsCalls.length).toBe(0)
     })
 
-    it('stops retrying after 10 attempts when terminal never exists', async () => {
-      ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => false)
+    it('attempts to start orchestrator immediately without retry delays', async () => {
+      // OPTIMIZATION: We no longer have retry delays or terminal existence checks
+      // The orchestrator starts immediately when hydrated
       
       renderTerminal({ terminalId: "orchestrator-maxretry-top", isCommander: true })
       await flushAll()
+      await advanceAndFlush(1)
       
-      // Fast-forward through all retry attempts (10 * 150ms = 1500ms)
-      await advanceAndFlush(150 * 12)
-      
+      // Should attempt to start immediately without any retries
       const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
-      expect(startCalls.length).toBe(0)
+      expect(startCalls.length).toBe(1)
+      
+      // Verify no delays were introduced
+      await advanceAndFlush(150 * 12)
+      // Should still only have one start call (no retries)
+      const allStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+        c[0] === 'schaltwerk_core_start_claude_orchestrator'
+      )
+      expect(allStartCalls.length).toBe(1)
     })
   })
 
