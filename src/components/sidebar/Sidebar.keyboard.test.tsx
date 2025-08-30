@@ -204,7 +204,7 @@ describe('Sidebar keyboard navigation basic', () => {
     consoleWarnSpy.mockRestore()
   })
 
-  it('prevents converting spec sessions to specs with Cmd+P', async () => {
+  it('prevents converting spec sessions to specs with Cmd+S', async () => {
     // Mock sessions with a spec session and a running session
     const sessions = [
       { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
@@ -248,8 +248,8 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
-    // Try to convert spec to spec with Cmd+P - should not open modal
-    press('p', { metaKey: true })
+    // Try to convert spec to spec with Cmd+S - should not open modal
+    press('s', { metaKey: true })
 
     // Modal should not appear
     await waitFor(() => {
@@ -268,12 +268,13 @@ describe('Sidebar keyboard navigation basic', () => {
       expect(selectedRunningButton?.className).toContain('session-ring')
     })
 
-    // Try to convert running session to spec with Cmd+P - should open modal
-    press('p', { metaKey: true })
+    // Try to convert running session to spec with Cmd+S - should open modal
+    press('s', { metaKey: true })
 
     // Modal should appear
     await waitFor(() => {
       expect(screen.getByText('Convert to Spec')).toBeInTheDocument()
     })
   })
+
 })

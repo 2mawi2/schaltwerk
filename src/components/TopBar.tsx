@@ -138,7 +138,7 @@ export function TopBar({
                  ? 'bg-amber-600/20 text-amber-300 hover:bg-amber-600/30'
                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
              }`}
-             title="Spec Mode (⌘⇧P)"
+             title="Spec Mode (⌘⇧S)"
              aria-label="Spec Mode"
            >
              <VscSplitHorizontal className="text-[14px]" />

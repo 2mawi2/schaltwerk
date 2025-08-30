@@ -452,10 +452,10 @@ export default function App() {
     }
   }, [selection])
   
-  // Handle keyboard shortcut for spec mode (Cmd+Shift+P in orchestrator)
+  // Handle keyboard shortcut for spec mode (Cmd+Shift+S in orchestrator)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'P' || e.key === 'p')) {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
         if (selection.kind === 'orchestrator') {
           e.preventDefault()
           if (commanderSpecModeSession) {

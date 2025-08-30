@@ -214,16 +214,18 @@ export const SessionButton = memo<SessionButtonProps>(({
                                 Unmark
                             </span>
                         )}
-                        <span 
-                            onClick={(e) => {
-                                e.stopPropagation()
-                                onConvertToSpec?.(s.session_id)
-                            }}
-                             className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/60"
-                             title="Convert back to spec (⌘P)"
-                         >
-                            Spec
-                        </span>
+                        {!isReadyToMerge && (
+                            <span 
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    onConvertToSpec?.(s.session_id)
+                                }}
+                                 className="inline-block cursor-pointer text-[11px] px-2 py-0.5 rounded bg-amber-800/60 hover:bg-amber-700/60"
+                                 title="Convert back to spec (⌘S)"
+                             >
+                                Spec
+                            </span>
+                        )}
                         <span 
                             onClick={(e) => {
                                 e.stopPropagation()

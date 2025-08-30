@@ -74,7 +74,7 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
                      event.preventDefault()
                      onMarkSelectedSessionReady()
                  }
-             } else if (key === 'p' || key === 'P') {
+             } else if (key === 's' || key === 'S') {
                  if (onSpecSession && !event.shiftKey) {
                      event.preventDefault()
                      onSpecSession()
@@ -92,10 +92,10 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
             }
         }
         
-        window.addEventListener('keydown', handleKeyDown)
+        window.addEventListener('keydown', handleKeyDown, true) // Use capture phase
         
         return () => {
-            window.removeEventListener('keydown', handleKeyDown)
+            window.removeEventListener('keydown', handleKeyDown, true)
         }
     }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen])
 }

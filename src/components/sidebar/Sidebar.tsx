@@ -313,8 +313,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleSpecSelectedSession = () => {
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
-            if (selectedSession && !isSpec(selectedSession.info)) {
-                // Only allow converting running sessions to specs, not specs themselves
+            if (selectedSession && !isSpec(selectedSession.info) && !isReviewed(selectedSession.info)) {
+                // Allow converting running sessions to specs only, not reviewed or spec sessions
                 setConvertToDraftModal({
                     open: true,
                     sessionName: selectedSession.info.session_id,
@@ -617,6 +617,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }))
                                 }}
                                 onConvertToSpec={(sessionId) => {
+                                    // Only allow converting running sessions to specs, not reviewed sessions
+                                    if (isReviewed(session.info)) {
+                                        console.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
+                                        return
+                                    }
                                     // Open confirmation modal
                                     setConvertToDraftModal({
                                         open: true,

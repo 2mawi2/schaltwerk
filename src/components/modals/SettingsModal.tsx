@@ -1083,7 +1083,7 @@ fi`}
                                  </li>
                                  <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Convert Session to Spec</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + P</kbd>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + S</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Open Diff Viewer (Session/Orchestrator)</span>
@@ -1095,7 +1095,7 @@ fi`}
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Enter Spec Mode (Orchestrator)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + P</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + S</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Finish Review (in diff viewer)</span>

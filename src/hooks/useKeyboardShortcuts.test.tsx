@@ -532,7 +532,7 @@ describe('useKeyboardShortcuts', () => {
        expect(onMarkSelectedSessionReady).toHaveBeenCalledTimes(2)
    })
 
-   it('converts session to spec with Cmd+P', () => {
+   it('converts session to spec with Cmd+S', () => {
        const onSpecSession = vi.fn()
        const onSelectOrchestrator = vi.fn()
        const onSelectSession = vi.fn()
@@ -544,14 +544,14 @@ describe('useKeyboardShortcuts', () => {
            sessionCount: 1
        }))
 
-       pressKey('p', { metaKey: true })
+       pressKey('s', { metaKey: true })
        expect(onSpecSession).toHaveBeenCalledTimes(1)
 
-       pressKey('P', { metaKey: true })
+       pressKey('S', { metaKey: true })
        expect(onSpecSession).toHaveBeenCalledTimes(2)
    })
 
-   it('does not trigger spec shortcut with Cmd+Shift+P', () => {
+   it('does not trigger spec shortcut with Cmd+Shift+S', () => {
        const onSpecSession = vi.fn()
        const onSelectOrchestrator = vi.fn()
        const onSelectSession = vi.fn()
@@ -563,10 +563,10 @@ describe('useKeyboardShortcuts', () => {
            sessionCount: 1
        }))
 
-       pressKey('p', { metaKey: true, shiftKey: true })
+       pressKey('s', { metaKey: true, shiftKey: true })
        expect(onSpecSession).not.toHaveBeenCalled()
 
-       pressKey('P', { metaKey: true, shiftKey: true })
+       pressKey('S', { metaKey: true, shiftKey: true })
        expect(onSpecSession).not.toHaveBeenCalled()
    })
 
@@ -680,11 +680,11 @@ describe('useKeyboardShortcuts', () => {
         sessionCount: 1
       }))
 
-      expect(addEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
+      expect(addEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function), true)
 
       unmount()
 
-      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function), true)
 
       addEventListenerSpy.mockRestore()
       removeEventListenerSpy.mockRestore()
