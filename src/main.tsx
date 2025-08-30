@@ -26,12 +26,8 @@ const AppLoader: React.FC = () => {
       }, 300)
     }
 
-    // Allow time for initial setup and logo animation
-    const timer = setTimeout(() => {
-      setIsLoading(false)
-    }, 500)
-
-    return () => clearTimeout(timer)
+    // Start animation immediately (no delay)
+    setIsLoading(false)
   }, [])
 
   return (

@@ -22,14 +22,14 @@ export const EntryAnimation: React.FC<EntryAnimationProps> = ({ children, isLoad
       const logoAnimationTimer = setTimeout(() => {
         setAnimationPhase('content-entering')
         
-        // After content slides in, mark as complete
+        // Quick transition to complete phase
         setTimeout(() => {
           setAnimationPhase('complete')
-          // Hide the logo overlay once everything is loaded
+          // Wait for opacity transition (300ms) before hiding logo
           setTimeout(() => {
             setShowLogo(false)
           }, 300)
-        }, 600)
+        }, 200)
       }, 2400)
       
       return () => clearTimeout(logoAnimationTimer)
@@ -78,12 +78,9 @@ export const EntryAnimation: React.FC<EntryAnimationProps> = ({ children, isLoad
       <div 
         className={`
           h-screen w-screen
-          transition-opacity duration-600 ease-out
+          transition-opacity duration-300 ease-out
           ${animationPhase === 'content-entering' || animationPhase === 'complete' ? 'opacity-100' : 'opacity-0'}
         `}
-        style={{
-          transitionDelay: animationPhase === 'content-entering' ? '100ms' : '0ms'
-        }}
       >
         {children}
       </div>
