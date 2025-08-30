@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 interface ModelSelectorProps {
     value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
@@ -11,28 +11,28 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
     const [focusedIndex, setFocusedIndex] = useState(-1)
     const dropdownRef = useRef<HTMLDivElement>(null)
     
-    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex', label: string, color: string }> = [
+    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex', label: string, color: string }> = useMemo(() => [
         { value: 'claude', label: 'Claude', color: 'blue' },
         { value: 'cursor', label: 'Cursor', color: 'purple' },
         { value: 'opencode', label: 'OpenCode', color: 'green' },
         { value: 'gemini', label: 'Gemini', color: 'orange' },
         { value: 'codex', label: 'Codex', color: 'red' }
-    ]
-    
+    ], [])
+
     const selectedModel = models.find(m => m.value === value) || models[0]
-    
-    const handleSelect = (modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
+
+    const handleSelect = useCallback((modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
         onChange(modelValue)
         setIsOpen(false)
         setFocusedIndex(-1)
-    }
+    }, [onChange, setIsOpen, setFocusedIndex])
 
     useEffect(() => {
         if (isOpen) {
             const currentIndex = models.findIndex(m => m.value === value)
             setFocusedIndex(currentIndex >= 0 ? currentIndex : 0)
         }
-    }, [isOpen, value])
+    }, [isOpen, value, models])
 
     useEffect(() => {
         if (!isOpen) return
@@ -69,7 +69,7 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isOpen, focusedIndex, models])
+    }, [isOpen, focusedIndex, models, handleSelect])
     
     return (
         <div className="relative">

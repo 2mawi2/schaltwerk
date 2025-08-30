@@ -96,7 +96,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // }, [files, allFileDiffs, viewMode])
 
   
-  const isCommanderView = () => selection.kind === 'orchestrator'
+   const isCommanderView = useCallback(() => selection.kind === 'orchestrator', [selection.kind])
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
   
   // Helper to check if a line has comments
@@ -167,56 +167,56 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [continuousScroll, selectedFile, files, sessionName])
 
-  const getChangedFilesForContext = async () => {
-    if (isCommanderView()) {
-      return await invoke<ChangedFile[]>('get_orchestrator_working_changes')
-    }
-    return await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
-  }
+   const getChangedFilesForContext = useCallback(async () => {
+     if (isCommanderView()) {
+       return await invoke<ChangedFile[]>('get_orchestrator_working_changes')
+     }
+      return await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
+    }, [sessionName, isCommanderView])
 
-  const loadChangedFiles = useCallback(async () => {
-    try {
-      const changedFiles = await getChangedFilesForContext()
-      setFiles(changedFiles)
-      
-      // Prime initial selection
-      let initialIndex = 0
-      let initialPath: string | null = filePath || null
-      if (changedFiles.length > 0) {
-        if (!initialPath) initialPath = changedFiles[0].path
-        const found = changedFiles.findIndex(f => f.path === initialPath)
-        initialIndex = found >= 0 ? found : 0
-      }
+   const loadChangedFiles = useCallback(async () => {
+     try {
+       const changedFiles = await getChangedFilesForContext()
+       setFiles(changedFiles)
 
-      if (initialPath) {
-        setSelectedFile(initialPath)
-        setSelectedFileIndex(initialIndex)
-        // Load only the initially selected file first for fast TTI
-        try {
-          const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
-          setAllFileDiffs(prev => {
-            const merged = new Map(prev)
-            merged.set(initialPath, primary)
-            return merged
-          })
-        } catch (e) {
-          const msg = e instanceof Error ? e.message : String(e)
-          setFileError(msg)
-        }
-      }
+       // Prime initial selection
+       let initialIndex = 0
+       let initialPath: string | null = filePath || null
+       if (changedFiles.length > 0) {
+         if (!initialPath) initialPath = changedFiles[0].path
+         const found = changedFiles.findIndex(f => f.path === initialPath)
+         initialIndex = found >= 0 ? found : 0
+       }
 
-      // Note: We now use lazy loading - diffs are loaded on-demand when user navigates to them
-      // This provides instant modal opening and smooth performance
-      
-      const currentBranch = await invoke<string>('get_current_branch_name', { sessionName })
-      const baseBranch = await invoke<string>('get_base_branch_name', { sessionName })
-      const [baseCommit, headCommit] = await invoke<[string, string]>('get_commit_comparison_info', { sessionName })
-      
-      setBranchInfo({ currentBranch, baseBranch, baseCommit, headCommit })
-    } catch (error) {
-      console.error('Failed to load changed files:', error)
-    }
-  }, [sessionName, filePath])
+       if (initialPath) {
+         setSelectedFile(initialPath)
+         setSelectedFileIndex(initialIndex)
+         // Load only the initially selected file first for fast TTI
+         try {
+           const primary = await loadFileDiff(sessionName, changedFiles[initialIndex], 'unified')
+           setAllFileDiffs(prev => {
+             const merged = new Map(prev)
+             merged.set(initialPath, primary)
+             return merged
+           })
+         } catch (e) {
+           const msg = e instanceof Error ? e.message : String(e)
+           setFileError(msg)
+         }
+       }
+
+       // Note: We now use lazy loading - diffs are loaded on-demand when user navigates to them
+       // This provides instant modal opening and smooth performance
+
+       const currentBranch = await invoke<string>('get_current_branch_name', { sessionName })
+       const baseBranch = await invoke<string>('get_base_branch_name', { sessionName })
+       const [baseCommit, headCommit] = await invoke<[string, string]>('get_commit_comparison_info', { sessionName })
+
+       setBranchInfo({ currentBranch, baseBranch, baseCommit, headCommit })
+     } catch (error) {
+       console.error('Failed to load changed files:', error)
+     }
+   }, [sessionName, filePath, getChangedFilesForContext, setFiles, setSelectedFile, setSelectedFileIndex, setAllFileDiffs, setFileError, setBranchInfo])
 
   const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
@@ -809,7 +809,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     setShowCommentForm(false)
     setCommentFormPosition(null)
     lineSelection.clearSelection()
-  }, [lineSelection, selectedFile, allFileDiffs, addComment])
+   }, [lineSelection, selectedFile, allFileDiffs, addComment, sessionName])
 
   const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
 

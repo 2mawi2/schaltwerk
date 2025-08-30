@@ -28,9 +28,9 @@ import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
 
 // Simple debounce utility
-function debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
+function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
   let timeout: NodeJS.Timeout | null = null
-  return ((...args: any[]) => {
+  return ((...args: Parameters<T>) => {
     if (timeout) clearTimeout(timeout)
     timeout = setTimeout(() => func(...args), wait)
   }) as T
@@ -88,8 +88,27 @@ export default function App() {
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
 
+  // Helper function to handle session cancellation
+  const handleCancelSession = useCallback(async () => {
+    if (!currentSession) return
+
+    try {
+      setIsCancelling(true)
+      await invoke('schaltwerk_core_cancel_session', {
+        name: currentSession.name
+      })
+      setCancelModalOpen(false)
+
+    } catch (error) {
+      console.error('Failed to cancel session:', error)
+      alert(`Failed to cancel session: ${error}`)
+    } finally {
+      setIsCancelling(false)
+    }
+  }, [currentSession])
+
   // Local helper to apply project activation consistently
-  const applyActiveProject = async (path: string, options: { initializeBackend?: boolean } = {}) => {
+  const applyActiveProject = useCallback(async (path: string, options: { initializeBackend?: boolean } = {}) => {
     const { initializeBackend = true } = options
 
     try {
@@ -121,12 +140,12 @@ export default function App() {
           window.dispatchEvent(new CustomEvent('schaltwerk:open-new-project-dialog'))
         }
       } catch (e) {
-        console.warn('repository_is_empty check failed:', e)
+        console.warn('Failed to check if repository is empty:', e)
       }
     } catch (error) {
       console.error('Failed to activate project:', error)
     }
-  }
+  }, [setProjectPath, setShowHome, setOpenTabs, setActiveTabPath])
 
   // Handle CLI directory argument
   useEffect(() => {
@@ -159,11 +178,11 @@ export default function App() {
       }
     })()
 
-    return () => {
+     return () => {
       unlistenDirectoryPromise.then(unlisten => unlisten())
       unlistenHomePromise.then(unlisten => unlisten())
     }
-  }, [])
+  }, [applyActiveProject, setProjectPath])
 
 
   useEffect(() => {
@@ -210,9 +229,9 @@ export default function App() {
       }
     }
 
-    window.addEventListener('schaltwerk:session-action' as any, handleSessionAction)
-    return () => window.removeEventListener('schaltwerk:session-action' as any, handleSessionAction)
-  }, [])
+    window.addEventListener('schaltwerk:session-action', handleSessionAction as EventListener)
+    return () => window.removeEventListener('schaltwerk:session-action', handleSessionAction as EventListener)
+  }, [handleCancelSession])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -298,24 +317,25 @@ export default function App() {
       setSelectedDiffFile(null)
       setIsDiffViewerOpen(true)
     }
-    const handleOpenDiffFile = (e: any) => {
-      const filePath = e?.detail?.filePath as string | null
-      setSelectedDiffFile(filePath || null)
+    const handleOpenDiffFile = (e: Event) => {
+      const customEvent = e as CustomEvent<{ filePath?: string }>
+      const filePath = customEvent?.detail?.filePath || null
+      setSelectedDiffFile(filePath)
       setIsDiffViewerOpen(true)
     }
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('global-new-session-shortcut', handleGlobalNewSession)
     window.addEventListener('global-kanban-shortcut', handleGlobalKanban)
-    window.addEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
-    window.addEventListener('schaltwerk:open-diff-file' as any, handleOpenDiffFile)
+    window.addEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
+    window.addEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('global-new-session-shortcut', handleGlobalNewSession)
       window.removeEventListener('global-kanban-shortcut', handleGlobalKanban)
-      window.removeEventListener('schaltwerk:open-diff-view' as any, handleOpenDiffView)
-      window.removeEventListener('schaltwerk:open-diff-file' as any, handleOpenDiffFile)
+    window.removeEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
+    window.removeEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
@@ -327,8 +347,8 @@ export default function App() {
                        setOpenAsSpec(true)
       setNewSessionOpen(true)
     }
-    window.addEventListener('schaltwerk:new-spec', handler as any)
-    return () => window.removeEventListener('schaltwerk:new-spec', handler as any)
+    window.addEventListener('schaltwerk:new-spec', handler as EventListener)
+    return () => window.removeEventListener('schaltwerk:new-spec', handler as EventListener)
   }, [])
   
   // Auto-enter spec mode when a new spec is created
@@ -339,8 +359,8 @@ export default function App() {
         setCommanderSpecModeSession(event.detail.name)
       }
     }
-    window.addEventListener('schaltwerk:spec-created' as any, handleSpecCreated)
-    return () => window.removeEventListener('schaltwerk:spec-created' as any, handleSpecCreated)
+    window.addEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
+    return () => window.removeEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
   }, [selection])
   
   // Handle MCP spec updates - detect new specs and focus them in spec mode
@@ -382,15 +402,16 @@ export default function App() {
        setOpenAsSpec(false)
       setNewSessionOpen(true)
     }
-    window.addEventListener('schaltwerk:new-session', handler as any)
-    return () => window.removeEventListener('schaltwerk:new-session', handler as any)
+    window.addEventListener('schaltwerk:new-session', handler as EventListener)
+    return () => window.removeEventListener('schaltwerk:new-session', handler as EventListener)
   }, [])
 
   // Open Start Agent modal prefilled from an existing spec
   useEffect(() => {
-    const handler = async (event: any) => {
-      console.log('[App] Received start-agent-from-spec event:', event?.detail)
-      const name = event?.detail?.name as string | undefined
+    const handler = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ name?: string }>
+      console.log('[App] Received start-agent-from-spec event:', customEvent.detail)
+      const name = customEvent.detail?.name
       if (!name) {
         console.warn('[App] No name provided in start-agent-from-spec event')
         return
@@ -423,8 +444,8 @@ export default function App() {
         console.warn('[App] No prefill data fetched for session:', name)
       }
     }
-    window.addEventListener('schaltwerk:start-agent-from-spec' as any, handler)
-    return () => window.removeEventListener('schaltwerk:start-agent-from-spec' as any, handler)
+    window.addEventListener('schaltwerk:start-agent-from-spec', handler as EventListener)
+    return () => window.removeEventListener('schaltwerk:start-agent-from-spec', handler as EventListener)
   }, [fetchSessionForPrefill])
 
   // Handle entering spec mode
@@ -436,8 +457,8 @@ export default function App() {
       }
     }
 
-    window.addEventListener('schaltwerk:enter-spec-mode' as any, handleEnterSpecMode)
-    return () => window.removeEventListener('schaltwerk:enter-spec-mode' as any, handleEnterSpecMode)
+    window.addEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
+    return () => window.removeEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
   }, [selection])
 
   // Handle exiting spec mode
@@ -480,24 +501,6 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [selection, commanderSpecModeSession, sessions])
-
-  const handleCancelSession = async () => {
-    if (!currentSession) return
-
-    try {
-      setIsCancelling(true)
-      await invoke('schaltwerk_core_cancel_session', {
-        name: currentSession.name
-      })
-      setCancelModalOpen(false)
-
-    } catch (error) {
-      console.error('Failed to cancel session:', error)
-      alert(`Failed to cancel session: ${error}`)
-    } finally {
-      setIsCancelling(false)
-    }
-  }
 
   const handleDeleteSpec = async () => {
     if (!currentSession) return
@@ -569,7 +572,7 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, 200))
 
         // Get the started session to get correct worktree path and state
-        const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
+        const sessionData = await invoke<{ worktree_path: string; session_state: string }>('schaltwerk_core_get_session', { name: data.name })
 
         // Only switch to the session if it matches the current filter
         // Running sessions are visible in 'all' and 'running' filters
@@ -618,7 +621,7 @@ export default function App() {
         setNewSessionOpen(false)
 
         // Get the created session to get the correct worktree path
-        const sessionData = await invoke('schaltwerk_core_get_session', { name: data.name }) as any
+        const sessionData = await invoke<{ worktree_path: string }>('schaltwerk_core_get_session', { name: data.name })
 
         // Only switch to the new session if it matches the current filter
         // Running sessions are visible in 'all' and 'running' filters

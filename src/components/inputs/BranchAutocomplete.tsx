@@ -162,7 +162,7 @@ export function BranchAutocomplete({
             setFilteredBranches(branches.slice(0, 20))
             setHighlightedIndex(0)
         }
-    }, [filteredBranches, highlightedIndex, onChange, isOpen])
+    }, [filteredBranches, highlightedIndex, onChange, branches, value])
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         onChange(e.target.value)

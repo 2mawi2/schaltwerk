@@ -10,7 +10,7 @@ interface TabProps {
 
 export function Tab({ projectPath, projectName, isActive, onSelect, onClose }: TabProps) {
   return (
-    <div style={{ WebkitAppRegion: 'no-drag' } as any}>
+    <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion?: string }}>
       <UnifiedTab
         id={projectPath}
         label={projectName}

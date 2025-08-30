@@ -35,7 +35,7 @@ vi.mock('./components/TabBar', () => ({
   TabBar: () => <div data-testid="tab-bar" />,
 }))
 vi.mock('./components/TopBar', () => ({
-  TopBar: ({ onGoHome, tabs }: { onGoHome: () => void, tabs: any[] }) => (
+  TopBar: ({ onGoHome, tabs }: { onGoHome: () => void, tabs: unknown[] }) => (
     <div data-testid="top-bar">
       <button onClick={onGoHome} aria-label="Home">Home</button>
       {tabs && tabs.length > 0 && <div data-testid="tab-bar" />}

@@ -316,11 +316,11 @@ export function AsciiBuilderLogo({
     scanIndexRef.current = 0
     scanDirRef.current = 1
     allSetAtRef.current = -1
-  }, [
-    width, height, targetCells, cellToGroup,
-    groups, centerX, centerY,
-    fallDurationMs, settleDurationMs, groupGapMs
-  ])
+   }, [
+     width, height, targetCells, cellNormals, cellToGroup,
+     groups, centerX, centerY,
+     fallDurationMs, settleDurationMs, groupGapMs
+   ])
 
   useEffect(() => {
     if (!preRef.current) return
@@ -621,13 +621,13 @@ export function AsciiBuilderLogo({
       running = false
       if (frameRef.current != null) caf(frameRef.current)
     }
-  }, [
-    width, height, paused,
-    spinDurationMs, cameraDollyMs, fallDurationMs, settleDurationMs,
-    shadingCharset, groups.segments.length, shakeIntensity,
-    idleMode, idlePulseMinDelayMs, idlePulseMaxDelayMs, idlePulseDurationMs, idlePulseAngleDeg,
-    idleArtifactMinDelayMs, idleArtifactMaxDelayMs, idleArtifactDurationMs, idleArtifactMagnitude, idleArtifactFraction
-  ])
+   }, [
+     width, height, paused,
+     spinDurationMs, cameraDollyMs, fallDurationMs, settleDurationMs, groupGapMs,
+     shadingCharset, groups.segments.length, shakeIntensity,
+     idleMode, idlePulseMinDelayMs, idlePulseMaxDelayMs, idlePulseDurationMs, idlePulseAngleDeg,
+     idleArtifactMinDelayMs, idleArtifactMaxDelayMs, idleArtifactDurationMs, idleArtifactMagnitude, idleArtifactFraction
+   ])
 
   return (
     <pre

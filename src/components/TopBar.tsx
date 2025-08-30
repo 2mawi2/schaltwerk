@@ -44,7 +44,7 @@ export function TopBar({
       try {
         await getCurrentWindow().startDragging()
       } catch (err) {
-        console.error('Failed to start dragging:', err)
+        console.warn('Failed to start window dragging:', err)
       }
     }
     

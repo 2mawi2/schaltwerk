@@ -34,6 +34,30 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
     setTotalMatches(0)
   }, [])
 
+  const scrollToMatch = useCallback((matchIndex: number, matchList: SearchMatch[] = matches) => {
+    if (matchIndex < 0 || matchIndex >= matchList.length) return
+
+    const match = matchList[matchIndex]
+    const markElement = match.element.querySelector('mark')
+    if (markElement) {
+      markElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
+
+      // Update highlight styles to show current match
+      matchList.forEach((m, i) => {
+        const marks = m.element.querySelectorAll('mark')
+        marks.forEach(mark => {
+          if (i === matchIndex) {
+            mark.className = 'bg-orange-400 text-black'
+          } else {
+            mark.className = 'bg-yellow-400 text-black'
+          }
+        })
+      })
+    }
+
+    setCurrentMatchIndex(matchIndex)
+  }, [matches])
+
   const highlightMatches = useCallback((term: string) => {
     if (!targetRef.current || !term.trim()) {
       clearHighlights()
@@ -96,29 +120,9 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
     if (newMatches.length > 0) {
       scrollToMatch(0, newMatches)
     }
-  }, [targetRef, clearHighlights])
+  }, [targetRef, clearHighlights, scrollToMatch])
 
-  const scrollToMatch = useCallback((matchIndex: number, matchList: SearchMatch[] = matches) => {
-    if (matchIndex < 0 || matchIndex >= matchList.length) return
 
-    const match = matchList[matchIndex]
-    const markElement = match.element.querySelector('mark')
-    if (markElement) {
-      markElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      
-      // Update highlight styles to show current match
-      matchList.forEach((m, i) => {
-        const marks = m.element.querySelectorAll('mark')
-        marks.forEach(mark => {
-          if (i === matchIndex) {
-            mark.className = 'bg-orange-400 text-black'
-          } else {
-            mark.className = 'bg-yellow-400 text-black'
-          }
-        })
-      })
-    }
-  }, [matches])
 
   const findNext = useCallback(() => {
     if (totalMatches === 0) return
