@@ -27,6 +27,8 @@ pub trait TerminalBackend: Send + Sync {
     async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<(u64, Vec<u8>), String>;
 }
 
+pub mod ansi;
+pub mod coalescing;
 pub mod local;
 pub mod manager;
 

@@ -5,6 +5,17 @@ use std::sync::Arc;
 use tauri::AppHandle;
 use tokio::sync::RwLock;
 
+/// Parameters for creating a terminal with an application and specific size
+pub struct CreateTerminalWithAppAndSizeParams {
+    pub id: String,
+    pub cwd: String,
+    pub command: String,
+    pub args: Vec<String>,
+    pub env: Vec<(String, String)>,
+    pub cols: u16,
+    pub rows: u16,
+}
+
 pub struct TerminalManager {
     backend: Arc<LocalPtyAdapter>,
     active_ids: Arc<RwLock<HashSet<String>>>,
@@ -154,6 +165,35 @@ impl TerminalManager {
         
         // Start event bridge for this terminal
         self.start_event_bridge(id).await;
+        
+        Ok(())
+    }
+    
+    pub async fn create_terminal_with_app_and_size(
+        &self,
+        params: CreateTerminalWithAppAndSizeParams,
+    ) -> Result<(), String> {
+        info!("Creating terminal with app and size through manager: id={}, cwd={}, command={}, size={}x{}", 
+            params.id, params.cwd, params.command, params.cols, params.rows);
+        
+        let app_spec = ApplicationSpec {
+            command: params.command,
+            args: params.args,
+            env: params.env,
+            ready_timeout_ms: 30000,
+        };
+        
+        let create_params = CreateParams {
+            id: params.id.clone(),
+            cwd: params.cwd,
+            app: Some(app_spec),
+        };
+        
+        self.backend.create_with_size(create_params, params.cols, params.rows).await?;
+        self.active_ids.write().await.insert(params.id.clone());
+        
+        // Start event bridge for this terminal
+        self.start_event_bridge(params.id).await;
         
         Ok(())
     }

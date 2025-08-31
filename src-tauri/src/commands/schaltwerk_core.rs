@@ -595,7 +595,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
-    let is_opencode = (agent_name == "opencode") || agent_name.ends_with("/opencode");
+    let _is_opencode = (agent_name == "opencode") || agent_name.ends_with("/opencode");
     
     let mut final_args = agent_args.clone();
     
@@ -634,18 +634,9 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
         env_vars,
     ).await?;
     
-    if is_opencode {
-        let terminal_manager_clone = terminal_manager.clone();
-        let terminal_id_clone = terminal_id.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone, 136, 48).await;
-        });
-    }
+    // For OpenCode and other TUI applications, the frontend will handle
+    // proper sizing based on the actual terminal container dimensions.
+    // No hardcoded resize is needed anymore as we now support dynamic sizing.
     
     // For Gemini, we rely on the CLI's own interactive prompt flag.
     // Do not implement non-deterministic paste-based workarounds.
@@ -780,7 +771,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> R
     
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
     
-    let is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
+    let _is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
     
     // Build args for all agents consistently:
     // 1. Start with parsed args from command string (may include prompt for Claude/Cursor)
@@ -843,18 +834,9 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> R
         env_vars,
     ).await?;
     
-    if is_opencode {
-        let terminal_manager_clone = terminal_manager.clone();
-        let terminal_id_clone = terminal_id.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone, 136, 48).await;
-        });
-    }
+    // For OpenCode and other TUI applications, the frontend will handle
+    // proper sizing based on the actual terminal container dimensions.
+    // No hardcoded resize is needed anymore as we now support dynamic sizing.
     
     log::info!("Successfully started Claude in terminal: {terminal_id}");
     Ok(command)
@@ -1277,7 +1259,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
         final_args.extend(cli_args.split_whitespace().map(|s| s.to_string()));
     }
     
-    let is_opencode = agent_name.contains("opencode");
+    let _is_opencode = agent_name.contains("opencode");
     
     terminal_manager.create_terminal_with_app(
         terminal_id.clone(),
@@ -1287,18 +1269,9 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
         env_vars,
     ).await?;
     
-    if is_opencode {
-        let terminal_manager_clone = terminal_manager.clone();
-        let terminal_id_clone = terminal_id.clone();
-        tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(1500)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone.clone(), 136, 48).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(2000)).await;
-            let _ = terminal_manager_clone.resize_terminal(terminal_id_clone, 136, 48).await;
-        });
-    }
+    // For OpenCode and other TUI applications, the frontend will handle
+    // proper sizing based on the actual terminal container dimensions.
+    // No hardcoded resize is needed anymore as we now support dynamic sizing.
     
     log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
     Ok(command)

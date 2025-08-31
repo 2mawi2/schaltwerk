@@ -620,6 +620,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         let resizeTimeout: NodeJS.Timeout | null = null;
         let lastResizeTime = 0;
         
+        // Check if this is a TUI application that needs faster resize response
+        const isTuiTerminal = terminalId.includes('opencode') || 
+                             terminalId.includes('cursor-agent') || 
+                             terminalId.includes('cursor') || 
+                             terminalId.includes('gemini') ||
+                             terminalId.includes('claude');
+        
         addResizeObserver(termRef.current, () => {
             // Skip resize work while user drags the split for smoother UI
             if (document.body.classList.contains('is-split-dragging')) {
@@ -632,8 +639,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // Clear any pending resize
             if (resizeTimeout) clearTimeout(resizeTimeout);
             
-            // If resizes are happening too rapidly, increase debounce time
-            const debounceTime = timeSinceLastResize < 200 ? 250 : 150;
+            // Use shorter debounce for TUI applications for better responsiveness
+            // TUI apps need faster resize feedback to prevent rendering issues
+            const debounceTime = isTuiTerminal 
+                ? 50  // Fast response for TUI apps
+                : (timeSinceLastResize < 200 ? 250 : 150); // Normal debouncing for regular terminals
             
             resizeTimeout = setTimeout(() => {
                 lastResizeTime = Date.now();

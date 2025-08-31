@@ -987,10 +987,20 @@ curl -X POST http://127.0.0.1:8547/api/specs -H "Content-Type: application/json"
 - Never write altnerative file names, functions or components. Rather fix them directly.
 - Ask the user if problems seem impossible or difficult to solve for advice.
 - Always develop deterministic solutions and never heuristics.
-- Never use #[allow(dead_code)] Implement real implementations and unused code you can delete if we do not need it anymore.
 - Never introduce YAGNI: Code that eventually will be needed in the future but not now, all the code must be used and referenced now
 - Never implement non-deterministic fallbacks for external CLIs (e.g., simulating key presses, pasting text).
   If a CLI feature is required (like an interactive prompt flag), upgrade the dependency and use the official flag instead of workarounds.
+
+#### IMPORTANT: Dead Code Policy
+
+**CRITICAL**: The `#![deny(dead_code)]` global attribute in `src-tauri/src/main.rs` must NEVER be removed or changed to `#![allow(dead_code)]`. This enforces zero tolerance for dead code in the codebase.
+
+- **NEVER use `#[allow(dead_code)]` annotations** - If code appears unused, either:
+  1. Fix the implementation to actually use the code, OR  
+  2. Delete the unused code entirely
+- **No exceptions** - Dead code creates maintenance burden and confusion
+- **Treat dead code as compilation error** - This ensures clean, maintainable codebase
+- **Alternative approaches** - Use feature gates or conditional compilation if needed, but never allow dead code
 
 #### Error Handling Requirements
 

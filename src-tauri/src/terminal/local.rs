@@ -1,4 +1,5 @@
 use super::{CreateParams, TerminalBackend};
+use super::coalescing::{CoalescingState, CoalescingParams, handle_coalesced_output};
 use log::{debug, error, info, warn};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
@@ -22,31 +23,20 @@ struct TerminalState {
 pub struct LocalPtyAdapter {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
     creating: Arc<Mutex<HashSet<String>>>,
-    app_handle: Arc<Mutex<Option<AppHandle>>>,
     // PTY resource maps - moved from global statics to instance level
     pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
     pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
-    // Coalesced emitter buffers per terminal id
-    emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-    // Tracks whether a flush agent is scheduled per terminal id
-    emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
-    // Normalized (CR→LF with cross-chunk handling) buffers per terminal id
-    emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-    // Track if previous raw chunk ended with CR for each terminal
-    norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
+    // Coalescing state for terminal output handling
+    coalescing_state: CoalescingState,
 }
 
 struct ReaderState {
     terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
-    app_handle: Arc<Mutex<Option<AppHandle>>>,
     pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
     pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
-    emit_buffers: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-    emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
-    emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
-    norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
+    coalescing_state: CoalescingState,
 }
 
 impl Default for LocalPtyAdapter {
@@ -57,22 +47,35 @@ impl Default for LocalPtyAdapter {
 
 impl LocalPtyAdapter {
     pub fn new() -> Self {
+        let app_handle = Arc::new(Mutex::new(None));
         Self {
             terminals: Arc::new(RwLock::new(HashMap::new())),
             creating: Arc::new(Mutex::new(HashSet::new())),
-            app_handle: Arc::new(Mutex::new(None)),
             pty_children: Arc::new(Mutex::new(HashMap::new())),
             pty_masters: Arc::new(Mutex::new(HashMap::new())),
             pty_writers: Arc::new(Mutex::new(HashMap::new())),
-            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
-            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
-            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
-            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            coalescing_state: CoalescingState {
+                app_handle,
+                emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+                emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+                emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+                norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            },
         }
     }
 
+    /// Checks if a terminal ID corresponds to a TUI application that needs special handling
+    fn is_tui_application(terminal_id: &str) -> bool {
+        // TUI applications that need ANSI-aware buffering and immediate writes
+        terminal_id.contains("opencode") 
+            || terminal_id.contains("cursor-agent")
+            || terminal_id.contains("cursor")
+            || terminal_id.contains("gemini")
+            || terminal_id.contains("claude")
+    }
+
     pub async fn set_app_handle(&self, handle: AppHandle) {
-        *self.app_handle.lock().await = Some(handle);
+        *self.coalescing_state.app_handle.lock().await = Some(handle);
     }
 
     fn resolve_command(command: &str) -> String {
@@ -163,7 +166,7 @@ impl LocalPtyAdapter {
                         // Clean up terminal maps and notify UI about closure
                         let id_clone_for_cleanup = id.clone();
                         let terminals_clone2 = Arc::clone(&reader_state.terminals);
-                        let app_handle_clone2 = Arc::clone(&reader_state.app_handle);
+                        let app_handle_clone2 = Arc::clone(&reader_state.coalescing_state.app_handle);
                         runtime.block_on(async move {
                             // Remove terminal state
                             terminals_clone2.write().await.remove(&id_clone_for_cleanup);
@@ -187,11 +190,7 @@ impl LocalPtyAdapter {
                         let data = buf[..n].to_vec();
                         let id_clone = id.clone();
                         let terminals_clone = Arc::clone(&reader_state.terminals);
-                        let app_handle_clone = Arc::clone(&reader_state.app_handle);
-                        let emit_buffers_clone = Arc::clone(&reader_state.emit_buffers);
-                        let emit_scheduled_clone = Arc::clone(&reader_state.emit_scheduled);
-                        let emit_buffers_norm_clone = Arc::clone(&reader_state.emit_buffers_norm);
-                        let norm_last_cr_clone = Arc::clone(&reader_state.norm_last_cr);
+                        let coalescing_state_clone = reader_state.coalescing_state.clone();
                         
                         runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
@@ -207,92 +206,24 @@ impl LocalPtyAdapter {
                                 state.seq += 1;
                                 state.last_output = SystemTime::now();
                                 
-                                // Coalesce and schedule emit
+                                // Handle output emission with ANSI-aware buffering
                                 drop(terminals); // release lock before awaits below
-                                {
-                                    let mut buffers = emit_buffers_clone.write().await;
-                                    let buf_ref = buffers.entry(id_clone.clone()).or_insert_with(Vec::new);
-                                    buf_ref.extend_from_slice(&data);
-                                }
-                                // Maintain a normalized coalesced buffer as well
-                                {
-                                    let mut last_map = norm_last_cr_clone.write().await;
-                                    let prev_last_cr = *last_map.get(&id_clone).unwrap_or(&false);
-                                    let raw_ended_with_cr = data.last().copied() == Some(b'\r');
-                                    let mut s = String::from_utf8_lossy(&data).to_string();
-                                    let mut out = String::new();
-                                    if prev_last_cr {
-                                        if s.starts_with('\n') {
-                                            s.remove(0);
-                                        } else {
-                                            out.push('\n');
-                                        }
-                                    }
-                                    s = s.replace("\r\n", "\n").replace("\r", "\n");
-                                    out.push_str(&s);
-                                    if raw_ended_with_cr {
-                                        out.push('\n');
-                                    }
-                                    last_map.insert(id_clone.clone(), raw_ended_with_cr);
-                                    let mut buffers_n = emit_buffers_norm_clone.write().await;
-                                    let buf_ref_n = buffers_n.entry(id_clone.clone()).or_insert_with(Vec::new);
-                                    buf_ref_n.extend_from_slice(out.as_bytes());
-                                }
-                                let mut should_schedule = false;
-                                {
-                                    let mut scheduled = emit_scheduled_clone.write().await;
-                                    let entry = scheduled.entry(id_clone.clone()).or_insert(false);
-                                    if !*entry {
-                                        *entry = true;
-                                        should_schedule = true;
-                                    }
-                                }
-                                if should_schedule {
-                                    let app_for_emit = Arc::clone(&app_handle_clone);
-                                    let emit_buffers_for_task = Arc::clone(&emit_buffers_clone);
-                                    let emit_scheduled_for_task = Arc::clone(&emit_scheduled_clone);
-                                    let emit_buffers_norm_for_task = Arc::clone(&emit_buffers_norm_clone);
-                                    let id_for_task = id_clone.clone();
-                                     // Flush after ~2ms for immediate responsiveness
-                                     tokio::spawn(async move {
-                                         use tokio::time::{sleep, Duration};
-                                         sleep(Duration::from_millis(2)).await;
-                                        // Take buffer
-                                        let data_to_emit: Option<Vec<u8>> = {
-                                            let mut buffers = emit_buffers_for_task.write().await;
-                                            buffers.remove(&id_for_task)
-                                        };
-                                        let data_to_emit_norm: Option<Vec<u8>> = {
-                                            let mut buffers_n = emit_buffers_norm_for_task.write().await;
-                                            buffers_n.remove(&id_for_task)
-                                        };
-                                        // Mark unscheduled
-                                        {
-                                            let mut scheduled = emit_scheduled_for_task.write().await;
-                                            if let Some(flag) = scheduled.get_mut(&id_for_task) {
-                                                *flag = false;
-                                            }
-                                        }
-                                        if let Some(bytes) = data_to_emit {
-                                            if let Some(handle) = app_for_emit.lock().await.as_ref() {
-                                                let event_name = format!("terminal-output-{id_for_task}");
-                                                let payload = String::from_utf8_lossy(&bytes).to_string();
-                                                if let Err(e) = handle.emit(&event_name, payload) {
-                                                    warn!("Failed to emit terminal output: {e}");
-                                                }
-                                            }
-                                        }
-                                        if let Some(bytes_n) = data_to_emit_norm {
-                                            if let Some(handle) = app_for_emit.lock().await.as_ref() {
-                                                let event_name_n = format!("terminal-output-normalized-{id_for_task}");
-                                                let payload_n = String::from_utf8_lossy(&bytes_n).to_string();
-                                                if let Err(e) = handle.emit(&event_name_n, payload_n) {
-                                                    warn!("Failed to emit normalized terminal output: {e}");
-                                                }
-                                            }
-                                        }
-                                    });
-                                }
+                                
+                                let is_tui = Self::is_tui_application(&id_clone);
+                                
+                                // Use coalescing for all terminals, but with different delays
+                                // TUI apps get zero delay to maintain responsiveness
+                                // Regular terminals get 2ms delay for efficiency
+                                let delay_ms = if is_tui { 0 } else { 2 };
+                                
+                                handle_coalesced_output(
+                                    &coalescing_state_clone,
+                                    CoalescingParams {
+                                        terminal_id: &id_clone,
+                                        data: &data,
+                                        delay_ms,
+                                    },
+                                ).await;
                             }
                         });
                     }
@@ -302,7 +233,7 @@ impl LocalPtyAdapter {
                             // On read error, clean up and notify
                             let id_clone_for_cleanup = id.clone();
                             let terminals_clone2 = Arc::clone(&reader_state.terminals);
-                            let app_handle_clone2 = Arc::clone(&reader_state.app_handle);
+                            let app_handle_clone2 = Arc::clone(&reader_state.coalescing_state.app_handle);
                             runtime.block_on(async move {
                                 terminals_clone2.write().await.remove(&id_clone_for_cleanup);
                                 if let Some(mut child) = reader_state.pty_children.lock().await.remove(&id_clone_for_cleanup) {
@@ -324,6 +255,7 @@ impl LocalPtyAdapter {
             }
         });
     }
+
 }
 
 #[async_trait::async_trait]
@@ -444,7 +376,7 @@ impl TerminalBackend for LocalPtyAdapter {
         Self::start_process_monitor(
             id.clone(),
             Arc::clone(&self.terminals),
-            Arc::clone(&self.app_handle),
+            Arc::clone(&self.coalescing_state.app_handle),
             Arc::clone(&self.pty_children),
             Arc::clone(&self.pty_masters),
             Arc::clone(&self.pty_writers),
@@ -464,14 +396,10 @@ impl TerminalBackend for LocalPtyAdapter {
             reader,
             ReaderState {
                 terminals: Arc::clone(&self.terminals),
-                app_handle: Arc::clone(&self.app_handle),
                 pty_children: Arc::clone(&self.pty_children),
                 pty_masters: Arc::clone(&self.pty_masters),
                 pty_writers: Arc::clone(&self.pty_writers),
-                emit_buffers: Arc::clone(&self.emit_buffers),
-                emit_scheduled: Arc::clone(&self.emit_scheduled),
-                emit_buffers_norm: Arc::clone(&self.emit_buffers_norm),
-                norm_last_cr: Arc::clone(&self.norm_last_cr),
+                coalescing_state: self.coalescing_state.clone(),
             },
         )
         .await;
@@ -527,7 +455,7 @@ impl TerminalBackend for LocalPtyAdapter {
                 .map_err(|e| format!("Immediate flush failed: {e}"))?;
 
             // Emit output immediately without coalescing delay for critical input
-            if let Some(handle) = self.app_handle.lock().await.as_ref() {
+            if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
                 let event_name = format!("terminal-output-{id}");
                 let payload = String::from_utf8_lossy(data).to_string();
                 if let Err(e) = handle.emit(&event_name, payload) {
@@ -600,10 +528,10 @@ impl TerminalBackend for LocalPtyAdapter {
         self.terminals.write().await.remove(id);
         
         // Clear emit buffers
-        self.emit_buffers.write().await.remove(id);
-        self.emit_buffers_norm.write().await.remove(id);
-        self.norm_last_cr.write().await.remove(id);
-        self.emit_scheduled.write().await.remove(id);
+        self.coalescing_state.emit_buffers.write().await.remove(id);
+        self.coalescing_state.emit_buffers_norm.write().await.remove(id);
+        self.coalescing_state.norm_last_cr.write().await.remove(id);
+        self.coalescing_state.emit_scheduled.write().await.remove(id);
         
         info!("Terminal {id} closed");
         Ok(())
