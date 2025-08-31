@@ -560,7 +560,7 @@ export function TerminalGrid() {
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal}
                 onClose={() => setSwitchOrchestratorModal(false)}
-                onSwitch={async (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
+                onSwitch={async (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
                     try {
                         await switchModel(
                             agentType,

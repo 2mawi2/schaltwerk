@@ -145,6 +145,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         'cursor-agent': [],
         opencode: [],
         gemini: [],
+        qwen: [],
         codex: []
     })
     const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>({
@@ -152,6 +153,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         'cursor-agent': '',
         opencode: '',
         gemini: '',
+        qwen: '',
         codex: ''
     })
     const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>({
@@ -159,6 +161,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
         opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
         gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
+        qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
         codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
     })
     const [notification, setNotification] = useState<NotificationState>({
@@ -334,6 +337,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
                 opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
                 gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
+                qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
                 codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
             }
             
@@ -487,7 +491,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         <div className="flex flex-col h-full">
             <div className="border-b border-slate-800">
                 <div className="flex">
-                    {(['claude', 'cursor-agent', 'opencode', 'gemini', 'codex'] as AgentType[]).map(agent => (
+                    {(['claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', 'codex'] as AgentType[]).map(agent => (
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
@@ -829,6 +833,25 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>GOOGLE_API_KEY - Your Google AI Studio API key</li>
                                     <li>GEMINI_MODEL - Model to use</li>
+                                </ul>
+                            </div>
+                        </div>
+                    )}
+
+                    {activeAgentTab === 'qwen' && (
+                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-xs text-slate-400">
+                                <strong>Common Qwen Code CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--prompt "task description"</code> - Start with specific prompt</li>
+                                    <li><code>--temperature 0.9</code> - Set response temperature</li>
+                                    <li><code>--yolo</code> - Skip permission prompts (if supported)</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>QWEN_API_KEY - Your Qwen API key</li>
+                                    <li>OPENAI_API_KEY - OpenAI-compatible API key</li>
+                                    <li>QWEN_MODEL - Model to use (defaults to Qwen-Coder)</li>
                                 </ul>
                             </div>
                         </div>

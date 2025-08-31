@@ -23,7 +23,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
     const [baseBranch, setBaseBranch] = useState('')
-    const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'>('claude')
+    const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [validationError, setValidationError] = useState('')
     const [creating, setCreating] = useState(false)
@@ -46,7 +46,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         }
     }
 
-    const handleAgentTypeChange = (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
+    const handleAgentTypeChange = (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
         setAgentType(type)
     }
 

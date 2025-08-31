@@ -155,7 +155,7 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     let mut settings = settings_manager.lock().await;
     
-    let known_agents = vec!["claude", "cursor-agent", "codex", "opencode", "gemini"];
+    let known_agents = vec!["claude", "cursor-agent", "codex", "opencode", "gemini", "qwen"];
     let mut configs = Vec::new();
     
     for agent in known_agents {
@@ -172,7 +172,9 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
             };
             
             // Save it for future use
-            settings.set_agent_binary_config(config.clone())?;
+            if let Err(e) = settings.set_agent_binary_config(config.clone()) {
+                log::warn!("Failed to save binary config for {}: {}", agent, e);
+            }
             configs.push(config);
         }
     }
@@ -189,7 +191,7 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     let mut settings = settings_manager.lock().await;
     
-    let known_agents = vec!["claude", "cursor-agent", "codex", "opencode", "gemini"];
+    let known_agents = vec!["claude", "cursor-agent", "codex", "opencode", "gemini", "qwen"];
     let mut configs = Vec::new();
     
     for agent in known_agents {
@@ -205,7 +207,9 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
             detected_binaries,
         };
         
-        settings.set_agent_binary_config(config.clone())?;
+        if let Err(e) = settings.set_agent_binary_config(config.clone()) {
+            log::warn!("Failed to save binary config for {}: {}", agent, e);
+        }
         configs.push(config);
     }
     

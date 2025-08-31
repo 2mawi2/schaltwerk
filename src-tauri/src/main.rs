@@ -96,12 +96,13 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     let is_cursor_agent = agent_token == "cursor-agent" || agent_token.ends_with("/cursor-agent");
     let is_opencode = agent_token == "opencode" || agent_token.ends_with("/opencode");
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
+    let is_qwen = agent_token == "qwen" || agent_token.ends_with("/qwen");
     let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
     
-    let agent_name = if is_claude || is_cursor_agent || is_opencode || is_gemini || is_codex {
+    let agent_name = if is_claude || is_cursor_agent || is_opencode || is_gemini || is_qwen || is_codex {
         agent_token
     } else {
-        return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', 'gemini', or 'codex': {command}"));
+        return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', or 'codex': {command}"));
     };
 
     // Split the rest into arguments, handling quoted strings
@@ -1049,6 +1050,24 @@ mod tests {
         assert_eq!(cwd, "/repo");
         assert_eq!(agent, "codex");
         assert_eq!(args, vec!["--sandbox", "danger-full-access"]);
+    }
+
+    #[test]
+    fn test_parse_agent_command_qwen_with_yolo() {
+        let cmd = r#"cd /tmp/work && qwen --yolo"#;
+        let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+        assert_eq!(cwd, "/tmp/work");
+        assert_eq!(agent, "qwen");
+        assert_eq!(args, vec!["--yolo"]);
+    }
+
+    #[test]
+    fn test_parse_agent_command_qwen_absolute_path() {
+        let cmd = r#"cd /tmp/work && /usr/local/bin/qwen"#;
+        let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
+        assert_eq!(cwd, "/tmp/work");
+        assert_eq!(agent, "/usr/local/bin/qwen");
+        assert_eq!(args, Vec::<String>::new());
     }
 
     // Tests removed: get_current_directory now uses active project instead of current working directory

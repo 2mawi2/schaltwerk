@@ -552,6 +552,24 @@ impl SessionManager {
                     Some(&config),
                 ))
             }
+            "qwen" => {
+                // Always start fresh - no session discovery for new sessions
+                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                let prompt_to_use = session.initial_prompt.as_deref();
+                
+                let binary_path = self.utils.get_effective_binary_path_with_override("qwen", binary_paths.get("qwen").map(|s| s.as_str()));
+                let config = crate::schaltwerk_core::qwen::QwenConfig {
+                    binary_path: Some(binary_path),
+                };
+                
+                Ok(crate::schaltwerk_core::qwen::build_qwen_command_with_config(
+                    &session.worktree_path,
+                    None, // No session ID - always start fresh
+                    prompt_to_use,
+                    skip_permissions,
+                    Some(&config),
+                ))
+            }
             "codex" => {
                 // Always start fresh - no session discovery for new sessions
                 self.cache_manager.mark_session_prompted(&session.worktree_path);
@@ -731,6 +749,26 @@ impl SessionManager {
                 };
                 
                 Ok(crate::schaltwerk_core::gemini::build_gemini_command_with_config(
+                    &self.repo_path,
+                    session_id.as_deref(),
+                    None,
+                    skip_permissions,
+                    Some(&config),
+                ))
+            }
+            "qwen" => {
+                let binary_path = self.utils.get_effective_binary_path_with_override("qwen", binary_paths.get("qwen").map(|s| s.as_str()));
+                let config = crate::schaltwerk_core::qwen::QwenConfig {
+                    binary_path: Some(binary_path),
+                };
+                
+                let session_id = if resume_session {
+                    crate::schaltwerk_core::qwen::find_qwen_session(&self.repo_path)
+                } else {
+                    None
+                };
+                
+                Ok(crate::schaltwerk_core::qwen::build_qwen_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,

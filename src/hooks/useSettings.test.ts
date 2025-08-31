@@ -23,6 +23,7 @@ describe('useSettings', () => {
         'cursor-agent': [{ key: 'TOKEN', value: 'test-token' }],
         opencode: [],
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
+        qwen: [],
         codex: []
       }
       
@@ -31,6 +32,7 @@ describe('useSettings', () => {
         'cursor-agent': '--silent',
         opencode: '',
         gemini: '--project test',
+        qwen: '',
         codex: ''
       }
 
@@ -77,6 +79,7 @@ describe('useSettings', () => {
         'cursor-agent': [],
         opencode: [],
         gemini: [],
+        qwen: [],
         codex: []
       }
       
@@ -85,6 +88,7 @@ describe('useSettings', () => {
         'cursor-agent': '',
         opencode: '',
         gemini: '',
+        qwen: '',
         codex: ''
       }
 
@@ -192,6 +196,7 @@ describe('useSettings', () => {
         'cursor-agent': [],
         opencode: [],
         gemini: [],
+        qwen: [],
         codex: []
       }
       
@@ -200,6 +205,7 @@ describe('useSettings', () => {
         'cursor-agent': '',
         opencode: '',
         gemini: '',
+        qwen: '',
         codex: ''
       }
       
@@ -250,6 +256,7 @@ describe('useSettings', () => {
         'cursor-agent': [],
         opencode: [],
         gemini: [],
+        qwen: [],
         codex: []
       }
       
@@ -258,6 +265,7 @@ describe('useSettings', () => {
         'cursor-agent': '',
         opencode: '',
         gemini: '',
+        qwen: '',
         codex: ''
       }
       
@@ -320,6 +328,7 @@ describe('useSettings', () => {
         'cursor-agent': [],
         opencode: [],
         gemini: [{ key: 'PROJECT', value: 'gemini-project' }],
+        qwen: [],
         codex: []
       })
       expect(result.current.loading).toBe(false)
@@ -339,6 +348,7 @@ describe('useSettings', () => {
         'cursor-agent': [],
         opencode: [],
         gemini: [],
+        qwen: [],
         codex: []
       })
     })
@@ -371,6 +381,7 @@ describe('useSettings', () => {
         'cursor-agent': '--silent',
         opencode: '',
         gemini: '',
+        qwen: '',
         codex: ''
       })
     })
@@ -389,6 +400,7 @@ describe('useSettings', () => {
         'cursor-agent': '',
         opencode: '',
         gemini: '',
+        qwen: '',
         codex: ''
       })
     })

@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 interface ModelSelectorProps {
-    value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
-    onChange: (value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => void
+    value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
+    onChange: (value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => void
     disabled?: boolean
 }
 
@@ -11,17 +11,18 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
     const [focusedIndex, setFocusedIndex] = useState(-1)
     const dropdownRef = useRef<HTMLDivElement>(null)
     
-    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex', label: string, color: string }> = useMemo(() => [
+    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex', label: string, color: string }> = useMemo(() => [
         { value: 'claude', label: 'Claude', color: 'blue' },
         { value: 'cursor', label: 'Cursor', color: 'purple' },
         { value: 'opencode', label: 'OpenCode', color: 'green' },
         { value: 'gemini', label: 'Gemini', color: 'orange' },
+        { value: 'qwen', label: 'Qwen Code', color: 'cyan' },
         { value: 'codex', label: 'Codex', color: 'red' }
     ], [])
 
     const selectedModel = models.find(m => m.value === value) || models[0]
 
-    const handleSelect = useCallback((modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
+    const handleSelect = useCallback((modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
         onChange(modelValue)
         setIsOpen(false)
         setFocusedIndex(-1)
@@ -88,7 +89,8 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                         selectedModel.color === 'blue' ? 'bg-blue-500' : 
                         selectedModel.color === 'purple' ? 'bg-purple-500' : 
                         selectedModel.color === 'green' ? 'bg-green-500' : 
-                        selectedModel.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
+                        selectedModel.color === 'orange' ? 'bg-orange-500' :
+                        selectedModel.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
                     }`} />
                     {selectedModel.label}
                 </span>
@@ -121,7 +123,8 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                                     model.color === 'blue' ? 'bg-blue-500' : 
                                     model.color === 'purple' ? 'bg-purple-500' : 
                                     model.color === 'green' ? 'bg-green-500' : 
-                                    model.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
+                                    model.color === 'orange' ? 'bg-orange-500' :
+                                    model.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
                                 }`} />
                                 {model.label}
                             </button>

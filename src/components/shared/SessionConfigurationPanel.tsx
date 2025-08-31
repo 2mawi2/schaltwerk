@@ -10,10 +10,10 @@ import { AnimatedText } from '../common/AnimatedText'
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
     onBaseBranchChange?: (branch: string) => void
-    onAgentTypeChange?: (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => void
+    onAgentTypeChange?: (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => void
     onSkipPermissionsChange?: (enabled: boolean) => void
     initialBaseBranch?: string
-    initialAgentType?: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
+    initialAgentType?: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
     initialSkipPermissions?: boolean
     disabled?: boolean
     hideLabels?: boolean
@@ -21,7 +21,7 @@ interface SessionConfigurationPanelProps {
 
 export interface SessionConfiguration {
     baseBranch: string
-    agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
+    agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
     skipPermissions: boolean
     isValid: boolean
 }
@@ -101,7 +101,7 @@ export function SessionConfigurationPanel({
         }
     }, [branches, onBaseBranchChange])
 
-    const handleAgentTypeChange = useCallback(async (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex') => {
+    const handleAgentTypeChange = useCallback(async (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
         setAgentType(type)
         onAgentTypeChange?.(type)
         await saveAgentType(type)

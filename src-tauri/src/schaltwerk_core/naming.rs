@@ -479,6 +479,70 @@ Respond with just the short kebab-case name:"#
         return Ok(None);
     }
     
+    // Handle Qwen name generation
+    if agent_type == "qwen" {
+        log::info!("Attempting to generate name with qwen");
+        
+        let timeout_duration = Duration::from_secs(15);
+        let binary = crate::schaltwerk_core::qwen::resolve_qwen_binary();
+        let qwen_future = Command::new(&binary)
+            .args(["--prompt", prompt_plain.as_str()])
+            .current_dir(worktree_path)
+            .env("NO_COLOR", "1")
+            .env("CLICOLOR", "0")
+            .output();
+        
+        let output = match timeout(timeout_duration, qwen_future).await {
+            Ok(Ok(output)) => {
+                log::debug!("qwen executed successfully");
+                output
+            },
+            Ok(Err(e)) => {
+                log::warn!("Failed to execute qwen: {e}");
+                return Ok(None);
+            },
+            Err(_) => {
+                log::warn!("Qwen timed out after 15 seconds");
+                return Ok(None);
+            },
+        };
+        
+        if output.status.success() {
+            let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
+            log::debug!("qwen stdout: {stdout}");
+            
+            // Qwen returns plain text, so we look for a kebab-case name in the output
+            // Split by newlines and find the first line that looks like a kebab-case name
+            let candidate = stdout
+                .lines()
+                .map(|line| line.trim())
+                .filter(|line| !line.is_empty())
+                .filter(|line| line.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()))
+                .filter(|line| line.contains('-') || line.len() <= 10) // Has hyphens or very short
+                .filter(|line| line.len() <= 30) // Reasonable length
+                .find(|_| true) // Get first match
+                .map(|s| s.to_string());
+            
+            if let Some(result) = candidate {
+                log::info!("qwen returned name candidate: {result}");
+                let name = sanitize_name(&result);
+                log::info!("Sanitized name: {name}");
+                
+                if !name.is_empty() {
+                    db.update_session_display_name(session_id, &name)?;
+                    log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                    return Ok(Some(name));
+                }
+            } else {
+                log::warn!("qwen produced no usable output for naming");
+            }
+        } else {
+            log::warn!("qwen returned non-zero exit status");
+        }
+        
+        return Ok(None);
+    }
+    
     // Use Claude only if claude was selected (not as a fallback)
     if agent_type != "claude" {
         log::info!("Agent type is '{agent_type}', not generating name with claude");

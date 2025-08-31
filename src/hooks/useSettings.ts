@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 
-export type AgentType = 'claude' | 'cursor-agent' | 'opencode' | 'gemini' | 'codex'
+export type AgentType = 'claude' | 'cursor-agent' | 'opencode' | 'gemini' | 'qwen' | 'codex'
 type EnvVars = Record<string, string>
 
 interface ProjectSettings {
@@ -119,12 +119,13 @@ export const useSettings = () => {
     const loadEnvVars = useCallback(async (): Promise<Record<AgentType, Array<{key: string, value: string}>>> => {
         setLoading(true)
         try {
-            const agents: AgentType[] = ['claude', 'cursor-agent', 'opencode', 'gemini', 'codex']
+            const agents: AgentType[] = ['claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', 'codex']
             const loadedVars: Record<AgentType, Array<{key: string, value: string}>> = {
                 claude: [],
                 'cursor-agent': [],
                 opencode: [],
                 gemini: [],
+                qwen: [],
                 codex: []
             }
             
@@ -140,12 +141,13 @@ export const useSettings = () => {
     }, [])
     
     const loadCliArgs = useCallback(async (): Promise<Record<AgentType, string>> => {
-        const agents: AgentType[] = ['claude', 'cursor-agent', 'opencode', 'gemini', 'codex']
+        const agents: AgentType[] = ['claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', 'codex']
         const loadedArgs: Record<AgentType, string> = {
             claude: '',
             'cursor-agent': '',
             opencode: '',
             gemini: '',
+            qwen: '',
             codex: ''
         }
         
