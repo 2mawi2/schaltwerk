@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
+import { AnimatedText } from '../common/AnimatedText'
+import { theme } from '../../common/theme'
 
 interface ConvertToDraftConfirmationProps {
   open: boolean
@@ -85,7 +87,11 @@ export function ConvertToSpecConfirmation({
       open={open}
       title="Convert Session to Spec"
       body={body}
-      confirmText={loading ? 'Converting...' : 'Convert to Spec'}
+      confirmText={loading ? (
+        <AnimatedText text="converting" colorClassName={theme.colors.text.muted} size="xs" centered={false} />
+      ) : (
+        'Convert to Spec'
+      )}
       confirmTitle="Convert to spec (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"

@@ -484,7 +484,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     if (loading) {
         return (
             <div className="flex items-center justify-center h-full">
-                <AnimatedText text="loading" colorClassName="text-gray-400" size="md" />
+                <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
             </div>
         )
     }

@@ -1,4 +1,6 @@
 import { useEffect, useCallback, useRef } from 'react'
+import { AnimatedText } from '../common/AnimatedText'
+import { theme } from '../../common/theme'
 
 interface ConfirmModalProps {
   open: boolean
@@ -97,11 +99,10 @@ export function ConfirmModal({
             className={`${confirmBaseClasses} ${confirmVariantClasses}`}
             title={confirmTitle || 'Confirm (Enter)'}
           >
-            {loading && (
-              <span
-                className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white/60 border-t-transparent"
-                aria-hidden="true"
-              />
+{loading && (
+              <div className="mr-2">
+                <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="xs" centered={false} />
+              </div>
             )}
             <span>{confirmText}</span>
             {!loading && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>}

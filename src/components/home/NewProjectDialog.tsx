@@ -3,6 +3,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { VscFolderOpened, VscClose, VscNewFolder } from 'react-icons/vsc'
 import { homeDir } from '@tauri-apps/api/path'
+import { AnimatedText } from '../common/AnimatedText'
+import { theme } from '../../common/theme'
 
 interface NewProjectDialogProps {
   isOpen: boolean
@@ -183,7 +185,11 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
             disabled={isCreating || !projectName.trim() || !parentPath}
             className="flex-1 py-2 px-4 bg-cyan-900/50 hover:bg-cyan-800/50 border border-cyan-700/50 text-cyan-300 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isCreating ? 'Creating...' : 'Create Project'}
+{isCreating ? (
+              <AnimatedText text="creating" colorClassName={theme.colors.text.muted} size="xs" />
+            ) : (
+              'Create Project'
+            )}
           </button>
         </div>
       </div>

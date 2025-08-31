@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
+import { theme } from '../../common/theme'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -167,7 +168,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <AnimatedText text="loading" colorClassName="text-slate-400" size="md" />
+        <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
       </div>
     )
   }
@@ -187,7 +188,11 @@ export function SpecEditor({ sessionName, onStart }: Props) {
             title="Run agent (⌘⏎)"
           >
             <VscPlay />
-            {starting ? 'Starting...' : 'Run Agent'}
+{starting ? (
+              <AnimatedText text="starting" colorClassName={theme.colors.text.muted} size="xs" />
+            ) : (
+              'Run Agent'
+            )}
           </button>
           <button
             onClick={handleCopy}
@@ -204,7 +209,13 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       {/* Status bar */}
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">
-          {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing spec'}
+          {saving ? (
+            <AnimatedText text="saving" colorClassName={theme.colors.text.muted} size="xs" centered={false} />
+          ) : error ? (
+            <span className="text-red-400">{error}</span>
+          ) : (
+            'Editing spec'
+          )}
         </div>
       </div>
       
@@ -212,7 +223,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       <div className="flex-1 overflow-hidden">
         <Suspense fallback={
           <div className="h-full flex items-center justify-center">
-            <AnimatedText text="loading" colorClassName="text-slate-400" size="md" />
+            <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
           </div>
         }>
           <MarkdownEditor

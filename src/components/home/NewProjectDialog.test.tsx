@@ -262,7 +262,9 @@ describe('NewProjectDialog', () => {
     expect(nameInput).toBeDisabled()
     
     await waitFor(() => {
-      expect(createBtn).toHaveTextContent('Creating...')
+      // The button now uses AnimatedText component for loading state
+      const animatedTextElement = createBtn.querySelector('pre')
+      expect(animatedTextElement).toBeInTheDocument()
     })
   })
 
