@@ -173,7 +173,7 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
             
             // Save it for future use
             if let Err(e) = settings.set_agent_binary_config(config.clone()) {
-                log::warn!("Failed to save binary config for {}: {}", agent, e);
+                log::warn!("Failed to save binary config for {agent}: {e}");
             }
             configs.push(config);
         }
@@ -208,7 +208,7 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
         };
         
         if let Err(e) = settings.set_agent_binary_config(config.clone()) {
-            log::warn!("Failed to save binary config for {}: {}", agent, e);
+            log::warn!("Failed to save binary config for {agent}: {e}");
         }
         configs.push(config);
     }
