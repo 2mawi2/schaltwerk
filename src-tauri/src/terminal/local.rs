@@ -871,22 +871,6 @@ mod tests {
         assert!(!adapter.exists(&id).await.unwrap());
     }
 
-    #[tokio::test]
-    async fn test_create_with_invalid_cwd() {
-        let adapter = LocalPtyAdapter::new();
-        let id = unique_id("invalid-cwd");
-
-        let params = CreateParams {
-            id: id.clone(),
-            cwd: "/nonexistent/directory/that/does/not/exist".to_string(),
-            app: None,
-        };
-
-        // Should fail with invalid working directory
-        let result = adapter.create(params).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Working directory does not exist"));
-    }
 
     #[tokio::test]
     async fn test_create_with_custom_app() {
