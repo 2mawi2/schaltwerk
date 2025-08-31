@@ -12,7 +12,7 @@ interface KanbanModalProps {
 export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
 
-  // Handle ESC key to close modal
+  // Handle ESC key to close modal and focus management
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -23,21 +23,34 @@ export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
     }
 
     if (isOpen) {
+      // Focus the modal container when it opens to enable keyboard navigation
+      // Use a small delay to ensure the modal is fully rendered
+      const focusTimeout = setTimeout(() => {
+        modalRef.current?.focus()
+      }, 150)
+
       // Prevent keyboard events from propagating to the main app
       const stopPropagation = (e: KeyboardEvent) => {
         // Allow ESC to close the modal
         if (e.key === 'Escape') return
+        
+        // Allow arrow keys for navigation
+        if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || 
+            e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+            return
+        }
         
         // Stop all other keyboard events from reaching the main app
         e.stopPropagation()
       }
 
       window.addEventListener('keydown', handleKeyDown, true)
-      modalRef.current?.addEventListener('keydown', stopPropagation, true)
+      window.addEventListener('keydown', stopPropagation, true)
       
       return () => {
+        clearTimeout(focusTimeout)
         window.removeEventListener('keydown', handleKeyDown, true)
-        modalRef.current?.removeEventListener('keydown', stopPropagation, true)
+        window.removeEventListener('keydown', stopPropagation, true)
       }
     }
   }, [isOpen, onClose])
@@ -58,8 +71,9 @@ export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
     >
       <div 
         ref={modalRef}
-        className="relative w-[95vw] h-[90vh] max-w-[1600px] bg-slate-900 rounded-lg shadow-2xl flex flex-col animate-slideUp"
+        className="relative w-[95vw] h-[90vh] max-w-[1600px] bg-slate-900 rounded-lg shadow-2xl flex flex-col animate-slideUp focus:outline-none"
         onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
@@ -79,7 +93,7 @@ export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
         {/* Content */}
         <div className="flex-1 overflow-hidden">
           <DndProvider backend={HTML5Backend}>
-            <KanbanView />
+            <KanbanView isModalOpen={isOpen} />
           </DndProvider>
         </div>
       </div>

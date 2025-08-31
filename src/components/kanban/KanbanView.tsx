@@ -6,9 +6,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { RightPanelTabs } from '../right-panel/RightPanelTabs'
 import { SpecEditor as SpecEditor } from '../plans/SpecEditor'
 import { Component, ReactNode } from 'react'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
+import { organizeSessionsByColumn, findSessionPosition } from '../../utils/sessionOrganizer'
 
 const ItemType = 'SESSION'
 
@@ -20,6 +21,7 @@ interface DragItem {
 interface DraggableSessionCardProps {
     session: any
     isSelected?: boolean
+    isFocused?: boolean
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady?: (sessionId: string) => void
     onCancel?: (sessionId: string, hasUncommitted: boolean) => void
@@ -31,6 +33,7 @@ interface DraggableSessionCardProps {
 function DraggableSessionCard({ 
     session,
     isSelected,
+    isFocused,
     onMarkReady,
     onUnmarkReady,
     onCancel,
@@ -51,13 +54,20 @@ function DraggableSessionCard({
     }))
 
     return (
-        <div ref={drag as any} className={clsx(
-            "cursor-move mb-2 transition-all duration-200 ease-in-out",
-            isDragging ? "opacity-50 scale-95" : "hover:scale-[1.005]"
-        )}>
+        <div 
+            ref={drag as any} 
+            className={clsx(
+                "cursor-move mb-2 transition-all duration-200 ease-in-out",
+                isDragging ? "opacity-50 scale-95" : "hover:scale-[1.005]"
+            )}
+            data-session-id={session.info.session_id}
+            data-focused={isFocused ? 'true' : 'false'}
+            data-selected={isSelected ? 'true' : 'false'}
+        >
             <SessionCard
                 session={session}
                 isSelected={!!isSelected}
+                isFocused={!!isFocused}
                 isDragging={isDragging}
                 hideKeyboardShortcut={true}
                 onMarkReady={onMarkReady}
@@ -77,7 +87,9 @@ interface ColumnProps {
     sessions: any[]
     onStatusChange: (sessionId: string, newStatus: string) => void
     selectedSessionId?: string | null
+    focusedSessionId?: string | null
     onSelectSession: (sessionId: string, isSpec: boolean) => void
+    onSessionClick: (sessionId: string) => void
     onCreateDraft?: () => void
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady?: (sessionId: string) => void
@@ -93,7 +105,9 @@ function Column({
     sessions, 
     onStatusChange, 
     selectedSessionId,
+    focusedSessionId,
     onSelectSession,
+    onSessionClick,
     onCreateDraft,
     onMarkReady,
     onUnmarkReady,
@@ -109,7 +123,6 @@ function Column({
             return item.currentStatus !== status
         },
         drop: (item: DragItem) => {
-            console.log('[KanbanView] Drop initiated:', { sessionId: item.sessionId, fromStatus: item.currentStatus, toStatus: status })
             try {
                 onStatusChange(item.sessionId, status)
             } catch (error) {
@@ -151,10 +164,12 @@ function Column({
                         <div key={session.info.session_id} onClick={() => {
                             const isSpec = session.info.session_state === 'spec'
                             onSelectSession(session.info.session_id, isSpec)
+                            onSessionClick(session.info.session_id)
                           }}>
                           <DraggableSessionCard
                             session={session}
                             isSelected={selectedSessionId === session.info.session_id}
+                            isFocused={focusedSessionId === session.info.session_id}
                             onMarkReady={onMarkReady}
                             onUnmarkReady={onUnmarkReady}
                             onCancel={onCancel}
@@ -195,20 +210,20 @@ function Column({
     )
 }
 
-export function KanbanView() {
+interface KanbanViewProps {
+    isModalOpen?: boolean
+}
+
+export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     const { allSessions, loading, reloadSessions } = useSessions()
     const [selectedForDetails, setSelectedForDetails] = useState<{ kind: 'session'; payload: string; isSpec?: boolean } | null>(null)
 
     const handleStatusChange = async (sessionId: string, newStatus: string) => {
-        console.log('[KanbanView] handleStatusChange called:', { sessionId, newStatus })
         const session = allSessions.find(s => s.info.session_id === sessionId)
         if (!session) {
-            console.error('[KanbanView] Session not found:', sessionId)
             alert('Session not found: ' + sessionId)
             return
         }
-
-        console.log('[KanbanView] Found session:', { sessionId: session.info.session_id, currentStatus: session.info.status, readyToMerge: session.info.ready_to_merge })
 
         try {
             if (newStatus === 'spec') {
@@ -217,22 +232,17 @@ export function KanbanView() {
             } else if (newStatus === 'active') {
                 // If it's a spec, open modal to start it; if ready_to_merge, unmark it
                 if (session.info.session_state === 'spec') {
-                    console.log('[KanbanView] Opening modal to start spec session:', sessionId)
                     // Open Start agent modal prefilled from spec
                     window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                     return // Don't reload sessions yet, modal will handle the start
                 } else if (session.info.ready_to_merge) {
-                    console.log('[KanbanView] Unmarking session as ready:', sessionId)
                     await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
                 // Mark as ready to merge
-                console.log('[KanbanView] Marking session as ready:', sessionId)
                 await invoke('schaltwerk_core_mark_session_ready', { name: sessionId, autoCommit: false })
             }
-            console.log('[KanbanView] Reloading sessions after status change')
             await reloadSessions()
-            console.log('[KanbanView] Status change completed successfully')
         } catch (error) {
             console.error('[KanbanView] Failed to change status:', error)
             alert('Failed to change status: ' + error)
@@ -295,7 +305,6 @@ export function KanbanView() {
 
     const handleRunDraft = async (sessionId: string) => {
         try {
-            console.log('[KanbanView] Opening modal to start spec session:', sessionId)
             // Open Start agent modal prefilled from spec
             window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
         } catch (error) {
@@ -312,6 +321,161 @@ export function KanbanView() {
             console.error('Failed to delete spec:', error)
         }
     }
+
+    const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null)
+    const [focusedPosition, setFocusedPosition] = useState<{ column: number; row: number }>({ column: 0, row: 0 })
+    
+    // Use refs to access current values in event handlers
+    const focusedSessionIdRef = useRef<string | null>(null)
+    const focusedPositionRef = useRef<{ column: number; row: number }>({ column: 0, row: 0 })
+    const sessionsByColumnRef = useRef<any[][]>([[],[],[]])
+
+    // Organize sessions into columns
+    const sessionsByColumn = useMemo(() => {
+        const columns = organizeSessionsByColumn(allSessions || [])
+        sessionsByColumnRef.current = columns
+        return columns
+    }, [allSessions])
+    
+    // Update refs when state changes
+    useEffect(() => {
+        focusedSessionIdRef.current = focusedSessionId
+        focusedPositionRef.current = focusedPosition
+    }, [focusedSessionId, focusedPosition])
+
+    // Initialize focus on first session when modal opens
+    useEffect(() => {
+        if (!isModalOpen) {
+            setFocusedSessionId(null)
+            setFocusedPosition({ column: 0, row: 0 })
+            return
+        }
+
+        // Only set focus if no session is currently focused
+        if (focusedSessionId) return
+
+        // Find first non-empty column
+        for (let col = 0; col < sessionsByColumn.length; col++) {
+            if (sessionsByColumn[col].length > 0) {
+                const firstSession = sessionsByColumn[col][0]
+                setFocusedSessionId(firstSession.info.session_id)
+                setFocusedPosition({ column: col, row: 0 })
+                setSelectedForDetails({ 
+                    kind: 'session', 
+                    payload: firstSession.info.session_id, 
+                    isSpec: firstSession.info.session_state === 'spec' 
+                })
+                break
+            }
+        }
+    }, [isModalOpen]) // Remove sessionsByColumn from dependencies!
+
+    // Handle keyboard navigation
+    useEffect(() => {
+        if (!isModalOpen) return
+
+        const handleKeyDown = (event: KeyboardEvent) => {
+            // Don't interfere with other shortcuts
+            if (event.metaKey || event.ctrlKey || event.altKey) return
+            
+            // Only handle arrow keys
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
+            
+            // Use refs to get current values
+            const currentColumns = sessionsByColumnRef.current
+            let currentFocusedId = focusedSessionIdRef.current
+            let currentPosition = focusedPositionRef.current
+            
+            // If no session is focused, select the first one
+            if (!currentFocusedId) {
+                for (let col = 0; col < currentColumns.length; col++) {
+                    if (currentColumns[col].length > 0) {
+                        const firstSession = currentColumns[col][0]
+                        setFocusedSessionId(firstSession.info.session_id)
+                        setFocusedPosition({ column: col, row: 0 })
+                        setSelectedForDetails({ 
+                            kind: 'session', 
+                            payload: firstSession.info.session_id, 
+                            isSpec: firstSession.info.session_state === 'spec' 
+                        })
+                        event.preventDefault()
+                        return
+                    }
+                }
+                return // No sessions available
+            }
+            
+            let newCol = currentPosition.column
+            let newRow = currentPosition.row
+            
+            switch (event.key) {
+                case 'ArrowRight':
+                    event.preventDefault()
+                    newCol = (currentPosition.column + 1) % 3
+                    break
+                    
+                case 'ArrowLeft':
+                    event.preventDefault()
+                    newCol = (currentPosition.column - 1 + 3) % 3
+                    break
+                    
+                case 'ArrowDown':
+                    event.preventDefault()
+                    if (currentPosition.row < currentColumns[currentPosition.column].length - 1) {
+                        newRow = currentPosition.row + 1
+                    }
+                    break
+                    
+                case 'ArrowUp':
+                    event.preventDefault()
+                    if (currentPosition.row > 0) {
+                        newRow = currentPosition.row - 1
+                    }
+                    break
+                    
+                default:
+                    return
+            }
+            
+            // Find next non-empty column if needed
+            let attempts = 0
+            while (currentColumns[newCol].length === 0 && attempts < 3) {
+                newCol = (newCol + 1) % 3
+                attempts++
+            }
+            
+            if (attempts === 3) return // All columns empty
+            
+            // Clamp row to valid range
+            newRow = Math.min(newRow, currentColumns[newCol].length - 1)
+            newRow = Math.max(0, newRow)
+            
+            const targetSession = currentColumns[newCol][newRow]
+            if (targetSession) {
+                setFocusedSessionId(targetSession.info.session_id)
+                setFocusedPosition({ column: newCol, row: newRow })
+                setSelectedForDetails({ 
+                    kind: 'session', 
+                    payload: targetSession.info.session_id, 
+                    isSpec: targetSession.info.session_state === 'spec' 
+                })
+            }
+        }
+
+        window.addEventListener('keydown', handleKeyDown)
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown)
+        }
+    }, [isModalOpen]) // Only depend on isModalOpen!
+
+    const handleSessionClick = useCallback((sessionId: string) => {
+        // Find position of clicked session
+        const position = findSessionPosition(sessionId, sessionsByColumn)
+        if (position) {
+            setFocusedSessionId(sessionId)
+            setFocusedPosition(position)
+        }
+    }, [sessionsByColumn])
 
     const handleOpenDiff = useCallback((filePath: string) => {
         window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-file', { detail: { filePath } }))
@@ -374,7 +538,9 @@ export function KanbanView() {
                 sessions={allSessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
+                focusedSessionId={focusedSessionId}
                 onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
+                onSessionClick={handleSessionClick}
                 onCreateDraft={handleCreateDraft}
                 onMarkReady={handleMarkReady}
                 onUnmarkReady={handleUnmarkReady}
@@ -389,7 +555,9 @@ export function KanbanView() {
                 sessions={allSessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
+                focusedSessionId={focusedSessionId}
                 onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
+                onSessionClick={handleSessionClick}
                 onMarkReady={handleMarkReady}
                 onUnmarkReady={handleUnmarkReady}
                 onCancel={handleCancel}
@@ -403,7 +571,9 @@ export function KanbanView() {
                 sessions={allSessions}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
+                focusedSessionId={focusedSessionId}
                 onSelectSession={(id, isSpec) => setSelectedForDetails({ kind: 'session', payload: id, isSpec })}
+                onSessionClick={handleSessionClick}
                 onMarkReady={handleMarkReady}
                 onUnmarkReady={handleUnmarkReady}
                 onCancel={handleCancel}

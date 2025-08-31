@@ -40,6 +40,7 @@ export interface SessionCardProps {
         terminals: string[]
     }
     isSelected?: boolean
+    isFocused?: boolean
     isDragging?: boolean
     hideKeyboardShortcut?: boolean
     hideActions?: boolean
@@ -57,6 +58,7 @@ export interface SessionCardProps {
 export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     session,
     isSelected = false,
+    isFocused = false,
     isDragging = false,
     hideKeyboardShortcut = false,
     hideActions = false,
@@ -87,6 +89,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     // Get background color based on state
     const getStateBackground = () => {
         if (isDragging) return 'opacity-50'
+        if (isFocused) return 'session-ring session-ring-blue border-transparent ring-2 ring-blue-500 ring-opacity-60'
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
         if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
