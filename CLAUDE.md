@@ -29,10 +29,10 @@ npm run build:rust    # Rust compilation check
 
 ```bash
 # Test the application (ALWAYS use this for validation)
-just test             # Run all tests, lints, and build checks
+just test             # Run all tests, lints, and build checks (WITHOUT benchmarks)
 
-# Run the application (let user test functionality)
-just run              # Start the full Tauri application
+# Run the application (ONLY when user requests to test functionality)
+just run              # Start the full Tauri application for user testing
 
 # Alternative npm commands:
 npm run dev           # Start Vite dev server
@@ -40,6 +40,10 @@ npm run build         # Build TypeScript/React frontend
 npm run tauri:dev     # Run full Tauri app in development mode (proper working directory)
 npm run check         # Full check (alias for npm run test)
 ```
+
+**IMPORTANT**: 
+- Always use `just test` (not `just test-all`) for running tests without benchmarks to validate that all tests are green
+- Only use `just run` when the user explicitly requests to test the application - never run it proactively
 
 ## Architecture Overview
 
