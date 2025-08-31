@@ -356,40 +356,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Send initial size to backend immediately
         invoke('resize_terminal', { id: terminalId, cols: initialCols, rows: initialRows }).catch(console.error);
-        
-        // For OpenCode terminals, send additional resize events to ensure proper TUI layout
-        // But delay them longer to avoid conflicts with the mounting process
-        if (terminalId.includes('session-') && !terminalId.includes('orchestrator')) {
-            setTimeout(() => {
-                if (terminal.current && termRef.current) {
-                    try {
-                        const addon = fitAddon.current;
-                        if (!addon) return;
-                        addon.fit();
-                        const { cols, rows } = terminal.current;
-                        // Only send if we got reasonable dimensions
-                        if (cols > 80 && rows > 24) {
-                            invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
-                        }
-                    } catch (e) {
-                        console.warn('OpenCode resize failed:', e);
-                    }
-                }
-            }, 1500);
-            setTimeout(() => {
-                if (terminal.current && termRef.current) {
-                    try {
-                        const addon = fitAddon.current;
-                        if (!addon) return;
-                        addon.fit();
-                        const { cols, rows } = terminal.current;
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
-                    } catch (e) {
-                        console.warn('OpenCode resize failed:', e);
-                    }
-                }
-            }, 3000);
-        }
 
         // Flush queued writes with minimal delay for responsiveness
         const flushQueuedWrites = () => {
@@ -523,6 +489,43 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         hydrateTerminal();
 
+        // Helper functions for scroll position management
+        const captureScrollPosition = () => {
+            let wasAtBottom = false;
+            let scrollPosition = 0;
+            
+            try {
+                if (!terminal.current) {
+                    return { wasAtBottom: true, scrollPosition: 0 };
+                }
+                
+                const buffer = terminal.current.buffer.active;
+                wasAtBottom = buffer.viewportY === buffer.baseY;
+                scrollPosition = buffer.viewportY;
+            } catch (error) {
+                console.warn(`[Terminal ${terminalId}] Failed to capture scroll position:`, error);
+                wasAtBottom = true;
+            }
+            
+            return { wasAtBottom, scrollPosition };
+        };
+
+        const restoreScrollPosition = (wasAtBottom: boolean, scrollPosition: number) => {
+            if (wasAtBottom || !terminal.current) return;
+            
+            try {
+                const buffer = terminal.current.buffer.active;
+                // Only preserve scroll for terminals with substantial content
+                if (buffer.length > 50) {
+                    const maxScroll = Math.max(0, buffer.baseY - terminal.current.rows + 1);
+                    const targetScroll = Math.min(scrollPosition, maxScroll);
+                    terminal.current.scrollToLine(targetScroll);
+                }
+            } catch (error) {
+                console.warn(`[Terminal ${terminalId}] Failed to restore scroll position:`, error);
+            }
+        };
+
         // Handle font size changes with better debouncing
         let fontSizeChangeTimer: NodeJS.Timeout | null = null;
         const handleFontSizeChange = (ev: Event) => {
@@ -541,9 +544,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             fontSizeChangeTimer = setTimeout(() => {
                 if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
 
+                // Capture scroll position before font size change
+                const { wasAtBottom, scrollPosition } = captureScrollPosition();
+
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
+
+                    // Restore scroll position after font size change
+                    restoreScrollPosition(wasAtBottom, scrollPosition);
 
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
@@ -586,6 +595,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
 
+            // Capture scroll position before resize
+            const { wasAtBottom, scrollPosition } = captureScrollPosition();
+
             try {
                 fitAddon.current.fit();
             } catch (e) {
@@ -594,19 +606,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
             const { cols, rows } = terminal.current;
 
+            // Restore scroll position after resize
+            restoreScrollPosition(wasAtBottom, scrollPosition);
+
             // Only send resize if dimensions actually changed
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                // For OpenCode session terminals, prevent downgrading to small sizes
-                // unless it's a legitimate resize (like window resize)
-                const isSessionTerminal = terminalId.includes('session-') && !terminalId.includes('orchestrator');
-                const isDowngrading = (cols < lastSize.current.cols || rows < lastSize.current.rows);
-                const isTooSmall = cols < 100 || rows < 30;
-
-                if (isSessionTerminal && isDowngrading && isTooSmall) {
-                    console.log(`[Terminal ${terminalId}] Ignoring small resize: ${cols}x${rows} (was ${lastSize.current.cols}x${lastSize.current.rows})`);
-                    return;
-                }
-
                 lastSize.current = { cols, rows };
                 invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
             }
@@ -644,8 +648,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const doFinalFit = () => {
             try {
                 if (fitAddon.current && terminal.current) {
+                    // Capture scroll position before final fit
+                    const { wasAtBottom, scrollPosition } = captureScrollPosition();
+
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
+                    
+                    // Restore scroll position after final fit
+                    restoreScrollPosition(wasAtBottom, scrollPosition);
+
                     lastSize.current = { cols, rows };
                     invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
                 }
