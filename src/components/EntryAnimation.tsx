@@ -11,12 +11,10 @@ export const EntryAnimation: React.FC<EntryAnimationProps> = ({ children, isLoad
   const [animationPhase, setAnimationPhase] = useState<'logo-animating' | 'content-entering' | 'complete'>('logo-animating')
   const [showLogo, setShowLogo] = useState(true)
   const logoContainerRef = useRef<HTMLDivElement>(null)
-  const hasStartedRef = useRef(false)
   
   useEffect(() => {
-    if (!isLoading && !hasStartedRef.current) {
-      hasStartedRef.current = true
-      
+    // Start animation immediately on mount when not loading
+    if (!isLoading) {
       // Logo animation takes approximately 2.5s
       // fallDurationMs (600) + settleDurationMs (900) + cameraDollyMs (900) = ~2400ms
       const logoAnimationTimer = setTimeout(() => {
@@ -34,7 +32,7 @@ export const EntryAnimation: React.FC<EntryAnimationProps> = ({ children, isLoad
       
       return () => clearTimeout(logoAnimationTimer)
     }
-  }, [isLoading])
+  }, [isLoading]) // Run when isLoading changes
   
   
   return (

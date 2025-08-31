@@ -14,10 +14,11 @@ import ErrorBoundary from './components/ErrorBoundary'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
-  const [isLoading, setIsLoading] = useState(true)
+  // Start with isLoading=false to begin animation immediately
+  const [isLoading] = useState(false)
 
   useEffect(() => {
-    // Remove initial HTML loader
+    // Remove initial HTML loader if it exists
     const initialLoader = document.getElementById('initial-loader')
     if (initialLoader) {
       initialLoader.style.opacity = '0'
@@ -25,9 +26,6 @@ const AppLoader: React.FC = () => {
         initialLoader.remove()
       }, 300)
     }
-
-    // Start animation immediately (no delay)
-    setIsLoading(false)
   }, [])
 
   return (
@@ -55,7 +53,10 @@ const AppLoader: React.FC = () => {
   )
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
+const root = document.getElementById('root')!
+const reactRoot = ReactDOM.createRoot(root)
+
+reactRoot.render(
   <React.StrictMode>
     <AppLoader />
   </React.StrictMode>,
