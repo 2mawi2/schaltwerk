@@ -1002,6 +1002,44 @@ curl -X POST http://127.0.0.1:8547/api/specs -H "Content-Type: application/json"
 - **Treat dead code as compilation error** - This ensures clean, maintainable codebase
 - **Alternative approaches** - Use feature gates or conditional compilation if needed, but never allow dead code
 
+#### Non-Deterministic Solutions Are Prohibited
+
+**CRITICAL**: Never implement non-deterministic solutions. These are inappropriate and bad practice:
+
+- **NO timeouts or delays**: `setTimeout()`, `delay()`, `sleep()`, `Thread.sleep()` etc.
+- **NO retry loops**: Polling, retry-on-failure, exponential backoff patterns
+- **NO timing-based solutions**: `requestAnimationFrame` chains, interval-based checks
+- **NO race condition workarounds**: Solutions that "usually work" based on timing
+- **NO arbitrary wait periods**: Any solution that waits for an unspecified time
+
+**Why these are problematic**:
+- Create unreliable behavior that works sometimes but fails unpredictably
+- Make debugging extremely difficult
+- Introduce flaky tests that pass/fail randomly  
+- Hide underlying root causes instead of fixing them
+- Create performance issues and resource waste
+
+**Instead, use deterministic approaches**:
+- **Event-driven**: Listen for specific events or state changes
+- **Synchronous operations**: Operations that complete before continuing
+- **Proper lifecycle management**: Handle initialization in the correct order
+- **State validation**: Check actual state rather than assuming timing
+- **API design**: Design APIs to be synchronous when possible
+
+**Example violations to avoid**:
+```javascript
+// BAD: Non-deterministic timing
+setTimeout(() => terminal.fit(), 100)
+requestAnimationFrame(() => requestAnimationFrame(ensureReady))
+
+// GOOD: Deterministic state-based
+if (container.clientWidth > 0) {
+  terminal.fit()
+}
+```
+
+When encountering issues that seem to require timing solutions, investigate the root cause and implement proper deterministic fixes.
+
 #### Error Handling Requirements
 
 **MANDATORY**: All catch blocks must properly handle errors:

@@ -9,7 +9,7 @@ import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -164,6 +164,39 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Open terminal to DOM first (required before WebGL addon)
         terminal.current.open(termRef.current);
         
+        // Ensure proper initial fit after terminal is opened
+        // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
+        const performInitialFit = () => {
+            if (!fitAddon.current || !termRef.current || !terminal.current) return;
+            
+            const containerWidth = termRef.current.clientWidth;
+            const containerHeight = termRef.current.clientHeight;
+            
+            // Only fit if container has proper dimensions
+            if (containerWidth > 0 && containerHeight > 0) {
+                try {
+                    fitAddon.current.fit();
+                    const { cols, rows } = terminal.current;
+                    lastSize.current = { cols, rows };
+                    console.log(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
+                } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
+                }
+            } else {
+                // In tests or when container isn't ready, use default dimensions
+                console.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
+                try {
+                    // Set reasonable default dimensions for tests and edge cases
+                    terminal.current.resize(80, 24);
+                    lastSize.current = { cols: 80, rows: 24 };
+                } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
+                }
+            }
+        };
+        
+        performInitialFit();
+        
         // Add OSC handler to prevent color query responses from showing up in terminal
         terminal.current.parser.registerOscHandler(10, () => true); // foreground color
         terminal.current.parser.registerOscHandler(11, () => true); // background color
@@ -265,7 +298,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 // For orchestrator terminals, try WebGL with proper error handling
                 if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                     try {
-                        fitAddon.current?.fit();
+                        // Ensure terminal is properly fitted before WebGL
+                        if (fitAddon.current && terminal.current) {
+                            fitAddon.current.fit();
+                        }
                         const webglEnabled = setupWebGLAcceleration();
                         if (!webglEnabled) {
                             console.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
