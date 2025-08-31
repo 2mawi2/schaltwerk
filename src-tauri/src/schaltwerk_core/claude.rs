@@ -312,11 +312,17 @@ pub fn build_claude_command_with_config(
         cmd.push_str(" --dangerously-skip-permissions");
     }
 
-    // Use specific session resumption or start fresh
+    // Use specific session resumption, continue most recent, or start fresh
     if let Some(session) = session_id {
-        // Resume specific session with conversation history
-        log::info!("Claude command builder: Resuming specific session '{session}' using -r flag");
-        cmd.push_str(&format!(" -r {session}"));
+        if session == "__continue__" {
+            // Special value to indicate using --continue flag for most recent conversation
+            log::info!("Claude command builder: Using --continue flag to resume most recent session");
+            cmd.push_str(" --continue");
+        } else {
+            // Resume specific session with conversation history
+            log::info!("Claude command builder: Resuming specific session '{session}' using -r flag");
+            cmd.push_str(&format!(" -r {session}"));
+        }
     } else if let Some(prompt) = initial_prompt {
         // Start fresh with initial prompt
         log::info!("Claude command builder: Starting fresh session with initial prompt: '{prompt}'");
@@ -506,5 +512,35 @@ mod tests {
             sanitized,
             "-Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-auto-submit-functionality"
         );
+    }
+
+    #[test]
+    fn test_build_claude_command_with_continue_special_session_id() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("__continue__"),
+            None,
+            false,
+            Some(&config),
+        );
+        assert_eq!(cmd, "cd /path/to/worktree && claude --continue");
+    }
+
+    #[test]
+    fn test_build_claude_command_with_continue_and_permissions() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("__continue__"),
+            None,
+            true,
+            Some(&config),
+        );
+        assert_eq!(cmd, "cd /path/to/worktree && claude --dangerously-skip-permissions --continue");
     }
 }

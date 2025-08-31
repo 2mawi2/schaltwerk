@@ -808,15 +808,16 @@ impl SessionManager {
                     binary_path: Some(binary_path),
                 };
 
+                // Use --continue flag for orchestrator instead of finding specific session ID
                 let session_id_to_use = if resume_session {
-                    crate::schaltwerk_core::claude::find_resumable_claude_session(&self.repo_path)
+                    Some("__continue__") // Special value to trigger --continue flag
                 } else {
                     None
                 };
 
                 Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
                     &self.repo_path,
-                    session_id_to_use.as_deref(),
+                    session_id_to_use,
                     None,
                     skip_permissions,
                     Some(&config),

@@ -326,6 +326,7 @@ mod tests {
         let command = setup.manager.start_claude_in_orchestrator_with_binary(&HashMap::new()).unwrap();
         
         assert!(command.contains("claude"));
+        assert!(command.contains("--continue"), "Expected --continue flag for orchestrator resumption");
         assert!(!command.contains("--dangerously-skip-permissions"));
     }
 
@@ -341,6 +342,23 @@ mod tests {
         
         assert!(command.contains("claude"));
         assert!(command.contains("--dangerously-skip-permissions"));
+        assert!(!command.contains("--continue"), "Fresh orchestrator should not use --continue flag");
+    }
+
+    #[test]
+    fn test_orchestrator_command_claude_continue_with_skip_permissions() {
+        let setup = TestSetup::new();
+        
+        // Set skip permissions globally via database
+        let db = setup.manager.db_ref();
+        db.set_skip_permissions(true).unwrap();
+        
+        // Test resume session (should use --continue)
+        let command = setup.manager.start_claude_in_orchestrator_with_binary(&HashMap::new()).unwrap();
+        
+        assert!(command.contains("claude"));
+        assert!(command.contains("--dangerously-skip-permissions"));
+        assert!(command.contains("--continue"), "Resume orchestrator should use --continue flag with permissions");
     }
 
     #[test]
