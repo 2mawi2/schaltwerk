@@ -1,7 +1,7 @@
 import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TestProviders } from './tests/test-utils'
-import App from './App'
+import App, { validatePanelPercentage } from './App'
 import { vi } from 'vitest'
 
 // ---- Mock: react-split (layout only) ----
@@ -205,6 +205,48 @@ describe('App.tsx', () => {
       expect(screen.getByTestId('home-screen')).toBeInTheDocument()
     })
   })
+})
 
+describe('validatePanelPercentage', () => {
+  it('should return default value when input is null', () => {
+    expect(validatePanelPercentage(null, 30)).toBe(30)
+  })
 
+  it('should return default value when input is empty string', () => {
+    expect(validatePanelPercentage('', 30)).toBe(30)
+  })
+
+  it('should return valid percentage when input is valid', () => {
+    expect(validatePanelPercentage('25', 30)).toBe(25)
+    expect(validatePanelPercentage('50', 30)).toBe(50)
+    expect(validatePanelPercentage('75', 30)).toBe(75)
+  })
+
+  it('should return default value when input is zero', () => {
+    expect(validatePanelPercentage('0', 30)).toBe(30)
+  })
+
+  it('should return default value when input is 100 or greater', () => {
+    expect(validatePanelPercentage('100', 30)).toBe(30)
+    expect(validatePanelPercentage('150', 30)).toBe(30)
+  })
+
+  it('should return default value when input is negative', () => {
+    expect(validatePanelPercentage('-5', 30)).toBe(30)
+  })
+
+  it('should return default value when input is not a number', () => {
+    expect(validatePanelPercentage('abc', 30)).toBe(30)
+    expect(validatePanelPercentage('25px', 30)).toBe(30)
+  })
+
+  it('should handle decimal values correctly', () => {
+    expect(validatePanelPercentage('25.5', 30)).toBe(25.5)
+    expect(validatePanelPercentage('0.1', 30)).toBe(0.1)
+  })
+
+  it('should work with different default values', () => {
+    expect(validatePanelPercentage(null, 50)).toBe(50)
+    expect(validatePanelPercentage('invalid', 75)).toBe(75)
+  })
 })

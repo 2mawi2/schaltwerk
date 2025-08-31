@@ -13,9 +13,10 @@ interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
   selectionOverride?: { kind: 'session' | 'orchestrator'; payload?: string | null }
   isSpecOverride?: boolean
+  isDragging?: boolean
 }
 
-export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride }: RightPanelTabsProps) {
+export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride, isDragging = false }: RightPanelTabsProps) {
   const { selection, isSpec } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
@@ -58,7 +59,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
   return (
     <div 
-      className={`h-full flex flex-col bg-panel border-2 rounded transition-all duration-200 ease-in-out ${localFocus ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+      className={`h-full flex flex-col bg-panel border-2 rounded ${isDragging ? '' : 'transition-all duration-200 ease-in-out'} ${localFocus && !isDragging ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
       <div className="h-8 flex items-center border-b border-slate-800">
@@ -120,8 +121,8 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
           </button>
         )}
       </div>
-      <div className={`h-[2px] flex-shrink-0 transition-opacity duration-200 ${
-        localFocus
+      <div className={`h-[2px] flex-shrink-0 ${isDragging ? '' : 'transition-opacity duration-200'} ${
+        localFocus && !isDragging
           ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
           : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
       }`} />

@@ -1,4 +1,4 @@
-import { VscHome, VscSettingsGear, VscListFlat, VscSplitHorizontal } from 'react-icons/vsc'
+import { VscHome, VscSettingsGear, VscListFlat, VscSplitHorizontal, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
 import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
@@ -15,7 +15,9 @@ interface TopBarProps {
   onOpenKanban?: () => void
   isOrchestratorActive?: boolean
   isSpecModeActive?: boolean
-   onToggleSpecMode?: () => void
+  onToggleSpecMode?: () => void
+  isRightPanelCollapsed?: boolean
+  onToggleRightPanel?: () => void
 }
 
 export function TopBar({
@@ -28,7 +30,9 @@ export function TopBar({
   onOpenKanban,
   isOrchestratorActive = false,
   isSpecModeActive = false,
-   onToggleSpecMode
+  onToggleSpecMode,
+  isRightPanelCollapsed = false,
+  onToggleRightPanel
 }: TopBarProps) {
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
@@ -156,6 +160,22 @@ export function TopBar({
           >
             <VscListFlat className="text-[14px]" />
             <span>Board</span>
+          </button>
+        )}
+        
+        {/* Right panel collapse button - only show when a tab is active */}
+        {activeTabPath && onToggleRightPanel && (
+          <button
+            onClick={onToggleRightPanel}
+            className="h-6 w-6 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors mr-2"
+            title={isRightPanelCollapsed ? 'Show right panel' : 'Hide right panel'}
+            aria-label={isRightPanelCollapsed ? 'Show right panel' : 'Hide right panel'}
+          >
+            {isRightPanelCollapsed ? (
+              <VscLayoutSidebarRightOff className="text-[14px]" />
+            ) : (
+              <VscLayoutSidebarRight className="text-[14px]" />
+            )}
           </button>
         )}
         
