@@ -32,8 +32,8 @@ export function SessionActions({
   onCancel,
   onConvertToSpec,
 }: SessionActionsProps) {
-  // Use more spacing for spec buttons, tighter for others
-  const spacing = sessionState === 'spec' ? 'gap-1.5' : 'gap-0.5';
+  // Use moderate spacing for medium-sized buttons
+  const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
   
   return (
     <div className={`flex items-center ${spacing}`}>

@@ -92,16 +92,16 @@ export function IconButton({
         aria-label={ariaLabel}
         className={clsx(
           'inline-flex items-center justify-center',
-          'px-1.5 py-0.5 rounded',
+          'px-1.5 py-1 rounded',
           'transition-colors duration-150', // Smooth color transitions only
-          'text-[11px]', // Match existing button text size
+          'text-[12px]', // Medium text size for better visibility
           getButtonClasses(),
           !disabled && 'cursor-pointer',
           className
         )}
         title={tooltip || ariaLabel}
       >
-        <span className="w-3.5 h-3.5 flex items-center justify-center">
+        <span className="w-4 h-4 flex items-center justify-center">
           {icon}
         </span>
       </button>
