@@ -631,7 +631,7 @@ describe('Sidebar', () => {
       mockScrollIntoView.mockClear()
     })
 
-    it('should scroll selected session into view when selection changes', async () => {
+    it('should scroll selected session into view when clicked', async () => {
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
           case 'schaltwerk_core_list_enriched_sessions':
@@ -662,7 +662,7 @@ describe('Sidebar', () => {
                   merge_mode: 'rebase',
                   status: 'active',
                   has_uncommitted_changes: false,
-                  is_current: true,
+                  is_current: false,
                   session_type: 'worktree',
                   session_state: 'running'
                 },
@@ -690,21 +690,35 @@ describe('Sidebar', () => {
         }
       })
 
-      render(<Sidebar />, { wrapper: createTestWrapper() })
+      const { container } = render(<Sidebar />, { wrapper: createTestWrapper() })
 
       // Wait for sessions to load
       await waitFor(() => {
         expect(screen.getByText('Test Session 1')).toBeInTheDocument()
+        expect(screen.getByText('Test Session 2')).toBeInTheDocument()
       })
 
-      // Wait for initial auto-selection and then check if scroll was called
+      // Click on session-2 to trigger selection
+      const session2Button = screen.getByText('Test Session 2').closest('button')
+      expect(session2Button).toBeInTheDocument()
+      
+      session2Button!.click()
+
+      // Wait for the selection state to update and DOM to reflect it
+      await waitFor(() => {
+        const selectedButton = container.querySelector('[data-session-selected="true"]')
+        expect(selectedButton).toBeInTheDocument()
+      })
+
+      // Wait for the scroll-to-view logic to complete
+      // The implementation uses requestAnimationFrame + setTimeout with 50ms delay
       await waitFor(() => {
         expect(mockScrollIntoView).toHaveBeenCalledWith({
           behavior: 'smooth',
           block: 'nearest',
           inline: 'nearest'
         })
-      }, { timeout: 3000 })
+      }, { timeout: 1000 })
     })
   })
 })
