@@ -13,6 +13,18 @@ import { organizeSessionsByColumn, findSessionPosition } from '../../utils/sessi
 
 const ItemType = 'SESSION'
 
+// Helper function to find session position across all columns
+function findSessionPositionInColumns(sessionId: string, columns: any[][]): { column: number; row: number } | null {
+    for (let col = 0; col < columns.length; col++) {
+        const rowIndex = columns[col].findIndex(s => s.info.session_id === sessionId)
+        if (rowIndex !== -1) {
+            return { column: col, row: rowIndex }
+        }
+    }
+    return null
+}
+
+
 interface DragItem {
     sessionId: string
     currentStatus: string
@@ -343,6 +355,26 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         focusedPositionRef.current = focusedPosition
     }, [focusedSessionId, focusedPosition])
 
+    // Scroll focused session into view
+    useEffect(() => {
+        if (!isModalOpen || !focusedSessionId) return
+
+        // Use requestAnimationFrame to ensure DOM updates are complete
+        requestAnimationFrame(() => {
+            // Add a small delay to ensure the focus state has been applied to the DOM
+            setTimeout(() => {
+                const focusedElement = document.querySelector(`[data-focused="true"]`)
+                if (focusedElement) {
+                    focusedElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                        inline: 'nearest'
+                    })
+                }
+            }, 50)
+        })
+    }, [focusedSessionId, isModalOpen])
+
     // Initialize focus on first session when modal opens
     useEffect(() => {
         if (!isModalOpen) {
@@ -368,18 +400,21 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                 break
             }
         }
-    }, [isModalOpen]) // Remove sessionsByColumn from dependencies!
+    }, [isModalOpen, sessionsByColumn, focusedSessionId])
 
     // Handle keyboard navigation
     useEffect(() => {
         if (!isModalOpen) return
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            // Don't interfere with other shortcuts
-            if (event.metaKey || event.ctrlKey || event.altKey) return
-            
             // Only handle arrow keys
             if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
+            
+            // Handle both regular navigation and Cmd+navigation
+            const isMetaNavigation = event.metaKey || event.ctrlKey
+            
+            // Don't interfere with other shortcuts (like Alt+arrows)
+            if (event.altKey) return
             
             // Use refs to get current values
             const currentColumns = sessionsByColumnRef.current
@@ -421,15 +456,51 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                     
                 case 'ArrowDown':
                     event.preventDefault()
-                    if (currentPosition.row < currentColumns[currentPosition.column].length - 1) {
-                        newRow = currentPosition.row + 1
+                    if (isMetaNavigation) {
+                        // Cmd+Down: Find next session in any column
+                        const allSessions = currentColumns.flat()
+                        const currentIndex = allSessions.findIndex(s => s.info.session_id === currentFocusedId)
+                        if (currentIndex !== -1) {
+                            const targetIndex = (currentIndex + 1) % allSessions.length
+                            const targetSession = allSessions[targetIndex]
+                            if (targetSession) {
+                                const position = findSessionPositionInColumns(targetSession.info.session_id, currentColumns)
+                                if (position) {
+                                    newCol = position.column
+                                    newRow = position.row
+                                }
+                            }
+                        }
+                    } else {
+                        // Regular ArrowDown: Move down in current column
+                        if (currentPosition.row < currentColumns[currentPosition.column].length - 1) {
+                            newRow = currentPosition.row + 1
+                        }
                     }
                     break
                     
                 case 'ArrowUp':
                     event.preventDefault()
-                    if (currentPosition.row > 0) {
-                        newRow = currentPosition.row - 1
+                    if (isMetaNavigation) {
+                        // Cmd+Up: Find previous session in any column
+                        const allSessions = currentColumns.flat()
+                        const currentIndex = allSessions.findIndex(s => s.info.session_id === currentFocusedId)
+                        if (currentIndex !== -1) {
+                            const targetIndex = (currentIndex - 1 + allSessions.length) % allSessions.length
+                            const targetSession = allSessions[targetIndex]
+                            if (targetSession) {
+                                const position = findSessionPositionInColumns(targetSession.info.session_id, currentColumns)
+                                if (position) {
+                                    newCol = position.column
+                                    newRow = position.row
+                                }
+                            }
+                        }
+                    } else {
+                        // Regular ArrowUp: Move up in current column
+                        if (currentPosition.row > 0) {
+                            newRow = currentPosition.row - 1
+                        }
                     }
                     break
                     
@@ -437,18 +508,17 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                     return
             }
             
-            // Find next non-empty column if needed
-            let attempts = 0
-            while (currentColumns[newCol].length === 0 && attempts < 3) {
-                newCol = (newCol + 1) % 3
-                attempts++
+            // For meta navigation, we already calculated exact position
+            if (!isMetaNavigation) {
+                // For left/right navigation, if target column is empty, stay in current position
+                if (currentColumns[newCol].length === 0) {
+                    return // Don't navigate to empty columns
+                }
+                
+                // Clamp row to valid range for the target column
+                newRow = Math.min(newRow, currentColumns[newCol].length - 1)
+                newRow = Math.max(0, newRow)
             }
-            
-            if (attempts === 3) return // All columns empty
-            
-            // Clamp row to valid range
-            newRow = Math.min(newRow, currentColumns[newCol].length - 1)
-            newRow = Math.max(0, newRow)
             
             const targetSession = currentColumns[newCol][newRow]
             if (targetSession) {

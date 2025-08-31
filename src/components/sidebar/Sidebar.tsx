@@ -458,6 +458,26 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
     useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
 
+    // Scroll selected session into view when selection changes
+    useEffect(() => {
+        if (selection.kind !== 'session') return
+
+        // Use requestAnimationFrame to ensure DOM updates are complete
+        requestAnimationFrame(() => {
+            // Add a small delay to ensure the selection state has been applied to the DOM
+            setTimeout(() => {
+                const selectedElement = sidebarRef.current?.querySelector(`[data-session-selected="true"]`)
+                if (selectedElement) {
+                    selectedElement.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'nearest',
+                        inline: 'nearest'
+                    })
+                }
+            }, 50)
+        })
+    }, [selection])
+
     // Subscribe to backend push updates and merge into sessions list incrementally
     useEffect(() => {
         let unlisteners: UnlistenFn[] = []

@@ -110,6 +110,8 @@ export const SessionButton = memo<SessionButtonProps>(({
     return (
         <button
             onClick={() => onSelect(index)}
+            data-session-id={session.info.session_id}
+            data-session-selected={isSelected ? 'true' : 'false'}
             className={clsx(
                 'group w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300',
                 getStateBackground(),

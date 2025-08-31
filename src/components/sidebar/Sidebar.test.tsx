@@ -622,4 +622,89 @@ describe('Sidebar', () => {
       consoleErrorSpy.mockRestore()
     })
   })
+
+  describe('scroll-to-view behavior', () => {
+    const mockScrollIntoView = vi.fn()
+
+    beforeEach(() => {
+      HTMLElement.prototype.scrollIntoView = mockScrollIntoView
+      mockScrollIntoView.mockClear()
+    })
+
+    it('should scroll selected session into view when selection changes', async () => {
+      mockInvoke.mockImplementation((command: string) => {
+        switch (command) {
+          case 'schaltwerk_core_list_enriched_sessions':
+            return Promise.resolve([
+              {
+                info: {
+                  session_id: 'session-1',
+                  display_name: 'Test Session 1',
+                  branch: 'feature/test-1',
+                  worktree_path: '/path/to/session-1',
+                  base_branch: 'main',
+                  merge_mode: 'rebase',
+                  status: 'active',
+                  has_uncommitted_changes: false,
+                  is_current: false,
+                  session_type: 'worktree',
+                  session_state: 'running'
+                },
+                terminals: ['terminal-1']
+              },
+              {
+                info: {
+                  session_id: 'session-2',
+                  display_name: 'Test Session 2',
+                  branch: 'feature/test-2',
+                  worktree_path: '/path/to/session-2',
+                  base_branch: 'main',
+                  merge_mode: 'rebase',
+                  status: 'active',
+                  has_uncommitted_changes: false,
+                  is_current: true,
+                  session_type: 'worktree',
+                  session_state: 'running'
+                },
+                terminals: ['terminal-2']
+              }
+            ])
+          case 'schaltwerk_core_list_sessions_by_state':
+            return Promise.resolve([])
+          case 'get_current_directory':
+            return Promise.resolve('/test/cwd')
+          case 'terminal_exists':
+            return Promise.resolve(false)
+          case 'create_terminal':
+            return Promise.resolve()
+          case 'get_project_sessions_settings':
+            return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          case 'set_project_sessions_settings':
+            return Promise.resolve()
+          case 'schaltwerk_core_get_font_sizes':
+            return Promise.resolve([13, 12])
+          case 'schaltwerk_core_set_font_sizes':
+            return Promise.resolve()
+          default:
+            return Promise.resolve()
+        }
+      })
+
+      render(<Sidebar />, { wrapper: createTestWrapper() })
+
+      // Wait for sessions to load
+      await waitFor(() => {
+        expect(screen.getByText('Test Session 1')).toBeInTheDocument()
+      })
+
+      // Wait for initial auto-selection and then check if scroll was called
+      await waitFor(() => {
+        expect(mockScrollIntoView).toHaveBeenCalledWith({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'nearest'
+        })
+      }, { timeout: 3000 })
+    })
+  })
 })
