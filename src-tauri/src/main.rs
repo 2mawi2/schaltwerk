@@ -628,18 +628,9 @@ fn main() {
 
     let dir_str = dir_path.to_string_lossy().to_string();
 
-    let initial_directory = if dir_path.is_dir() {
-        // Check if it's a Git repository using libgit2 (much faster than spawning git process)
-        match git2::Repository::discover(&dir_path) {
-            Ok(_) => {
-                log::info!("✅ Opening Schaltwerk with Git repository: {}", dir_path.display());
-                Some((dir_str.clone(), true))
-            }
-            Err(_) => {
-                log::info!("Directory {} is not a Git repository, will open at home screen", dir_path.display());
-                Some((dir_str.clone(), false))
-            }
-        }
+    // Always return the directory if it exists - git check will happen in background
+    let initial_directory: Option<(String, Option<bool>)> = if dir_path.is_dir() {
+        Some((dir_str.clone(), None)) // None means git status unknown, will be determined in background
     } else {
         log::warn!("❌ Invalid directory path: {}, opening at home", dir_path.display());
         None
@@ -811,12 +802,24 @@ fn main() {
                 }
             });
             
-            // If we have an initial Git directory, set it as the active project asynchronously to avoid blocking startup
-            if let Some((dir, is_git)) = initial_directory.clone() {
-                if is_git {
-                    let dir_path = std::path::PathBuf::from(&dir);
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
+            // Check git status and initialize project in background
+            if let Some((dir, _)) = initial_directory.clone() {
+                let dir_path = std::path::PathBuf::from(&dir);
+                let app_handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    // Check if it's a Git repository in background thread
+                    let is_git = match git2::Repository::discover(&dir_path) {
+                        Ok(_) => {
+                            log::info!("✅ Detected Git repository: {}", dir_path.display());
+                            true
+                        }
+                        Err(_) => {
+                            log::info!("Directory {} is not a Git repository, will open at home screen", dir_path.display());
+                            false
+                        }
+                    };
+                    
+                    if is_git {
                         let manager = get_project_manager().await;
                         if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
                             log::error!("Failed to set initial project: {e}");
@@ -827,19 +830,7 @@ fn main() {
                                 log::error!("Failed to emit project-ready event: {e}");
                             }
                         }
-                    });
-                }
-            }
-
-            // Pass initial directory to the frontend if provided (UI sync)
-            if let Some((dir, is_git)) = initial_directory.clone() {
-                let app_handle = app.handle().clone();
-                tauri::async_runtime::spawn(async move {
-                    // Wait a moment for the window to be ready
-                    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-                    
-                    // Emit different events based on whether it's a Git repo
-                    if is_git {
+                        
                         // Emit event to open the Git repository
                         if let Err(e) = app_handle.emit("schaltwerk:open-directory", &dir) {
                             log::error!("Failed to emit open-directory event: {e}");
@@ -852,6 +843,7 @@ fn main() {
                     }
                 });
             }
+
             
             // Initialize settings manager asynchronously
             let settings_handle = app.handle().clone();
@@ -871,41 +863,49 @@ fn main() {
             let file_watcher_handle = app.handle().clone();
             let _ = FILE_WATCHER_MANAGER.set(Arc::new(file_watcher::FileWatcherManager::new(file_watcher_handle)));
             
-            // Start activity tracking for schaltwerk_core sessions
+            // Defer non-critical services to improve startup performance
             let app_handle = app.handle().clone();
-            
-            // Start terminal monitoring for stuck detection
-            let monitor_handle = app_handle.clone();
-            tauri::async_runtime::spawn(async move {
-                start_terminal_monitoring(monitor_handle).await;
-            });
             tauri::async_runtime::spawn(async move {
                 use tokio::time::{sleep, Duration};
-                // Retry until a project is initialized, then start tracking once
-                loop {
-                    match get_schaltwerk_core().await {
-                        Ok(core) => {
-                            let db = {
-                                let core_lock = core.lock().await;
-                                Arc::new(core_lock.db.clone())
-                            };
-                            schaltwerk_core::activity::start_activity_tracking_with_app(db, app_handle.clone());
-                            break;
-                        }
-                        Err(e) => {
-                            log::debug!("No active project for activity tracking: {e}");
-                            sleep(Duration::from_secs(2)).await;
+                
+                // Small delay to let UI appear first
+                sleep(Duration::from_millis(50)).await;
+                
+                // Start terminal monitoring for stuck detection
+                let monitor_handle = app_handle.clone();
+                tokio::spawn(async move {
+                    start_terminal_monitoring(monitor_handle).await;
+                });
+                
+                // Start activity tracking
+                let activity_handle = app_handle.clone();
+                tokio::spawn(async move {
+                    // Retry until a project is initialized, then start tracking once
+                    loop {
+                        match get_schaltwerk_core().await {
+                            Ok(core) => {
+                                let db = {
+                                    let core_lock = core.lock().await;
+                                    Arc::new(core_lock.db.clone())
+                                };
+                                schaltwerk_core::activity::start_activity_tracking_with_app(db, activity_handle.clone());
+                                break;
+                            }
+                            Err(e) => {
+                                log::debug!("No active project for activity tracking: {e}");
+                                sleep(Duration::from_secs(2)).await;
+                            }
                         }
                     }
-                }
-            });
-            
-            // Start webhook server for MCP notifications
-            let webhook_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                if !start_webhook_server(webhook_handle).await {
-                    log::warn!("Webhook server failed to start - likely another instance is running");
-                }
+                });
+                
+                // Start webhook server for MCP notifications
+                let webhook_handle = app_handle.clone();
+                tokio::spawn(async move {
+                    if !start_webhook_server(webhook_handle).await {
+                        log::warn!("Webhook server failed to start - likely another instance is running");
+                    }
+                });
             });
             
             // MCP server is now managed by Claude Code via .mcp.json configuration

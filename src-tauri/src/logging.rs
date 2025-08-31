@@ -1,12 +1,13 @@
 use chrono::Local;
 use env_logger::Builder;
 use log::LevelFilter;
-use std::fs::{self, OpenOptions};
-use std::io::Write;
+use std::fs::{self, OpenOptions, File};
+use std::io::{Write, BufWriter};
 use std::path::PathBuf;
 use std::sync::Mutex;
 
 static LOG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
+static LOG_FILE_WRITER: Mutex<Option<BufWriter<File>>> = Mutex::new(None);
 static LOGGER_INITIALIZED: Mutex<bool> = Mutex::new(false);
 
 /// Get the application's log directory
@@ -52,19 +53,23 @@ pub fn init_logging() {
         *initialized = true;
     }
     let log_path = get_log_path();
-    let log_path_for_closure = log_path.clone();
     
     // Ensure parent directory exists before opening
     if let Some(parent) = log_path.parent() {
         let _ = fs::create_dir_all(parent);
     }
-    // Verify we can write to the log file
+    // Create buffered writer for the log file
     match OpenOptions::new()
         .create(true)
         .append(true)
         .open(&log_path)
     {
-        Ok(_) => {},
+        Ok(file) => {
+            let writer = BufWriter::new(file);
+            if let Ok(mut guard) = LOG_FILE_WRITER.lock() {
+                *guard = Some(writer);
+            }
+        },
         Err(e) => {
             eprintln!("Failed to open log file: {e}");
             eprintln!("Logging will continue to console only");
@@ -115,15 +120,13 @@ pub fn init_logging() {
         // Force flush to ensure immediate output
         buf.flush()?;
         
-        // Also write to file (with error handling)
-        if let Ok(mut file) = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path_for_closure) 
-        {
-            let _ = writeln!(file, "{log_line}");
-            // Force flush to ensure immediate write to disk
-            let _ = file.sync_all();
+        // Also write to buffered file writer (with error handling)
+        if let Ok(mut guard) = LOG_FILE_WRITER.lock() {
+            if let Some(ref mut writer) = *guard {
+                let _ = writeln!(writer, "{log_line}");
+                // Only flush periodically for better performance
+                let _ = writer.flush();
+            }
         }
         
         Ok(())
