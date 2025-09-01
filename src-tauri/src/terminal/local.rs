@@ -94,6 +94,13 @@ impl LocalPtyAdapter {
         cmd
     }
 
+    fn clear_command_environment(cmd: &mut CommandBuilder) {
+        #[allow(unused_must_use)]
+        {
+            cmd.env_clear();
+        }
+    }
+
     fn setup_environment(cmd: &mut CommandBuilder, cols: u16, rows: u16) {
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
@@ -114,6 +121,7 @@ impl LocalPtyAdapter {
             
             path_components.push(format!("{home}/.local/bin"));
             path_components.push(format!("{home}/.cargo/bin"));
+            path_components.push(format!("{home}/.pyenv/shims"));
             path_components.push(format!("{home}/bin"));
             
             path_components.push("/opt/homebrew/bin".to_string());
@@ -122,10 +130,6 @@ impl LocalPtyAdapter {
             path_components.push("/bin".to_string());
             path_components.push("/usr/sbin".to_string());
             path_components.push("/sbin".to_string());
-            
-            if let Ok(existing_path) = std::env::var("PATH") {
-                path_components.push(existing_path);
-            }
             
             let path = path_components.join(":");
             cmd.env("PATH", path);
@@ -319,18 +323,22 @@ impl TerminalBackend for LocalPtyAdapter {
             info!("Command args array (each element is a separate argument): {:?}", app.args);
             
             let mut cmd = CommandBuilder::new(resolved_command);
+            Self::clear_command_environment(&mut cmd);
             for arg in app.args {
                 cmd.arg(arg);
             }
+            Self::setup_environment(&mut cmd, cols, rows);
             for (key, value) in app.env {
                 cmd.env(key, value);
             }
             cmd
         } else {
-            Self::get_shell_command().await
+            let mut cmd = Self::get_shell_command().await;
+            Self::clear_command_environment(&mut cmd);
+            Self::setup_environment(&mut cmd, cols, rows);
+            cmd
         };
         
-        Self::setup_environment(&mut cmd, cols, rows);
         
         // OPTIMIZATION 3: Skip working directory validation in release for faster startup
         // In debug/test mode, we still validate to catch issues early
