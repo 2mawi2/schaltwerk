@@ -730,8 +730,18 @@ async fn get_shell_config() -> (String, Vec<String>) {
         }
     });
 
-    // Default args for interactive shell
-    let args = vec!["-i".to_string()];
+    // Prefer a login + interactive shell so user profile files are sourced.
+    // - zsh: .zprofile + .zshrc
+    // - bash: .bash_profile/.profile + .bashrc (depending on user setup)
+    // - fish: supports -l and -i as well
+    let mut args = Vec::new();
+    if cfg!(target_os = "windows") {
+        // Keep Windows simple and consistent
+        args = vec!["/K".to_string()];
+    } else {
+        args.push("-l".to_string()); // login shell to load environment
+        args.push("-i".to_string()); // interactive for prompt/aliases
+    }
 
     info!("Using default shell: {shell} with args: {args:?}");
     (shell, args)
