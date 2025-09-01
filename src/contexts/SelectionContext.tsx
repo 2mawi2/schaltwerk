@@ -110,44 +110,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 const exists = await invoke<boolean>('terminal_exists', { id })
                 if (!exists) {
-                    // Calculate terminal dimensions based on available space
-                    // This provides better initial sizing for TUI applications
-                    const calculateTerminalSize = () => {
-                        // Get viewport dimensions
-                        const viewportWidth = window.innerWidth
-                        const viewportHeight = window.innerHeight
-                        
-                        // Account for UI elements (sidebar, tabs, padding)
-                        const sidebarWidth = 256  // Sidebar width
-                        const rightPanelWidth = 384 // Right panel width  
-                        const padding = 32 // Total horizontal padding
-                        const headerHeight = 48 // Header/tabs height
-                        const bottomPadding = 32 // Bottom padding
-                        
-                        // Calculate available terminal space
-                        const availableWidth = viewportWidth - sidebarWidth - rightPanelWidth - padding
-                        const availableHeight = viewportHeight - headerHeight - bottomPadding
-                        
-                        // Calculate cols/rows based on actual font metrics
-                        // Common monospace fonts have width ~0.6 of height
-                        const charWidth = Math.ceil(terminalFontSize * 0.6)
-                        const charHeight = Math.ceil(terminalFontSize * 1.5) // Line height is typically 1.5x font size
-                        
-                        const cols = Math.max(80, Math.floor(availableWidth / charWidth))
-                        const rows = Math.max(24, Math.floor(availableHeight / charHeight))
-                        
-                        return { cols, rows }
-                    }
-                    
-                    const { cols, rows } = calculateTerminalSize()
-                    
-                    // Use the new command with size if dimensions are reasonable
-                    if (cols > 80 && rows > 24) {
-                        await invoke('create_terminal_with_size', { id, cwd, cols, rows })
-                    } else {
-                        // Fallback to default size for small windows
-                        await invoke('create_terminal', { id, cwd })
-                    }
+                    await invoke('create_terminal', { id, cwd })
                 }
                 terminalsCreated.current.add(id)
             } catch (error) {

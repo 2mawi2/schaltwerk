@@ -325,14 +325,32 @@ function renderTerminal(props: React.ComponentProps<typeof Terminal>) {
 }
 
 describe('Terminal component', () => {
-  it('sends initial resize on mount based on terminal size', async () => {
-    renderTerminal({ terminalId: "orchestrator-top" })
+  it('sends initial resize after a real fit with measurable container', async () => {
+    // Prepare a fit result and measurable container
+    ;(FitAddonModule as any).__setNextFitSize({ cols: 110, rows: 35 })
+
+    const { container } = renderTerminal({ terminalId: "orchestrator-top" })
     await flushAll()
+
+    // Ensure the terminal container reports non-zero dimensions
+    const divs = Array.from(container.querySelectorAll('div')) as HTMLElement[]
+    for (const el of divs) {
+      Object.defineProperty(el, 'clientWidth', { value: 800, configurable: true })
+      Object.defineProperty(el, 'clientHeight', { value: 600, configurable: true })
+      Object.defineProperty(el, 'isConnected', { value: true, configurable: true })
+    }
+
+    // Trigger ResizeObserver to allow initialization paths to run
+    const ro = (globalThis as any).__lastRO as MockResizeObserver
+    ro?.trigger()
+
+    // Allow RAF/debounced work to run
+    await advanceAndFlush(80)
 
     const resizeCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'resize_terminal')
     expect(resizeCalls.length).toBeGreaterThan(0)
     const lastArgs = resizeCalls[resizeCalls.length - 1][1]
-    expect(lastArgs).toMatchObject({ id: 'orchestrator-top', cols: 80, rows: 24 })
+    expect(lastArgs).toMatchObject({ id: 'orchestrator-top', cols: 110, rows: 35 })
   })
 
   it('hydrates from buffer and flushes pending output in order (batched)', async () => {

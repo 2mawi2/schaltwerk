@@ -178,7 +178,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    lastSize.current = { cols, rows };
+                    // Only send resize if dimensions actually changed
+                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                        lastSize.current = { cols, rows };
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                    }
                     console.log(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
                 } catch (e) {
                     console.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
@@ -343,6 +347,30 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         // Start observing the terminal container
         rendererObserver.observe(termRef.current);
+
+        // Use IntersectionObserver to catch hidden->visible transitions (e.g., collapsed panels)
+        // and trigger a definitive fit+resize when the terminal becomes visible.
+        let visibilityObserver: IntersectionObserver | null = null;
+        if (typeof IntersectionObserver !== 'undefined' && termRef.current) {
+            visibilityObserver = new IntersectionObserver((entries) => {
+                const entry = entries[0];
+                if (!entry || !entry.isIntersecting) return;
+                if (!fitAddon.current || !terminal.current || !termRef.current) return;
+                const el = termRef.current;
+                if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
+                try {
+                    fitAddon.current.fit();
+                    const { cols, rows } = terminal.current;
+                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                        lastSize.current = { cols, rows };
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                    }
+                } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
+                }
+            }, { threshold: 0.01 });
+            visibilityObserver.observe(termRef.current);
+        }
         
         // Also try immediate initialization in case container already has dimensions
         requestAnimationFrame(() => {
@@ -405,9 +433,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Do an initial fit via RAF once container is measurable
         const scheduleInitialFit = () => {
             requestAnimationFrame(() => {
-                if (!isReadyForFit() || !fitAddon.current) return;
+                if (!isReadyForFit() || !fitAddon.current || !terminal.current) return;
                 try {
                     fitAddon.current.fit();
+                    const { cols, rows } = terminal.current;
+                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                        lastSize.current = { cols, rows };
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                    }
                 } catch {
                     // ignore single-shot fit error; RO will retry
                 }
@@ -417,12 +450,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             scheduleInitialFit();
         }
 
-        const initialCols = terminal.current.cols;
-        const initialRows = terminal.current.rows;
-        lastSize.current = { cols: initialCols, rows: initialRows };
-
-        // Send initial size to backend immediately
-        invoke('resize_terminal', { id: terminalId, cols: initialCols, rows: initialRows }).catch(console.error);
+        // Defer initial resize until we have a real fit with measurable container
 
         // Flush queued writes with minimal delay for responsiveness
         const flushQueuedWrites = () => {
@@ -519,6 +547,40 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                   // Flush immediately to avoid dropping output on rapid remounts/tests
                   flushNow();
                   
+                  // After hydration, ensure a definitive fit+resize once layout/fonts are ready
+                  const doHydrationFit = () => {
+                      if (!fitAddon.current || !terminal.current || !termRef.current) return;
+                      const el = termRef.current;
+                      if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
+                      try {
+                          fitAddon.current.fit();
+                          const { cols, rows } = terminal.current;
+                          if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                              lastSize.current = { cols, rows };
+                              invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                          }
+                      } catch (e) {
+                          // Non-fatal; ResizeObserver and later events will correct
+                          console.warn(`[Terminal ${terminalId}] Hydration fit failed:`, e);
+                      }
+                  };
+                  // Run on next frame, then after fonts are ready (if supported)
+                  requestAnimationFrame(() => {
+                      doHydrationFit();
+                      // Use Font Loading API if available to ensure accurate cell metrics
+                      try {
+                          // @ts-ignore
+                          const fontsReady: Promise<any> | undefined = (document as any).fonts?.ready;
+                          if (fontsReady && typeof fontsReady.then === 'function') {
+                              fontsReady.then(() => {
+                                  requestAnimationFrame(() => doHydrationFit());
+                              }).catch(() => {
+                                  // ignore font readiness errors
+                              });
+                          }
+                      } catch { /* ignore */ }
+                  });
+
                   // Scroll to bottom after hydration to show latest content
                   requestAnimationFrame(() => {
                       if (terminal.current) {
@@ -826,6 +888,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 // Already disconnected during initialization, this is expected
                 console.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
             }
+            try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
             webglAddon.current?.dispose();
             webglAddon.current = null;
             terminal.current?.dispose();
