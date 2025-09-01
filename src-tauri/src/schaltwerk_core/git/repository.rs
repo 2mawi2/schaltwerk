@@ -6,27 +6,33 @@ use std::fs;
 pub const INITIAL_COMMIT_MESSAGE: &str = "Initial commit";
 
 fn discover_repository_from_env() -> Option<PathBuf> {
-    let repo_env = std::env::var("PARA_REPO_PATH").ok()?;
-    if repo_env.trim().is_empty() {
+    let repo_env = std::env::var_os("PARA_REPO_PATH")?;
+    if repo_env.is_empty() {
         return None;
     }
-    
-    let repo_path = PathBuf::from(&repo_env);
-    
+
+    let repo_path = PathBuf::from(repo_env);
+
     // Try opening directly as a repository
     if let Ok(repo) = Repository::open(&repo_path) {
-        return Some(repo.workdir()
-            .map(|p| p.to_path_buf())
-            .unwrap_or(repo_path));
+        if let Some(workdir) = repo.workdir() {
+            return Some(workdir.to_path_buf());
+        } else {
+            // Bare repo: return the provided path
+            return Some(repo_path);
+        }
     }
-    
-    // Try discovering from the provided path
+
+    // Try discovering from the provided path (handles subdirectories)
     if let Ok(repo) = Repository::discover(&repo_path) {
         if let Some(workdir) = repo.workdir() {
             return Some(workdir.to_path_buf());
+        } else {
+            // Bare repo discovered
+            return Some(repo.path().to_path_buf());
         }
     }
-    
+
     None
 }
 
