@@ -167,7 +167,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                         )}
                     </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-start gap-2 flex-shrink-0">
                     {index < 8 && (
                         <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
                             ⌘{index + 2}
