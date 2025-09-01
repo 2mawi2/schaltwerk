@@ -598,8 +598,9 @@ impl SessionManager {
                 log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
                 
                 // Check for existing Claude session to determine if we should resume or start fresh
-                let resumable_session_id = crate::schaltwerk_core::claude::find_resumable_claude_session(&session.worktree_path);
-                log::info!("Session manager: find_resumable_claude_session returned: {resumable_session_id:?}");
+                // Use fast-path detection that just checks if any sessions exist
+                let resumable_session_id = crate::schaltwerk_core::claude::find_resumable_claude_session_fast(&session.worktree_path);
+                log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
                 
                 // Determine session_id and prompt based on force_restart and existing session
                 let (session_id_to_use, prompt_to_use) = if force_restart {
