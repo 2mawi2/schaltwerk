@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { SchaltEvent, listenEvent } from './common/eventSystem'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TerminalGrid } from './components/terminal/TerminalGrid'
 import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
@@ -11,7 +12,6 @@ import { CancelConfirmation } from './components/modals/CancelConfirmation'
 import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useSelection } from './contexts/SelectionContext'
 import { useProject } from './contexts/ProjectContext'
 import { useFontSize } from './contexts/FontSizeContext'
@@ -279,15 +279,13 @@ export default function App() {
   // Handle CLI directory argument
   useEffect(() => {
     // Handle opening a Git repository
-    const unlistenDirectoryPromise = listen<string>('schaltwerk:open-directory', async (event) => {
-      const directoryPath = event.payload
+    const unlistenDirectoryPromise = listenEvent(SchaltEvent.OpenDirectory, async (directoryPath) => {
       console.log('Received open-directory event:', directoryPath)
       await applyActiveProject(directoryPath, { initializeBackend: true })
     })
 
     // Handle opening home screen for non-Git directories
-    const unlistenHomePromise = listen<string>('schaltwerk:open-home', async (event) => {
-      const directoryPath = event.payload
+    const unlistenHomePromise = listenEvent(SchaltEvent.OpenHome, async (directoryPath) => {
       console.log('Received open-home event for non-Git directory:', directoryPath)
       setShowHome(true)
       console.log('Opened home screen because', directoryPath, 'is not a Git repository')
@@ -516,7 +514,7 @@ export default function App() {
     }
 
     // Use Tauri's listen for the sessions-refreshed event
-    const unlisten = listen('schaltwerk:sessions-refreshed', handleSessionsRefreshed)
+    const unlisten = listenEvent(SchaltEvent.SessionsRefreshed, handleSessionsRefreshed)
 
     return () => {
       unlisten.then(unlistenFn => unlistenFn())

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import { UnlistenFn } from '@tauri-apps/api/event'
+import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { useProject } from './ProjectContext'
 import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
@@ -361,15 +362,15 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
         const setupListeners = async () => {
             // Full refresh (authoritative list) + specs merge
-            addListener(listen<EnrichedSession[]>('schaltwerk:sessions-refreshed', async (event) => {
+            addListener(listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
                 try {
-                    if (event.payload && event.payload.length > 0) {
+                    if (event && event.length > 0) {
                         // Do a smart merge instead of replacing the entire array to reduce flashing
                         // This preserves session order and references to avoid selection jumping
                         setAllSessions(prev => {
                             // Create a map of new sessions for quick lookup
                             const newSessionsMap = new Map<string, EnrichedSession>()
-                            for (const session of event.payload) {
+                            for (const session of event) {
                                 newSessionsMap.set(session.info.session_id, session)
                             }
                             
@@ -393,7 +394,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             }
                             
                             // Add new sessions at the end
-                            for (const newSession of event.payload) {
+                            for (const newSession of event) {
                                 if (!seenIds.has(newSession.info.session_id)) {
                                     updated.push(newSession)
                                 }
@@ -409,7 +410,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         })
                         
                         const next = new Map<string, string>()
-                        for (const s of event.payload) next.set(s.info.session_id, mapSessionUiState(s.info))
+                        for (const s of event) next.set(s.info.session_id, mapSessionUiState(s.info))
                         prevStatesRef.current = next
                     } else {
                         await reloadSessions()
@@ -420,14 +421,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }))
 
             // Activity updates
-            addListener(listen<{ 
-                session_name: string; 
-                last_activity_ts: number;
-                current_task?: string;
-                todo_percentage?: number;
-                is_blocked?: boolean;
-            }>('schaltwerk:session-activity', (event) => {
-                const { session_name, last_activity_ts, current_task, todo_percentage, is_blocked } = event.payload
+            addListener(listenEvent(SchaltEvent.SessionActivity, (event) => {
+                const { session_name, last_activity_ts, current_task, todo_percentage, is_blocked } = event
                 setAllSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     return {
@@ -445,8 +440,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }))
 
             // Git stats updates
-            addListener(listen<{ session_name: string; files_changed: number; lines_added: number; lines_removed: number; has_uncommitted: boolean }>('schaltwerk:session-git-stats', (event) => {
-                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted } = event.payload
+            addListener(listenEvent(SchaltEvent.SessionGitStats, (event) => {
+                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted } = event
                 setAllSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     const diff = {
@@ -467,8 +462,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }))
 
             // Session added
-            addListener(listen<{ session_name: string; branch: string; worktree_path: string; parent_branch: string }>('schaltwerk:session-added', (event) => {
-                const { session_name, branch, worktree_path, parent_branch } = event.payload
+            addListener(listenEvent(SchaltEvent.SessionAdded, (event) => {
+                const { session_name, branch, worktree_path, parent_branch } = event
                 setAllSessions(prev => {
                     if (prev.some(s => s.info.session_id === session_name)) return prev
                     const info: SessionInfo = {
@@ -497,9 +492,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }))
 
             // Session cancelling (marks as cancelling but doesn't remove)
-            addListener(listen<{ session_name: string }>('schaltwerk:session-cancelling', (event) => {
+            addListener(listenEvent(SchaltEvent.SessionCancelling, (event) => {
                 setAllSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== event.payload.session_name) return s
+                    if (s.info.session_id !== event.session_name) return s
                     return {
                         ...s,
                         info: {
@@ -511,8 +506,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }))
 
             // Session removed (actual removal after cancellation completes)
-            addListener(listen<{ session_name: string }>('schaltwerk:session-removed', (event) => {
-                setAllSessions(prev => prev.filter(s => s.info.session_id !== event.payload.session_name))
+            addListener(listenEvent(SchaltEvent.SessionRemoved, (event) => {
+                setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
             }))
         }
 

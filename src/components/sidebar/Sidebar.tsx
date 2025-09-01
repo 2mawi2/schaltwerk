@@ -3,7 +3,8 @@ import { clsx } from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
-import { listen, UnlistenFn } from '@tauri-apps/api/event'
+import { UnlistenFn } from '@tauri-apps/api/event'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../utils/selectionNext'
@@ -63,13 +64,6 @@ interface EnrichedSession {
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
 
-interface FollowUpMessageNotification {
-    session_name: string
-    message: string
-    message_type: string
-    timestamp: number
-    terminal_id: string
-}
 
 interface SidebarProps {
     isDiffViewerOpen?: boolean
@@ -492,8 +486,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             // the current filter.
 
             // Session removed
-            const u4 = await listen<{ session_name: string }>('schaltwerk:session-removed', async (event) => {
-                const { session_name } = event.payload
+            const u4 = await listenEvent(SchaltEvent.SessionRemoved, async (event) => {
+                const { session_name } = event
                 const currentSelection = latestSelectionRef.current
                 const currentSorted = latestSortedSessionsRef.current
                 const currentSelectedId = currentSelection.kind === 'session' ? (currentSelection.payload || null) : null
@@ -516,8 +510,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             unlisteners.push(u4)
             
             // Listen for follow-up message notifications
-            const u5 = await listen<FollowUpMessageNotification>('schaltwerk:follow-up-message', (event) => {
-                const { session_name, message, message_type } = event.payload
+            const u5 = await listenEvent(SchaltEvent.FollowUpMessage, (event) => {
+                const { session_name, message, message_type } = event
                 
                 // Add visual notification badge for the session
                 setSessionsWithNotifications(prev => new Set([...prev, session_name]))

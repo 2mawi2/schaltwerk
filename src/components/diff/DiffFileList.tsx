@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
 import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary } from 'react-icons/vsc'
 // Open button moved to global top bar
@@ -12,24 +12,6 @@ interface ChangedFile {
   change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
 }
 
-interface FileChangeEvent {
-  session_name: string
-  changed_files: ChangedFile[]
-  change_summary: {
-    files_changed: number
-    lines_added: number
-    lines_removed: number
-    has_staged: boolean
-    has_unstaged: boolean
-  }
-  branch_info: {
-    current_branch: string
-    base_branch: string
-    base_commit: string
-    head_commit: string
-  }
-  timestamp: number
-}
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -186,8 +168,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     const setup = async () => {
       // Listen for session cancelling to stop polling immediately
       if (currentSession) {
-        sessionCancellingUnlisten = await listen<{ session_name: string }>('schaltwerk:session-cancelling', (event) => {
-          if (event.payload.session_name === currentSession) {
+        sessionCancellingUnlisten = await listenEvent(SchaltEvent.SessionCancelling, (event) => {
+          if (event.session_name === currentSession) {
             console.log(`Session ${currentSession} is being cancelled, stopping file watcher and polling`)
             isCancelled = true
             // Mark session as cancelled to prevent future loads
@@ -230,21 +212,21 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
 
       // Always set up event listener (even if watcher failed, in case it recovers)
       try {
-        eventUnlisten = await listen<FileChangeEvent>('schaltwerk:file-changes', (event) => {
+        eventUnlisten = await listenEvent(SchaltEvent.FileChanges, (event) => {
           // CRITICAL: Only update if this event is for the currently selected session
           const { sessionNameOverride: currentOverride, selection: currentSelection } = currentPropsRef.current
           const currentlySelectedSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
-          if (event.payload.session_name === currentlySelectedSession) {
-            setFiles(event.payload.changed_files)
+          if (event.session_name === currentlySelectedSession) {
+            setFiles(event.changed_files)
             setBranchInfo({
-              currentBranch: event.payload.branch_info.current_branch,
-              baseBranch: event.payload.branch_info.base_branch,
-              baseCommit: event.payload.branch_info.base_commit,
-              headCommit: event.payload.branch_info.head_commit
+              currentBranch: event.branch_info.current_branch,
+              baseBranch: event.branch_info.base_branch,
+              baseCommit: event.branch_info.base_commit,
+              headCommit: event.branch_info.head_commit
             })
             
             // Update signature to match current session
-            lastResultRef.current = `session-${currentlySelectedSession}-${event.payload.changed_files.length}-${event.payload.changed_files.map(f => `${f.path}:${f.change_type}`).join(',')}-${event.payload.branch_info.current_branch}-${event.payload.branch_info.base_branch}`
+            lastResultRef.current = `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map((f: any) => `${f.path}:${f.change_type}`).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
             
             // If we receive events, we can stop polling
             if (pollInterval) {

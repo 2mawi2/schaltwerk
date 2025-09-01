@@ -682,41 +682,80 @@ The `AnimatedText` component provides:
 #### Architecture Pattern
 The app uses **Tauri events** for backend-to-frontend communication. NEVER use DOM events (`window.addEventListener`) for inter-component communication - always emit events from the backend.
 
-#### Key Tauri Events
-- `schaltwerk:sessions-refreshed`: Backend emits with full session list when sessions change (create/delete/state change)
-- `schaltwerk:session-removed`: Backend emits when a session is deleted
-- `schaltwerk:selection`: Frontend selection changes
-- `terminal-output-{id}`: Terminal output streaming from backend
+#### Type-Safe Event System
 
-#### Implementation Pattern
-When session state changes in backend:
-1. Backend command performs the operation
-2. Backend emits `app.emit("schaltwerk:sessions-refreshed", sessions)`
-3. Frontend components listen via `listen()` from `@tauri-apps/api/event`
-4. Components refresh their state when event received
+**MANDATORY**: Always use type-safe event enums instead of string-based events to prevent typos and ensure compile-time safety.
 
-Example backend:
+##### Frontend Event Usage
+
+```typescript
+import { listenEvent, emitEvent, SchaltEvent, listenTerminalOutput } from '../common/eventSystem'
+
+// Listen to typed events
+useEffect(() => {
+    const unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, (sessions) => {
+        setSessions(sessions) // sessions is properly typed
+    })
+    return () => { unlisten() }
+}, [])
+
+// Listen to terminal events
+const unlisten = await listenTerminalOutput(terminalId, (output) => {
+    console.log('Terminal output:', output)
+})
+
+// Emit events (frontend side, rarely used)
+await emitEvent(SchaltEvent.SessionsRefreshed, sessions)
+```
+
+##### Backend Event Usage
+
 ```rust
+use crate::events::{emit_event, SchaltEvent};
+
 #[tauri::command]
 async fn schaltwerk_core_start_draft_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
     // ... perform operation ...
     if let Ok(sessions) = manager.list_enriched_sessions() {
-        app.emit("schaltwerk:sessions-refreshed", &sessions)?;
+        emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
     }
     Ok(())
 }
 ```
 
-Example frontend:
-```typescript
-import { listen } from '@tauri-apps/api/event'
+##### Available Events
 
-useEffect(() => {
-    const unlisten = await listen('schaltwerk:sessions-refreshed', (event) => {
-        setSessions(event.payload)
-    })
-    return () => { unlisten() }
-}, [])
+All events are defined in `src/common/events.ts` (frontend) and `src-tauri/src/events.rs` (backend):
+
+- `SchaltEvent::SessionsRefreshed` / `SchaltEvent.SessionsRefreshed`
+- `SchaltEvent::SessionAdded` / `SchaltEvent.SessionAdded`
+- `SchaltEvent::SessionRemoved` / `SchaltEvent.SessionRemoved`
+- `SchaltEvent::SessionCancelling` / `SchaltEvent.SessionCancelling`
+- `SchaltEvent::ClaudeStarted` / `SchaltEvent.ClaudeStarted`
+- Plus terminal-specific helpers: `emit_terminal_output()`, `listenTerminalOutput()`
+
+##### Critical Rules
+
+1. **NEVER use string literals** for events:
+   - ❌ `listen('schaltwerk:sessions-refreshed', ...)`
+   - ❌ `app.emit("schaltwerk:sessions-refreshed", ...)`
+   - ✅ `listenEvent(SchaltEvent.SessionsRefreshed, ...)`
+   - ✅ `emit_event(&app, SchaltEvent::SessionsRefreshed, ...)`
+
+2. **Use helper functions** for terminal events:
+   - ❌ `listen(\`terminal-output-\${id}\`, ...)`
+   - ✅ `listenTerminalOutput(id, ...)`
+
+3. **Import from event system**:
+   - Frontend: `import { listenEvent, SchaltEvent } from '../common/eventSystem'`
+   - Backend: `use crate::events::{emit_event, SchaltEvent};`
+
+##### Migration
+Use automated migration tools:
+```bash
+npm run migrate-events      # Migrate entire codebase
+npm run validate-migration  # Check for remaining issues
+```
 
 ### Known Issues
 - Terminal resize events need debouncing to prevent flicker

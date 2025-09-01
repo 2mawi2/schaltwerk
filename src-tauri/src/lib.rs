@@ -7,3 +7,4 @@ pub mod utils;
 pub mod binary_detector;
 pub mod terminal;
 pub mod file_watcher;
+pub mod events;

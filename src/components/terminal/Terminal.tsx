@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { SchaltEvent, listenEvent, listenTerminalOutput, listenTerminalOutputNormalized } from '../../common/eventSystem'
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebglAddon } from '@xterm/addon-webgl';
 import { invoke } from '@tauri-apps/api/core';
-import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
@@ -79,8 +80,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         const setupListener = async () => {
             try {
-                unlistenClaudeStarted = await listen('schaltwerk:claude-started', (event) => {
-                    const payload = event.payload as { terminal_id: string; session_name: string };
+                unlistenClaudeStarted = await listenEvent(SchaltEvent.ClaudeStarted, (payload) => {
                     console.log(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
                     
                     // Mark the terminal as started globally to prevent auto-start
@@ -446,17 +446,27 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
-        const channel = agentType === 'codex' ? `terminal-output-normalized-${terminalId}` : `terminal-output-${terminalId}`;
-        unlistenPromiseRef.current = listen(channel, (event) => {
-            if (cancelled) return;
-            const output = event.payload as string;
-            if (!hydratedRef.current) {
-                pendingOutput.current.push(output);
-            } else {
-                writeQueueRef.current.push(output);
-                flushQueuedWrites();
-            }
-        }).then((fn) => { unlistenRef.current = fn; return fn; });
+        if (agentType === 'codex') {
+            unlistenPromiseRef.current = listenTerminalOutputNormalized(terminalId, (output) => {
+                if (cancelled) return;
+                if (!hydratedRef.current) {
+                    pendingOutput.current.push(output);
+                } else {
+                    writeQueueRef.current.push(output);
+                    flushQueuedWrites();
+                }
+            }).then((fn) => { unlistenRef.current = fn; return fn; });
+        } else {
+            unlistenPromiseRef.current = listenTerminalOutput(terminalId, (output) => {
+                if (cancelled) return;
+                if (!hydratedRef.current) {
+                    pendingOutput.current.push(output);
+                } else {
+                    writeQueueRef.current.push(output);
+                    flushQueuedWrites();
+                }
+            }).then((fn) => { unlistenRef.current = fn; return fn; });
+        }
 
         // Hydrate from buffer
         const hydrateTerminal = async () => {

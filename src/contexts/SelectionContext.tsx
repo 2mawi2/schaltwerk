@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
@@ -423,8 +423,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         let unlisten: (() => void) | null = null
         const attach = async () => {
             try {
-                const { listen } = await import('@tauri-apps/api/event')
-                unlisten = await listen('schaltwerk:sessions-refreshed', async () => {
+                unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async () => {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
                         const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: selection.payload })
@@ -538,8 +537,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         
         const setupSelectionListener = async () => {
             try {
-                unlisten = await listen<Selection>('schaltwerk:selection', async (event) => {
-                    const target = event.payload
+                unlisten = await listenEvent(SchaltEvent.Selection, async (target) => {
                     console.log('Received selection event from backend:', target)
 
                     // Guard: Don't auto-switch to a spec when user is focused on a running session

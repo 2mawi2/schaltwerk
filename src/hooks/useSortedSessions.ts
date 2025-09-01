@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { useProject } from '../contexts/ProjectContext'
 import { SortMode, FilterMode } from '../types/sessionFilters'
 
@@ -102,13 +102,13 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
         if (!projectPath) return
 
         const unlistenPromises = Promise.all([
-            listen('schaltwerk:sessions-refreshed', () => {
+            listenEvent(SchaltEvent.SessionsRefreshed, () => {
                 loadSortedSessionsDebounced()
             }),
-            listen('schaltwerk:session-added', () => {
+            listenEvent(SchaltEvent.SessionAdded, () => {
                 loadSortedSessionsDebounced()
             }),
-            listen('schaltwerk:session-removed', () => {
+            listenEvent(SchaltEvent.SessionRemoved, () => {
                 loadSortedSessionsDebounced()
             })
         ])

@@ -163,9 +163,14 @@ impl SessionUtils {
         
         log::info!("Executing setup script for session {session_name}");
         
-        // Create a temporary script file
+        // Create a temporary script file with unique name to avoid conflicts
         let temp_dir = std::env::temp_dir();
-        let script_path = temp_dir.join(format!("para_setup_{session_name}.sh"));
+        let process_id = std::process::id();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let script_path = temp_dir.join(format!("para_setup_{session_name}_{process_id}_{timestamp}.sh"));
         std::fs::write(&script_path, script)?;
         
         // Make the script executable

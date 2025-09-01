@@ -11,6 +11,7 @@ mod binary_detection;
 mod cleanup;
 mod diff_commands;
 mod diff_engine;
+mod events;
 mod file_utils;
 mod file_watcher;
 mod logging;
@@ -220,7 +221,6 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
 }
 
 async fn start_terminal_monitoring(app: tauri::AppHandle) {
-    use tauri::Emitter;
     use tokio::time::{interval, Duration};
     use serde::Serialize;
     use std::collections::HashSet;
@@ -275,7 +275,7 @@ async fn start_terminal_monitoring(app: tauri::AppHandle) {
                         
                         log::info!("Terminal {terminal_id} became idle after {elapsed} seconds");
                         
-                        if let Err(e) = app.emit("schaltwerk:terminal-stuck", &notification) {
+                        if let Err(e) = emit_event(&app, SchaltEvent::TerminalStuck, &notification) {
                             log::error!("Failed to emit terminal stuck notification: {e}");
                         }
                     }
@@ -295,7 +295,7 @@ async fn start_terminal_monitoring(app: tauri::AppHandle) {
                         
                         log::info!("Terminal {terminal_id} became active again");
                         
-                        if let Err(e) = app.emit("schaltwerk:terminal-unstuck", &notification) {
+                        if let Err(e) = emit_event(&app, SchaltEvent::TerminalUnstuck, &notification) {
                             log::error!("Failed to emit terminal unstuck notification: {e}");
                         }
                     }
@@ -390,7 +390,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 parent_branch: payload.get("parent_branch").and_then(|v| v.as_str()).unwrap_or("").to_string(),
                             };
                             
-                            if let Err(e) = app.emit("schaltwerk:session-added", &session_payload) {
+                            if let Err(e) = emit_event(&app, SchaltEvent::SessionAdded, &session_payload) {
                                 log::error!("Failed to emit session-added event: {e}");
                             }
                         }
@@ -418,7 +418,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 session_name: session_name.to_string(),
                             };
                             
-                            if let Err(e) = app.emit("schaltwerk:session-removed", &session_payload) {
+                            if let Err(e) = emit_event(&app, SchaltEvent::SessionRemoved, &session_payload) {
                                 log::error!("Failed to emit session-removed event: {e}");
                             }
                         }
@@ -483,7 +483,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 terminal_id,
                             };
                             
-                            if let Err(e) = app.emit("schaltwerk:follow-up-message", &message_payload) {
+                            if let Err(e) = emit_event(&app, SchaltEvent::FollowUpMessage, &message_payload) {
                                 log::error!("Failed to emit follow-up-message event: {e}");
                             }
                         }
@@ -508,7 +508,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             // We emit with empty array since UI components will fetch what they need
                             // (specs via list_sessions_by_state, sessions via list_enriched_sessions)
                             log::info!("Emitting sessions-refreshed event after MCP spec creation");
-                            if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &Vec::<schaltwerk_core::EnrichedSession>::new()) {
+                            if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<schaltwerk_core::EnrichedSession>::new()) {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
                             
@@ -518,7 +518,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 "kind": "session",
                                 "payload": draft_name
                             });
-                            if let Err(e) = app.emit("schaltwerk:selection", &selection) {
+                            if let Err(e) = emit_event(&app, SchaltEvent::Selection, &selection) {
                                 log::error!("Failed to emit selection event: {e}");
                             }
                         } else {
@@ -594,7 +594,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
     }
 }
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
+use crate::events::{emit_event, SchaltEvent};
 
 fn main() {
     // Initialize logging
@@ -826,18 +827,18 @@ fn main() {
                         } else {
                             log::info!("Initial project set to: {}", dir_path.display());
                             // Emit project-ready event to notify frontend
-                            if let Err(e) = app_handle.emit("schaltwerk:project-ready", &dir_path.display().to_string()) {
+                            if let Err(e) = emit_event(&app_handle, SchaltEvent::ProjectReady, &dir_path.display().to_string()) {
                                 log::error!("Failed to emit project-ready event: {e}");
                             }
                         }
                         
                         // Emit event to open the Git repository
-                        if let Err(e) = app_handle.emit("schaltwerk:open-directory", &dir) {
+                        if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenDirectory, &dir) {
                             log::error!("Failed to emit open-directory event: {e}");
                         }
                     } else {
                         // Emit event to open home screen (non-Git directory)
-                        if let Err(e) = app_handle.emit("schaltwerk:open-home", &dir) {
+                        if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenHome, &dir) {
                             log::error!("Failed to emit open-home event: {e}");
                         }
                     }

@@ -1,10 +1,10 @@
-use tauri::Emitter;
 use crate::schaltwerk_core::{SessionState, EnrichedSession};
 use crate::schaltwerk_core::types::{Session, SortMode, FilterMode};
 use crate::schaltwerk_core::db_sessions::SessionMethods;
 use crate::schaltwerk_core::db_app_config::AppConfigMethods;
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
+use crate::events::{emit_event, SchaltEvent};
 
 // Normalize user-provided CLI text copied from rich sources:
 // - Replace Unicode dash-like characters with ASCII '-'
@@ -154,9 +154,7 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
         worktree_path: String,
         parent_branch: String,
     }
-    let _ = app.emit(
-        "schaltwerk:session-added",
-        SessionAddedPayload {
+    let _ = emit_event(&app, SchaltEvent::SessionAdded, &SessionAddedPayload {
             session_name: session.name.clone(),
             branch: session.branch.clone(),
             worktree_path: session.worktree_path.to_string_lossy().to_string(),
@@ -266,7 +264,7 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
                     // Invalidate cache before emitting refreshed event
                                         if let Ok(sessions) = manager.list_enriched_sessions() {
                         log::info!("Emitting sessions-refreshed event after name generation");
-                        if let Err(e) = app_handle.emit("schaltwerk:sessions-refreshed", &sessions) {
+                        if let Err(e) = emit_event(&app_handle, SchaltEvent::SessionsRefreshed, &sessions) {
                             log::warn!("Could not emit sessions refreshed: {e}");
                         }
                     }
@@ -344,9 +342,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
     // Emit a "cancelling" event instead of "removed"
     #[derive(serde::Serialize, Clone)]
     struct SessionCancellingPayload { session_name: String }
-    let _ = app.emit(
-        "schaltwerk:session-cancelling", 
-        SessionCancellingPayload { session_name: name.clone() }
+    let _ = emit_event(&app, SchaltEvent::SessionCancelling, &SessionCancellingPayload { session_name: name.clone() }
     );
     
     let app_for_refresh = app.clone();
@@ -370,16 +366,14 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
                 // Now emit the actual removal event after successful cancellation
                 #[derive(serde::Serialize, Clone)]
                 struct SessionRemovedPayload { session_name: String }
-                let _ = app_for_refresh.emit(
-                    "schaltwerk:session-removed", 
-                    SessionRemovedPayload { session_name: name_for_bg.clone() }
+                let _ = emit_event(&app_for_refresh, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name_for_bg.clone() }
                 );
                 
                 if let Ok(core) = get_schaltwerk_core().await {
                     let core = core.lock().await;
                     let manager = core.session_manager();
                     if let Ok(sessions) = manager.list_enriched_sessions() {
-                        let _ = app_for_refresh.emit("schaltwerk:sessions-refreshed", &sessions);
+                        let _ = emit_event(&app_for_refresh, SchaltEvent::SessionsRefreshed, &sessions);
                     }
                 }
             },
@@ -391,9 +385,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
                     session_name: String,
                     error: String 
                 }
-                let _ = app_for_refresh.emit(
-                    "schaltwerk:cancel-error", 
-                    CancelErrorPayload { 
+                let _ = emit_event(&app_for_refresh, SchaltEvent::CancelError, &CancelErrorPayload { 
                         session_name: name_for_bg.clone(),
                         error: e.to_string()
                     }
@@ -403,7 +395,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
                     let core = core.lock().await;
                     let manager = core.session_manager();
                     if let Ok(sessions) = manager.list_enriched_sessions() {
-                        let _ = app_for_refresh.emit("schaltwerk:sessions-refreshed", &sessions);
+                        let _ = emit_event(&app_for_refresh, SchaltEvent::SessionsRefreshed, &sessions);
                     }
                 }
             }
@@ -459,7 +451,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
             // Emit event to notify frontend of the change
             // Invalidate cache before emitting refreshed event
                         if let Ok(sessions) = manager.list_enriched_sessions() {
-                let _ = app.emit("schaltwerk:sessions-refreshed", &sessions);
+                let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions);
             }
             
             Ok(())
@@ -645,6 +637,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     
     // Emit event to mark terminal as started globally
     #[derive(serde::Serialize)]
+    #[derive(Clone)]
     struct ClaudeStartedPayload {
         terminal_id: String,
         session_name: String,
@@ -655,7 +648,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
         session_name: session_name.clone(),
     };
     
-    if let Err(e) = app.emit("schaltwerk:claude-started", &payload) {
+    if let Err(e) = emit_event(&app, SchaltEvent::ClaudeStarted, &payload) {
         log::warn!("Failed to emit claude-started event: {e}");
     }
     
@@ -951,7 +944,7 @@ pub async fn schaltwerk_core_mark_session_ready(app: tauri::AppHandle, name: Str
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after marking session ready");
-        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
     }
@@ -988,7 +981,7 @@ pub async fn schaltwerk_core_unmark_session_ready(app: tauri::AppHandle, name: S
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after unmarking session ready");
-        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
     }
@@ -1011,7 +1004,7 @@ pub async fn schaltwerk_core_create_spec_session(app: tauri::AppHandle, name: St
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after creating spec session");
-        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
     }
@@ -1033,7 +1026,7 @@ pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: Str
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after starting spec session");
-        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
     }
@@ -1079,7 +1072,7 @@ pub async fn schaltwerk_core_update_spec_content(app: tauri::AppHandle, name: St
     
     // Emit sessions-refreshed event to update UI
     if let Ok(sessions) = manager.list_enriched_sessions() {
-        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
     }
@@ -1100,7 +1093,7 @@ pub async fn schaltwerk_core_rename_draft_session(app: tauri::AppHandle, old_nam
     
     // Emit sessions-refreshed event to update UI
     if let Ok(sessions) = manager.list_enriched_sessions() {
-        if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
     }

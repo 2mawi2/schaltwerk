@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, RwLock};
+use crate::events::{emit_event, SchaltEvent};
 
 const MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
@@ -178,9 +179,7 @@ impl LocalPtyAdapter {
                             reader_state.pty_writers.lock().await.remove(&id_clone_for_cleanup);
                             // Emit terminal closed event
                             if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
-                                let _ = handle.emit(
-                                    "schaltwerk:terminal-closed",
-                                    &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
+                                let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
                                 );
                             }
                         });
@@ -242,9 +241,7 @@ impl LocalPtyAdapter {
                                 reader_state.pty_masters.lock().await.remove(&id_clone_for_cleanup);
                                 reader_state.pty_writers.lock().await.remove(&id_clone_for_cleanup);
                                 if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
-                                    let _ = handle.emit(
-                                        "schaltwerk:terminal-closed",
-                                        &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
+                                    let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
                                     );
                                 }
                             });
@@ -704,9 +701,7 @@ impl LocalPtyAdapter {
         let handle_guard = app_handle.lock().await;
         match handle_guard.as_ref() {
             Some(handle) => {
-                if let Err(e) = handle.emit(
-                    "schaltwerk:terminal-closed",
-                    &serde_json::json!({"terminal_id": id}),
+                if let Err(e) = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id}),
                 ) {
                     warn!("Failed to emit terminal-closed event for {id}: {e}");
                 }

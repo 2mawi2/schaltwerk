@@ -16,8 +16,9 @@ use crate::schaltwerk_core::{
     db_git_stats::GitStatsMethods,
     git,
 };
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use serde::Serialize;
+use crate::events::{emit_event, SchaltEvent};
 
 pub trait EventEmitter: Send + Sync {
     fn emit_session_activity(&self, payload: SessionActivityUpdated) -> Result<()>;
@@ -26,12 +27,12 @@ pub trait EventEmitter: Send + Sync {
 
 impl EventEmitter for AppHandle {
     fn emit_session_activity(&self, payload: SessionActivityUpdated) -> Result<()> {
-        self.emit("schaltwerk:session-activity", payload)
+        emit_event(self, SchaltEvent::SessionActivity, &payload)
             .map_err(|e| anyhow::anyhow!("Failed to emit session activity: {e}"))
     }
     
     fn emit_session_git_stats(&self, payload: SessionGitStatsUpdated) -> Result<()> {
-        self.emit("schaltwerk:session-git-stats", payload)
+        emit_event(self, SchaltEvent::SessionGitStats, &payload)
             .map_err(|e| anyhow::anyhow!("Failed to emit git stats: {e}"))
     }
 }

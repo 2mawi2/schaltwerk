@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { theme } from '../../common/theme'
@@ -97,9 +97,9 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   useEffect(() => {
     console.log('[SpecEditor] Setting up sessions-refreshed listener for session:', sessionName)
     
-    const unlistenPromise = listen('schaltwerk:sessions-refreshed', async (event) => {
+    const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
       console.log('[SpecEditor] Received sessions-refreshed event')
-      const sessions = event.payload as any[]
+      const sessions = event as any[]
       console.log('[SpecEditor] Total sessions in event:', sessions.length)
       
       // Log all spec sessions for debugging

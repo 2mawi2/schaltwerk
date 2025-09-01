@@ -28,7 +28,9 @@
     "coverage:all": "npm run test:frontend:coverage && npm run coverage:report && npm run coverage:rust",
     "coverage": "npm run test:frontend:coverage && npm run coverage:report",
     "build:rust": "cd src-tauri && cargo build --message-format=short",
-    "check": "npm run test"
+    "check": "npm run test",
+    "migrate-events": "node scripts/migrate-events.cjs",
+    "validate-migration": "node scripts/validate-migration.cjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.8.1",
@@ -47,6 +49,7 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
     "@xterm/addon-webgl": "^0.18.0",
+    "@xterm/xterm": "^5.5.0",
     "autoprefixer": "^10.4.21",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",
@@ -59,8 +62,7 @@
     "react-markdown": "^10.1.0",
     "react-split": "^2.0.14",
     "remark-gfm": "^4.0.1",
-    "tailwindcss": "^4.1.12",
-    "@xterm/xterm": "^5.5.0"
+    "tailwindcss": "^4.1.12"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.8.3",
@@ -74,6 +76,7 @@
     "@vitest/ui": "^3.2.4",
     "eslint": "^9.34.0",
     "eslint-plugin-react-hooks": "^5.2.0",
+    "glob": "^11.0.3",
     "happy-dom": "^18.0.1",
     "terser": "^5.43.1",
     "typescript": "~5.9.2",

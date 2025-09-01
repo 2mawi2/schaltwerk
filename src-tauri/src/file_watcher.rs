@@ -6,7 +6,8 @@ use std::time::Duration;
 use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use notify::{RecommendedWatcher, RecursiveMode};
 use serde::{Serialize, Deserialize};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+use crate::events::{emit_event, SchaltEvent};
 use tokio::sync::{Mutex, mpsc};
 use log::{debug, info, warn, error};
 
@@ -158,8 +159,7 @@ impl FileWatcher {
         debug!("Emitting file change event for session {} with {} files", 
                session_name, file_change_event.changed_files.len());
 
-        app_handle
-            .emit("schaltwerk:file-changes", &file_change_event)
+        emit_event(app_handle, SchaltEvent::FileChanges, &file_change_event)
             .map_err(|e| format!("Failed to emit file change event: {e}"))?;
 
         Ok(())

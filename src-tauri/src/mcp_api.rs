@@ -1,10 +1,10 @@
 use hyper::{body::Incoming, Method, Request, Response, StatusCode};
 use http_body_util::BodyExt;
 use log::{info, error, warn};
-use tauri::Emitter;
 
 use crate::get_schaltwerk_core;
 use crate::schaltwerk_core::SessionState;
+use crate::events::{emit_event, SchaltEvent};
 
 pub async fn handle_mcp_request(
     req: Request<Incoming>,
@@ -226,7 +226,7 @@ async fn update_spec_content(
                             );
                         }
                     }
-                    if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                    if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
                         error!("Failed to emit sessions-refreshed event: {e}");
                     } else {
                         info!("MCP API: Successfully emitted sessions-refreshed event");
@@ -282,7 +282,7 @@ async fn start_spec_session(
             info!("Started spec session via API: {name}");
 
             if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
                     warn!("Could not emit sessions refreshed: {e}");
                 }
             }
@@ -316,9 +316,7 @@ async fn delete_draft(
             
             #[derive(serde::Serialize, Clone)]
             struct SessionRemovedPayload { session_name: String }
-            let _ = app.emit(
-                "schaltwerk:session-removed",
-                SessionRemovedPayload { session_name: name.to_string() },
+            let _ = emit_event(&app, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name.to_string() },
             );
             Ok(Response::new("OK".to_string()))
         },
@@ -373,7 +371,7 @@ async fn create_session(
             info!("Created session via API: {name}");
             
             if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
                     warn!("Could not emit sessions refreshed: {e}");
                 }
             }
@@ -491,9 +489,7 @@ async fn delete_session(
 
             #[derive(serde::Serialize, Clone)]
             struct SessionRemovedPayload { session_name: String }
-            let _ = app.emit(
-                "schaltwerk:session-removed",
-                SessionRemovedPayload { session_name: name.to_string() },
+            let _ = emit_event(&app, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name.to_string() },
             );
             Ok(Response::new("OK".to_string()))
         },
@@ -526,7 +522,7 @@ async fn mark_session_reviewed(
 
             // Emit events to update UI
             if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
                     warn!("Could not emit sessions refreshed: {e}");
                 }
             }
@@ -562,7 +558,7 @@ async fn convert_session_to_spec(
 
             // Emit events to update UI
             if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = app.emit("schaltwerk:sessions-refreshed", &sessions) {
+                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
                     warn!("Could not emit sessions refreshed: {e}");
                 }
             }
