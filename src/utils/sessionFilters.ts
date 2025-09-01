@@ -1,30 +1,6 @@
-interface SessionInfo {
-    session_id: string
-    display_name?: string
-    branch: string
-    worktree_path: string
-    base_branch: string
-    merge_mode: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-    created_at?: string
-    last_modified?: string
-    has_uncommitted_changes?: boolean
-    is_current: boolean
-    session_type: 'worktree' | 'container'
-    container_status?: string
-    session_state: 'spec' | 'running' | 'reviewed'
-    current_task?: string
-    todo_percentage?: number
-    is_blocked?: boolean
-    ready_to_merge?: boolean
-    spec_content?: string
-}
+import { EnrichedSession, SessionInfo } from '../types/session'
 
-interface EnrichedSession {
-    info: SessionInfo
-    status?: any
-    terminals: string[]
-}
+// These types are now imported from the centralized types/session.ts file
 
 // Normalize backend states to UI categories
 export function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {

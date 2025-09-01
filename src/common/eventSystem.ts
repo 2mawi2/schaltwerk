@@ -23,9 +23,9 @@ export async function listenEvent<T extends SchaltEvent>(
 
 // Deprecated: Use listenEvent with SchaltEvent enum instead
 // @deprecated This function is deprecated. Use listenEvent(SchaltEvent.*, handler) instead.
-export async function listen(
-  _event: never, // This prevents the function from being called with string literals
-  _handler: (payload: any) => void | Promise<void>
+export async function listen<T extends SchaltEvent>(
+  _event: T,
+  _handler: (payload: EventPayloadMap[T]) => void | Promise<void>
 ): Promise<UnlistenFn> {
   throw new Error('Direct listen() calls are deprecated. Use listenEvent(SchaltEvent.*, handler) or listenTerminalOutput() instead.')
 }

@@ -136,6 +136,20 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
         }
     }, [open, currentStep])
 
+    const handleNext = () => {
+        if (isLastStep) {
+            handleComplete()
+        } else {
+            setCurrentStep(prev => prev + 1)
+        }
+    }
+
+    const handlePrevious = () => {
+        if (currentStep > 0) {
+            setCurrentStep(prev => prev - 1)
+        }
+    }
+
     useEffect(() => {
         if (!open) return
 
@@ -154,21 +168,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
 
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [open, currentStep, isLastStep])
-
-    const handleNext = () => {
-        if (isLastStep) {
-            handleComplete()
-        } else {
-            setCurrentStep(prev => prev + 1)
-        }
-    }
-
-    const handlePrevious = () => {
-        if (currentStep > 0) {
-            setCurrentStep(prev => prev - 1)
-        }
-    }
+    }, [open, currentStep, isLastStep, handleNext, handlePrevious, onClose])
 
     const handleComplete = () => {
         onComplete()

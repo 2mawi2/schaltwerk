@@ -65,7 +65,10 @@ describe('DiffFileExplorer', () => {
 
   it('shows comment count when file has comments', () => {
     const getCommentsForFile = vi.fn((path: string) => {
-      if (path === 'src/file1.ts') return [{ id: '1' }, { id: '2' }]
+      if (path === 'src/file1.ts') return [
+        { id: '1', filePath: 'src/file1.ts', lineRange: { start: 1, end: 1 }, side: 'new' as const, selectedText: 'test', comment: 'test comment', timestamp: Date.now() },
+        { id: '2', filePath: 'src/file1.ts', lineRange: { start: 2, end: 2 }, side: 'new' as const, selectedText: 'test2', comment: 'test comment2', timestamp: Date.now() }
+      ]
       return []
     })
 
@@ -90,7 +93,8 @@ describe('DiffFileExplorer', () => {
         comment: 'Test comment',
         lineRange: { start: 1, end: 1 },
         side: 'new' as const,
-        selectedText: 'some code'
+        selectedText: 'some code',
+        timestamp: Date.now()
       }]
     }
 
@@ -110,7 +114,8 @@ describe('DiffFileExplorer', () => {
         comment: 'Test comment',
         lineRange: { start: 1, end: 1 },
         side: 'new' as const,
-        selectedText: 'some code'
+        selectedText: 'some code',
+        timestamp: Date.now()
       }]
     }
 

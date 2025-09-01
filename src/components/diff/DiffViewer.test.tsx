@@ -41,7 +41,7 @@ const mockProps: Partial<DiffViewerProps> = {
   scrollContainerRef: { current: null as any },
   fileRefs: { current: new Map() },
   getCommentsForFile: vi.fn(() => []),
-  getCommentForLine: vi.fn(() => null),
+  getCommentForLine: vi.fn(() => undefined),
   highlightCode: vi.fn((code: string) => code),
   toggleCollapsed: vi.fn(),
   handleLineMouseDown: vi.fn(),
@@ -123,7 +123,10 @@ describe('DiffViewer', () => {
   })
 
   it('shows comment count when file has comments', () => {
-    const getCommentsForFile = vi.fn(() => [{ id: '1' }, { id: '2' }])
+    const getCommentsForFile = vi.fn(() => [
+      { id: '1', filePath: 'src/file1.ts', lineRange: { start: 1, end: 1 }, side: 'new' as const, selectedText: 'test', comment: 'test comment', timestamp: Date.now() },
+      { id: '2', filePath: 'src/file1.ts', lineRange: { start: 2, end: 2 }, side: 'new' as const, selectedText: 'test2', comment: 'test comment2', timestamp: Date.now() }
+    ])
     render(<DiffViewer {...mockProps as DiffViewerProps} getCommentsForFile={getCommentsForFile} />)
     
     expect(screen.getByText('2 comments')).toBeInTheDocument()

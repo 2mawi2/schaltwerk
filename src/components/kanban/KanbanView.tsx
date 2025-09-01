@@ -10,11 +10,14 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
 import { organizeSessionsByColumn, findSessionPosition } from '../../utils/sessionOrganizer'
+import { EnrichedSession } from '../../types/session'
 
 const ItemType = 'SESSION'
 
+
+
 // Helper function to find session position across all columns
-function findSessionPositionInColumns(sessionId: string, columns: any[][]): { column: number; row: number } | null {
+function findSessionPositionInColumns(sessionId: string, columns: EnrichedSession[][]): { column: number; row: number } | null {
     for (let col = 0; col < columns.length; col++) {
         const rowIndex = columns[col].findIndex(s => s.info.session_id === sessionId)
         if (rowIndex !== -1) {
@@ -31,7 +34,7 @@ interface DragItem {
 }
 
 interface DraggableSessionCardProps {
-    session: any
+    session: EnrichedSession
     isSelected?: boolean
     isFocused?: boolean
     onMarkReady?: (sessionId: string, hasUncommitted: boolean) => void

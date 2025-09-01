@@ -278,14 +278,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 setHasUnsavedChanges(false)
             }
         }
-    }, [open])
+    }, [open, actionButtons, hasUnsavedChanges])
     
     // Update editable buttons when the source actionButtons change (after reload)
     useEffect(() => {
         if (!hasUnsavedChanges) {
             setEditableActionButtons([...actionButtons])
         }
-    }, [actionButtons])
+    }, [actionButtons, hasUnsavedChanges])
     
     const loadAllSettings = async () => {
         // Load application-level settings (always available)

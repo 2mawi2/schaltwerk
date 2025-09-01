@@ -1,5 +1,6 @@
 import { useSelection } from '../../contexts/SelectionContext'
 import { useState, useEffect } from 'react'
+import { Selection as SelectionType } from '../../contexts/SelectionContext'
 
 interface HintMessage {
     id: string
@@ -110,7 +111,7 @@ function HintCard({ hint, onDismiss }: { hint: HintMessage, onDismiss: () => voi
     )
 }
 
-function getHintsForSelection(selection: any): HintMessage[] {
+function getHintsForSelection(selection: SelectionType): HintMessage[] {
     if (!selection) {
         return [{
             id: 'no-selection',
@@ -159,7 +160,7 @@ function getHintsForSelection(selection: any): HintMessage[] {
                 message: 'Use the bottom terminals for additional commands while the AI agent works in the center panel. Switch focus with ⌘/ for terminals and ⌘T for the agent.',
                 type: 'tip'
             })
-        } else if (selection.sessionState === 'ready_for_review') {
+        } else if (selection.sessionState === 'reviewed') {
             hints.push({
                 id: 'ready-for-review',
                 message: 'The session is ready for review! Check the changes in the right panel and use ⌘G to open the diff viewer.',

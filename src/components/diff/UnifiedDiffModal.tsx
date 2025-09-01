@@ -101,7 +101,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   
   // Helper to check if a line has comments
   const getCommentForLine = useCallback((lineNum: number | undefined, side: 'old' | 'new') => {
-    if (!lineNum || !selectedFile) return null
+    if (!lineNum || !selectedFile) return undefined
     const comments = getCommentsForFile(selectedFile)
     return comments.find(c => 
       c.side === side && 
@@ -677,7 +677,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     } catch {
       return code
     }
-  }, [language])
+  }, [language, allFileDiffs, selectedFile])
 
   // Performance marks to capture compute and render timings (visible in devtools Timeline)
   useEffect(() => {

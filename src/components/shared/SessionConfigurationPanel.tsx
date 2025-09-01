@@ -85,7 +85,7 @@ export function SessionConfigurationPanel({
         }
         
         loadConfiguration()
-    }, [initialBaseBranch, initialSkipPermissions, initialAgentType, getSkipPermissions, getAgentType])
+    }, [initialBaseBranch, initialSkipPermissions, initialAgentType, getSkipPermissions, getAgentType, onAgentTypeChange, onBaseBranchChange, onSkipPermissionsChange])
 
 
     const handleBaseBranchChange = useCallback(async (branch: string) => {

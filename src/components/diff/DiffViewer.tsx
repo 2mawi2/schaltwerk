@@ -6,6 +6,8 @@ import { DiffLineRow } from './DiffLineRow'
 import { ChangedFile } from './DiffFileExplorer'
 import { FileDiffData } from './loadDiffs'
 import { AnimatedText } from '../common/AnimatedText'
+import { ReviewComment } from '../../types/review'
+import { LineSelection } from '../../hooks/useLineSelection'
 
 export interface DiffViewerProps {
   files: ChangedFile[]
@@ -25,8 +27,8 @@ export interface DiffViewerProps {
   observerRef: React.MutableRefObject<IntersectionObserver | null>
   scrollContainerRef: React.RefObject<HTMLDivElement>
   fileRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
-  getCommentsForFile: (filePath: string) => any[]
-  getCommentForLine: (lineNum: number | undefined, side: 'old' | 'new') => any
+  getCommentsForFile: (filePath: string) => ReviewComment[]
+  getCommentForLine: (lineNum: number | undefined, side: 'old' | 'new') => ReviewComment | undefined
   highlightCode: (code: string) => string
   toggleCollapsed: (idx: string | number) => void
   handleLineMouseDown: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
@@ -35,7 +37,7 @@ export interface DiffViewerProps {
   handleLineMouseUp: (event: React.MouseEvent) => void
   lineSelection: {
     isLineSelected: (lineNum: number, side: 'old' | 'new') => boolean
-    selection: any
+    selection: LineSelection | null
   }
 }
 

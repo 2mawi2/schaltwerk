@@ -2,6 +2,7 @@ import clsx from 'clsx'
 import { VscComment, VscCheck } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { ReviewCommentsList } from './ReviewCommentsList'
+import { ReviewComment } from '../../types/review'
 
 export interface ChangedFile {
   path: string
@@ -13,10 +14,10 @@ export interface DiffFileExplorerProps {
   selectedFile: string | null
   visibleFilePath: string | null
   onFileSelect: (filePath: string, index: number) => void
-  getCommentsForFile: (filePath: string) => any[]
+  getCommentsForFile: (filePath: string) => ReviewComment[]
   currentReview: {
     sessionName: string
-    comments: any[]
+    comments: ReviewComment[]
   } | null
   onFinishReview: () => void
   onCancelReview: () => void

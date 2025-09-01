@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useCallback } from 'react'
 import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
@@ -78,7 +79,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     }
   }
 
-  const handleRun = async () => {
+  const handleRun = useCallback(async () => {
     if (!onStart) return
     try {
       setStarting(true)
@@ -90,7 +91,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     } finally {
       setStarting(false)
     }
-  }
+  }, [onStart])
 
   // Listen for sessions refreshed events (e.g., from MCP updates)
   useEffect(() => {

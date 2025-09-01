@@ -305,7 +305,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             window.removeEventListener('keydown', handleKeyDown, true)
             window.removeEventListener('schaltwerk:new-session:set-spec' as any, setDraftHandler)
         }
-    }, [open, onClose])
+    }, [open, onClose, createAsDraft])
 
     if (!open) return null
 

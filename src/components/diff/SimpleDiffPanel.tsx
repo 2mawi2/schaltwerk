@@ -11,7 +11,7 @@ export function SimpleDiffPanel({ onFileSelect, sessionNameOverride, isCommander
   // selection not needed after removing prompt dock
   useSelection()
   // Test hook data-testid for App.test.tsx
-  const testProps = { 'data-testid': 'diff-panel' } as any
+  const testProps: { 'data-testid': string } = { 'data-testid': 'diff-panel' }
 
   // Prompt dock and related functionality removed
 

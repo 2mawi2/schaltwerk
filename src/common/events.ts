@@ -19,6 +19,32 @@ export enum SchaltEvent {
 }
 
 
+export interface SessionActivityUpdated {
+  session_id: string
+  session_name: string
+  last_activity_ts: number
+  current_task: string | null
+  todo_percentage: number | null
+  is_blocked: boolean | null
+}
+
+export interface SessionGitStatsUpdated {
+  session_id: string
+  session_name: string
+  files_changed: number
+  lines_added: number
+  lines_removed: number
+  has_uncommitted: boolean
+}
+
+export interface FollowUpMessagePayload {
+  session_name: string
+  message: string
+  timestamp: number
+  terminal_id: string
+  message_type: 'system' | 'user'
+}
+
 export type EventPayloadMap = {
   [SchaltEvent.SessionsRefreshed]: any[]
   [SchaltEvent.SessionAdded]: { session_name: string, branch: string, worktree_path: string, parent_branch: string }
@@ -28,13 +54,13 @@ export type EventPayloadMap = {
   [SchaltEvent.ClaudeStarted]: { terminal_id: string, session_name: string }
   [SchaltEvent.TerminalStuck]: { terminal_id: string, time: string }
   [SchaltEvent.TerminalUnstuck]: { terminal_id: string, time: string }
-  [SchaltEvent.SessionActivity]: any
-  [SchaltEvent.SessionGitStats]: any
+  [SchaltEvent.SessionActivity]: SessionActivityUpdated
+  [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
   [SchaltEvent.TerminalClosed]: { terminal_id: string }
   [SchaltEvent.ProjectReady]: string
   [SchaltEvent.OpenDirectory]: string
   [SchaltEvent.OpenHome]: string
   [SchaltEvent.FileChanges]: any
-  [SchaltEvent.FollowUpMessage]: any
+  [SchaltEvent.FollowUpMessage]: FollowUpMessagePayload
   [SchaltEvent.Selection]: any
 }

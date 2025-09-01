@@ -7,11 +7,11 @@ import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary }
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 
+
 interface ChangedFile {
   path: string
   change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
 }
-
 
 interface DiffFileListProps {
   onFileSelect: (filePath: string) => void
@@ -110,7 +110,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
           headCommit
         })
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Only log error if it's not a "session not found" error (which is expected after cancellation)
       if (!error?.toString()?.includes('not found')) {
         console.error(`Failed to load changed files:`, error)
@@ -183,7 +183,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
               pollInterval = null
             }
           }
-        }) as any
+        })
       }
       
       // For orchestrator mode, poll less frequently since working directory changes are less frequent
@@ -226,7 +226,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             })
             
             // Update signature to match current session
-            lastResultRef.current = `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map((f: any) => `${f.path}:${f.change_type}`).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
+            lastResultRef.current = `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map((f: ChangedFile) => `${f.path}:${f.change_type}`).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
             
             // If we receive events, we can stop polling
             if (pollInterval) {
@@ -259,7 +259,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         clearInterval(pollInterval)
       }
     }
-  }, [sessionNameOverride, selection, isCommander])  // Don't include loadChangedFiles to prevent effect recreation
+  }, [sessionNameOverride, selection, isCommander, loadChangedFiles])
   
   const handleFileClick = (file: ChangedFile) => {
     setSelectedFile(file.path)
