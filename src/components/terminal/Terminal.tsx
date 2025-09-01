@@ -57,6 +57,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
+    const listenerAgentRef = useRef<string | undefined>(agentType);
+    const rendererReadyRef = useRef<boolean>(false);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -221,6 +223,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
             if (!gl) {
                 console.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
+                // Canvas renderer is already active after open(); we'll mark ready after initial post-fit
                 return false;
             }
 
@@ -232,6 +235,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
 
             try {
+                rendererReadyRef.current = false;
                 webglAddon.current = new WebglAddon();
                 terminal.current!.loadAddon(webglAddon.current);
                 
@@ -240,6 +244,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     console.warn(`[Terminal ${terminalId}] WebGL context lost, attempting restoration`);
                     
                     // Attempt to restore WebGL context after a brief delay
+                    rendererReadyRef.current = false;
                     setTimeout(() => {
                         if (webglAddon.current && !cancelled) {
                             try {
@@ -255,10 +260,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     webglAddon.current = new WebglAddon();
                                     terminal.current?.loadAddon(webglAddon.current);
                                     console.info(`[Terminal ${terminalId}] WebGL acceleration restored`);
+                                    // Will mark ready after next fit below
                                 } else {
                                     console.warn(`[Terminal ${terminalId}] WebGL context restoration failed, permanently using canvas renderer`);
                                     webglAddon.current.dispose();
                                     webglAddon.current = null;
+                                    // Canvas active; mark ready after next fit
                                 }
                             } catch (restoreError) {
                                 console.warn(`[Terminal ${terminalId}] WebGL restoration failed:`, restoreError);
@@ -302,10 +309,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Ensure terminal is properly fitted before WebGL
                     if (fitAddon.current && terminal.current) {
                         fitAddon.current.fit();
+                        // Immediately propagate initial size once measurable
+                        try {
+                            const { cols, rows } = terminal.current;
+                            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                                lastSize.current = { cols, rows };
+                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                            }
+                        } catch (e) {
+                            console.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
+                        }
                     }
                     const webglEnabled = setupWebGLAcceleration();
                     if (!webglEnabled) {
                         console.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
+                        // Canvas renderer active; mark ready after this frame
+                        requestAnimationFrame(() => { rendererReadyRef.current = true; });
                     }
                     
                     // After renderer is initialized, trigger a proper resize to ensure correct dimensions
@@ -318,29 +337,43 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     lastSize.current = { cols, rows };
                                     invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
                                 }
+                                // Renderer (WebGL or Canvas) is ready after a successful post-fit
+                                rendererReadyRef.current = true;
                             } catch (e) {
                                 console.warn(`[Terminal ${terminalId}] Post-renderer fit failed:`, e);
+                                // Even if fit failed, avoid blocking indefinitely; allow later fits to set ready
+                                rendererReadyRef.current = true;
                             }
                         }
                     });
                 } catch (e) {
                     console.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
+                    rendererReadyRef.current = true;
                 }
             }
         };
         
         // Use ResizeObserver to deterministically initialize renderer when container is ready
         // This avoids polling and ensures we initialize exactly once when dimensions are available
-        const rendererObserver = new ResizeObserver((entries) => {
-            if (entries.length > 0 && !rendererInitialized) {
-                const entry = entries[0];
-                if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+        const rendererObserver = new ResizeObserver((entries?: any) => {
+            if (rendererInitialized) return;
+            try {
+                const entry = entries && entries[0];
+                const w = entry?.contentRect?.width ?? termRef.current?.clientWidth ?? 0;
+                const h = entry?.contentRect?.height ?? termRef.current?.clientHeight ?? 0;
+                if (w > 0 && h > 0) {
                     // Container now has dimensions, initialize renderer
                     // Disconnect immediately after first successful observation to prevent interference
                     rendererObserver.disconnect();
                     requestAnimationFrame(() => {
                         initializeRenderer();
                     });
+                }
+            } catch (e) {
+                // Fallback: try immediate initialization based on current element size
+                if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
+                    try { rendererObserver.disconnect(); } catch {}
+                    requestAnimationFrame(() => initializeRenderer());
                 }
             }
         });
@@ -454,6 +487,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Flush queued writes with minimal delay for responsiveness
         const flushQueuedWrites = () => {
+            // Defer until renderer is ready to avoid xterm renderer invariants
+            if (!rendererReadyRef.current) {
+                setTimeout(() => flushQueuedWrites(), 16);
+                return;
+            }
             if (flushTimerRef.current) return;
             // Use a very short timeout to coalesce multiple events while maintaining responsiveness
             flushTimerRef.current = setTimeout(() => {
@@ -482,6 +520,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
+            if (!rendererReadyRef.current) {
+                setTimeout(() => flushNow(), 16);
+                return;
+            }
             if (!terminal.current || writeQueueRef.current.length === 0) return;
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];
@@ -526,6 +568,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 }
             }).then((fn) => { unlistenRef.current = fn; return fn; });
         }
+        listenerAgentRef.current = agentType;
 
         // Hydrate from buffer
         const hydrateTerminal = async () => {
@@ -730,7 +773,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (!fitAddon.current || !terminal.current) return;
 
             const el = termRef.current;
-            if (!el || !el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) {
+            if (!el || !el.isConnected) {
                 return;
             }
 
@@ -862,6 +905,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         return () => {
             mountedRef.current = false;
             cancelled = true;
+            rendererReadyRef.current = false;
             
             if (resizeTimeout) clearTimeout(resizeTimeout);
             if (immediateResizeTimeout) clearTimeout(immediateResizeTimeout);
@@ -904,6 +948,81 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
     }, [terminalId]); // Recreate only when terminalId changes
 
+    // Reconfigure output listener when agent type changes for the same terminal
+    useEffect(() => {
+        if (!terminal.current) return;
+        if (listenerAgentRef.current === agentType) return;
+
+        // Helper: minimal flush to reuse existing buffering
+        const flushQueuedWritesLight = () => {
+            if (flushTimerRef.current) return;
+            flushTimerRef.current = setTimeout(() => {
+                flushTimerRef.current = null;
+                if (!terminal.current || writeQueueRef.current.length === 0) return;
+                const chunk = writeQueueRef.current.join('');
+                writeQueueRef.current = [];
+                terminal.current.write(chunk);
+                requestAnimationFrame(() => {
+                    try {
+                        const buffer = terminal.current!.buffer.active;
+                        const atBottom = buffer.viewportY === buffer.baseY;
+                        if (atBottom) terminal.current!.scrollToBottom();
+                    } catch (e) {
+                        console.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+                    }
+                });
+            }, 2);
+        };
+
+        // Detach previous listener
+        const detach = () => {
+            if (unlistenRef.current) {
+                try { unlistenRef.current(); } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] Listener detach failed:`, e);
+                }
+                unlistenRef.current = null;
+            }
+        };
+        detach();
+
+        // Attach appropriate listener for current agent type
+        let mounted = true;
+        const attach = async () => {
+            try {
+                if (agentType === 'codex') {
+                    unlistenRef.current = await listenTerminalOutputNormalized(terminalId, (output) => {
+                        if (!mounted) return;
+                        if (!hydratedRef.current) {
+                            pendingOutput.current.push(output);
+                        } else {
+                            writeQueueRef.current.push(output);
+                            flushQueuedWritesLight();
+                        }
+                    });
+                } else {
+                    unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+                        if (!mounted) return;
+                        if (!hydratedRef.current) {
+                            pendingOutput.current.push(output);
+                        } else {
+                            writeQueueRef.current.push(output);
+                            flushQueuedWritesLight();
+                        }
+                    });
+                }
+                listenerAgentRef.current = agentType;
+            } catch (e) {
+                console.warn(`[Terminal ${terminalId}] Failed to reconfigure output listener:`, e);
+            }
+        };
+        attach();
+
+        return () => {
+            mounted = false;
+            detach();
+        };
+    }, [agentType, terminalId]);
+
 
     // Automatically start Claude for top terminals when hydrated and first ready
     useEffect(() => {
@@ -923,7 +1042,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
                      try {
-                            await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId });
+                            // Provide initial size at spawn to avoid early overflow in TUI apps
+                            let cols: number | undefined = undefined;
+                            let rows: number | undefined = undefined;
+                            try {
+                                if (fitAddon.current && terminal.current) {
+                                    fitAddon.current.fit();
+                                    cols = terminal.current.cols;
+                                    rows = terminal.current.rows;
+                                }
+                            } catch (e) {
+                                console.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
+                            }
+                            await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId, cols, rows });
                             // OPTIMIZATION: Immediate focus and loading state update
                             if (terminal.current) {
                                 terminal.current.focus();
@@ -979,7 +1110,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
                      try {
-                           await invoke('schaltwerk_core_start_claude', { sessionName });
+                           // Provide initial size for session terminals as well
+                           let cols: number | undefined = undefined;
+                           let rows: number | undefined = undefined;
+                           try {
+                               if (fitAddon.current && terminal.current) {
+                                   fitAddon.current.fit();
+                                   cols = terminal.current.cols;
+                                   rows = terminal.current.rows;
+                               }
+                           } catch (e) {
+                               console.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
+                           }
+                           await invoke('schaltwerk_core_start_claude', { sessionName, cols, rows });
                            // Focus the terminal after Claude starts successfully
                            requestAnimationFrame(() => {
                                if (terminal.current) {

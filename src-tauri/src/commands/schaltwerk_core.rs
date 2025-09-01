@@ -484,12 +484,12 @@ pub async fn schaltwerk_core_cleanup_orphaned_worktrees() -> Result<(), String> 
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_start_claude(app: tauri::AppHandle, session_name: String) -> Result<String, String> {
-    schaltwerk_core_start_claude_with_restart(app, session_name, false).await
+pub async fn schaltwerk_core_start_claude(app: tauri::AppHandle, session_name: String, cols: Option<u16>, rows: Option<u16>) -> Result<String, String> {
+    schaltwerk_core_start_claude_with_restart(app, session_name, false, cols, rows).await
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, session_name: String, force_restart: bool) -> Result<String, String> {
+pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, session_name: String, force_restart: bool, cols: Option<u16>, rows: Option<u16>) -> Result<String, String> {
     log::info!("Starting Claude for session: {session_name}");
     
     let core = get_schaltwerk_core().await?;
@@ -618,13 +618,29 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     // Log the exact command that will be executed
     log::info!("FINAL COMMAND CONSTRUCTION for {agent_type}: command='{agent_name}', args={final_args:?}");
     
-    terminal_manager.create_terminal_with_app(
-        terminal_id.clone(),
-        cwd,
-        agent_name.clone(),
-        final_args,
-        env_vars,
-    ).await?;
+    // Create terminal with initial size if provided
+    if let (Some(c), Some(r)) = (cols, rows) {
+        use crate::terminal::manager::CreateTerminalWithAppAndSizeParams;
+        terminal_manager.create_terminal_with_app_and_size(
+            CreateTerminalWithAppAndSizeParams {
+                id: terminal_id.clone(),
+                cwd,
+                command: agent_name.clone(),
+                args: final_args,
+                env: env_vars,
+                cols: c,
+                rows: r,
+            }
+        ).await?;
+    } else {
+        terminal_manager.create_terminal_with_app(
+            terminal_id.clone(),
+            cwd,
+            agent_name.clone(),
+            final_args,
+            env_vars,
+        ).await?;
+    }
     
     // For OpenCode and other TUI applications, the frontend will handle
     // proper sizing based on the actual terminal container dimensions.
@@ -656,7 +672,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> Result<String, String> {
+pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String, cols: Option<u16>, rows: Option<u16>) -> Result<String, String> {
     log::info!("Starting Claude for orchestrator in terminal: {terminal_id}");
     
     // First check if we have a valid project initialized
@@ -819,13 +835,29 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String) -> R
         }
     }
     
-    terminal_manager.create_terminal_with_app(
-        terminal_id.clone(),
-        cwd,
-        agent_name.clone(),
-        final_args,
-        env_vars,
-    ).await?;
+    // Create terminal with initial size if provided
+    if let (Some(c), Some(r)) = (cols, rows) {
+        use crate::terminal::manager::CreateTerminalWithAppAndSizeParams;
+        terminal_manager.create_terminal_with_app_and_size(
+            CreateTerminalWithAppAndSizeParams {
+                id: terminal_id.clone(),
+                cwd,
+                command: agent_name.clone(),
+                args: final_args,
+                env: env_vars,
+                cols: c,
+                rows: r,
+            }
+        ).await?;
+    } else {
+        terminal_manager.create_terminal_with_app(
+            terminal_id.clone(),
+            cwd,
+            agent_name.clone(),
+            final_args,
+            env_vars,
+        ).await?;
+    }
     
     // For OpenCode and other TUI applications, the frontend will handle
     // proper sizing based on the actual terminal container dimensions.
@@ -1036,7 +1068,7 @@ pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: Str
     
     // Automatically start the AI agent for the newly started spec session
     log::info!("Auto-starting AI agent for spec session: {name}");
-    if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone()).await {
+    if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone(), None, None).await {
         log::warn!("Failed to auto-start AI agent for spec session {name}: {e}");
         // Don't fail the whole operation if agent start fails - session is already created
     }
@@ -1269,4 +1301,3 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
     log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
     Ok(command)
 }
-
