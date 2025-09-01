@@ -284,42 +284,50 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Smart WebGL initialization with fallback strategy (similar to VSCode)
         // Start with Canvas for immediate compatibility, then try WebGL
+        let rendererInitialized = false;
         const initializeRenderer = () => {
-            if (!cancelled && terminal.current && termRef.current) {
-                // Skip WebGL for known problematic terminal types
-                const isProblematicTerminal = terminalId.includes('session-') && !terminalId.includes('orchestrator');
-                
-                if (isProblematicTerminal) {
-                    // Session terminals that run TUI apps - use Canvas for compatibility
-                    console.info(`[Terminal ${terminalId}] Using Canvas renderer for TUI app compatibility`);
-                    return;
-                }
-                
-                // For orchestrator terminals, try WebGL with proper error handling
-                if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
-                    try {
-                        // Ensure terminal is properly fitted before WebGL
-                        if (fitAddon.current && terminal.current) {
-                            fitAddon.current.fit();
-                        }
-                        const webglEnabled = setupWebGLAcceleration();
-                        if (!webglEnabled) {
-                            console.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
-                        }
-                    } catch (e) {
-                        console.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
+            if (rendererInitialized || cancelled || !terminal.current || !termRef.current) {
+                return;
+            }
+            
+            // Only initialize when container has proper dimensions
+            if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
+                rendererInitialized = true;
+                try {
+                    // Ensure terminal is properly fitted before WebGL
+                    if (fitAddon.current && terminal.current) {
+                        fitAddon.current.fit();
                     }
-                } else {
-                    // Retry if container not yet sized
-                    setTimeout(() => initializeRenderer(), 100);
+                    const webglEnabled = setupWebGLAcceleration();
+                    if (!webglEnabled) {
+                        console.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
+                    }
+                } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
                 }
             }
         };
         
-        // Delay renderer initialization to ensure terminal is ready
-        // This avoids the WebGL timing issues with initial data
+        // Use ResizeObserver to deterministically initialize renderer when container is ready
+        // This avoids polling and ensures we initialize exactly once when dimensions are available
+        const rendererObserver = new ResizeObserver((entries) => {
+            if (entries.length > 0 && !rendererInitialized) {
+                const entry = entries[0];
+                if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
+                    // Container now has dimensions, initialize renderer
+                    requestAnimationFrame(() => {
+                        initializeRenderer();
+                    });
+                }
+            }
+        });
+        
+        // Start observing the terminal container
+        rendererObserver.observe(termRef.current);
+        
+        // Also try immediate initialization in case container already has dimensions
         requestAnimationFrame(() => {
-            setTimeout(() => initializeRenderer(), 50);
+            initializeRenderer();
         });
 
         // Intercept global shortcuts before xterm.js processes them
@@ -745,6 +753,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 });
             }
             
+            rendererObserver.disconnect();
             webglAddon.current?.dispose();
             webglAddon.current = null;
             terminal.current?.dispose();

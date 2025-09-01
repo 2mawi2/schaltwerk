@@ -672,17 +672,34 @@ describe('Terminal component', () => {
       expect(webglCalls.length).toBe(0)
     })
 
-    it('uses Canvas renderer for session terminals (TUI compatibility)', async () => {
-      const consoleInfoSpy = vi.spyOn(console, 'info').mockImplementation(() => {})
+    it('uses WebGL renderer for session terminals (GPU acceleration)', async () => {
+      __setWebGLSupport(true)
       
-      const { container } = renderTerminal({ terminalId: "session-tui-top", sessionName: "tui" })
+      // Set dimensions on container before rendering
+      const originalGetBoundingClientRect = HTMLDivElement.prototype.getBoundingClientRect
+      HTMLDivElement.prototype.getBoundingClientRect = vi.fn().mockReturnValue({
+        width: 800,
+        height: 600,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({})
+      })
       
-      // Mock container dimensions BEFORE any async operations
-      const terminalDiv = container.querySelector('div')
-      if (terminalDiv) {
-        Object.defineProperty(terminalDiv, 'clientWidth', { value: 800, configurable: true })
-        Object.defineProperty(terminalDiv, 'clientHeight', { value: 600, configurable: true })
-      }
+      // Mock clientWidth and clientHeight globally for all divs
+      Object.defineProperty(HTMLDivElement.prototype, 'clientWidth', {
+        configurable: true,
+        get() { return 800 }
+      })
+      Object.defineProperty(HTMLDivElement.prototype, 'clientHeight', {
+        configurable: true,
+        get() { return 600 }
+      })
+      
+      renderTerminal({ terminalId: "session-tui-top", sessionName: "tui" })
       
       await flushAll()
       
@@ -691,10 +708,17 @@ describe('Terminal component', () => {
       await advanceAndFlush(50) // setTimeout 
       await advanceAndFlush(10) // processing buffer
       
-      expect(consoleInfoSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Using Canvas renderer for TUI app compatibility')
+      // Verify that WebGL addon was loaded for session terminals
+      const xterm = getLastXtermInstance()
+      const webglCalls = xterm.loadAddon.mock.calls.filter((call: any[]) => 
+        call[0] && call[0].constructor.name === 'MockWebglAddon'
       )
-      consoleInfoSpy.mockRestore()
+      expect(webglCalls.length).toBeGreaterThan(0)
+      
+      // Restore mocks
+      HTMLDivElement.prototype.getBoundingClientRect = originalGetBoundingClientRect
+      delete (HTMLDivElement.prototype as any).clientWidth
+      delete (HTMLDivElement.prototype as any).clientHeight
     })
 
     it('attempts context restoration after WebGL context loss', async () => {
