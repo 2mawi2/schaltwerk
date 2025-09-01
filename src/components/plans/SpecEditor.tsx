@@ -3,7 +3,6 @@ import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
-import { theme } from '../../common/theme'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -168,7 +167,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
+        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
       </div>
     )
   }
@@ -189,7 +188,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
           >
             <VscPlay />
 {starting ? (
-              <AnimatedText text="starting" colorClassName={theme.colors.text.muted} size="xs" />
+              <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" />
             ) : (
               'Run Agent'
             )}
@@ -210,7 +209,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       <div className="px-4 py-1 border-b border-slate-800 flex items-center justify-between">
         <div className="text-xs text-slate-400">
           {saving ? (
-            <AnimatedText text="saving" colorClassName={theme.colors.text.muted} size="xs" centered={false} />
+            <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" centered={false} />
           ) : error ? (
             <span className="text-red-400">{error}</span>
           ) : (
@@ -223,7 +222,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       <div className="flex-1 overflow-hidden">
         <Suspense fallback={
           <div className="h-full flex items-center justify-center">
-            <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
+            <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
           </div>
         }>
           <MarkdownEditor

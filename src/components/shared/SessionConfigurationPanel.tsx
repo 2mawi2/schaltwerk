@@ -134,7 +134,7 @@ export function SessionConfigurationPanel({
                                 backgroundColor: theme.colors.background.elevated
                             }}
                         >
-                            <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="xs" />
+                            <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" />
                         </div>
                     ) : (
                         <div className="min-w-[120px]">
@@ -201,7 +201,7 @@ export function SessionConfigurationPanel({
                             borderColor: theme.colors.border.default
                         }}
                     >
-                        <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="xs" />
+                        <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" />
                     </div>
                 ) : (
                     <BranchAutocomplete

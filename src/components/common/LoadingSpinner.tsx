@@ -1,5 +1,4 @@
 import React from 'react'
-import { theme } from '../../common/theme'
 import { AnimatedText } from './AnimatedText'
 
 interface LoadingSpinnerProps {
@@ -19,7 +18,7 @@ export const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({
     <div className={`flex flex-col items-center justify-center ${className}`}>
       <AnimatedText 
         text={message.toLowerCase().replace(/[^\w\s]/g, '')} 
-        colorClassName={theme.colors.text.secondary}
+        colorClassName="text-slate-500"
         size={animatedTextSize}
       />
     </div>

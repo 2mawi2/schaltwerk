@@ -918,8 +918,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
                     <AnimatedText
-                        text={!hydrated ? "initializing" : "starting"}
-                        colorClassName={theme.colors.text.muted}
+                        text="loading"
+                        colorClassName="text-slate-500"
                         size="md"
                         speedMultiplier={3}
                     />

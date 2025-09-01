@@ -2,7 +2,6 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { AnimatedText } from '../common/AnimatedText'
-import { theme } from '../../common/theme'
 
 interface MarkReadyConfirmationProps {
   open: boolean
@@ -118,7 +117,7 @@ export function MarkReadyConfirmation({
       title={"Mark Session as Reviewed"}
       body={body}
        confirmText={loading ? (
-        <AnimatedText text="marking" colorClassName={theme.colors.text.muted} size="xs" centered={false} />
+        <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" centered={false} />
       ) : (
         'Mark as Reviewed'
       )}

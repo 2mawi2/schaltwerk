@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
-import { theme } from '../../common/theme'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -72,7 +71,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
+        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
       </div>
     )
   }
@@ -96,7 +95,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         </div>
         <Suspense fallback={
           <div className="flex-1 flex items-center justify-center">
-            <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
+            <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
           </div>
         }>
           <MarkdownEditor
@@ -129,7 +128,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       <div className="flex-1 overflow-auto">
         <Suspense fallback={
           <div className="h-full flex items-center justify-center">
-            <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="md" />
+            <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
           </div>
         }>
           <MarkdownEditor

@@ -1,6 +1,5 @@
 import { useEffect, useCallback, useRef } from 'react'
 import { AnimatedText } from '../common/AnimatedText'
-import { theme } from '../../common/theme'
 
 interface ConfirmModalProps {
   open: boolean
@@ -101,7 +100,7 @@ export function ConfirmModal({
           >
 {loading && (
               <div className="mr-2">
-                <AnimatedText text="loading" colorClassName={theme.colors.text.muted} size="xs" centered={false} />
+                <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" centered={false} />
               </div>
             )}
             <span>{confirmText}</span>
