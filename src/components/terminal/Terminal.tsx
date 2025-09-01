@@ -103,6 +103,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
+        const mountTime = Date.now();
         if (!termRef.current) {
             console.error(`[Terminal ${terminalId}] No ref available!`);
             return;
@@ -302,6 +303,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (!webglEnabled) {
                         console.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
                     }
+                    
+                    // After renderer is initialized, trigger a proper resize to ensure correct dimensions
+                    requestAnimationFrame(() => {
+                        if (fitAddon.current && terminal.current) {
+                            try {
+                                fitAddon.current.fit();
+                                const { cols, rows } = terminal.current;
+                                if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                                    lastSize.current = { cols, rows };
+                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                }
+                            } catch (e) {
+                                console.warn(`[Terminal ${terminalId}] Post-renderer fit failed:`, e);
+                            }
+                        }
+                    });
                 } catch (e) {
                     console.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
                 }
@@ -315,6 +332,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const entry = entries[0];
                 if (entry.contentRect.width > 0 && entry.contentRect.height > 0) {
                     // Container now has dimensions, initialize renderer
+                    // Disconnect immediately after first successful observation to prevent interference
+                    rendererObserver.disconnect();
                     requestAnimationFrame(() => {
                         initializeRenderer();
                     });
@@ -327,7 +346,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         // Also try immediate initialization in case container already has dimensions
         requestAnimationFrame(() => {
-            initializeRenderer();
+            if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
+                // If we already have dimensions, disconnect the observer and initialize
+                rendererObserver.disconnect();
+                initializeRenderer();
+            }
         });
 
         // Intercept global shortcuts before xterm.js processes them
@@ -725,8 +748,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         });
         
-        // Initial fit pass after mount
-        addTimeout(() => handleResize(), 60);
+        // Initial fit pass after mount - delay to ensure renderer is initialized
+        // This is important to prevent resize before WebGL is ready
+        addTimeout(() => {
+            // Only do initial resize if renderer is ready or if we've waited long enough
+            if (rendererInitialized || Date.now() - mountTime > 200) {
+                handleResize();
+            } else {
+                // Retry after renderer should be initialized
+                addTimeout(() => handleResize(), 100);
+            }
+        }, 60);
 
         // After split drag ends, perform a strong fit + resize
         const doFinalFit = () => {
@@ -787,7 +819,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 });
             }
             
-            rendererObserver.disconnect();
+            // Only disconnect if not already disconnected (it disconnects itself after initialization)
+            try {
+                rendererObserver.disconnect();
+            } catch (e) {
+                // Already disconnected during initialization, this is expected
+                console.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
+            }
             webglAddon.current?.dispose();
             webglAddon.current = null;
             terminal.current?.dispose();
