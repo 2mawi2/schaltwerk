@@ -82,6 +82,7 @@ function DraggableSessionCard({
                 isFocused={!!isFocused}
                 isDragging={isDragging}
                 hideKeyboardShortcut={true}
+                hideActions={true}
                 onMarkReady={onMarkReady}
                 onUnmarkReady={onUnmarkReady}
                 onCancel={onCancel}
