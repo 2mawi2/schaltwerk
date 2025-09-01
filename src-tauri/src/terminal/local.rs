@@ -73,6 +73,8 @@ impl LocalPtyAdapter {
             || terminal_id.contains("cursor")
             || terminal_id.contains("gemini")
             || terminal_id.contains("claude")
+            || terminal_id.contains("codex")
+            || terminal_id.contains("qwen")
     }
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
