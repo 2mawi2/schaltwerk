@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import React from 'react'
 import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
 import { ModelSelector } from '../inputs/ModelSelector'
@@ -45,6 +45,14 @@ export function SessionConfigurationPanel({
     const [skipPermissions, setSkipPermissions] = useState(initialSkipPermissions)
     const { getSkipPermissions, setSkipPermissions: saveSkipPermissions, getAgentType, setAgentType: saveAgentType } = useClaudeSession()
 
+    const onBaseBranchChangeRef = useRef(onBaseBranchChange)
+    const onAgentTypeChangeRef = useRef(onAgentTypeChange)
+    const onSkipPermissionsChangeRef = useRef(onSkipPermissionsChange)
+
+    useEffect(() => { onBaseBranchChangeRef.current = onBaseBranchChange }, [onBaseBranchChange])
+    useEffect(() => { onAgentTypeChangeRef.current = onAgentTypeChange }, [onAgentTypeChange])
+    useEffect(() => { onSkipPermissionsChangeRef.current = onSkipPermissionsChange }, [onSkipPermissionsChange])
+
     useEffect(() => {
         const loadConfiguration = async () => {
             setLoadingBranches(true)
@@ -62,18 +70,18 @@ export function SessionConfigurationPanel({
                 if (!initialBaseBranch) {
                     const defaultBranch = savedDefaultBranch || gitDefaultBranch
                     setBaseBranch(defaultBranch)
-                    onBaseBranchChange?.(defaultBranch)
+                    onBaseBranchChangeRef.current?.(defaultBranch)
                 }
                 
                 if (!initialSkipPermissions) {
                     setSkipPermissions(storedSkipPerms)
-                    onSkipPermissionsChange?.(storedSkipPerms)
+                    onSkipPermissionsChangeRef.current?.(storedSkipPerms)
                 }
                 
                 if (initialAgentType === 'claude') {
                     const storedType = storedAgentType as 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
                     setAgentType(storedType)
-                    onAgentTypeChange?.(storedType)
+                    onAgentTypeChangeRef.current?.(storedType)
                 }
             } catch (err) {
                 console.warn('Failed to load configuration:', err)
@@ -85,7 +93,7 @@ export function SessionConfigurationPanel({
         }
         
         loadConfiguration()
-    }, [initialBaseBranch, initialSkipPermissions, initialAgentType, getSkipPermissions, getAgentType, onAgentTypeChange, onBaseBranchChange, onSkipPermissionsChange])
+    }, [initialBaseBranch, initialSkipPermissions, initialAgentType, getSkipPermissions, getAgentType])
 
 
     const handleBaseBranchChange = useCallback(async (branch: string) => {
