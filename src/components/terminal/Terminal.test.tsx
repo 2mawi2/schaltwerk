@@ -1123,7 +1123,10 @@ describe('Terminal component', () => {
       // Trigger split drag end event
       window.dispatchEvent(new CustomEvent('terminal-split-drag-end'))
       
-      // Should have called resize immediately
+      // Wait for requestAnimationFrame to execute
+      await flushAll()
+      
+      // Should have called resize after RAF
       const resizeCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
         c[0] === 'resize_terminal'
       )

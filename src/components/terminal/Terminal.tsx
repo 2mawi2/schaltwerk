@@ -653,6 +653,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const { wasAtBottom, scrollPosition } = captureScrollPosition();
 
             try {
+                // Force a proper fit with accurate dimensions
                 fitAddon.current.fit();
             } catch (e) {
                 console.warn(`[Terminal ${terminalId}] fit() failed during resize; skipping this tick`, e);
@@ -666,12 +667,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // Only send resize if dimensions actually changed
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                 lastSize.current = { cols, rows };
+                // Send resize command immediately to update PTY size
                 invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
             }
         };
 
         // Use ResizeObserver with more stable debouncing to prevent jitter
         let resizeTimeout: NodeJS.Timeout | null = null;
+        let immediateResizeTimeout: NodeJS.Timeout | null = null;
         let lastResizeTime = 0;
         
         // Check if this is a TUI application that needs faster resize response
@@ -684,6 +687,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         addResizeObserver(termRef.current, () => {
             // Skip resize work while user drags the split for smoother UI
             if (document.body.classList.contains('is-split-dragging')) {
+                // Clear any pending immediate resize
+                if (immediateResizeTimeout) {
+                    clearTimeout(immediateResizeTimeout);
+                    immediateResizeTimeout = null;
+                }
+                // Schedule an immediate resize after drag ends
+                immediateResizeTimeout = setTimeout(() => {
+                    handleResize();
+                    immediateResizeTimeout = null;
+                }, 100);
                 return;
             }
             
@@ -693,16 +706,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // Clear any pending resize
             if (resizeTimeout) clearTimeout(resizeTimeout);
             
-            // Use shorter debounce for TUI applications for better responsiveness
-            // TUI apps need faster resize feedback to prevent rendering issues
-            const debounceTime = isTuiTerminal 
-                ? 50  // Fast response for TUI apps
-                : (timeSinceLastResize < 200 ? 250 : 150); // Normal debouncing for regular terminals
-            
-            resizeTimeout = setTimeout(() => {
-                lastResizeTime = Date.now();
+            // Perform an immediate resize for the first observation to prevent overflow
+            if (timeSinceLastResize > 500) {
+                // Do an immediate resize for significant changes
                 handleResize();
-            }, debounceTime);
+                lastResizeTime = Date.now();
+            } else {
+                // Use shorter debounce for TUI applications for better responsiveness
+                // TUI apps need faster resize feedback to prevent rendering issues
+                const debounceTime = isTuiTerminal 
+                    ? 30  // Even faster response for TUI apps
+                    : 80; // Reduced debouncing for regular terminals
+                
+                resizeTimeout = setTimeout(() => {
+                    lastResizeTime = Date.now();
+                    handleResize();
+                }, debounceTime);
+            }
         });
         
         // Initial fit pass after mount
@@ -710,25 +730,38 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // After split drag ends, perform a strong fit + resize
         const doFinalFit = () => {
+            // Clear any immediate resize timeout from drag
+            if (immediateResizeTimeout) {
+                clearTimeout(immediateResizeTimeout);
+                immediateResizeTimeout = null;
+            }
+            
             try {
-                if (fitAddon.current && terminal.current) {
-                    // Capture scroll position before final fit
-                    const { wasAtBottom, scrollPosition } = captureScrollPosition();
+                if (fitAddon.current && terminal.current && termRef.current) {
+                    // Wait a frame for DOM to stabilize after drag
+                    requestAnimationFrame(() => {
+                        if (!fitAddon.current || !terminal.current) return;
+                        
+                        // Capture scroll position before final fit
+                        const { wasAtBottom, scrollPosition } = captureScrollPosition();
 
-                    fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    
-                    // Restore scroll position after final fit
-                    restoreScrollPosition(wasAtBottom, scrollPosition);
+                        // Force a complete refit after drag ends
+                        fitAddon.current.fit();
+                        const { cols, rows } = terminal.current;
+                        
+                        // Restore scroll position after final fit
+                        restoreScrollPosition(wasAtBottom, scrollPosition);
 
-                    lastSize.current = { cols, rows };
-                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                        lastSize.current = { cols, rows };
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                    });
                 }
             } catch (error) {
                 console.error(`[Terminal ${terminalId}] Final fit error:`, error);
             }
         };
         addEventListener(window, 'terminal-split-drag-end', doFinalFit);
+        addEventListener(window, 'right-panel-split-drag-end', doFinalFit);
 
         // Cleanup - dispose UI but keep terminal process running
         // Terminal processes will be cleaned up when the app exits
@@ -737,6 +770,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cancelled = true;
             
             if (resizeTimeout) clearTimeout(resizeTimeout);
+            if (immediateResizeTimeout) clearTimeout(immediateResizeTimeout);
             if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
             
             // Synchronously detach if possible to avoid races in tests
