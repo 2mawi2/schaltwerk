@@ -195,7 +195,7 @@ impl SessionManager {
     
     /// Fast asynchronous session cancellation with parallel operations
     pub async fn fast_cancel_session(&self, name: &str) -> Result<()> {
-        use tokio::process::Command;
+        use git2::{Repository, BranchType, WorktreePruneOptions};
         
         let session = self.db_manager.get_session_by_name(name)?;
         log::info!("Fast cancel {name}: Starting optimized cancellation");
@@ -216,27 +216,25 @@ impl SessionManager {
             let repo_path = self.repo_path.clone();
             let worktree_path = session.worktree_path.clone();
             Some(tokio::spawn(async move {
-                let output = Command::new("git")
-                    .arg("worktree")
-                    .arg("remove")
-                    .arg("-f")
-                    .arg(&worktree_path)
-                    .current_dir(&repo_path)
-                    .output()
-                    .await;
-                
-                match output {
-                    Ok(out) if out.status.success() => Ok(()),
-                    Ok(out) => {
-                        let stderr = String::from_utf8_lossy(&out.stderr);
-                        if stderr.contains("is not a working tree") {
-                            Ok(())
-                        } else {
-                            Err(anyhow::anyhow!("Failed to remove worktree: {}", stderr))
+                let res = tokio::task::spawn_blocking(move || {
+                    let repo = Repository::open(&repo_path)?;
+                    let worktrees = repo.worktrees()?;
+                    for wt_name in worktrees.iter().flatten() {
+                        if let Ok(wt) = repo.find_worktree(wt_name) {
+                            if wt.path() == worktree_path {
+                                // Prune the worktree (force removal)
+                                let _ = wt.prune(Some(&mut WorktreePruneOptions::new()));
+                                break;
+                            }
                         }
                     }
-                    Err(e) => Err(anyhow::anyhow!("Command failed: {}", e))
-                }
+                    // Also try to remove directory if still exists
+                    if worktree_path.exists() {
+                        let _ = std::fs::remove_dir_all(&worktree_path);
+                    }
+                    Ok::<(), anyhow::Error>(())
+                }).await;
+                match res { Ok(Ok(())) => Ok(()), Ok(Err(e)) => Err(e), Err(e) => Err(anyhow::anyhow!("Task join error: {}", e)) }
             }))
         } else {
             None
@@ -246,35 +244,27 @@ impl SessionManager {
             let repo_path = self.repo_path.clone();
             let branch = session.branch.clone();
             let session_name = session.name.clone();
-            
             Some(tokio::spawn(async move {
-                let archive_name = format!("archive/{}-{}", 
-                    session_name, 
-                    chrono::Utc::now().format("%Y%m%d-%H%M%S")
-                );
-                
-                // Create tag and delete branch in parallel
-                let tag_future = Command::new("git")
-                    .args(["tag", "-f", &archive_name, &branch])
-                    .current_dir(&repo_path)
-                    .output();
-                
-                let delete_future = Command::new("git")
-                    .args(["branch", "-D", &branch])
-                    .current_dir(&repo_path)
-                    .output();
-                
-                let (tag_result, delete_result) = tokio::join!(tag_future, delete_future);
-                
-                match (tag_result, delete_result) {
-                    (Ok(_), Ok(_)) => {
-                        log::info!("Archived branch '{branch}' to '{archive_name}'");
-                        Ok::<(), anyhow::Error>(())
+                let res = tokio::task::spawn_blocking(move || {
+                    let repo = Repository::open(&repo_path)?;
+                    let ts = chrono::Utc::now().format("%Y%m%d-%H%M%S");
+                    let archive_name = format!("archive/{session_name}-{ts}");
+
+                    // Create lightweight tag pointing to branch tip if branch exists
+                    if let Ok(mut br) = repo.find_branch(&branch, BranchType::Local) {
+                        if let Some(target) = br.get().target() {
+                            let _ = repo.tag_lightweight(&archive_name, &repo.find_object(target, None)?, false);
+                            // Delete the branch
+                            br.delete().ok();
+                            log::info!("Archived branch '{branch}' to '{archive_name}'");
+                        }
                     }
-                    (Err(e), _) | (_, Err(e)) => {
-                        log::warn!("Branch operation partially failed: {e}");
-                        Ok::<(), anyhow::Error>(()) // Continue anyway
-                    }
+                    Ok::<(), anyhow::Error>(())
+                }).await;
+                match res {
+                    Ok(Ok(())) => Ok::<(), anyhow::Error>(()),
+                    Ok(Err(e)) => { log::warn!("Branch operation error: {e}"); Ok::<(), anyhow::Error>(()) },
+                    Err(e) => { log::warn!("Task join error: {e}"); Ok::<(), anyhow::Error>(()) }
                 }
             }))
         } else {
@@ -1100,4 +1090,3 @@ impl SessionManager {
         &self.db_manager.db
     }
 }
-

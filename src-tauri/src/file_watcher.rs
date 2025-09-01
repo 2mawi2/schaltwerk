@@ -183,70 +183,74 @@ impl FileWatcher {
     async fn compute_change_summary(
         changed_files: &[ChangedFile],
         worktree_path: &Path,
-        base_branch: &str,
+        _base_branch: &str,
     ) -> Result<ChangeSummary, String> {
         let files_changed = changed_files.len() as u32;
         
-        let git_status_output = std::process::Command::new("git")
-            .args(["-C", &worktree_path.to_string_lossy(), "status", "--porcelain"])
-            .output()
-            .map_err(|e| format!("Failed to get git status: {e}"))?;
-
-        let status_str = String::from_utf8_lossy(&git_status_output.stdout);
-        let has_staged = status_str.lines().any(|line| {
-            if line.len() >= 2 {
-                matches!(line.chars().next().unwrap_or(' '), 'A' | 'M' | 'D' | 'R' | 'C')
-            } else {
-                false
+        // Use libgit2 to determine staged/unstaged and line stats
+        // If not a git repo, return graceful defaults
+        let repo = match git2::Repository::open(worktree_path) {
+            Ok(r) => r,
+            Err(_) => {
+                return Ok(ChangeSummary {
+                    files_changed,
+                    lines_added: 0,
+                    lines_removed: 0,
+                    has_staged: false,
+                    has_unstaged: false,
+                });
             }
-        });
+        };
 
-        let has_unstaged = status_str.lines().any(|line| {
-            if line.len() >= 2 {
-                matches!(line.chars().nth(1).unwrap_or(' '), 'M' | 'D')
-            } else {
-                false
+        // Parse status to detect staged/unstaged
+        let statuses = repo.statuses(None)
+            .map_err(|e| format!("Failed to get repository status: {e}"))?;
+        let mut has_staged = false;
+        let mut has_unstaged = false;
+        for entry in statuses.iter() {
+            let st = entry.status();
+            if st.is_index_new() || st.is_index_modified() || st.is_index_deleted() || st.is_index_renamed() || st.is_index_typechange() {
+                has_staged = true;
             }
-        });
+            if st.is_wt_new() || st.is_wt_modified() || st.is_wt_deleted() || st.is_wt_renamed() || st.is_wt_typechange() {
+                has_unstaged = true;
+            }
+        }
 
-        let numstat_output = std::process::Command::new("git")
-            .args(["-C", &worktree_path.to_string_lossy(), "diff", "--numstat", base_branch])
-            .output()
-            .map_err(|e| format!("Failed to get diff numstat: {e}"))?;
-            
-        let cached_numstat_output = std::process::Command::new("git")
-            .args(["-C", &worktree_path.to_string_lossy(), "diff", "--cached", "--numstat"])
-            .output()
-            .map_err(|e| format!("Failed to get cached diff numstat: {e}"))?;
+        // Compute line stats similar to `git diff --numstat` for both staged and unstaged
+        let mut lines_added: u32 = 0;
+        let mut lines_removed: u32 = 0;
 
-        let parse_numstat = |output: &[u8]| -> (u32, u32) {
-            let numstat_str = String::from_utf8_lossy(output);
-            numstat_str.lines().fold((0u32, 0u32), |(added, removed), line| {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 2 {
-                    let add = parts[0].parse::<u32>().unwrap_or(0);
-                    let rem = parts[1].parse::<u32>().unwrap_or(0);
-                    (added + add, removed + rem)
-                } else {
-                    (added, removed)
+        // Staged: tree (HEAD or merge-base) to index
+        if let Ok(idx) = repo.index() {
+            if let Ok(head) = repo.head() {
+                if let Some(head_oid) = head.target() {
+                    if let Ok(head_commit) = repo.find_commit(head_oid) {
+                        if let Ok(head_tree) = head_commit.tree() {
+                            let mut opts = git2::DiffOptions::new();
+                            if let Ok(diff_idx) = repo.diff_tree_to_index(Some(&head_tree), Some(&idx), Some(&mut opts)) {
+                                if let Ok(stats) = diff_idx.stats() {
+                                    lines_added += stats.insertions() as u32;
+                                    lines_removed += stats.deletions() as u32;
+                                }
+                            }
+                        }
+                    }
                 }
-            })
-        };
+            }
+        }
 
-        let (unstaged_added, unstaged_removed) = if numstat_output.status.success() {
-            parse_numstat(&numstat_output.stdout)
-        } else {
-            (0, 0)
-        };
-        
-        let (staged_added, staged_removed) = if cached_numstat_output.status.success() {
-            parse_numstat(&cached_numstat_output.stdout)
-        } else {
-            (0, 0)
-        };
-        
-        let lines_added = unstaged_added + staged_added;
-        let lines_removed = unstaged_removed + staged_removed;
+        // Unstaged: index to workdir
+        if let Ok(idx) = repo.index() {
+            let mut opts = git2::DiffOptions::new();
+            opts.include_untracked(true).recurse_untracked_dirs(true);
+            if let Ok(diff_wd) = repo.diff_index_to_workdir(Some(&idx), Some(&mut opts)) {
+                if let Ok(stats) = diff_wd.stats() {
+                    lines_added += stats.insertions() as u32;
+                    lines_removed += stats.deletions() as u32;
+                }
+            }
+        }
 
         Ok(ChangeSummary {
             files_changed,
@@ -261,40 +265,17 @@ impl FileWatcher {
         worktree_path: &Path,
         base_branch: &str,
     ) -> Result<BranchInfo, String> {
-        let current_branch_output = std::process::Command::new("git")
-            .args(["-C", &worktree_path.to_string_lossy(), "branch", "--show-current"])
-            .output()
-            .map_err(|e| format!("Failed to get current branch: {e}"))?;
-
-        let mut current_branch = String::from_utf8_lossy(&current_branch_output.stdout).trim().to_string();
-        
-        if current_branch.is_empty() {
-            let symbolic_ref_output = std::process::Command::new("git")
-                .args(["-C", &worktree_path.to_string_lossy(), "symbolic-ref", "--short", "HEAD"])
-                .output();
-                
-            if let Ok(output) = symbolic_ref_output {
-                current_branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        // Use libgit2 to get branch and commit info
+        let (current_branch, base_commit, head_commit) = match git2::Repository::open(worktree_path) {
+            Ok(repo) => {
+                let mut cur = repo.head().ok().and_then(|h| h.shorthand().map(|s| s.to_string())).unwrap_or_else(|| "HEAD".to_string());
+                if cur.is_empty() { cur = "HEAD".to_string(); }
+                let base = repo.revparse_single(base_branch).ok().map(|o| o.id().to_string()).map(|s| s.chars().take(7).collect()).unwrap_or_else(|| "".to_string());
+                let head = repo.head().ok().and_then(|h| h.target()).map(|oid| oid.to_string()).map(|s| s.chars().take(7).collect()).unwrap_or_else(|| "".to_string());
+                (cur, base, head)
             }
-            
-            if current_branch.is_empty() {
-                current_branch = "HEAD".to_string();
-            }
-        }
-
-        let base_commit_output = std::process::Command::new("git")
-            .args(["-C", &worktree_path.to_string_lossy(), "rev-parse", "--short", base_branch])
-            .output()
-            .map_err(|e| format!("Failed to get base commit: {e}"))?;
-
-        let base_commit = String::from_utf8_lossy(&base_commit_output.stdout).trim().to_string();
-
-        let head_commit_output = std::process::Command::new("git")
-            .args(["-C", &worktree_path.to_string_lossy(), "rev-parse", "--short", "HEAD"])
-            .output()
-            .map_err(|e| format!("Failed to get HEAD commit: {e}"))?;
-
-        let head_commit = String::from_utf8_lossy(&head_commit_output.stdout).trim().to_string();
+            Err(_) => ("HEAD".to_string(), "".to_string(), "".to_string()),
+        };
 
         Ok(BranchInfo {
             current_branch,

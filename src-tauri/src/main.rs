@@ -42,17 +42,11 @@ fn get_development_info() -> Result<serde_json::Value, String> {
     // Only return development info in debug builds
     if cfg!(debug_assertions) {
         // Get current git branch
-        let branch_result = std::process::Command::new("git")
-            .arg("branch")
-            .arg("--show-current")
-            .output();
+        let branch_result = std::fs::canonicalize(std::env::current_dir().unwrap_or_default()).ok()
+            .and_then(|cwd| git2::Repository::discover(cwd).ok())
+            .and_then(|repo| repo.head().ok().and_then(|h| h.shorthand().map(|s| s.to_string())));
         
-        let branch = match branch_result {
-            Ok(output) if output.status.success() => {
-                String::from_utf8_lossy(&output.stdout).trim().to_string()
-            }
-            _ => String::new()
-        };
+        let branch = branch_result.unwrap_or_default();
         
         Ok(serde_json::json!({
             "isDevelopment": true,
@@ -776,24 +770,16 @@ fn main() {
             // Get current git branch and update window title asynchronously
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
-                let branch_result = tokio::process::Command::new("git")
-                    .arg("branch")
-                    .arg("--show-current")
-                    .output()
-                    .await;
+                let branch_name = tokio::task::spawn_blocking(|| {
+                    std::fs::canonicalize(std::env::current_dir().unwrap_or_default()).ok()
+                        .and_then(|cwd| git2::Repository::discover(cwd).ok())
+                        .and_then(|repo| repo.head().ok().and_then(|h| h.shorthand().map(|s| s.to_string())))
+                }).await.ok().flatten();
 
                 if let Some(window) = app_handle.get_webview_window("main") {
-                    let title = match branch_result {
-                        Ok(output) if output.status.success() => {
-                            let branch = String::from_utf8_lossy(&output.stdout).trim().to_string();
-                            if !branch.is_empty() {
-                                format!("Schaltwerk - {branch}")
-                            } else {
-                                "Schaltwerk".to_string()
-                            }
-                        }
-                        _ => "Schaltwerk".to_string()
-                    };
+                    let title = if let Some(branch) = branch_name {
+                        if !branch.is_empty() { format!("Schaltwerk - {branch}") } else { "Schaltwerk".to_string() }
+                    } else { "Schaltwerk".to_string() };
 
                     if let Err(e) = window.set_title(&title) {
                         log::warn!("Failed to set window title: {e}");

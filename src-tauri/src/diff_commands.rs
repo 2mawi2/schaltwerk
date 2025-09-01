@@ -1,5 +1,4 @@
 use std::path::Path;
-use tokio::process::Command;
 // no serde derives used in this module
 use crate::get_schaltwerk_core;
 use crate::schaltwerk_core::{git, types::ChangedFile};
@@ -11,7 +10,7 @@ use crate::diff_engine::{
 };
 use crate::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
 use serde::Serialize;
-use git2::{Repository, Status, Oid, ObjectType};
+use git2::{Repository, Status, Oid, ObjectType, Sort, DiffOptions, DiffFindOptions, Delta};
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
@@ -477,58 +476,40 @@ pub async fn get_git_history(
     limit: Option<u32>,
 ) -> Result<Vec<CommitInfo>, String> {
     let repo_path = get_repo_path(session_name).await?;
-    let skip = skip.unwrap_or(0).to_string();
-    let limit = limit.unwrap_or(200).to_string();
+    let repo = Repository::open(&repo_path)
+        .map_err(|e| format!("Failed to open repository: {e}"))?;
 
-    // Use topo-order for consistent parent-after-child ordering
-    let format = "%H|%P|%an|%ae|%ad|%s";
-    let output = Command::new("git")
-        .args([
-            "-C",
-            &repo_path,
-            "log",
-            "--all",
-            "--topo-order",
-            "--date-order",
-            "--date=iso-strict",
-            "--no-color",
-            &format!("--format={format}"),
-            "--skip",
-            &skip,
-            "-n",
-            &limit,
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run git log: {e}"))?;
+    let skip = skip.unwrap_or(0) as usize;
+    let limit = limit.unwrap_or(200) as usize;
 
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    let mut revwalk = repo.revwalk().map_err(|e| format!("Failed to create revwalk: {e}"))?;
+    let _ = revwalk.push_glob("refs/heads/*");
+    let _ = revwalk.push_glob("refs/tags/*");
+    let _ = revwalk.push_head();
+    revwalk.set_sorting(Sort::TOPOLOGICAL | Sort::TIME)
+        .map_err(|e| format!("Failed to set revwalk sorting: {e}"))?;
+
+    let mut commits = Vec::new();
+    for (i, oid_res) in revwalk.enumerate() {
+        if commits.len() >= limit { break; }
+        if i < skip { continue; }
+        let oid = oid_res.map_err(|e| format!("Revwalk error: {e}"))?;
+        let commit = repo.find_commit(oid).map_err(|e| format!("Find commit failed: {e}"))?;
+        let hash = oid.to_string();
+        let parents = (0..commit.parent_count())
+            .filter_map(|idx| commit.parent_id(idx).ok())
+            .map(|p| p.to_string())
+            .collect::<Vec<_>>();
+        let author_sig = commit.author();
+        let author = author_sig.name().unwrap_or("").to_string();
+        let email = author_sig.email().unwrap_or("").to_string();
+        let secs = commit.time().seconds();
+        let date = chrono::DateTime::<chrono::Utc>::from_timestamp(secs, 0)
+            .map(|dt| dt.to_rfc3339())
+            .unwrap_or_default();
+        let message = commit.message().unwrap_or("").to_string();
+        commits.push(CommitInfo { hash, parents, author, email, date, message });
     }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let commits = stdout
-        .lines()
-        .filter(|l| !l.is_empty())
-        .map(|line| {
-            let mut parts = line.splitn(6, '|');
-            let hash = parts.next().unwrap_or("").to_string();
-            let parents_raw = parts.next().unwrap_or("");
-            let author = parts.next().unwrap_or("").to_string();
-            let email = parts.next().unwrap_or("").to_string();
-            let date = parts.next().unwrap_or("").to_string();
-            let message = parts.next().unwrap_or("").to_string();
-            let parents = if parents_raw.is_empty() {
-                Vec::new()
-            } else {
-                parents_raw
-                    .split_whitespace()
-                    .map(|s| s.to_string())
-                    .collect::<Vec<_>>()
-            };
-            CommitInfo { hash, parents, author, email, date, message }
-        })
-        .collect::<Vec<_>>();
 
     Ok(commits)
 }
@@ -545,32 +526,45 @@ pub async fn get_commit_files(
     commit: String,
 ) -> Result<Vec<CommitChangedFile>, String> {
     let repo_path = get_repo_path(session_name).await?;
-    let output = Command::new("git")
-        .args([
-            "-C",
-            &repo_path,
-            "diff-tree",
-            "--no-commit-id",
-            "--name-status",
-            "-r",
-            &commit,
-        ])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to run git diff-tree: {e}"))?;
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    let repo = Repository::open(&repo_path)
+        .map_err(|e| format!("Failed to open repository: {e}"))?;
+    let oid = Oid::from_str(&commit).map_err(|e| format!("Invalid commit id: {e}"))?;
+    let commit = repo.find_commit(oid).map_err(|e| format!("Find commit failed: {e}"))?;
+    let new_tree = commit.tree().map_err(|e| format!("Get tree failed: {e}"))?;
+    let old_tree = if commit.parent_count() > 0 {
+        commit.parent(0).ok().and_then(|p| p.tree().ok())
+    } else { None };
+
+    let mut opts = DiffOptions::new();
+    opts.include_untracked(false).recurse_untracked_dirs(false);
+    let mut diff = match old_tree {
+        Some(ref t) => repo.diff_tree_to_tree(Some(t), Some(&new_tree), Some(&mut opts)),
+        None => repo.diff_tree_to_tree(None, Some(&new_tree), Some(&mut opts)),
+    }.map_err(|e| format!("Create diff failed: {e}"))?;
+
+    let mut find_opts = DiffFindOptions::new();
+    let _ = diff.find_similar(Some(&mut find_opts));
+
+    let mut files = Vec::new();
+    for delta in diff.deltas() {
+        let status = match delta.status() {
+            Delta::Added => "A",
+            Delta::Deleted => "D",
+            Delta::Modified => "M",
+            Delta::Renamed => "R",
+            Delta::Copied => "C",
+            _ => "M",
+        };
+        let path = delta.new_file().path()
+            .or_else(|| delta.old_file().path())
+            .and_then(|p| p.to_str())
+            .unwrap_or("")
+            .to_string();
+        if !path.is_empty() {
+            files.push(CommitChangedFile { path, change_type: status.to_string() });
+        }
     }
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let files = stdout
-        .lines()
-        .filter_map(|line| {
-            let mut parts = line.split_whitespace();
-            let status = parts.next()?;
-            let path = parts.last()?; // handles R100 old new -> last is new path
-            Some(CommitChangedFile { path: path.to_string(), change_type: status.to_string() })
-        })
-        .collect::<Vec<_>>();
+
     Ok(files)
 }
 
@@ -581,42 +575,19 @@ pub async fn get_commit_file_contents(
     file_path: String,
 ) -> Result<(String, String), String> {
     let repo_path = get_repo_path(session_name).await?;
+    let repo = Repository::open(&repo_path)
+        .map_err(|e| format!("Failed to open repository: {e}"))?;
+    let oid = Oid::from_str(&commit).map_err(|e| format!("Invalid commit id: {e}"))?;
+    let commit = repo.find_commit(oid).map_err(|e| format!("Find commit failed: {e}"))?;
 
-    // Determine first parent; for root commits, there is none
-    let parents_out = Command::new("git")
-        .args(["-C", &repo_path, "rev-list", "--parents", "-n", "1", &commit])
-        .output()
-        .await
-        .map_err(|e| format!("Failed to get commit parents: {e}"))?;
-    if !parents_out.status.success() {
-        return Err(String::from_utf8_lossy(&parents_out.stderr).to_string());
-    }
-    let parents_line = String::from_utf8_lossy(&parents_out.stdout);
-    let mut items = parents_line.split_whitespace();
-    let _self = items.next();
-    let first_parent = items.next().map(|s| s.to_string());
+    let old_text = if commit.parent_count() > 0 {
+        let parent = commit.parent(0).ok();
+        if let Some(pc) = parent {
+            read_blob_from_commit_path(&repo, Some(pc.id()), &file_path)?
+        } else { String::new() }
+    } else { String::new() };
 
-    let old_text = if let Some(parent) = first_parent.clone() {
-        let out = Command::new("git")
-            .args(["-C", &repo_path, "show", &format!("{parent}:{file_path}")])
-            .output()
-            .await;
-        match out {
-            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
-            _ => String::new(),
-        }
-    } else {
-        String::new()
-    };
-
-    let new_out = Command::new("git")
-        .args(["-C", &repo_path, "show", &format!("{commit}:{file_path}")])
-        .output()
-        .await;
-    let new_text = match new_out {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
-        _ => String::new(),
-    };
+    let new_text = read_blob_from_commit_path(&repo, Some(commit.id()), &file_path)?;
 
     Ok((old_text, new_text))
 }
