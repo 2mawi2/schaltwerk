@@ -4,6 +4,7 @@ import { listen } from '@tauri-apps/api/event'
 import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
+import { FilterMode } from '../types/sessionFilters'
 
 export interface Selection {
     kind: 'session' | 'orchestrator'
@@ -32,7 +33,7 @@ const SelectionContext = createContext<SelectionContextType | null>(null)
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
     const { terminalFontSize } = useFontSize()
-    const { setCurrentSelection } = useSessions()
+    const { setCurrentSelection, filterMode } = useSessions()
     const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({
         top: 'orchestrator-default-top',
@@ -538,9 +539,39 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const setupSelectionListener = async () => {
             try {
                 unlisten = await listen<Selection>('schaltwerk:selection', async (event) => {
-                    console.log('Received selection event from backend:', event.payload)
+                    const target = event.payload
+                    console.log('Received selection event from backend:', target)
+
+                    // Guard: Don't auto-switch to a spec when user is focused on a running session
+                    // and the sidebar filter is set to Running. This avoids jumping away from terminals
+                    // when a new spec is created by MCP/background.
+                    if (target?.kind === 'session') {
+                        let targetIsSpec = target.sessionState === 'spec'
+
+                        // If the event didn't include sessionState, resolve it
+                        if (target.sessionState === undefined) {
+                            try {
+                                const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: target.payload })
+                                targetIsSpec = sessionData?.session_state === 'spec'
+                            } catch (e) {
+                                console.warn('[SelectionContext] Failed to resolve session state for backend selection event:', e)
+                            }
+                        }
+
+                        // If currently on a running session and filter hides specs, ignore spec selection
+                        if (
+                            targetIsSpec &&
+                            selection.kind === 'session' &&
+                            !isSpec &&
+                            filterMode === FilterMode.Running
+                        ) {
+                            console.log('[SelectionContext] Ignoring backend spec selection to preserve running session focus under Running filter')
+                            return
+                        }
+                    }
+
                     // Set the selection to the requested session/spec - this is intentional (backend requested)
-                    await setSelection(event.payload, false, true)
+                    await setSelection(target, false, true)
                 })
             } catch (e) {
                 console.error('[SelectionContext] Failed to attach selection listener', e)
@@ -554,7 +585,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 unlisten()
             }
         }
-    }, [setSelection])
+    }, [setSelection, selection, isSpec, filterMode])
     
     
     return (
