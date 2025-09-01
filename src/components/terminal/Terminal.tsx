@@ -202,7 +202,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
         
-        performInitialFit();
+        // Delay initial fit slightly to ensure renderer is ready
+        setTimeout(() => {
+            performInitialFit();
+        }, 0);
         
         // Add OSC handler to prevent color query responses from showing up in terminal
         terminal.current.parser.registerOscHandler(10, () => true); // foreground color
