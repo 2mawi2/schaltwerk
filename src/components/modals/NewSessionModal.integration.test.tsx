@@ -87,7 +87,8 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Should show configuration panel for regular session creation
-        expect(screen.getByTestId('initial-branch')).toHaveTextContent('')
+        // With persisted defaults loaded, initial branch should be 'main'
+        expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         expect(screen.getByTestId('initial-agent')).toHaveTextContent('claude')
         expect(screen.getByTestId('initial-skip-perms')).toHaveTextContent('false')
     })
@@ -155,7 +156,8 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Check that initial values are passed correctly
-        expect(screen.getByTestId('initial-branch')).toHaveTextContent('')
+        // With persisted defaults loaded, initial branch should be 'main'
+        expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         expect(screen.getByTestId('initial-agent')).toHaveTextContent('claude')
         expect(screen.getByTestId('initial-skip-perms')).toHaveTextContent('false')
     })

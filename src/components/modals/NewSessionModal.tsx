@@ -3,6 +3,7 @@ import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
 import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
 import { theme } from '../../common/theme'
+import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 
 interface Props {
     open: boolean
@@ -165,6 +166,20 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
+                // Initialize configuration from persisted state to reflect real settings
+                getPersistedSessionDefaults()
+                    .then(({ baseBranch, agentType, skipPermissions }) => {
+                        if (baseBranch) setBaseBranch(baseBranch)
+                        setAgentType(agentType)
+                        setSkipPermissions(skipPermissions)
+                        console.log('[NewSessionModal] Initialized config from persisted state:', { baseBranch, agentType, skipPermissions })
+                    })
+                    .catch(e => {
+                        console.warn('[NewSessionModal] Failed loading persisted config, falling back to child init:', e)
+                        setBaseBranch('')
+                        setAgentType('claude')
+                        setSkipPermissions(false)
+                    })
             } else {
                 console.log('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data')
                 // Still need to reset some state
@@ -195,6 +210,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setName('')
             setValidationError('')
             setCreating(false)
+            setBaseBranch('')
+            setAgentType('claude')
+            setSkipPermissions(false)
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData])
 
