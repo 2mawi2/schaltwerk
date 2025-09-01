@@ -22,6 +22,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const [hasLocalChanges, setHasLocalChanges] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSessionNameRef = useRef<string>(sessionName)
+  const lastServerContentRef = useRef<string>('')
 
   // Load initial content
   useEffect(() => {
@@ -35,6 +36,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
         if (!mounted) return
         const text: string = draftContent ?? initialPrompt ?? ''
         setContent(text)
+        lastServerContentRef.current = text
       })
       .catch((e) => {
         if (!mounted) return
@@ -53,6 +55,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       try {
         setSaving(true)
         await invoke('schaltwerk_core_update_spec_content', { name: sessionName, content })
+        lastServerContentRef.current = content
         setHasLocalChanges(false)
       } catch (e) {
         console.error('[DraftEditor] Failed to save spec:', e)
@@ -100,50 +103,87 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
       console.log('[SpecEditor] Received sessions-refreshed event')
       const sessions = event as any[]
-      console.log('[SpecEditor] Total sessions in event:', sessions.length)
-      
-      // Log all spec sessions for debugging
-      const specSessions = sessions.filter((s: any) => 
-        s.info?.session_state === 'spec' || s.info?.status === 'spec'
-      )
-      console.log('[SpecEditor] specSessions.map:', specSessions.map((s: any) => ({
-        id: s.info?.session_id,
-        state: s.info?.session_state,
-        status: s.info?.status,
-        has_content: !!s.info?.spec_content,
-        content_length: s.info?.spec_content?.length || 0
-      })))
       
       const specSession = sessions.find((s: any) => 
         s.info?.session_id === sessionName && 
         (s.info?.session_state === 'spec' || s.info?.status === 'spec')
       )
       
-      console.log('[SpecEditor] Looking for session:', sessionName)
-      console.log('[SpecEditor] Found matching session:', !!specSession)
+      if (!specSession || specSession.info?.spec_content === undefined) {
+        return
+      }
       
-      if (specSession) {
-        console.log('[SpecEditor] Spec session details:', {
-          id: specSession.info?.session_id,
-          has_spec_content: specSession.info?.spec_content !== undefined,
-          content_length: specSession.info?.spec_content?.length || 0,
-          current_content_length: content.length
-        })
-        
-        if (specSession.info?.spec_content !== undefined) {
-          // Only update if content actually changed to avoid infinite loops
-          if (specSession.info.spec_content !== content) {
-            console.log('[SpecEditor] Content changed, updating from', content.length, 'to', specSession.info.spec_content.length, 'chars')
-            setContent(specSession.info.spec_content || '')
-            setHasLocalChanges(false)
-          } else {
-            console.log('[SpecEditor] Content unchanged, skipping update')
+      const serverContent = specSession.info.spec_content || ''
+      
+      // Skip update if we have local changes pending save - let the user finish typing
+      if (hasLocalChanges) {
+        console.log('[SpecEditor] Skipping refresh - local changes pending')
+        return
+      }
+      
+      // Only update if the server content actually changed from what we last knew
+      // This prevents unnecessary flashing when sessions refresh but content hasn't changed
+      if (serverContent === lastServerContentRef.current) {
+        console.log('[SpecEditor] Server content unchanged, skipping update')
+        return
+      }
+      
+      // Also skip if current content matches server content (user hasn't made changes)
+      if (serverContent === content) {
+        console.log('[SpecEditor] Content already matches server, updating reference only')
+        lastServerContentRef.current = serverContent
+        return
+      }
+      
+      console.log('[SpecEditor] Server content changed, updating from', content.length, 'to', serverContent.length, 'chars')
+      
+      // Store current focus and cursor state for restoration
+      const activeElement = document.activeElement
+      const isEditorFocused = activeElement?.closest('.markdown-editor-container') !== null
+      let cursorPosition: number | null = null
+      
+      if (isEditorFocused && activeElement) {
+        try {
+          const cmEditor = activeElement.closest('.cm-editor')
+          if (cmEditor) {
+            const cmView = (cmEditor as any).cmView
+            if (cmView && cmView.state) {
+              cursorPosition = cmView.state.selection.main.head
+            }
           }
-        } else {
-          console.log('[SpecEditor] No spec_content field in session data')
+        } catch (e) {
+          console.warn('[SpecEditor] Could not get cursor position:', e)
         }
-      } else {
-        console.log('[SpecEditor] No matching spec session found for:', sessionName)
+      }
+      
+      setContent(serverContent)
+      lastServerContentRef.current = serverContent
+      setHasLocalChanges(false)
+      
+      // Restore focus and cursor position if editor was focused
+      if (isEditorFocused) {
+        requestAnimationFrame(() => {
+          const editorElement = document.querySelector('.markdown-editor-container .cm-editor') as HTMLElement
+          if (editorElement) {
+            editorElement.focus()
+            
+            // Try to restore cursor position
+            if (cursorPosition !== null) {
+              try {
+                const cmView = (editorElement as any).cmView
+                if (cmView && cmView.state) {
+                  const maxPos = cmView.state.doc.length
+                  const safePos = Math.min(cursorPosition, maxPos)
+                  cmView.dispatch({
+                    selection: { anchor: safePos, head: safePos }
+                  })
+                }
+              } catch (e) {
+                console.warn('[SpecEditor] Could not restore cursor position:', e)
+              }
+            }
+          }
+        })
       }
     })
     
@@ -151,7 +191,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       console.log('[SpecEditor] Cleaning up sessions-refreshed listener for:', sessionName)
       unlistenPromise.then(unlisten => unlisten())
     }
-  }, [sessionName, content])
+  }, [sessionName, content, hasLocalChanges])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

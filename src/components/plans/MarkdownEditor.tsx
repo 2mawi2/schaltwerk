@@ -1,4 +1,4 @@
-import { useMemo, useCallback, memo } from 'react'
+import { useMemo, useCallback, memo, useRef, useEffect, useState } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
@@ -174,6 +174,8 @@ export const MarkdownEditor = memo(function MarkdownEditor({
   className = '',
 }: MarkdownEditorProps) {
   const editorConfig = useMemo(() => EditorState.tabSize.of(2), [])
+  const lastValueRef = useRef(value)
+  const [internalValue, setInternalValue] = useState(value)
 
   const extensions = useMemo(() => [
     markdown(),
@@ -183,7 +185,16 @@ export const MarkdownEditor = memo(function MarkdownEditor({
     editorConfig,
   ], [editorConfig])
 
+  // Only update internal value if the prop value actually changed
+  useEffect(() => {
+    if (value !== lastValueRef.current) {
+      lastValueRef.current = value
+      setInternalValue(value)
+    }
+  }, [value])
+
   const handleChange = useCallback((val: string) => {
+    setInternalValue(val)
     onChange(val)
   }, [onChange])
 
@@ -191,7 +202,7 @@ export const MarkdownEditor = memo(function MarkdownEditor({
     <div className={`markdown-editor-container ${className}`} style={scrollableContainerStyles}>
       <div className="markdown-editor-scroll" style={scrollableInnerStyles}>
         <CodeMirror
-          value={value}
+          value={internalValue}
           onChange={handleChange}
           extensions={extensions}
           theme={undefined}

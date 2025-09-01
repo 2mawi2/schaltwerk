@@ -79,12 +79,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     // Note: mapSessionUiState function moved to utils/sessionFilters.ts
 
-    // Sort sessions while preserving the currently selected session's position in the list
-    const sortSessionsStable = useCallback((sessions: EnrichedSession[], selectedSessionId: string | null): EnrichedSession[] => {
+    // Sort sessions while preserving object references for unchanged items
+    const sortSessionsStable = useCallback((sessions: EnrichedSession[]): EnrichedSession[] => {
         if (sessions.length === 0) return sessions
 
-        // Find the selected session
-        const selectedIndex = selectedSessionId ? sessions.findIndex(s => s.info.session_id === selectedSessionId) : -1
+        // Create a stable reference map to preserve object identity where possible
+        const sessionMap = new Map(sessions.map(s => [s.info.session_id, s]))
 
         // Separate reviewed and unreviewed sessions (matching backend logic)
         const reviewed = sessions.filter(s => s.info.ready_to_merge)
@@ -116,18 +116,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         // Combine: unreviewed first, then reviewed
         const sorted = [...sortedUnreviewed, ...sortedReviewed]
 
-        // If there was a selected session, try to preserve its relative position to reduce visual jumping
-        if (selectedIndex >= 0 && selectedSessionId) {
-            const newSelectedIndex = sorted.findIndex(s => s.info.session_id === selectedSessionId)
-
-            if (newSelectedIndex >= 0 && newSelectedIndex !== selectedIndex) {
-                // The selected session moved in the sorted list
-                // This is expected behavior for sorting, so we don't need to do anything special
-                // The selection should be preserved by the SelectionContext
-            }
-        }
-
-        return sorted
+        // Use original object references where possible to prevent unnecessary re-renders
+        return sorted.map(s => sessionMap.get(s.info.session_id) || s)
     }, [sortMode])
 
     // Note: searchSessions function moved to utils/sessionFilters.ts
@@ -154,7 +144,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     // Apply search first, then filter mode, then sort
     const searchedSessions = searchSessions(allSessions)
     const filteredSessions = filterSessions(searchedSessions)
-    const sortedSessions = sortSessionsStable(filteredSessions, currentSelectionRef.current)
+    const sortedSessions = sortSessionsStable(filteredSessions)
     
     // Sessions is the final result (searched, filtered, and sorted)
     const sessions = sortedSessions
