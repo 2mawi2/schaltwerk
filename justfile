@@ -179,7 +179,7 @@ run:
     trap cleanup EXIT
     
     # Set the application's starting directory to HOME
-    # This ensures when Schaltwerk starts, it opens in the user's home directory
+    # This ensures Schaltwerk starts without opening a project
     export SCHALTWERK_START_DIR="$HOME"
     
     # Start with fast build mode and config override
@@ -258,6 +258,9 @@ run-port port:
     # Export the port for Vite
     export VITE_PORT={{port}}
     export PORT={{port}}
+    
+    # Set the application's starting directory to HOME
+    export SCHALTWERK_START_DIR="$HOME"
     
     # Cleanup function to remove temp config
     cleanup() {
