@@ -26,6 +26,7 @@ import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useSessions } from './contexts/SessionsContext'
 import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
+import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -983,6 +984,12 @@ export default function App() {
         onOpenKanban={() => setIsKanbanOpen(true)}
         isOrchestratorActive={selection.kind === 'orchestrator'}
         isSpecModeActive={!!commanderSpecModeSession}
+        resolveOpenPath={async () => resolveOpenPathForOpenButton({
+          selection,
+          activeTabPath,
+          projectPath,
+          invoke
+        })}
         onToggleSpecMode={() => {
           if (commanderSpecModeSession) {
             setCommanderSpecModeSession(null)

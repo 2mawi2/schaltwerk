@@ -18,6 +18,8 @@ interface TopBarProps {
   onToggleSpecMode?: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void
+  // Optional custom resolver for Open button path (e.g., active session worktree)
+  resolveOpenPath?: () => Promise<string | undefined>
 }
 
 export function TopBar({
@@ -32,7 +34,8 @@ export function TopBar({
   isSpecModeActive = false,
   onToggleSpecMode,
   isRightPanelCollapsed = false,
-  onToggleRightPanel
+  onToggleRightPanel,
+  resolveOpenPath
 }: TopBarProps) {
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
@@ -128,7 +131,7 @@ export function TopBar({
         {activeTabPath && (
           <div className="mr-2">
             <OpenInSplitButton 
-              resolvePath={async () => activeTabPath}
+              resolvePath={resolveOpenPath ?? (async () => activeTabPath)}
             />
           </div>
         )}
