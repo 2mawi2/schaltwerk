@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useAgentAvailability } from '../../hooks/useAgentAvailability'
+import { theme } from '../../common/theme'
 
 interface ModelSelectorProps {
     value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
@@ -10,6 +12,7 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
     const [isOpen, setIsOpen] = useState(false)
     const [focusedIndex, setFocusedIndex] = useState(-1)
     const dropdownRef = useRef<HTMLDivElement>(null)
+    const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
     
     const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex', label: string, color: string }> = useMemo(() => [
         { value: 'claude', label: 'Claude', color: 'blue' },
@@ -23,10 +26,33 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
     const selectedModel = models.find(m => m.value === value) || models[0]
 
     const handleSelect = useCallback((modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
+        // Only block selection if we know it's unavailable
+        if (!isAvailable(modelValue)) {
+            return
+        }
         onChange(modelValue)
         setIsOpen(false)
         setFocusedIndex(-1)
-    }, [onChange, setIsOpen, setFocusedIndex])
+    }, [onChange, setIsOpen, setFocusedIndex, isAvailable])
+
+    const getTooltipText = useCallback((modelValue: string) => {
+        if (loading) {
+            return 'Checking availability...'
+        }
+        
+        if (!isAvailable(modelValue)) {
+            return `${modelValue} is not installed on this system. Please install it to use this agent.`
+        }
+        
+        const path = getRecommendedPath(modelValue)
+        const method = getInstallationMethod(modelValue)
+        
+        if (path && method) {
+            return `${modelValue} is available at: ${path} (installed via ${method})`
+        }
+        
+        return `${modelValue} is available`
+    }, [loading, isAvailable, getRecommendedPath, getInstallationMethod])
 
     useEffect(() => {
         if (isOpen) {
@@ -72,6 +98,9 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [isOpen, focusedIndex, models, handleSelect])
     
+    const selectedAvailable = isAvailable(selectedModel.value)
+    const selectedDisabled = disabled || (!selectedAvailable && !loading)
+    
     return (
         <div className="relative">
             <button
@@ -80,21 +109,56 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                 disabled={disabled}
                 className={`w-full px-3 py-1.5 text-sm rounded border flex items-center justify-between ${
                     disabled 
-                        ? 'bg-slate-800 border-slate-700 text-slate-500 cursor-not-allowed' 
-                        : 'bg-slate-800 border-slate-700 text-slate-200 hover:bg-slate-750 cursor-pointer'
+                        ? 'cursor-not-allowed' 
+                        : 'cursor-pointer'
+                } ${
+                    selectedDisabled && !loading
+                        ? 'opacity-50'
+                        : selectedAvailable || loading
+                        ? 'hover:opacity-80'
+                        : ''
                 }`}
+                style={{
+                    backgroundColor: theme.colors.background.elevated,
+                    borderColor: theme.colors.border.default,
+                    color: selectedDisabled && !loading ? theme.colors.text.muted : theme.colors.text.primary
+                }}
+                title={getTooltipText(selectedModel.value)}
             >
                 <span className="flex items-center gap-2">
-                    <span className={`w-2 h-2 rounded-full ${
-                        selectedModel.color === 'blue' ? 'bg-blue-500' : 
-                        selectedModel.color === 'purple' ? 'bg-purple-500' : 
-                        selectedModel.color === 'green' ? 'bg-green-500' : 
-                        selectedModel.color === 'orange' ? 'bg-orange-500' :
-                        selectedModel.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
-                    }`} />
-                    {selectedModel.label}
+                    {loading ? (
+                        <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
+                    ) : (
+                        <span className={`w-2 h-2 rounded-full ${
+                            selectedModel.color === 'blue' ? 'bg-blue-500' : 
+                            selectedModel.color === 'purple' ? 'bg-purple-500' : 
+                            selectedModel.color === 'green' ? 'bg-green-500' : 
+                            selectedModel.color === 'orange' ? 'bg-orange-500' :
+                            selectedModel.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
+                        } ${!selectedAvailable && !loading ? 'opacity-50' : ''}`} />
+                    )}
+                    <span className="flex items-center gap-1">
+                        {selectedModel.label}
+                        {!loading && !selectedAvailable && (
+                            <svg 
+                                className="w-3 h-3" 
+                                style={{ color: theme.colors.status.warning }} 
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24"
+                            >
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        )}
+                    </span>
                 </span>
-                <svg className="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg 
+                    className="w-4 h-4" 
+                    style={{ color: theme.colors.text.muted }}
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
             </button>
@@ -108,27 +172,77 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                             setFocusedIndex(-1)
                         }}
                     />
-                    <div ref={dropdownRef} className="absolute top-full left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded shadow-lg z-50">
-                        {models.map((model, index) => (
-                            <button
-                                key={model.value}
-                                type="button"
-                                onClick={() => handleSelect(model.value)}
-                                className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 hover:bg-slate-700 ${
-                                    index === focusedIndex ? 'bg-slate-600' : 
-                                    model.value === value ? 'bg-slate-700' : ''
-                                }`}
-                            >
-                                <span className={`w-2 h-2 rounded-full ${
-                                    model.color === 'blue' ? 'bg-blue-500' : 
-                                    model.color === 'purple' ? 'bg-purple-500' : 
-                                    model.color === 'green' ? 'bg-green-500' : 
-                                    model.color === 'orange' ? 'bg-orange-500' :
-                                    model.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
-                                }`} />
-                                {model.label}
-                            </button>
-                        ))}
+                    <div 
+                        ref={dropdownRef} 
+                        className="absolute top-full left-0 right-0 mt-1 rounded shadow-lg z-50"
+                        style={{ 
+                            backgroundColor: theme.colors.background.elevated,
+                            borderColor: theme.colors.border.default,
+                            border: '1px solid'
+                        }}
+                    >
+                        {models.map((model, index) => {
+                            const available = isAvailable(model.value)
+                            const canSelect = available || loading
+                            
+                            return (
+                                <button
+                                    key={model.value}
+                                    type="button"
+                                    onClick={() => handleSelect(model.value)}
+                                    disabled={!canSelect}
+                                    className={`w-full px-3 py-2 text-sm text-left flex items-center gap-2 ${
+                                        !canSelect 
+                                            ? 'cursor-not-allowed opacity-50' 
+                                            : 'cursor-pointer'
+                                    } ${
+                                        index === focusedIndex && canSelect 
+                                            ? 'opacity-80' 
+                                            : model.value === value 
+                                            ? 'opacity-90' 
+                                            : canSelect
+                                            ? 'hover:opacity-80'
+                                            : ''
+                                    }`}
+                                    style={{
+                                        backgroundColor: 
+                                            index === focusedIndex && canSelect 
+                                                ? theme.colors.background.hover
+                                                : model.value === value
+                                                ? theme.colors.background.active
+                                                : 'transparent',
+                                        color: !canSelect && !loading ? theme.colors.text.muted : theme.colors.text.primary
+                                    }}
+                                    title={getTooltipText(model.value)}
+                                >
+                                    {loading ? (
+                                        <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
+                                    ) : (
+                                        <span className={`w-2 h-2 rounded-full ${
+                                            model.color === 'blue' ? 'bg-blue-500' : 
+                                            model.color === 'purple' ? 'bg-purple-500' : 
+                                            model.color === 'green' ? 'bg-green-500' : 
+                                            model.color === 'orange' ? 'bg-orange-500' :
+                                            model.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
+                                        } ${!available && !loading ? 'opacity-50' : ''}`} />
+                                    )}
+                                    <span className="flex items-center gap-1">
+                                        {model.label}
+                                        {!loading && !available && (
+                                            <svg 
+                                                className="w-3 h-3" 
+                                                style={{ color: theme.colors.status.warning }} 
+                                                fill="none" 
+                                                stroke="currentColor" 
+                                                viewBox="0 0 24 24"
+                                            >
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                            </svg>
+                                        )}
+                                    </span>
+                                </button>
+                            )
+                        })}
                     </div>
                 </>
             )}

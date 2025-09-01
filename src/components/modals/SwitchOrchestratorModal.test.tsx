@@ -11,6 +11,28 @@ vi.mock('../../hooks/useClaudeSession', () => {
   }
 })
 
+// Mock useAgentAvailability to make all agents available in tests
+vi.mock('../../hooks/useAgentAvailability', () => ({
+  useAgentAvailability: () => ({
+    isAvailable: vi.fn().mockReturnValue(true),
+    getRecommendedPath: vi.fn().mockReturnValue('/usr/local/bin/agent'),
+    getInstallationMethod: vi.fn().mockReturnValue('Homebrew'),
+    loading: false,
+    availability: {},
+    refreshAvailability: vi.fn(),
+    refreshSingleAgent: vi.fn(),
+    clearCache: vi.fn(),
+    forceRefresh: vi.fn(),
+  }),
+  InstallationMethod: {
+    Homebrew: 'Homebrew',
+    Npm: 'Npm',
+    Pip: 'Pip',
+    Manual: 'Manual',
+    System: 'System',
+  }
+}))
+
 function openModal(overrides: Partial<React.ComponentProps<typeof SwitchOrchestratorModal>> = {}) {
   const onClose = vi.fn()
   const onSwitch = vi.fn().mockResolvedValue(undefined)
