@@ -248,6 +248,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
             if (!gl) {
                 console.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
+                rendererReadyRef.current = true; // Canvas renderer is ready immediately
                 return false;
             }
 
@@ -255,6 +256,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             if (isMobile) {
                 console.info(`[Terminal ${terminalId}] Mobile device detected, using canvas renderer for compatibility`);
+                rendererReadyRef.current = true; // Canvas renderer is ready immediately
                 return false;
             }
 
@@ -284,6 +286,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         webglAddon.current.dispose();
                         webglAddon.current = null;
                     }
+                    rendererReadyRef.current = true; // Canvas renderer is ready
                     return false;
                 }
                 
@@ -338,6 +341,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     console.warn(`[Terminal ${terminalId}] WebGL addon failed to load, using canvas renderer:`, error);
                 }
                 webglAddon.current = null;
+                rendererReadyRef.current = true; // Canvas renderer is ready after WebGL failure
                 return false;
             }
         };
@@ -420,7 +424,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             } catch (e) {
                 // Fallback: try immediate initialization based on current element size
                 if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
-                    try { rendererObserver.disconnect(); } catch {}
+                    try { rendererObserver.disconnect(); } catch { /* ignore */ }
                     requestAnimationFrame(() => initializeRenderer());
                 }
             }
@@ -568,10 +572,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
-            if (!rendererReadyRef.current) {
-                setTimeout(() => flushNow(), 16);
-                return;
-            }
             if (!terminal.current || writeQueueRef.current.length === 0) return;
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];

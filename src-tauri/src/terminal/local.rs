@@ -225,12 +225,17 @@ impl LocalPtyAdapter {
                                 // Regular terminals get 2ms delay for efficiency
                                 let delay_ms = if is_tui { 0 } else { 2 };
                                 
+                                // ONLY normalize output for Codex terminals which expect Unix line endings
+                                // Other terminals need raw \r for cursor control (progress bars, spinners, etc.)
+                                let normalize_output = id_clone.contains("codex");
+                                
                                 handle_coalesced_output(
                                     &coalescing_state_clone,
                                     CoalescingParams {
                                         terminal_id: &id_clone,
                                         data: &data,
                                         delay_ms,
+                                        normalize_output,
                                     },
                                 ).await;
                             }

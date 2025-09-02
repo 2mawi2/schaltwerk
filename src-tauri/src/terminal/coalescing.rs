@@ -20,6 +20,7 @@ pub struct CoalescingParams<'a> {
     pub terminal_id: &'a str,
     pub data: &'a [u8],
     pub delay_ms: u64,
+    pub normalize_output: bool,  // Only true for Codex terminals that need \r\n -> \n normalization
 }
 
 /// Handle coalesced output with ANSI-aware buffering
@@ -34,26 +35,44 @@ pub async fn handle_coalesced_output(
         buf_ref.extend_from_slice(params.data);
     }
 
-    // Maintain a normalized coalesced buffer as well
-    {
+    // ONLY maintain a normalized buffer for terminals that explicitly request it (e.g., Codex)
+    // This prevents corruption of regular terminal output which needs \r for cursor control
+    if params.normalize_output {
         let mut last_map = coalescing_state.norm_last_cr.write().await;
         let prev_last_cr = *last_map.get(params.terminal_id).unwrap_or(&false);
-        let raw_ended_with_cr = params.data.last().copied() == Some(b'\r');
+        
         let mut s = String::from_utf8_lossy(params.data).to_string();
         let mut out = String::new();
+        
+        // Handle split \r\n across chunks
         if prev_last_cr {
             if s.starts_with('\n') {
-                s.remove(0);
+                // Previous chunk ended with \r, this starts with \n
+                // This is a split \r\n which becomes just \n
+                s.remove(0);  // Remove the \n from current chunk
+                out.push('\n');  // Add the normalized newline
             } else {
-                out.push('\n');
+                // Previous ended with \r but this doesn't start with \n
+                // The \r was standalone - preserve it for cursor control
+                out.push('\r');
             }
         }
-        s = s.replace("\r\n", "\n").replace("\r", "\n");
-        out.push_str(&s);
-        if raw_ended_with_cr {
-            out.push('\n');
+        
+        // Normalize \r\n to \n (Windows line endings to Unix)
+        s = s.replace("\r\n", "\n");
+        
+        // Check if the result ends with \r (potential split \r\n)
+        let ends_with_cr = s.ends_with('\r');
+        if ends_with_cr {
+            // Don't output the trailing \r yet - it might be part of split \r\n
+            s.pop(); // Remove the trailing \r
         }
-        last_map.insert(params.terminal_id.to_string(), raw_ended_with_cr);
+        
+        out.push_str(&s);
+        
+        // Track if we end with \r for next chunk
+        last_map.insert(params.terminal_id.to_string(), ends_with_cr);
+        
         let mut buffers_n = coalescing_state.emit_buffers_norm.write().await;
         let buf_ref_n = buffers_n.entry(params.terminal_id.to_string()).or_insert_with(Vec::new);
         buf_ref_n.extend_from_slice(out.as_bytes());
@@ -207,6 +226,7 @@ mod tests {
             terminal_id: "test-terminal",
             data: b"hello world",
             delay_ms: 100,
+            normalize_output: false,
         };
         
         assert_eq!(params.terminal_id, "test-terminal");
@@ -228,6 +248,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"test output",
             delay_ms: 0,
+            normalize_output: false,
         };
 
         handle_coalesced_output(&state, params).await;
@@ -253,6 +274,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"hello ",
             delay_ms: 0,
+            normalize_output: false,
         }).await;
 
         // Second call 
@@ -260,6 +282,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"world",
             delay_ms: 0,
+            normalize_output: false,
         }).await;
 
         // Wait a bit for async processing
@@ -282,19 +305,21 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        // Test CR+LF normalization
+        // Test CR+LF normalization with normalize_output enabled
         handle_coalesced_output(&state, CoalescingParams {
             terminal_id: "test-term",
             data: b"line1\r\nline2\r",
             delay_ms: 0,
+            normalize_output: true,  // Enable normalization for this test
         }).await;
 
         let buffers_norm = state.emit_buffers_norm.read().await;
         let normalized = buffers_norm.get("test-term").unwrap();
         let normalized_str = String::from_utf8_lossy(normalized);
         
-        // \r\n should become \n, and trailing \r should add \n
-        assert_eq!(normalized_str, "line1\nline2\n\n");
+        // \r\n should become \n, trailing \r is withheld (might be part of split \r\n)
+        // In streaming context, we can't know if more data follows
+        assert_eq!(normalized_str, "line1\nline2");
     }
 
     #[tokio::test]
@@ -312,6 +337,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"line1\r",
             delay_ms: 0,
+            normalize_output: true,  // Enable normalization for this test
         }).await;
 
         // Second call starting with \n
@@ -319,15 +345,17 @@ mod tests {
             terminal_id: "test-term",
             data: b"\nline2",
             delay_ms: 0,
+            normalize_output: true,  // Enable normalization for this test
         }).await;
 
         let buffers_norm = state.emit_buffers_norm.read().await;
         let normalized = buffers_norm.get("test-term").unwrap();
         let normalized_str = String::from_utf8_lossy(normalized);
         
-        // The \r from first call and \n from second should not create double newline
-        assert!(normalized_str.contains("line1\n"));
-        assert!(normalized_str.contains("line2"));
+        // The \r from first call and \n from second should properly normalize to single \n
+        // The result should be "line1" + "\n" + "line2" = "line1\nline2"
+        // (the \r at end of first chunk and \n at start of second chunk form a single \r\n -> \n)
+        assert_eq!(normalized_str, "line1\nline2");
     }
 
     #[tokio::test]
@@ -345,6 +373,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"data1",
             delay_ms: 100, // Use delay to keep it scheduled
+            normalize_output: false,
         }).await;
 
         {
@@ -357,6 +386,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"data2",
             delay_ms: 100,
+            normalize_output: false,
         }).await;
 
         // Buffer should contain both
@@ -379,6 +409,7 @@ mod tests {
             terminal_id: "test-term",
             data: b"immediate",
             delay_ms: 0,
+            normalize_output: false,
         }).await;
 
         // With zero delay, processing should start immediately
@@ -389,6 +420,37 @@ mod tests {
         let scheduled = state.emit_scheduled.read().await;
         // After processing, the flag should be reset to false
         assert_eq!(*scheduled.get("test-term").unwrap_or(&false), false);
+    }
+
+    #[tokio::test]
+    async fn test_no_normalization_preserves_carriage_returns() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // Test that without normalization, \r is preserved
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"Progress: 50%\rProgress: 100%",
+            delay_ms: 0,
+            normalize_output: false,  // Normalization disabled
+        }).await;
+
+        // Regular buffer should preserve \r
+        let buffers = state.emit_buffers.read().await;
+        if let Some(buffer) = buffers.get("test-term") {
+            let output = String::from_utf8_lossy(buffer);
+            assert!(output.contains('\r'), "Carriage return should be preserved");
+            assert_eq!(output, "Progress: 50%\rProgress: 100%");
+        }
+        
+        // Normalized buffer should not exist
+        let buffers_norm = state.emit_buffers_norm.read().await;
+        assert!(!buffers_norm.contains_key("test-term"), "No normalized buffer should exist when normalize_output is false");
     }
 
     #[tokio::test]
@@ -406,6 +468,7 @@ mod tests {
             terminal_id: "term1",
             data: b"data1",
             delay_ms: 0,
+            normalize_output: false,
         }).await;
 
         // Add data for terminal 2
@@ -413,6 +476,7 @@ mod tests {
             terminal_id: "term2",
             data: b"data2",
             delay_ms: 0,
+            normalize_output: false,
         }).await;
 
         let buffers = state.emit_buffers.read().await;
