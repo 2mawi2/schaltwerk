@@ -470,12 +470,18 @@ impl SessionMethods for Database {
             return Err(anyhow::anyhow!("Session with name '{}' already exists", new_name));
         }
         
-        // Update the session name
+        // Calculate new worktree path based on new session name
+        let new_worktree_path = repo_path
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join(new_name);
+        
+        // Update the session name and worktree path
         conn.execute(
             "UPDATE sessions 
-             SET name = ?1, updated_at = ?2 
-             WHERE repository_path = ?3 AND name = ?4",
-            params![new_name, Utc::now().timestamp(), repo_path.to_string_lossy(), old_name],
+             SET name = ?1, worktree_path = ?2, updated_at = ?3 
+             WHERE repository_path = ?4 AND name = ?5",
+            params![new_name, new_worktree_path.to_string_lossy(), Utc::now().timestamp(), repo_path.to_string_lossy(), old_name],
         )?;
         
         Ok(())

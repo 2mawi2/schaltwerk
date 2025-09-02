@@ -217,8 +217,7 @@ mod benchmarks {
         assert_eq!(stats.files_changed, 3);
         // Note: The git stats calculation may not detect deleted line counts in all scenarios
         // The important thing is that files_changed and has_uncommitted are correct
-        assert!(stats.lines_added >= 0);
-        assert!(stats.lines_removed >= 0);
+        // lines_added and lines_removed are u32 so they're always >= 0 by definition
         assert!(stats.has_uncommitted);
         
         Ok(())

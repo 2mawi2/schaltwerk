@@ -95,9 +95,13 @@ impl LocalPtyAdapter {
     }
 
     fn clear_command_environment(cmd: &mut CommandBuilder) {
+        // Don't clear environment - we need to preserve Claude auth and other important variables
+        // Just ensure we don't have conflicting terminal settings
         #[allow(unused_must_use)]
         {
-            cmd.env_clear();
+            // Only remove specific problematic variables if needed, don't clear everything
+            cmd.env_remove("PROMPT_COMMAND");  // Can interfere with terminal
+            cmd.env_remove("PS1");  // Let shell set its own prompt
         }
     }
 
