@@ -252,7 +252,7 @@ describe('useKeyboardShortcuts', () => {
       expect(onSelectNextSession).toHaveBeenCalledTimes(1)
     })
 
-    it('switches to previous project with Cmd+ArrowLeft', () => {
+    it('switches to previous project with Cmd+Shift+ArrowLeft', () => {
       const onSelectPrevProject = vi.fn()
       const onSelectOrchestrator = vi.fn()
       const onSelectSession = vi.fn()
@@ -264,11 +264,11 @@ describe('useKeyboardShortcuts', () => {
         sessionCount: 3
       }))
 
-      pressKey('ArrowLeft', { metaKey: true })
+      pressKey('ArrowLeft', { metaKey: true, shiftKey: true })
       expect(onSelectPrevProject).toHaveBeenCalledTimes(1)
     })
 
-    it('switches to next project with Cmd+ArrowRight', () => {
+    it('switches to next project with Cmd+Shift+ArrowRight', () => {
       const onSelectNextProject = vi.fn()
       const onSelectOrchestrator = vi.fn()
       const onSelectSession = vi.fn()
@@ -280,7 +280,7 @@ describe('useKeyboardShortcuts', () => {
         sessionCount: 3
       }))
 
-      pressKey('ArrowRight', { metaKey: true })
+      pressKey('ArrowRight', { metaKey: true, shiftKey: true })
       expect(onSelectNextProject).toHaveBeenCalledTimes(1)
     })
 
@@ -299,6 +299,38 @@ describe('useKeyboardShortcuts', () => {
       pressKey('ArrowDown', { metaKey: true })
       pressKey('ArrowLeft', { metaKey: true })
       pressKey('ArrowRight', { metaKey: true })
+    })
+
+    it('navigates to previous filter with Cmd+ArrowLeft', () => {
+      const onNavigateToPrevFilter = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() => useKeyboardShortcuts({ 
+        onSelectOrchestrator, 
+        onSelectSession, 
+        onNavigateToPrevFilter,
+        sessionCount: 3
+      }))
+
+      pressKey('ArrowLeft', { metaKey: true })
+      expect(onNavigateToPrevFilter).toHaveBeenCalledTimes(1)
+    })
+
+    it('navigates to next filter with Cmd+ArrowRight', () => {
+      const onNavigateToNextFilter = vi.fn()
+      const onSelectOrchestrator = vi.fn()
+      const onSelectSession = vi.fn()
+
+      renderHook(() => useKeyboardShortcuts({ 
+        onSelectOrchestrator, 
+        onSelectSession, 
+        onNavigateToNextFilter,
+        sessionCount: 3
+      }))
+
+      pressKey('ArrowRight', { metaKey: true })
+      expect(onNavigateToNextFilter).toHaveBeenCalledTimes(1)
     })
 
     it('does not prevent default when callbacks are undefined', () => {
@@ -746,6 +778,8 @@ describe('useKeyboardShortcuts', () => {
         onFocusTerminal: vi.fn(),
         onSelectPrevProject: vi.fn(),
         onSelectNextProject: vi.fn(),
+        onNavigateToPrevFilter: vi.fn(),
+        onNavigateToNextFilter: vi.fn(),
       }
 
       renderHook(() => useKeyboardShortcuts({ 
@@ -794,6 +828,8 @@ describe('useKeyboardShortcuts', () => {
         onFocusTerminal: vi.fn(),
         onSelectPrevProject: vi.fn(),
         onSelectNextProject: vi.fn(),
+        onNavigateToPrevFilter: vi.fn(),
+        onNavigateToNextFilter: vi.fn(),
       }
 
       renderHook(() => useKeyboardShortcuts({ 
@@ -821,10 +857,10 @@ describe('useKeyboardShortcuts', () => {
       pressKey('ArrowDown', { metaKey: true })
       expect(callbacks.onSelectNextSession).toHaveBeenCalled()
 
-      pressKey('ArrowLeft', { metaKey: true })
+      pressKey('ArrowLeft', { metaKey: true, shiftKey: true })
       expect(callbacks.onSelectPrevProject).toHaveBeenCalled()
 
-      pressKey('ArrowRight', { metaKey: true })
+      pressKey('ArrowRight', { metaKey: true, shiftKey: true })
       expect(callbacks.onSelectNextProject).toHaveBeenCalled()
 
       pressKey('g', { metaKey: true })

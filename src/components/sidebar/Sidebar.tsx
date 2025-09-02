@@ -11,7 +11,7 @@ import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../ut
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { SessionButton } from './SessionButton'
-import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
 import { calculateFilterCounts } from '../../utils/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
 
@@ -93,6 +93,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
     const [isSearchVisible, setIsSearchVisible] = useState<boolean>(false)
+    const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     
     // Close search when query is cleared
     useEffect(() => {
@@ -387,6 +388,71 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
+    // Filter navigation functions
+    const handleNavigateToPrevFilter = () => {
+        const currentIndex = FILTER_MODES.indexOf(filterMode)
+        const prevIndex = currentIndex === 0 ? FILTER_MODES.length - 1 : currentIndex - 1
+        const nextFilter = FILTER_MODES[prevIndex]
+        
+        // Trigger keyboard navigation animation
+        setKeyboardNavigatedFilter(nextFilter)
+        setTimeout(() => setKeyboardNavigatedFilter(null), 400) // Clear after animation
+        
+        setFilterMode(nextFilter)
+        
+        // Smart session selection after filter change
+        setTimeout(() => {
+            // If current selection is not visible in the new filter, select the first visible session
+            if (selection.kind === 'session') {
+                const sessionsAfterFilter = sessions // This will be the new filtered list after setFilterMode
+                const currentSessionVisible = sessionsAfterFilter.some(s => s.info.session_id === selection.payload)
+                
+                if (!currentSessionVisible && sessionsAfterFilter.length > 0) {
+                    // Select the first session in the new filter
+                    const firstSession = sessionsAfterFilter[0]
+                    setSelection({
+                        kind: 'session',
+                        payload: firstSession.info.session_id,
+                        worktreePath: firstSession.info.worktree_path,
+                        sessionState: mapSessionUiState(firstSession.info)
+                    }, false, true) // User action - intentional
+                }
+            }
+        }, 0) // Allow filter change to process first
+    }
+
+    const handleNavigateToNextFilter = () => {
+        const currentIndex = FILTER_MODES.indexOf(filterMode)
+        const nextIndex = (currentIndex + 1) % FILTER_MODES.length
+        const nextFilter = FILTER_MODES[nextIndex]
+        
+        // Trigger keyboard navigation animation
+        setKeyboardNavigatedFilter(nextFilter)
+        setTimeout(() => setKeyboardNavigatedFilter(null), 400) // Clear after animation
+        
+        setFilterMode(nextFilter)
+        
+        // Smart session selection after filter change
+        setTimeout(() => {
+            // If current selection is not visible in the new filter, select the first visible session
+            if (selection.kind === 'session') {
+                const sessionsAfterFilter = sessions // This will be the new filtered list after setFilterMode
+                const currentSessionVisible = sessionsAfterFilter.some(s => s.info.session_id === selection.payload)
+                
+                if (!currentSessionVisible && sessionsAfterFilter.length > 0) {
+                    // Select the first session in the new filter
+                    const firstSession = sessionsAfterFilter[0]
+                    setSelection({
+                        kind: 'session',
+                        payload: firstSession.info.session_id,
+                        worktreePath: firstSession.info.worktree_path,
+                        sessionState: mapSessionUiState(firstSession.info)
+                    }, false, true) // User action - intentional
+                }
+            }
+        }, 0) // Allow filter change to process first
+    }
+
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
         onSelectSession: handleSelectSession,
@@ -425,6 +491,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         },
         onSelectPrevProject: handleSelectPrevProject,
         onSelectNextProject: handleSelectNextProject,
+        onNavigateToPrevFilter: handleNavigateToPrevFilter,
+        onNavigateToNextFilter: handleNavigateToNextFilter,
         isDiffViewerOpen
     })
 
@@ -597,32 +665,36 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             </svg>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                                filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                keyboardNavigatedFilter === FilterMode.All && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
                             onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all agents"
                         >
                             All <span className="text-slate-400">({allCount})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
-                                filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200',
+                                filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                keyboardNavigatedFilter === FilterMode.Spec && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
                             onClick={() => setFilterMode(FilterMode.Spec)}
                             title="Show spec agents"
                         >
                             Specs <span className="text-slate-400">({specsCount})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                                filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                keyboardNavigatedFilter === FilterMode.Running && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running agents"
                         >
                             Running <span className="text-slate-400">({runningCount})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
-                                filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50')}
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                                filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                keyboardNavigatedFilter === FilterMode.Reviewed && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed agents"
                         >

@@ -15,10 +15,12 @@ interface KeyboardShortcutsProps {
     onFocusTerminal?: () => void
     onSelectPrevProject?: () => void
     onSelectNextProject?: () => void
+    onNavigateToPrevFilter?: () => void
+    onNavigateToNextFilter?: () => void
     isDiffViewerOpen?: boolean
 }
 
-export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen }: KeyboardShortcutsProps) {
+export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen }: KeyboardShortcutsProps) {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const modifierKey = navigator.userAgent.includes('Mac') ? event.metaKey : event.ctrlKey
@@ -47,16 +49,36 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
                     onSelectNextSession()
                 }
             } else if (key === 'ArrowLeft') {
-                // Switch to previous project
-                if (onSelectPrevProject && !isDiffViewerOpen) {
-                    event.preventDefault()
-                    onSelectPrevProject()
+                if (!isDiffViewerOpen) {
+                    if (event.shiftKey) {
+                        // Cmd+Shift+Left: Switch to previous project
+                        if (onSelectPrevProject) {
+                            event.preventDefault()
+                            onSelectPrevProject()
+                        }
+                    } else {
+                        // Cmd+Left: Navigate to previous filter
+                        if (onNavigateToPrevFilter) {
+                            event.preventDefault()
+                            onNavigateToPrevFilter()
+                        }
+                    }
                 }
             } else if (key === 'ArrowRight') {
-                // Switch to next project
-                if (onSelectNextProject && !isDiffViewerOpen) {
-                    event.preventDefault()
-                    onSelectNextProject()
+                if (!isDiffViewerOpen) {
+                    if (event.shiftKey) {
+                        // Cmd+Shift+Right: Switch to next project
+                        if (onSelectNextProject) {
+                            event.preventDefault()
+                            onSelectNextProject()
+                        }
+                    } else {
+                        // Cmd+Right: Navigate to next filter
+                        if (onNavigateToNextFilter) {
+                            event.preventDefault()
+                            onNavigateToNextFilter()
+                        }
+                    }
                 }
             } else if (key === 'd' || key === 'D') {
                 if (onCancelSelectedSession) {
@@ -97,5 +119,5 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)
         }
-    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, isDiffViewerOpen])
+    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen])
 }
