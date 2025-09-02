@@ -225,7 +225,24 @@ mod tests {
     fn test_discover_repository_from_env() {
         // Create a temporary git repository
         let temp_dir = TempDir::new().expect("Failed to create temp dir");
-        Repository::init(temp_dir.path()).expect("Failed to init repo");
+        let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
+        
+        // Create an initial commit to make it a proper repository
+        let sig = Signature::now("Test User", "test@example.com").expect("Failed to create signature");
+        let tree_id = {
+            let mut index = repo.index().expect("Failed to get index");
+            index.write_tree().expect("Failed to write tree")
+        };
+        let tree = repo.find_tree(tree_id).expect("Failed to find tree");
+        
+        repo.commit(
+            Some("HEAD"),
+            &sig,
+            &sig,
+            "Initial commit",
+            &tree,
+            &[],
+        ).expect("Failed to create initial commit");
         
         // Set environment variable
         std::env::set_var("PARA_REPO_PATH", temp_dir.path());
