@@ -20,7 +20,7 @@ pub struct CoalescingParams<'a> {
     pub terminal_id: &'a str,
     pub data: &'a [u8],
     pub delay_ms: u64,
-    pub normalize_output: bool,  // Only true for Codex terminals that need \r\n -> \n normalization
+    pub normalize_output: bool,  // Currently unused - kept for API compatibility and testing
 }
 
 /// Handle coalesced output with ANSI-aware buffering

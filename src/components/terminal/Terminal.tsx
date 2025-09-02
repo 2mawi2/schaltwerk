@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
-import { SchaltEvent, listenEvent, listenTerminalOutput, listenTerminalOutputNormalized } from '../../common/eventSystem'
+import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -670,27 +670,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
-        if (agentType === 'codex') {
-            unlistenPromiseRef.current = listenTerminalOutputNormalized(terminalId, (output) => {
-                if (cancelled) return;
-                if (!hydratedRef.current) {
-                    pendingOutput.current.push(output);
-                } else {
-                    writeQueueRef.current.push(output);
-                    flushQueuedWrites();
-                }
-            }).then((fn) => { unlistenRef.current = fn; return fn; });
-        } else {
-            unlistenPromiseRef.current = listenTerminalOutput(terminalId, (output) => {
-                if (cancelled) return;
-                if (!hydratedRef.current) {
-                    pendingOutput.current.push(output);
-                } else {
-                    writeQueueRef.current.push(output);
-                    flushQueuedWrites();
-                }
-            }).then((fn) => { unlistenRef.current = fn; return fn; });
-        }
+        unlistenPromiseRef.current = listenTerminalOutput(terminalId, (output) => {
+            if (cancelled) return;
+            if (!hydratedRef.current) {
+                pendingOutput.current.push(output);
+            } else {
+                writeQueueRef.current.push(output);
+                flushQueuedWrites();
+            }
+        }).then((fn) => { unlistenRef.current = fn; return fn; });
         listenerAgentRef.current = agentType;
 
         // Hydrate from buffer
@@ -1114,27 +1102,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         let mounted = true;
         const attach = async () => {
             try {
-                if (agentType === 'codex') {
-                    unlistenRef.current = await listenTerminalOutputNormalized(terminalId, (output) => {
-                        if (!mounted) return;
-                        if (!hydratedRef.current) {
-                            pendingOutput.current.push(output);
-                        } else {
-                            writeQueueRef.current.push(output);
-                            flushQueuedWritesLight();
-                        }
-                    });
-                } else {
-                    unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
-                        if (!mounted) return;
-                        if (!hydratedRef.current) {
-                            pendingOutput.current.push(output);
-                        } else {
-                            writeQueueRef.current.push(output);
-                            flushQueuedWritesLight();
-                        }
-                    });
-                }
+                unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+                    if (!mounted) return;
+                    if (!hydratedRef.current) {
+                        pendingOutput.current.push(output);
+                    } else {
+                        writeQueueRef.current.push(output);
+                        flushQueuedWritesLight();
+                    }
+                });
                 listenerAgentRef.current = agentType;
             } catch (e) {
                 console.warn(`[Terminal ${terminalId}] Failed to reconfigure output listener:`, e);
