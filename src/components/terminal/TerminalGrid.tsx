@@ -8,7 +8,9 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
+import { useSessions } from '../../contexts/SessionsContext'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { AgentType } from '../../types/session'
 import { clearTerminalStartedTracking } from './Terminal'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
@@ -22,6 +24,7 @@ export function TerminalGrid() {
     const { getAgentType } = useClaudeSession()
     const { isResetting, resetSession, switchModel } = useSessionManagement()
     const { actionButtons } = useActionButtons()
+    const { sessions } = useSessions()
     
     // Show action buttons for both orchestrator and sessions
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
@@ -125,10 +128,30 @@ export function TerminalGrid() {
         }
     }, [isBottomCollapsed, lastExpandedBottomPercent])
 
-    // Fetch agent type when component mounts
+    // Fetch agent type based on selection
     useEffect(() => {
-        getAgentType().then(setAgentType).catch(console.error)
-    }, [getAgentType])
+        // For sessions, get the session-specific agent type
+        if (selection.kind === 'session' && selection.payload) {
+            const session = sessions.find(s => s.info.session_id === selection.payload)
+            if (!session) {
+                console.warn(`Session not found: ${selection.payload}, using default agent type`)
+                setAgentType('claude')
+                return
+            }
+            // Use session's original_agent_type if available, otherwise default to 'claude'
+            // This handles existing sessions that don't have the field yet
+            const sessionAgentType: AgentType = session.info.original_agent_type || 'claude'
+            console.log(`Session ${selection.payload} agent type: ${sessionAgentType} (original_agent_type: ${session.info.original_agent_type})`)
+            setAgentType(sessionAgentType)
+        } else {
+            // For orchestrator or when no session selected, use global agent type
+            getAgentType().then(setAgentType).catch(error => {
+                console.error('Failed to get global agent type:', error)
+                // Default to 'claude' if we can't get the global agent type
+                setAgentType('claude')
+            })
+        }
+    }, [selection, sessions, getAgentType])
 
     // Focus appropriate terminal when selection changes
     useEffect(() => {

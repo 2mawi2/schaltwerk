@@ -437,16 +437,19 @@ mod tests {
     }
 
     #[test]
-    fn test_orchestrator_command_unknown_agent_defaults_to_claude() {
+    fn test_orchestrator_command_unknown_agent_returns_error() {
         let setup = TestSetup::new();
         
         // Set an unknown agent type via database
         let db = setup.manager.db_ref();
         db.set_agent_type("unknown-agent").unwrap();
         
-        let command = setup.manager.start_claude_in_orchestrator_fresh_with_binary(&HashMap::new()).unwrap();
+        let result = setup.manager.start_claude_in_orchestrator_fresh_with_binary(&HashMap::new());
         
-        assert!(command.contains("claude"));
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err().to_string();
+        assert!(error_msg.contains("Unsupported agent type"));
+        assert!(error_msg.contains("unknown-agent"));
     }
 
     #[test]

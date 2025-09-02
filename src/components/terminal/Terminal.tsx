@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { SchaltEvent, listenEvent, listenTerminalOutput, listenTerminalOutputNormalized } from '../../common/eventSystem'
-import { Terminal as XTerm } from '@xterm/xterm';
+import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { WebglAddon } from '@xterm/addon-webgl';
@@ -10,7 +10,7 @@ import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
-import '@xterm/xterm/css/xterm.css';
+import 'xterm/css/xterm.css';
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -108,6 +108,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, []);
 
     useEffect(() => {
+        console.log(`[Terminal ${terminalId}] useEffect starting - agentType: ${agentType}`);
         mountedRef.current = true;
         let cancelled = false;
         const mountTime = Date.now();
@@ -223,6 +224,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Add WebGL addon AFTER terminal is opened to DOM
         // This is critical for proper rendering with TUI applications
         const setupWebGLAcceleration = () => {
+            console.log(`[Terminal ${terminalId}] setupWebGLAcceleration starting - agentType: ${agentType}, webglAddon exists: ${!!webglAddon.current}`);
+            
             // Detect if this is a new build - if so, force cleanup
             const isNewBuild = lastBuildId !== null && lastBuildId !== BUILD_ID;
             if (isNewBuild) {
@@ -257,6 +260,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (isMobile) {
                 console.info(`[Terminal ${terminalId}] Mobile device detected, using canvas renderer for compatibility`);
                 rendererReadyRef.current = true; // Canvas renderer is ready immediately
+                return false;
+            }
+            
+            // Skip WebGL for codex terminals to avoid data loss issues
+            if (agentType === 'codex') {
+                console.info(`[Terminal ${terminalId}] Codex terminal detected - skipping WebGL to prevent data loss`);
+                rendererReadyRef.current = true; // Use canvas renderer for codex
                 return false;
             }
 
@@ -317,6 +327,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 const maxWebglLoadAttempts = 3;
                 
                 const attemptWebGLLoad = () => {
+                    console.log(`[Terminal ${terminalId}] attemptWebGLLoad - attempt ${webglLoadAttempts + 1}`);
                     if (!loadWebGLWithDimensions()) {
                         webglLoadAttempts++;
                         if (webglLoadAttempts < maxWebglLoadAttempts) {
@@ -384,6 +395,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 console.info(`[Terminal ${terminalId}] WebGL acceleration enabled`);
                 // WebGL is loaded and fitted with dimensions in loadWebGLWithDimensions
                 rendererReadyRef.current = true;
+                
+                // Log terminal state after WebGL is loaded
+                console.log(`[Terminal ${terminalId}] Terminal state after WebGL:`, {
+                    hasTerminal: !!terminal.current,
+                    cols: terminal.current?.cols,
+                    rows: terminal.current?.rows,
+                    bufferLength: terminal.current?.buffer?.active?.length,
+                    rendererReady: rendererReadyRef.current
+                });
+                
                 return true;
                 
             } catch (error: any) {
@@ -674,8 +695,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Hydrate from buffer
         const hydrateTerminal = async () => {
+            console.log(`[Terminal ${terminalId}] hydrateTerminal called - agentType: ${agentType}`);
             try {
                 const snapshot = await invoke<string>('get_terminal_buffer', { id: terminalId });
+                console.log(`[Terminal ${terminalId}] Buffer snapshot retrieved - length: ${snapshot?.length || 0}`);
                 
                 if (snapshot) {
                     writeQueueRef.current.push(snapshot);

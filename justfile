@@ -7,6 +7,15 @@
 #   just run-port-release 2235 - Force rebuild release binary on specific port (NO hot-reload)
 #   just run-release      - Run pre-built release binary (NO hot-reload)
 
+# Clear all caches (build, WebGL, application)
+clear:
+    rm -rf node_modules/.vite dist dist-ssr src-tauri/target/debug/incremental src-tauri/target/debug/deps src-tauri/target/debug/build
+    rm -rf ~/Library/Application\ Support/schaltwerk/cache ~/Library/Application\ Support/schaltwerk/WebKit ~/.schaltwerk/cache
+    rm -rf src-tauri/target/.rustc_info.json src-tauri/target/debug/.fingerprint
+    rm -rf ~/Library/Caches/schaltwerk* ~/Library/WebKit/schaltwerk* /tmp/schaltwerk* 2>/dev/null || true
+    pkill -f "schaltwerk" || true
+    rm -rf .parcel-cache .turbo
+
 # Release a new version (automatically bumps version, commits, tags, and pushes)
 release version="patch":
     #!/usr/bin/env bash

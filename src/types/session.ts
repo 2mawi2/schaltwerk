@@ -1,3 +1,5 @@
+export type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
+
 export interface SessionInfo {
     session_id: string
     display_name?: string
@@ -18,6 +20,8 @@ export interface SessionInfo {
     is_blocked?: boolean
     ready_to_merge?: boolean
     spec_content?: string
+    original_agent_type?: AgentType
+    diff_stats?: DiffStats
 }
 
 export interface DiffStats {

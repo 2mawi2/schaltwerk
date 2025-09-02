@@ -6,6 +6,7 @@ import { ReviewProvider } from '../../contexts/ReviewContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
+import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -15,13 +16,15 @@ function wrap(children: React.ReactNode) {
   return (
     <ProjectProvider>
       <FontSizeProvider>
-        <SelectionProvider>
-          <FocusProvider>
-            <ReviewProvider>
-              {children}
-            </ReviewProvider>
-          </FocusProvider>
-        </SelectionProvider>
+        <SessionsProvider>
+          <SelectionProvider>
+            <FocusProvider>
+              <ReviewProvider>
+                {children}
+              </ReviewProvider>
+            </FocusProvider>
+          </SelectionProvider>
+        </SessionsProvider>
       </FontSizeProvider>
     </ProjectProvider>
   )

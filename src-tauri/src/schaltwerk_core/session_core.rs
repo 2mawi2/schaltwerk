@@ -583,7 +583,7 @@ impl SessionManager {
                     Some(&config),
                 ))
             }
-            _ => {
+            "claude" => {
                 log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
                 log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
                 
@@ -626,6 +626,10 @@ impl SessionManager {
                     skip_permissions,
                     Some(&config),
                 ))
+            }
+            _ => {
+                log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
+                Err(anyhow!("Unsupported agent type: {}. Supported types are: claude, cursor, codex", agent_type))
             }
         }
     }
@@ -793,7 +797,7 @@ impl SessionManager {
                     Some(&config),
                 ))
             }
-            _ => {
+            "claude" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
                 let config = crate::schaltwerk_core::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
@@ -813,6 +817,10 @@ impl SessionManager {
                     skip_permissions,
                     Some(&config),
                 ))
+            }
+            _ => {
+                log::error!("Unknown agent type '{agent_type}' for orchestrator");
+                Err(anyhow!("Unsupported agent type: {}. Supported types are: claude, cursor, codex, opencode, gemini, qwen", agent_type))
             }
         }
     }

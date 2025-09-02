@@ -6,8 +6,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 
 vi.mock('xterm/css/xterm.css', () => ({}))
 
-// ---- Mock: @xterm/xterm (defined entirely inside factory to avoid hoist issues) ----
-vi.mock('@xterm/xterm', () => {
+// ---- Mock: xterm (defined entirely inside factory to avoid hoist issues) ----
+vi.mock('xterm', () => {
   const instances: any[] = []
   class MockXTerm {
     static __instances = instances
@@ -262,7 +262,7 @@ import { FontSizeProvider } from '../../contexts/FontSizeContext'
 // Also import mocked helpers for control
 import * as TauriEvent from '@tauri-apps/api/event'
 import * as TauriCore from '@tauri-apps/api/core'
-import * as XTermModule from '@xterm/xterm'
+import * as XTermModule from 'xterm'
 import * as FitAddonModule from '@xterm/addon-fit'
 import * as WebglAddonModule from '@xterm/addon-webgl'
 
