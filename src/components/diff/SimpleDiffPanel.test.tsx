@@ -4,12 +4,12 @@ import { vi } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
-const invoke = (await import('@tauri-apps/api/core')).invoke as unknown as ReturnType<typeof vi.fn>
+const invoke = (await import('@tauri-apps/api/core')).invoke as any
 
 // Mutable selection used by mocked hook
-let currentSelection: any = { kind: 'orchestrator' }
+let currentSelection: Record<string, unknown> = { kind: 'orchestrator' }
 vi.mock('../../contexts/SelectionContext', async () => {
-  const actual = await vi.importActual<any>('../../contexts/SelectionContext')
+  const actual = await vi.importActual<Record<string, unknown>>('../../contexts/SelectionContext')
   return {
     ...actual,
     useSelection: () => ({ selection: currentSelection })
@@ -25,7 +25,7 @@ describe('SimpleDiffPanel', () => {
     // default clipboard: prefer spying if exists; else define property
     try {
       if (navigator.clipboard && 'writeText' in navigator.clipboard) {
-        vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined as any)
+        vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue(undefined)
       } else {
         Object.defineProperty(globalThis.navigator, 'clipboard', {
           configurable: true,
@@ -68,8 +68,8 @@ describe('SimpleDiffPanel', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /show prompt/i })).not.toBeInTheDocument())
 
     // And we never fetch the session prompt
-    const calls = (invoke as unknown as { mock: { calls: any[][] } }).mock.calls as any[]
-    expect(calls.find((c: any[]) => c[0] === 'schaltwerk_core_get_session')).toBeUndefined()
+    const calls = (invoke as any).mock.calls
+    expect(calls.find((c: unknown[]) => (c as [string, ...unknown[]])[0] === 'schaltwerk_core_get_session')).toBeUndefined()
   })
 
   it('renders changed files, highlights selected row, and calls onFileSelect', async () => {

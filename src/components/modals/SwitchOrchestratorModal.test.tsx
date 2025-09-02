@@ -43,18 +43,18 @@ function openModal(overrides: Partial<React.ComponentProps<typeof SwitchOrchestr
 }
 
 describe('SwitchOrchestratorModal', () => {
-  let prevUnhandled: any
+  let prevUnhandled: OnErrorEventHandler
   const noop = () => {}
   beforeAll(() => {
-    prevUnhandled = (window as any).onunhandledrejection
-    ;(window as any).onunhandledrejection = (e: PromiseRejectionEvent) => {
+    prevUnhandled = (window as Window & { onunhandledrejection: OnErrorEventHandler }).onunhandledrejection
+    ;(window as Window & { onunhandledrejection: (e: PromiseRejectionEvent) => void }).onunhandledrejection = (e: PromiseRejectionEvent) => {
       e.preventDefault()
     }
     // Also suppress Node-level unhandled rejections during this suite
     process.on('unhandledRejection', noop)
   })
   afterAll(() => {
-    ;(window as any).onunhandledrejection = prevUnhandled
+    (window as Window & { onunhandledrejection: OnErrorEventHandler }).onunhandledrejection = prevUnhandled
     process.off('unhandledRejection', noop)
   })
   beforeEach(() => {

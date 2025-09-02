@@ -48,7 +48,7 @@ describe('UnifiedDiffModal performance', () => {
         const head = base
         return [base, head]
       }
-      return undefined as any
+      return undefined
     })
 
     const start = performance.now()

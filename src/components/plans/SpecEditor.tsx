@@ -88,7 +88,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       setStarting(true)
       setError(null)
       onStart()
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[DraftEditor] Failed to start spec:', e)
       setError(String(e))
     } finally {
@@ -103,7 +103,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
       console.log('[SpecEditor] Received sessions-refreshed event')
       const sessions = event as any[]
-      
+
       const specSession = sessions.find((s: any) => 
         s.info?.session_id === sessionName && 
         (s.info?.session_state === 'spec' || s.info?.status === 'spec')

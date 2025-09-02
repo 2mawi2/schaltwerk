@@ -657,7 +657,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     // Disable highlighting when too many changed lines in file to avoid jank
     if (selectedFile) {
       const fd = allFileDiffs.get(selectedFile)
-      if ((fd as any)?.changedLinesCount && (fd as any).changedLinesCount > HIGHLIGHT_LINE_CAP) {
+      if ((fd as FileDiffData)?.changedLinesCount && (fd as FileDiffData).changedLinesCount > HIGHLIGHT_LINE_CAP) {
         return code
       }
     }
@@ -851,7 +851,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       if (isOpen && modifierPressed && (e.key === 'f' || e.key === 'F')) {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName?.toLowerCase()
-        const isEditable = (target as any)?.isContentEditable
+        const isEditable = (target as HTMLElement)?.isContentEditable
         // Only trigger search if not typing in inputs
         if (tag !== 'textarea' && tag !== 'input' && !isEditable) {
           e.preventDefault()
@@ -865,7 +865,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       if (isOpen && modifierPressed && e.key === 'Enter') {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName?.toLowerCase()
-        const isEditable = (target as any)?.isContentEditable
+        const isEditable = (target as HTMLElement)?.isContentEditable
         // Avoid triggering while typing in inputs or when comment form is open
         if (!showCommentForm && tag !== 'textarea' && tag !== 'input' && !isEditable) {
           e.preventDefault()

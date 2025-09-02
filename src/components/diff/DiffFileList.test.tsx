@@ -131,14 +131,14 @@ describe('DiffFileList', () => {
 
   it('shows empty state when no changes', async () => {
     // Override invoke just for this test to return empty changes
-    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    const { invoke } = await import('@tauri-apps/api/core')
     ;(invoke as any).mockImplementationOnce(async (cmd: string) => {
       if (cmd === 'schaltwerk_core_get_session') return { worktree_path: '/tmp' }
       if (cmd === 'get_changed_files_from_main') return []
       return 'main'
     })
     // Subsequent calls for branch info
-    ;(invoke as any).mockImplementation(async (cmd: string) => {
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: unknown) => {
       if (cmd === 'get_current_branch_name') return 'feature/x'
       if (cmd === 'get_base_branch_name') return 'main'
       if (cmd === 'get_commit_comparison_info') return ['abc', 'def']
@@ -168,8 +168,8 @@ describe('DiffFileList', () => {
 
   it('shows orchestrator changes when isCommander is true', async () => {
     // Mock orchestrator-specific commands
-    const { invoke } = (await import('@tauri-apps/api/core')) as any
-    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: unknown) => {
       if (cmd === 'get_orchestrator_working_changes') {
         return [
           { path: 'src/orchestrator.ts', change_type: 'modified' },
@@ -197,8 +197,8 @@ describe('DiffFileList', () => {
 
   it('shows orchestrator empty state when no working changes', async () => {
     // Mock orchestrator with no changes
-    const { invoke } = (await import('@tauri-apps/api/core')) as any
-    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: unknown) => {
       if (cmd === 'get_orchestrator_working_changes') return []
       if (cmd === 'get_current_branch_name') return 'main'
       return undefined
@@ -217,8 +217,8 @@ describe('DiffFileList', () => {
 
   it('filters out .schaltwerk files in orchestrator mode', async () => {
     // Mock orchestrator with .schaltwerk files (should not appear due to backend filtering)
-    const { invoke } = (await import('@tauri-apps/api/core')) as any
-    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: unknown) => {
       if (cmd === 'get_orchestrator_working_changes') {
         // Backend should filter these out, but test that they don't appear
         return [
@@ -245,10 +245,10 @@ describe('DiffFileList', () => {
   })
 
   it('uses Promise.all for parallel orchestrator calls', async () => {
-    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    const { invoke } = await import('@tauri-apps/api/core')
     const invokeCallOrder: string[] = []
-    
-    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: unknown) => {
       // Add small delay to test parallel execution
       await new Promise(resolve => setTimeout(resolve, 10))
       invokeCallOrder.push(cmd)
@@ -283,10 +283,10 @@ describe('DiffFileList', () => {
   })
 
   it('prevents concurrent loads with isLoading state', async () => {
-    const { invoke } = (await import('@tauri-apps/api/core')) as any
+    const { invoke } = await import('@tauri-apps/api/core')
     let callCount = 0
-    
-    ;(invoke as any).mockImplementation(async (cmd: string, _args?: any) => {
+
+    ;(invoke as any).mockImplementation(async (cmd: string, _args?: unknown) => {
       if (cmd === 'get_orchestrator_working_changes') {
         callCount++
         // Simulate slow network call
@@ -323,11 +323,11 @@ describe('DiffFileList', () => {
 
   describe('Session Switching Issues', () => {
     it('should show correct files when switching between sessions quickly', async () => {
-      const { invoke } = (await import('@tauri-apps/api/core')) as any
-      
+      const { invoke } = await import('@tauri-apps/api/core')
+
       // Track which session data was returned for each call
       const sessionCallLog: string[] = []
-      
+
       ;(invoke as any).mockImplementation(async (cmd: string, args?: any) => {
         if (cmd === 'get_changed_files_from_main') {
           const sessionName = args?.sessionName

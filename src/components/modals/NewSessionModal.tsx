@@ -228,7 +228,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens
     useEffect(() => {
-        const prefillHandler = (event: any) => {
+        const prefillHandler = (event: CustomEvent) => {
             console.log('[NewSessionModal] Received prefill event with detail:', event?.detail)
             const detail = event?.detail || {}
             const nameFromDraft: string | undefined = detail.name
@@ -271,11 +271,11 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setIsPrefillPending(true)
         }
         
-        window.addEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
-        window.addEventListener('schaltwerk:new-session:prefill-pending' as any, prefillPendingHandler)
+        window.addEventListener('schaltwerk:new-session:prefill' as keyof WindowEventMap, prefillHandler as EventListener)
+        window.addEventListener('schaltwerk:new-session:prefill-pending' as keyof WindowEventMap, prefillPendingHandler as EventListener)
         return () => {
-            window.removeEventListener('schaltwerk:new-session:prefill' as any, prefillHandler)
-            window.removeEventListener('schaltwerk:new-session:prefill-pending' as any, prefillPendingHandler)
+            window.removeEventListener('schaltwerk:new-session:prefill' as keyof WindowEventMap, prefillHandler as EventListener)
+            window.removeEventListener('schaltwerk:new-session:prefill-pending' as keyof WindowEventMap, prefillPendingHandler as EventListener)
         }
     }, [])
 

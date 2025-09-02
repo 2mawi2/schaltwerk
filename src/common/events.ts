@@ -45,8 +45,29 @@ export interface FollowUpMessagePayload {
   message_type: 'system' | 'user'
 }
 
+export interface ChangedFile {
+  path: string
+  change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
+}
+
+export interface BranchInfo {
+  current_branch: string
+  base_branch: string
+  base_commit: string
+  head_commit: string
+}
+
+import { EnrichedSession } from '../types/session'
+
+export interface SelectionPayload {
+  kind: 'session' | 'orchestrator'
+  payload?: string
+  worktreePath?: string
+  sessionState?: 'spec' | 'running' | 'reviewed'
+}
+
 export type EventPayloadMap = {
-  [SchaltEvent.SessionsRefreshed]: any[]
+  [SchaltEvent.SessionsRefreshed]: EnrichedSession[]
   [SchaltEvent.SessionAdded]: { session_name: string, branch: string, worktree_path: string, parent_branch: string }
   [SchaltEvent.SessionRemoved]: { session_name: string }
   [SchaltEvent.SessionCancelling]: { session_name: string }
@@ -56,11 +77,15 @@ export type EventPayloadMap = {
   [SchaltEvent.TerminalUnstuck]: { terminal_id: string, time: string }
   [SchaltEvent.SessionActivity]: SessionActivityUpdated
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
-  [SchaltEvent.TerminalClosed]: { terminal_id: string }
+  [SchaltEvent.TerminalClosed]: { session_id: string }
   [SchaltEvent.ProjectReady]: string
   [SchaltEvent.OpenDirectory]: string
   [SchaltEvent.OpenHome]: string
-  [SchaltEvent.FileChanges]: any
+  [SchaltEvent.FileChanges]: {
+    session_name: string
+    changed_files: ChangedFile[]
+    branch_info: BranchInfo
+  }
   [SchaltEvent.FollowUpMessage]: FollowUpMessagePayload
-  [SchaltEvent.Selection]: any
+  [SchaltEvent.Selection]: SelectionPayload
 }

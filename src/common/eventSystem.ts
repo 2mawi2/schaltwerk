@@ -18,7 +18,7 @@ export async function listenEvent<T extends SchaltEvent>(
   event: T,
   handler: (payload: EventPayloadMap[T]) => void | Promise<void>
 ): Promise<UnlistenFn> {
-  return await tauriListen(event, (event) => handler(event.payload))
+  return await tauriListen(event, (event) => handler(event.payload as EventPayloadMap[T]))
 }
 
 // Deprecated: Use listenEvent with SchaltEvent enum instead
@@ -57,7 +57,7 @@ export async function emitEvent<T extends SchaltEvent>(
 // @deprecated This function is deprecated. Use emitEvent(SchaltEvent.*, payload) instead.
 export async function emit(
   _event: never, // This prevents the function from being called with string literals
-  _payload: any
+  _payload: unknown
 ): Promise<void> {
   throw new Error('Direct emit() calls are deprecated. Use emitEvent(SchaltEvent.*, payload) or emitTerminalOutput() instead.')
 }

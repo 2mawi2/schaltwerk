@@ -19,7 +19,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
       console.log('[SpecInfoPanel] Dispatching start-agent-from-spec event for:', sessionName)
       // Open Start new agent modal prefilled from spec instead of starting directly
       window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[SpecInfoPanel] Failed to open start modal from spec:', e)
       setError(String(e))
     } finally {
@@ -33,7 +33,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
       setError(null)
       await invoke('schaltwerk_core_cancel_session', { name: sessionName })
       // The parent component should handle the refresh
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('[SpecInfoPanel] Failed to delete spec:', e)
       setError(String(e))
     } finally {

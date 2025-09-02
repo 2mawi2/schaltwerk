@@ -109,7 +109,13 @@ describe('ModelSelector', () => {
 
   test('mocks external model API calls (no network during interaction)', async () => {
     const user = userEvent.setup()
-    const fetchSpy = vi.spyOn(global as any, 'fetch').mockResolvedValue({ ok: true, json: async () => ({}) })
+    const fetchSpy = vi.spyOn(global as unknown as { fetch: typeof fetch }, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({}),
+      headers: new Headers(),
+      status: 200,
+      statusText: 'OK'
+    } as Response)
 
     const { onChange } = setup('claude')
     await user.click(screen.getByRole('button', { name: /Claude/i }))

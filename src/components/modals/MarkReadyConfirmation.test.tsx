@@ -10,7 +10,7 @@ describe('MarkReadyConfirmation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     // silence alert during tests
-    ;(globalThis as any).alert = vi.fn()
+    ;(globalThis as { alert: typeof alert }).alert = vi.fn()
   })
 
   const baseProps = {

@@ -19,10 +19,10 @@ describe('HomeScreen', () => {
     ;(dialog.open as ReturnType<typeof vi.fn>).mockReset()
   })
 
-  function setup(overrides: Partial<Record<string, any>> = {}) {
+  function setup(overrides: Partial<Record<string, unknown>> = {}) {
     const onOpenProject = vi.fn()
     // Defaults - set BEFORE render so initial effect uses mocks
-    invoke.mockImplementation(async (cmd: string, _args?: any) => {
+    invoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
         case 'get_recent_projects':
           return overrides.get_recent_projects ?? []
@@ -140,7 +140,7 @@ describe('HomeScreen', () => {
     const { onOpenProject } = setup()
     
     // Mock successful project creation
-    invoke.mockImplementation(async (cmd: string, _args?: any) => {
+    invoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
         case 'get_recent_projects':
           return []

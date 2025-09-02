@@ -100,7 +100,7 @@ function DraggableSessionCard({
 interface ColumnProps {
     title: string
     status: 'spec' | 'active' | 'dirty'
-    sessions: any[]
+    sessions: EnrichedSession[]
     onStatusChange: (sessionId: string, newStatus: string) => void
     selectedSessionId?: string | null
     focusedSessionId?: string | null

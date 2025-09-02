@@ -296,8 +296,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         ])
         
         // Load project-specific settings (may fail if no project is open)
-        let loadedProjectSettings: any = { setupScript: '', environmentVariables: [] }
-        let loadedTerminalSettings: any = { shell: null, shellArgs: [] }
+        let loadedProjectSettings: ProjectSettings = { setupScript: '', environmentVariables: [] }
+        let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [] }
         
         try {
             const results = await Promise.allSettled([

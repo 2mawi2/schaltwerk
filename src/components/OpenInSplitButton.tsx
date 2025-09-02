@@ -63,10 +63,10 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
     setIsOpening(true)
     try {
       await invoke('open_in_app', { appId, worktreePath: path })
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to open in app', appId, e)
       if (showError) {
-        const errorMessage = typeof e === 'string' ? e : (e?.message || e?.toString() || 'Unknown error')
+        const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
         alert(errorMessage)
       }
     } finally {
@@ -93,9 +93,9 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
       } catch (e) {
         console.warn('Failed to persist default app, continuing', e)
       }
-    } catch (e: any) {
+    } catch (e: unknown) {
       console.error('Failed to open in app', app.id, e)
-      const errorMessage = typeof e === 'string' ? e : (e?.message || e?.toString() || 'Unknown error')
+      const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
       alert(errorMessage)
     } finally {
       setIsOpening(false)

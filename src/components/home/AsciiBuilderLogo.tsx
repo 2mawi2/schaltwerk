@@ -327,16 +327,16 @@ export function AsciiBuilderLogo({
     const pre = preRef.current
     let running = true
 
-    const raf = (cb: FrameRequestCallback) =>
+    const raf = (cb: FrameRequestCallback): number =>
       (typeof window !== 'undefined' && window.requestAnimationFrame)
         ? window.requestAnimationFrame(cb)
-        : (setTimeout(() => cb(performance.now()), 16) as unknown as number)
+        : Number(setTimeout(() => cb(performance.now()), 16))
 
     const caf = (id: number) => {
       if (typeof window !== 'undefined' && window.cancelAnimationFrame) {
         window.cancelAnimationFrame(id)
-      } else {
-        clearTimeout(id as unknown as any)
+      } else if (typeof window === 'undefined') {
+        clearTimeout(id)
       }
     }
 
