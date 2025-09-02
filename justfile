@@ -1,4 +1,11 @@
 # Schaltwerk Development Commands
+#
+# Run modes:
+#   just run              - Dev mode with auto-detected port (hot-reload enabled)
+#   just run-port 2235    - Release binary on specific port (NO hot-reload) - use for Schaltwerk-on-Schaltwerk
+#   just run-port-dev 2235 - Dev mode on specific port (hot-reload enabled)
+#   just run-port-release 2235 - Force rebuild release binary on specific port (NO hot-reload)
+#   just run-release      - Run pre-built release binary (NO hot-reload)
 
 # Release a new version (automatically bumps version, commits, tags, and pushes)
 release version="patch":
@@ -232,7 +239,7 @@ run-split:
     # Wait for either process to exit
     wait
 
-# Run on a specific port
+# Run on a specific port (uses pre-built release binary if available, no hot-reload)
 run-port port:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -242,18 +249,69 @@ run-port port:
         exit 1
     fi
     
-    echo "🚀 Starting Schaltwerk on port {{port}}"
+    echo "🚀 Starting Schaltwerk on port {{port}} (no hot-reload mode)"
+    
+    # Check if release binary exists
+    PROJECT_ROOT="$(pwd)"
+    BINARY_PATH="$PROJECT_ROOT/src-tauri/target/release/schaltwerk"
+    
+    # Check shared target first
+    if [ -f "/tmp/schaltwerk-shared-target/release/schaltwerk" ]; then
+        BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
+    fi
+    
+    if [ ! -f "$BINARY_PATH" ]; then
+        echo "📦 No release binary found. Building one first..."
+        echo "   This will take a few minutes but only needs to be done once."
+        npm run build
+        npm run tauri build
+        
+        # Re-check for binary after build
+        if [ -f "/tmp/schaltwerk-shared-target/release/schaltwerk" ]; then
+            BINARY_PATH="/tmp/schaltwerk-shared-target/release/schaltwerk"
+        elif [ ! -f "$BINARY_PATH" ]; then
+            echo "❌ Error: Binary not found after build"
+            exit 1
+        fi
+    else
+        echo "✅ Using existing release binary (no hot-reload)"
+        echo "   To force rebuild, run: just run-port-release {{port}}"
+    fi
+    
+    # Export the port
+    export VITE_PORT={{port}}
+    export PORT={{port}}
+    
+    # Set the application's starting directory to HOME
+    export SCHALTWERK_START_DIR="$HOME"
+    
+    # Run the release binary
+    cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
+
+# Run on a specific port with hot-reload (development mode)
+run-port-dev port:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    if lsof -i :{{port}} >/dev/null 2>&1; then
+        echo "❌ Port {{port}} is already in use"
+        exit 1
+    fi
+    
+    echo "🚀 Starting Schaltwerk on port {{port}} (WITH hot-reload - dev mode)"
     
     # Create temporary config override
     temp_config=$(mktemp)
-    echo '{' > "$temp_config"
-    echo '  "build": {' >> "$temp_config"
-    echo '    "devUrl": "http://localhost:{{port}}",' >> "$temp_config"
-    echo '    "beforeDevCommand": "npm run dev",' >> "$temp_config"
-    echo '    "beforeBuildCommand": "npm run build",' >> "$temp_config"
-    echo '    "frontendDist": "../dist"' >> "$temp_config"
-    echo '  }' >> "$temp_config"
-    echo '}' >> "$temp_config"
+    cat > "$temp_config" <<EOF
+    {
+      "build": {
+        "devUrl": "http://localhost:{{port}}",
+        "beforeDevCommand": "npm run dev",
+        "beforeBuildCommand": "npm run build",
+        "frontendDist": "../dist"
+      }
+    }
+    EOF
     
     # Export the port for Vite
     export VITE_PORT={{port}}
@@ -271,7 +329,7 @@ run-port port:
     # Set trap to cleanup on exit
     trap cleanup EXIT
     
-    # Start Tauri with config override
+    # Start Tauri with config override (dev mode with hot-reload)
     npm run tauri dev -- --config "$temp_config"
 
 # Build the application for production
