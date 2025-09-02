@@ -54,30 +54,39 @@ pub fn create_worktree_from_base(
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
     let repo = Repository::open(repo_path)?;
     
-    // Find the worktree by path
+    // Find the worktree by path (handle path canonicalization for macOS)
+    let canonical_target_path = worktree_path.canonicalize().unwrap_or_else(|_| worktree_path.to_path_buf());
+    
     let worktrees = repo.worktrees()?;
     for wt_name in worktrees.iter().flatten() {
         if let Ok(wt) = repo.find_worktree(wt_name) {
-            if wt.path() == worktree_path {
-                // Prune the worktree (force removal)
-                if let Err(e) = wt.prune(Some(&mut WorktreePruneOptions::new())) {
-                    log::warn!("Failed to prune worktree: {e}");
-                    // Try to remove the directory manually if prune fails
-                    if worktree_path.exists() {
-                        std::fs::remove_dir_all(worktree_path).ok();
+            let wt_path = wt.path();
+            let canonical_wt_path = wt_path.canonicalize().unwrap_or_else(|_| wt_path.to_path_buf());
+            if canonical_wt_path == canonical_target_path || wt_path == worktree_path {
+                
+                // First remove the directory (this makes the worktree invalid)
+                if worktree_path.exists() {
+                    if let Err(e) = std::fs::remove_dir_all(worktree_path) {
+                        return Err(anyhow!("Failed to remove worktree directory: {}", e));
                     }
+                }
+                
+                // Now prune the worktree (should work since directory is gone)
+                if let Err(e) = wt.prune(Some(&mut WorktreePruneOptions::new())) {
+                    log::warn!("Failed to prune worktree from git registry: {e}");
                 }
                 return Ok(());
             }
         }
     }
     
-    // If not found as a worktree, just try to remove the directory
+    // If not found as a worktree, return an error unless directory exists
     if worktree_path.exists() {
-        std::fs::remove_dir_all(worktree_path).ok();
+        std::fs::remove_dir_all(worktree_path)?;
+        Ok(())
+    } else {
+        Err(anyhow!("Worktree not found: {:?}", worktree_path))
     }
-    
-    Ok(())
 }
 
 pub fn list_worktrees(repo_path: &Path) -> Result<Vec<PathBuf>> {

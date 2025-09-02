@@ -168,7 +168,12 @@ mod benchmarks {
         let worktrees = list_worktrees(&repo.repo_path)?;
         assert!(worktrees.len() > initial_count);
         
-        let found = worktrees.iter().any(|w| *w == worktree_path);
+        // Use canonicalized path comparison to handle macOS /private/var vs /var symlink issue
+        let canonical_worktree_path = worktree_path.canonicalize().unwrap_or_else(|_| worktree_path.to_path_buf());
+        let found = worktrees.iter().any(|w| {
+            *w == worktree_path || 
+            w.canonicalize().unwrap_or_else(|_| w.to_path_buf()) == canonical_worktree_path
+        });
         assert!(found, "Created worktree should be in the list");
         
         Ok(())

@@ -572,6 +572,185 @@ impl TerminalBackend for LocalPtyAdapter {
 }
 
 impl LocalPtyAdapter {
+    /// Checks if a terminal ID corresponds to an agent terminal (top terminals for sessions)
+    fn is_agent_terminal(terminal_id: &str) -> bool {
+        terminal_id.contains("-top") && (
+            terminal_id.starts_with("session-") || 
+            terminal_id.starts_with("orchestrator-")
+        )
+    }
+    
+    /// Determines the agent type from terminal ID
+    fn get_agent_type_from_terminal(terminal_id: &str) -> Option<&'static str> {
+        if terminal_id.contains("codex") {
+            Some("codex")
+        } else if terminal_id.contains("claude") {
+            Some("claude")
+        } else if terminal_id.contains("cursor") {
+            Some("cursor")
+        } else if terminal_id.contains("opencode") {
+            Some("opencode")
+        } else if terminal_id.contains("gemini") {
+            Some("gemini")
+        } else {
+            None
+        }
+    }
+    
+    /// Logs detailed information about agent crashes
+    async fn log_agent_crash_details(terminal_id: &str, exit_status: &portable_pty::ExitStatus) {
+        let agent_type = Self::get_agent_type_from_terminal(terminal_id).unwrap_or("unknown");
+        
+        error!("=== AGENT CRASH REPORT ===");
+        error!("Terminal ID: {terminal_id}");
+        error!("Agent Type: {agent_type}");
+        error!("Exit Status: {exit_status:?}");
+        error!("Exit Code: {:?}", exit_status.exit_code());
+        error!("Success: {}", exit_status.success());
+        
+        // Extract session name for context
+        if let Some(session_name) = Self::extract_session_name(terminal_id) {
+            error!("Session Name: {session_name}");
+        }
+        
+        error!("=== END CRASH REPORT ===");
+    }
+    
+    /// Extracts session name from terminal ID
+    fn extract_session_name(terminal_id: &str) -> Option<String> {
+        if terminal_id.starts_with("session-") && terminal_id.ends_with("-top") {
+            let without_prefix = terminal_id.strip_prefix("session-")?;
+            let without_suffix = without_prefix.strip_suffix("-top")?;
+            Some(without_suffix.to_string())
+        } else if terminal_id.starts_with("orchestrator-") && terminal_id.ends_with("-top") {
+            let without_prefix = terminal_id.strip_prefix("orchestrator-")?;
+            let without_suffix = without_prefix.strip_suffix("-top")?;
+            Some(without_suffix.to_string())
+        } else {
+            None
+        }
+    }
+    
+    /// Checks agent health by monitoring activity patterns
+    async fn check_agent_health(
+        terminal_id: &str,
+        terminals: &Arc<RwLock<HashMap<String, TerminalState>>>,
+        last_activity_check: &mut std::time::Instant,
+    ) {
+        let now = std::time::Instant::now();
+        let since_last_check = now.duration_since(*last_activity_check);
+        
+        // Check every 30 seconds for agent health
+        if since_last_check < std::time::Duration::from_secs(30) {
+            return;
+        }
+        
+        *last_activity_check = now;
+        
+        let terminals_guard = terminals.read().await;
+        if let Some(state) = terminals_guard.get(terminal_id) {
+            if let Ok(elapsed) = std::time::SystemTime::now().duration_since(state.last_output) {
+                let elapsed_secs = elapsed.as_secs();
+                
+                // Different thresholds for different agents
+                let inactivity_threshold = if Self::get_agent_type_from_terminal(terminal_id) == Some("codex") {
+                    300 // 5 minutes for Codex - it might be thinking
+                } else {
+                    600 // 10 minutes for other agents
+                };
+                
+                if elapsed_secs > inactivity_threshold {
+                    warn!(
+                        "AGENT HEALTH WARNING: Terminal {terminal_id} has been inactive for {elapsed_secs} seconds (threshold: {inactivity_threshold})"
+                    );
+                    
+                    // Log buffer state for debugging
+                    debug!(
+                        "Agent terminal {terminal_id} buffer size: {} bytes, seq: {}", 
+                        state.buffer.len(), state.seq
+                    );
+                }
+            }
+        }
+    }
+    
+    /// Handles agent crashes with detailed logging and recovery
+    async fn handle_agent_crash(
+        terminal_id: String,
+        exit_status: portable_pty::ExitStatus,
+        terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
+        app_handle: Arc<Mutex<Option<AppHandle>>>,
+        pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
+        pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
+        pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
+    ) {
+        error!("HANDLING AGENT CRASH for terminal: {terminal_id}");
+        
+        // Extract crash context
+        let agent_type = Self::get_agent_type_from_terminal(&terminal_id).unwrap_or("unknown");
+        let session_name = Self::extract_session_name(&terminal_id);
+        
+        // Get terminal state before cleanup for forensics
+        let (buffer_size, last_seq) = {
+            let terminals_guard = terminals.read().await;
+            if let Some(state) = terminals_guard.get(&terminal_id) {
+                (state.buffer.len(), state.seq)
+            } else {
+                (0, 0)
+            }
+        };
+        
+        error!(
+            "AGENT CRASH DETAILS: agent={}, session={:?}, exit_code={:?}, buffer_size={}, last_seq={}",
+            agent_type,
+            session_name,
+            exit_status.exit_code(),
+            buffer_size,
+            last_seq
+        );
+        
+        // Enhanced cleanup with crash reporting
+        Self::cleanup_dead_terminal(
+            terminal_id.clone(),
+            terminals,
+            app_handle.clone(),
+            pty_children,
+            pty_masters,
+            pty_writers,
+        ).await;
+        
+        // Emit crash event for frontend handling
+        let handle_guard = app_handle.lock().await;
+        if let Some(handle) = handle_guard.as_ref() {
+            #[derive(serde::Serialize, Clone)]
+            struct AgentCrashPayload {
+                terminal_id: String,
+                agent_type: String,
+                session_name: Option<String>,
+                exit_code: Option<i32>,
+                buffer_size: usize,
+                last_seq: u64,
+            }
+            
+            let payload = AgentCrashPayload {
+                terminal_id: terminal_id.clone(),
+                agent_type: agent_type.to_string(),
+                session_name,
+                exit_code: Some(exit_status.exit_code() as i32),
+                buffer_size,
+                last_seq,
+            };
+            
+            if let Err(e) = emit_event(handle, SchaltEvent::AgentCrashed, &payload) {
+                warn!("Failed to emit agent-crashed event for {terminal_id}: {e}");
+            } else {
+                info!("Emitted agent-crashed event for terminal: {terminal_id}");
+            }
+        }
+        
+        info!("Agent crash handling completed for terminal: {terminal_id}");
+    }
+
     pub async fn get_activity_status(&self, id: &str) -> Result<(bool, u64), String> {
         let terminals = self.terminals.read().await;
         if let Some(state) = terminals.get(id) {
@@ -610,10 +789,16 @@ impl LocalPtyAdapter {
         pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     ) {
         let monitor_id = id.clone();
+        let is_agent_terminal = Self::is_agent_terminal(&monitor_id);
+        
+        if is_agent_terminal {
+            info!("Starting enhanced monitoring for agent terminal: {monitor_id}");
+        }
         
         // Use exponential backoff for better performance
         let mut check_interval = tokio::time::Duration::from_secs(1);
         let max_interval = tokio::time::Duration::from_secs(30);
+        let mut last_activity_check = std::time::Instant::now();
         
         tokio::spawn(async move {
             loop {
@@ -650,36 +835,68 @@ impl LocalPtyAdapter {
                     if let Some(child) = child_guard.get_mut(&monitor_id) {
                         match child.try_wait() {
                             Ok(Some(status)) => {
-                                info!("Terminal {monitor_id} process exited with status: {status:?}");
+                                if is_agent_terminal {
+                                    if status.success() {
+                                        info!("Agent terminal {monitor_id} exited normally with status: {status:?}");
+                                    } else {
+                                        error!("AGENT CRASH DETECTED: Terminal {monitor_id} exited with error status: {status:?}");
+                                        Self::log_agent_crash_details(&monitor_id, &status).await;
+                                    }
+                                } else {
+                                    info!("Terminal {monitor_id} process exited with status: {status:?}");
+                                }
                                 Some(status)
                             }
                             Ok(None) => {
-                                // Process is still running, continue monitoring
+                                // Process is still running, but check for agent-specific issues
+                                if is_agent_terminal {
+                                    Self::check_agent_health(&monitor_id, &terminals, &mut last_activity_check).await;
+                                }
                                 None
                             }
                             Err(e) => {
-                                warn!("Failed to check terminal {monitor_id} process status: {e}");
+                                if is_agent_terminal {
+                                    error!("AGENT MONITORING ERROR: Failed to check terminal {monitor_id} process status: {e}");
+                                } else {
+                                    warn!("Failed to check terminal {monitor_id} process status: {e}");
+                                }
                                 // Assume process is dead - create a dummy status
                                 Some(portable_pty::ExitStatus::with_exit_code(1))
                             }
                         }
                     } else {
                         // Process disappeared
-                        debug!("Terminal {monitor_id} process disappeared during check");
+                        if is_agent_terminal {
+                            error!("AGENT PROCESS DISAPPEARED: Terminal {monitor_id} process vanished during check");
+                        } else {
+                            debug!("Terminal {monitor_id} process disappeared during check");
+                        }
                         break;
                     }
                 };
                 
                 // Handle process exit outside of locks
-                if process_status.is_some() {
-                    Self::cleanup_dead_terminal(
-                        monitor_id.clone(),
-                        Arc::clone(&terminals),
-                        Arc::clone(&app_handle),
-                        Arc::clone(&pty_children),
-                        Arc::clone(&pty_masters),
-                        Arc::clone(&pty_writers),
-                    ).await;
+                if let Some(status) = process_status {
+                    if is_agent_terminal {
+                        Self::handle_agent_crash(
+                            monitor_id.clone(),
+                            status,
+                            Arc::clone(&terminals),
+                            Arc::clone(&app_handle),
+                            Arc::clone(&pty_children),
+                            Arc::clone(&pty_masters),
+                            Arc::clone(&pty_writers),
+                        ).await;
+                    } else {
+                        Self::cleanup_dead_terminal(
+                            monitor_id.clone(),
+                            Arc::clone(&terminals),
+                            Arc::clone(&app_handle),
+                            Arc::clone(&pty_children),
+                            Arc::clone(&pty_masters),
+                            Arc::clone(&pty_writers),
+                        ).await;
+                    }
                     break;
                 }
                 
@@ -687,7 +904,11 @@ impl LocalPtyAdapter {
                 check_interval = std::cmp::min(check_interval * 2, max_interval);
             }
             
-            debug!("Process monitor for terminal {monitor_id} terminated");
+            if is_agent_terminal {
+                info!("Agent monitor for terminal {monitor_id} terminated");
+            } else {
+                debug!("Process monitor for terminal {monitor_id} terminated");
+            }
         });
     }
 
