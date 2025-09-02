@@ -27,6 +27,7 @@ import { useSessions } from './contexts/SessionsContext'
 import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
+import { TauriCommands } from './common/tauriCommands'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -665,6 +666,7 @@ export default function App() {
     userEditedName?: boolean
     isSpec?: boolean
     draftContent?: string
+    versionCount?: number
   }) => {
     try {
       // Get current filter settings to determine if we should select the new session
@@ -700,7 +702,7 @@ export default function App() {
         await new Promise(resolve => setTimeout(resolve, 200))
 
         // Get the started session to get correct worktree path and state
-        const sessionData = await invoke<{ worktree_path: string; session_state: string }>('schaltwerk_core_get_session', { name: data.name })
+        const sessionData = await invoke<{ worktree_path: string; session_state: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: data.name })
 
         // Only switch to the session if it matches the current filter
         // Running sessions are visible in 'all' and 'running' filters
@@ -723,7 +725,7 @@ export default function App() {
            name: data.name,
            specContent: data.draftContent || '',
          })
-        setNewSessionOpen(false)
+         setNewSessionOpen(false)
 
         // Only select the new spec if it matches the current filter
         // Specs are visible in 'all' and 'spec' filters
@@ -739,27 +741,33 @@ export default function App() {
           detail: { name: data.name }
         }))
       } else {
-        // Create regular session
-        await invoke('schaltwerk_core_create_session', {
-          name: data.name,
-          prompt: data.prompt || null,
-          baseBranch: data.baseBranch || null,
-          userEditedName: data.userEditedName ?? false,
-        })
-        setNewSessionOpen(false)
-
-        // Get the created session to get the correct worktree path
-        const sessionData = await invoke<{ worktree_path: string }>('schaltwerk_core_get_session', { name: data.name })
-
-        // Only switch to the new session if it matches the current filter
-        // Running sessions are visible in 'all' and 'running' filters
-        if (currentFilterMode === 'all' || currentFilterMode === 'running') {
-          // Switch to the new session immediately - context handles terminal creation and Claude start
-          await setSelection({
-            kind: 'session',
-            payload: data.name,
-            worktreePath: sessionData.worktree_path
+        // Create one or multiple sessions depending on versionCount
+        const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
+        for (let i = 1; i <= count; i++) {
+          const name = i === 1 ? data.name : `${data.name}_v${i}`
+          await invoke(TauriCommands.SchaltwerkCoreCreateSession, {
+            name,
+            prompt: data.prompt || null,
+            baseBranch: data.baseBranch || null,
+            userEditedName: data.userEditedName ?? false,
           })
+          // After first creation, select the session if appropriate
+          if (i === 1) {
+            setNewSessionOpen(false)
+
+            // Get the created session to get the correct worktree path
+            const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name })
+
+            // Only switch to the new session if it matches the current filter
+            // Running sessions are visible in 'all' and 'running' filters
+            if (currentFilterMode === 'all' || currentFilterMode === 'running') {
+              await setSelection({
+                kind: 'session',
+                payload: name,
+                worktreePath: sessionData.worktree_path
+              })
+            }
+          }
         }
       }
     } catch (error) {

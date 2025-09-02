@@ -201,6 +201,47 @@ describe('NewSessionModal', () => {
     await waitFor(() => expect(onClose).toHaveBeenCalled())
   })
 
+  it('shows a version selector defaulting to 1x and passes selection in payload', async () => {
+    const onCreate = vi.fn()
+    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+
+    // Wait for modal ready
+    await waitFor(() => {
+      expect(screen.getByText('Start new agent')).toBeInTheDocument()
+    })
+
+    // Version selector should be visible with default 1x
+    const selector = screen.getByTestId('version-selector')
+    expect(selector).toBeInTheDocument()
+    expect(selector).toHaveTextContent('1x')
+
+    // Open menu and select "3 versions"
+    fireEvent.click(selector)
+    const menu = await screen.findByTestId('version-selector-menu')
+    expect(menu).toBeInTheDocument()
+    const option3 = screen.getByRole('button', { name: '3 versions' })
+    fireEvent.click(option3)
+
+    // Start agent and expect payload to include versionCount: 3
+    fireEvent.click(screen.getByText('Start Agent'))
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    const payload = onCreate.mock.calls[0][0]
+    expect(payload.versionCount).toBe(3)
+  })
+
+  it('hides version selector when creating a spec', async () => {
+    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />)
+
+    // Toggle Create as spec
+    const checkbox = await screen.findByLabelText(/Create as spec/)
+    fireEvent.click(checkbox)
+
+    // Version selector should not be present for specs
+    await waitFor(() => {
+      expect(screen.queryByTestId('version-selector')).not.toBeInTheDocument()
+    })
+  })
+
   it('detects when user edits the name field', async () => {
     const onCreate = vi.fn()
     render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
 import { theme } from '../../common/theme'
 import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
+import { Dropdown } from '../inputs/Dropdown'
 
 interface Props {
     open: boolean
@@ -16,6 +17,7 @@ interface Props {
         userEditedName?: boolean
         isSpec?: boolean
         draftContent?: string
+        versionCount?: number
     }) => void | Promise<void>
 }
 
@@ -29,6 +31,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [validationError, setValidationError] = useState('')
     const [creating, setCreating] = useState(false)
     const [createAsDraft, setCreateAsDraft] = useState(false)
+    const [versionCount, setVersionCount] = useState<number>(1)
+    const [showVersionMenu, setShowVersionMenu] = useState<boolean>(false)
     const [nameLocked, setNameLocked] = useState(false)
     const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
     const [isPrefillPending, setIsPrefillPending] = useState(false)
@@ -124,6 +128,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 userEditedName: !!userEdited,
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? taskContent : undefined,
+                versionCount: createAsDraft ? 1 : versionCount,
             }
             console.log('[NewSessionModal] Creating session with data:', {
                 ...createData,
@@ -137,7 +142,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             // Parent handles showing the error; re-enable to allow retry
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft])
+    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -166,6 +171,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
+                setVersionCount(1)
+                setShowVersionMenu(false)
                 // Initialize configuration from persisted state to reflect real settings
                 getPersistedSessionDefaults()
                     .then(({ baseBranch, agentType, skipPermissions }) => {
@@ -213,6 +220,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setBaseBranch('')
             setAgentType('claude')
             setSkipPermissions(false)
+            setVersionCount(1)
+            setShowVersionMenu(false)
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData])
 
@@ -407,10 +416,47 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         />
                     )}
                 </div>
-                <div className="px-4 py-3 border-t border-slate-800 flex justify-end gap-2">
+                <div className="px-4 py-3 border-t border-slate-800 flex justify-end gap-2 relative">
+                    {!createAsDraft && (
+                        <Dropdown
+                          open={showVersionMenu}
+                          onOpenChange={setShowVersionMenu}
+                          items={([1,2,3,4] as const).map(n => ({ key: String(n), label: `${n} ${n === 1 ? 'version' : 'versions'}` }))}
+                          selectedKey={String(versionCount)}
+                          align="right"
+                          onSelect={(key) => setVersionCount(parseInt(key))}
+                          menuTestId="version-selector-menu"
+                        >
+                          {({ open, toggle }) => (
+                            <button
+                              type="button"
+                              data-testid="version-selector"
+                              onClick={toggle}
+                              className="px-2 h-9 rounded inline-flex items-center gap-2 hover:opacity-90"
+                              style={{
+                                backgroundColor: open ? theme.colors.background.hover : theme.colors.background.elevated,
+                                color: theme.colors.text.primary,
+                                border: `1px solid ${open ? theme.colors.border.default : theme.colors.border.subtle}`,
+                              }}
+                              title="Number of parallel versions"
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ display: 'block', verticalAlign: 'middle' }}>
+                                <path d="M12 2L3 6l9 4 9-4-9-4z" fill={theme.colors.text.primary} fillOpacity={0.9}/>
+                                <path d="M3 10l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.5} strokeWidth={1.2}/>
+                                <path d="M3 14l9 4 9-4" stroke={theme.colors.text.primary} strokeOpacity={0.35} strokeWidth={1.2}/>
+                              </svg>
+                              <span style={{ lineHeight: 1 }}>{versionCount}x</span>
+                              <svg width="12" height="12" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
+                                <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                          )}
+                        </Dropdown>
+                    )}
                     <button 
                         onClick={onClose} 
-                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded group relative"
+                        className="px-3 h-9 rounded group relative hover:opacity-90 inline-flex items-center"
+                        style={{ backgroundColor: theme.colors.background.elevated, color: theme.colors.text.primary, border: `1px solid ${theme.colors.border.subtle}` }}
                         title="Cancel (Esc)"
                     >
                         Cancel
@@ -419,7 +465,11 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     <button 
                         onClick={handleCreate} 
                         disabled={!name.trim() || (!createAsDraft && !baseBranch) || creating || (createAsDraft && !taskContent.trim())}
-                        className={`px-3 py-1.5 ${createAsDraft ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'} disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2`}
+                        className={`px-3 h-9 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2 ${(!name.trim() || (!createAsDraft && !baseBranch) || creating || (createAsDraft && !taskContent.trim())) ? 'opacity-60' : 'hover:opacity-90'}`}
+                        style={{ 
+                            backgroundColor: createAsDraft ? theme.colors.accent.amber.DEFAULT : theme.colors.accent.blue.DEFAULT,
+                            opacity: creating ? 0.9 : 1
+                        }}
                         title={createAsDraft ? "Create spec (Cmd+Enter)" : "Start agent (Cmd+Enter)"}
                     >
                         {creating && (

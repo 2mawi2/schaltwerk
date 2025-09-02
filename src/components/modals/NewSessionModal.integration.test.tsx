@@ -332,14 +332,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         fireEvent.click(submitButton)
 
         await waitFor(() => {
-            expect(onCreate).toHaveBeenCalledWith({
+            expect(onCreate).toHaveBeenCalledWith(expect.objectContaining({
                 name: 'configured_session',
                 prompt: 'Test prompt',
                 baseBranch: 'develop',
                 userEditedName: true,
                 isSpec: false,
                 draftContent: undefined
-            })
+            }))
         })
     })
 
