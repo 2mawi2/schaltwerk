@@ -15,6 +15,11 @@ import '@xterm/xterm/css/xterm.css';
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
 
+// Build ID to detect when the app has been rebuilt
+// This helps us invalidate stale WebGL contexts
+const BUILD_ID = Date.now().toString();
+let lastBuildId: string | null = null;
+
 // Export function to clear started tracking for specific terminals
 export function clearTerminalStartedTracking(terminalIds: string[]) {
     terminalIds.forEach(id => startedGlobal.delete(id));
@@ -202,10 +207,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
         
-        // Delay initial fit slightly to ensure renderer is ready
-        setTimeout(() => {
-            performInitialFit();
-        }, 0);
+        performInitialFit();
         
         // Add OSC handler to prevent color query responses from showing up in terminal
         terminal.current.parser.registerOscHandler(10, () => true); // foreground color
@@ -221,12 +223,31 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Add WebGL addon AFTER terminal is opened to DOM
         // This is critical for proper rendering with TUI applications
         const setupWebGLAcceleration = () => {
+            // Detect if this is a new build - if so, force cleanup
+            const isNewBuild = lastBuildId !== null && lastBuildId !== BUILD_ID;
+            if (isNewBuild) {
+                console.info(`[Terminal ${terminalId}] New build detected, forcing WebGL cleanup`);
+                lastBuildId = BUILD_ID;
+            }
+            
+            // Force WebGL context cleanup before creating new one
+            // This prevents stale GPU state from corrupting the terminal
+            if (webglAddon.current || isNewBuild) {
+                try {
+                    if (webglAddon.current) {
+                        webglAddon.current.dispose();
+                        webglAddon.current = null;
+                    }
+                } catch (e) {
+                    console.warn(`[Terminal ${terminalId}] Failed to dispose old WebGL addon:`, e);
+                }
+            }
+            
             // Check WebGL support before attempting to create addon
             const canvas = document.createElement('canvas');
             const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
             if (!gl) {
                 console.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
-                // Canvas renderer is already active after open(); we'll mark ready after initial post-fit
                 return false;
             }
 
@@ -240,7 +261,31 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             try {
                 rendererReadyRef.current = false;
                 webglAddon.current = new WebglAddon();
-                terminal.current!.loadAddon(webglAddon.current);
+                
+                // Add validation: test if WebGL renders correctly
+                // If it fails, fall back to canvas renderer
+                const testRender = () => {
+                    try {
+                        terminal.current!.loadAddon(webglAddon.current!);
+                        // Force a test render to validate the context
+                        if (terminal.current && fitAddon.current) {
+                            fitAddon.current.fit();
+                        }
+                        return true;
+                    } catch (e) {
+                        console.warn(`[Terminal ${terminalId}] WebGL test render failed:`, e);
+                        return false;
+                    }
+                };
+                
+                if (!testRender()) {
+                    console.info(`[Terminal ${terminalId}] WebGL validation failed, using canvas renderer`);
+                    if (webglAddon.current) {
+                        webglAddon.current.dispose();
+                        webglAddon.current = null;
+                    }
+                    return false;
+                }
                 
                 // Enhanced context loss handling with restoration attempt
                 webglAddon.current.onContextLoss(() => {
