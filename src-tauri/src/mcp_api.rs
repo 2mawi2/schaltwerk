@@ -3,8 +3,8 @@ use http_body_util::BodyExt;
 use log::{info, error, warn};
 
 use crate::get_schaltwerk_core;
-use crate::schaltwerk_core::SessionState;
-use crate::events::{emit_event, SchaltEvent};
+use schaltwerk::schaltwerk_core::SessionState;
+use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 
 pub async fn handle_mcp_request(
     req: Request<Incoming>,
@@ -219,7 +219,7 @@ async fn update_spec_content(
                     info!("MCP API: Emitting sessions-refreshed with {} sessions", sessions.len());
                     // Log details about spec sessions
                     for session in &sessions {
-                        if session.info.session_state == crate::schaltwerk_core::SessionState::Spec {
+                        if session.info.session_state == SessionState::Spec {
                             info!("MCP API: Spec session {} has content: {} chars", 
                                 session.info.session_id, 
                                 session.info.spec_content.as_ref().map(|c| c.len()).unwrap_or(0)

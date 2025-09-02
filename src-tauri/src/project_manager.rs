@@ -6,8 +6,8 @@ use anyhow::{Result, anyhow};
 use log::{info, debug, warn};
 use sha2::{Sha256, Digest};
 
-use crate::terminal::TerminalManager;
-use crate::schaltwerk_core::SchaltwerkCore;
+use schaltwerk::domains::terminal::TerminalManager;
+use schaltwerk::schaltwerk_core::SchaltwerkCore;
 
 /// Represents a single project with its own terminals and sessions
 pub struct Project {
@@ -91,9 +91,12 @@ impl Project {
         // Each project gets its own terminal manager
         let terminal_manager = Arc::new(TerminalManager::new());
         
-        // Use in-memory database for tests
+        // For tests, create a temporary database file that will be cleaned up
+        let temp_dir = std::env::temp_dir();
+        let temp_db_path = temp_dir.join(format!("test-{}.db", uuid::Uuid::new_v4()));
+        
         let schaltwerk_core = Arc::new(Mutex::new(
-            SchaltwerkCore::new_in_memory_with_repo_path(path.clone())?
+            SchaltwerkCore::new_with_repo_path(Some(temp_db_path), path.clone())?
         ));
         
         Ok(Self {

@@ -1,9 +1,9 @@
 use std::time::{Duration, Instant};
 use std::collections::HashMap;
 use anyhow::Result;
-use crate::terminal::local::LocalPtyAdapter;
-use crate::terminal::TerminalBackend;
-use crate::terminal::{CreateParams, ApplicationSpec};
+use crate::domains::terminal::local::LocalPtyAdapter;
+use crate::domains::terminal::TerminalBackend;
+use crate::domains::terminal::{CreateParams, ApplicationSpec};
 use log::{info, warn};
 
 #[derive(Debug, Clone)]

@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
-use crate::binary_detector::DetectedBinary;
+use schaltwerk::binary_detector::DetectedBinary;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentCliArgs {

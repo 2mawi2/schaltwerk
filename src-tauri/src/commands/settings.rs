@@ -6,8 +6,8 @@ use crate::{
     PROJECT_MANAGER,
 };
 use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences, SessionPreferences};
-use crate::schaltwerk_core::db_app_config::AppConfigMethods;
-use crate::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
+use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
+use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
 
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
@@ -729,7 +729,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_project_sessions_settings_uninitialized_manager() {
-        let settings = crate::schaltwerk_core::db_project_config::ProjectSessionsSettings {
+        let settings = schaltwerk::schaltwerk_core::db_project_config::ProjectSessionsSettings {
             filter_mode: "all".to_string(),
             sort_mode: "name".to_string(),
         };

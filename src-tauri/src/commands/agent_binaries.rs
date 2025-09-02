@@ -1,5 +1,5 @@
 use crate::settings::AgentBinaryConfig;
-use crate::binary_detector::{DetectedBinary, BinaryDetector};
+use schaltwerk::binary_detector::{DetectedBinary, BinaryDetector};
 use crate::SETTINGS_MANAGER;
 use log::{debug, info};
 

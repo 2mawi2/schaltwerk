@@ -10,7 +10,7 @@ import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -108,7 +108,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, []);
 
     useEffect(() => {
-        console.log(`[Terminal ${terminalId}] useEffect starting - agentType: ${agentType}`);
         mountedRef.current = true;
         let cancelled = false;
         const mountTime = Date.now();
@@ -224,8 +223,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Add WebGL addon AFTER terminal is opened to DOM
         // This is critical for proper rendering with TUI applications
         const setupWebGLAcceleration = () => {
-            console.log(`[Terminal ${terminalId}] setupWebGLAcceleration starting - agentType: ${agentType}, webglAddon exists: ${!!webglAddon.current}`);
-            
             // Detect if this is a new build - if so, force cleanup
             const isNewBuild = lastBuildId !== null && lastBuildId !== BUILD_ID;
             if (isNewBuild) {
@@ -251,7 +248,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
             if (!gl) {
                 console.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
-                rendererReadyRef.current = true; // Canvas renderer is ready immediately
                 return false;
             }
 
@@ -259,14 +255,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             if (isMobile) {
                 console.info(`[Terminal ${terminalId}] Mobile device detected, using canvas renderer for compatibility`);
-                rendererReadyRef.current = true; // Canvas renderer is ready immediately
-                return false;
-            }
-            
-            // Skip WebGL for codex terminals to avoid data loss issues
-            if (agentType === 'codex') {
-                console.info(`[Terminal ${terminalId}] Codex terminal detected - skipping WebGL to prevent data loss`);
-                rendererReadyRef.current = true; // Use canvas renderer for codex
                 return false;
             }
 
@@ -274,81 +262,28 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 rendererReadyRef.current = false;
                 webglAddon.current = new WebglAddon();
                 
-                // Load WebGL addon and ensure it has dimensions
-                const loadWebGLWithDimensions = () => {
+                // Add validation: test if WebGL renders correctly
+                // If it fails, fall back to canvas renderer
+                const testRender = () => {
                     try {
-                        // CRITICAL: Ensure the terminal has proper char measurements before loading WebGL
-                        // The WebGL renderer needs valid char size measurements during initialization
-                        if (fitAddon.current && terminal.current && termRef.current) {
-                            // Verify container has valid dimensions
-                            const containerWidth = termRef.current.clientWidth;
-                            const containerHeight = termRef.current.clientHeight;
-                            
-                            if (containerWidth <= 0 || containerHeight <= 0) {
-                                console.warn(`[Terminal ${terminalId}] Container not ready (${containerWidth}x${containerHeight})`);
-                                return false;
-                            }
-                            
-                            // Force a fit to ensure valid terminal dimensions and char measurements
+                        terminal.current!.loadAddon(webglAddon.current!);
+                        // Force a test render to validate the context
+                        if (terminal.current && fitAddon.current) {
                             fitAddon.current.fit();
-                            
-                            const { cols, rows } = terminal.current;
-                            if (cols > 0 && rows > 0) {
-                                // Verify the terminal has valid character measurements
-                                // This is critical for WebGL renderer dimension calculations
-                                const core = (terminal.current as any)._core;
-                                if (!core?._charSizeService?.hasValidSize) {
-                                    console.warn(`[Terminal ${terminalId}] Char measurements not ready yet`);
-                                    return false;
-                                }
-                                
-                                // Load the WebGL addon - now the renderer will have valid char measurements
-                                terminal.current.loadAddon(webglAddon.current!);
-                                
-                                // CRITICAL: Must fit again after loading WebGL to initialize renderer dimensions
-                                // The WebGL renderer is a new renderer that needs dimensions recalculated
-                                fitAddon.current.fit();
-                                
-                                return true;
-                            } else {
-                                console.warn(`[Terminal ${terminalId}] Terminal has no dimensions yet (${cols}x${rows})`);
-                                return false;
-                            }
                         }
-                        return false;
+                        return true;
                     } catch (e) {
-                        console.warn(`[Terminal ${terminalId}] WebGL addon load failed:`, e);
+                        console.warn(`[Terminal ${terminalId}] WebGL test render failed:`, e);
                         return false;
                     }
                 };
                 
-                // Try to load WebGL with proper timing
-                let webglLoadAttempts = 0;
-                const maxWebglLoadAttempts = 3;
-                
-                const attemptWebGLLoad = () => {
-                    console.log(`[Terminal ${terminalId}] attemptWebGLLoad - attempt ${webglLoadAttempts + 1}`);
-                    if (!loadWebGLWithDimensions()) {
-                        webglLoadAttempts++;
-                        if (webglLoadAttempts < maxWebglLoadAttempts) {
-                            // Retry after allowing char measurements to complete
-                            console.info(`[Terminal ${terminalId}] WebGL load attempt ${webglLoadAttempts}/${maxWebglLoadAttempts}, retrying...`);
-                            setTimeout(attemptWebGLLoad, 50); // Brief delay for measurements
-                            return;
-                        } else {
-                            console.info(`[Terminal ${terminalId}] WebGL validation failed after ${maxWebglLoadAttempts} attempts, using canvas renderer`);
-                            if (webglAddon.current) {
-                                webglAddon.current.dispose();
-                                webglAddon.current = null;
-                            }
-                            rendererReadyRef.current = true; // Canvas renderer is ready after WebGL failure
-                            return false;
-                        }
+                if (!testRender()) {
+                    console.info(`[Terminal ${terminalId}] WebGL validation failed, using canvas renderer`);
+                    if (webglAddon.current) {
+                        webglAddon.current.dispose();
+                        webglAddon.current = null;
                     }
-                    return true;
-                };
-                
-                if (!attemptWebGLLoad()) {
                     return false;
                 }
                 
@@ -373,12 +308,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     webglAddon.current = new WebglAddon();
                                     terminal.current?.loadAddon(webglAddon.current);
                                     console.info(`[Terminal ${terminalId}] WebGL acceleration restored`);
-                                    rendererReadyRef.current = true; // WebGL renderer is ready again
+                                    // Will mark ready after next fit below
                                 } else {
                                     console.warn(`[Terminal ${terminalId}] WebGL context restoration failed, permanently using canvas renderer`);
                                     webglAddon.current.dispose();
                                     webglAddon.current = null;
-                                    rendererReadyRef.current = true; // Canvas renderer is ready
+                                    // Canvas active; mark ready after next fit
                                 }
                             } catch (restoreError) {
                                 console.warn(`[Terminal ${terminalId}] WebGL restoration failed:`, restoreError);
@@ -386,25 +321,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     webglAddon.current.dispose();
                                     webglAddon.current = null;
                                 }
-                                rendererReadyRef.current = true; // Fall back to canvas renderer
                             }
                         }
                     }, 1000);
                 });
 
                 console.info(`[Terminal ${terminalId}] WebGL acceleration enabled`);
-                // WebGL is loaded and fitted with dimensions in loadWebGLWithDimensions
-                rendererReadyRef.current = true;
-                
-                // Log terminal state after WebGL is loaded
-                console.log(`[Terminal ${terminalId}] Terminal state after WebGL:`, {
-                    hasTerminal: !!terminal.current,
-                    cols: terminal.current?.cols,
-                    rows: terminal.current?.rows,
-                    bufferLength: terminal.current?.buffer?.active?.length,
-                    rendererReady: rendererReadyRef.current
-                });
-                
                 return true;
                 
             } catch (error: any) {
@@ -416,7 +338,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     console.warn(`[Terminal ${terminalId}] WebGL addon failed to load, using canvas renderer:`, error);
                 }
                 webglAddon.current = null;
-                rendererReadyRef.current = true; // Canvas renderer is ready after WebGL failure
                 return false;
             }
         };
@@ -499,7 +420,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             } catch (e) {
                 // Fallback: try immediate initialization based on current element size
                 if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
-                    try { rendererObserver.disconnect(); } catch { /* ignore */ }
+                    try { rendererObserver.disconnect(); } catch {
+                        // Intentionally ignore observer disconnect errors
+                    }
                     requestAnimationFrame(() => initializeRenderer());
                 }
             }
@@ -647,6 +570,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
+            if (!rendererReadyRef.current) {
+                setTimeout(() => flushNow(), 16);
+                return;
+            }
             if (!terminal.current || writeQueueRef.current.length === 0) return;
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];
@@ -683,10 +610,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Hydrate from buffer
         const hydrateTerminal = async () => {
-            console.log(`[Terminal ${terminalId}] hydrateTerminal called - agentType: ${agentType}`);
             try {
                 const snapshot = await invoke<string>('get_terminal_buffer', { id: terminalId });
-                console.log(`[Terminal ${terminalId}] Buffer snapshot retrieved - length: ${snapshot?.length || 0}`);
                 
                 if (snapshot) {
                     writeQueueRef.current.push(snapshot);

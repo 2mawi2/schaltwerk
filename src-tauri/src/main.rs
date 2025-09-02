@@ -7,17 +7,12 @@
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-mod binary_detection;
+// Binary-only modules (not part of lib)
 mod cleanup;
 mod diff_commands;
 mod diff_engine;
-mod events;
 mod file_utils;
 mod file_watcher;
-mod logging;
-mod terminal;
-mod schaltwerk_core;
-mod open_apps;
 mod projects;
 mod project_manager;
 mod settings;
@@ -25,8 +20,6 @@ mod mcp_api;
 mod commands;
 mod permissions;
 mod cli;
-mod utils;
-mod binary_detector;
 
 use std::sync::Arc;
 use project_manager::ProjectManager;
@@ -152,13 +145,13 @@ pub async fn get_project_manager() -> Arc<ProjectManager> {
     }).await.clone()
 }
 
-pub async fn get_terminal_manager() -> Result<Arc<terminal::TerminalManager>, String> {
+pub async fn get_terminal_manager() -> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
     let manager = get_project_manager().await;
     manager.current_terminal_manager().await
         .map_err(|e| format!("Failed to get terminal manager: {e}"))
 }
 
-pub async fn get_schaltwerk_core() -> Result<Arc<tokio::sync::Mutex<schaltwerk_core::SchaltwerkCore>>, String> {
+pub async fn get_schaltwerk_core() -> Result<Arc<tokio::sync::Mutex<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
     manager.current_schaltwerk_core().await
         .map_err(|e| {
@@ -166,7 +159,6 @@ pub async fn get_schaltwerk_core() -> Result<Arc<tokio::sync::Mutex<schaltwerk_c
             format!("Failed to get para core: {e}")
         })
 }
-
 
 pub async fn get_file_watcher_manager() -> Result<Arc<file_watcher::FileWatcherManager>, String> {
     FILE_WATCHER_MANAGER.get()
@@ -502,7 +494,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             // We emit with empty array since UI components will fetch what they need
                             // (specs via list_sessions_by_state, sessions via list_enriched_sessions)
                             log::info!("Emitting sessions-refreshed event after MCP spec creation");
-                            if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<schaltwerk_core::EnrichedSession>::new()) {
+                            if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<schaltwerk::schaltwerk_core::EnrichedSession>::new()) {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
                             
@@ -527,7 +519,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 
                 Ok(Response::new("OK".to_string()))
             }
-            // Delegate all MCP API endpoints to the mcp_api module
+            // Delegate all MCP API endpoints to the api module
             (_, path) if path.starts_with("/api/") => {
                 mcp_api::handle_mcp_request(req, app).await
             }
@@ -589,11 +581,11 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
 }
 
 use tauri::Manager;
-use crate::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 
 fn main() {
     // Initialize logging
-    logging::init_logging();
+    schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
     
     // Parse command line arguments using Clap (positional DIR)
@@ -694,10 +686,10 @@ fn main() {
             schaltwerk_core_rename_draft_session,
             schaltwerk_core_list_sessions_by_state,
             // Open apps commands (from module)
-            open_apps::get_default_open_app,
-            open_apps::set_default_open_app,
-            open_apps::list_available_open_apps,
-            open_apps::open_in_app,
+            schaltwerk::open_apps::get_default_open_app,
+            schaltwerk::open_apps::set_default_open_app,
+            schaltwerk::open_apps::list_available_open_apps,
+            schaltwerk::open_apps::open_in_app,
             // Diff commands (from module)
             diff_commands::get_changed_files_from_main,
             diff_commands::get_orchestrator_working_changes,
@@ -875,7 +867,7 @@ fn main() {
                                     let core_lock = core.lock().await;
                                     Arc::new(core_lock.db.clone())
                                 };
-                                schaltwerk_core::activity::start_activity_tracking_with_app(db, activity_handle.clone());
+                                schaltwerk::schaltwerk_core::activity::start_activity_tracking_with_app(db, activity_handle.clone());
                                 break;
                             }
                             Err(e) => {

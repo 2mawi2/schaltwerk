@@ -129,12 +129,12 @@ pub async fn close_project(path: String) -> Result<(), String> {
 pub async fn get_project_default_branch() -> Result<String, String> {
     let manager = get_project_manager().await;
     if let Ok(project) = manager.current_project().await {
-        crate::schaltwerk_core::git::get_default_branch(&project.path)
+        schaltwerk::domains::git::get_default_branch(&project.path)
             .map_err(|e| format!("Failed to get default branch: {e}"))
     } else {
         let current_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get current directory: {e}"))?;
-        crate::schaltwerk_core::git::get_default_branch(&current_dir)
+        schaltwerk::domains::git::get_default_branch(&current_dir)
             .map_err(|e| format!("Failed to get default branch: {e}"))
     }
 }
@@ -143,12 +143,12 @@ pub async fn get_project_default_branch() -> Result<String, String> {
 pub async fn list_project_branches() -> Result<Vec<String>, String> {
     let manager = get_project_manager().await;
     if let Ok(project) = manager.current_project().await {
-        crate::schaltwerk_core::git::list_branches(&project.path)
+        schaltwerk::domains::git::list_branches(&project.path)
             .map_err(|e| format!("Failed to list branches: {e}"))
     } else {
         let current_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get current directory: {e}"))?;
-        crate::schaltwerk_core::git::list_branches(&current_dir)
+        schaltwerk::domains::git::list_branches(&current_dir)
             .map_err(|e| format!("Failed to list branches: {e}"))
     }
 }
@@ -163,5 +163,5 @@ pub async fn repository_is_empty() -> Result<bool, String> {
             .map_err(|e| format!("Failed to get current directory: {e}"))?
     };
     
-    Ok(!crate::schaltwerk_core::git::repository_has_commits(&repo_path).unwrap_or(true))
+    Ok(!schaltwerk::domains::git::repository_has_commits(&repo_path).unwrap_or(true))
 }

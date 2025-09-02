@@ -274,8 +274,8 @@ pub async fn run_quick_terminal_benchmark() -> Result<BenchmarkResult, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::terminal::local::LocalPtyAdapter;
-    use crate::terminal::{TerminalBackend, CreateParams};
+    use schaltwerk::domains::terminal::local::LocalPtyAdapter;
+    use schaltwerk::domains::terminal::{TerminalBackend, CreateParams};
     use std::time::{Duration, Instant};
     use log::info;
 

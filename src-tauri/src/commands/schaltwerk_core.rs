@@ -1,10 +1,9 @@
-use crate::schaltwerk_core::{SessionState, EnrichedSession};
-use crate::schaltwerk_core::types::{Session, SortMode, FilterMode};
-use crate::schaltwerk_core::db_sessions::SessionMethods;
-use crate::schaltwerk_core::db_app_config::AppConfigMethods;
-use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use schaltwerk::schaltwerk_core::types::{SessionState, EnrichedSession, Session, SortMode, FilterMode};
+use schaltwerk::schaltwerk_core::db_sessions::SessionMethods;
+use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
+use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
-use crate::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 
 // Normalize user-provided CLI text copied from rich sources:
 // - Replace Unicode dash-like characters with ASCII '-'
@@ -237,7 +236,7 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
                 for (key, value) in project_env_vars { env_vars.push((key, value)); }
             }
 
-            let ctx = crate::schaltwerk_core::naming::SessionRenameContext {
+            let ctx = schaltwerk::schaltwerk_core::naming::SessionRenameContext {
                 db: &db_clone,
                 session_id: &session_id,
                 worktree_path: &worktree_path,
@@ -248,7 +247,7 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
                 cli_args: Some(&cli_args),
                 env_vars: &env_vars,
             };
-            match crate::schaltwerk_core::naming::generate_display_name_and_rename_branch(ctx).await {
+            match schaltwerk::schaltwerk_core::naming::generate_display_name_and_rename_branch(ctx).await {
                 Ok(Some(display_name)) => {
                     log::info!("Successfully generated display name '{display_name}' for session '{session_name_clone}'");
                     
@@ -620,7 +619,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     
     // Create terminal with initial size if provided
     if let (Some(c), Some(r)) = (cols, rows) {
-        use crate::terminal::manager::CreateTerminalWithAppAndSizeParams;
+        use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
         terminal_manager.create_terminal_with_app_and_size(
             CreateTerminalWithAppAndSizeParams {
                 id: terminal_id.clone(),
@@ -837,7 +836,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String, cols
     
     // Create terminal with initial size if provided
     if let (Some(c), Some(r)) = (cols, rows) {
-        use crate::terminal::manager::CreateTerminalWithAppAndSizeParams;
+        use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
         terminal_manager.create_terminal_with_app_and_size(
             CreateTerminalWithAppAndSizeParams {
                 id: terminal_id.clone(),
@@ -994,7 +993,7 @@ pub async fn schaltwerk_core_has_uncommitted_changes(name: String) -> Result<boo
         .get_session(&name)
         .map_err(|e| format!("Failed to get session: {e}"))?;
 
-    crate::schaltwerk_core::git::has_uncommitted_changes(&session.worktree_path)
+    schaltwerk::domains::git::has_uncommitted_changes(&session.worktree_path)
         .map_err(|e| format!("Failed to check uncommitted changes: {e}"))
 }
 

@@ -1,14 +1,15 @@
 use std::path::Path;
 // no serde derives used in this module
 use crate::get_schaltwerk_core;
-use crate::schaltwerk_core::{git, types::ChangedFile};
+use schaltwerk::domains::git;
+use schaltwerk::domains::sessions::entity::ChangedFile;
 use crate::file_utils;
 use crate::diff_engine::{
     compute_unified_diff, add_collapsible_sections, compute_split_diff,
     calculate_diff_stats, calculate_split_diff_stats, get_file_language,
     DiffResponse, SplitDiffResponse, FileInfo
 };
-use crate::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
+use schaltwerk::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
 use serde::Serialize;
 use git2::{Repository, Status, Oid, ObjectType, Sort, DiffOptions, DiffFindOptions, Delta};
 
@@ -650,13 +651,13 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
         // No session specified, get default branch from current project
         let manager = crate::get_project_manager().await;
         if let Ok(project) = manager.current_project().await {
-            crate::schaltwerk_core::git::get_default_branch(&project.path)
+            schaltwerk::domains::git::get_default_branch(&project.path)
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         } else {
             // Fallback for when no project is active (needed for Claude sessions)
             let current_dir = std::env::current_dir()
                 .map_err(|e| format!("Failed to get current directory: {e}"))?;
-            crate::schaltwerk_core::git::get_default_branch(&current_dir)
+            schaltwerk::domains::git::get_default_branch(&current_dir)
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         }
     }

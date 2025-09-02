@@ -18,7 +18,7 @@ use crate::schaltwerk_core::{
 };
 use tauri::AppHandle;
 use serde::Serialize;
-use crate::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{emit_event, SchaltEvent};
 
 pub trait EventEmitter: Send + Sync {
     fn emit_session_activity(&self, payload: SessionActivityUpdated) -> Result<()>;

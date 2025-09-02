@@ -7,11 +7,12 @@ use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
 use notify::{RecommendedWatcher, RecursiveMode};
 use serde::{Serialize, Deserialize};
 use tauri::AppHandle;
-use crate::events::{emit_event, SchaltEvent};
+use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use tokio::sync::{Mutex, mpsc};
 use log::{debug, info, warn, error};
 
-use crate::schaltwerk_core::{git, types::ChangedFile};
+use schaltwerk::domains::git;
+use schaltwerk::domains::sessions::entity::ChangedFile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileChangeEvent {

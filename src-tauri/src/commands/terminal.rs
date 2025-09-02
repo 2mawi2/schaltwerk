@@ -1,5 +1,5 @@
 use crate::{get_terminal_manager, PROJECT_MANAGER};
-use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 
 #[tauri::command]
 pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> Result<String, String> {

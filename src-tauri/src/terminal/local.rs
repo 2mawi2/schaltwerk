@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, RwLock};
-use crate::events::{emit_event, SchaltEvent};
+use crate::infrastructure::events::{emit_event, SchaltEvent};
 
 const MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
 
