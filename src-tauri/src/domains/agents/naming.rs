@@ -130,7 +130,7 @@ pub async fn generate_display_name_and_rename_branch(ctx: SessionRenameContext<'
 pub async fn generate_display_name(
     db: &Database,
     session_id: &str,
-    worktree_path: &Path,
+    _worktree_path: &Path,
     agent_type: &str,
     initial_prompt: Option<&str>,
     cli_args: Option<&str>,
@@ -169,28 +169,39 @@ Agent: {truncated}
 Respond with just the short kebab-case name:"#
     );
     
+    // Always use a temporary directory for agent execution to avoid interference with active sessions
+    let temp_base = std::env::temp_dir();
+    let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{}", session_id));
+    
+    // Create the temp directory if it doesn't exist
+    if let Err(e) = std::fs::create_dir_all(&unique_temp_dir) {
+        log::warn!("Failed to create temp directory for name generation: {e}");
+    }
+    
+    // For OpenCode specifically, initialize as a minimal git repo to avoid errors
+    if agent_type == "opencode" {
+        // Initialize a minimal git repo structure
+        if let Err(e) = std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&unique_temp_dir)
+            .output()
+        {
+            log::debug!("Failed to init git in temp dir (non-fatal): {e}");
+        }
+        
+        // Create a minimal file so the directory isn't empty
+        let readme_path = unique_temp_dir.join("README.md");
+        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation\n") {
+            log::debug!("Failed to create README in temp dir (non-fatal): {e}");
+        }
+    }
+    
+    let run_dir = unique_temp_dir.clone();
+    log::info!("Using temp directory for name generation: {}", run_dir.display());
+    
     // Use the appropriate agent based on user's selection
     if agent_type == "cursor" {
         log::info!("Attempting to generate name with cursor-agent");
-        // Preflight: verify we can read the worktree directory; if not, fall back to a safe temp dir
-        let mut run_dir = worktree_path.to_path_buf();
-        match std::fs::read_dir(worktree_path) {
-            Ok(_) => {
-                log::debug!("Worktree readable for cursor-agent name generation: {}", worktree_path.display());
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-                let tmp = std::env::temp_dir();
-                log::warn!(
-                    "Permission denied reading worktree '{}'. Falling back to temp dir '{}' for cursor-agent name generation.",
-                    worktree_path.display(),
-                    tmp.display()
-                );
-                run_dir = tmp;
-            }
-            Err(e) => {
-                log::debug!("Worktree read_dir returned error (non-fatal): {e}");
-            }
-        }
 
         // Cursor Agent can take longer to initialize; allow a bit more time
         let timeout_duration = Duration::from_secs(45);
@@ -264,6 +275,8 @@ Respond with just the short kebab-case name:"#
         
         // If we get here with cursor, we couldn't generate a name
         log::warn!("cursor-agent could not generate a name for session_id '{session_id}'");
+        // Clean up temp directory
+        let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
 
@@ -292,7 +305,7 @@ Respond with just the short kebab-case name:"#
         log::info!("codex exec args for namegen: {args:?}");
         let fut = Command::new("codex")
             .args(&args)
-            .current_dir(worktree_path)
+            .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
             .envs(env_vars.iter().cloned())
@@ -348,8 +361,11 @@ Respond with just the short kebab-case name:"#
         } else {
             let code = output.status.code().unwrap_or(-1);
             let stderr = String::from_utf8_lossy(&output.stderr);
-            log::warn!("codex returned non-zero exit status: code={code}, stderr='{}'", stderr.trim());
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::warn!("codex returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
         }
+        // Clean up temp directory
+        let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
 
@@ -362,7 +378,7 @@ Respond with just the short kebab-case name:"#
         let binary = super::opencode::resolve_opencode_binary();
         let opencode_future = Command::new(&binary)
             .args(["run", "--model", "openrouter/openai/gpt-4o-mini", &prompt_plain])
-            .current_dir(worktree_path)
+            .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
             .env("OPENCODE_NO_INTERACTIVE", "1") // Ensure non-interactive mode
@@ -413,9 +429,14 @@ Respond with just the short kebab-case name:"#
                 log::warn!("opencode produced no usable output for naming");
             }
         } else {
-            log::warn!("opencode returned non-zero exit status");
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::warn!("opencode returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
         }
         
+        // Clean up temp directory
+        let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
     
@@ -427,7 +448,7 @@ Respond with just the short kebab-case name:"#
         let binary = super::gemini::resolve_gemini_binary();
         let gemini_future = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
-            .current_dir(worktree_path)
+            .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
             .output();
@@ -477,9 +498,14 @@ Respond with just the short kebab-case name:"#
                 log::warn!("gemini produced no usable output for naming");
             }
         } else {
-            log::warn!("gemini returned non-zero exit status");
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::warn!("gemini returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
         }
         
+        // Clean up temp directory
+        let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
     
@@ -491,7 +517,7 @@ Respond with just the short kebab-case name:"#
         let binary = super::qwen::resolve_qwen_binary();
         let qwen_future = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
-            .current_dir(worktree_path)
+            .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
             .output();
@@ -541,15 +567,22 @@ Respond with just the short kebab-case name:"#
                 log::warn!("qwen produced no usable output for naming");
             }
         } else {
-            log::warn!("qwen returned non-zero exit status");
+            let code = output.status.code().unwrap_or(-1);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            log::warn!("qwen returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
         }
         
+        // Clean up temp directory
+        let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
     
     // Use Claude only if claude was selected (not as a fallback)
     if agent_type != "claude" {
         log::info!("Agent type is '{agent_type}', not generating name with claude");
+        // Clean up temp directory
+        let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
     
@@ -557,7 +590,7 @@ Respond with just the short kebab-case name:"#
     let timeout_duration = Duration::from_secs(10);
     let claude_future = Command::new("claude")
         .args(["--print", prompt_plain.as_str(), "--output-format", "json", "--model", "sonnet"])
-        .current_dir(worktree_path)
+        .current_dir(&run_dir)
         .env("NO_COLOR", "1")
         .env("CLICOLOR", "0")
         .output();
@@ -601,6 +634,8 @@ Respond with just the short kebab-case name:"#
             if !name.is_empty() {
                 db.update_session_display_name(session_id, &name)?;
                 log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                // Clean up temp directory
+                let _ = std::fs::remove_dir_all(&unique_temp_dir);
                 return Ok(Some(name));
             } else {
                 log::warn!("Sanitized name is empty");
@@ -609,10 +644,15 @@ Respond with just the short kebab-case name:"#
             log::warn!("Claude produced no usable output for naming");
         }
     } else {
-        log::warn!("claude returned non-zero exit status");
+        let code = output.status.code().unwrap_or(-1);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        log::warn!("claude returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
     }
 
     log::warn!("No name could be generated for session_id '{session_id}'");
+    // Clean up temp directory
+    let _ = std::fs::remove_dir_all(&unique_temp_dir);
     Ok(None)
 }
 
