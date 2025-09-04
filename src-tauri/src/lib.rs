@@ -9,6 +9,5 @@ pub mod schaltwerk_core;
 pub mod open_apps;
 pub mod utils;
 pub mod binary_detector;
-pub mod terminal;
 pub mod binary_detection;
 
