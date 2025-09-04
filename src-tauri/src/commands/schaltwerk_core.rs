@@ -30,6 +30,31 @@ fn normalize_cli_text(s: &str) -> String {
         .collect()
 }
 
+// For Codex, detect and extract a trailing prompt without
+// accidentally consuming flag values (e.g., sandbox mode).
+// Returns Some(prompt) if a prompt was extracted, otherwise None.
+fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
+    if args.is_empty() { return None; }
+    // If last token is a flag itself, it's not a prompt
+    if args.last().map(|s| s.starts_with('-')).unwrap_or(false) {
+        return None;
+    }
+    // If the previous token is a flag that takes a value, the last token is that value,
+    // not a prompt. Keep this list minimal but sufficient for our usage.
+    if args.len() >= 2 {
+        let prev = args[args.len() - 2].as_str();
+        let flags_consuming_next = [
+            "--sandbox",
+            "--model", "-m",
+            "--profile", "-p",
+        ];
+        if flags_consuming_next.contains(&prev) {
+            return None;
+        }
+    }
+    args.pop()
+}
+
 // Turn accidental single-dash long options into proper double-dash for Codex
 // Only affects known long flags: model, profile. Keeps true short flags intact.
 fn fix_codex_single_dash_long_flags(args: &mut [String]) {
@@ -79,6 +104,43 @@ fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
     }
     without_model.extend(model_flags);
     *args = without_model;
+}
+
+#[cfg(test)]
+mod codex_prompt_tests {
+    use super::extract_codex_prompt_if_present;
+
+    #[test]
+    fn codex_no_prompt_when_just_sandbox_pair() {
+        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string()];
+        let extracted = extract_codex_prompt_if_present(&mut args);
+        assert!(extracted.is_none());
+        assert_eq!(args, vec!["--sandbox", "workspace-write"]);
+    }
+
+    #[test]
+    fn codex_extracts_prompt_when_present() {
+        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "do things".to_string()];
+        let extracted = extract_codex_prompt_if_present(&mut args);
+        assert_eq!(extracted.as_deref(), Some("do things"));
+        assert_eq!(args, vec!["--sandbox", "workspace-write"]);
+    }
+
+    #[test]
+    fn codex_does_not_consume_model_value_as_prompt() {
+        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "--model".to_string(), "o3".to_string()];
+        let extracted = extract_codex_prompt_if_present(&mut args);
+        assert!(extracted.is_none());
+        assert_eq!(args, vec!["--sandbox", "workspace-write", "--model", "o3"]);
+    }
+
+    #[test]
+    fn codex_does_not_consume_profile_value_as_prompt() {
+        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "-p".to_string(), "dev".to_string()];
+        let extracted = extract_codex_prompt_if_present(&mut args);
+        assert!(extracted.is_none());
+        assert_eq!(args, vec!["--sandbox", "workspace-write", "-p", "dev"]);
+    }
 }
 #[tauri::command]
 pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
@@ -804,15 +866,9 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String, cols
         if agent_type == "codex" {
             // Codex requires specific order: codex [OPTIONS] [PROMPT]
             // Extract any existing prompt first before adding CLI args
-            let mut extracted_prompt = None;
-            if let Some(last_arg) = final_args.last() {
-                // Check if the last argument looks like a prompt (doesn't start with -)
-                if !last_arg.starts_with('-') && final_args.len() > 1 {
-                    if let Some(prompt) = final_args.pop() {
-                        log::info!("Extracted codex prompt for proper ordering: '{prompt}'");
-                        extracted_prompt = Some(prompt);
-                    }
-                }
+            let extracted_prompt = extract_codex_prompt_if_present(&mut final_args);
+            if extracted_prompt.is_some() {
+                log::info!("Extracted codex prompt for proper ordering");
             }
             
             log::info!("Codex mode: keep --sandbox first, then CLI args, then prompt at end");
