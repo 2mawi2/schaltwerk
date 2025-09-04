@@ -5,12 +5,12 @@ use chrono::{Utc, TimeZone};
 use log::{info, warn};
 use crate::schaltwerk_core::{
     database::Database,
-    git,
     types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
     session_db::SessionDbManager,
     session_cache::{SessionCacheManager, clear_session_prompted_non_test},
     session_utils::SessionUtils,
 };
+use crate::domains::git;
 
 pub struct SessionManager {
     db_manager: SessionDbManager,

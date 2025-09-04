@@ -12,7 +12,7 @@ use tokio::sync::{Mutex, mpsc};
 use log::{debug, info, warn, error};
 
 use schaltwerk::domains::git;
-use schaltwerk::domains::sessions::entity::ChangedFile;
+use schaltwerk::schaltwerk_core::types::ChangedFile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileChangeEvent {

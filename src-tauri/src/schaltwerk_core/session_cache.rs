@@ -3,7 +3,7 @@ use std::collections::{HashMap, HashSet};
 use std::sync::{OnceLock, Mutex as StdMutex, Arc};
 use std::time::{Duration, Instant};
 use anyhow::Result;
-use crate::schaltwerk_core::git;
+use crate::domains::git;
 
 static PROMPTED_SESSIONS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new();
 static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();

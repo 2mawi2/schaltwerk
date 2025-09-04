@@ -8,7 +8,8 @@ use crate::{
     infrastructure::database::db_app_config::AppConfigMethods,
     infrastructure::database::db_project_config::ProjectConfigMethods,
     domains::git::service as git,
-    domains::sessions::entity::{Session, SessionStatus, SessionState, GitStats},
+    domains::sessions::entity::{Session, SessionStatus, SessionState},
+    schaltwerk_core::types::GitStats,
 };
 
 #[derive(Clone)]

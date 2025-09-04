@@ -118,7 +118,7 @@ pub fn create_new_project(name: &str, parent_path: &str) -> Result<PathBuf> {
     fs::create_dir(&project_path)
         .map_err(|e| anyhow::anyhow!("Failed to create project directory: {}", e))?;
     
-    if let Err(e) = crate::schaltwerk_core::git::init_repository(&project_path) {
+    if let Err(e) = crate::domains::git::init_repository(&project_path) {
         fs::remove_dir(&project_path).ok();
         return Err(e);
     }

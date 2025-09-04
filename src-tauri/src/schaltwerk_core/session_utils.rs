@@ -3,11 +3,11 @@ use anyhow::{Result, anyhow};
 use uuid::Uuid;
 use rand::Rng;
 use crate::schaltwerk_core::{
-    git,
     types::{EnrichedSession, SortMode, FilterMode, SessionState},
     session_cache::SessionCacheManager,
     session_db::SessionDbManager,
 };
+use crate::domains::git;
 
 pub struct SessionUtils {
     repo_path: PathBuf,

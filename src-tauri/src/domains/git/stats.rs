@@ -2,7 +2,7 @@ use std::path::Path;
 use std::collections::{HashSet, HashMap};
 use anyhow::Result;
 use chrono::Utc;
-use crate::domains::sessions::entity::{GitStats, ChangedFile};
+use crate::schaltwerk_core::types::{GitStats, ChangedFile};
 use std::fs;
 use git2::{Repository, DiffOptions, StatusOptions, Oid};
 use std::sync::{Mutex, OnceLock};

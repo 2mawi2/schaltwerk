@@ -651,13 +651,13 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
         // No session specified, get default branch from current project
         let manager = get_project_manager().await;
         if let Ok(project) = manager.current_project().await {
-            crate::schaltwerk_core::git::get_default_branch(&project.path)
+            crate::domains::git::get_default_branch(&project.path)
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         } else {
             // Fallback for when no project is active (needed for Claude sessions)
             let current_dir = std::env::current_dir()
                 .map_err(|e| format!("Failed to get current directory: {e}"))?;
-            crate::schaltwerk_core::git::get_default_branch(&current_dir)
+            crate::domains::git::get_default_branch(&current_dir)
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         }
     }

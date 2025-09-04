@@ -14,8 +14,8 @@ use crate::schaltwerk_core::{
     database::Database,
     db_sessions::SessionMethods,
     db_git_stats::GitStatsMethods,
-    git,
 };
+use crate::domains::git;
 use tauri::AppHandle;
 use serde::Serialize;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
@@ -208,7 +208,7 @@ mod tests {
         use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState};
         use chrono::Utc;
         #[cfg(test)]
-        use crate::schaltwerk_core::git::{create_worktree_from_base, get_current_branch};
+        use crate::domains::git::{create_worktree_from_base, get_current_branch};
     
     #[derive(Clone)]
     struct MockEmitter {

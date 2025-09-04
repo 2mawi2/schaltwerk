@@ -7,9 +7,9 @@ use crate::schaltwerk_core::{
     db_git_stats::GitStatsMethods,
     db_app_config::AppConfigMethods,
     db_project_config::ProjectConfigMethods,
-    git,
     types::{Session, SessionStatus, SessionState, GitStats},
 };
+use crate::domains::git;
 
 #[derive(Clone)]
 pub struct SessionDbManager {

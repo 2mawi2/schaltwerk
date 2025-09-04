@@ -12,7 +12,7 @@ use tokio::sync::{Mutex, mpsc};
 use log::{debug, info, warn, error};
 
 use crate::domains::git::service as git;
-use crate::domains::sessions::entity::ChangedFile;
+use crate::schaltwerk_core::types::ChangedFile;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileChangeEvent {

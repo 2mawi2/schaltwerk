@@ -4,7 +4,6 @@ pub mod db_sessions;
 pub mod db_git_stats;
 pub mod db_app_config;
 pub mod db_project_config;
-pub mod git;
 // pub mod mcp;  // Temporarily disabled - will be used for MCP server later
 pub mod session_core;
 pub mod session_db;
@@ -34,6 +33,7 @@ pub use types::{SessionState, EnrichedSession};
 
 use std::path::PathBuf;
 use anyhow::Result;
+use crate::domains::git;
 
 pub struct SchaltwerkCore {
     pub db: Database,
