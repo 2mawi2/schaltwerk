@@ -1044,6 +1044,38 @@ pub async fn schaltwerk_core_create_spec_session(app: tauri::AppHandle, name: St
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_create_and_start_spec_session(app: tauri::AppHandle, name: String, spec_content: String, base_branch: Option<String>) -> Result<(), String> {
+    log::info!("Creating and starting spec session: {name}");
+    
+    let core = get_schaltwerk_core().await?;
+    let core_lock = core.lock().await;
+    let manager = core_lock.session_manager();
+    
+    manager.create_and_start_spec_session(&name, &spec_content, base_branch.as_deref())
+        .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
+    
+    // Emit event with actual sessions list
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        log::info!("Emitting sessions-refreshed event after creating and starting spec session");
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
+    }
+    
+    // Drop the lock before starting Claude to avoid deadlock
+    drop(core_lock);
+    
+    // Automatically start the AI agent for the newly started spec session
+    log::info!("Auto-starting AI agent for spec session: {name}");
+    if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone(), None, None).await {
+        log::warn!("Failed to auto-start AI agent for spec session {name}: {e}");
+        // Don't fail the whole operation if agent start fails - session is already created
+    }
+    
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
     log::info!("Starting spec session: {name}");
     

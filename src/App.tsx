@@ -659,6 +659,26 @@ export default function App() {
     setIsDiffViewerOpen(false)
   }
 
+  // Helper function to create terminals for a session (avoids code duplication)
+  const createTerminalsForSession = async (sessionName: string) => {
+    try {
+      // Get session data to get correct worktree path
+      const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
+      const worktreePath = sessionData.worktree_path
+      
+      // Create terminals for this session using consistent naming pattern
+      const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+      const topTerminalId = `session-${sanitizedSessionName}-top`
+      const bottomTerminalId = `session-${sanitizedSessionName}-bottom`
+      
+      // Create both terminals
+      await invoke(TauriCommands.CreateTerminal, { id: topTerminalId, cwd: worktreePath })
+      await invoke(TauriCommands.CreateTerminal, { id: bottomTerminalId, cwd: worktreePath })
+    } catch (e) {
+      console.warn(`[App] Failed to create terminals for session ${sessionName}:`, e)
+    }
+  }
+
   const handleCreateSession = async (data: {
     name: string
     prompt?: string
@@ -690,28 +710,57 @@ export default function App() {
              content: contentToUse,
            })
          }
-         // Start the spec session (transitions spec -> active and creates worktree)
-         await invoke('schaltwerk_core_start_spec_session', {
-           name: data.name,
-           baseBranch: data.baseBranch || null,
-         })
+
+         // Handle multiple versions like new session creation
+         const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
+         let firstSessionName = data.name
+         
+         // Create array of session names and process them
+         const sessionNames = Array.from({ length: count }, (_, i) => 
+           i === 0 ? data.name : `${data.name}_v${i + 1}`
+         )
+         
+         for (const [index, sessionName] of sessionNames.entries()) {
+           if (index === 0) {
+             // Start the original spec session (transitions spec -> active and creates worktree)
+             await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
+               name: sessionName,
+               baseBranch: data.baseBranch || null,
+             })
+           } else {
+             // For additional versions, create and start in one atomic operation to avoid race conditions
+             await invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
+               name: sessionName,
+               specContent: contentToUse,
+               baseBranch: data.baseBranch || null,
+             })
+           }
+         }
+
          setNewSessionOpen(false)
          setStartFromSpecName(null)
 
         // Small delay to ensure sessions list is updated
         await new Promise(resolve => setTimeout(resolve, 200))
 
-        // Get the started session to get correct worktree path and state
-        const sessionData = await invoke<{ worktree_path: string; session_state: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: data.name })
+        // Proactively create terminals for all spec-derived sessions to avoid lazy initialization
+        // This ensures terminals are ready immediately when users switch between versions
+        // instead of waiting for the first selection to trigger creation
+        for (const sessionName of sessionNames) {
+          await createTerminalsForSession(sessionName)
+        }
 
-        // Only switch to the session if it matches the current filter
+        // Get the started session to get correct worktree path and state
+        const sessionData = await invoke<{ worktree_path: string; session_state: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: firstSessionName })
+
+        // Only switch to the first session if it matches the current filter
         // Running sessions are visible in 'all' and 'running' filters
         if (currentFilterMode === 'all' || currentFilterMode === 'running') {
           // Switch to the now-running session - the SelectionContext will handle the state transition
           // Backend will handle agent start automatically
           await setSelection({
             kind: 'session',
-            payload: data.name,
+            payload: firstSessionName,
             worktreePath: sessionData.worktree_path,
             sessionState: 'running' // Spec has been started, it's now running
           })
@@ -767,6 +816,23 @@ export default function App() {
                 worktreePath: sessionData.worktree_path
               })
             }
+          }
+        }
+        
+        // For regular (non-spec) sessions with multiple versions, proactively create terminals
+        // This addresses the lazy initialization issue where only the first selected session 
+        // gets terminals created, leaving other versions without terminals until manually switched
+        if (!data.isSpec && count > 1) {
+          // Small delay to ensure all sessions are fully created in the database
+          await new Promise(resolve => setTimeout(resolve, 200))
+          
+          // Create terminals for all versions of the new session
+          const sessionNames = Array.from({ length: count }, (_, i) => 
+            i === 0 ? data.name : `${data.name}_v${i + 1}`
+          )
+          
+          for (const name of sessionNames) {
+            await createTerminalsForSession(name)
           }
         }
       }

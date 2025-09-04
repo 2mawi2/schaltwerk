@@ -944,6 +944,112 @@ impl SessionManager {
         Ok(session)
     }
 
+    pub fn create_and_start_spec_session(&self, name: &str, spec_content: &str, base_branch: Option<&str>) -> Result<()> {
+        log::info!("Creating and starting spec session '{}' in repository: {}", name, self.repo_path.display());
+        
+        let repo_lock = self.cache_manager.get_repo_lock();
+        let _guard = repo_lock.lock().unwrap();
+        
+        if !git::is_valid_session_name(name) {
+            return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
+        }
+        
+        let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
+        
+        let session_id = SessionUtils::generate_session_id();
+        let repo_name = self.utils.get_repo_name()?;
+        let now = Utc::now();
+        
+        let session = Session {
+            id: session_id.clone(),
+            name: unique_name.clone(),
+            display_name: None,
+            repository_path: self.repo_path.clone(),
+            repository_name: repo_name,
+            branch: branch.clone(),
+            parent_branch: "main".to_string(),
+            worktree_path: worktree_path.clone(),
+            status: SessionStatus::Spec,
+            created_at: now,
+            updated_at: now,
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: Some(spec_content.to_string()),
+            session_state: SessionState::Spec,
+        };
+        
+        if let Err(e) = self.db_manager.create_session(&session) {
+            self.cache_manager.unreserve_name(&unique_name);
+            return Err(anyhow!("Failed to save spec session to database: {}", e));
+        }
+        
+        self.cache_manager.unreserve_name(&unique_name);
+        
+        // Now start the session immediately using the session we just created
+        let parent_branch = if let Some(base) = base_branch {
+            base.to_string()
+        } else {
+            log::info!("No base branch specified, detecting default branch for session startup");
+            match git::get_default_branch(&self.repo_path) {
+                Ok(default) => {
+                    log::info!("Using detected default branch: {default}");
+                    default
+                }
+                Err(e) => {
+                    log::error!("Failed to detect default branch: {e}");
+                    return Err(anyhow!("Failed to detect default branch: {}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')", e));
+                }
+            }
+        };
+        
+        self.utils.cleanup_existing_worktree(&worktree_path)?;
+        
+        let create_result = git::create_worktree_from_base(
+            &self.repo_path, 
+            &branch, 
+            &worktree_path, 
+            &parent_branch
+        );
+        
+        if let Err(e) = create_result {
+            return Err(anyhow!("Failed to create worktree: {}", e));
+        }
+        
+        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
+            if !setup_script.trim().is_empty() {
+                self.utils.execute_setup_script(&setup_script, &unique_name, &branch, &worktree_path)?;
+            }
+        }
+        
+        self.db_manager.update_session_status(&session_id, SessionStatus::Active)?;
+        self.db_manager.update_session_state(&session_id, SessionState::Running)?;
+        
+        log::info!("Copying spec content to initial_prompt for session '{unique_name}': '{spec_content}'");
+        self.db_manager.update_session_initial_prompt(&session_id, spec_content)?;
+        clear_session_prompted_non_test(&worktree_path);
+        log::info!("Cleared prompt state for session '{unique_name}' to ensure spec content is used");
+        
+        let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
+        let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
+        let _ = self.db_manager.set_session_original_settings(&session_id, &global_agent, global_skip);
+        
+        let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
+        git_stats.session_id = session_id.clone();
+        self.db_manager.save_git_stats(&git_stats)?;
+        if let Some(ts) = git_stats.last_diff_change_ts {
+            if let Some(dt) = Utc.timestamp_opt(ts, 0).single() {
+                let _ = self.db_manager.set_session_activity(&session_id, dt);
+            }
+        }
+        
+        Ok(())
+    }
+
     pub fn start_spec_session(&self, session_name: &str, base_branch: Option<&str>) -> Result<()> {
         log::info!("Starting spec session '{}' in repository: {}", session_name, self.repo_path.display());
         

@@ -37,6 +37,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_get_font_sizes,
     schaltwerk_core_set_font_sizes,
     schaltwerk_core_create_spec_session,
+    schaltwerk_core_create_and_start_spec_session,
     schaltwerk_core_start_spec_session,
     schaltwerk_core_update_session_state,
     schaltwerk_core_update_spec_content,
