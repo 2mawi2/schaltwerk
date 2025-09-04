@@ -374,6 +374,24 @@ code {
   }
 }
 
+@keyframes filterGlow {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0),
+                inset 0 0 0 rgba(59, 130, 246, 0);
+    background-color: rgba(59, 130, 246, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 8px 1px rgba(59, 130, 246, 0.4),
+                inset 0 0 8px rgba(59, 130, 246, 0.15);
+    background-color: rgba(59, 130, 246, 0.25);
+  }
+  100% {
+    box-shadow: 0 0 4px 0.5px rgba(59, 130, 246, 0.3),
+                inset 0 0 4px rgba(59, 130, 246, 0.1);
+    background-color: rgba(59, 130, 246, 0.15);
+  }
+}
+
 .animate-fadeIn {
   animation: fadeIn 0.2s ease-out;
 }
@@ -384,5 +402,10 @@ code {
 
 .animate-slideIn {
   animation: slideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.animate-filterGlow {
+  animation: filterGlow 0.4s ease-out;
+  position: relative;
 }
 

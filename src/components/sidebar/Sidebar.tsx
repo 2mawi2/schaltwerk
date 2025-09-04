@@ -686,7 +686,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
                                 filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.All && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
+                                keyboardNavigatedFilter === FilterMode.All && 'animate-filterGlow')}
                             onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all agents"
                         >
@@ -695,7 +695,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200',
                                 filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Spec && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
+                                keyboardNavigatedFilter === FilterMode.Spec && 'animate-filterGlow')}
                             onClick={() => setFilterMode(FilterMode.Spec)}
                             title="Show spec agents"
                         >
@@ -704,7 +704,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
                                 filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Running && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
+                                keyboardNavigatedFilter === FilterMode.Running && 'animate-filterGlow')}
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running agents"
                         >
@@ -713,7 +713,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         <button
                             className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
                                 filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Reviewed && 'ring-2 ring-blue-400/50 bg-blue-600/20')}
+                                keyboardNavigatedFilter === FilterMode.Reviewed && 'animate-filterGlow')}
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed agents"
                         >
