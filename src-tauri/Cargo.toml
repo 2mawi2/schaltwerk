@@ -98,7 +98,7 @@ incremental = true
 overflow-checks = false
 
 [profile.dev.package."*"]
-opt-level = 2
+opt-level = 3
 debug = false
 
 [profile.dev.build-override]
@@ -110,4 +110,5 @@ inherits = "dev"
 opt-level = 1
 debug = 0
 incremental = true
+
 
