@@ -1,7 +1,7 @@
 use rusqlite::params;
 use anyhow::Result;
 use chrono::{Utc, TimeZone};
-use crate::infrastructure::database::connection::Database;
+use crate::schaltwerk_core::database::Database;
 use crate::schaltwerk_core::types::GitStats;
 
 pub trait GitStatsMethods {

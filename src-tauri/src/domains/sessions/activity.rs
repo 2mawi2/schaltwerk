@@ -11,7 +11,7 @@ use chrono::{Utc, TimeZone};
 use chrono::DateTime;
 use anyhow::Result;
 use crate::{
-    infrastructure::database::connection::Database,
+    schaltwerk_core::database::Database,
     domains::sessions::db_sessions::SessionMethods,
     domains::git::db_git_stats::GitStatsMethods,
     domains::git::service as git,
@@ -69,7 +69,7 @@ impl<E: EventEmitter> ActivityTracker<E> {
         Ok(())
     }
     
-    fn refresh_stats_and_activity_for_session(&self, session: &crate::domains::sessions::entity::Session) -> Result<bool> {
+    fn refresh_stats_and_activity_for_session(&self, session: &crate::schaltwerk_core::types::Session) -> Result<bool> {
         // Prefer diff-aware last change time via git stats; fall back to filesystem walk only if unavailable
         let mut emitted_activity = false;
         
@@ -204,9 +204,9 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
     use crate::{
-        infrastructure::database::connection::Database,
+        schaltwerk_core::database::Database,
         domains::sessions::db_sessions::SessionMethods,
-        domains::sessions::entity::{Session, SessionStatus, SessionState},
+        schaltwerk_core::types::{Session, SessionStatus, SessionState},
         domains::git::service::{create_worktree_from_base, get_current_branch},
     };
     use chrono::Utc;

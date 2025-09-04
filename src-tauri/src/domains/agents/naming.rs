@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Result};
 use crate::{
-    infrastructure::database::connection::Database,
+    schaltwerk_core::database::Database,
     domains::sessions::db_sessions::SessionMethods,
     domains::git,
 };

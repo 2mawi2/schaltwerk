@@ -3,12 +3,12 @@ use anyhow::{Result, anyhow};
 use chrono::Utc;
 use crate::schaltwerk_core::{
     database::Database,
-    db_sessions::SessionMethods,
     db_git_stats::GitStatsMethods,
     db_app_config::AppConfigMethods,
     db_project_config::ProjectConfigMethods,
     types::{Session, SessionStatus, SessionState, GitStats},
 };
+use crate::domains::sessions::db_sessions::SessionMethods;
 use crate::domains::git;
 
 #[derive(Clone)]

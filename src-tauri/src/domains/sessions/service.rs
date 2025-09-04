@@ -4,9 +4,9 @@ use anyhow::{Result, anyhow};
 use chrono::{Utc, TimeZone};
 use log::{info, warn};
 use crate::{
-    infrastructure::database::connection::Database,
+    schaltwerk_core::database::Database,
     domains::git::service as git,
-    domains::sessions::entity::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
+    schaltwerk_core::types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
     domains::sessions::repository::SessionDbManager,
     domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
     domains::sessions::utils::SessionUtils,
@@ -1192,7 +1192,7 @@ impl SessionManager {
     }
 
     #[cfg(test)]
-    pub fn db_ref(&self) -> &crate::infrastructure::database::connection::Database {
+    pub fn db_ref(&self) -> &crate::schaltwerk_core::database::Database {
         &self.db_manager.db
     }
 }

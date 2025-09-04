@@ -1,10 +1,10 @@
 #[cfg(test)]
 mod session_sorting_tests {
     use crate::{
-        infrastructure::database::connection::Database,
+        schaltwerk_core::database::Database,
         domains::sessions::service::SessionManager,
         domains::sessions::db_sessions::SessionMethods,
-        domains::sessions::entity::{Session, SessionStatus, SessionState, SortMode, FilterMode},
+        schaltwerk_core::types::{Session, SessionStatus, SessionState, SortMode, FilterMode},
     };
     use chrono::{Utc, Duration};
     use tempfile::TempDir;
@@ -54,7 +54,7 @@ mod session_sorting_tests {
         let db = Database::new(Some(db_path)).unwrap();
         
         // Initialize database schema
-        crate::infrastructure::database::db_schema::initialize_schema(&db).unwrap();
+        crate::schaltwerk_core::db_schema::initialize_schema(&db).unwrap();
         
         let manager = SessionManager::new(db.clone(), temp_dir.path().to_path_buf());
 

@@ -12,9 +12,9 @@ use chrono::DateTime;
 use anyhow::Result;
 use crate::schaltwerk_core::{
     database::Database,
-    db_sessions::SessionMethods,
     db_git_stats::GitStatsMethods,
 };
+use crate::domains::sessions::db_sessions::SessionMethods;
 use crate::domains::git;
 use tauri::AppHandle;
 use serde::Serialize;
@@ -204,7 +204,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
     use crate::schaltwerk_core::database::Database;
-        use crate::schaltwerk_core::db_sessions::SessionMethods;
+        use crate::domains::sessions::db_sessions::SessionMethods;
         use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState};
         use chrono::Utc;
         #[cfg(test)]

@@ -2,14 +2,13 @@ use std::path::PathBuf;
 use anyhow::{Result, anyhow};
 use chrono::Utc;
 use crate::{
-    infrastructure::database::connection::Database,
+    schaltwerk_core::database::Database,
     domains::sessions::db_sessions::SessionMethods,
     domains::git::db_git_stats::GitStatsMethods,
-    infrastructure::database::db_app_config::AppConfigMethods,
-    infrastructure::database::db_project_config::ProjectConfigMethods,
+    schaltwerk_core::db_app_config::AppConfigMethods,
+    schaltwerk_core::db_project_config::ProjectConfigMethods,
     domains::git::service as git,
-    domains::sessions::entity::{Session, SessionStatus, SessionState},
-    schaltwerk_core::types::GitStats,
+    schaltwerk_core::types::{Session, SessionStatus, SessionState, GitStats},
 };
 
 #[derive(Clone)]

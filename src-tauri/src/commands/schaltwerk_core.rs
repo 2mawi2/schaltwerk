@@ -1,5 +1,5 @@
 use schaltwerk::schaltwerk_core::types::{SessionState, EnrichedSession, Session, SortMode, FilterMode};
-use schaltwerk::schaltwerk_core::db_sessions::SessionMethods;
+use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};

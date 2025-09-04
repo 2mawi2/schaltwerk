@@ -2,8 +2,8 @@ use rusqlite::{params, Result as SqlResult};
 use std::path::{Path, PathBuf};
 use anyhow::Result;
 use chrono::{Utc, TimeZone};
-use crate::infrastructure::database::connection::Database;
-use crate::domains::sessions::entity::{Session, SessionStatus, SessionState};
+use crate::schaltwerk_core::database::Database;
+use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState};
 
 pub trait SessionMethods {
     fn create_session(&self, session: &Session) -> Result<()>;

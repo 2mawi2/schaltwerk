@@ -15,7 +15,7 @@ use git2;
 
 // Import database traits for method access in tests
 #[cfg(test)]
-use crate::schaltwerk_core::db_sessions::SessionMethods;
+use crate::domains::sessions::db_sessions::SessionMethods;
 #[cfg(test)]
 use crate::schaltwerk_core::db_git_stats::GitStatsMethods;
 #[cfg(test)]
