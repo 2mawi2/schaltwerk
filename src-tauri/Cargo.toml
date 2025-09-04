@@ -90,25 +90,55 @@ inherits = "release"
 lto = "thin"
 codegen-units = 16
 
+# Standard dev profile - optimized for fast compilation
 [profile.dev]
+opt-level = 0
+debug = 0
+split-debuginfo = "unpacked"
+incremental = true
+overflow-checks = false
+
+# Dependencies get minimal optimization for fastest compile
+[profile.dev.package."*"]
+opt-level = 0
+debug = false
+
+[profile.dev.build-override]
+opt-level = 0
+debug = false
+
+# Production-like dev profile for performance testing
+[profile.dev-opt]
+inherits = "dev"
 opt-level = 1
 debug = 0
 split-debuginfo = "unpacked"
 incremental = true
 overflow-checks = false
 
-[profile.dev.package."*"]
+# Dependencies get high optimization for better runtime performance
+[profile.dev-opt.package."*"]
 opt-level = 3
 debug = false
 
-[profile.dev.build-override]
+[profile.dev-opt.build-override]
 opt-level = 3
 debug = false
 
+# Test profile uses minimal optimization for fastest compilation
 [profile.test]
-inherits = "dev"
-opt-level = 1
+opt-level = 0
 debug = 0
+split-debuginfo = "unpacked"
 incremental = true
+overflow-checks = false
+
+[profile.test.package."*"]
+opt-level = 0
+debug = false
+
+[profile.test.build-override]
+opt-level = 0
+debug = false
 
 

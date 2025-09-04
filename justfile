@@ -1,11 +1,16 @@
 # Schaltwerk Development Commands
 #
 # Run modes:
-#   just run              - Dev mode with auto-detected port (hot-reload enabled)
+#   just run              - Dev mode with auto-detected port (hot-reload enabled, FASTEST compile)
 #   just run-port 2235    - Release binary on specific port (NO hot-reload) - use for Schaltwerk-on-Schaltwerk
-#   just run-port-dev 2235 - Dev mode on specific port (hot-reload enabled)
+#   just run-port-dev 2235 - Dev mode on specific port (hot-reload enabled, standard dev performance)
 #   just run-port-release 2235 - Force rebuild release binary on specific port (NO hot-reload)
 #   just run-release      - Run pre-built release binary (NO hot-reload)
+#
+# Build Profiles:
+#   dev (opt-level=0) - Default profile for fastest compilation, used by 'just run' and 'just test'
+#   dev-opt (opt-level=3 for deps) - Production-like performance for testing
+#   release (opt-level=3) - Used for production builds with maximum optimization
 
 # Clear all caches (build, WebGL, application)
 clear:
@@ -135,7 +140,7 @@ _find_available_port base_port:
     done
     echo $port
 
-# Run the application in development mode with auto port detection (optimized for speed)
+# Run the application in development mode with auto port detection (optimized for FASTEST compilation)
 run:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -158,6 +163,7 @@ run:
     # Find available port starting from 1420
     port=$(just _find_available_port 1420)
     echo "🚀 Starting Schaltwerk on port $port (branch: $branch)"
+    echo "⚡ Using dev profile (opt-level=0) for fastest compilation"
     
     # Enable all available speed optimizations
     if command -v sccache &> /dev/null; then
@@ -165,10 +171,6 @@ run:
         export RUSTC_WRAPPER=sccache
         export SCCACHE_DIR=$HOME/.cache/sccache
     fi
-    
-    # Use optimized dev profile settings
-    export CARGO_PROFILE_DEV_BUILD_OVERRIDE_OPT_LEVEL=1
-    export CARGO_PROFILE_DEV_BUILD_OVERRIDE_DEBUG=0
     
     # Export the port for Vite
     export VITE_PORT=$port
@@ -198,7 +200,8 @@ run:
     # This ensures Schaltwerk starts without opening a project
     export SCHALTWERK_START_DIR="$HOME"
     
-    # Start with fast build mode and config override
+    # Start with dev profile (Tauri doesn't support custom profiles in dev mode)
+    # The dev profile already has reasonable optimization settings
     TAURI_SKIP_DEVSERVER_CHECK=true npm run tauri dev -- --config "$temp_config"
 
 # Run only the frontend (Vite dev server) on auto-detected port
@@ -297,7 +300,7 @@ run-port port:
     # Run the release binary
     cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
-# Run on a specific port with hot-reload (development mode)
+# Run on a specific port with hot-reload (development mode with production-like performance)
 run-port-dev port:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -308,6 +311,7 @@ run-port-dev port:
     fi
     
     echo "🚀 Starting Schaltwerk on port {{port}} (WITH hot-reload - dev mode)"
+    echo "🎯 Using standard dev profile (opt-level=0) for fast compilation"
     
     # Create temporary config override
     temp_config=$(mktemp)
@@ -338,7 +342,7 @@ run-port-dev port:
     # Set trap to cleanup on exit
     trap cleanup EXIT
     
-    # Start Tauri with config override (dev mode with hot-reload)
+    # Start Tauri with config override (standard dev profile for production-like performance)
     npm run tauri dev -- --config "$temp_config"
 
 # Build the application for production
@@ -350,7 +354,7 @@ build:
 run-build:
     npm run build && npm run tauri build && ./src-tauri/target/release/schaltwerk
 
-# Run all tests and lints (fast, no benchmarks/performance tests)
+# Run all tests and lints (uses dev-fast profile for FASTEST compilation)
 test:
     npm run test
 
