@@ -5,7 +5,7 @@ use crate::{
     get_schaltwerk_core,
     PROJECT_MANAGER,
 };
-use crate::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences, SessionPreferences};
+use schaltwerk::domains::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences, SessionPreferences};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
 

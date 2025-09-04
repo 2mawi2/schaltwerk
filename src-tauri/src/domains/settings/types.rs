@@ -1,0 +1,72 @@
+use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+use crate::binary_detector::DetectedBinary;
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentCliArgs {
+    pub claude: String,
+    pub cursor: String,
+    pub opencode: String,
+    pub gemini: String,
+    pub codex: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentEnvVars {
+    pub claude: HashMap<String, String>,
+    pub cursor: HashMap<String, String>,
+    pub opencode: HashMap<String, String>,
+    pub gemini: HashMap<String, String>,
+    pub codex: HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct TerminalUIPreferences {
+    pub is_collapsed: bool,
+    pub divider_position: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct DiffViewPreferences {
+    pub continuous_scroll: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct SessionPreferences {
+    pub auto_commit_on_review: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalSettings {
+    pub shell: Option<String>,
+    pub shell_args: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct AgentBinaryConfig {
+    pub agent_name: String,
+    pub custom_path: Option<String>,
+    pub auto_detect: bool,
+    pub detected_binaries: Vec<DetectedBinary>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentBinaryConfigs {
+    pub claude: Option<AgentBinaryConfig>,
+    pub cursor_agent: Option<AgentBinaryConfig>,
+    pub opencode: Option<AgentBinaryConfig>,
+    pub gemini: Option<AgentBinaryConfig>,
+    pub codex: Option<AgentBinaryConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct Settings {
+    pub agent_env_vars: AgentEnvVars,
+    pub agent_cli_args: AgentCliArgs,
+    pub terminal_ui: TerminalUIPreferences,
+    pub terminal: TerminalSettings,
+    pub agent_binaries: AgentBinaryConfigs,
+    pub diff_view: DiffViewPreferences,
+    pub session: SessionPreferences,
+}

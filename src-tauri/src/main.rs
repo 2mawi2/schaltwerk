@@ -15,7 +15,6 @@ mod file_utils;
 mod file_watcher;
 mod projects;
 mod project_manager;
-mod settings;
 mod mcp_api;
 mod commands;
 mod permissions;
@@ -23,7 +22,7 @@ mod cli;
 
 use std::sync::Arc;
 use project_manager::ProjectManager;
-use settings::SettingsManager;
+use schaltwerk::infrastructure::config::SettingsManager;
 use tokio::sync::OnceCell;
 use tokio::sync::Mutex;
 
