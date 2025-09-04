@@ -13,6 +13,7 @@ import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmati
 import { SettingsModal } from './components/modals/SettingsModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './contexts/SelectionContext'
+import { clearTerminalStartedTracking } from './components/terminal/Terminal'
 import { useProject } from './contexts/ProjectContext'
 import { useFontSize } from './contexts/FontSizeContext'
 import { HomeScreen } from './components/home/HomeScreen'
@@ -61,7 +62,7 @@ export function validatePanelPercentage(value: string | null, defaultValue: numb
 }
 
 export default function App() {
-  const { selection, setSelection } = useSelection()
+  const { selection, setSelection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
   const { sessions } = useSessions()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
@@ -969,6 +970,29 @@ export default function App() {
     // Clean up the closed project in backend
     try {
       await invoke('close_project', { path })
+      // Also clear frontend terminal tracking to avoid stale state on reopen
+      // Compute orchestrator terminal IDs for this project (must match SelectionContext logic)
+      try {
+        const dirName = path.split(/[/\\]/).pop() || 'unknown'
+        const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')
+        // Simple deterministic hash of full path
+        let hash = 0
+        for (let i = 0; i < path.length; i++) {
+          hash = ((hash << 5) - hash) + path.charCodeAt(i)
+          hash = hash & hash // 32-bit
+        }
+        const projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
+        const base = `orchestrator-${projectId}`
+        const topId = `${base}-top`
+        const bottomBaseId = `${base}-bottom`
+
+        // Clear started guard so orchestrator can auto-start on reopen
+        clearTerminalStartedTracking([topId])
+        // Clear creation tracking so ensureTerminals will recreate if needed
+        await clearTerminalTracking([topId, bottomBaseId])
+      } catch (e) {
+        console.warn('Failed to clear terminal tracking for closed project:', e)
+      }
     } catch (error) {
       console.warn('Failed to cleanup closed project:', error)
       // Don't fail the UI operation if cleanup fails

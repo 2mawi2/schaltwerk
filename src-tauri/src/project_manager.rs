@@ -253,6 +253,37 @@ impl ProjectManager {
             }
         }
     }
+
+    /// Clean up terminals for a specific project path only
+    pub async fn cleanup_project_terminals(&self, path: &PathBuf) -> Result<(), String> {
+        // Canonicalize for consistent lookup
+        let canonical = std::fs::canonicalize(path).unwrap_or(path.clone());
+        let projects = self.projects.read().await;
+
+        // Find exact project match
+        if let Some(project) = projects.get(&canonical) {
+            if let Err(e) = project.terminal_manager.cleanup_all().await {
+                log::warn!("Failed to cleanup terminals for project {}: {}", canonical.display(), e);
+                return Err(e);
+            }
+            return Ok(());
+        }
+
+        // Try non-canonical match as fallback
+        if let Some(project) = projects.get(path) {
+            if let Err(e) = project.terminal_manager.cleanup_all().await {
+                log::warn!("Failed to cleanup terminals for project {}: {}", path.display(), e);
+                return Err(e);
+            }
+            return Ok(());
+        }
+
+        log::warn!(
+            "Requested cleanup for project that is not loaded: {}",
+            path.display()
+        );
+        Ok(())
+    }
     
     /// Get terminal manager for current project
     pub async fn current_terminal_manager(&self) -> Result<Arc<TerminalManager>> {
@@ -394,5 +425,35 @@ mod tests {
         assert!(folder1.contains("_"));
         // Should end with sessions.db
         assert_eq!(db1.file_name().unwrap(), "sessions.db");
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_specific_project_does_not_affect_others() {
+        let mgr = ProjectManager::new();
+        let tmp1 = TempDir::new().unwrap();
+        let tmp2 = TempDir::new().unwrap();
+
+        // Load two projects and make second current
+        let p1 = mgr.switch_to_project_in_memory(tmp1.path().to_path_buf()).await.unwrap();
+        let p2 = mgr.switch_to_project_in_memory(tmp2.path().to_path_buf()).await.unwrap();
+
+        // Create one terminal in each project
+        let id1 = "test-p1-term".to_string();
+        let id2 = "test-p2-term".to_string();
+        p1.terminal_manager.create_terminal(id1.clone(), "/tmp".into()).await.unwrap();
+        p2.terminal_manager.create_terminal(id2.clone(), "/tmp".into()).await.unwrap();
+
+        assert!(p1.terminal_manager.terminal_exists(&id1).await.unwrap());
+        assert!(p2.terminal_manager.terminal_exists(&id2).await.unwrap());
+
+        // Ensure current project is p2; now cleanup p1 specifically
+        mgr.cleanup_project_terminals(&p1.path).await.unwrap();
+
+        // p1 terminal should be gone; p2 terminal should remain
+        assert!(!p1.terminal_manager.terminal_exists(&id1).await.unwrap());
+        assert!(p2.terminal_manager.terminal_exists(&id2).await.unwrap());
+
+        // Cleanup p2 to avoid leaks for the test
+        let _ = p2.terminal_manager.cleanup_all().await;
     }
 }
