@@ -4,7 +4,9 @@ import {
   VscCheck, 
   VscClose, 
   VscDiscard, 
-  VscArchive
+  VscArchive,
+  VscRefresh,
+  VscCode
 } from 'react-icons/vsc';
 import { IconButton } from '../common/IconButton';
 
@@ -19,6 +21,9 @@ interface SessionActionsProps {
   onUnmarkReviewed?: (sessionId: string) => void;
   onCancel?: (sessionId: string, hasUncommitted: boolean) => void;
   onConvertToSpec?: (sessionId: string) => void;
+  onReset?: (sessionId: string) => void;
+  onSwitchModel?: (sessionId: string) => void;
+  isResetting?: boolean;
 }
 
 export function SessionActions({
@@ -31,6 +36,9 @@ export function SessionActions({
   onUnmarkReviewed,
   onCancel,
   onConvertToSpec,
+  onReset,
+  onSwitchModel,
+  isResetting = false,
 }: SessionActionsProps) {
   // Use moderate spacing for medium-sized buttons
   const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
@@ -64,6 +72,23 @@ export function SessionActions({
       {/* Running state actions */}
       {sessionState === 'running' && (
         <>
+          {onSwitchModel && (
+            <IconButton
+              icon={<VscCode />}
+              onClick={() => onSwitchModel(sessionId)}
+              ariaLabel="Switch model"
+              tooltip="Switch model"
+            />
+          )}
+          {onReset && (
+            <IconButton
+              icon={<VscRefresh />}
+              onClick={() => onReset(sessionId)}
+              ariaLabel="Reset session"
+              tooltip="Reset session"
+              disabled={isResetting}
+            />
+          )}
           {onMarkReviewed && (
             <IconButton
               icon={<VscCheck />}

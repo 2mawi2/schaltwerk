@@ -21,6 +21,9 @@ interface SessionButtonProps {
     onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
     onDeleteSpec?: (sessionId: string) => void
+    onReset?: (sessionId: string) => void
+    onSwitchModel?: (sessionId: string) => void
+    isResetting?: boolean
 }
 
 function getSessionStateColor(state?: string): 'green' | 'violet' | 'amber' | 'gray' {
@@ -46,7 +49,10 @@ export const SessionButton = memo<SessionButtonProps>(({
     onCancel,
     onConvertToSpec,
     onRunDraft,
-    onDeleteSpec
+    onDeleteSpec,
+    onReset,
+    onSwitchModel,
+    isResetting = false
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
@@ -161,6 +167,9 @@ export const SessionButton = memo<SessionButtonProps>(({
                             onUnmarkReviewed={onUnmarkReady}
                             onCancel={onCancel}
                             onConvertToSpec={onConvertToSpec}
+                            onReset={onReset}
+                            onSwitchModel={onSwitchModel}
+                            isResetting={isResetting}
                         />
                     </div>
                 </div>
@@ -178,6 +187,9 @@ export const SessionButton = memo<SessionButtonProps>(({
                         onUnmarkReviewed={onUnmarkReady}
                         onCancel={onCancel}
                         onConvertToSpec={onConvertToSpec}
+                        onReset={onReset}
+                        onSwitchModel={onSwitchModel}
+                        isResetting={isResetting}
                     />
                 </div>
             )}

@@ -14,6 +14,11 @@ import { SessionButton } from './SessionButton'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
 import { calculateFilterCounts } from '../../utils/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
+import { useSessionManagement } from '../../hooks/useSessionManagement'
+import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { VscRefresh, VscCode } from 'react-icons/vsc'
+import { IconButton } from '../common/IconButton'
+import { clearTerminalStartedTracking } from '../terminal/Terminal'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -73,7 +78,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
-    const { selection, setSelection } = useSelection()
+    const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { 
         sessions, 
@@ -90,11 +95,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         setCurrentSelection, 
         reloadSessions 
     } = useSessions()
+    const { isResetting, resetSession, switchModel } = useSessionManagement()
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
+    const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
+    const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
     
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
@@ -630,6 +638,28 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     <div className="flex items-center justify-between">
                         <div className="font-medium text-slate-100">orchestrator</div>
                     <div className="flex items-center gap-2">
+                        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
+                            <IconButton
+                                icon={<VscCode />}
+                                onClick={() => {
+                                    setSwitchModelSessionId(null)
+                                    setSwitchOrchestratorModal(true)
+                                }}
+                                ariaLabel="Switch orchestrator model"
+                                tooltip="Switch model"
+                            />
+                            <IconButton
+                                icon={<VscRefresh />}
+                                onClick={async () => {
+                                    if (selection.kind === 'orchestrator') {
+                                        await resetSession(selection, terminals);
+                                    }
+                                }}
+                                ariaLabel="Reset orchestrator"
+                                tooltip="Reset orchestrator"
+                                disabled={isResetting}
+                            />
+                        </div>
                         <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
                         <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
                     </div>
@@ -828,6 +858,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         console.error('Failed to delete spec:', err)
                                     }
                                 }}
+                                onReset={async (sessionId) => {
+                                    const currentSelection = selection.kind === 'session' && selection.payload === sessionId
+                                        ? selection
+                                        : { kind: 'session' as const, payload: sessionId }
+                                    await resetSession(currentSelection, terminals)
+                                }}
+                                onSwitchModel={(sessionId) => {
+                                    setSwitchModelSessionId(sessionId)
+                                    setSwitchOrchestratorModal(true)
+                                }}
+                                isResetting={isResetting}
                             />
                         )
                     })
@@ -857,6 +898,28 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
                     await reloadSessions()
+                }}
+            />
+            
+            <SwitchOrchestratorModal
+                open={switchOrchestratorModal}
+                onClose={() => {
+                    setSwitchOrchestratorModal(false)
+                    setSwitchModelSessionId(null)
+                }}
+                onSwitch={async (agentType) => {
+                    // Determine which session/orchestrator to switch model for
+                    const targetSelection = switchModelSessionId 
+                        ? { kind: 'session' as const, payload: switchModelSessionId }
+                        : selection
+                    
+                    await switchModel(agentType, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking)
+                    
+                    // Reload sessions to show updated agent type
+                    await reloadSessions()
+                    
+                    setSwitchOrchestratorModal(false)
+                    setSwitchModelSessionId(null)
                 }}
             />
         </div>
