@@ -120,60 +120,19 @@ function getHintsForSelection(selection: SelectionType): HintMessage[] {
         }]
     }
 
-    if (selection.kind === 'orchestrator') {
+    if (selection.kind === 'session' && selection.sessionState === 'reviewed') {
         return [
             {
-                id: 'orchestrator-help',
-                message: 'You\'re in the Orchestrator. This is your main workspace for project management, git operations, and switching between sessions.',
-                type: 'info'
-            },
-            {
-                id: 'orchestrator-create-session',
-                message: 'Ready to start working? Create a new session with ⌘N or a spec with ⇧⌘N to begin an AI-assisted agent.',
-                type: 'tip'
-            }
-        ]
-    }
-
-    if (selection.kind === 'session') {
-        const hints: HintMessage[] = []
-
-        if (selection.sessionState === 'spec') {
-            hints.push({
-                id: 'spec-help',
-                message: 'This is a spec session. Use it to spec your agent and gather requirements before starting the AI agent.',
-                type: 'info'
-            })
-            hints.push({
-                id: 'spec-start',
-                message: 'When you\'re ready, click "Start Agent" or press ⌘Enter to begin working with the AI agent.',
-                type: 'tip'
-            })
-        } else if (selection.sessionState === 'running') {
-            hints.push({
-                id: 'session-running',
-                message: 'Your AI agent is working on this agent. You can interact with it and monitor progress in real-time.',
-                type: 'success'
-            })
-            hints.push({
-                id: 'session-terminals',
-                message: 'Use the bottom terminals for additional commands while the AI agent works in the center panel. Switch focus with ⌘/ for terminals and ⌘T for the agent.',
-                type: 'tip'
-            })
-        } else if (selection.sessionState === 'reviewed') {
-            hints.push({
                 id: 'ready-for-review',
                 message: 'The session is ready for review! Check the changes in the right panel and use ⌘G to open the diff viewer.',
                 type: 'success'
-            })
-            hints.push({
+            },
+            {
                 id: 'review-actions',
                 message: 'After reviewing, you can finish the session, request changes, or continue working.',
                 type: 'info'
-            })
-        }
-
-        return hints
+            }
+        ]
     }
 
     return []
