@@ -3639,6 +3639,7 @@ dependencies = [
  "imara-diff",
  "lazy_static",
  "log",
+ "memchr",
  "mimalloc",
  "mockall",
  "notify",

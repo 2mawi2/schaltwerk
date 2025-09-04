@@ -126,6 +126,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Disable cursor for TUI-based agents to avoid duplicate cursors
         // TUI agents (cursor, opencode, gemini, etc.) show their own cursor, so we hide xterm's cursor to prevent visual conflict
         const isTuiAgent = agentType === 'cursor' || agentType === 'cursor-agent' || agentType === 'opencode' || agentType === 'gemini'
+        // Agent conversation terminals (session/orchestrator top) need deeper scrollback to preserve history
+        const isAgentTopTerminal = (terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-')))
 
         terminal.current = new XTerm({
             theme: {
@@ -155,7 +157,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cursorBlink: !isTuiAgent,
             cursorStyle: isTuiAgent ? 'underline' : 'block',
             cursorInactiveStyle: 'outline',
-            scrollback: 10000,
+            scrollback: isAgentTopTerminal ? 50000 : 10000,
             // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,

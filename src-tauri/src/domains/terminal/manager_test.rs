@@ -644,6 +644,41 @@ mod tests {
         safe_close(&manager, &large_id).await;
     }
 
+    #[tokio::test]
+    async fn test_agent_top_terminal_has_larger_buffer() {
+        use tokio::time::{sleep, Duration};
+        let manager = TerminalManager::new();
+        // Simulate an agent conversation terminal (session top)
+        let id = unique_id("session-longhistory-top");
+
+        // Spawn a one-shot shell that outputs > 3MB then exits
+        // This should exceed the old 2MB limit but fit within the new agent limit
+        manager
+            .create_terminal_with_app(
+                id.clone(),
+                "/tmp".to_string(),
+                "sh".to_string(),
+                vec![
+                    "-c".to_string(),
+                    // Generate ~4MB of 'A' via dd + tr, then keep process alive briefly
+                    "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'A'; sleep 2".to_string(),
+                ],
+                vec![],
+            )
+            .await
+            .unwrap();
+
+        // Allow time for the reader to consume the output
+        sleep(Duration::from_millis(800)).await;
+
+        let buf = manager.get_terminal_buffer(id.clone()).await.unwrap();
+        println!("agent buffer length: {}", buf.len());
+        // Buffer should be larger than the previous 2MB default when using agent top terminals
+        assert!(buf.len() > 2 * 1024 * 1024);
+
+        safe_close(&manager, &id).await;
+    }
+
     use std::sync::Arc;
     use futures;
 }

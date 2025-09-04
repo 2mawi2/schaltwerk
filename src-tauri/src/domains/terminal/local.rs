@@ -11,7 +11,10 @@ use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, RwLock};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 
-const MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
+// Default in-memory buffer sizes for terminal output
+// Agent conversation terminals can produce very large transcripts; give them more room
+const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2MB for regular terminals
+const AGENT_MAX_BUFFER_SIZE: usize = 16 * 1024 * 1024; // 16MB for agent "top" terminals
 
 // PTY state maps moved to instance level to avoid test interference
 
@@ -30,6 +33,9 @@ pub struct LocalPtyAdapter {
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     // Coalescing state for terminal output handling
     coalescing_state: CoalescingState,
+    // Persistent transcripts for agent terminals
+    transcript_writers: Arc<Mutex<HashMap<String, std::io::BufWriter<std::fs::File>>>>,
+    transcript_paths: Arc<Mutex<HashMap<String, PathBuf>>>,
 }
 
 struct ReaderState {
@@ -38,6 +44,7 @@ struct ReaderState {
     pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     coalescing_state: CoalescingState,
+    transcript_writers: Arc<Mutex<HashMap<String, std::io::BufWriter<std::fs::File>>>>,
 }
 
 impl Default for LocalPtyAdapter {
@@ -62,6 +69,8 @@ impl LocalPtyAdapter {
                 emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
                 norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
             },
+            transcript_writers: Arc::new(Mutex::new(HashMap::new())),
+            transcript_paths: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -92,6 +101,42 @@ impl LocalPtyAdapter {
             cmd.arg(arg);
         }
         cmd
+    }
+
+    fn transcripts_dir() -> PathBuf {
+        dirs::data_local_dir()
+            .unwrap_or_else(|| PathBuf::from("."))
+            .join("schaltwerk")
+            .join("transcripts")
+    }
+
+    fn sanitize_id_for_path(id: &str) -> String {
+        id.chars()
+            .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' })
+            .collect()
+    }
+
+    fn make_transcript_path_for(id: &str) -> PathBuf {
+        let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
+        let name = format!("terminal_{}_{}.log", Self::sanitize_id_for_path(id), ts);
+        Self::transcripts_dir().join(name)
+    }
+
+    fn find_latest_transcript_path(id: &str) -> Option<PathBuf> {
+        let dir = Self::transcripts_dir();
+        let Ok(entries) = std::fs::read_dir(&dir) else { return None };
+        let prefix = format!("terminal_{}_", Self::sanitize_id_for_path(id));
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
+                if name.starts_with(&prefix) && name.ends_with(".log") {
+                    candidates.push(p);
+                }
+            }
+        }
+        candidates.sort();
+        candidates.pop()
     }
 
     fn clear_command_environment(cmd: &mut CommandBuilder) {
@@ -200,17 +245,32 @@ impl LocalPtyAdapter {
                         let id_clone = id.clone();
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
+                        let transcript_writers_clone = Arc::clone(&reader_state.transcript_writers);
                         
                         runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
                             if let Some(state) = terminals.get_mut(&id_clone) {
                                 // Append to ring buffer
                                 state.buffer.extend_from_slice(&data);
-                                if state.buffer.len() > MAX_BUFFER_SIZE {
-                                    let excess = state.buffer.len() - MAX_BUFFER_SIZE;
+                                // Select buffer limit based on terminal type
+                                let max_size = if Self::is_agent_terminal(&id_clone) {
+                                    AGENT_MAX_BUFFER_SIZE
+                                } else {
+                                    DEFAULT_MAX_BUFFER_SIZE
+                                };
+                                if state.buffer.len() > max_size {
+                                    let excess = state.buffer.len() - max_size;
                                     state.buffer.drain(0..excess);
                                 }
                                 
+                                // Persist to transcript for agent terminals
+                                if Self::is_agent_terminal(&id_clone) {
+                                    if let Some(writer) = transcript_writers_clone.lock().await.get_mut(&id_clone) {
+                                        let _ = writer.write_all(&data);
+                                        let _ = writer.flush();
+                                    }
+                                }
+
                                 // Increment sequence and update last output time
                                 state.seq += 1;
                                 state.last_output = SystemTime::now();
@@ -382,6 +442,22 @@ impl TerminalBackend for LocalPtyAdapter {
         self.pty_children.lock().await.insert(id.clone(), child);
         self.pty_masters.lock().await.insert(id.clone(), pair.master);
         self.pty_writers.lock().await.insert(id.clone(), writer);
+
+        // Initialize transcript file for agent terminals
+        if Self::is_agent_terminal(&id) {
+            let path = Self::make_transcript_path_for(&id);
+            if let Some(parent) = path.parent() { let _ = std::fs::create_dir_all(parent); }
+            match std::fs::OpenOptions::new().create(true).append(true).open(&path) {
+                Ok(file) => {
+                    let mut wmap = self.transcript_writers.lock().await;
+                    let mut pmap = self.transcript_paths.lock().await;
+                    let bw = std::io::BufWriter::new(file);
+                    wmap.insert(id.clone(), bw);
+                    pmap.insert(id.clone(), path);
+                }
+                Err(e) => warn!("Failed to create transcript for {id}: {e}"),
+            }
+        }
         
         // Start process monitoring AFTER PTY resources are stored
         Self::start_process_monitor(
@@ -411,6 +487,7 @@ impl TerminalBackend for LocalPtyAdapter {
                 pty_masters: Arc::clone(&self.pty_masters),
                 pty_writers: Arc::clone(&self.pty_writers),
                 coalescing_state: self.coalescing_state.clone(),
+                transcript_writers: Arc::clone(&self.transcript_writers),
             },
         )
         .await;
@@ -537,6 +614,10 @@ impl TerminalBackend for LocalPtyAdapter {
         self.pty_masters.lock().await.remove(id);
         self.pty_writers.lock().await.remove(id);
         self.terminals.write().await.remove(id);
+        if let Some(mut bw) = self.transcript_writers.lock().await.remove(id) {
+            let _ = bw.flush();
+        }
+        self.transcript_paths.lock().await.remove(id);
         
         // Clear emit buffers
         self.coalescing_state.emit_buffers.write().await.remove(id);
@@ -552,23 +633,37 @@ impl TerminalBackend for LocalPtyAdapter {
         Ok(self.terminals.read().await.contains_key(id))
     }
     
-    async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<(u64, Vec<u8>), String> {
+    async fn snapshot(&self, id: &str, _from_seq: Option<u64>) -> Result<(u64, Vec<u8>), String> {
+        // Prefer persistent transcript for agent terminals when available
+        if Self::is_agent_terminal(id) {
+            let path = {
+                let guard = self.transcript_paths.lock().await;
+                guard.get(id).cloned()
+            }.or_else(|| Self::find_latest_transcript_path(id));
+
+            if let Some(p) = path {
+                match std::fs::read(&p) {
+                    Ok(mut bytes) => {
+                        // Backward-compat: remove any historical transcript header lines so UI doesn't render them
+                        // Pattern: lines starting with "==== TRANSCRIPT START"
+                        if let Some(pos) = memchr::memmem::find(&bytes, b"==== TRANSCRIPT START") {
+                            // Remove the full line containing the marker
+                            let line_start = bytes[..pos].iter().rposition(|&b| b == b'\n').map(|i| i + 1).unwrap_or(0);
+                            let line_end = bytes[pos..].iter().position(|&b| b == b'\n').map(|i| pos + i + 1).unwrap_or(bytes.len());
+                            bytes.drain(line_start..line_end);
+                        }
+                        let seq = self.terminals.read().await.get(id).map(|s| s.seq).unwrap_or(0);
+                        return Ok((seq, bytes));
+                    }
+                    Err(e) => warn!("Failed to read transcript for {id}: {e}"),
+                }
+            }
+        }
+
         let terminals = self.terminals.read().await;
-        
         if let Some(state) = terminals.get(id) {
             let current_seq = state.seq;
-            
-            if let Some(from) = from_seq {
-                if from < current_seq {
-                    // For simplicity, just return full buffer if seq is within range
-                    // In a real implementation, you'd track byte positions per seq
-                    Ok((current_seq, state.buffer.clone()))
-                } else {
-                    Ok((current_seq, state.buffer.clone()))
-                }
-            } else {
-                Ok((current_seq, state.buffer.clone()))
-            }
+            Ok((current_seq, state.buffer.clone()))
         } else {
             Ok((0, Vec::new()))
         }
@@ -579,8 +674,8 @@ impl LocalPtyAdapter {
     /// Checks if a terminal ID corresponds to an agent terminal (top terminals for sessions)
     fn is_agent_terminal(terminal_id: &str) -> bool {
         terminal_id.contains("-top") && (
-            terminal_id.starts_with("session-") || 
-            terminal_id.starts_with("orchestrator-")
+            terminal_id.contains("session-") ||
+            terminal_id.contains("orchestrator-")
         )
     }
     
