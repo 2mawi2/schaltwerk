@@ -82,9 +82,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         sortMode, 
         filterMode,
         searchQuery,
+        isSearchVisible,
         setSortMode, 
         setFilterMode,
         setSearchQuery,
+        setIsSearchVisible,
         setCurrentSelection, 
         reloadSessions 
     } = useSessions()
@@ -92,21 +94,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
-    const [isSearchVisible, setIsSearchVisible] = useState<boolean>(false)
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     
-    // Close search when query is cleared
-    useEffect(() => {
-        if (isSearchVisible && !searchQuery.trim()) {
-            // Small delay to allow for typing
-            const timeout = setTimeout(() => {
-                if (!searchQuery.trim()) {
-                    setIsSearchVisible(false)
-                }
-            }, 2000)
-            return () => clearTimeout(timeout)
-        }
-    }, [searchQuery, isSearchVisible])
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
         sessionName: '',

@@ -17,9 +17,11 @@ interface SessionsContextValue {
     sortMode: SortMode
     filterMode: FilterMode
     searchQuery: string
+    isSearchVisible: boolean
     setSortMode: (mode: SortMode) => void
     setFilterMode: (mode: FilterMode) => void
     setSearchQuery: (query: string) => void
+    setIsSearchVisible: (visible: boolean) => void
     setCurrentSelection: (sessionId: string | null) => void
     reloadSessions: () => Promise<void>
     updateSessionStatus: (sessionId: string, newStatus: string) => Promise<void>
@@ -36,6 +38,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
     const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
     const [searchQuery, setSearchQuery] = useState<string>('')
+    const [isSearchVisible, setIsSearchVisible] = useState<boolean>(false)
     const prevStatesRef = useRef<Map<string, string>>(new Map())
     const [lastProjectPath, setLastProjectPath] = useState<string | null>(null)
     const hasInitialLoadCompleted = useRef(false)
@@ -479,9 +482,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             sortMode,
             filterMode,
             searchQuery,
+            isSearchVisible,
             setSortMode,
             setFilterMode,
             setSearchQuery,
+            setIsSearchVisible,
             setCurrentSelection,
             reloadSessions,
             updateSessionStatus,
