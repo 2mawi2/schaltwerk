@@ -171,7 +171,7 @@ Respond with just the short kebab-case name:"#
     
     // Always use a temporary directory for agent execution to avoid interference with active sessions
     let temp_base = std::env::temp_dir();
-    let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{}", session_id));
+    let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{session_id}"));
     
     // Create the temp directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&unique_temp_dir) {
