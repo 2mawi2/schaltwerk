@@ -24,9 +24,9 @@ export function DeleteSpecConfirmation({
 
   const body = (
     <p className="text-zinc-300">
-      This will permanently delete the spec session.
+      This will archive the spec prompt so you can recover it later from Settings → Archives.
       <span className="block mt-2 text-zinc-400">
-        This action cannot be undone.
+        You can permanently delete it from the archive if desired.
       </span>
     </p>
   )
@@ -36,8 +36,8 @@ export function DeleteSpecConfirmation({
       open={open}
       title={<span>Delete Spec: {displayName}?</span>}
       body={body}
-      confirmText="Delete Spec"
-      confirmTitle="Delete spec (Enter)"
+      confirmText="Archive Spec"
+      confirmTitle="Archive spec (Enter)"
       cancelText="Keep Spec"
       cancelTitle="Keep spec (Esc)"
       onConfirm={handleConfirm}

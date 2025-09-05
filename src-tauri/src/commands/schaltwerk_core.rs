@@ -163,6 +163,74 @@ pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSess
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_archive_spec_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    manager.archive_spec_session(&name).map_err(|e| format!("Failed to archive spec: {e}"))?;
+
+    // Emit events to refresh UI
+    let repo = core.repo_path.to_string_lossy().to_string();
+    let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+    let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
+    let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<EnrichedSession>::new());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_list_archived_specs() -> Result<Vec<schaltwerk::schaltwerk_core::types::ArchivedSpec>, String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    manager.list_archived_specs().map_err(|e| format!("Failed to list archived specs: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_restore_archived_spec(app: tauri::AppHandle, id: String, new_name: Option<String>) -> Result<schaltwerk::schaltwerk_core::types::Session, String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    let session = manager
+        .restore_archived_spec(&id, new_name.as_deref())
+        .map_err(|e| format!("Failed to restore archived spec: {e}"))?;
+
+    // Notify UI
+    let repo = core.repo_path.to_string_lossy().to_string();
+    let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+    let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
+    let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<EnrichedSession>::new());
+    Ok(session)
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_delete_archived_spec(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    manager.delete_archived_spec(&id).map_err(|e| format!("Failed to delete archived spec: {e}"))?;
+    let repo = core.repo_path.to_string_lossy().to_string();
+    let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+    let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_get_archive_max_entries() -> Result<i32, String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    manager.get_archive_max_entries().map_err(|e| format!("Failed to get archive limit: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_set_archive_max_entries(limit: i32) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    manager.set_archive_max_entries(limit).map_err(|e| format!("Failed to set archive limit: {e}"))
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_list_enriched_sessions_sorted(
     sort_mode: String,
     filter_mode: String,
@@ -382,22 +450,55 @@ pub async fn schaltwerk_core_get_session_agent_content(name: String) -> Result<(
 pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String) -> Result<(), String> {
     log::info!("Starting cancel session: {name}");
     
-    let session_exists = {
+    // Determine session state first to handle Spec vs non-Spec behavior
+    let (is_spec, repo_path_str, archive_count_after_opt) = {
         let core = get_schaltwerk_core().await?;
         let core = core.lock().await;
         let manager = core.session_manager();
-        
-        match manager.get_session(&name) {
-            Ok(_) => true,
-            Err(e) => {
-                log::error!("Cancel {name}: Session not found: {e}");
-                return Err(format!("Session not found: {e}"));
+
+        let session = manager.get_session(&name).map_err(|e| {
+            log::error!("Cancel {name}: Session not found: {e}");
+            format!("Session not found: {e}")
+        })?;
+
+        if session.session_state == schaltwerk::schaltwerk_core::types::SessionState::Spec {
+            // Archive spec sessions instead of deleting
+            manager.archive_spec_session(&name).map_err(|e| format!("Failed to archive spec: {e}"))?;
+            let repo = core.repo_path.to_string_lossy().to_string();
+            let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
+            (true, repo, Some(count))
+        } else {
+            // For non-spec, archive prompt first, then continue with cancellation flow
+            if let Err(e) = manager.archive_prompt_for_session(&name) {
+                log::warn!("Cancel {name}: Failed to archive prompt before cancel: {e}");
             }
+            (false, core.repo_path.to_string_lossy().to_string(), None)
         }
     };
-    
-    if !session_exists {
-        return Err("Session not found".to_string());
+
+    if is_spec {
+        // Emit events for spec archive and UI refresh, close terminals if any, then return early
+        let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo_path_str, "count": archive_count_after_opt.unwrap_or(0)}));
+        if let Ok(core) = get_schaltwerk_core().await {
+            let core = core.lock().await;
+            let manager = core.session_manager();
+            if let Ok(sessions) = manager.list_enriched_sessions() {
+                let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions);
+            }
+        }
+
+        if let Ok(terminal_manager) = get_terminal_manager().await {
+            let ids = vec![
+                format!("session-{}-top", name),
+                format!("session-{}-bottom", name),
+            ];
+            for id in ids {
+                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
+                    log::debug!("Terminal {id} cleanup (spec-archive): {e}");
+                }
+            }
+        }
+        return Ok(());
     }
     
     // Emit a "cancelling" event instead of "removed"

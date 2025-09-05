@@ -21,7 +21,7 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'actions'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions'
 
 interface DetectedBinary {
     path: string
@@ -52,6 +52,15 @@ const CATEGORIES: CategoryConfig[] = [
         icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+            </svg>
+        )
+    },
+    {
+        id: 'archives',
+        label: 'Archives',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7H4a1 1 0 01-1-1V5a1 1 0 011-1h16a1 1 0 011 1v1a1 1 0 01-1 1zM6 10h12l-1 9a2 2 0 01-2 2H9a2 2 0 01-2-2l-1-9z" />
             </svg>
         )
     },
@@ -169,6 +178,19 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         type: 'info',
         visible: false
     })
+
+    // Archived specs state
+    type ArchivedSpec = {
+        id: string
+        session_name: string
+        repository_path: string
+        repository_name: string
+        content: string
+        archived_at: number | string
+    }
+    const [archives, setArchives] = useState<ArchivedSpec[]>([])
+    const [archivesLoading, setArchivesLoading] = useState(false)
+    const [archiveMax, setArchiveMax] = useState<number>(50)
     
     const {
         loading,
@@ -268,6 +290,23 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             loadAllSettings()
         }
     }, [open])
+
+    // Load archives when the category is opened
+    useEffect(() => {
+        const load = async () => {
+            if (activeCategory !== 'archives') return
+            try {
+                setArchivesLoading(true)
+                const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
+                const max = await invoke<number>('schaltwerk_core_get_archive_max_entries')
+                setArchives(list)
+                setArchiveMax(max)
+            } finally {
+                setArchivesLoading(false)
+            }
+        }
+        load()
+    }, [activeCategory])
 
     // Sync action buttons when modal opens or buttons change
     useEffect(() => {
@@ -424,6 +463,86 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         
         onClose()
     }
+
+    const renderArchivesSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">Archived Specs</h3>
+                        <div className="text-sm text-slate-400 mb-4">Recover deleted prompts back to specs.</div>
+                        <div className="mb-4 flex items-center gap-3">
+                            <label className="text-sm text-slate-300">Max entries</label>
+                            <input
+                                type="number"
+                                value={archiveMax}
+                                onChange={(e) => setArchiveMax(parseInt(e.target.value || '0') || 0)}
+                                className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
+                            />
+                            <button onClick={async () => {
+                                try {
+                                    await invoke('schaltwerk_core_set_archive_max_entries', { limit: archiveMax })
+                                    showNotification('Archive limit saved', 'success')
+                                } catch (e) {
+                                    showNotification('Failed to save archive limit', 'error')
+                                }
+                            }} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-sm">Save</button>
+                        </div>
+                        {archivesLoading ? (
+                            <div className="py-6"><AnimatedText text="loading" size="sm" /></div>
+                        ) : archives.length === 0 ? (
+                            <div className="text-slate-400 text-sm">No archived specs.</div>
+                        ) : (
+                            <div className="space-y-3">
+                                {archives.map(item => (
+                                    <div key={item.id} className="border border-slate-800 rounded p-3 bg-slate-900/40 flex items-start justify-between gap-3">
+                                        <div className="flex-1">
+                                            <div className="text-slate-200 text-sm">{item.session_name}</div>
+                                            <div className="text-xs text-slate-500">{
+                                              (() => {
+                                                const v = item.archived_at as any
+                                                let ts: number
+                                                if (typeof v === 'number') {
+                                                  ts = v > 1e12 ? v : v * 1000
+                                                } else {
+                                                  const parsed = Date.parse(v)
+                                                  ts = isNaN(parsed) ? Date.now() : parsed
+                                                }
+                                                return new Date(ts).toLocaleString()
+                                              })()
+                                            }</div>
+                                            <div className="text-xs text-slate-500 line-clamp-2 mt-1">{item.content}</div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <button onClick={async () => {
+                                                try {
+                                                    await invoke('schaltwerk_core_restore_archived_spec', { id: item.id, newName: null })
+                                                    const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
+                                                    setArchives(list)
+                                                    showNotification('Restored to specs', 'success')
+                                                } catch (e) {
+                                                    showNotification('Failed to restore', 'error')
+                                                }
+                                            }} className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-xs bg-slate-800 hover:bg-slate-700">Restore</button>
+                                            <button onClick={async () => {
+                                                try {
+                                                    await invoke('schaltwerk_core_delete_archived_spec', { id: item.id })
+                                                    const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
+                                                    setArchives(list)
+                                                } catch (e) {
+                                                    showNotification('Failed to delete', 'error')
+                                                }
+                                            }} className="px-2 py-1 border border-red-700 rounded text-red-200 text-xs bg-red-900/30 hover:bg-red-900/50">Delete</button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
 
     const handleAddEnvVar = (agent: AgentType) => {
         setEnvVars(prev => ({
@@ -1502,6 +1621,8 @@ fi`}
                 return renderTerminalSettings()
             case 'sessions':
                 return renderSessionSettings()
+            case 'archives':
+                return renderArchivesSettings()
             case 'actions':
                 return renderActionButtonsSettings()
             default:

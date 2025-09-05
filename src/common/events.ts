@@ -2,6 +2,7 @@ export enum SchaltEvent {
   SessionsRefreshed = 'schaltwerk:sessions-refreshed',
   SessionAdded = 'schaltwerk:session-added',
   SessionRemoved = 'schaltwerk:session-removed',
+  ArchiveUpdated = 'schaltwerk:archive-updated',
   SessionCancelling = 'schaltwerk:session-cancelling',
   CancelError = 'schaltwerk:cancel-error',
   ClaudeStarted = 'schaltwerk:claude-started',
@@ -70,6 +71,7 @@ export type EventPayloadMap = {
   [SchaltEvent.SessionsRefreshed]: EnrichedSession[]
   [SchaltEvent.SessionAdded]: { session_name: string, branch: string, worktree_path: string, parent_branch: string }
   [SchaltEvent.SessionRemoved]: { session_name: string }
+  [SchaltEvent.ArchiveUpdated]: { repo: string, count: number }
   [SchaltEvent.SessionCancelling]: { session_name: string }
   [SchaltEvent.CancelError]: { session_name: string, error: string }
   [SchaltEvent.ClaudeStarted]: { terminal_id: string, session_name: string }

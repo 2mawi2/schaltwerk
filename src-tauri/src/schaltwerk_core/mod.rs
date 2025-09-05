@@ -3,6 +3,7 @@ pub mod db_schema;
 pub mod db_git_stats;
 pub mod db_app_config;
 pub mod db_project_config;
+pub mod db_archived_specs;
 // pub mod mcp;  // Temporarily disabled - will be used for MCP server later
 pub mod session_core;
 pub mod session_db;

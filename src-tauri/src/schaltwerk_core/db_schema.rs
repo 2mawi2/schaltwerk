@@ -147,6 +147,12 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         "INSERT OR IGNORE INTO app_config (id, skip_permissions, agent_type, default_open_app, terminal_font_size, ui_font_size) VALUES (1, FALSE, 'claude', 'finder', 13, 12)",
         [],
     )?;
+
+    // Migration: Add archive_max_entries column if it doesn't exist
+    let _ = conn.execute(
+        "ALTER TABLE app_config ADD COLUMN archive_max_entries INTEGER DEFAULT 50",
+        [],
+    );
     
     // Add ready_to_merge column if it doesn't exist (migration)
     let _ = conn.execute(
@@ -252,6 +258,28 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         )",
         [],
     )?;
-    
+
+    // Archived specs for prompt history/recovery
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS archived_specs (
+            id TEXT PRIMARY KEY,
+            session_name TEXT NOT NULL,
+            repository_path TEXT NOT NULL,
+            repository_name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            archived_at INTEGER NOT NULL
+        )",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_archived_specs_repo ON archived_specs(repository_path)",
+        [],
+    )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_archived_specs_archived_at ON archived_specs(archived_at)",
+        [],
+    )?;
+
     Ok(())
 }

@@ -11,6 +11,9 @@ use crate::schaltwerk_core::{
     session_utils::SessionUtils,
 };
 use crate::domains::git;
+use crate::schaltwerk_core::db_archived_specs::ArchivedSpecMethods as _;
+use crate::schaltwerk_core::types::ArchivedSpec;
+use uuid::Uuid;
 
 pub struct SessionManager {
     db_manager: SessionDbManager,
@@ -1139,6 +1142,103 @@ impl SessionManager {
 
     pub fn list_sessions_by_state(&self, state: SessionState) -> Result<Vec<Session>> {
         self.db_manager.list_sessions_by_state(state)
+    }
+
+    pub fn archive_spec_session(&self, name: &str) -> Result<()> {
+        // Only archive Spec sessions
+        let session = self.db_manager.get_session_by_name(name)?;
+        if session.session_state != SessionState::Spec {
+            return Err(anyhow!("Can only archive spec sessions"));
+        }
+
+        let content = session
+            .spec_content
+            .or(session.initial_prompt)
+            .unwrap_or_default();
+
+        let archived = ArchivedSpec {
+            id: Uuid::new_v4().to_string(),
+            session_name: session.name.clone(),
+            repository_path: self.repo_path.clone(),
+            repository_name: session.repository_name.clone(),
+            content,
+            archived_at: Utc::now(),
+        };
+
+        // Insert into archive, then delete the session
+        self.db_manager.db.insert_archived_spec(&archived)?;
+
+        // Physically remove spec session from DB to declutter
+        {
+            let conn = self.db_manager.db.conn.lock().unwrap();
+            use rusqlite::params;
+            conn.execute("DELETE FROM sessions WHERE id = ?1", params![session.id])?;
+        }
+
+        // Enforce archive limit per repo
+        self.db_manager.db.enforce_archive_limit(&self.repo_path)?;
+        Ok(())
+    }
+
+    pub fn list_archived_specs(&self) -> Result<Vec<ArchivedSpec>> {
+        self.db_manager.db.list_archived_specs(&self.repo_path)
+    }
+
+    pub fn restore_archived_spec(&self, archived_id: &str, new_name: Option<&str>) -> Result<Session> {
+        // Load archived entry
+        let archived = {
+            let specs = self.db_manager.db.list_archived_specs(&self.repo_path)?;
+            specs.into_iter().find(|s| s.id == archived_id)
+                .ok_or_else(|| anyhow!("Archived spec not found"))?
+        };
+
+        // Create new spec session
+        let desired = new_name.unwrap_or(&archived.session_name);
+        let spec = self.create_spec_session(desired, &archived.content)?;
+
+        // Remove archive entry
+        self.db_manager.db.delete_archived_spec(archived_id)?;
+
+        Ok(spec)
+    }
+
+    pub fn delete_archived_spec(&self, archived_id: &str) -> Result<()> {
+        self.db_manager.db.delete_archived_spec(archived_id)
+    }
+
+    pub fn get_archive_max_entries(&self) -> Result<i32> {
+        self.db_manager.db.get_archive_max_entries()
+    }
+
+    pub fn set_archive_max_entries(&self, limit: i32) -> Result<()> {
+        self.db_manager.db.set_archive_max_entries(limit)
+    }
+
+    pub fn archive_prompt_for_session(&self, name: &str) -> Result<()> {
+        // Archive prompt/spec content for any session state (without deleting the session here)
+        let session = self.db_manager.get_session_by_name(name)?;
+        let content = session
+            .spec_content
+            .or(session.initial_prompt)
+            .unwrap_or_default();
+
+        if content.trim().is_empty() {
+            // Nothing to archive
+            return Ok(());
+        }
+
+        let archived = ArchivedSpec {
+            id: Uuid::new_v4().to_string(),
+            session_name: session.name.clone(),
+            repository_path: self.repo_path.clone(),
+            repository_name: session.repository_name.clone(),
+            content,
+            archived_at: Utc::now(),
+        };
+
+        self.db_manager.db.insert_archived_spec(&archived)?;
+        self.db_manager.db.enforce_archive_limit(&self.repo_path)?;
+        Ok(())
     }
 
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {

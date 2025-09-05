@@ -20,6 +20,8 @@ use crate::domains::sessions::db_sessions::SessionMethods;
 use crate::schaltwerk_core::db_git_stats::GitStatsMethods;
 #[cfg(test)]
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use crate::schaltwerk_core::types::SessionState;
+use crate::schaltwerk_core::db_archived_specs::ArchivedSpecMethods;
 
 #[cfg(test)]
 struct TestEnvironment {
@@ -229,6 +231,63 @@ struct TestEnvironment {
             }
             assert!(result.is_ok(), "Should accept valid name: {name} - Error: {result:?}");
         }
+    }
+
+    #[test]
+    fn test_archive_and_restore_spec() {
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a spec
+        let spec = manager.create_spec_session("spec-archive-demo", "Spec content A").unwrap();
+        assert_eq!(spec.session_state, SessionState::Spec);
+
+        // Archive it
+        manager.archive_spec_session(&spec.name).unwrap();
+
+        // Spec should be gone from sessions list
+        let specs = manager.list_sessions_by_state(SessionState::Spec).unwrap();
+        assert!(specs.into_iter().find(|s| s.name == spec.name).is_none());
+
+        // It should appear in archived list
+        let archived = manager.list_archived_specs().unwrap();
+        assert_eq!(archived.len(), 1);
+        assert_eq!(archived[0].session_name, "spec-archive-demo");
+        assert_eq!(archived[0].content, "Spec content A");
+
+        // Restore it
+        let restored = manager.restore_archived_spec(&archived[0].id, None).unwrap();
+        assert_eq!(restored.session_state, SessionState::Spec);
+        assert_eq!(restored.name, "spec-archive-demo");
+
+        // Archive list should be empty after restore
+        let archived_after = manager.list_archived_specs().unwrap();
+        assert!(archived_after.is_empty());
+    }
+
+    #[test]
+    fn test_archive_limit_enforced() {
+        let env = TestEnvironment::new().unwrap();
+        let db = env.get_database().unwrap();
+        // Set a very small limit for the test
+        db.set_archive_max_entries(3).unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        for i in 0..5 {
+            let name = format!("spec-{i}");
+            let content = format!("content {i}");
+            let s = manager.create_spec_session(&name, &content).unwrap();
+            manager.archive_spec_session(&s.name).unwrap();
+        }
+
+        // Only 3 most recent should remain
+        let archived = manager.list_archived_specs().unwrap();
+        assert_eq!(archived.len(), 3);
+        // Verify they are the most recent ones (spec-2, spec-3, spec-4) by order
+        let names: Vec<_> = archived.iter().map(|a| a.session_name.clone()).collect();
+        assert_eq!(names[0], "spec-4");
+        assert_eq!(names[1], "spec-3");
+        assert_eq!(names[2], "spec-2");
     }
     
     #[test]

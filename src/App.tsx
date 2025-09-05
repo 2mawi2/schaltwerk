@@ -637,9 +637,7 @@ export default function App() {
 
     try {
       setIsCancelling(true)
-      await invoke('schaltwerk_core_cancel_session', {
-        name: currentSession.name
-      })
+      await invoke('schaltwerk_core_archive_spec_session', { name: currentSession.name })
       setDeleteSpecModalOpen(false)
       // Reload sessions to update the list
       await invoke('schaltwerk_core_list_enriched_sessions')

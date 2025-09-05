@@ -685,6 +685,12 @@ fn main() {
             schaltwerk_core_append_spec_content,
             schaltwerk_core_rename_draft_session,
             schaltwerk_core_list_sessions_by_state,
+            schaltwerk_core_archive_spec_session,
+            schaltwerk_core_list_archived_specs,
+            schaltwerk_core_restore_archived_spec,
+            schaltwerk_core_delete_archived_spec,
+            schaltwerk_core_get_archive_max_entries,
+            schaltwerk_core_set_archive_max_entries,
             // Open apps commands (from module)
             schaltwerk::open_apps::get_default_open_app,
             schaltwerk::open_apps::set_default_open_app,
