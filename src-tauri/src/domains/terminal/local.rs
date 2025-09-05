@@ -278,7 +278,10 @@ impl LocalPtyAdapter {
                                 // Handle output emission with ANSI-aware buffering
                                 drop(terminals); // release lock before awaits below
                                 
-                                let is_tui = Self::is_tui_application(&id_clone);
+                                // Treat agent top terminals as TUI to minimize latency.
+                                // Our terminal IDs follow session-{name}-top/orchestrator-*-top, so
+                                // rely on is_agent_terminal rather than substring-matching agent names.
+                                let is_tui = Self::is_tui_application(&id_clone) || Self::is_agent_terminal(&id_clone);
                                 
                                 // Use coalescing for all terminals, but with different delays
                                 // TUI apps get zero delay to maintain responsiveness

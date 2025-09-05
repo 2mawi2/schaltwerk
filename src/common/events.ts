@@ -79,7 +79,7 @@ export type EventPayloadMap = {
   [SchaltEvent.TerminalUnstuck]: { terminal_id: string, time: string }
   [SchaltEvent.SessionActivity]: SessionActivityUpdated
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
-  [SchaltEvent.TerminalClosed]: { session_id: string }
+  [SchaltEvent.TerminalClosed]: { terminal_id: string }
   [SchaltEvent.ProjectReady]: string
   [SchaltEvent.OpenDirectory]: string
   [SchaltEvent.OpenHome]: string

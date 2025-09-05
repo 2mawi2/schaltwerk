@@ -57,6 +57,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const writeQueueRef = useRef<string[]>([]);
     const rafIdRef = useRef<number | null>(null);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // When renderer isn't ready, avoid unbounded recursive timers by keeping a single retry timer
+    const notReadyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const unlistenRef = useRef<UnlistenFn | null>(null);
     const unlistenPromiseRef = useRef<Promise<UnlistenFn> | null>(null);
     const mountedRef = useRef<boolean>(false);
@@ -310,19 +312,57 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     webglAddon.current = new WebglAddon();
                                     terminal.current?.loadAddon(webglAddon.current);
                                     console.info(`[Terminal ${terminalId}] WebGL acceleration restored`);
-                                    // Will mark ready after next fit below
+                                    // Ensure we refit and re-enable renderer readiness deterministically
+                                    requestAnimationFrame(() => {
+                                        if (cancelled || !fitAddon.current || !terminal.current || !termRef.current) {
+                                            rendererReadyRef.current = true; // unblock flush even if we can't fit
+                                            return;
+                                        }
+                                        try {
+                                            fitAddon.current.fit();
+                                            const { cols, rows } = terminal.current;
+                                            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                                                lastSize.current = { cols, rows };
+                                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                            }
+                                        } catch (e) {
+                                            console.warn(`[Terminal ${terminalId}] Fit after WebGL restoration failed:`, e);
+                                        } finally {
+                                            rendererReadyRef.current = true;
+                                        }
+                                    });
                                 } else {
                                     console.warn(`[Terminal ${terminalId}] WebGL context restoration failed, permanently using canvas renderer`);
                                     webglAddon.current.dispose();
                                     webglAddon.current = null;
-                                    // Canvas active; mark ready after next fit
+                                    // Canvas active; mark ready and trigger a fit so sizing is correct
+                                    requestAnimationFrame(() => {
+                                        try {
+                                            if (fitAddon.current && terminal.current) {
+                                                fitAddon.current.fit();
+                                                const { cols, rows } = terminal.current;
+                                                if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
+                                                    lastSize.current = { cols, rows };
+                                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                                }
+                                            }
+                                        } catch (e) {
+                                            console.warn(`[Terminal ${terminalId}] Fit after WebGL fallback failed:`, e);
+                                        } finally {
+                                            rendererReadyRef.current = true;
+                                        }
+                                    });
                                 }
                             } catch (restoreError) {
                                 console.warn(`[Terminal ${terminalId}] WebGL restoration failed:`, restoreError);
                                 if (webglAddon.current) {
-                                    webglAddon.current.dispose();
+                                    try { webglAddon.current.dispose(); } catch (e) {
+                                        console.warn(`[Terminal ${terminalId}] Failed to dispose WebGL addon after restoration error:`, e);
+                                    }
                                     webglAddon.current = null;
                                 }
+                                // Unblock flush to avoid stalling output
+                                rendererReadyRef.current = true;
                             }
                         }
                     }, 1000);
@@ -541,7 +581,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const flushQueuedWrites = () => {
             // Defer until renderer is ready to avoid xterm renderer invariants
             if (!rendererReadyRef.current) {
-                setTimeout(() => flushQueuedWrites(), 16);
+                if (!mountedRef.current) return;
+                if (!notReadyRetryTimerRef.current) {
+                    notReadyRetryTimerRef.current = setTimeout(() => {
+                        notReadyRetryTimerRef.current = null;
+                        flushQueuedWrites();
+                    }, 16);
+                }
                 return;
             }
             if (flushTimerRef.current) return;
@@ -573,7 +619,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
             if (!rendererReadyRef.current) {
-                setTimeout(() => flushNow(), 16);
+                if (!mountedRef.current) return;
+                if (!notReadyRetryTimerRef.current) {
+                    notReadyRetryTimerRef.current = setTimeout(() => {
+                        notReadyRetryTimerRef.current = null;
+                        flushNow();
+                    }, 16);
+                }
                 return;
             }
             if (!terminal.current || writeQueueRef.current.length === 0) return;
@@ -982,6 +1034,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             writeQueueRef.current = [];
             if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
             if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+            if (notReadyRetryTimerRef.current) { clearTimeout(notReadyRetryTimerRef.current); notReadyRetryTimerRef.current = null; }
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
