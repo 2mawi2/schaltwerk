@@ -10,23 +10,18 @@ interface TabProps {
 
 export function Tab({ projectPath, projectName, isActive, onSelect, onClose }: TabProps) {
   return (
-    <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties & { WebkitAppRegion?: string }}>
-      <UnifiedTab
-        id={projectPath}
-        label={projectName}
-        isActive={isActive}
-        onSelect={onSelect}
-        onClose={onClose}
-        title={projectPath}
-        className="h-full"
-        style={{
-          paddingTop: '4px',
-          paddingBottom: '4px',
-          fontSize: '11px',
-          minWidth: '80px',
-          maxWidth: '160px'
-        }}
-      />
-    </div>
+    <UnifiedTab
+      id={projectPath}
+      label={projectName}
+      isActive={isActive}
+      onSelect={onSelect}
+      onClose={onClose}
+      title={projectPath}
+      className="h-full"
+      style={{
+        maxWidth: '150px',
+        minWidth: '100px'
+      }}
+    />
   )
 }

@@ -104,7 +104,7 @@ export function TopBar({
         )}
         
         {/* Tabs */}
-        <div data-no-drag>
+        <div className="h-full overflow-x-auto scrollbar-hide" data-no-drag>
           <TabBar
             tabs={tabs}
             activeTabPath={activeTabPath}
