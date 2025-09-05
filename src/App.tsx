@@ -739,6 +739,11 @@ export default function App() {
          setNewSessionOpen(false)
          setStartFromSpecName(null)
 
+        // Dispatch event for other components to know a session was created from spec
+        window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
+          detail: { name: firstSessionName }
+        }))
+
         // Small delay to ensure sessions list is updated
         await new Promise(resolve => setTimeout(resolve, 200))
 
@@ -817,6 +822,11 @@ export default function App() {
             }
           }
         }
+        
+        // Dispatch event for other components to know a session was created
+        window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
+          detail: { name: data.name }
+        }))
         
         // For regular (non-spec) sessions with multiple versions, proactively create terminals
         // This addresses the lazy initialization issue where only the first selected session 

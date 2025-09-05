@@ -406,12 +406,159 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         }
     }, [isModalOpen, sessionsByColumn, focusedSessionId])
 
-    // Handle keyboard navigation
+    // Store the last created session ID to focus on after refresh
+    const lastCreatedSessionRef = useRef<string | null>(null)
+    const waitingForNewSessionRef = useRef<boolean>(false)
+
+    // Listen for session creation events to track newly created sessions
+    useEffect(() => {
+        if (!isModalOpen) return
+
+        const handleNewSessionCreated = (event: CustomEvent<{ name: string }>) => {
+            lastCreatedSessionRef.current = event.detail.name
+            waitingForNewSessionRef.current = true
+        }
+
+        const handleNewSpecCreated = (event: CustomEvent<{ name: string }>) => {
+            lastCreatedSessionRef.current = event.detail.name
+            waitingForNewSessionRef.current = true
+        }
+
+        // Custom events for session creation
+        window.addEventListener('schaltwerk:session-created', handleNewSessionCreated as EventListener)
+        window.addEventListener('schaltwerk:spec-created', handleNewSpecCreated as EventListener)
+
+        return () => {
+            window.removeEventListener('schaltwerk:session-created', handleNewSessionCreated as EventListener)
+            window.removeEventListener('schaltwerk:spec-created', handleNewSpecCreated as EventListener)
+        }
+    }, [isModalOpen])
+
+    // Focus on newly created session after sessions are refreshed
+    useEffect(() => {
+        if (!isModalOpen || !waitingForNewSessionRef.current || !lastCreatedSessionRef.current) return
+        
+        const newSessionId = lastCreatedSessionRef.current
+        const newSession = allSessions.find(s => s.info.session_id === newSessionId)
+        
+        if (newSession) {
+            const position = findSessionPosition(newSessionId, sessionsByColumn)
+            if (position) {
+                setFocusedSessionId(newSessionId)
+                setFocusedPosition(position)
+                setSelectedForDetails({ 
+                    kind: 'session', 
+                    payload: newSessionId, 
+                    isSpec: newSession.info.session_state === 'spec' 
+                })
+                waitingForNewSessionRef.current = false
+                lastCreatedSessionRef.current = null
+            }
+        }
+    }, [isModalOpen, allSessions, sessionsByColumn])
+
+    // Handle keyboard navigation and shortcuts
     useEffect(() => {
         if (!isModalOpen) return
 
         const handleKeyDown = (event: KeyboardEvent) => {
-            // Only handle arrow keys
+            // Get current focused session for actions
+            const currentFocusedId = focusedSessionIdRef.current
+            const currentSession = currentFocusedId ? allSessions.find(s => s.info.session_id === currentFocusedId) : null
+            
+            // Handle session management shortcuts
+            if (event.metaKey || event.ctrlKey) {
+                switch (event.key.toLowerCase()) {
+                    case 'n':
+                        event.preventDefault()
+                        event.stopPropagation()
+                        if (event.shiftKey) {
+                            // Cmd+Shift+N: Create new spec
+                            handleCreateDraft()
+                        } else {
+                            // Cmd+N: Create new session
+                            window.dispatchEvent(new CustomEvent('schaltwerk:new-session'))
+                        }
+                        return
+                    
+                    case 'r':
+                        // Cmd+R: Mark as ready/reviewed
+                        if (currentSession && currentSession.info.session_state === 'running' && !currentSession.info.ready_to_merge) {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            handleMarkReady(currentSession.info.session_id, currentSession.info.has_uncommitted_changes ?? false)
+                        }
+                        return
+                    
+                    case 'd':
+                        // Cmd+D or Cmd+Shift+D: Cancel session
+                        if (currentSession) {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            if (currentSession.info.session_state === 'spec') {
+                                // Delete spec immediately (no confirmation)
+                                handleDeleteSpec(currentSession.info.session_id)
+                            } else {
+                                // Cancel session (with or without confirmation)
+                                const immediate = event.shiftKey // Shift+Cmd+D forces immediate cancel
+                                if (!immediate && currentSession.info.has_uncommitted_changes) {
+                                    const confirmed = confirm('This session has uncommitted changes. Cancel anyway?')
+                                    if (!confirmed) return
+                                }
+                                handleCancel(currentSession.info.session_id, !immediate && (currentSession.info.has_uncommitted_changes ?? false))
+                            }
+                        }
+                        return
+                        
+                    case 's':
+                        // Cmd+S: Convert to spec
+                        if (currentSession && currentSession.info.session_state === 'running') {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            handleConvertToSpec(currentSession.info.session_id)
+                        }
+                        return
+                        
+                    case 'g':
+                        // Cmd+G: Open diff viewer (handled by handleOpenDiff via right panel)
+                        if (currentSession) {
+                            event.preventDefault()
+                            event.stopPropagation()
+                            // This will be handled by RightPanelTabs if it's active
+                            // We just need to ensure the session is selected
+                            if (currentSession.info.session_id !== selectedForDetails?.payload) {
+                                setSelectedForDetails({ 
+                                    kind: 'session', 
+                                    payload: currentSession.info.session_id, 
+                                    isSpec: currentSession.info.session_state === 'spec' 
+                                })
+                            }
+                        }
+                        return
+                }
+            }
+            
+            // Handle Enter key to start/focus session
+            if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+                if (currentSession) {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (currentSession.info.session_state === 'spec') {
+                        // Start spec as new session
+                        handleRunDraft(currentSession.info.session_id)
+                    } else {
+                        // Focus/select the running session
+                        setSelectedForDetails({ 
+                            kind: 'session', 
+                            payload: currentSession.info.session_id, 
+                            isSpec: false 
+                        })
+                    }
+                }
+                return
+            }
+            
+            // Only handle arrow keys for navigation
             if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return
             
             // Handle both regular navigation and Cmd+navigation
@@ -422,11 +569,11 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             
             // Use refs to get current values
             const currentColumns = sessionsByColumnRef.current
-            let currentFocusedId = focusedSessionIdRef.current
+            let navFocusedId = focusedSessionIdRef.current
             let currentPosition = focusedPositionRef.current
             
             // If no session is focused, select the first one
-            if (!currentFocusedId) {
+            if (!navFocusedId) {
                 for (let col = 0; col < currentColumns.length; col++) {
                     if (currentColumns[col].length > 0) {
                         const firstSession = currentColumns[col][0]
@@ -463,7 +610,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                     if (isMetaNavigation) {
                         // Cmd+Down: Find next session in any column
                         const allSessions = currentColumns.flat()
-                        const currentIndex = allSessions.findIndex(s => s.info.session_id === currentFocusedId)
+                        const currentIndex = allSessions.findIndex(s => s.info.session_id === navFocusedId)
                         if (currentIndex !== -1) {
                             const targetIndex = (currentIndex + 1) % allSessions.length
                             const targetSession = allSessions[targetIndex]
@@ -488,7 +635,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                     if (isMetaNavigation) {
                         // Cmd+Up: Find previous session in any column
                         const allSessions = currentColumns.flat()
-                        const currentIndex = allSessions.findIndex(s => s.info.session_id === currentFocusedId)
+                        const currentIndex = allSessions.findIndex(s => s.info.session_id === navFocusedId)
                         if (currentIndex !== -1) {
                             const targetIndex = (currentIndex - 1 + allSessions.length) % allSessions.length
                             const targetSession = allSessions[targetIndex]
@@ -540,7 +687,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         return () => {
             window.removeEventListener('keydown', handleKeyDown)
         }
-    }, [isModalOpen]) // Only depend on isModalOpen!
+    }, [isModalOpen, allSessions, selectedForDetails, handleMarkReady, handleUnmarkReady, handleCancel, handleConvertToSpec, handleRunDraft, handleDeleteSpec, handleCreateDraft]) // Add necessary dependencies
 
     const handleSessionClick = useCallback((sessionId: string) => {
         // Find position of clicked session

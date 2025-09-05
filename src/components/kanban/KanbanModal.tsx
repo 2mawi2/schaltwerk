@@ -40,6 +40,20 @@ export function KanbanModal({ isOpen, onClose }: KanbanModalProps) {
             return
         }
         
+        // Allow Enter key for session actions
+        if (e.key === 'Enter') {
+            return
+        }
+        
+        // Allow keyboard shortcuts with Cmd/Ctrl modifier
+        if (e.metaKey || e.ctrlKey) {
+            // Allow specific shortcuts that should work in kanban mode
+            const allowedShortcuts = ['n', 'r', 'd', 's', 'g']
+            if (allowedShortcuts.includes(e.key.toLowerCase())) {
+                return
+            }
+        }
+        
         // Stop all other keyboard events from reaching the main app
         e.stopPropagation()
       }
