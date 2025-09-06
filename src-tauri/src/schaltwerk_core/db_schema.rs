@@ -280,6 +280,6 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         "CREATE INDEX IF NOT EXISTS idx_archived_specs_archived_at ON archived_specs(archived_at)",
         [],
     )?;
-
+    
     Ok(())
 }

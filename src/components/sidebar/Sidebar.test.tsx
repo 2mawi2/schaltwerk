@@ -579,9 +579,9 @@ describe('Sidebar', () => {
       render(<Sidebar />, { wrapper: createTestWrapper() })
 
       await waitFor(() => {
-        // Search within any button containing the session id; account for possible label text
-        const btn = screen.getAllByRole('button').find(b => (b.textContent || '').indexOf('minimal-session') !== -1)
-        expect(!!btn).toBe(true)
+        // Search for session element using data attribute
+        const sessionElement = document.querySelector('[data-session-id="minimal-session"]')
+        expect(!!sessionElement).toBe(true)
       })
     })
 
@@ -699,10 +699,10 @@ describe('Sidebar', () => {
       })
 
       // Click on session-2 to trigger selection
-      const session2Button = screen.getByText('Test Session 2').closest('button')
+      const session2Button = screen.getByText('Test Session 2').closest('[data-session-id]') as HTMLElement
       expect(session2Button).toBeInTheDocument()
       
-      session2Button!.click()
+      session2Button.click()
 
       // Wait for the selection state to update and DOM to reflect it
       await waitFor(() => {

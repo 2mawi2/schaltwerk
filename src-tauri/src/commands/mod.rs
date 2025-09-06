@@ -14,6 +14,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_list_enriched_sessions,
     schaltwerk_core_list_enriched_sessions_sorted,
     schaltwerk_core_create_session,
+    schaltwerk_core_rename_version_group,
     schaltwerk_core_list_sessions,
     schaltwerk_core_get_session,
     schaltwerk_core_get_session_agent_content,

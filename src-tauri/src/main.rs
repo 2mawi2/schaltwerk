@@ -653,6 +653,7 @@ fn main() {
             start_mcp_server,
             // Para core commands
             schaltwerk_core_create_session,
+            schaltwerk_core_rename_version_group,
             schaltwerk_core_list_sessions,
             schaltwerk_core_list_enriched_sessions,
             schaltwerk_core_list_enriched_sessions_sorted,

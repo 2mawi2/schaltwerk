@@ -151,14 +151,14 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Select the spec session
-    const specButton = screen.getByText('spec-session').closest('button')
+    const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
     if (specButton) {
       specButton.click()
     }
 
     // Wait for selection to be updated
     await waitFor(() => {
-      const selectedSpecButton = screen.getByText('spec-session').closest('button')
+      const selectedSpecButton = screen.getByText('spec-session').closest('[role="button"]')
       expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
@@ -176,14 +176,14 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Now select the running session
-    const runningButton = screen.getByText('running-session').closest('button')
+    const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
     if (runningButton) {
       runningButton.click()
     }
 
     // Wait for selection to be updated
     await waitFor(() => {
-      const selectedRunningButton = screen.getByText('running-session').closest('button')
+      const selectedRunningButton = screen.getByText('running-session').closest('[role="button"]')
       expect(selectedRunningButton?.className).toContain('session-ring')
     })
 
@@ -237,14 +237,14 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Select the spec session
-    const specButton = screen.getByText('spec-session').closest('button')
+    const specButton = screen.getByText('spec-session').closest('[role="button"]') as HTMLElement | null
     if (specButton) {
       specButton.click()
     }
 
     // Wait for selection to be updated
     await waitFor(() => {
-      const selectedSpecButton = screen.getByText('spec-session').closest('button')
+      const selectedSpecButton = screen.getByText('spec-session').closest('[role="button"]')
       expect(selectedSpecButton?.className).toContain('session-ring')
     })
 
@@ -257,14 +257,14 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Now select the running session
-    const runningButton = screen.getByText('running-session').closest('button')
+    const runningButton = screen.getByText('running-session').closest('[role="button"]') as HTMLElement | null
     if (runningButton) {
       runningButton.click()
     }
 
     // Wait for selection to be updated
     await waitFor(() => {
-      const selectedRunningButton = screen.getByText('running-session').closest('button')
+      const selectedRunningButton = screen.getByText('running-session').closest('[role="button"]')
       expect(selectedRunningButton?.className).toContain('session-ring')
     })
 

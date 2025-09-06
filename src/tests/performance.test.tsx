@@ -116,7 +116,7 @@ describe('Session Switching Performance', () => {
 
         performance.now() - startTime // Track initial load time
 
-        const session10Button = screen.getByText('session-10').closest('button')
+        const session10Button = screen.getByText('session-10').closest('[role="button"]')
         expect(session10Button).toBeInTheDocument()
 
         const switchStartTime = performance.now()
@@ -129,7 +129,7 @@ describe('Session Switching Performance', () => {
 
         expect(switchTime).toBeLessThan(500)
 
-        const session25Button = screen.getByText('session-25').closest('button')
+        const session25Button = screen.getByText('session-25').closest('[role="button"]')
         const secondSwitchStart = performance.now()
         fireEvent.click(session25Button!)
         

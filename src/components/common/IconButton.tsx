@@ -9,7 +9,7 @@ interface IconButtonProps {
   tooltip?: string;
   disabled?: boolean;
   className?: string;
-  variant?: 'default' | 'danger' | 'success';
+  variant?: 'default' | 'danger' | 'success' | 'warning';
   stopPropagation?: boolean;
 }
 
@@ -76,6 +76,8 @@ export function IconButton({
         return 'bg-green-800/60 hover:bg-green-700/60 text-green-300';
       case 'danger':
         return 'bg-red-800/60 hover:bg-red-700/60 text-red-300';
+      case 'warning':
+        return 'bg-yellow-800/60 hover:bg-yellow-700/60 text-yellow-300';
       default:
         return 'bg-slate-700/60 hover:bg-slate-600/60 text-slate-300';
     }

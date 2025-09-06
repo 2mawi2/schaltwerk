@@ -5,14 +5,13 @@ use chrono::{Utc, TimeZone};
 use log::{info, warn};
 use crate::schaltwerk_core::{
     database::Database,
-    types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
+    types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode, ArchivedSpec},
     session_db::SessionDbManager,
     session_cache::{SessionCacheManager, clear_session_prompted_non_test},
     session_utils::SessionUtils,
 };
 use crate::domains::git;
 use crate::schaltwerk_core::db_archived_specs::ArchivedSpecMethods as _;
-use crate::schaltwerk_core::types::ArchivedSpec;
 use uuid::Uuid;
 
 pub struct SessionManager {
@@ -1175,8 +1174,10 @@ impl SessionManager {
             conn.execute("DELETE FROM sessions WHERE id = ?1", params![session.id])?;
         }
 
-        // Enforce archive limit per repo
+        // Enforce archive limit for this repository
         self.db_manager.db.enforce_archive_limit(&self.repo_path)?;
+
+        log::info!("Archived spec session '{name}' and removed from active sessions");
         Ok(())
     }
 

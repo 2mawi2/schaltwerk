@@ -220,7 +220,8 @@ describe('useSettings', () => {
       }
 
       const sessionPreferences = {
-        auto_commit_on_review: false
+        auto_commit_on_review: false,
+        skip_confirmation_modals: false
       }
 
       const saveResult = await act(async () => {
@@ -280,7 +281,8 @@ describe('useSettings', () => {
       }
 
       const sessionPreferences = {
-        auto_commit_on_review: false
+        auto_commit_on_review: false,
+        skip_confirmation_modals: false
       }
 
       const saveResult = await act(async () => {

@@ -52,6 +52,7 @@ impl SettingsService {
             "cursor" | "cursor-agent" => self.settings.agent_env_vars.cursor.clone(),
             "opencode" => self.settings.agent_env_vars.opencode.clone(),
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
+            "qwen" => self.settings.agent_env_vars.qwen.clone(),
             "codex" => self.settings.agent_env_vars.codex.clone(),
             _ => HashMap::new(),
         }
@@ -63,6 +64,7 @@ impl SettingsService {
             "cursor" | "cursor-agent" => self.settings.agent_env_vars.cursor = env_vars,
             "opencode" => self.settings.agent_env_vars.opencode = env_vars,
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
+            "qwen" => self.settings.agent_env_vars.qwen = env_vars,
             "codex" => self.settings.agent_env_vars.codex = env_vars,
             _ => return Err(SettingsServiceError::UnknownAgentType(agent_type.to_string())),
         }
@@ -90,6 +92,7 @@ impl SettingsService {
             "cursor" | "cursor-agent" => self.settings.agent_cli_args.cursor.clone(),
             "opencode" => self.settings.agent_cli_args.opencode.clone(),
             "gemini" => self.settings.agent_cli_args.gemini.clone(),
+            "qwen" => self.settings.agent_cli_args.qwen.clone(),
             "codex" => self.settings.agent_cli_args.codex.clone(),
             _ => String::new(),
         }
@@ -103,6 +106,7 @@ impl SettingsService {
             "cursor" | "cursor-agent" => self.settings.agent_cli_args.cursor = cli_args.clone(),
             "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
             "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
+            "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
             "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
@@ -167,6 +171,7 @@ impl SettingsService {
             "cursor-agent" => self.settings.agent_binaries.cursor_agent.clone(),
             "opencode" => self.settings.agent_binaries.opencode.clone(),
             "gemini" => self.settings.agent_binaries.gemini.clone(),
+            "qwen" => self.settings.agent_binaries.qwen.clone(),
             "codex" => self.settings.agent_binaries.codex.clone(),
             _ => None,
         }
@@ -178,6 +183,7 @@ impl SettingsService {
             "cursor-agent" => self.settings.agent_binaries.cursor_agent = Some(config),
             "opencode" => self.settings.agent_binaries.opencode = Some(config),
             "gemini" => self.settings.agent_binaries.gemini = Some(config),
+            "qwen" => self.settings.agent_binaries.qwen = Some(config),
             "codex" => self.settings.agent_binaries.codex = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
@@ -196,6 +202,9 @@ impl SettingsService {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.gemini {
+            configs.push(config.clone());
+        }
+        if let Some(config) = &self.settings.agent_binaries.qwen {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.codex {

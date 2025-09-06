@@ -10,10 +10,12 @@ import { useSessions } from '../../contexts/SessionsContext'
 import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
-import { SessionButton } from './SessionButton'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
 import { calculateFilterCounts } from '../../utils/sessionFilters'
 import { SessionHints } from '../hints/SessionHints'
+import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
+import { SessionVersionGroup } from './SessionVersionGroup'
+import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { VscRefresh, VscCode } from 'react-icons/vsc'
@@ -119,6 +121,16 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         sessionName: '',
         hasUncommitted: false
     })
+    
+    const [promoteVersionModal, setPromoteVersionModal] = useState<{
+        open: boolean
+        versionGroup: SessionVersionGroupType | null
+        selectedSessionId: string
+    }>({
+        open: false,
+        versionGroup: null,
+        selectedSessionId: ''
+    })
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
@@ -196,7 +208,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     
 
     const handleSelectSession = async (index: number) => {
-        const session = sessions[index]
+        // When sessions are grouped, we need to find the correct session by flattening the groups
+        const sessionGroups = groupSessionsByVersion(sessions)
+        const flattenedSessions: any[] = []
+        
+        for (const group of sessionGroups) {
+            for (const version of group.versions) {
+                flattenedSessions.push(version.session)
+            }
+        }
+        
+        const session = flattenedSessions[index]
         if (session) {
             const s = session.info
             
@@ -372,6 +394,58 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
+    const handleSelectBestVersion = (groupBaseName: string, selectedSessionId: string) => {
+        const sessionGroups = groupSessionsByVersion(sessions)
+        const targetGroup = sessionGroups.find(g => g.baseName === groupBaseName)
+        
+        if (!targetGroup) {
+            console.error(`Version group ${groupBaseName} not found`)
+            return
+        }
+
+        // Check if user has opted out of confirmation for this project
+        const noConfirmKey = `promote-version-no-confirm-${groupBaseName}`
+        const skipConfirmation = localStorage.getItem(noConfirmKey) === 'true'
+        
+        if (skipConfirmation) {
+            // Execute directly without confirmation
+            executeVersionPromotion(targetGroup, selectedSessionId)
+        } else {
+            // Show confirmation modal
+            setPromoteVersionModal({
+                open: true,
+                versionGroup: targetGroup,
+                selectedSessionId
+            })
+        }
+    }
+
+    const executeVersionPromotion = async (targetGroup: SessionVersionGroupType, selectedSessionId: string) => {
+        try {
+            await selectBestVersionAndCleanup(targetGroup, selectedSessionId, invoke, reloadSessions)
+        } catch (error) {
+            console.error('Failed to select best version:', error)
+            alert(`Failed to select best version: ${error}`)
+        }
+    }
+
+    const handlePromoteSelectedVersion = () => {
+        if (selection.kind !== 'session' || !selection.payload) {
+            return // No session selected
+        }
+
+        const sessionGroups = groupSessionsByVersion(sessions)
+        const targetGroup = sessionGroups.find(g => 
+            g.isVersionGroup && g.versions.some(v => v.session.info.session_id === selection.payload)
+        )
+        
+        if (!targetGroup) {
+            return // Selected session is not within a version group
+        }
+
+        handleSelectBestVersion(targetGroup.baseName, selection.payload)
+    }
+
     // Project switching functions
     const handleSelectPrevProject = () => {
         if (onSelectPrevProject && openTabs.length > 1) {
@@ -456,6 +530,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onCancelSelectedSession: handleCancelSelectedSession,
         onMarkSelectedSessionReady: handleMarkSelectedSessionReady,
         onSpecSession: handleSpecSelectedSession,
+        onPromoteSelectedVersion: handlePromoteSelectedVersion,
         sessionCount: sessions.length,
         onSelectPrevSession: selectPrev,
         onSelectNextSession: selectNext,
@@ -781,97 +856,108 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 {sessions.length === 0 && !loading ? (
                     <div className="text-center text-slate-500 py-4">No active agents</div>
                 ) : (
-                    sessions.map((session, i) => {
-                        const isSelected = selection.kind === 'session' && selection.payload === session.info.session_id
-                        const hasStuckTerminals = idleByTime.has(session.info.session_id)
-                        const hasFollowUpMessage = sessionsWithNotifications.has(session.info.session_id)
-
-                        return (
-                            <SessionButton
-                                key={`c-${session.info.session_id}`}
-                                session={session}
-                                index={i}
-                                isSelected={isSelected}
-                                hasStuckTerminals={hasStuckTerminals}
-                                hasFollowUpMessage={hasFollowUpMessage}
-                                onSelect={handleSelectSession}
-                                onMarkReady={(sessionId, hasUncommitted) => {
-                                    handleMarkReady(sessionId, hasUncommitted)
-                                }}
-                                onUnmarkReady={async (sessionId) => {
-                                    try {
-                                        await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
-                                        // Reload both regular and spec sessions to avoid dropping specs
-                                        await Promise.all([
-                                            invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
-                                        ])
-                                        await reloadSessions()
-                                    } catch (err) {
-                                        console.error('Failed to unmark reviewed session:', err)
-                                    }
-                                }}
-                                onCancel={(sessionId, hasUncommitted) => {
-                                    window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
-                                        detail: {
-                                            action: 'cancel',
-                                            sessionId,
-                                            sessionName: sessionId,
-                                            sessionDisplayName: session.info.display_name || session.info.session_id,
-                                            branch: session.info.branch,
-                                            hasUncommittedChanges: hasUncommitted
+                    (() => {
+                        const sessionGroups = groupSessionsByVersion(sessions)
+                        let globalIndex = 0
+                        
+                        return sessionGroups.map((group) => {
+                            const groupStartIndex = globalIndex
+                            globalIndex += group.versions.length
+                            
+                            return (
+                                <SessionVersionGroup
+                                    key={group.baseName}
+                                    group={group}
+                                    selection={selection}
+                                    startIndex={groupStartIndex}
+                                    hasStuckTerminals={(sessionId: string) => idleByTime.has(sessionId)}
+                                    hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
+                                    onSelect={handleSelectSession}
+                                    onMarkReady={(sessionId, hasUncommitted) => {
+                                        handleMarkReady(sessionId, hasUncommitted)
+                                    }}
+                                    onUnmarkReady={async (sessionId) => {
+                                        try {
+                                            await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
+                                            // Reload both regular and spec sessions to avoid dropping specs
+                                            await Promise.all([
+                                                invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
+                                                invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
+                                            ])
+                                            await reloadSessions()
+                                        } catch (err) {
+                                            console.error('Failed to unmark reviewed session:', err)
                                         }
-                                    }))
-                                }}
-                                onConvertToSpec={(sessionId) => {
-                                    // Only allow converting running sessions to specs, not reviewed sessions
-                                    if (isReviewed(session.info)) {
-                                        console.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
-                                        return
-                                    }
-                                    // Open confirmation modal
-                                    setConvertToDraftModal({
-                                        open: true,
-                                        sessionName: sessionId,
-                                        sessionDisplayName: session.info.display_name || session.info.session_id,
-                                        hasUncommitted: session.info.has_uncommitted_changes || false
-                                    })
-                                }}
-                                onRunDraft={async (sessionId) => {
-                                    try {
-                                        // Open Start agent modal prefilled from spec
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
-                                    } catch (err) {
-                                        console.error('Failed to open start modal from spec:', err)
-                                    }
-                                }}
-                                onDeleteSpec={async (sessionId) => {
-                                    try {
-                                        await invoke('schaltwerk_core_cancel_session', { name: sessionId })
-                                        // Reload both regular and spec sessions to ensure remaining specs persist
-                                        await Promise.all([
-                                            invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                            invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
-                                        ])
-                                        await reloadSessions()
-                                    } catch (err) {
-                                        console.error('Failed to delete spec:', err)
-                                    }
-                                }}
-                                onReset={async (sessionId) => {
-                                    const currentSelection = selection.kind === 'session' && selection.payload === sessionId
-                                        ? selection
-                                        : { kind: 'session' as const, payload: sessionId }
-                                    await resetSession(currentSelection, terminals)
-                                }}
-                                onSwitchModel={(sessionId) => {
-                                    setSwitchModelSessionId(sessionId)
-                                    setSwitchOrchestratorModal(true)
-                                }}
-                                isResetting={isResetting}
-                            />
-                        )
-                    })
+                                    }}
+                                    onCancel={(sessionId, hasUncommitted) => {
+                                        const session = sessions.find(s => s.info.session_id === sessionId)
+                                        if (session) {
+                                            window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
+                                                detail: {
+                                                    action: 'cancel',
+                                                    sessionId,
+                                                    sessionName: sessionId,
+                                                    sessionDisplayName: session.info.display_name || session.info.session_id,
+                                                    branch: session.info.branch,
+                                                    hasUncommittedChanges: hasUncommitted
+                                                }
+                                            }))
+                                        }
+                                    }}
+                                    onConvertToSpec={(sessionId) => {
+                                        const session = sessions.find(s => s.info.session_id === sessionId)
+                                        if (session) {
+                                            // Only allow converting running sessions to specs, not reviewed sessions
+                                            if (isReviewed(session.info)) {
+                                                console.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
+                                                return
+                                            }
+                                            // Open confirmation modal
+                                            setConvertToDraftModal({
+                                                open: true,
+                                                sessionName: sessionId,
+                                                sessionDisplayName: session.info.display_name || session.info.session_id,
+                                                hasUncommitted: session.info.has_uncommitted_changes || false
+                                            })
+                                        }
+                                    }}
+                                    onRunDraft={async (sessionId) => {
+                                        try {
+                                            // Open Start agent modal prefilled from spec
+                                            window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
+                                        } catch (err) {
+                                            console.error('Failed to open start modal from spec:', err)
+                                        }
+                                    }}
+                                    onDeleteSpec={async (sessionId) => {
+                                        try {
+                                            await invoke('schaltwerk_core_cancel_session', { name: sessionId })
+                                            // Reload both regular and spec sessions to ensure remaining specs persist
+                                            await Promise.all([
+                                                invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
+                                                invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
+                                            ])
+                                            await reloadSessions()
+                                        } catch (err) {
+                                            console.error('Failed to delete spec:', err)
+                                        }
+                                    }}
+                                    onSelectBestVersion={handleSelectBestVersion}
+                                    onReset={async (sessionId) => {
+                                        const currentSelection = selection.kind === 'session' && selection.payload === sessionId
+                                            ? selection
+                                            : { kind: 'session' as const, payload: sessionId }
+                                        await resetSession(currentSelection, terminals)
+                                    }}
+                                    onSwitchModel={(sessionId) => {
+                                        setSwitchModelSessionId(sessionId)
+                                        setSwitchOrchestratorModal(true)
+                                    }}
+                                    isResetting={isResetting}
+                                />
+                            )
+                        })
+                    })()
                 )}
             </div>
             
@@ -900,7 +986,19 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     await reloadSessions()
                 }}
             />
-            
+            <PromoteVersionConfirmation
+                open={promoteVersionModal.open}
+                versionGroup={promoteVersionModal.versionGroup}
+                selectedSessionId={promoteVersionModal.selectedSessionId}
+                onClose={() => setPromoteVersionModal({ open: false, versionGroup: null, selectedSessionId: '' })}
+                onConfirm={() => {
+                    const { versionGroup, selectedSessionId } = promoteVersionModal
+                    setPromoteVersionModal({ open: false, versionGroup: null, selectedSessionId: '' })
+                    if (versionGroup) {
+                        executeVersionPromotion(versionGroup, selectedSessionId)
+                    }
+                }}
+            />
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal}
                 onClose={() => {

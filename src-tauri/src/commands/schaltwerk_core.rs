@@ -5,6 +5,37 @@ use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 
+// Helper functions for session name parsing
+fn is_version_suffix(s: &str) -> bool {
+    s.starts_with('v') && s.len() > 1 && s[1..].chars().all(|c| c.is_numeric())
+}
+
+fn is_versioned_session_name(name: &str) -> bool {
+    let parts: Vec<&str> = name.split('_').collect();
+    parts.len() == 3 && parts.last().is_some_and(|p| is_version_suffix(p))
+}
+
+fn matches_version_pattern(name: &str, base_name: &str) -> bool {
+    if let Some(suffix) = name.strip_prefix(&format!("{base_name}_v")) {
+        suffix.chars().all(|c| c.is_numeric())
+    } else {
+        false
+    }
+}
+
+fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, String) {
+    if let Some(settings_manager) = SETTINGS_MANAGER.get() {
+        let manager = futures::executor::block_on(settings_manager.lock());
+        let env_vars = manager.get_agent_env_vars(agent_type)
+            .into_iter()
+            .collect::<Vec<(String, String)>>();
+        let cli_args = manager.get_agent_cli_args(agent_type);
+        (env_vars, cli_args)
+    } else {
+        (vec![], String::new())
+    }
+}
+
 // Normalize user-provided CLI text copied from rich sources:
 // - Replace Unicode dash-like characters with ASCII '-'
 // - Replace various Unicode spaces (including NBSP) with ASCII ' '
@@ -262,9 +293,11 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
 
 #[tauri::command]
 pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String, prompt: Option<String>, base_branch: Option<String>, user_edited_name: Option<bool>) -> Result<Session, String> {
-    let looks_docker_style = name.contains('_') && name.split('_').count() == 2;
     let was_user_edited = user_edited_name.unwrap_or(false);
-    let was_auto_generated = looks_docker_style && !was_user_edited;
+    // Consider it auto-generated if:
+    // 1. It looks like a Docker-style name (adjective_noun format) AND wasn't user edited
+    // 2. OR it wasn't user edited at all (even custom names should be renamed if not edited)
+    let was_auto_generated = !was_user_edited;
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
@@ -293,8 +326,10 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
 
     drop(core_lock);
     
-    if was_auto_generated {
-        log::info!("Session '{name}' was auto-generated, spawning name generation agent");
+    // Only trigger auto-rename for non-versioned Docker-style names
+    // Versioned names (ending with _v1, _v2, etc.) will be handled by group rename
+    if was_auto_generated && !is_versioned_session_name(&name) {
+        log::info!("Session '{name}' was auto-generated (non-versioned), spawning name generation agent");
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             
@@ -414,6 +449,133 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
     }
 
     Ok(session)
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_rename_version_group(app: tauri::AppHandle, base_name: String, prompt: String, _base_branch: Option<String>) -> Result<(), String> {
+    log::info!("=== RENAME VERSION GROUP CALLED ===");
+    log::info!("Base name: '{base_name}'");
+    
+    // Get all sessions with this base name pattern
+    let core = get_schaltwerk_core().await?;
+    let core_lock = core.lock().await;
+    let manager = core_lock.session_manager();
+    
+    // Find all versions of this session
+    let all_sessions = manager.list_sessions()
+        .map_err(|e| format!("Failed to list sessions: {e}"))?;
+    
+    let version_sessions: Vec<Session> = all_sessions
+        .into_iter()
+        .filter(|s| matches_version_pattern(&s.name, &base_name))
+        .collect();
+    
+    if version_sessions.is_empty() {
+        log::warn!("No version sessions found for base name '{base_name}'");
+        return Ok(());
+    }
+    
+    log::info!("Found {} version sessions for base name '{base_name}'", version_sessions.len());
+    
+    // Get the first session's details for name generation
+    let first_session = &version_sessions[0];
+    let db = core_lock.db.clone();
+    let worktree_path = first_session.worktree_path.clone();
+    let repo_path = first_session.repository_path.clone();
+    let current_branch = first_session.branch.clone();
+    let agent_type = first_session.original_agent_type.clone()
+        .unwrap_or_else(|| db.get_agent_type().unwrap_or_else(|_| "claude".to_string()));
+    
+    drop(core_lock);
+    
+    // Get environment variables for the agent
+    let (mut env_vars, cli_args) = get_agent_env_and_cli_args(&agent_type);
+    
+    // Add project-specific environment variables
+    if let Ok(project_env_vars) = db.get_project_environment_variables(&repo_path) {
+        for (key, value) in project_env_vars { env_vars.push((key, value)); }
+    }
+    
+    // Generate a display name once for the entire group
+    let generated_name = match schaltwerk::schaltwerk_core::naming::generate_display_name(
+        &db,
+        &first_session.id,
+        &worktree_path,
+        &agent_type,
+        Some(&prompt),
+        Some(&cli_args),
+        &env_vars,
+    ).await {
+        Ok(Some(name)) => name,
+        Ok(None) => {
+            log::warn!("Name generation returned None for version group '{base_name}'");
+            return Ok(());
+        }
+        Err(e) => {
+            log::error!("Failed to generate display name for version group '{base_name}': {e}");
+            return Err(format!("Failed to generate name: {e}"));
+        }
+    };
+    
+    log::info!("Generated name '{generated_name}' for version group '{base_name}'");
+    
+    // Now rename all versions with the new base name
+    let core = get_schaltwerk_core().await?;
+    let core_lock = core.lock().await;
+    
+    for session in version_sessions {
+        // Extract version suffix
+        let version_suffix = session.name.strip_prefix(&base_name).unwrap_or("");
+        let new_session_name = format!("{generated_name}{version_suffix}");
+        let new_branch_name = format!("schaltwerk/{new_session_name}");
+        
+        log::info!("Renaming session '{}' to '{new_session_name}'", session.name);
+        
+        // Update display name in database
+        if let Err(e) = db.update_session_display_name(&session.id, &new_session_name) {
+            log::error!("Failed to update display name for session '{}': {e}", session.name);
+        }
+        
+        // Rename the git branch
+        if current_branch != new_branch_name {
+            match schaltwerk::domains::git::branches::rename_branch(&repo_path, &session.branch, &new_branch_name) {
+                Ok(()) => {
+                    log::info!("Renamed branch from '{}' to '{new_branch_name}'", session.branch);
+                    
+                    // Update worktree to use new branch
+                    if let Err(e) = schaltwerk::domains::git::worktrees::update_worktree_branch(&session.worktree_path, &new_branch_name) {
+                        log::error!("Failed to update worktree for new branch: {e}");
+                    }
+                    
+                    // Update branch name in database
+                    if let Err(e) = db.update_session_branch(&session.id, &new_branch_name) {
+                        log::error!("Failed to update branch name in database: {e}");
+                    }
+                }
+                Err(e) => {
+                    log::warn!("Could not rename branch for session '{}': {e}", session.name);
+                }
+            }
+        }
+        
+        // Clear pending name generation flag
+        let _ = db.set_pending_name_generation(&session.id, false);
+    }
+    
+    drop(core_lock);
+    
+    // Emit sessions refreshed event
+    let core = get_schaltwerk_core().await?;
+    let core_lock = core.lock().await;
+    let manager = core_lock.session_manager();
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        log::info!("Emitting sessions-refreshed event after version group rename");
+        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
+            log::warn!("Could not emit sessions refreshed: {e}");
+        }
+    }
+    
+    Ok(())
 }
 
 #[tauri::command]
@@ -1488,4 +1650,54 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
     
     log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
     Ok(command)
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_version_suffix() {
+        // Valid version suffixes
+        assert!(is_version_suffix("v1"));
+        assert!(is_version_suffix("v2"));
+        assert!(is_version_suffix("v10"));
+        assert!(is_version_suffix("v123"));
+        
+        // Invalid version suffixes
+        assert!(!is_version_suffix("v"));
+        assert!(!is_version_suffix("v1a"));
+        assert!(!is_version_suffix("1"));
+        assert!(!is_version_suffix("version1"));
+        assert!(!is_version_suffix("v_1"));
+    }
+
+    #[test]
+    fn test_is_versioned_session_name() {
+        // Valid versioned names
+        assert!(is_versioned_session_name("peaceful_robinson_v1"));
+        assert!(is_versioned_session_name("happy_tesla_v2"));
+        assert!(is_versioned_session_name("angry_einstein_v10"));
+        
+        // Invalid versioned names
+        assert!(!is_versioned_session_name("peaceful_robinson"));
+        assert!(!is_versioned_session_name("single"));
+        assert!(!is_versioned_session_name("peaceful_robinson_version1"));
+        assert!(!is_versioned_session_name("too_many_parts_v1"));
+    }
+
+    #[test]
+    fn test_matches_version_pattern() {
+        // Valid matches
+        assert!(matches_version_pattern("peaceful_robinson_v1", "peaceful_robinson"));
+        assert!(matches_version_pattern("peaceful_robinson_v2", "peaceful_robinson"));
+        assert!(matches_version_pattern("happy_tesla_v10", "happy_tesla"));
+        
+        // Invalid matches
+        assert!(!matches_version_pattern("peaceful_robinson", "peaceful_robinson"));
+        assert!(!matches_version_pattern("peaceful_robinson_v1", "happy_tesla"));
+        assert!(!matches_version_pattern("peaceful_robinson_version1", "peaceful_robinson"));
+        assert!(!matches_version_pattern("peaceful_robinson_v1a", "peaceful_robinson"));
+    }
 }

@@ -5,6 +5,7 @@ import {
   VscClose, 
   VscDiscard, 
   VscArchive,
+  VscStarFull,
   VscRefresh,
   VscCode
 } from 'react-icons/vsc';
@@ -15,12 +16,16 @@ interface SessionActionsProps {
   sessionId: string;
   hasUncommittedChanges?: boolean;
   branch?: string;
+  showPromoteIcon?: boolean;
   onRunSpec?: (sessionId: string) => void;
   onDeleteSpec?: (sessionId: string) => void;
   onMarkReviewed?: (sessionId: string, hasUncommitted: boolean) => void;
   onUnmarkReviewed?: (sessionId: string) => void;
   onCancel?: (sessionId: string, hasUncommitted: boolean) => void;
   onConvertToSpec?: (sessionId: string) => void;
+  onPromoteVersion?: () => void;
+  onPromoteVersionHover?: () => void;
+  onPromoteVersionHoverEnd?: () => void;
   onReset?: (sessionId: string) => void;
   onSwitchModel?: (sessionId: string) => void;
   isResetting?: boolean;
@@ -30,12 +35,16 @@ export function SessionActions({
   sessionState,
   sessionId,
   hasUncommittedChanges = false,
+  showPromoteIcon = false,
   onRunSpec,
   onDeleteSpec,
   onMarkReviewed,
   onUnmarkReviewed,
   onCancel,
   onConvertToSpec,
+  onPromoteVersion,
+  onPromoteVersionHover,
+  onPromoteVersionHoverEnd,
   onReset,
   onSwitchModel,
   isResetting = false,
@@ -72,6 +81,21 @@ export function SessionActions({
       {/* Running state actions */}
       {sessionState === 'running' && (
         <>
+          {showPromoteIcon && onPromoteVersion && (
+            <div
+              onMouseEnter={onPromoteVersionHover}
+              onMouseLeave={onPromoteVersionHoverEnd}
+              className="inline-block"
+            >
+              <IconButton
+                icon={<VscStarFull />}
+                onClick={onPromoteVersion}
+                ariaLabel="Promote as best version"
+                tooltip="Promote as best version and delete others (⌘B)"
+                variant="warning"
+              />
+            </div>
+          )}
           {onSwitchModel && (
             <IconButton
               icon={<VscCode />}

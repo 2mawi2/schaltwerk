@@ -8,6 +8,7 @@ pub struct AgentCliArgs {
     pub cursor: String,
     pub opencode: String,
     pub gemini: String,
+    pub qwen: String,
     pub codex: String,
 }
 
@@ -17,6 +18,7 @@ pub struct AgentEnvVars {
     pub cursor: HashMap<String, String>,
     pub opencode: HashMap<String, String>,
     pub gemini: HashMap<String, String>,
+    pub qwen: HashMap<String, String>,
     pub codex: HashMap<String, String>,
 }
 
@@ -34,6 +36,8 @@ pub struct DiffViewPreferences {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct SessionPreferences {
     pub auto_commit_on_review: bool,
+    #[serde(default)]
+    pub skip_confirmation_modals: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
@@ -57,6 +61,7 @@ pub struct AgentBinaryConfigs {
     pub cursor_agent: Option<AgentBinaryConfig>,
     pub opencode: Option<AgentBinaryConfig>,
     pub gemini: Option<AgentBinaryConfig>,
+    pub qwen: Option<AgentBinaryConfig>,
     pub codex: Option<AgentBinaryConfig>,
 }
 

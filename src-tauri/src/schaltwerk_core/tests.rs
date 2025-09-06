@@ -20,7 +20,9 @@ use crate::domains::sessions::db_sessions::SessionMethods;
 use crate::schaltwerk_core::db_git_stats::GitStatsMethods;
 #[cfg(test)]
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
+#[cfg(test)]
 use crate::schaltwerk_core::types::SessionState;
+#[cfg(test)]
 use crate::schaltwerk_core::db_archived_specs::ArchivedSpecMethods;
 
 #[cfg(test)]
@@ -976,3 +978,4 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(converted.spec_content, Some(spec_content.to_string()));
         assert_eq!(converted.session_state, SessionState::Spec);
     }
+

@@ -14,6 +14,10 @@ interface SessionButtonProps {
     isSelected: boolean
     hasStuckTerminals: boolean
     hasFollowUpMessage: boolean
+    isWithinVersionGroup?: boolean
+    showPromoteIcon?: boolean
+    willBeDeleted?: boolean
+    isPromotionPreview?: boolean
     onSelect: (index: number) => void
     onMarkReady: (sessionId: string, hasUncommitted: boolean) => void
     onUnmarkReady: (sessionId: string) => void
@@ -21,6 +25,9 @@ interface SessionButtonProps {
     onConvertToSpec?: (sessionId: string) => void
     onRunDraft?: (sessionId: string) => void
     onDeleteSpec?: (sessionId: string) => void
+    onPromoteVersion?: () => void
+    onPromoteVersionHover?: () => void
+    onPromoteVersionHoverEnd?: () => void
     onReset?: (sessionId: string) => void
     onSwitchModel?: (sessionId: string) => void
     isResetting?: boolean
@@ -43,6 +50,10 @@ export const SessionButton = memo<SessionButtonProps>(({
     isSelected, 
     hasStuckTerminals,
     hasFollowUpMessage,
+    isWithinVersionGroup = false,
+    showPromoteIcon = false,
+    willBeDeleted = false,
+    isPromotionPreview = false,
     onSelect,
     onMarkReady,
     onUnmarkReady,
@@ -50,6 +61,9 @@ export const SessionButton = memo<SessionButtonProps>(({
     onConvertToSpec,
     onRunDraft,
     onDeleteSpec,
+    onPromoteVersion,
+    onPromoteVersionHover,
+    onPromoteVersionHoverEnd,
     onReset,
     onSwitchModel,
     isResetting = false
@@ -77,6 +91,14 @@ export const SessionButton = memo<SessionButtonProps>(({
 
     // Get background color based on state
     const getStateBackground = () => {
+        if (willBeDeleted) {
+            // Sessions that will be deleted: faded with red tint
+            return 'border-red-600/50 bg-red-950/20 opacity-30 transition-all duration-200'
+        }
+        if (isPromotionPreview) {
+            // Selected session being promoted: green emphasis
+            return 'session-ring session-ring-green border-transparent shadow-lg shadow-green-400/20'
+        }
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
         if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
@@ -85,12 +107,20 @@ export const SessionButton = memo<SessionButtonProps>(({
     }
 
     return (
-        <button
+        <div
+            role="button"
+            tabIndex={0}
             onClick={() => onSelect(index)}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    onSelect(index)
+                }
+            }}
             data-session-id={session.info.session_id}
             data-session-selected={isSelected ? 'true' : 'false'}
             className={clsx(
-                'group w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300',
+                'group w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300 cursor-pointer',
                 getStateBackground(),
                 hasStuckTerminals && !isSelected &&
                     'ring-2 ring-amber-400/50 shadow-lg shadow-amber-400/20 bg-amber-950/20',
@@ -155,18 +185,24 @@ export const SessionButton = memo<SessionButtonProps>(({
             {sessionState !== 'spec' && (
                 <div className="flex items-center justify-between gap-2 -mt-0.5">
                     <div className="text-[11px] text-slate-400 truncate max-w-[50%]">{s.branch}</div>
-                    <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                    <div 
+                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                    >
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                             sessionId={s.session_id}
                             hasUncommittedChanges={s.has_uncommitted_changes}
                             branch={s.branch}
+                            showPromoteIcon={showPromoteIcon}
                             onRunSpec={onRunDraft}
                             onDeleteSpec={onDeleteSpec}
                             onMarkReviewed={onMarkReady}
                             onUnmarkReviewed={onUnmarkReady}
                             onCancel={onCancel}
                             onConvertToSpec={onConvertToSpec}
+                            onPromoteVersion={onPromoteVersion}
+                            onPromoteVersionHover={onPromoteVersionHover}
+                            onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
                             onReset={onReset}
                             onSwitchModel={onSwitchModel}
                             isResetting={isResetting}
@@ -175,18 +211,24 @@ export const SessionButton = memo<SessionButtonProps>(({
                 </div>
             )}
             {sessionState === 'spec' && (
-                <div className="flex items-center justify-end -mt-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                <div 
+                    className="flex items-center justify-end -mt-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
+                >
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                         sessionId={s.session_id}
                         hasUncommittedChanges={s.has_uncommitted_changes}
                         branch={s.branch}
+                        showPromoteIcon={showPromoteIcon}
                         onRunSpec={onRunDraft}
                         onDeleteSpec={onDeleteSpec}
                         onMarkReviewed={onMarkReady}
                         onUnmarkReviewed={onUnmarkReady}
                         onCancel={onCancel}
                         onConvertToSpec={onConvertToSpec}
+                        onPromoteVersion={onPromoteVersion}
+                        onPromoteVersionHover={onPromoteVersionHover}
+                        onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
                         onReset={onReset}
                         onSwitchModel={onSwitchModel}
                         isResetting={isResetting}
@@ -219,7 +261,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                     )}
                 </div>
                 <div className="flex items-center gap-2">
-                    {agentType && sessionState !== 'spec' && (
+                    {agentType && sessionState !== 'spec' && !isWithinVersionGroup && (
                         <span
                             className={clsx(
                                 'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
@@ -245,6 +287,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                     <div>Last: {lastActivity}</div>
                 </div>
             </div>
-        </button>
+        </div>
     )
 })

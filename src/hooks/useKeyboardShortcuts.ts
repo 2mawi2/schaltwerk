@@ -6,6 +6,7 @@ interface KeyboardShortcutsProps {
     onCancelSelectedSession?: (immediate: boolean) => void
     onMarkSelectedSessionReady?: () => void
     onSpecSession?: () => void
+    onPromoteSelectedVersion?: () => void
     sessionCount: number
     onSelectPrevSession?: () => void
     onSelectNextSession?: () => void
@@ -20,7 +21,7 @@ interface KeyboardShortcutsProps {
     isDiffViewerOpen?: boolean
 }
 
-export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen }: KeyboardShortcutsProps) {
+export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onPromoteSelectedVersion, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen }: KeyboardShortcutsProps) {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
             const modifierKey = navigator.userAgent.includes('Mac') ? event.metaKey : event.ctrlKey
@@ -100,6 +101,11 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
                  if (onSpecSession && !event.shiftKey) {
                      event.preventDefault()
                      onSpecSession()
+                 }
+             } else if (key === 'b' || key === 'B') {
+                 if (onPromoteSelectedVersion) {
+                     event.preventDefault()
+                     onPromoteSelectedVersion()
                  }
              } else if (key === 't' || key === 'T') {
                 if (onFocusClaude) {

@@ -16,6 +16,7 @@ interface TerminalSettings {
 
 interface SessionPreferences {
     auto_commit_on_review: boolean
+    skip_confirmation_modals: boolean
 }
 
 export interface SettingsSaveResult {
@@ -191,10 +192,10 @@ export const useSettings = () => {
     const loadSessionPreferences = useCallback(async (): Promise<SessionPreferences> => {
         try {
             const preferences = await invoke<SessionPreferences>('get_session_preferences')
-            return preferences || { auto_commit_on_review: false }
+            return preferences || { auto_commit_on_review: false, skip_confirmation_modals: false }
         } catch (error) {
             console.error('Failed to load session preferences:', error)
-            return { auto_commit_on_review: false }
+            return { auto_commit_on_review: false, skip_confirmation_modals: false }
         }
     }, [])
     

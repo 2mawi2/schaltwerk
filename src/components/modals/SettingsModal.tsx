@@ -132,6 +132,7 @@ interface TerminalSettings {
 
 interface SessionPreferences {
     auto_commit_on_review: boolean
+    skip_confirmation_modals: boolean
 }
 
 export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
@@ -147,7 +148,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         shellArgs: []
     })
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
-        auto_commit_on_review: false
+        auto_commit_on_review: false,
+        skip_confirmation_modals: false
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
@@ -1267,6 +1269,10 @@ fi`}
                                      <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + R</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
+                                     <span className="text-slate-300">Promote Best Version (in group)</span>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + B</kbd>
+                                 </li>
+                                 <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Convert Session to Spec</span>
                                      <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + S</kbd>
                                  </li>
@@ -1588,17 +1594,48 @@ fi`}
                                     </div>
                                 </div>
                             </label>
+                            
+                            <label className="flex items-center gap-3 cursor-pointer">
+                                <input
+                                    type="checkbox"
+                                    checked={sessionPreferences.skip_confirmation_modals}
+                                    onChange={(e) => setSessionPreferences({
+                                        ...sessionPreferences,
+                                        skip_confirmation_modals: e.target.checked
+                                    })}
+                                    className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
+                                />
+                                <div className="flex-1">
+                                    <div className="text-sm font-medium text-slate-200">
+                                        Skip Confirmation Dialogs
+                                    </div>
+                                    <div className="text-xs text-slate-400 mt-1">
+                                        Skip confirmation dialogs for actions that ask "Don't ask me again".
+                                        When enabled, previously dismissed confirmations will be automatically applied.
+                                    </div>
+                                </div>
+                            </label>
                         </div>
                         
                         <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-xs text-slate-400">
-                                <strong>How it works:</strong>
+                                <strong>Auto-commit on Review:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>When enabled: Sessions with uncommitted changes are automatically committed when marked as reviewed</li>
                                     <li>When disabled: A confirmation dialog appears with the option to commit changes</li>
                                     <li>Commit message format: "Mark session {'{session_name}'} as reviewed"</li>
                                     <li>All file types are included: modified, deleted, and new untracked files</li>
                                 </ul>
+                                
+                                <div className="mt-3">
+                                    <strong>Skip Confirmation Dialogs:</strong>
+                                    <ul className="mt-2 space-y-1 list-disc list-inside">
+                                        <li>Applies to dialogs that have "Don't ask me again" options</li>
+                                        <li>When enabled, actions will proceed without confirmation</li>
+                                        <li>Useful for experienced users who want faster workflow</li>
+                                        <li>Can be toggled at any time to restore confirmation prompts</li>
+                                    </ul>
+                                </div>
                             </div>
                         </div>
                     </div>

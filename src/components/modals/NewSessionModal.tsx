@@ -171,8 +171,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
-                setVersionCount(1)
                 setShowVersionMenu(false)
+                // Default version count is 1 (not from settings anymore)
+                setVersionCount(1)
                 // Initialize configuration from persisted state to reflect real settings
                 getPersistedSessionDefaults()
                     .then(({ baseBranch, agentType, skipPermissions }) => {

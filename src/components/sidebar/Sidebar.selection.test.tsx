@@ -102,7 +102,7 @@ describe('Sidebar - Selection on State Changes', () => {
         
         // Verify spec is selected
         await waitFor(() => {
-            const draftButton = screen.getByText('spec-agent').closest('button')
+            const draftButton = screen.getByText('spec-agent').closest('[role="button"]')
             expect(draftButton).toHaveClass('session-ring-blue')
         })
 
@@ -112,7 +112,7 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Verify first running session is automatically selected
         await waitFor(() => {
-            const running1Button = screen.getByText('running-agent-1').closest('button')
+            const running1Button = screen.getByText('running-agent-1').closest('[role="button"]')
             expect(running1Button).toHaveClass('session-ring-blue')
         })
     })
@@ -225,7 +225,7 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Verify agent is still selected (since it's still visible in "all" filter)
         await waitFor(() => {
-            const taskButton = screen.getByText('agent-1').closest('button')
+            const taskButton = screen.getByText('agent-1').closest('[role="button"]')
             expect(taskButton).toHaveClass('session-ring-blue')
         })
     })
@@ -277,7 +277,7 @@ describe('Sidebar - Selection on State Changes', () => {
         
         // Verify spec agent is automatically selected (first visible)
         await waitFor(() => {
-            const draftButton = screen.getByText('spec-agent').closest('button')
+            const draftButton = screen.getByText('spec-agent').closest('[role="button"]')
             expect(draftButton).toHaveClass('session-ring-blue')
         })
 
@@ -288,7 +288,7 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Verify running agent is automatically selected
         await waitFor(() => {
-            const runningButton = screen.getByText('running-agent').closest('button')
+            const runningButton = screen.getByText('running-agent').closest('[role="button"]')
             expect(runningButton).toHaveClass('session-ring-blue')
         })
     })
