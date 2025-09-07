@@ -85,14 +85,13 @@ export function ConvertToSpecConfirmation({
       open={open}
       title="Convert Session to Spec"
       body={body}
-      confirmText={loading ? 'Converting...' : 'Convert to Spec'}
+      confirmText="Convert to Spec"
       confirmTitle="Convert to spec (Enter)"
       cancelText="Cancel"
       cancelTitle="Cancel (Esc)"
       onConfirm={handleConfirm}
       onCancel={onClose}
       confirmDisabled={loading}
-      loading={loading}
       variant="warning"
     />
   )

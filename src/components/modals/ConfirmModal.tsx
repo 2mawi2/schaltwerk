@@ -1,5 +1,4 @@
 import { useEffect, useCallback, useRef } from 'react'
-import { AnimatedText } from '../common/AnimatedText'
 
 interface ConfirmModalProps {
   open: boolean
@@ -98,13 +97,8 @@ export function ConfirmModal({
             className={`${confirmBaseClasses} ${confirmVariantClasses}`}
             title={confirmTitle || 'Confirm (Enter)'}
           >
-{loading && (
-              <div className="mr-2">
-                <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" centered={false} />
-              </div>
-            )}
             <span>{confirmText}</span>
-            {!loading && <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>}
+            <span className="ml-1.5 text-xs opacity-60 group-hover:opacity-100">↵</span>
           </button>
         </div>
       </div>
