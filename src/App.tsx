@@ -24,6 +24,7 @@ import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
+import { useSpecMode } from './hooks/useSpecMode'
 import { useSessions } from './contexts/SessionsContext'
 import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
@@ -68,6 +69,14 @@ export default function App() {
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
+  const { 
+    commanderSpecModeSession, 
+    setCommanderSpecModeSession, 
+    handleExitSpecMode, 
+    handleSpecDeleted, 
+    handleSpecConverted, 
+    toggleSpecMode 
+  } = useSpecMode({ projectPath, selection, sessions })
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -84,11 +93,6 @@ export default function App() {
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsSpec] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
-  // Initialize spec mode state from sessionStorage
-  const [commanderSpecModeSession, setCommanderSpecModeSession] = useState<string | null>(() => {
-    const key = 'default' // Will be updated when projectPath is available
-    return sessionStorage.getItem(`schaltwerk:spec-mode:${key}`)
-  })
   const projectSwitchInProgressRef = useRef(false)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const isKanbanOpenRef = useRef(false)
@@ -485,48 +489,6 @@ export default function App() {
     return () => window.removeEventListener('schaltwerk:new-spec', handler as EventListener)
   }, [])
   
-  // Auto-enter spec mode when a new spec is created
-  useEffect(() => {
-    const handleSpecCreated = (event: CustomEvent<{ name: string }>) => {
-      if (selection.kind === 'orchestrator') {
-        // Automatically switch to the newly created spec in spec mode
-        setCommanderSpecModeSession(event.detail.name)
-      }
-    }
-    window.addEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
-    return () => window.removeEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
-  }, [selection])
-  
-  // Handle MCP spec updates - detect new specs and focus them in spec mode
-  useEffect(() => {
-    const handleSessionsRefreshed = () => {
-      // Check if we're in orchestrator and spec mode
-      if (selection.kind === 'orchestrator' && commanderSpecModeSession) {
-        // Check if a new spec was created that we should focus
-              const specSessions = sessions.filter(session =>
-                session.info.status === 'spec' || session.info.session_state === 'spec'
-              )
-
-        // If we don't have a valid spec selected but specs exist, select the first one
-        if (!specSessions.find(p => p.info.session_id === commanderSpecModeSession) && specSessions.length > 0) {
-          // The current spec doesn't exist anymore, switch to the newest spec
-          const newestSpec = specSessions.sort((a, b) => {
-            const aTime = new Date(a.info.created_at || '').getTime()
-            const bTime = new Date(b.info.created_at || '').getTime()
-            return bTime - aTime  // Sort newest first
-          })[0]
-          setCommanderSpecModeSession(newestSpec.info.session_id)
-        }
-      }
-    }
-
-    // Use Tauri's listen for the sessions-refreshed event
-    const unlisten = listenEvent(SchaltEvent.SessionsRefreshed, handleSessionsRefreshed)
-
-    return () => {
-      unlisten.then(unlistenFn => unlistenFn())
-    }
-  }, [selection, commanderSpecModeSession, sessions])
   
   // Load spec mode state when project changes
   useEffect(() => {
@@ -613,58 +575,6 @@ export default function App() {
     return () => window.removeEventListener('schaltwerk:start-agent-from-spec', handler as EventListener)
   }, [fetchSessionForPrefill])
 
-  // Handle entering spec mode
-  useEffect(() => {
-    const handleEnterSpecMode = (event: CustomEvent<{ sessionName: string }>) => {
-      const { sessionName } = event.detail
-      if (sessionName && selection.kind === 'orchestrator') {
-        setCommanderSpecModeSession(sessionName)
-      }
-    }
-
-    window.addEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
-    return () => window.removeEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
-  }, [selection])
-
-  // Handle exiting spec mode
-  const handleExitSpecMode = useCallback(() => {
-    setCommanderSpecModeSession(null)
-    // Clear from sessionStorage
-    if (projectPath) {
-      const projectId = getBasename(projectPath)
-      sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
-    }
-  }, [projectPath])
-  
-  
-  // Handle keyboard shortcut for spec mode (Cmd+Shift+S in orchestrator)
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
-        if (selection.kind === 'orchestrator') {
-          e.preventDefault()
-          if (commanderSpecModeSession) {
-            // Exit spec mode
-            setCommanderSpecModeSession(null)
-          } else {
-            // Enter spec mode with first available spec
-            const specSessions = sessions.filter(session =>
-              session.info.status === 'spec' || session.info.session_state === 'spec'
-            )
-            if (specSessions.length > 0) {
-              setCommanderSpecModeSession(specSessions[0].info.session_id)
-            } else {
-              // No specs available, create a new one
-              window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
-            }
-          }
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selection, commanderSpecModeSession, sessions])
 
   const handleDeleteSpec = async () => {
     if (!currentSession) return
@@ -675,9 +585,7 @@ export default function App() {
       setDeleteSpecModalOpen(false)
       
       // If the deleted spec was the current spec mode session, exit spec mode
-      if (commanderSpecModeSession === currentSession.name) {
-        setCommanderSpecModeSession(null)
-      }
+      handleSpecDeleted(currentSession.name)
       
       // Reload sessions to update the list
       await invoke('schaltwerk_core_list_enriched_sessions')
@@ -742,9 +650,7 @@ export default function App() {
        // If starting from an existing spec via the modal, convert that spec to active
        if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
          // If the spec being converted is the current spec mode session, exit spec mode
-         if (commanderSpecModeSession === data.name) {
-           setCommanderSpecModeSession(null)
-         }
+         handleSpecConverted(data.name)
          
          // Ensure the spec content reflects latest prompt before starting
          const contentToUse = data.prompt || ''
@@ -1170,22 +1076,7 @@ export default function App() {
           projectPath,
           invoke
         })}
-        onToggleSpecMode={() => {
-          if (commanderSpecModeSession) {
-            setCommanderSpecModeSession(null)
-          } else {
-            // Select the first available spec
-            const specSessions = sessions.filter(session =>
-              session.info.status === 'spec' || session.info.session_state === 'spec'
-            )
-            if (specSessions.length > 0) {
-              setCommanderSpecModeSession(specSessions[0].info.session_id)
-            } else {
-              // No specs available, could show a message or create a new spec
-              window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
-            }
-          }
-        }}
+        onToggleSpecMode={toggleSpecMode}
         isRightPanelCollapsed={isRightCollapsed}
         onToggleRightPanel={toggleRightPanelCollapsed}
       />
