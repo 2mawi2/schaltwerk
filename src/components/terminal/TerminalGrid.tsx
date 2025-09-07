@@ -29,7 +29,7 @@ export function TerminalGrid() {
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
     const containerRef = useRef<HTMLDivElement>(null)
-    const [collapsedPercent, setCollapsedPercent] = useState<number>(8) // fallback ~ header height in %
+    const [collapsedPercent, setCollapsedPercent] = useState<number>(10) // fallback ~ header height in % with safety margin
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
     const initialPersistKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
     const initialIsCollapsed = (sessionStorage.getItem(`schaltwerk:terminal-grid:collapsed:${initialPersistKey}`) === 'true')
@@ -216,8 +216,11 @@ export function TerminalGrid() {
             const total = container.clientHeight
             if (total <= 0) return
             const headerEl = container.querySelector('[data-bottom-header]') as HTMLElement | null
-            const headerHeight = headerEl?.offsetHeight || 30
-            const pct = Math.max(2, Math.min(15, (headerHeight / total) * 100))
+            const headerHeight = headerEl?.offsetHeight || 40
+            // Ensure minimum 40px for the header bar (including borders)
+            const minPixels = 44 // 40px header + 2px border + 2px gradient line
+            const minPct = (minPixels / total) * 100
+            const pct = Math.max(minPct, Math.min(15, (headerHeight / total) * 100))
             // Only update if significantly different to avoid cascading resizes
             if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
@@ -369,7 +372,7 @@ export function TerminalGrid() {
                 className="h-full flex flex-col" 
                 direction="vertical" 
                 sizes={effectiveSizes || [72, 28]} 
-                minSize={[120, 24]} 
+                minSize={[120, isBottomCollapsed ? 44 : 24]} 
                 gutterSize={8}
                 onDragStart={() => {
                     document.body.classList.add('is-split-dragging')
@@ -465,7 +468,7 @@ export function TerminalGrid() {
                         </TerminalErrorBoundary>
                     </div>
                 </div>
-                <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
+                <div className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
                      <div
                          data-bottom-header
                          className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
