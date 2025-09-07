@@ -31,6 +31,7 @@ interface TerminalProps {
     isCommander?: boolean;
     agentType?: string;
     onTerminalClick?: () => void;
+    isBackground?: boolean;
 }
 
 export interface TerminalHandle {
@@ -38,7 +39,7 @@ export interface TerminalHandle {
     showSearch: () => void;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick, isBackground = false }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver, addTimeout } = useCleanupRegistry();
     const termRef = useRef<HTMLDivElement>(null);
@@ -129,7 +130,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // TUI agents (cursor, opencode, gemini, etc.) show their own cursor, so we hide xterm's cursor to prevent visual conflict
         const isTuiAgent = agentType === 'cursor' || agentType === 'cursor-agent' || agentType === 'opencode' || agentType === 'gemini'
         // Agent conversation terminals (session/orchestrator top) need deeper scrollback to preserve history
+        // Background terminals use reduced scrollback to save memory
         const isAgentTopTerminal = (terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-')))
+        
+        let scrollbackLines = 10000; // Default for bottom terminals
+        if (isBackground) {
+            scrollbackLines = 5000; // Reduced for background terminals
+        } else if (isAgentTopTerminal) {
+            scrollbackLines = 50000; // Full history for active agent terminals
+        }
 
         terminal.current = new XTerm({
             theme: {
@@ -159,7 +168,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cursorBlink: !isTuiAgent,
             cursorStyle: isTuiAgent ? 'underline' : 'block',
             cursorInactiveStyle: 'outline',
-            scrollback: isAgentTopTerminal ? 50000 : 10000,
+            scrollback: scrollbackLines,
             // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
@@ -227,6 +236,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Add WebGL addon AFTER terminal is opened to DOM
         // This is critical for proper rendering with TUI applications
         const setupWebGLAcceleration = () => {
+            // Skip WebGL for background terminals to save memory
+            if (isBackground) {
+                console.info(`[Terminal ${terminalId}] Background terminal, using canvas renderer`);
+                return false;
+            }
+            
             // Detect if this is a new build - if so, force cleanup
             const isNewBuild = lastBuildId !== null && lastBuildId !== BUILD_ID;
             if (isNewBuild) {
@@ -443,40 +458,50 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
         
-        // Use ResizeObserver to deterministically initialize renderer when container is ready
-        // This avoids polling and ensures we initialize exactly once when dimensions are available
-        const rendererObserver = new ResizeObserver((entries?: any) => {
-            if (rendererInitialized) return;
-            try {
-                const entry = entries && entries[0];
-                const w = entry?.contentRect?.width ?? termRef.current?.clientWidth ?? 0;
-                const h = entry?.contentRect?.height ?? termRef.current?.clientHeight ?? 0;
-                if (w > 0 && h > 0) {
-                    // Container now has dimensions, initialize renderer
-                    // Disconnect immediately after first successful observation to prevent interference
-                    rendererObserver.disconnect();
-                    requestAnimationFrame(() => {
-                        initializeRenderer();
-                    });
-                }
-            } catch (e) {
-                // Fallback: try immediate initialization based on current element size
-                if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
-                    try { rendererObserver.disconnect(); } catch {
-                        // Intentionally ignore observer disconnect errors
+        // Skip resize observers for background terminals to save resources
+        let rendererObserver: ResizeObserver | null = null;
+        if (!isBackground) {
+            // Use ResizeObserver to deterministically initialize renderer when container is ready
+            // This avoids polling and ensures we initialize exactly once when dimensions are available
+            rendererObserver = new ResizeObserver((entries?: any) => {
+                if (rendererInitialized) return;
+                try {
+                    const entry = entries && entries[0];
+                    const w = entry?.contentRect?.width ?? termRef.current?.clientWidth ?? 0;
+                    const h = entry?.contentRect?.height ?? termRef.current?.clientHeight ?? 0;
+                    if (w > 0 && h > 0) {
+                        // Container now has dimensions, initialize renderer
+                        // Disconnect immediately after first successful observation to prevent interference
+                        rendererObserver?.disconnect();
+                        requestAnimationFrame(() => {
+                            initializeRenderer();
+                        });
                     }
-                    requestAnimationFrame(() => initializeRenderer());
+                } catch (e) {
+                    // Fallback: try immediate initialization based on current element size
+                    if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
+                        try { rendererObserver?.disconnect(); } catch {
+                            // Intentionally ignore observer disconnect errors
+                        }
+                        requestAnimationFrame(() => initializeRenderer());
+                    }
                 }
-            }
-        });
-        
-        // Start observing the terminal container
-        rendererObserver.observe(termRef.current);
+            });
+            
+            // Start observing the terminal container
+            rendererObserver.observe(termRef.current);
+        } else {
+            // For background terminals, initialize immediately with default size
+            requestAnimationFrame(() => {
+                initializeRenderer();
+            });
+        }
 
         // Use IntersectionObserver to catch hidden->visible transitions (e.g., collapsed panels)
         // and trigger a definitive fit+resize when the terminal becomes visible.
+        // Skip for background terminals since they're always hidden
         let visibilityObserver: IntersectionObserver | null = null;
-        if (typeof IntersectionObserver !== 'undefined' && termRef.current) {
+        if (!isBackground && typeof IntersectionObserver !== 'undefined' && termRef.current) {
             visibilityObserver = new IntersectionObserver((entries) => {
                 const entry = entries[0];
                 if (!entry || !entry.isIntersecting) return;
@@ -501,7 +526,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         requestAnimationFrame(() => {
             if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                 // If we already have dimensions, disconnect the observer and initialize
-                rendererObserver.disconnect();
+                rendererObserver?.disconnect();
                 initializeRenderer();
             }
         });
@@ -1019,7 +1044,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             
             // Only disconnect if not already disconnected (it disconnects itself after initialization)
             try {
-                rendererObserver.disconnect();
+                rendererObserver?.disconnect();
             } catch (e) {
                 // Already disconnected during initialization, this is expected
                 console.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);

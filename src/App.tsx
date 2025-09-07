@@ -698,11 +698,31 @@ export default function App() {
         // Small delay to ensure sessions list is updated
         await new Promise(resolve => setTimeout(resolve, 200))
 
-        // Proactively create terminals for all spec-derived sessions to avoid lazy initialization
-        // This ensures terminals are ready immediately when users switch between versions
-        // instead of waiting for the first selection to trigger creation
+        // Start agents for all spec-derived sessions (this creates terminals with agents)
+        // This ensures all versions start working immediately, not just the focused one
         for (const sessionName of sessionNames) {
-          await createTerminalsForSession(sessionName)
+          try {
+            // Start the AI agent (this creates the top terminal with agent)
+            await invoke('schaltwerk_core_start_claude', {
+              sessionName: sessionName,
+              cols: null,
+              rows: null
+            })
+            
+            // Create the bottom terminal separately (since agent only creates top)
+            const sessionData = await invoke<{ worktree_path: string }>('schaltwerk_core_get_session', { name: sessionName })
+            const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+            const bottomTerminalId = `session-${sanitizedSessionName}-bottom`
+            
+            await invoke('create_terminal', { 
+              id: bottomTerminalId, 
+              cwd: sessionData.worktree_path 
+            })
+            
+            console.log(`[App] Started agent and created terminals for session ${sessionName}`)
+          } catch (e) {
+            console.warn(`[App] Failed to start agent for session ${sessionName}:`, e)
+          }
         }
 
         // Get the started session to get correct worktree path and state

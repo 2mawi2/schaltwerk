@@ -759,9 +759,13 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
             
             // Close associated terminals
             if let Ok(terminal_manager) = get_terminal_manager().await {
+                // Sanitize session name to match frontend's terminal ID generation
+                let sanitized_name = name.chars()
+                    .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+                    .collect::<String>();
                 let ids = vec![
-                    format!("session-{}-top", name),
-                    format!("session-{}-bottom", name),
+                    format!("session-{}-top", sanitized_name),
+                    format!("session-{}-bottom", sanitized_name),
                 ];
                 for id in ids {
                     if let Ok(true) = terminal_manager.terminal_exists(&id).await {
@@ -868,7 +872,11 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
         }
     }
     
-    let terminal_id = format!("session-{session_name}-top");
+    // Sanitize session name to match frontend's terminal ID generation
+    let sanitized_session_name = session_name.chars()
+        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+        .collect::<String>();
+    let terminal_id = format!("session-{sanitized_session_name}-top");
     let terminal_manager = get_terminal_manager().await?;
     
     if terminal_manager.terminal_exists(&terminal_id).await? {
@@ -1381,15 +1389,8 @@ pub async fn schaltwerk_core_create_and_start_spec_session(app: tauri::AppHandle
         }
     }
     
-    // Drop the lock before starting Claude to avoid deadlock
+    // Drop the lock
     drop(core_lock);
-    
-    // Automatically start the AI agent for the newly started spec session
-    log::info!("Auto-starting AI agent for spec session: {name}");
-    if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone(), None, None).await {
-        log::warn!("Failed to auto-start AI agent for spec session {name}: {e}");
-        // Don't fail the whole operation if agent start fails - session is already created
-    }
     
     Ok(())
 }
@@ -1413,15 +1414,8 @@ pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: Str
         }
     }
     
-    // Drop the lock before starting Claude to avoid deadlock
+    // Drop the lock
     drop(core_lock);
-    
-    // Automatically start the AI agent for the newly started spec session
-    log::info!("Auto-starting AI agent for spec session: {name}");
-    if let Err(e) = schaltwerk_core_start_claude(app.clone(), name.clone(), None, None).await {
-        log::warn!("Failed to auto-start AI agent for spec session {name}: {e}");
-        // Don't fail the whole operation if agent start fails - session is already created
-    }
     
     Ok(())
 }

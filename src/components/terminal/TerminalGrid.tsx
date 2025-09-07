@@ -384,8 +384,46 @@ export function TerminalGrid() {
         ? [100 - collapsedPercent, collapsedPercent]
         : sizes
 
+    // Get all running sessions for background terminals
+    const runningSessions = sessions.filter(s => s.info.session_state === 'running')
+    const currentSessionId = selection.kind === 'session' ? selection.payload : null
+    const backgroundSessions = runningSessions.filter(s => s.info.session_id !== currentSessionId)
+
     return (
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
+            {/* Background terminals for all non-active running sessions */}
+            {backgroundSessions.map(session => {
+                const sessionName = session.info.session_id
+                const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+                const topTerminalId = `session-${sanitizedSessionName}-top`
+                const bottomTerminalId = `session-${sanitizedSessionName}-bottom`
+                
+                return (
+                    <div key={`background-${sessionName}`} style={{ display: 'none' }}>
+                        <TerminalErrorBoundary terminalId={topTerminalId}>
+                            <Terminal
+                                terminalId={topTerminalId}
+                                className="h-full w-full"
+                                sessionName={sessionName}
+                                isCommander={false}
+                                agentType={session.info.original_agent_type || 'claude'}
+                                isBackground={true}
+                            />
+                        </TerminalErrorBoundary>
+                        <TerminalErrorBoundary terminalId={bottomTerminalId}>
+                            <Terminal
+                                terminalId={bottomTerminalId}
+                                className="h-full w-full"
+                                sessionName={sessionName}
+                                isCommander={false}
+                                agentType={session.info.original_agent_type || 'claude'}
+                                isBackground={true}
+                            />
+                        </TerminalErrorBoundary>
+                    </div>
+                )
+            })}
+            
             <Split 
                 className="h-full flex flex-col" 
                 direction="vertical" 
