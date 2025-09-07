@@ -12,7 +12,6 @@ import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
 import { calculateFilterCounts } from '../../utils/sessionFilters'
-import { SessionHints } from '../hints/SessionHints'
 import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
@@ -974,10 +973,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 )}
             </div>
             
-            {/* Context-aware hints */}
-            <div className="border-t border-slate-800">
-                <SessionHints />
-            </div>
             
             <MarkReadyConfirmation
                 open={markReadyModal.open}
