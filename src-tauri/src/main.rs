@@ -12,7 +12,6 @@ mod cleanup;
 mod diff_commands;
 mod diff_engine;
 mod file_utils;
-mod file_watcher;
 mod projects;
 mod project_manager;
 mod mcp_api;
@@ -54,7 +53,7 @@ fn get_development_info() -> Result<serde_json::Value, String> {
 
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
 pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::const_new();
-pub static FILE_WATCHER_MANAGER: OnceCell<Arc<file_watcher::FileWatcherManager>> = OnceCell::const_new();
+pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::FileWatcherManager>> = OnceCell::const_new();
 
 
 pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>), String> {
@@ -159,7 +158,7 @@ pub async fn get_schaltwerk_core() -> Result<Arc<tokio::sync::Mutex<schaltwerk::
         })
 }
 
-pub async fn get_file_watcher_manager() -> Result<Arc<file_watcher::FileWatcherManager>, String> {
+pub async fn get_file_watcher_manager() -> Result<Arc<schaltwerk::domains::workspace::FileWatcherManager>, String> {
     FILE_WATCHER_MANAGER.get()
         .ok_or_else(|| "File watcher manager not initialized".to_string())
         .cloned()
@@ -847,7 +846,7 @@ fn main() {
             
             // Initialize file watcher manager
             let file_watcher_handle = app.handle().clone();
-            let _ = FILE_WATCHER_MANAGER.set(Arc::new(file_watcher::FileWatcherManager::new(file_watcher_handle)));
+            let _ = FILE_WATCHER_MANAGER.set(Arc::new(schaltwerk::domains::workspace::FileWatcherManager::new(file_watcher_handle)));
             
             // Defer non-critical services to improve startup performance
             let app_handle = app.handle().clone();
@@ -874,7 +873,7 @@ fn main() {
                                     let core_lock = core.lock().await;
                                     Arc::new(core_lock.db.clone())
                                 };
-                                schaltwerk::schaltwerk_core::activity::start_activity_tracking_with_app(db, activity_handle.clone());
+                                schaltwerk::domains::sessions::activity::start_activity_tracking_with_app(db, activity_handle.clone());
                                 break;
                             }
                             Err(e) => {

@@ -9,7 +9,6 @@ pub mod session_core;
 pub mod session_db;
 pub mod session_cache;
 pub mod session_utils;
-pub mod activity;
 pub mod types;
 pub mod claude;
 pub mod cursor;

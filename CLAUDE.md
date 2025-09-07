@@ -10,6 +10,7 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 - **Specs**: Draft/planning sessions without worktrees (can be converted to running sessions)
 - **Orchestrator**: Special session that works directly in main repo (for planning/coordination)
 - **Terminals**: Each session gets 2 PTY terminals (top/bottom) for running agents
+- **Domains**: Business logic is organized in `src-tauri/src/domains/` - all new features should create appropriate domain modules, if there are legacy business domains duplicated they should be merged via scout rule into the new structure.
 
 ### Key Data Flows
 
