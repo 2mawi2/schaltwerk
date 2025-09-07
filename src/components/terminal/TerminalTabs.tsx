@@ -13,11 +13,28 @@ interface TerminalTabsProps {
   maxTabs?: number
   agentType?: string
   onTerminalClick?: () => void
+  headless?: boolean
 }
 
 export interface TerminalTabsHandle {
    focus: () => void
    focusTerminal: (terminalId: string) => void
+   getTabsState: () => {
+     tabs: TabInfo[]
+     activeTab: number
+     canAddTab: boolean
+   }
+   getTabFunctions: () => {
+     addTab: () => void
+     closeTab: (index: number) => void
+     setActiveTab: (index: number) => void
+   }
+}
+
+export interface TabInfo {
+  index: number
+  terminalId: string
+  label: string
 }
 
 export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
@@ -28,7 +45,8 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   isCommander = false,
   maxTabs = 6,
   agentType,
-  onTerminalClick
+  onTerminalClick,
+  headless = false
 }, ref) => {
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
@@ -58,10 +76,51 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
             }
           })
        }
-     }
-   }), [activeTab, tabs])
+     },
+     getTabsState: () => ({
+       tabs,
+       activeTab,
+       canAddTab
+     }),
+     getTabFunctions: () => ({
+       addTab,
+       closeTab,
+       setActiveTab
+     })
+   }), [activeTab, tabs, canAddTab, addTab, closeTab, setActiveTab])
 
 
+
+  if (headless) {
+    return (
+      <div className={`h-full ${className}`}>
+        <div className="h-full relative">
+          {tabs.filter(tab => tab.index === activeTab).map((tab) => (
+            <div
+              key={tab.index}
+              className="absolute inset-0"
+            >
+              <Terminal
+                ref={(ref) => {
+                  if (ref) {
+                    terminalRefs.current.set(tab.index, ref)
+                  } else {
+                    terminalRefs.current.delete(tab.index)
+                  }
+                }}
+                terminalId={tab.terminalId}
+                className="h-full w-full"
+                sessionName={sessionName}
+                isCommander={isCommander}
+                agentType={agentType}
+                onTerminalClick={onTerminalClick}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className={`h-full flex flex-col ${className}`}>

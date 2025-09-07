@@ -210,9 +210,10 @@ emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
 
 **Non-Deterministic Solutions PROHIBITED**
 - NO timeouts, delays, sleep
-- NO retry loops, polling
+- NO retry loops, polling (especially `setInterval` for state sync!)
 - NO timing-based solutions
 - Use event-driven, synchronous operations instead
+- ALWAYS prefer event callbacks over polling for UI state management
 
 **Error Handling (MANDATORY)**
 - NEVER use empty catch blocks

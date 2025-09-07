@@ -1,9 +1,9 @@
 import { Terminal, TerminalHandle } from './Terminal'
 import { TerminalTabs, TerminalTabsHandle } from './TerminalTabs'
+import { UnifiedBottomBar } from './UnifiedBottomBar'
 import { SpecPlaceholder } from '../plans/SpecPlaceholder'
 import TerminalErrorBoundary from '../TerminalErrorBoundary'
 import Split from 'react-split'
-import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
@@ -28,6 +28,15 @@ export function TerminalGrid() {
     const [terminalKey, setTerminalKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
+    const [terminalTabsState, setTerminalTabsState] = useState<{
+        tabs: Array<{ index: number; terminalId: string; label: string }>
+        activeTab: number
+        canAddTab: boolean
+    }>({
+        tabs: [{ index: 0, terminalId: terminals.bottomBase, label: 'Terminal 1' }],
+        activeTab: 0,
+        canAddTab: true
+    })
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(10) // fallback ~ header height in % with safety margin
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
@@ -301,6 +310,15 @@ export function TerminalGrid() {
         sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
     }, [isBottomCollapsed, selection])
 
+    // Initialize terminal tabs state when terminals change
+    useEffect(() => {
+        setTerminalTabsState({
+            tabs: [{ index: 0, terminalId: terminals.bottomBase, label: 'Terminal 1' }],
+            activeTab: 0,
+            canAddTab: true
+        })
+    }, [terminalKey, terminals.bottomBase])
+
     const handleClaudeSessionClick = async (e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
         e?.stopPropagation()
@@ -469,40 +487,41 @@ export function TerminalGrid() {
                     </div>
                 </div>
                 <div className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
-                     <div
-                         data-bottom-header
-                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
-                             localFocus === 'terminal'
-                                 ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
-                                 : 'text-slate-400 border-slate-800 hover:bg-slate-800'
-                         }`}
-                         onClick={handleTerminalClick}
-                     >
-                        <span className="absolute left-0 right-0 text-center pointer-events-none">
-                            Terminal — {selection.kind === 'orchestrator' ? 'main' : selection.payload}
-                        </span>
-                        <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded mr-1 transition-colors duration-200 ${
-                            localFocus === 'terminal'
-                                ? 'bg-blue-600/40 text-blue-200'
-                                : 'bg-slate-700/50 text-slate-400'
-                        }`} title="Focus Terminal (⌘/)">⌘/</span>
-                        <button
-                            onClick={toggleTerminalCollapsed}
-                            title={isBottomCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
-                            className={`w-7 h-7 ml-1 flex items-center justify-center rounded transition-colors ${
-                                localFocus === 'terminal'
-                                    ? 'hover:bg-blue-600/50 text-blue-200 hover:text-blue-100'
-                                    : 'hover:bg-slate-700/50 text-slate-300 hover:text-slate-100'
-                            }`}
-                            aria-label={isBottomCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
-                        >
-                            {isBottomCollapsed ? (
-                                <VscChevronUp size={16} />
-                            ) : (
-                                <VscChevronDown size={16} />
-                            )}
-                        </button>
-                    </div>
+                    <UnifiedBottomBar
+                        isCollapsed={isBottomCollapsed}
+                        onToggleCollapse={toggleTerminalCollapsed}
+                        tabs={terminalTabsState.tabs}
+                        activeTab={terminalTabsState.activeTab}
+                        onTabSelect={(index) => {
+                            terminalTabsRef.current?.getTabFunctions().setActiveTab(index)
+                            setTerminalTabsState(prev => ({ ...prev, activeTab: index }))
+                            requestAnimationFrame(() => {
+                                terminalTabsRef.current?.focus()
+                            })
+                        }}
+                        onTabClose={(index) => {
+                            terminalTabsRef.current?.getTabFunctions().closeTab(index)
+                            // Update state to reflect the change - simplified logic for now
+                            setTerminalTabsState(prev => ({
+                                ...prev,
+                                tabs: prev.tabs.filter(tab => tab.index !== index),
+                                activeTab: Math.max(0, prev.activeTab - (index < prev.activeTab ? 1 : 0))
+                            }))
+                        }}
+                        onTabAdd={() => {
+                            terminalTabsRef.current?.getTabFunctions().addTab()
+                            const newIndex = terminalTabsState.tabs.length
+                            const newTerminalId = `${terminals.bottomBase}-${newIndex}`
+                            setTerminalTabsState(prev => ({
+                                tabs: [...prev.tabs, { index: newIndex, terminalId: newTerminalId, label: `Terminal ${newIndex + 1}` }],
+                                activeTab: newIndex,
+                                canAddTab: prev.tabs.length + 1 < 6
+                            }))
+                        }}
+                        canAddTab={terminalTabsState.canAddTab}
+                        isFocused={localFocus === 'terminal'}
+                        onBarClick={handleTerminalClick}
+                    />
                     <div className={`h-[2px] flex-shrink-0 ${isDraggingSplit ? '' : 'transition-opacity duration-200'} ${
                         localFocus === 'terminal' && !isDraggingSplit
                             ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent'
@@ -511,16 +530,17 @@ export function TerminalGrid() {
                     <div className={`flex-1 min-h-0 ${isBottomCollapsed ? 'hidden' : ''}`}>
                         <TerminalErrorBoundary terminalId={terminals.bottomBase}>
                             <TerminalTabs
-                            key={`terminal-tabs-${terminalKey}`}
-                            ref={terminalTabsRef}
-                            baseTerminalId={terminals.bottomBase}
-                            workingDirectory={terminals.workingDirectory}
-                            className="h-full"
-                            sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
-                            isCommander={selection.kind === 'orchestrator'}
-                            agentType={agentType}
-                            onTerminalClick={handleTerminalClick}
-                        />
+                                key={`terminal-tabs-${terminalKey}`}
+                                ref={terminalTabsRef}
+                                baseTerminalId={terminals.bottomBase}
+                                workingDirectory={terminals.workingDirectory}
+                                className="h-full"
+                                sessionName={selection.kind === 'session' ? selection.payload ?? undefined : undefined}
+                                isCommander={selection.kind === 'orchestrator'}
+                                agentType={agentType}
+                                onTerminalClick={handleTerminalClick}
+                                headless={true}
+                            />
                         </TerminalErrorBoundary>
                     </div>
                 </div>
