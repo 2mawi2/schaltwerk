@@ -143,8 +143,14 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         }
     }
     
+    // Migration: Add tutorial_completed column if it doesn't exist
+    let _ = conn.execute(
+        "ALTER TABLE app_config ADD COLUMN tutorial_completed BOOLEAN DEFAULT FALSE",
+        [],
+    );
+    
     conn.execute(
-        "INSERT OR IGNORE INTO app_config (id, skip_permissions, agent_type, default_open_app, terminal_font_size, ui_font_size) VALUES (1, FALSE, 'claude', 'finder', 13, 12)",
+        "INSERT OR IGNORE INTO app_config (id, skip_permissions, agent_type, default_open_app, terminal_font_size, ui_font_size, tutorial_completed) VALUES (1, FALSE, 'claude', 'finder', 13, 12, FALSE)",
         [],
     )?;
 

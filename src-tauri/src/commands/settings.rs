@@ -373,6 +373,22 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
         .map_err(|e| format!("Failed to set project action buttons: {e}"))
 }
 
+#[tauri::command]
+pub async fn get_tutorial_completed() -> Result<bool, String> {
+    let schaltwerk_core = get_schaltwerk_core().await?;
+    let core = schaltwerk_core.lock().await;
+    core.db.get_tutorial_completed()
+        .map_err(|e| format!("Failed to get tutorial completion status: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_tutorial_completed(completed: bool) -> Result<(), String> {
+    let schaltwerk_core = get_schaltwerk_core().await?;
+    let core = schaltwerk_core.lock().await;
+    core.db.set_tutorial_completed(completed)
+        .map_err(|e| format!("Failed to set tutorial completion status: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -770,6 +786,20 @@ mod tests {
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
         assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+    }
+
+    #[tokio::test]
+    async fn test_get_tutorial_completed_uninitialized_core() {
+        let result = get_tutorial_completed().await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to get para core"));
+    }
+
+    #[tokio::test]
+    async fn test_set_tutorial_completed_uninitialized_core() {
+        let result = set_tutorial_completed(true).await;
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Failed to get para core"));
     }
 
     #[test]

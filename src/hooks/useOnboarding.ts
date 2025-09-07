@@ -1,34 +1,49 @@
 import { useState, useEffect } from 'react'
-
-const ONBOARDING_KEY = 'schaltwerk-onboarding-completed'
+import { invoke } from '@tauri-apps/api/core'
 
 export function useOnboarding() {
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null)
     const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
 
     useEffect(() => {
-        const completed = localStorage.getItem(ONBOARDING_KEY)
-        const isCompleted = completed === 'true'
-        setHasCompletedOnboarding(isCompleted)
-        
-        if (!isCompleted) {
-            const timer = setTimeout(() => {
-                setIsOnboardingOpen(true)
-            }, 1000)
-            
-            return () => clearTimeout(timer)
+        const checkTutorialCompletion = async () => {
+            try {
+                const completed = await invoke<boolean>('get_tutorial_completed')
+                setHasCompletedOnboarding(completed)
+                
+                if (!completed) {
+                    const timer = setTimeout(() => {
+                        setIsOnboardingOpen(true)
+                    }, 1000)
+                    
+                    return () => clearTimeout(timer)
+                }
+            } catch (error) {
+                console.error('Failed to check tutorial completion:', error)
+                setHasCompletedOnboarding(false)
+            }
         }
+
+        checkTutorialCompletion()
     }, [])
 
-    const completeOnboarding = () => {
-        localStorage.setItem(ONBOARDING_KEY, 'true')
-        setHasCompletedOnboarding(true)
-        setIsOnboardingOpen(false)
+    const completeOnboarding = async () => {
+        try {
+            await invoke('set_tutorial_completed', { completed: true })
+            setHasCompletedOnboarding(true)
+            setIsOnboardingOpen(false)
+        } catch (error) {
+            console.error('Failed to mark tutorial as completed:', error)
+        }
     }
 
-    const resetOnboarding = () => {
-        localStorage.removeItem(ONBOARDING_KEY)
-        setHasCompletedOnboarding(false)
+    const resetOnboarding = async () => {
+        try {
+            await invoke('set_tutorial_completed', { completed: false })
+            setHasCompletedOnboarding(false)
+        } catch (error) {
+            console.error('Failed to reset tutorial:', error)
+        }
     }
 
     const openOnboarding = () => {
