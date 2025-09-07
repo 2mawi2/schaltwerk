@@ -120,6 +120,20 @@ impl SessionManager {
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
         
+        // Verify the worktree was created successfully and is valid
+        if !worktree_path.exists() {
+            self.cache_manager.unreserve_name(&unique_name);
+            return Err(anyhow!("Worktree directory was not created: {}", worktree_path.display()));
+        }
+        
+        let git_dir = worktree_path.join(".git");
+        if !git_dir.exists() {
+            self.cache_manager.unreserve_name(&unique_name);
+            return Err(anyhow!("Worktree git directory is missing: {}", git_dir.display()));
+        }
+        
+        log::info!("Worktree verified and ready: {}", worktree_path.display());
+        
         if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
             if !setup_script.trim().is_empty() {
                 self.utils.execute_setup_script(&setup_script, &unique_name, &branch, &worktree_path)?;
@@ -1021,6 +1035,18 @@ impl SessionManager {
         if let Err(e) = create_result {
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
+        
+        // Verify the worktree was created successfully and is valid
+        if !worktree_path.exists() {
+            return Err(anyhow!("Worktree directory was not created: {}", worktree_path.display()));
+        }
+        
+        let git_dir = worktree_path.join(".git");
+        if !git_dir.exists() {
+            return Err(anyhow!("Worktree git directory is missing: {}", git_dir.display()));
+        }
+        
+        log::info!("Worktree verified and ready: {}", worktree_path.display());
         
         if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
             if !setup_script.trim().is_empty() {

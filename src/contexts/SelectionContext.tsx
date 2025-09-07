@@ -141,32 +141,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             return ids
         }
 
-        // Sessions: Use passed sessionState if available to avoid async fetch
-        if (sel.sessionState) {
-            const isSpecSession = sel.sessionState === 'spec'
-            setIsSpec(isSpecSession)
-            
-            if (isSpecSession) {
-                // Do not create terminals for specs
-                return ids
-            }
-            
-            // Create terminals for non-spec sessions
-            const cwd = sel.worktreePath || await invoke<string>('get_current_directory')
-            await createTerminal(ids.top, cwd)
-            await createTerminal(ids.bottomBase, cwd)
-            // Return TerminalSet with the correct working directory
-            return {
-                ...ids,
-                workingDirectory: cwd
-            }
-        }
-
-        // Fallback: fetch session data if sessionState not provided (backward compatibility)
+        // Always fetch session data to ensure we have the correct worktree path
         try {
             const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
-            const worktreePath: string | undefined = sel.worktreePath || sessionData?.worktree_path
+            const worktreePath: string | undefined = sessionData?.worktree_path
             const isSpecSession = state === 'spec'
             setIsSpec(!!isSpecSession)
 
@@ -175,13 +154,39 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 return ids
             }
 
-            const cwd = worktreePath || await invoke<string>('get_current_directory')
-            await createTerminal(ids.top, cwd)
-            await createTerminal(ids.bottomBase, cwd)
+            // For running sessions, worktree_path must exist
+            if (!worktreePath) {
+                console.error(`[SelectionContext] Session ${sel.payload} is not a spec but has no worktree_path`)
+                // Don't create terminals with incorrect working directory
+                return ids
+            }
+
+            // Verify worktree directory exists and is valid before creating terminals
+            try {
+                const exists = await invoke<boolean>('path_exists', { path: worktreePath })
+                if (!exists) {
+                    console.warn(`[SelectionContext] Worktree path does not exist for session ${sel.payload}: ${worktreePath}`)
+                    return ids
+                }
+                
+                // Additional check: ensure it's a valid git worktree
+                const gitDir = `${worktreePath}/.git`
+                const hasGit = await invoke<boolean>('path_exists', { path: gitDir })
+                if (!hasGit) {
+                    console.warn(`[SelectionContext] Worktree is not properly initialized for session ${sel.payload}: ${worktreePath}`)
+                    return ids
+                }
+            } catch (e) {
+                console.warn(`[SelectionContext] Could not verify worktree path for session ${sel.payload}:`, e)
+                return ids
+            }
+
+            await createTerminal(ids.top, worktreePath)
+            await createTerminal(ids.bottomBase, worktreePath)
             // Return TerminalSet with the correct working directory
             return {
                 ...ids,
-                workingDirectory: cwd
+                workingDirectory: worktreePath
             }
         } catch (e) {
             console.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)

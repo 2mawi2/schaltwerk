@@ -52,7 +52,8 @@ describe('Project Switching Selection Behavior', () => {
                 case 'schaltwerk_core_get_session':
                     return Promise.resolve({
                         worktree_path: '/test/session/path',
-                        session_id: args?.name || 'test-session'
+                        session_id: args?.name || 'test-session',
+                        session_state: 'running'
                     })
                 case 'get_project_selection':
                     // Database returns null initially
@@ -66,6 +67,12 @@ describe('Project Switching Selection Behavior', () => {
                     return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
                 case 'set_project_sessions_settings':
                     return Promise.resolve()
+                case 'path_exists':
+                    return Promise.resolve(true)
+                case 'schaltwerk_core_list_sessions_by_state':
+                    return Promise.resolve([])
+                case 'schaltwerk_core_get_font_sizes':
+                    return Promise.resolve({ terminal: 13, ui: 14 })
                 default:
                     return Promise.resolve()
             }

@@ -1,4 +1,10 @@
 use crate::get_project_manager;
+use std::path::Path;
+
+#[tauri::command]
+pub fn path_exists(path: String) -> Result<bool, String> {
+    Ok(Path::new(&path).exists())
+}
 
 #[tauri::command]
 pub async fn get_current_directory() -> Result<String, String> {
