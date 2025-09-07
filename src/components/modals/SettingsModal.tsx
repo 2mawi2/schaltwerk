@@ -495,11 +495,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         ) : archives.length === 0 ? (
                             <div className="text-slate-400 text-sm">No archived specs.</div>
                         ) : (
-                            <div className="space-y-3">
+                            <div className="space-y-3 w-full">
                                 {archives.map(item => (
-                                    <div key={item.id} className="border border-slate-800 rounded p-3 bg-slate-900/40 flex items-start justify-between gap-3">
-                                        <div className="flex-1">
-                                            <div className="text-slate-200 text-sm">{item.session_name}</div>
+                                    <div key={item.id} className="w-full border border-slate-800 rounded p-3 bg-slate-900/40 flex items-start justify-between gap-3 min-w-0">
+                                        <div className="flex-1 min-w-0 overflow-hidden pr-2" style={{maxWidth: 'calc(100% - 140px)'}}>
+                                            <div className="text-slate-200 text-sm truncate">{item.session_name}</div>
                                             <div className="text-xs text-slate-500">{
                                               (() => {
                                                 const v = item.archived_at as any
@@ -513,9 +513,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                 return new Date(ts).toLocaleString()
                                               })()
                                             }</div>
-                                            <div className="text-xs text-slate-500 line-clamp-2 mt-1">{item.content}</div>
+                                            <div className="text-xs text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
                                         </div>
-                                        <div className="flex items-center gap-2">
+                                        <div className="flex items-center gap-2 flex-shrink-0">
                                             <button onClick={async () => {
                                                 try {
                                                     await invoke('schaltwerk_core_restore_archived_spec', { id: item.id, newName: null })
