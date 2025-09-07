@@ -1089,7 +1089,7 @@ export default function App() {
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenKanban={() => setIsKanbanOpen(true)}
-        isOrchestratorActive={selection.kind === 'orchestrator'}
+        isOrchestratorActive={selection.kind === 'orchestrator' && !showHome}
         isSpecModeActive={!!commanderSpecModeSession}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
@@ -1097,7 +1097,7 @@ export default function App() {
           projectPath,
           invoke
         })}
-        onToggleSpecMode={toggleSpecMode}
+        onToggleSpecMode={!showHome ? toggleSpecMode : undefined}
         isRightPanelCollapsed={isRightCollapsed}
         onToggleRightPanel={toggleRightPanelCollapsed}
       />
