@@ -84,7 +84,11 @@ export default function App() {
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsSpec] = useState(false)
   const [isKanbanOpen, setIsKanbanOpen] = useState(false)
-  const [commanderSpecModeSession, setCommanderSpecModeSession] = useState<string | null>(null)
+  // Initialize spec mode state from sessionStorage
+  const [commanderSpecModeSession, setCommanderSpecModeSession] = useState<string | null>(() => {
+    const key = 'default' // Will be updated when projectPath is available
+    return sessionStorage.getItem(`schaltwerk:spec-mode:${key}`)
+  })
   const projectSwitchInProgressRef = useRef(false)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const isKanbanOpenRef = useRef(false)
@@ -524,6 +528,37 @@ export default function App() {
     }
   }, [selection, commanderSpecModeSession, sessions])
   
+  // Load spec mode state when project changes
+  useEffect(() => {
+    if (!projectPath) return
+    const projectId = getBasename(projectPath)
+    const savedSpecMode = sessionStorage.getItem(`schaltwerk:spec-mode:${projectId}`)
+    if (savedSpecMode && savedSpecMode !== commanderSpecModeSession) {
+      // Validate that the saved spec still exists
+      const specExists = sessions.find(session => 
+        session.info.session_id === savedSpecMode && 
+        (session.info.status === 'spec' || session.info.session_state === 'spec')
+      )
+      if (specExists) {
+        setCommanderSpecModeSession(savedSpecMode)
+      } else {
+        // Saved spec no longer exists, clear from storage
+        sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
+      }
+    }
+  }, [projectPath, sessions, commanderSpecModeSession])
+  
+  // Save spec mode state to sessionStorage when it changes
+  useEffect(() => {
+    if (!projectPath) return
+    const projectId = getBasename(projectPath)
+    if (commanderSpecModeSession) {
+      sessionStorage.setItem(`schaltwerk:spec-mode:${projectId}`, commanderSpecModeSession)
+    } else {
+      sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
+    }
+  }, [commanderSpecModeSession, projectPath])
+  
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
@@ -594,14 +629,13 @@ export default function App() {
   // Handle exiting spec mode
   const handleExitSpecMode = useCallback(() => {
     setCommanderSpecModeSession(null)
-  }, [])
-  
-  // Exit spec mode if selection changes away from orchestrator
-  useEffect(() => {
-    if (selection.kind !== 'orchestrator') {
-      setCommanderSpecModeSession(null)
+    // Clear from sessionStorage
+    if (projectPath) {
+      const projectId = getBasename(projectPath)
+      sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
     }
-  }, [selection])
+  }, [projectPath])
+  
   
   // Handle keyboard shortcut for spec mode (Cmd+Shift+S in orchestrator)
   useEffect(() => {
@@ -639,6 +673,12 @@ export default function App() {
       setIsCancelling(true)
       await invoke('schaltwerk_core_archive_spec_session', { name: currentSession.name })
       setDeleteSpecModalOpen(false)
+      
+      // If the deleted spec was the current spec mode session, exit spec mode
+      if (commanderSpecModeSession === currentSession.name) {
+        setCommanderSpecModeSession(null)
+      }
+      
       // Reload sessions to update the list
       await invoke('schaltwerk_core_list_enriched_sessions')
     } catch (error) {
@@ -701,6 +741,11 @@ export default function App() {
       
        // If starting from an existing spec via the modal, convert that spec to active
        if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
+         // If the spec being converted is the current spec mode session, exit spec mode
+         if (commanderSpecModeSession === data.name) {
+           setCommanderSpecModeSession(null)
+         }
+         
          // Ensure the spec content reflects latest prompt before starting
          const contentToUse = data.prompt || ''
          if (contentToUse.trim().length > 0) {
