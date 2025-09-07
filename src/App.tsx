@@ -65,7 +65,7 @@ export function validatePanelPercentage(value: string | null, defaultValue: numb
 export default function App() {
   const { selection, setSelection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
-  const { sessions } = useSessions()
+  const { sessions, allSessions, setFilterMode } = useSessions()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
@@ -75,8 +75,9 @@ export default function App() {
     handleExitSpecMode, 
     handleSpecDeleted, 
     handleSpecConverted, 
-    toggleSpecMode 
-  } = useSpecMode({ projectPath, selection, sessions })
+    toggleSpecMode,
+    specModeState
+  } = useSpecMode({ projectPath, selection, sessions: allSessions, setFilterMode, setSelection })
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -1123,6 +1124,12 @@ export default function App() {
                     openTabs={openTabs}
                     onSelectPrevProject={handleSelectPrevProject}
                     onSelectNextProject={handleSelectNextProject}
+                    specModeState={specModeState}
+                    onSpecSelect={(specName: string) => {
+                      if (selection.kind === 'orchestrator') {
+                        setCommanderSpecModeSession(specName)
+                      }
+                    }}
                   />
                   </SessionErrorBoundary>
                 </div>
@@ -1177,7 +1184,6 @@ export default function App() {
                  <SpecModeLayout
                    sessionName={commanderSpecModeSession}
                    onExit={handleExitSpecMode}
-                   onSwitchSpec={(newSpecName: string) => setCommanderSpecModeSession(newSpecName)}
                  />
                ) : (
                 <>

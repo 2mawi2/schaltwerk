@@ -1,44 +1,84 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Selection } from '../contexts/SelectionContext'
 import { EnrichedSession } from '../types/session'
-import { SchaltEvent, listenEvent } from '../common/eventSystem'
+import { isSpec } from '../utils/sessionFilters'
+import { FilterMode } from '../types/sessionFilters'
 
 function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
+}
+
+export interface SpecModeState {
+  isActive: boolean
+  currentSpec: string | null
+  sidebarFilter: 'specs-only' | 'all' | string
+  previousSelection?: Selection
 }
 
 interface UseSpecModeProps {
   projectPath: string | null
   selection: Selection
   sessions: EnrichedSession[]
+  setFilterMode: (mode: FilterMode) => void
+  setSelection: (selection: Selection) => Promise<void>
 }
 
-export function useSpecMode({ projectPath, selection, sessions }: UseSpecModeProps) {
+export function useSpecMode({ projectPath, selection, sessions, setFilterMode, setSelection }: UseSpecModeProps) {
   // Initialize spec mode state from sessionStorage
-  const [commanderSpecModeSession, setCommanderSpecModeSession] = useState<string | null>(() => {
+  const [commanderSpecModeSession, setCommanderSpecModeSessionInternal] = useState<string | null>(() => {
     const key = 'default' // Will be updated when projectPath is available
     return sessionStorage.getItem(`schaltwerk:spec-mode:${key}`)
   })
+  
+  // Wrap setter with debugging
+  const setCommanderSpecModeSession = useCallback((newValue: string | null) => {
+    console.log('[useSpecMode] Setting spec mode session:', commanderSpecModeSession, '→', newValue)
+    console.trace('[useSpecMode] Stack trace for spec mode change')
+    setCommanderSpecModeSessionInternal(newValue)
+  }, [commanderSpecModeSession])
+  
+  // Track sidebar filter preference when in spec mode
+  const [specModeSidebarFilter, setSpecModeSidebarFilter] = useState<'specs-only' | 'all'>('specs-only')
+  
+  // Track previous selection for restoration
+  const [previousSelection, setPreviousSelection] = useState<Selection | undefined>()
+  
+  // Helper function to enter spec mode and automatically show specs
+  const enterSpecMode = useCallback(async (specId: string) => {
+    console.log('[useSpecMode] Entering spec mode with spec:', specId)
+    // First switch to orchestrator if not already there
+    if (selection.kind !== 'orchestrator') {
+      await setSelection({ kind: 'orchestrator' })
+    }
+    setCommanderSpecModeSession(specId)
+    setFilterMode(FilterMode.Spec) // Automatically show only specs
+    setSpecModeSidebarFilter('specs-only')
+  }, [setFilterMode, setSelection, selection.kind])
 
+  // Temporarily disable project restoration to diagnose switching issue
+  /*
   // Load spec mode state when project changes
   useEffect(() => {
     if (!projectPath) return
     const projectId = getBasename(projectPath)
     const savedSpecMode = sessionStorage.getItem(`schaltwerk:spec-mode:${projectId}`)
-    if (savedSpecMode && savedSpecMode !== commanderSpecModeSession) {
+    if (savedSpecMode && savedSpecMode !== commanderSpecModeSession && sessions.length > 0) {
       // Validate that the saved spec still exists
       const specExists = sessions.find(session => 
         session.info.session_id === savedSpecMode && 
         (session.info.status === 'spec' || session.info.session_state === 'spec')
       )
       if (specExists) {
+        console.log('[useSpecMode] Restoring saved spec mode:', savedSpecMode)
         setCommanderSpecModeSession(savedSpecMode)
       } else {
+        console.log('[useSpecMode] Saved spec no longer exists, clearing:', savedSpecMode)
         // Saved spec no longer exists, clear from storage
         sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
       }
     }
   }, [projectPath, sessions, commanderSpecModeSession])
+  */
   
   // Save spec mode state to sessionStorage when it changes
   useEffect(() => {
@@ -54,15 +94,16 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
   // Auto-enter spec mode when a new spec is created
   useEffect(() => {
     const handleSpecCreated = (event: CustomEvent<{ name: string }>) => {
-      if (selection.kind === 'orchestrator') {
-        setCommanderSpecModeSession(event.detail.name)
-      }
+      // Enter spec mode regardless of current selection - we'll switch to orchestrator automatically
+      enterSpecMode(event.detail.name)
     }
     window.addEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
     return () => window.removeEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
-  }, [selection])
+  }, [enterSpecMode])
   
-  // Handle MCP spec updates - detect new specs and focus them in spec mode
+  // Temporarily disable automatic spec switching to diagnose the issue
+  /*
+  // Handle MCP spec updates - only exit spec mode if current spec is deleted
   useEffect(() => {
     const handleSessionsRefreshed = () => {
       if (selection.kind === 'orchestrator' && commanderSpecModeSession) {
@@ -70,14 +111,13 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
           session.info.status === 'spec' || session.info.session_state === 'spec'
         )
 
-        if (!specSessions.find(p => p.info.session_id === commanderSpecModeSession) && specSessions.length > 0) {
-          const newestSpec = specSessions.sort((a, b) => {
-            const aTime = new Date(a.info.created_at || '').getTime()
-            const bTime = new Date(b.info.created_at || '').getTime()
-            return bTime - aTime
-          })[0]
-          setCommanderSpecModeSession(newestSpec.info.session_id)
+        // Only exit spec mode if the current spec no longer exists and there are no specs at all
+        if (!specSessions.find(p => p.info.session_id === commanderSpecModeSession) && specSessions.length === 0) {
+          console.log('[useSpecMode] Current spec deleted and no specs remain, exiting spec mode')
+          setCommanderSpecModeSession(null)
         }
+        // If current spec is deleted but other specs exist, let user manually select a new one
+        // Don't auto-switch to avoid the infinite switching issue
       }
     }
 
@@ -87,19 +127,21 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
       unlisten.then(unlistenFn => unlistenFn())
     }
   }, [selection, commanderSpecModeSession, sessions])
+  */
 
   // Handle entering spec mode
   useEffect(() => {
     const handleEnterSpecMode = (event: CustomEvent<{ sessionName: string }>) => {
       const { sessionName } = event.detail
-      if (sessionName && selection.kind === 'orchestrator') {
-        setCommanderSpecModeSession(sessionName)
+      if (sessionName) {
+        // Enter spec mode regardless of current selection - we'll switch to orchestrator automatically
+        enterSpecMode(sessionName)
       }
     }
 
     window.addEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
     return () => window.removeEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
-  }, [selection])
+  }, [enterSpecMode])
 
   // Handle exiting spec mode
   const handleExitSpecMode = useCallback(() => {
@@ -109,21 +151,38 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
       sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
     }
   }, [projectPath])
+  
+  // Listen for exit spec mode event
+  useEffect(() => {
+    const handleExitEvent = () => {
+      handleExitSpecMode()
+    }
+    window.addEventListener('schaltwerk:exit-spec-mode', handleExitEvent)
+    return () => window.removeEventListener('schaltwerk:exit-spec-mode', handleExitEvent)
+  }, [handleExitSpecMode])
 
-  // Handle keyboard shortcut for spec mode (Cmd+Shift+S in orchestrator)
+  // Handle keyboard shortcut for spec mode (Cmd+Shift+S from anywhere)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
-        if (selection.kind === 'orchestrator') {
-          e.preventDefault()
-          if (commanderSpecModeSession) {
-            setCommanderSpecModeSession(null)
+        e.preventDefault()
+        
+        // If already in spec mode and in orchestrator, exit spec mode
+        if (commanderSpecModeSession && selection.kind === 'orchestrator') {
+          setCommanderSpecModeSession(null)
+        } else {
+          // Find specs from ALL sessions, not just currently filtered ones
+          // This allows entering spec mode even when specs are filtered out
+          const specSessions = sessions.filter(session => isSpec(session.info))
+          if (specSessions.length > 0) {
+            enterSpecMode(specSessions[0].info.session_id)
           } else {
-            const specSessions = sessions.filter(session =>
-              session.info.status === 'spec' || session.info.session_state === 'spec'
-            )
-            if (specSessions.length > 0) {
-              setCommanderSpecModeSession(specSessions[0].info.session_id)
+            console.log('[useSpecMode] No specs found, creating new spec')
+            // Switch to orchestrator first before creating spec
+            if (selection.kind !== 'orchestrator') {
+              setSelection({ kind: 'orchestrator' }).then(() => {
+                window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
+              })
             } else {
               window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
             }
@@ -134,7 +193,7 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selection, commanderSpecModeSession, sessions])
+  }, [selection, commanderSpecModeSession, sessions, enterSpecMode, setSelection])
 
   // Helper function to handle spec deletion
   const handleSpecDeleted = useCallback((sessionName: string) => {
@@ -150,21 +209,35 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
     }
   }, [commanderSpecModeSession])
 
-  // Toggle spec mode function
-  const toggleSpecMode = useCallback(() => {
-    if (commanderSpecModeSession) {
+  // Toggle spec mode function  
+  const toggleSpecMode = useCallback(async () => {
+    console.log('[useSpecMode] toggleSpecMode called, current session:', commanderSpecModeSession)
+    if (commanderSpecModeSession && selection.kind === 'orchestrator') {
       setCommanderSpecModeSession(null)
+      setSpecModeSidebarFilter('specs-only') // Reset filter when exiting
     } else {
-      const specSessions = sessions.filter(session =>
-        session.info.status === 'spec' || session.info.session_state === 'spec'
-      )
+      // Find specs from ALL sessions, not just currently filtered ones
+      const specSessions = sessions.filter(session => isSpec(session.info))
       if (specSessions.length > 0) {
-        setCommanderSpecModeSession(specSessions[0].info.session_id)
+        await enterSpecMode(specSessions[0].info.session_id)
       } else {
+        console.log('[useSpecMode] No specs available, creating new spec')
+        // Switch to orchestrator first before creating spec
+        if (selection.kind !== 'orchestrator') {
+          await setSelection({ kind: 'orchestrator' })
+        }
         window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
       }
     }
-  }, [commanderSpecModeSession, sessions])
+  }, [commanderSpecModeSession, sessions, enterSpecMode, selection.kind, setSelection])
+
+  // Build spec mode state object
+  const specModeState: SpecModeState = {
+    isActive: !!commanderSpecModeSession,
+    currentSpec: commanderSpecModeSession,
+    sidebarFilter: specModeSidebarFilter,
+    previousSelection
+  }
 
   return {
     commanderSpecModeSession,
@@ -172,6 +245,9 @@ export function useSpecMode({ projectPath, selection, sessions }: UseSpecModePro
     handleExitSpecMode,
     handleSpecDeleted,
     handleSpecConverted,
-    toggleSpecMode
+    toggleSpecMode,
+    specModeState,
+    setSpecModeSidebarFilter,
+    setPreviousSelection
   }
 }

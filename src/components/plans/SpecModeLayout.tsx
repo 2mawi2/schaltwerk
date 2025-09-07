@@ -5,15 +5,13 @@ import { TerminalGrid } from '../terminal/TerminalGrid'
 import { SpecEditor } from './SpecEditor'
 import { VscClose } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
-import { SpecDropdown } from './SpecDropdown'
 
 interface Props {
   sessionName: string
   onExit: () => void
-  onSwitchSpec: (newSpecName: string) => void
 }
 
-export function SpecModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
+export function SpecModeLayout({ sessionName, onExit }: Props) {
   const [splitSizes, setSplitSizes] = useState<[number, number]>([60, 40])
   
   useEffect(() => {
@@ -76,10 +74,16 @@ export function SpecModeLayout({ sessionName, onExit, onSwitchSpec }: Props) {
           }}>
              Spec Mode
           </span>
-          <SpecDropdown 
-            sessionName={sessionName}
-            onSwitchSpec={onSwitchSpec}
-          />
+          <span 
+            className="font-medium truncate"
+            style={{ 
+              fontSize: theme.fontSize.body,
+              color: theme.colors.text.primary 
+            }}
+            title={sessionName}
+          >
+            {sessionName}
+          </span>
         </div>
         <button
           onClick={onExit}

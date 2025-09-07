@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { clsx } from 'clsx'
 import { SessionButton } from './SessionButton'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
+import { isSpec } from '../../utils/sessionFilters'
 
 interface SessionVersionGroupProps {
   group: SessionVersionGroupType
@@ -23,6 +24,8 @@ interface SessionVersionGroupProps {
   onReset?: (sessionId: string) => void
   onSwitchModel?: (sessionId: string) => void
   isResetting?: boolean
+  isInSpecMode?: boolean  // Optional: whether we're in spec mode
+  currentSpecId?: string | null  // Optional: current spec selected in spec mode
 }
 
 export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
@@ -41,7 +44,9 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   onSelectBestVersion,
   onReset,
   onSwitchModel,
-  isResetting
+  isResetting,
+  isInSpecMode,
+  currentSpecId
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPreviewingDeletion, setIsPreviewingDeletion] = useState(false)
@@ -49,7 +54,9 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   // If it's not a version group, render the single session normally
   if (!group.isVersionGroup) {
     const session = group.versions[0]
-    const isSelected = selection.kind === 'session' && selection.payload === session.session.info.session_id
+    // Check if this session is selected either as a normal session or as a spec in spec mode
+    const isSelected = (selection.kind === 'session' && selection.payload === session.session.info.session_id) ||
+                      (isInSpecMode === true && isSpec(session.session.info) && currentSpecId === session.session.info.session_id)
 
     return (
       <SessionButton
@@ -210,7 +217,9 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               
               <div className="space-y-1">
                 {group.versions.map((version, versionIndex) => {
-                  const isSelected = selection.kind === 'session' && selection.payload === version.session.info.session_id
+                  // Check if this version is selected either as a normal session or as a spec in spec mode
+                  const isSelected = (selection.kind === 'session' && selection.payload === version.session.info.session_id) ||
+                                   (isInSpecMode === true && isSpec(version.session.info) && currentSpecId === version.session.info.session_id)
                   const displayName = `(v${version.versionNumber})`
                   const willBeDeleted = isPreviewingDeletion && hasSelectedVersion && !isSelected
 

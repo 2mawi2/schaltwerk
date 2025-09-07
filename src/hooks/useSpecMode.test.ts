@@ -13,6 +13,8 @@ vi.mock('../common/eventSystem', () => ({
 
 describe('useSpecMode', () => {
   const mockOrchestratorSelection: Selection = { kind: 'orchestrator' }
+  const mockSetFilterMode = vi.fn()
+  const mockSetSelection = vi.fn().mockResolvedValue(undefined)
   
   const createMockSpec = (id: string, createdAt = '2023-01-01T00:00:00Z'): EnrichedSession => ({
     info: {
@@ -45,7 +47,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       expect(result.current.commanderSpecModeSession).toBeNull()
@@ -55,7 +59,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -71,7 +77,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -85,7 +93,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -103,7 +113,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: null,
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -163,7 +175,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -181,7 +195,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -199,7 +215,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -218,7 +236,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: [spec]
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       // Toggle on - should select first available spec
@@ -234,7 +254,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: [spec]
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       // Set spec mode on
@@ -249,7 +271,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
@@ -283,7 +307,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: [spec1, spec2, runningSession]
+        sessions: [spec1, spec2, runningSession],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       // Toggle should select first spec, not the running session
@@ -327,7 +353,9 @@ describe('useSpecMode', () => {
       renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       expect(listenEventSpy).toHaveBeenCalledWith('sessions-refreshed', expect.any(Function))
@@ -337,7 +365,9 @@ describe('useSpecMode', () => {
       const { unmount } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: []
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       // Test that unmount doesn't cause errors

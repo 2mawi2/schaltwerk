@@ -23,6 +23,8 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSessionNameRef = useRef<string>(sessionName)
   const lastServerContentRef = useRef<string>('')
+  const contentRef = useRef<string>('')
+  const hasLocalChangesRef = useRef<boolean>(false)
 
   // Load initial content
   useEffect(() => {
@@ -65,6 +67,15 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     }, 1000)
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
   }, [content, sessionName, hasLocalChanges])
+
+  // Keep refs in sync with state
+  useEffect(() => {
+    contentRef.current = content
+  }, [content])
+  
+  useEffect(() => {
+    hasLocalChangesRef.current = hasLocalChanges
+  }, [hasLocalChanges])
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
@@ -116,7 +127,8 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       const serverContent = specSession.info.spec_content || ''
       
       // Skip update if we have local changes pending save - let the user finish typing
-      if (hasLocalChanges) {
+      // Use ref to get current value without causing re-render
+      if (hasLocalChangesRef.current) {
         console.log('[SpecEditor] Skipping refresh - local changes pending')
         return
       }
@@ -129,13 +141,14 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       }
       
       // Also skip if current content matches server content (user hasn't made changes)
-      if (serverContent === content) {
+      // Use ref to get current content without causing dependency issues
+      if (serverContent === contentRef.current) {
         console.log('[SpecEditor] Content already matches server, updating reference only')
         lastServerContentRef.current = serverContent
         return
       }
       
-      console.log('[SpecEditor] Server content changed, updating from', content.length, 'to', serverContent.length, 'chars')
+      console.log('[SpecEditor] Server content changed, updating from', contentRef.current.length, 'to', serverContent.length, 'chars')
       
       // Store current focus and cursor state for restoration
       const activeElement = document.activeElement
@@ -191,7 +204,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       console.log('[SpecEditor] Cleaning up sessions-refreshed listener for:', sessionName)
       unlistenPromise.then(unlisten => unlisten())
     }
-  }, [sessionName, content, hasLocalChanges])
+  }, [sessionName]) // Only re-register listener when sessionName changes
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

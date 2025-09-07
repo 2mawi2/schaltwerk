@@ -11,15 +11,17 @@ import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../ut
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
-import { calculateFilterCounts } from '../../utils/sessionFilters'
+import { calculateFilterCounts, isSpec as isSpecSession } from '../../utils/sessionFilters'
 import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
-import { VscRefresh, VscCode } from 'react-icons/vsc'
+import { VscRefresh, VscCode, VscTarget, VscClose } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
+import { SpecModeState } from '../../hooks/useSpecMode'
+import { theme } from '../../common/theme'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -76,9 +78,11 @@ interface SidebarProps {
     openTabs?: Array<{projectPath: string, projectName: string}>
     onSelectPrevProject?: () => void
     onSelectNextProject?: () => void
+    specModeState?: SpecModeState
+    onSpecSelect?: (specName: string) => void
 }
 
-export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
+export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, specModeState, onSpecSelect }: SidebarProps) {
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { 
@@ -93,7 +97,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         setFilterMode,
         setSearchQuery,
         setIsSearchVisible,
-        setCurrentSelection, 
         reloadSessions 
     } = useSessions()
     const { isResetting, resetSession, switchModel } = useSessionManagement()
@@ -201,7 +204,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [allSessions])
 
     const handleSelectOrchestrator = async () => {
-        setCurrentSelection(null) // Notify SessionsContext that orchestrator is selected
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }
     
@@ -234,9 +236,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 updated.delete(s.session_id)
                 return updated
             })
-            
-            // Notify SessionsContext about the current selection to preserve it during sorting
-            setCurrentSelection(s.session_id)
             
             // Directly set selection to minimize latency in switching
             await setSelection({
@@ -298,6 +297,20 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     const selectPrev = async () => {
         if (sessions.length === 0) return
+        
+        // In spec mode, navigate through specs when orchestrator is selected
+        if (isInSpecMode && selection.kind === 'orchestrator' && specModeState?.currentSpec) {
+            const specs = sessions.filter(s => isSpecSession(s.info))
+            const currentSpecIndex = specs.findIndex(s => s.info.session_id === specModeState.currentSpec)
+            if (currentSpecIndex > 0) {
+                const prevSpec = specs[currentSpecIndex - 1]
+                onSpecSelect?.(prevSpec.info.session_id)
+                return
+            }
+            // Already at first spec, do nothing
+            return
+        }
+        
         if (selection.kind === 'session') {
             // Use the helper to get flattened sessions
             const flattenedSessions = flattenGroupedSessions(sessions)
@@ -311,16 +324,30 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             await handleSelectSession(currentIndex - 1)
             return
         }
-        // If orchestrator is selected, do nothing on ArrowUp
+        // If orchestrator is selected (and not in spec mode), do nothing on ArrowUp
     }
 
     const selectNext = async () => {
         if (sessions.length === 0) return
+        
         if (selection.kind === 'orchestrator') {
-            // From orchestrator, go to the first session
+            // In spec mode, navigate through specs
+            if (isInSpecMode && specModeState?.currentSpec) {
+                const specs = sessions.filter(s => isSpecSession(s.info))
+                const currentSpecIndex = specs.findIndex(s => s.info.session_id === specModeState.currentSpec)
+                if (currentSpecIndex < specs.length - 1) {
+                    const nextSpec = specs[currentSpecIndex + 1]
+                    onSpecSelect?.(nextSpec.info.session_id)
+                    return
+                }
+                // Already at last spec, do nothing
+                return
+            }
+            // From orchestrator (not in spec mode), go to the first session
             await handleSelectSession(0)
             return
         }
+        
         if (selection.kind === 'session') {
             // Use the helper to get flattened sessions
             const flattenedSessions = flattenGroupedSessions(sessions)
@@ -713,15 +740,55 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sessionsToCount = searchQuery ? sessions : allSessions
     const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(sessionsToCount)
 
+    // Check if we're in spec mode
+    const isInSpecMode = selection.kind === 'orchestrator' && specModeState?.isActive
+    
+    // Handle clicking a spec in spec mode
+    const handleSpecClick = (sessionId: string) => {
+        if (isInSpecMode && onSpecSelect) {
+            onSpecSelect(sessionId)
+        } else {
+            // Normal session selection
+            const session = sessions.find(s => s.info.session_id === sessionId)
+            if (session) {
+                handleSelectSession(sessions.indexOf(session))
+            }
+        }
+    }
+
     return (
         <div ref={sidebarRef} className="h-full flex flex-col">
-            <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
-            <div className="px-2 pt-2">
-                <button
-                    onClick={handleSelectOrchestrator}
-                    className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'orchestrator' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
-                    title="Select orchestrator (⌘1)"
-                >
+            {/* Spec Mode Header */}
+            {isInSpecMode ? (
+                <div className="h-10 px-3 border-b flex items-center justify-between" style={{ 
+                    backgroundColor: theme.colors.background.elevated,
+                    borderColor: theme.colors.border.default
+                }}>
+                    <div className="flex items-center gap-2">
+                        <VscTarget className="text-amber-500" />
+                        <span className="text-xs font-medium" style={{ color: theme.colors.accent.amber.DEFAULT }}>
+                            Spec Mode Active
+                        </span>
+                    </div>
+                    <button
+                        onClick={() => window.dispatchEvent(new CustomEvent('schaltwerk:exit-spec-mode'))}
+                        className="text-xs px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white"
+                        title="Exit Spec Mode (Esc)"
+                    >
+                        <VscClose className="w-3 h-3" />
+                    </button>
+                </div>
+            ) : (
+                <div className="h-8 px-3 border-b border-slate-800 text-xs flex items-center text-slate-300">Repository (Orchestrator)</div>
+            )}
+            {/* Only show orchestrator button when not in spec mode */}
+            {!isInSpecMode && (
+                <div className="px-2 pt-2">
+                    <button
+                        onClick={handleSelectOrchestrator}
+                        className={clsx('w-full text-left px-3 py-2 rounded-md mb-1 group', selection.kind === 'orchestrator' ? 'bg-slate-800/60 session-ring session-ring-blue' : 'hover:bg-slate-800/30')}
+                        title="Select orchestrator (⌘1)"
+                    >
                     <div className="flex items-center justify-between">
                         <div className="font-medium text-slate-100">orchestrator</div>
                     <div className="flex items-center gap-2">
@@ -754,10 +821,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     <div className="text-xs text-slate-500">Original repository from which agents are created</div>
                 </button>
             </div>
+            )}
 
             <div className="h-8 px-3 border-t border-b border-slate-800 text-xs text-slate-300 flex items-center">
                 <div className="flex items-center gap-2 w-full">
-                    <span className="text-xs flex-shrink-0">Agents</span>
+                    <span className="text-xs flex-shrink-0">{isInSpecMode ? 'Specs' : 'Agents'}</span>
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto">
                         {/* Search Icon */}
                         <button
@@ -770,42 +838,54 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                             </svg>
                         </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
-                                filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.All && 'animate-filterGlow')}
-                            onClick={() => setFilterMode(FilterMode.All)}
-                            title="Show all agents"
-                        >
-                            All <span className="text-slate-400">({allCount})</span>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200',
-                                filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Spec && 'animate-filterGlow')}
-                            onClick={() => setFilterMode(FilterMode.Spec)}
-                            title="Show spec agents"
-                        >
-                            Specs <span className="text-slate-400">({specsCount})</span>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
-                                filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Running && 'animate-filterGlow')}
-                            onClick={() => setFilterMode(FilterMode.Running)}
-                            title="Show running agents"
-                        >
-                            Running <span className="text-slate-400">({runningCount})</span>
-                        </button>
-                        <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
-                                filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Reviewed && 'animate-filterGlow')}
-                            onClick={() => setFilterMode(FilterMode.Reviewed)}
-                            title="Show reviewed agents"
-                        >
-                            Reviewed <span className="text-slate-400">({reviewedCount})</span>
-                        </button>
+                        {/* In spec mode, show only specs filter */}
+                        {isInSpecMode ? (
+                            <button
+                                className="text-[10px] px-2 py-0.5 rounded flex items-center gap-1 bg-amber-600/20 text-amber-400 cursor-default"
+                                title="Showing specs only"
+                            >
+                                Specs Only <span className="text-slate-400">({specsCount})</span>
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                                        filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                        keyboardNavigatedFilter === FilterMode.All && 'animate-filterGlow')}
+                                    onClick={() => setFilterMode(FilterMode.All)}
+                                    title="Show all agents"
+                                >
+                                    All <span className="text-slate-400">({allCount})</span>
+                                </button>
+                                <button
+                                    className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200',
+                                        filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                        keyboardNavigatedFilter === FilterMode.Spec && 'animate-filterGlow')}
+                                    onClick={() => setFilterMode(FilterMode.Spec)}
+                                    title="Show spec agents"
+                                >
+                                    Specs <span className="text-slate-400">({specsCount})</span>
+                                </button>
+                                <button
+                                    className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                                        filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                        keyboardNavigatedFilter === FilterMode.Running && 'animate-filterGlow')}
+                                    onClick={() => setFilterMode(FilterMode.Running)}
+                                    title="Show running agents"
+                                >
+                                    Running <span className="text-slate-400">({runningCount})</span>
+                                </button>
+                                <button
+                                    className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                                        filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
+                                        keyboardNavigatedFilter === FilterMode.Reviewed && 'animate-filterGlow')}
+                                    onClick={() => setFilterMode(FilterMode.Reviewed)}
+                                    title="Show reviewed agents"
+                                >
+                                    Reviewed <span className="text-slate-400">({reviewedCount})</span>
+                                </button>
+                            </>
+                        )}
                         <button
                             className="px-1.5 py-0.5 rounded hover:bg-slate-700/50 text-slate-400 hover:text-white flex items-center gap-0.5 flex-shrink-0"
                             onClick={() => {
@@ -866,7 +946,30 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             )}
             <div className="flex-1 overflow-y-auto px-2 pt-2">
                 {sessions.length === 0 && !loading ? (
-                    <div className="text-center text-slate-500 py-4">No active agents</div>
+                    <div className="text-center text-slate-500 py-4">
+                        {isInSpecMode ? (
+                            <div className="flex flex-col items-center gap-3">
+                                <div>No specs available</div>
+                                <button
+                                    onClick={() => window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))}
+                                    className="px-3 py-1 text-xs rounded bg-amber-600/20 text-amber-400 hover:bg-amber-600/30"
+                                >
+                                    Create First Spec
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:exit-spec-mode'))
+                                        setFilterMode(FilterMode.All)
+                                    }}
+                                    className="text-xs text-slate-400 hover:text-slate-200"
+                                >
+                                    View All Sessions
+                                </button>
+                            </div>
+                        ) : (
+                            'No active agents'
+                        )}
+                    </div>
                 ) : (
                     (() => {
                         const sessionGroups = groupSessionsByVersion(sessions)
@@ -884,7 +987,25 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     startIndex={groupStartIndex}
                                     hasStuckTerminals={(sessionId: string) => idleByTime.has(sessionId)}
                                     hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
-                                    onSelect={handleSelectSession}
+                                    isInSpecMode={isInSpecMode}
+                                    currentSpecId={specModeState?.currentSpec}
+                                    onSelect={(index) => {
+                                        // In spec mode, handle spec selection differently
+                                        if (isInSpecMode) {
+                                            const flattenedSessions = flattenGroupedSessions(sessions)
+                                            const session = flattenedSessions[index]
+                                            if (session && isSpecSession(session.info)) {
+                                                handleSpecClick(session.info.session_id)
+                                            } else if (session) {
+                                                // Non-spec clicked in spec mode - handle edge case
+                                                // Option A: Exit spec mode and select the session
+                                                window.dispatchEvent(new CustomEvent('schaltwerk:exit-spec-mode'))
+                                                handleSelectSession(index)
+                                            }
+                                        } else {
+                                            handleSelectSession(index)
+                                        }
+                                    }}
                                     onMarkReady={(sessionId, hasUncommitted) => {
                                         handleMarkReady(sessionId, hasUncommitted)
                                     }}
