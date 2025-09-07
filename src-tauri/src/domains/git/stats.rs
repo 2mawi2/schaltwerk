@@ -26,7 +26,9 @@ pub fn clear_stats_cache() {
 }
 
 pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Result<GitStats> {
+    let start_time = std::time::Instant::now();
     let repo = Repository::discover(worktree_path)?;
+    let repo_discover_time = start_time.elapsed();
 
     let head_oid = repo.head().ok().and_then(|h| h.target());
     let head_commit = head_oid.and_then(|oid| repo.find_commit(oid).ok());
@@ -73,6 +75,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     if let Some(m) = STATS_CACHE.get() {
         if let Some((k, v)) = m.lock().unwrap().get(&cache_key) {
             if *k == key {
+                let cache_hit_time = start_time.elapsed();
+                log::debug!("Git stats cache hit for {} ({}ms)", worktree_path.display(), cache_hit_time.as_millis());
                 // Fast-path: reuse cached counts, but recompute timestamp from git diff to avoid staleness
                 // (status signature doesn't change when only mtimes change)
                 // Latest committed change ahead of parent_branch
@@ -143,6 +147,10 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                     last_diff_change_ts = Some(Utc::now().timestamp());
                 }
 
+                let total_cache_time = start_time.elapsed();
+                if total_cache_time.as_millis() > 50 {
+                    log::debug!("Git stats cache hit processing took {}ms for {}", total_cache_time.as_millis(), worktree_path.display());
+                }
                 return Ok(GitStats {
                     session_id: v.session_id.clone(),
                     files_changed: v.files_changed,
@@ -248,6 +256,19 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
     let map = STATS_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
     map.lock().unwrap().insert(cache_key, (key, stats.clone()));
+
+    let total_time = start_time.elapsed();
+    if total_time.as_millis() > 100 {
+        log::warn!("Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})", 
+            total_time.as_millis(), 
+            worktree_path.display(), 
+            repo_discover_time.as_millis(),
+            insertions,
+            deletions
+        );
+    } else if total_time.as_millis() > 50 {
+        log::debug!("Git stats calculation took {}ms for {}", total_time.as_millis(), worktree_path.display());
+    }
 
     Ok(stats)
 }

@@ -355,19 +355,31 @@ impl SessionManager {
     }
 
     pub fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>> {
+        let start_time = std::time::Instant::now();
         let sessions = self.db_manager.list_sessions()?;
-        log::info!("list_enriched_sessions: Found {} total sessions in database", sessions.len());
+        let db_time = start_time.elapsed();
+        log::info!("list_enriched_sessions: Found {} total sessions in database ({}ms)", sessions.len(), db_time.as_millis());
+        
         let mut enriched = Vec::new();
+        let mut git_stats_total_time = std::time::Duration::ZERO;
+        let mut worktree_check_time = std::time::Duration::ZERO;
+        let mut session_count = 0;
         
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
                 continue;
             }
+            
+            session_count += 1;
+            let session_start = std::time::Instant::now();
+            
             log::debug!("Processing session '{}': status={:?}, session_state={:?}", 
                        session.name, session.status, session.session_state);
             
             // Check if worktree exists for non-spec sessions
+            let worktree_check_start = std::time::Instant::now();
             let worktree_exists = session.worktree_path.exists();
+            worktree_check_time += worktree_check_start.elapsed();
             let is_spec_session = session.session_state == SessionState::Spec;
             
             // For spec sessions, we don't need worktrees to exist
@@ -381,7 +393,15 @@ impl SessionManager {
                 continue;
             }
             
+            let git_stats_start = std::time::Instant::now();
             let git_stats = self.db_manager.get_enriched_git_stats(&session)?;
+            let git_stats_elapsed = git_stats_start.elapsed();
+            git_stats_total_time += git_stats_elapsed;
+            
+            if git_stats_elapsed.as_millis() > 100 {
+                log::warn!("Slow git stats for session '{}': {}ms", session.name, git_stats_elapsed.as_millis());
+            }
+            
             let has_uncommitted = if worktree_exists {
                 git_stats.as_ref().map(|s| s.has_uncommitted).unwrap_or(false)
             } else {
@@ -448,9 +468,27 @@ impl SessionManager {
                 status: None,
                 terminals,
             });
+            
+            let session_elapsed = session_start.elapsed();
+            if session_elapsed.as_millis() > 50 {
+                log::debug!("Session '{}' processing took {}ms", session.name, session_elapsed.as_millis());
+            }
         }
         
-        log::info!("list_enriched_sessions: Returning {} enriched sessions", enriched.len());
+        let total_elapsed = start_time.elapsed();
+        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)", 
+            enriched.len(), 
+            total_elapsed.as_millis(),
+            db_time.as_millis(),
+            git_stats_total_time.as_millis(),
+            worktree_check_time.as_millis(),
+            if session_count > 0 { total_elapsed.as_millis() / session_count as u128 } else { 0 }
+        );
+        
+        if total_elapsed.as_millis() > 500 {
+            log::warn!("PERFORMANCE WARNING: list_enriched_sessions took {}ms - consider optimizing", total_elapsed.as_millis());
+        }
+        
         Ok(enriched)
     }
 
