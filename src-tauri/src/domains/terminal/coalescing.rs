@@ -15,6 +15,16 @@ pub struct CoalescingState {
     pub norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
 }
 
+impl CoalescingState {
+    /// Clear all coalescing buffers and flags for a specific terminal ID
+    pub async fn clear_for(&self, id: &str) {
+        self.emit_buffers.write().await.remove(id);
+        self.emit_scheduled.write().await.remove(id);
+        self.emit_buffers_norm.write().await.remove(id);
+        self.norm_last_cr.write().await.remove(id);
+    }
+}
+
 /// Parameters for a single coalescing operation
 pub struct CoalescingParams<'a> {
     pub terminal_id: &'a str,
@@ -426,5 +436,102 @@ mod tests {
         let buffers_norm = state.emit_buffers_norm.read().await;
         assert!(buffers_norm.contains_key("term1") || buffers_norm.is_empty());
         assert!(buffers_norm.contains_key("term2") || buffers_norm.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_clear_for_removes_all_entries() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        let terminal_id = "test-terminal-cleanup";
+
+        // Add data to all maps
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id,
+            data: b"test data",
+            delay_ms: 100, // Use delay to keep data in buffers
+        }).await;
+
+        // Verify data is in buffers
+        assert!(state.emit_buffers.read().await.contains_key(terminal_id));
+        assert!(state.emit_scheduled.read().await.contains_key(terminal_id));
+        assert!(state.emit_buffers_norm.read().await.contains_key(terminal_id));
+        assert!(state.norm_last_cr.read().await.contains_key(terminal_id));
+
+        // Clear buffers for this terminal
+        state.clear_for(terminal_id).await;
+
+        // Verify all buffers are cleared
+        assert!(!state.emit_buffers.read().await.contains_key(terminal_id));
+        assert!(!state.emit_scheduled.read().await.contains_key(terminal_id));
+        assert!(!state.emit_buffers_norm.read().await.contains_key(terminal_id));
+        assert!(!state.norm_last_cr.read().await.contains_key(terminal_id));
+    }
+
+    #[tokio::test]
+    async fn test_clear_for_only_affects_target_terminal() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // Add data for multiple terminals
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "term1",
+            data: b"data1",
+            delay_ms: 100,
+        }).await;
+
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "term2",
+            data: b"data2",
+            delay_ms: 100,
+        }).await;
+
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "term3",
+            data: b"data3",
+            delay_ms: 100,
+        }).await;
+
+        // Clear only term2
+        state.clear_for("term2").await;
+
+        // Verify term2 is cleared but others remain
+        assert!(state.emit_buffers.read().await.contains_key("term1"));
+        assert!(!state.emit_buffers.read().await.contains_key("term2"));
+        assert!(state.emit_buffers.read().await.contains_key("term3"));
+
+        assert!(state.emit_buffers_norm.read().await.contains_key("term1"));
+        assert!(!state.emit_buffers_norm.read().await.contains_key("term2"));
+        assert!(state.emit_buffers_norm.read().await.contains_key("term3"));
+    }
+
+    #[tokio::test]
+    async fn test_clear_for_nonexistent_terminal() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // Should not panic when clearing non-existent terminal
+        state.clear_for("nonexistent").await;
+
+        // Verify maps are still empty
+        assert!(state.emit_buffers.read().await.is_empty());
+        assert!(state.emit_scheduled.read().await.is_empty());
+        assert!(state.emit_buffers_norm.read().await.is_empty());
+        assert!(state.norm_last_cr.read().await.is_empty());
     }
 }

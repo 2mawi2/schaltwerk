@@ -223,6 +223,7 @@ impl LocalPtyAdapter {
                         let id_clone_for_cleanup = id.clone();
                         let terminals_clone2 = Arc::clone(&reader_state.terminals);
                         let app_handle_clone2 = Arc::clone(&reader_state.coalescing_state.app_handle);
+                        let coalescing_state_clone = reader_state.coalescing_state.clone();
                         runtime.block_on(async move {
                             // Remove terminal state
                             terminals_clone2.write().await.remove(&id_clone_for_cleanup);
@@ -232,6 +233,8 @@ impl LocalPtyAdapter {
                             }
                             reader_state.pty_masters.lock().await.remove(&id_clone_for_cleanup);
                             reader_state.pty_writers.lock().await.remove(&id_clone_for_cleanup);
+                            // Clear coalescing buffers
+                            coalescing_state_clone.clear_for(&id_clone_for_cleanup).await;
                             // Emit terminal closed event
                             if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
                                 let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
@@ -306,6 +309,7 @@ impl LocalPtyAdapter {
                             let id_clone_for_cleanup = id.clone();
                             let terminals_clone2 = Arc::clone(&reader_state.terminals);
                             let app_handle_clone2 = Arc::clone(&reader_state.coalescing_state.app_handle);
+                            let coalescing_state_clone = reader_state.coalescing_state.clone();
                             runtime.block_on(async move {
                                 terminals_clone2.write().await.remove(&id_clone_for_cleanup);
                                 if let Some(mut child) = reader_state.pty_children.lock().await.remove(&id_clone_for_cleanup) {
@@ -313,6 +317,8 @@ impl LocalPtyAdapter {
                                 }
                                 reader_state.pty_masters.lock().await.remove(&id_clone_for_cleanup);
                                 reader_state.pty_writers.lock().await.remove(&id_clone_for_cleanup);
+                                // Clear coalescing buffers
+                                coalescing_state_clone.clear_for(&id_clone_for_cleanup).await;
                                 if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
                                     let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
                                     );
@@ -622,11 +628,8 @@ impl TerminalBackend for LocalPtyAdapter {
         }
         self.transcript_paths.lock().await.remove(id);
         
-        // Clear emit buffers
-        self.coalescing_state.emit_buffers.write().await.remove(id);
-        self.coalescing_state.emit_buffers_norm.write().await.remove(id);
-        self.coalescing_state.norm_last_cr.write().await.remove(id);
-        self.coalescing_state.emit_scheduled.write().await.remove(id);
+        // Clear coalescing buffers
+        self.coalescing_state.clear_for(id).await;
         
         info!("Terminal {id} closed");
         Ok(())
@@ -1978,6 +1981,33 @@ mod tests {
         let (seq, data) = adapter.snapshot(&id, None).await.unwrap();
         assert_eq!(seq, 0);
         assert!(data.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_coalescing_buffers_cleaned_on_close() {
+        let adapter = LocalPtyAdapter::new();
+        let id = unique_id("coalescing-cleanup");
+
+        let params = CreateParams {
+            id: id.clone(),
+            cwd: "/tmp".to_string(),
+            app: None,
+        };
+
+        adapter.create(params).await.unwrap();
+        
+        // Generate output to populate coalescing buffers
+        adapter.write(&id, b"echo 'populate buffers'\n").await.unwrap();
+        sleep(Duration::from_millis(100)).await;
+
+        // Close terminal
+        adapter.close(&id).await.unwrap();
+
+        // Verify all coalescing buffers are cleaned
+        assert!(!adapter.coalescing_state.emit_buffers.read().await.contains_key(&id));
+        assert!(!adapter.coalescing_state.emit_scheduled.read().await.contains_key(&id));
+        assert!(!adapter.coalescing_state.emit_buffers_norm.read().await.contains_key(&id));
+        assert!(!adapter.coalescing_state.norm_last_cr.read().await.contains_key(&id));
     }
 
     #[tokio::test]
