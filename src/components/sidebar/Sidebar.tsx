@@ -207,16 +207,23 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }
     
 
-    const handleSelectSession = async (index: number) => {
-        // When sessions are grouped, we need to find the correct session by flattening the groups
-        const sessionGroups = groupSessionsByVersion(sessions)
-        const flattenedSessions: any[] = []
+    // Helper to flatten grouped sessions into a linear array
+    const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
+        const sessionGroups = groupSessionsByVersion(sessionsToFlatten)
+        const flattenedSessions: EnrichedSession[] = []
         
         for (const group of sessionGroups) {
             for (const version of group.versions) {
                 flattenedSessions.push(version.session)
             }
         }
+        
+        return flattenedSessions
+    }
+
+    const handleSelectSession = async (index: number) => {
+        // When sessions are grouped, we need to find the correct session by flattening the groups
+        const flattenedSessions = flattenGroupedSessions(sessions)
         
         const session = flattenedSessions[index]
         if (session) {
@@ -293,7 +300,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const selectPrev = async () => {
         if (sessions.length === 0) return
         if (selection.kind === 'session') {
-            const currentIndex = sessions.findIndex(s => s.info.session_id === selection.payload)
+            // Use the helper to get flattened sessions
+            const flattenedSessions = flattenGroupedSessions(sessions)
+            
+            const currentIndex = flattenedSessions.findIndex(s => s.info.session_id === selection.payload)
             // If at the first session, go to orchestrator
             if (currentIndex <= 0) {
                 await handleSelectOrchestrator()
@@ -313,8 +323,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             return
         }
         if (selection.kind === 'session') {
-            const currentIndex = sessions.findIndex(s => s.info.session_id === selection.payload)
-            const nextIndex = Math.min(currentIndex + 1, sessions.length - 1)
+            // Use the helper to get flattened sessions
+            const flattenedSessions = flattenGroupedSessions(sessions)
+            
+            const currentIndex = flattenedSessions.findIndex(s => s.info.session_id === selection.payload)
+            const nextIndex = Math.min(currentIndex + 1, flattenedSessions.length - 1)
             if (nextIndex !== currentIndex) {
                 await handleSelectSession(nextIndex)
             }
