@@ -694,6 +694,91 @@ describe('useTerminalTabs', () => {
       ])
     })
 
+    it('reuses lowest available label numbers after deletion', async () => {
+      mockInvoke.mockResolvedValue(undefined)
+
+      const { result } = renderHook(() => useTerminalTabs({
+        baseTerminalId: 'test-label-reuse',
+        workingDirectory: '/test/dir'
+      }))
+
+      // Add two tabs: Terminal 1, Terminal 2
+      await act(async () => {
+        await result.current.addTab()
+      })
+
+      expect(result.current.tabs.map(t => t.label)).toEqual([
+        'Terminal 1',
+        'Terminal 2'
+      ])
+
+      // Delete Terminal 1 (index 0)
+      await act(async () => {
+        await result.current.closeTab(0)
+      })
+
+      expect(result.current.tabs.map(t => t.label)).toEqual([
+        'Terminal 2'
+      ])
+
+      // Add a new tab - should reuse "Terminal 1" (not "Terminal 3")
+      await act(async () => {
+        await result.current.addTab()
+      })
+
+      const labels = result.current.tabs.map(t => t.label).sort()
+      expect(labels).toEqual([
+        'Terminal 1',
+        'Terminal 2'
+      ])
+    })
+
+    it('handles complex deletion and recreation scenarios', async () => {
+      mockInvoke.mockResolvedValue(undefined)
+
+      const { result } = renderHook(() => useTerminalTabs({
+        baseTerminalId: 'test-complex-labels',
+        workingDirectory: '/test/dir',
+        maxTabs: 5
+      }))
+
+      // Create terminals 1, 2, 3
+      await act(async () => {
+        await result.current.addTab()
+      })
+      await act(async () => {
+        await result.current.addTab()
+      })
+
+      expect(result.current.tabs.map(t => t.label).sort()).toEqual([
+        'Terminal 1',
+        'Terminal 2', 
+        'Terminal 3'
+      ])
+
+      // Delete Terminal 2 (middle one)
+      const terminal2Tab = result.current.tabs.find(t => t.label === 'Terminal 2')
+      await act(async () => {
+        await result.current.closeTab(terminal2Tab!.index)
+      })
+
+      expect(result.current.tabs.map(t => t.label).sort()).toEqual([
+        'Terminal 1',
+        'Terminal 3'
+      ])
+
+      // Add new terminal - should reuse "Terminal 2"
+      await act(async () => {
+        await result.current.addTab()
+      })
+
+      expect(result.current.tabs.map(t => t.label).sort()).toEqual([
+        'Terminal 1',
+        'Terminal 2',
+        'Terminal 3'
+      ])
+    })
+
     it('maintains correct ordering after tab operations', async () => {
       mockInvoke.mockResolvedValue(undefined)
 

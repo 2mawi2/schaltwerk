@@ -107,6 +107,13 @@ export function useTerminalTabs({
 
      const newIndex = Math.max(...sessionTabs.tabs.map(t => t.index)) + 1
      const newTerminalId = `${baseTerminalId}-${newIndex}`
+     
+     // Find the lowest available label number
+     const existingNumbers = sessionTabs.tabs.map(t => parseInt(t.label.replace('Terminal ', '')))
+     let labelNumber = 1
+     while (existingNumbers.includes(labelNumber)) {
+       labelNumber++
+     }
 
      try {
        await createTerminal(newTerminalId)
@@ -114,7 +121,7 @@ export function useTerminalTabs({
        const newTab: TabInfo = {
          index: newIndex,
          terminalId: newTerminalId,
-         label: `Terminal ${sessionTabs.tabs.length + 1}`
+         label: `Terminal ${labelNumber}`
        }
 
        const updatedState = {
