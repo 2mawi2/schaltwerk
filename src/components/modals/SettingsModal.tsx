@@ -6,6 +6,7 @@ import { useSettings, AgentType } from '../../hooks/useSettings'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
 import { AnimatedText } from '../common/AnimatedText'
+import { SpecContentModal } from '../SpecContentModal'
 
 interface Props {
     open: boolean
@@ -193,6 +194,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [archives, setArchives] = useState<ArchivedSpec[]>([])
     const [archivesLoading, setArchivesLoading] = useState(false)
     const [archiveMax, setArchiveMax] = useState<number>(50)
+    const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
     
     const {
         loading,
@@ -498,7 +500,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             <div className="space-y-3 w-full">
                                 {archives.map(item => (
                                     <div key={item.id} className="w-full border border-slate-800 rounded p-3 bg-slate-900/40 flex items-start justify-between gap-3 min-w-0">
-                                        <div className="flex-1 min-w-0 overflow-hidden pr-2" style={{maxWidth: 'calc(100% - 140px)'}}>
+                                        <div 
+                                            className="flex-1 min-w-0 overflow-hidden pr-2 cursor-pointer hover:opacity-80 transition-opacity" 
+                                            style={{maxWidth: 'calc(100% - 140px)'}}
+                                            onClick={() => setSelectedSpec({ name: item.session_name, content: item.content })}
+                                        >
                                             <div className="text-slate-200 text-sm truncate">{item.session_name}</div>
                                             <div className="text-xs text-slate-500">{
                                               (() => {
@@ -1669,6 +1675,13 @@ fi`}
 
     return (
         <>
+            {selectedSpec && (
+                <SpecContentModal
+                    specName={selectedSpec.name}
+                    content={selectedSpec.content}
+                    onClose={() => setSelectedSpec(null)}
+                />
+            )}
             {notification.visible && (
                 <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
                     notification.type === 'error' ? 'bg-red-900' : 
