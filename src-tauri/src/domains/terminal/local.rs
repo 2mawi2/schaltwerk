@@ -74,18 +74,6 @@ impl LocalPtyAdapter {
         }
     }
 
-    /// Checks if a terminal ID corresponds to a TUI application that needs special handling
-    fn is_tui_application(terminal_id: &str) -> bool {
-        // TUI applications that need ANSI-aware buffering and immediate writes
-        terminal_id.contains("opencode") 
-            || terminal_id.contains("cursor-agent")
-            || terminal_id.contains("cursor")
-            || terminal_id.contains("gemini")
-            || terminal_id.contains("claude")
-            || terminal_id.contains("codex")
-            || terminal_id.contains("qwen")
-    }
-
     pub async fn set_app_handle(&self, handle: AppHandle) {
         *self.coalescing_state.app_handle.lock().await = Some(handle);
     }
@@ -281,15 +269,11 @@ impl LocalPtyAdapter {
                                 // Handle output emission with ANSI-aware buffering
                                 drop(terminals); // release lock before awaits below
                                 
-                                // Treat agent top terminals as TUI to minimize latency.
-                                // Our terminal IDs follow session-{name}-top/orchestrator-*-top, so
-                                // rely on is_agent_terminal rather than substring-matching agent names.
-                                let is_tui = Self::is_tui_application(&id_clone) || Self::is_agent_terminal(&id_clone);
-                                
-                                // Use coalescing for all terminals, but with different delays
-                                // TUI apps get zero delay to maintain responsiveness
-                                // Regular terminals get 2ms delay for efficiency
-                                let delay_ms = if is_tui { 0 } else { 2 };
+                                // Use coalescing for all terminals with consistent delay
+                                // Small delay helps batch output and prevents issues with ANSI sequence handling
+                                // 2ms is imperceptible but significantly improves efficiency and prevents
+                                // issues with rapid small chunks causing extra newlines in agent output
+                                let delay_ms = 2;
                                 
                                 handle_coalesced_output(
                                     &coalescing_state_clone,

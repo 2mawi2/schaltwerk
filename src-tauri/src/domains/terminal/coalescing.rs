@@ -20,6 +20,8 @@ impl CoalescingState {
     pub async fn clear_for(&self, id: &str) {
         self.emit_buffers.write().await.remove(id);
         self.emit_scheduled.write().await.remove(id);
+        // Note: emit_buffers_norm and norm_last_cr are kept for backward compatibility
+        // but are no longer actively used in processing
         self.emit_buffers_norm.write().await.remove(id);
         self.norm_last_cr.write().await.remove(id);
     }
@@ -44,30 +46,8 @@ pub async fn handle_coalesced_output(
         buf_ref.extend_from_slice(params.data);
     }
 
-    // Maintain a normalized coalesced buffer as well
-    {
-        let mut last_map = coalescing_state.norm_last_cr.write().await;
-        let prev_last_cr = *last_map.get(params.terminal_id).unwrap_or(&false);
-        let raw_ended_with_cr = params.data.last().copied() == Some(b'\r');
-        let mut s = String::from_utf8_lossy(params.data).to_string();
-        let mut out = String::new();
-        if prev_last_cr {
-            if s.starts_with('\n') {
-                s.remove(0);
-            } else {
-                out.push('\n');
-            }
-        }
-        s = s.replace("\r\n", "\n").replace("\r", "\n");
-        out.push_str(&s);
-        if raw_ended_with_cr {
-            out.push('\n');
-        }
-        last_map.insert(params.terminal_id.to_string(), raw_ended_with_cr);
-        let mut buffers_n = coalescing_state.emit_buffers_norm.write().await;
-        let buf_ref_n = buffers_n.entry(params.terminal_id.to_string()).or_insert_with(Vec::new);
-        buf_ref_n.extend_from_slice(out.as_bytes());
-    }
+    // Skip normalized buffer processing - it causes extra newlines and corrupts terminal output
+    // The normalized output events are never consumed by the frontend anyway
 
     // Schedule emission with ANSI awareness
     let mut should_schedule = false;
@@ -84,7 +64,6 @@ pub async fn handle_coalesced_output(
         let app_for_emit = Arc::clone(&coalescing_state.app_handle);
         let emit_buffers_for_task = Arc::clone(&coalescing_state.emit_buffers);
         let emit_scheduled_for_task = Arc::clone(&coalescing_state.emit_scheduled);
-        let emit_buffers_norm_for_task = Arc::clone(&coalescing_state.emit_buffers_norm);
         let id_for_task = params.terminal_id.to_string();
         let delay_ms = params.delay_ms;
 
@@ -123,11 +102,6 @@ pub async fn handle_coalesced_output(
                 }
             };
 
-            let data_to_emit_norm: Option<Vec<u8>> = {
-                let mut buffers_n = emit_buffers_norm_for_task.write().await;
-                buffers_n.remove(&id_for_task)
-            };
-
             // Mark unscheduled
             {
                 let mut scheduled = emit_scheduled_for_task.write().await;
@@ -147,16 +121,6 @@ pub async fn handle_coalesced_output(
                 }
             }
 
-            if let Some(bytes_n) = data_to_emit_norm {
-                if let Some(handle) = app_for_emit.lock().await.as_ref() {
-                    let event_name_n = format!("terminal-output-normalized-{id_for_task}");
-                    let payload_n = String::from_utf8_lossy(&bytes_n).to_string();
-                    if let Err(e) = handle.emit(&event_name_n, payload_n) {
-                        warn!("Failed to emit normalized terminal output: {e}");
-                    }
-                }
-            }
-
             // If there's remaining data (incomplete sequence), reschedule
             {
                 let buffers = emit_buffers_for_task.read().await;
@@ -171,7 +135,6 @@ pub async fn handle_coalesced_output(
                             let _app_for_emit = Arc::clone(&app_for_emit);
                             let _emit_buffers_for_next = Arc::clone(&emit_buffers_for_task);
                             let emit_scheduled_for_next = Arc::clone(&emit_scheduled_for_task);
-                            let _emit_buffers_norm_for_next = Arc::clone(&emit_buffers_norm_for_task);
                             let id_for_next = id_for_task.clone();
                             
                             tokio::spawn(async move {
@@ -282,63 +245,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
-    async fn test_normalized_buffer_handles_carriage_returns() {
-        let state = CoalescingState {
-            app_handle: Arc::new(Mutex::new(None)),
-            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
-            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
-            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
-            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
-        };
-
-        // Test CR+LF normalization
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"line1\r\nline2\r",
-            delay_ms: 0,
-        }).await;
-
-        let buffers_norm = state.emit_buffers_norm.read().await;
-        let normalized = buffers_norm.get("test-term").unwrap();
-        let normalized_str = String::from_utf8_lossy(normalized);
-        
-        // \r\n should become \n, and trailing \r should add \n
-        assert_eq!(normalized_str, "line1\nline2\n\n");
-    }
-
-    #[tokio::test]
-    async fn test_cr_at_end_affects_next_input() {
-        let state = CoalescingState {
-            app_handle: Arc::new(Mutex::new(None)),
-            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
-            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
-            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
-            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
-        };
-
-        // First call ending with \r
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"line1\r",
-            delay_ms: 0,
-        }).await;
-
-        // Second call starting with \n
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"\nline2",
-            delay_ms: 0,
-        }).await;
-
-        let buffers_norm = state.emit_buffers_norm.read().await;
-        let normalized = buffers_norm.get("test-term").unwrap();
-        let normalized_str = String::from_utf8_lossy(normalized);
-        
-        // The \r from first call and \n from second should not create double newline
-        assert!(normalized_str.contains("line1\n"));
-        assert!(normalized_str.contains("line2"));
-    }
+    // Normalized buffer tests removed - normalized processing is no longer active
 
     #[tokio::test]
     async fn test_scheduling_flag_prevents_double_scheduling() {
@@ -431,11 +338,7 @@ mod tests {
         assert!(buffers.contains_key("term1") || buffers.is_empty()); // May be processed already
         assert!(buffers.contains_key("term2") || buffers.is_empty());
         
-        // Check normalized buffers too
-        drop(buffers);
-        let buffers_norm = state.emit_buffers_norm.read().await;
-        assert!(buffers_norm.contains_key("term1") || buffers_norm.is_empty());
-        assert!(buffers_norm.contains_key("term2") || buffers_norm.is_empty());
+        // Normalized buffers no longer actively used
     }
 
     #[tokio::test]
@@ -460,8 +363,7 @@ mod tests {
         // Verify data is in buffers
         assert!(state.emit_buffers.read().await.contains_key(terminal_id));
         assert!(state.emit_scheduled.read().await.contains_key(terminal_id));
-        assert!(state.emit_buffers_norm.read().await.contains_key(terminal_id));
-        assert!(state.norm_last_cr.read().await.contains_key(terminal_id));
+        // Normalized buffers no longer populated during processing
 
         // Clear buffers for this terminal
         state.clear_for(terminal_id).await;
@@ -469,6 +371,7 @@ mod tests {
         // Verify all buffers are cleared
         assert!(!state.emit_buffers.read().await.contains_key(terminal_id));
         assert!(!state.emit_scheduled.read().await.contains_key(terminal_id));
+        // The clear_for method still clears normalized buffers for compatibility
         assert!(!state.emit_buffers_norm.read().await.contains_key(terminal_id));
         assert!(!state.norm_last_cr.read().await.contains_key(terminal_id));
     }
@@ -510,9 +413,7 @@ mod tests {
         assert!(!state.emit_buffers.read().await.contains_key("term2"));
         assert!(state.emit_buffers.read().await.contains_key("term3"));
 
-        assert!(state.emit_buffers_norm.read().await.contains_key("term1"));
-        assert!(!state.emit_buffers_norm.read().await.contains_key("term2"));
-        assert!(state.emit_buffers_norm.read().await.contains_key("term3"));
+        // Normalized buffers still cleared for compatibility
     }
 
     #[tokio::test]
@@ -531,6 +432,7 @@ mod tests {
         // Verify maps are still empty
         assert!(state.emit_buffers.read().await.is_empty());
         assert!(state.emit_scheduled.read().await.is_empty());
+        // Normalized buffers remain empty
         assert!(state.emit_buffers_norm.read().await.is_empty());
         assert!(state.norm_last_cr.read().await.is_empty());
     }
