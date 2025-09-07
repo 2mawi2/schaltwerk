@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest'
 import { 
   computeUnifiedDiff, 
   addCollapsibleSections, 
-  computeSplitDiff,
   getFileLanguage
 } from './diff'
 
@@ -136,53 +135,7 @@ describe('diff utilities', () => {
     })
   })
   
-  describe('computeSplitDiff', () => {
-    it('aligns unchanged lines', () => {
-      const oldContent = 'line1\nline2\nline3'
-      const newContent = 'line1\nline2\nline3'
-      
-      const result = computeSplitDiff(oldContent, newContent)
-      
-      expect(result.leftLines).toHaveLength(3)
-      expect(result.rightLines).toHaveLength(3)
-      
-      for (let i = 0; i < 3; i++) {
-        expect(result.leftLines[i].content).toBe(result.rightLines[i].content)
-        expect(result.leftLines[i].type).toBe('unchanged')
-        expect(result.rightLines[i].type).toBe('unchanged')
-      }
-    })
-    
-    it('handles additions in split view', () => {
-      const oldContent = 'line1'
-      const newContent = 'line1\nline2'
-      
-      const result = computeSplitDiff(oldContent, newContent)
-      
-      expect(result.leftLines).toHaveLength(2)
-      expect(result.rightLines).toHaveLength(2)
-      
-      // Second line should be empty on left, added on right
-      expect(result.leftLines[1].content).toBe('')
-      expect(result.rightLines[1].content).toBe('line2')
-      expect(result.rightLines[1].type).toBe('added')
-    })
-    
-    it('handles removals in split view', () => {
-      const oldContent = 'line1\nline2'
-      const newContent = 'line1'
-      
-      const result = computeSplitDiff(oldContent, newContent)
-      
-      expect(result.leftLines).toHaveLength(2)
-      expect(result.rightLines).toHaveLength(2)
-      
-      // Second line should be removed on left, empty on right
-      expect(result.leftLines[1].content).toBe('line2')
-      expect(result.leftLines[1].type).toBe('removed')
-      expect(result.rightLines[1].content).toBe('')
-    })
-  })
+
   
   describe('getFileLanguage', () => {
     it('identifies TypeScript files', () => {

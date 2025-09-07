@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { computeUnifiedDiff, addCollapsibleSections, computeSplitDiff } from './diff'
+import { computeUnifiedDiff, addCollapsibleSections } from './diff'
 
 function generateText(lines: number, changeEveryN?: number) {
   const arr: string[] = []
@@ -36,13 +36,5 @@ describe('diff utils performance', () => {
     expect(elapsed).toBeLessThan(800)
   })
 
-  it('computeSplitDiff scales to large inputs', () => {
-    const a = generateText(20000)
-    const b = generateText(20000, 10)
-    const start = performance.now()
-    const res = computeSplitDiff(a, b)
-    const elapsed = performance.now() - start
-    expect(res.leftLines.length + res.rightLines.length).toBeGreaterThan(0)
-    expect(elapsed).toBeLessThan(5000)
-  })
+
 })

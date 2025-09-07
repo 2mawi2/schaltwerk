@@ -1,7 +1,7 @@
 // Legacy diff utilities - now replaced with Rust backend
 // These functions are kept for backward compatibility and tests only
-export type { LineInfo, SplitDiffResult } from '../types/diff'
-import type { LineInfo, SplitDiffResult } from '../types/diff'
+export type { LineInfo } from '../types/diff'
+import type { LineInfo } from '../types/diff'
 
 const COLLAPSE_THRESHOLD = 4
 const CONTEXT_LINES = 3
@@ -167,65 +167,7 @@ export function addCollapsibleSections(lines: LineInfo[]): LineInfo[] {
   return processedLines
 }
 
-// Legacy function - use Rust backend compute_split_diff_backend instead
-export function computeSplitDiff(oldContent: string, newContent: string): SplitDiffResult {
-  console.warn('computeSplitDiff is deprecated - use Rust backend instead')
-  
-  const oldLines = oldContent.split('\n')
-  const newLines = newContent.split('\n')
-  
-  const leftLines: LineInfo[] = []
-  const rightLines: LineInfo[] = []
-  
-  const maxLines = Math.max(oldLines.length, newLines.length)
-  
-  for (let i = 0; i < maxLines; i++) {
-    const oldLine = oldLines[i] ?? ''
-    const newLine = newLines[i] ?? ''
-    
-    if (i < oldLines.length && i < newLines.length) {
-      if (oldLine === newLine) {
-        leftLines.push({
-          content: oldLine,
-          type: 'unchanged',
-          oldLineNumber: i + 1
-        })
-        rightLines.push({
-          content: newLine,
-          type: 'unchanged',
-          newLineNumber: i + 1
-        })
-      } else {
-        leftLines.push({
-          content: oldLine,
-          type: 'removed',
-          oldLineNumber: i + 1
-        })
-        rightLines.push({
-          content: newLine,
-          type: 'added',
-          newLineNumber: i + 1
-        })
-      }
-    } else if (i < oldLines.length) {
-      leftLines.push({
-        content: oldLine,
-        type: 'removed',
-        oldLineNumber: i + 1
-      })
-      rightLines.push({ content: '', type: 'unchanged' })
-    } else if (i < newLines.length) {
-      leftLines.push({ content: '', type: 'unchanged' })
-      rightLines.push({
-        content: newLine,
-        type: 'added',
-        newLineNumber: i + 1
-      })
-    }
-  }
-  
-  return { leftLines, rightLines }
-}
+
 
 export function getFileLanguage(filePath: string): string | undefined {
   if (!filePath) return undefined
