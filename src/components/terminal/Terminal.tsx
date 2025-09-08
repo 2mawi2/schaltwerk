@@ -3,7 +3,6 @@ import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eve
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { WebglAddon } from '@xterm/addon-webgl';
 import { invoke } from '@tauri-apps/api/core';
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
@@ -15,11 +14,6 @@ import { logger } from '../../utils/logger'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
-
-// Build ID to detect when the app has been rebuilt
-// This helps us invalidate stale WebGL contexts
-const BUILD_ID = Date.now().toString();
-let lastBuildId: string | null = null;
 
 // Export function to clear started tracking for specific terminals
 export function clearTerminalStartedTracking(terminalIds: string[]) {
@@ -47,7 +41,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
-    const webglAddon = useRef<WebglAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const [hydrated, setHydrated] = useState(false);
     const [agentLoading, setAgentLoading] = useState(false);
@@ -67,7 +60,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
     const previousTerminalId = useRef<string>(terminalId);
     const listenerAgentRef = useRef<string | undefined>(agentType);
-    const rendererReadyRef = useRef<boolean>(false);
+    const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -234,174 +227,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         terminal.current.parser.registerOscHandler(17, () => true); // highlight background color
         terminal.current.parser.registerOscHandler(19, () => true); // highlight foreground color
         
-        // Add WebGL addon AFTER terminal is opened to DOM
-        // This is critical for proper rendering with TUI applications
-        const setupWebGLAcceleration = () => {
-            // Skip WebGL for background terminals to save memory
-            if (isBackground) {
-                logger.info(`[Terminal ${terminalId}] Background terminal, using canvas renderer`);
-                return false;
-            }
-            
-            // Detect if this is a new build - if so, force cleanup
-            const isNewBuild = lastBuildId !== null && lastBuildId !== BUILD_ID;
-            if (isNewBuild) {
-                logger.info(`[Terminal ${terminalId}] New build detected, forcing WebGL cleanup`);
-                lastBuildId = BUILD_ID;
-            }
-            
-            // Force WebGL context cleanup before creating new one
-            // This prevents stale GPU state from corrupting the terminal
-            if (webglAddon.current || isNewBuild) {
-                try {
-                    if (webglAddon.current) {
-                        webglAddon.current.dispose();
-                        webglAddon.current = null;
-                    }
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Failed to dispose old WebGL addon:`, e);
-                }
-            }
-            
-            // Check WebGL support before attempting to create addon
-            const canvas = document.createElement('canvas');
-            const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
-            if (!gl) {
-                logger.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
-                return false;
-            }
-
-            // Skip WebGL on mobile devices for better compatibility
-            const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            if (isMobile) {
-                logger.info(`[Terminal ${terminalId}] Mobile device detected, using canvas renderer for compatibility`);
-                return false;
-            }
-
-            try {
-                rendererReadyRef.current = false;
-                webglAddon.current = new WebglAddon();
-                
-                // Add validation: test if WebGL renders correctly
-                // If it fails, fall back to canvas renderer
-                const testRender = () => {
-                    try {
-                        terminal.current!.loadAddon(webglAddon.current!);
-                        // Force a test render to validate the context
-                        if (terminal.current && fitAddon.current) {
-                            fitAddon.current.fit();
-                        }
-                        return true;
-                    } catch (e) {
-                        logger.warn(`[Terminal ${terminalId}] WebGL test render failed:`, e);
-                        return false;
-                    }
-                };
-                
-                if (!testRender()) {
-                    logger.info(`[Terminal ${terminalId}] WebGL validation failed, using canvas renderer`);
-                    if (webglAddon.current) {
-                        webglAddon.current.dispose();
-                        webglAddon.current = null;
-                    }
-                    return false;
-                }
-                
-                // Enhanced context loss handling with restoration attempt
-                webglAddon.current.onContextLoss(() => {
-                    logger.warn(`[Terminal ${terminalId}] WebGL context lost, attempting restoration`);
-                    
-                    // Attempt to restore WebGL context after a brief delay
-                    rendererReadyRef.current = false;
-                    setTimeout(() => {
-                        if (webglAddon.current && !cancelled) {
-                            try {
-                                // Check if context can be restored
-                                const testCanvas = document.createElement('canvas');
-                                const testGl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
-                                
-                                if (testGl) {
-                                    logger.info(`[Terminal ${terminalId}] WebGL context restoration possible, recreating addon`);
-                                    const oldAddon = webglAddon.current;
-                                    oldAddon.dispose();
-                                    
-                                    webglAddon.current = new WebglAddon();
-                                    terminal.current?.loadAddon(webglAddon.current);
-                                    logger.info(`[Terminal ${terminalId}] WebGL acceleration restored`);
-                                    // Ensure we refit and re-enable renderer readiness deterministically
-                                    requestAnimationFrame(() => {
-                                        if (cancelled || !fitAddon.current || !terminal.current || !termRef.current) {
-                                            rendererReadyRef.current = true; // unblock flush even if we can't fit
-                                            return;
-                                        }
-                                        try {
-                                            fitAddon.current.fit();
-                                            const { cols, rows } = terminal.current;
-                                            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                                                lastSize.current = { cols, rows };
-                                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
-                                            }
-                                        } catch (e) {
-                                            logger.warn(`[Terminal ${terminalId}] Fit after WebGL restoration failed:`, e);
-                                        } finally {
-                                            rendererReadyRef.current = true;
-                                        }
-                                    });
-                                } else {
-                                    logger.warn(`[Terminal ${terminalId}] WebGL context restoration failed, permanently using canvas renderer`);
-                                    webglAddon.current.dispose();
-                                    webglAddon.current = null;
-                                    // Canvas active; mark ready and trigger a fit so sizing is correct
-                                    requestAnimationFrame(() => {
-                                        try {
-                                            if (fitAddon.current && terminal.current) {
-                                                fitAddon.current.fit();
-                                                const { cols, rows } = terminal.current;
-                                                if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                                                    lastSize.current = { cols, rows };
-                                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
-                                                }
-                                            }
-                                        } catch (e) {
-                                            logger.warn(`[Terminal ${terminalId}] Fit after WebGL fallback failed:`, e);
-                                        } finally {
-                                            rendererReadyRef.current = true;
-                                        }
-                                    });
-                                }
-                            } catch (restoreError) {
-                                logger.warn(`[Terminal ${terminalId}] WebGL restoration failed:`, restoreError);
-                                if (webglAddon.current) {
-                                    try { webglAddon.current.dispose(); } catch (e) {
-                                        logger.warn(`[Terminal ${terminalId}] Failed to dispose WebGL addon after restoration error:`, e);
-                                    }
-                                    webglAddon.current = null;
-                                }
-                                // Unblock flush to avoid stalling output
-                                rendererReadyRef.current = true;
-                            }
-                        }
-                    }, 1000);
-                });
-
-                logger.info(`[Terminal ${terminalId}] WebGL acceleration enabled`);
-                return true;
-                
-            } catch (error: any) {
-                if (error.name === 'SecurityError') {
-                    logger.info(`[Terminal ${terminalId}] WebGL blocked by security policy, using canvas renderer`);
-                } else if (error.message?.includes('blacklisted')) {
-                    logger.info(`[Terminal ${terminalId}] WebGL blacklisted on this system, using canvas renderer`);
-                } else {
-                    logger.warn(`[Terminal ${terminalId}] WebGL addon failed to load, using canvas renderer:`, error);
-                }
-                webglAddon.current = null;
-                return false;
-            }
-        };
-
-        // Smart WebGL initialization with fallback strategy (similar to VSCode)
-        // Start with Canvas for immediate compatibility, then try WebGL
+        // Initialize terminal with Canvas renderer (default xterm.js renderer)
         let rendererInitialized = false;
         const initializeRenderer = () => {
             if (rendererInitialized || cancelled || !terminal.current || !termRef.current) {
@@ -412,7 +238,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                 rendererInitialized = true;
                 try {
-                    // Ensure terminal is properly fitted before WebGL
+                    // Ensure terminal is properly fitted
                     if (fitAddon.current && terminal.current) {
                         fitAddon.current.fit();
                         // Immediately propagate initial size once measurable
@@ -426,14 +252,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
                     }
-                    const webglEnabled = setupWebGLAcceleration();
-                    if (!webglEnabled) {
-                        logger.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
-                        // Canvas renderer active; mark ready after this frame
-                        requestAnimationFrame(() => { rendererReadyRef.current = true; });
-                    }
                     
-                    // After renderer is initialized, trigger a proper resize to ensure correct dimensions
+                    // Mark renderer as ready immediately (Canvas renderer is always ready)
+                    rendererReadyRef.current = true;
+                    
+                    // After initialization, trigger a proper resize to ensure correct dimensions
                     requestAnimationFrame(() => {
                         if (fitAddon.current && terminal.current) {
                             try {
@@ -443,17 +266,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     lastSize.current = { cols, rows };
                                     invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                                 }
-                                // Renderer (WebGL or Canvas) is ready after a successful post-fit
-                                rendererReadyRef.current = true;
                             } catch (e) {
-                                logger.warn(`[Terminal ${terminalId}] Post-renderer fit failed:`, e);
-                                // Even if fit failed, avoid blocking indefinitely; allow later fits to set ready
-                                rendererReadyRef.current = true;
+                                logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
                             }
                         }
                     });
                 } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Renderer initialization failed:`, e);
                     rendererReadyRef.current = true;
                 }
             }
@@ -1053,8 +872,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 logger.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
             }
             try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
-            webglAddon.current?.dispose();
-            webglAddon.current = null;
             terminal.current?.dispose();
             terminal.current = null;
             setHydrated(false);
