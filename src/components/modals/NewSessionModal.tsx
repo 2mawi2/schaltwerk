@@ -149,13 +149,19 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
 
+    // Track if the modal was previously open and with what initialIsDraft value
+    const wasOpenRef = useRef(false)
+    const lastInitialIsDraftRef = useRef<boolean | undefined>(undefined)
+    
     useLayoutEffect(() => {
         if (open) {
             logger.info('[NewSessionModal] Modal opened with:', {
                 initialIsDraft,
                 isPrefillPending,
                 hasPrefillData,
-                currentCreateAsDraft: createAsDraft
+                currentCreateAsDraft: createAsDraft,
+                wasOpen: wasOpenRef.current,
+                lastInitialIsDraft: lastInitialIsDraftRef.current
             })
             
             setCreating(false)
@@ -163,9 +169,17 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             const gen = generateDockerStyleName()
             initialGeneratedNameRef.current = gen
             
-            // Only reset state if we're not expecting prefill data AND don't already have it
-            if (!isPrefillPending && !hasPrefillData) {
-                logger.info('[NewSessionModal] Resetting modal state - reason: no prefill pending or data')
+            // Reset state if:
+            // 1. We're not expecting prefill data AND don't already have it AND modal wasn't already open, OR
+            // 2. The initialIsDraft prop changed (component re-rendered with different props)
+            const initialIsDraftChanged = lastInitialIsDraftRef.current !== undefined && lastInitialIsDraftRef.current !== initialIsDraft
+            const shouldReset = (!isPrefillPending && !hasPrefillData && !wasOpenRef.current) || initialIsDraftChanged
+            
+            if (shouldReset) {
+                logger.info('[NewSessionModal] Resetting modal state - reason:', {
+                    noPrefillAndWasntOpen: !isPrefillPending && !hasPrefillData && !wasOpenRef.current,
+                    initialIsDraftChanged
+                })
                 setName(gen)
                 setWasEdited(false)
                 wasEditedRef.current = false
@@ -192,11 +206,14 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         setSkipPermissions(false)
                     })
             } else {
-                logger.info('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data')
+                logger.info('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data or modal was already open and initialIsDraft unchanged')
                 // Still need to reset some state
                 setValidationError('')
                 setCreating(false)
             }
+            
+            wasOpenRef.current = true
+            lastInitialIsDraftRef.current = initialIsDraft
             
             // Check if repository is empty for display purposes
             invoke<boolean>('repository_is_empty')
@@ -227,6 +244,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setSkipPermissions(false)
             setVersionCount(1)
             setShowVersionMenu(false)
+            wasOpenRef.current = false
+            lastInitialIsDraftRef.current = undefined
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft])
 
@@ -388,7 +407,13 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                             id="createAsDraft" 
                             type="checkbox" 
                             checked={createAsDraft} 
-                            onChange={e => setCreateAsDraft(e.target.checked)} 
+                            onChange={e => {
+                                setCreateAsDraft(e.target.checked)
+                                // Clear validation error when switching modes to prevent stale errors
+                                if (validationError) {
+                                    setValidationError('')
+                                }
+                            }} 
                             className="text-blue-600"
                         />
                         <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
