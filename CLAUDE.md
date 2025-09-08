@@ -159,6 +159,16 @@ Always write tests first, before implementing features:
 
 This applies to both TypeScript and Rust code. The test defines the contract before the implementation exists.
 
+## Specification Writing Guidelines
+
+### Technical Specs (MANDATORY)
+When creating specs for implementation agents:
+- **Focus**: Technical implementation details, architecture, code examples
+- **Requirements**: Clear dependencies, APIs, integration points
+- **Structure**: Components → Implementation → Configuration → Phases
+- **Omit**: Resource constraints, obvious details, verbose explanations
+- **Include**: Platform-specific APIs, code snippets, data flows, dependencies
+
 ### Before ANY Commit
 Run `npm run test` - ALL must pass:
 - TypeScript linting
