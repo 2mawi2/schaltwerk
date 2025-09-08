@@ -21,6 +21,7 @@ export interface Session {
   last_activity?: number
   initial_prompt?: string
   draft_content?: string
+  spec_content?: string
   ready_to_merge: boolean
   original_agent_type?: string
   original_skip_permissions?: boolean
@@ -165,6 +166,7 @@ export class SchaltwerkBridge {
           last_activity?: string;
           initial_prompt?: string;
           draft_content?: string;
+          spec_content?: string;
           ready_to_merge?: boolean;
           original_agent_type?: string;
           original_skip_permissions?: boolean;
@@ -190,6 +192,7 @@ export class SchaltwerkBridge {
         last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
         initial_prompt: es.info.initial_prompt || undefined,
         draft_content: es.info.draft_content || undefined,
+        spec_content: es.info.spec_content || undefined,
         ready_to_merge: es.info.ready_to_merge || false,
         original_agent_type: undefined,
         original_skip_permissions: undefined,
@@ -719,6 +722,7 @@ export class SchaltwerkBridge {
           last_activity?: string;
           initial_prompt?: string;
           draft_content?: string;
+          spec_content?: string;
           ready_to_merge?: boolean;
           original_agent_type?: string;
           original_skip_permissions?: boolean;
@@ -744,6 +748,7 @@ export class SchaltwerkBridge {
         last_activity: es.info.last_activity ? new Date(es.info.last_activity).getTime() : undefined,
         initial_prompt: es.info.initial_prompt || undefined,
         draft_content: es.info.draft_content || undefined,
+        spec_content: es.info.spec_content || undefined,
         ready_to_merge: es.info.ready_to_merge || false,
         original_agent_type: undefined,
         original_skip_permissions: undefined,
