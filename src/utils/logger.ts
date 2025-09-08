@@ -42,7 +42,9 @@ function createLogger(): Logger {
       const backendMessage = formattedArgs.length > 1 
         ? formattedArgs.join(' ').replace(/\[object Object\]/g, obj => JSON.stringify(obj))
         : formattedArgs[0] as string
-      logToBackend('error', backendMessage).catch(() => {})
+      logToBackend('error', backendMessage).catch(err => {
+        console.warn('Failed to send error log to backend:', err)
+      })
     },
 
     warn: (message: string, ...args: unknown[]) => {
@@ -54,7 +56,9 @@ function createLogger(): Logger {
       const backendMessage = formattedArgs.length > 1 
         ? formattedArgs.join(' ').replace(/\[object Object\]/g, obj => JSON.stringify(obj))
         : formattedArgs[0] as string
-      logToBackend('warn', backendMessage).catch(() => {})
+      logToBackend('warn', backendMessage).catch(err => {
+        console.warn('Failed to send warn log to backend:', err)
+      })
     },
 
     info: (message: string, ...args: unknown[]) => {
@@ -66,7 +70,9 @@ function createLogger(): Logger {
       const backendMessage = formattedArgs.length > 1 
         ? formattedArgs.join(' ').replace(/\[object Object\]/g, obj => JSON.stringify(obj))
         : formattedArgs[0] as string
-      logToBackend('info', backendMessage).catch(() => {})
+      logToBackend('info', backendMessage).catch(err => {
+        console.warn('Failed to send info log to backend:', err)
+      })
     },
 
     debug: (message: string, ...args: unknown[]) => {
@@ -78,7 +84,9 @@ function createLogger(): Logger {
       const backendMessage = formattedArgs.length > 1 
         ? formattedArgs.join(' ').replace(/\[object Object\]/g, obj => JSON.stringify(obj))
         : formattedArgs[0] as string
-      logToBackend('debug', backendMessage).catch(() => {})
+      logToBackend('debug', backendMessage).catch(err => {
+        console.warn('Failed to send debug log to backend:', err)
+      })
     }
   }
 }

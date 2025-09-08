@@ -1,2 +1,9 @@
 # Strict clippy configuration
 warn-on-all-wildcard-imports = true
+
+# Require explicit error handling - no silent drops
+disallowed-macros = [
+    # Disallow panic-inducing macros in production code
+    { path = "std::panic", reason = "Use proper error handling instead of panicking" },
+    { path = "core::panic", reason = "Use proper error handling instead of panicking" }
+]

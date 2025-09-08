@@ -33,6 +33,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       })
       .catch((e) => {
         if (!mounted) return
+        logger.error('Failed to get spec content:', e)
         setError(String(e))
       })
       .finally(() => mounted && setLoading(false))

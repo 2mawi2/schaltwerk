@@ -44,6 +44,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       })
       .catch((e) => {
         if (!mounted) return
+        logger.error('Failed to load spec content:', e)
         setError(String(e))
       })
       .finally(() => mounted && setLoading(false))

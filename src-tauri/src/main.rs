@@ -3,6 +3,8 @@
 #![deny(dead_code)]
 #![warn(unused_imports)]
 #![warn(unused_variables)]
+#![deny(clippy::match_wild_err_arm)] // Deny catch-all error patterns without proper handling
+#![deny(clippy::let_underscore_lock)] // Deny discarding locks which could be a silent error
 
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;

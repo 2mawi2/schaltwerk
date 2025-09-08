@@ -48,7 +48,8 @@ export function PromoteVersionConfirmation({
           }
           setCheckingPreference(false)
         })
-        .catch(() => {
+        .catch(error => {
+          logger.warn('Failed to load promote version preferences:', error)
           // If failed to load preferences, show the dialog
           setShouldSkipDialog(false)
           setCheckingPreference(false)

@@ -179,7 +179,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     useEffect(() => {
         invoke<string>("get_current_branch_name", { sessionName: null })
             .then(branch => setOrchestratorBranch(branch))
-            .catch(() => setOrchestratorBranch("main"))
+            .catch(error => {
+                logger.warn('Failed to get current branch, defaulting to main:', error)
+                setOrchestratorBranch("main")
+            })
     }, [])
 
     // Compute time-based idle sessions from last activity

@@ -735,11 +735,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                           if (fontsReady && typeof fontsReady.then === 'function') {
                               fontsReady.then(() => {
                                   requestAnimationFrame(() => doHydrationFit());
-                              }).catch(() => {
-                                  // ignore font readiness errors
+                              }).catch(error => {
+                                  logger.warn('Font readiness check failed:', error)
                               });
                           }
-                      } catch { /* ignore */ }
+                      } catch (error) {
+                          logger.warn('Error during terminal hydration fit:', error)
+                      }
                   });
 
                   // Scroll to bottom after hydration to show latest content

@@ -2,6 +2,13 @@ import js from '@eslint/js';
 import tseslint from '@typescript-eslint/eslint-plugin';
 import tsparser from '@typescript-eslint/parser';
 import reactHooks from 'eslint-plugin-react-hooks';
+import noEmptyCatchHandlers from './eslint-rules/no-empty-catch-handlers.js';
+
+const localPlugin = {
+  rules: {
+    'no-empty-catch-handlers': noEmptyCatchHandlers,
+  },
+};
 
 export default [
   js.configs.recommended,
@@ -44,6 +51,7 @@ export default [
     plugins: {
       '@typescript-eslint': tseslint,
       'react-hooks': reactHooks,
+      'local': localPlugin,
     },
     rules: {
       // React hooks rules
@@ -58,6 +66,8 @@ export default [
       'no-console': 'warn',
       'no-debugger': 'error',
       'no-undef': 'off', // Turn off since we define globals above
+      'no-empty': ['error', { allowEmptyCatch: false }], // Disallow empty catch blocks
+      'local/no-empty-catch-handlers': 'error', // Disallow empty .catch() handlers
     },
   },
   {
@@ -106,6 +116,7 @@ export default [
     },
     plugins: {
       '@typescript-eslint': tseslint,
+      'local': localPlugin,
     },
     rules: {
       // TypeScript specific rules
@@ -124,6 +135,8 @@ export default [
       'no-console': 'off', // Allow console in tests
       'no-debugger': 'error',
       'no-undef': 'off', // Turn off since we define globals above
+      'no-empty': ['error', { allowEmptyCatch: false }], // Disallow empty catch blocks
+      'local/no-empty-catch-handlers': 'error', // Disallow empty .catch() handlers
     },
   },
   {
