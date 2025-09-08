@@ -1,4 +1,5 @@
 import { useRef, useEffect } from 'react'
+import { logger } from '../utils/logger'
 
 export function useCleanupRegistry() {
     const cleanupRegistry = useRef<(() => void)[]>([])
@@ -46,7 +47,7 @@ export function useCleanupRegistry() {
                 try {
                     cleanup()
                 } catch (error) {
-                    console.error('[useCleanupRegistry] Cleanup error:', error)
+                    logger.error('[useCleanupRegistry] Cleanup error:', error)
                 }
             })
             cleanupRegistry.current = []

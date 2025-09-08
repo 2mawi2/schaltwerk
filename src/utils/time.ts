@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger'
+
 /**
  * Format a timestamp as a relative time string (e.g., "2m", "3h", "5d")
  * Handles UTC timestamps correctly by ensuring both dates are in UTC
@@ -36,7 +38,7 @@ export function formatLastActivity(lastModified?: string): string {
         const diffDays = Math.floor(diffHours / 24)
         return `${diffDays}d`
     } catch (e) {
-        console.error('Error parsing date:', e)
+        logger.error('Error parsing date:', e)
         return 'unknown'
     }
 }

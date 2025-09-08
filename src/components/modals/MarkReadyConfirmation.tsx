@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { AnimatedText } from '../common/AnimatedText'
+import { logger } from '../../utils/logger'
 
 interface MarkReadyConfirmationProps {
   open: boolean
@@ -38,7 +39,7 @@ export function MarkReadyConfirmation({
           setFreshHasUncommitted(dirty)
         }
       } catch (error) {
-        console.error('Failed to check uncommitted changes:', error)
+        logger.error('Failed to check uncommitted changes:', error)
         // If check fails, fall back to the passed value
         if (!cancelled) {
           setFreshHasUncommitted(hasUncommittedChanges)
@@ -72,7 +73,7 @@ export function MarkReadyConfirmation({
         alert('Session has uncommitted changes. Please commit them first or enable auto-commit.')
       }
     } catch (error) {
-      console.error('Failed to mark session as reviewed:', error)
+      logger.error('Failed to mark session as reviewed:', error)
       alert(`Failed to mark session as reviewed: ${error}`)
     } finally {
       setLoading(false)

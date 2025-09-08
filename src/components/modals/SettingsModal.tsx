@@ -7,6 +7,7 @@ import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
 import { AnimatedText } from '../common/AnimatedText'
 import { SpecContentModal } from '../SpecContentModal'
+import { logger } from '../../utils/logger'
 
 interface Props {
     open: boolean
@@ -380,7 +381,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             }
         } catch (error) {
             // Project settings not available (likely no project open) - use defaults
-            console.log('Project settings not available (no active project):', error)
+            logger.info('Project settings not available (no active project):', error)
         }
         
         setEnvVars(loadedEnvVars)
@@ -395,9 +396,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
     const loadBinaryConfigs = async () => {
         try {
-            console.log('Loading binary configurations...')
+            logger.info('Loading binary configurations...')
             const configs = await invoke<AgentBinaryConfig[]>('get_all_agent_binary_configs')
-            console.log('Received binary configurations:', configs)
+            logger.info('Received binary configurations:', configs)
             
             const configMap: Record<AgentType, AgentBinaryConfig> = {
                 claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
@@ -412,14 +413,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 const agent = config.agent_name as AgentType
                 if (agent in configMap) {
                     configMap[agent] = config
-                    console.log(`Loaded config for ${agent}:`, config)
+                    logger.info(`Loaded config for ${agent}:`, config)
                 }
             }
             
-            console.log('Final configMap:', configMap)
+            logger.info('Final configMap:', configMap)
             setBinaryConfigs(configMap)
         } catch (error) {
-            console.error('Failed to load binary configurations:', error)
+            logger.error('Failed to load binary configurations:', error)
         }
     }
 
@@ -436,7 +437,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 [agent]: updatedConfig
             }))
         } catch (error) {
-            console.error(`Failed to update binary path for ${agent}:`, error)
+            logger.error(`Failed to update binary path for ${agent}:`, error)
             showNotification(`Failed to update binary path: ${error}`, 'error')
         }
     }
@@ -449,7 +450,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 [agent]: updatedConfig
             }))
         } catch (error) {
-            console.error(`Failed to refresh binary detection for ${agent}:`, error)
+            logger.error(`Failed to refresh binary detection for ${agent}:`, error)
         }
     }
 
@@ -465,7 +466,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 await handleBinaryPathChange(agent, selected as string)
             }
         } catch (error) {
-            console.error('Failed to open file picker:', error)
+            logger.error('Failed to open file picker:', error)
             showNotification(`Failed to open file picker: ${error}`, 'error')
         }
     }

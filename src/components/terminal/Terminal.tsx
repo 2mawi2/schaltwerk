@@ -11,6 +11,7 @@ import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
 import '@xterm/xterm/css/xterm.css';
+import { logger } from '../../utils/logger'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -91,13 +92,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const setupListener = async () => {
             try {
                 unlistenClaudeStarted = await listenEvent(SchaltEvent.ClaudeStarted, (payload) => {
-                    console.log(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
+                    logger.info(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
                     
                     // Mark the terminal as started globally to prevent auto-start
                     startedGlobal.add(payload.terminal_id);
                 });
             } catch (e) {
-                console.error('[Terminal] Failed to set up claude-started listener:', e);
+                logger.error('[Terminal] Failed to set up claude-started listener:', e);
             }
         };
         
@@ -115,7 +116,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         let cancelled = false;
         const mountTime = Date.now();
         if (!termRef.current) {
-            console.error(`[Terminal ${terminalId}] No ref available!`);
+            logger.error(`[Terminal ${terminalId}] No ref available!`);
             return;
         }
 
@@ -201,21 +202,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
-                    console.log(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
+                    logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
                 } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
                 }
             } else {
                 // In tests or when container isn't ready, use default dimensions
-                console.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
+                logger.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
                 try {
                     // Set reasonable default dimensions for tests and edge cases
                     terminal.current.resize(80, 24);
                     lastSize.current = { cols: 80, rows: 24 };
                 } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
                 }
             }
         };
@@ -238,14 +239,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const setupWebGLAcceleration = () => {
             // Skip WebGL for background terminals to save memory
             if (isBackground) {
-                console.info(`[Terminal ${terminalId}] Background terminal, using canvas renderer`);
+                logger.info(`[Terminal ${terminalId}] Background terminal, using canvas renderer`);
                 return false;
             }
             
             // Detect if this is a new build - if so, force cleanup
             const isNewBuild = lastBuildId !== null && lastBuildId !== BUILD_ID;
             if (isNewBuild) {
-                console.info(`[Terminal ${terminalId}] New build detected, forcing WebGL cleanup`);
+                logger.info(`[Terminal ${terminalId}] New build detected, forcing WebGL cleanup`);
                 lastBuildId = BUILD_ID;
             }
             
@@ -258,7 +259,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         webglAddon.current = null;
                     }
                 } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] Failed to dispose old WebGL addon:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Failed to dispose old WebGL addon:`, e);
                 }
             }
             
@@ -266,14 +267,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const canvas = document.createElement('canvas');
             const gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
             if (!gl) {
-                console.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
+                logger.info(`[Terminal ${terminalId}] WebGL not supported, using canvas renderer`);
                 return false;
             }
 
             // Skip WebGL on mobile devices for better compatibility
             const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
             if (isMobile) {
-                console.info(`[Terminal ${terminalId}] Mobile device detected, using canvas renderer for compatibility`);
+                logger.info(`[Terminal ${terminalId}] Mobile device detected, using canvas renderer for compatibility`);
                 return false;
             }
 
@@ -292,13 +293,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         }
                         return true;
                     } catch (e) {
-                        console.warn(`[Terminal ${terminalId}] WebGL test render failed:`, e);
+                        logger.warn(`[Terminal ${terminalId}] WebGL test render failed:`, e);
                         return false;
                     }
                 };
                 
                 if (!testRender()) {
-                    console.info(`[Terminal ${terminalId}] WebGL validation failed, using canvas renderer`);
+                    logger.info(`[Terminal ${terminalId}] WebGL validation failed, using canvas renderer`);
                     if (webglAddon.current) {
                         webglAddon.current.dispose();
                         webglAddon.current = null;
@@ -308,7 +309,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 
                 // Enhanced context loss handling with restoration attempt
                 webglAddon.current.onContextLoss(() => {
-                    console.warn(`[Terminal ${terminalId}] WebGL context lost, attempting restoration`);
+                    logger.warn(`[Terminal ${terminalId}] WebGL context lost, attempting restoration`);
                     
                     // Attempt to restore WebGL context after a brief delay
                     rendererReadyRef.current = false;
@@ -320,13 +321,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 const testGl = testCanvas.getContext('webgl2') || testCanvas.getContext('webgl');
                                 
                                 if (testGl) {
-                                    console.info(`[Terminal ${terminalId}] WebGL context restoration possible, recreating addon`);
+                                    logger.info(`[Terminal ${terminalId}] WebGL context restoration possible, recreating addon`);
                                     const oldAddon = webglAddon.current;
                                     oldAddon.dispose();
                                     
                                     webglAddon.current = new WebglAddon();
                                     terminal.current?.loadAddon(webglAddon.current);
-                                    console.info(`[Terminal ${terminalId}] WebGL acceleration restored`);
+                                    logger.info(`[Terminal ${terminalId}] WebGL acceleration restored`);
                                     // Ensure we refit and re-enable renderer readiness deterministically
                                     requestAnimationFrame(() => {
                                         if (cancelled || !fitAddon.current || !terminal.current || !termRef.current) {
@@ -338,16 +339,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                             const { cols, rows } = terminal.current;
                                             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                                 lastSize.current = { cols, rows };
-                                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                                             }
                                         } catch (e) {
-                                            console.warn(`[Terminal ${terminalId}] Fit after WebGL restoration failed:`, e);
+                                            logger.warn(`[Terminal ${terminalId}] Fit after WebGL restoration failed:`, e);
                                         } finally {
                                             rendererReadyRef.current = true;
                                         }
                                     });
                                 } else {
-                                    console.warn(`[Terminal ${terminalId}] WebGL context restoration failed, permanently using canvas renderer`);
+                                    logger.warn(`[Terminal ${terminalId}] WebGL context restoration failed, permanently using canvas renderer`);
                                     webglAddon.current.dispose();
                                     webglAddon.current = null;
                                     // Canvas active; mark ready and trigger a fit so sizing is correct
@@ -358,21 +359,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                                 const { cols, rows } = terminal.current;
                                                 if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                                     lastSize.current = { cols, rows };
-                                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                                                 }
                                             }
                                         } catch (e) {
-                                            console.warn(`[Terminal ${terminalId}] Fit after WebGL fallback failed:`, e);
+                                            logger.warn(`[Terminal ${terminalId}] Fit after WebGL fallback failed:`, e);
                                         } finally {
                                             rendererReadyRef.current = true;
                                         }
                                     });
                                 }
                             } catch (restoreError) {
-                                console.warn(`[Terminal ${terminalId}] WebGL restoration failed:`, restoreError);
+                                logger.warn(`[Terminal ${terminalId}] WebGL restoration failed:`, restoreError);
                                 if (webglAddon.current) {
                                     try { webglAddon.current.dispose(); } catch (e) {
-                                        console.warn(`[Terminal ${terminalId}] Failed to dispose WebGL addon after restoration error:`, e);
+                                        logger.warn(`[Terminal ${terminalId}] Failed to dispose WebGL addon after restoration error:`, e);
                                     }
                                     webglAddon.current = null;
                                 }
@@ -383,16 +384,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }, 1000);
                 });
 
-                console.info(`[Terminal ${terminalId}] WebGL acceleration enabled`);
+                logger.info(`[Terminal ${terminalId}] WebGL acceleration enabled`);
                 return true;
                 
             } catch (error: any) {
                 if (error.name === 'SecurityError') {
-                    console.info(`[Terminal ${terminalId}] WebGL blocked by security policy, using canvas renderer`);
+                    logger.info(`[Terminal ${terminalId}] WebGL blocked by security policy, using canvas renderer`);
                 } else if (error.message?.includes('blacklisted')) {
-                    console.info(`[Terminal ${terminalId}] WebGL blacklisted on this system, using canvas renderer`);
+                    logger.info(`[Terminal ${terminalId}] WebGL blacklisted on this system, using canvas renderer`);
                 } else {
-                    console.warn(`[Terminal ${terminalId}] WebGL addon failed to load, using canvas renderer:`, error);
+                    logger.warn(`[Terminal ${terminalId}] WebGL addon failed to load, using canvas renderer:`, error);
                 }
                 webglAddon.current = null;
                 return false;
@@ -419,15 +420,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             const { cols, rows } = terminal.current;
                             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                 lastSize.current = { cols, rows };
-                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                             }
                         } catch (e) {
-                            console.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
+                            logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
                     }
                     const webglEnabled = setupWebGLAcceleration();
                     if (!webglEnabled) {
-                        console.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
+                        logger.info(`[Terminal ${terminalId}] Falling back to Canvas renderer`);
                         // Canvas renderer active; mark ready after this frame
                         requestAnimationFrame(() => { rendererReadyRef.current = true; });
                     }
@@ -440,19 +441,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 const { cols, rows } = terminal.current;
                                 if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                     lastSize.current = { cols, rows };
-                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                                 }
                                 // Renderer (WebGL or Canvas) is ready after a successful post-fit
                                 rendererReadyRef.current = true;
                             } catch (e) {
-                                console.warn(`[Terminal ${terminalId}] Post-renderer fit failed:`, e);
+                                logger.warn(`[Terminal ${terminalId}] Post-renderer fit failed:`, e);
                                 // Even if fit failed, avoid blocking indefinitely; allow later fits to set ready
                                 rendererReadyRef.current = true;
                             }
                         }
                     });
                 } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
+                    logger.warn(`[Terminal ${terminalId}] WebGL initialization failed, using Canvas:`, e);
                     rendererReadyRef.current = true;
                 }
             }
@@ -513,10 +514,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current;
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                 } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
             }, { threshold: 0.01 });
             visibilityObserver.observe(termRef.current);
@@ -540,7 +541,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
                 // Send a newline character without submitting the command
                 // This allows multiline input in shells that support it
-                invoke('write_terminal', { id: terminalId, data: '\n' }).catch(console.error);
+                invoke('write_terminal', { id: terminalId, data: '\n' }).catch(err => logger.error("Error:", err));
                 return false; // Prevent default Enter behavior
             }
             
@@ -589,7 +590,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current;
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                 } catch {
                     // ignore single-shot fit error; RO will retry
@@ -717,11 +718,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                           const { cols, rows } = terminal.current;
                           if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                               lastSize.current = { cols, rows };
-                              invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                              invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                           }
                       } catch (e) {
                           // Non-fatal; ResizeObserver and later events will correct
-                          console.warn(`[Terminal ${terminalId}] Hydration fit failed:`, e);
+                          logger.warn(`[Terminal ${terminalId}] Hydration fit failed:`, e);
                       }
                   };
                   // Run on next frame, then after fonts are ready (if supported)
@@ -747,7 +748,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                           try {
                               terminal.current.scrollToBottom();
                           } catch (error) {
-                              console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration:`, error);
+                              logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration:`, error);
                           }
                       }
                   });
@@ -760,7 +761,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                  }
                 
             } catch (error) {
-                console.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
+                logger.error(`[Terminal ${terminalId}] Failed to hydrate:`, error);
                 // On failure, still shift to live streaming and flush any buffered output to avoid drops
                 setHydrated(true);
                 hydratedRef.current = true;
@@ -778,7 +779,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             try {
                                 terminal.current.scrollToBottom();
                             } catch (error) {
-                                console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
+                                logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
                             }
                         }
                     });
@@ -802,7 +803,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 wasAtBottom = buffer.viewportY === buffer.baseY;
                 scrollPosition = buffer.viewportY;
             } catch (error) {
-                console.warn(`[Terminal ${terminalId}] Failed to capture scroll position:`, error);
+                logger.warn(`[Terminal ${terminalId}] Failed to capture scroll position:`, error);
                 wasAtBottom = true;
             }
             
@@ -821,7 +822,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     terminal.current.scrollToLine(targetScroll);
                 }
             } catch (error) {
-                console.warn(`[Terminal ${terminalId}] Failed to restore scroll position:`, error);
+                logger.warn(`[Terminal ${terminalId}] Failed to restore scroll position:`, error);
             }
         };
 
@@ -856,10 +857,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                 } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
             }, 100);
         };
@@ -870,9 +871,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         terminal.current.onData((data) => {
             // Gate noisy logs behind a debug flag if needed
             // if (import.meta.env.VITE_DEBUG_TERMINAL) {
-            //     console.log(`[Terminal ${terminalId}] Input length=${data.length}`)
+            //     logger.info(`[Terminal ${terminalId}] Input length=${data.length}`)
             // }
-            invoke('write_terminal', { id: terminalId, data }).catch(console.error);
+            invoke('write_terminal', { id: terminalId, data }).catch(err => logger.error("Error:", err));
         });
         
         // Send initialization sequence to ensure proper terminal mode
@@ -881,7 +882,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (terminal.current) {
                 // Send a null byte to initialize the terminal properly
                 // This helps ensure the shell is in the right mode
-                invoke('write_terminal', { id: terminalId, data: '' }).catch(console.error);
+                invoke('write_terminal', { id: terminalId, data: '' }).catch(err => logger.error("Error:", err));
             }
         }, 100);
 
@@ -901,7 +902,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 // Force a proper fit with accurate dimensions
                 fitAddon.current.fit();
             } catch (e) {
-                console.warn(`[Terminal ${terminalId}] fit() failed during resize; skipping this tick`, e);
+                logger.warn(`[Terminal ${terminalId}] fit() failed during resize; skipping this tick`, e);
                 return;
             }
             const { cols, rows } = terminal.current;
@@ -913,7 +914,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                 lastSize.current = { cols, rows };
                 // Send resize command immediately to update PTY size
-                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
             }
         };
 
@@ -1007,11 +1008,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         restoreScrollPosition(wasAtBottom, scrollPosition);
 
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(console.error);
+                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     });
                 }
             } catch (error) {
-                console.error(`[Terminal ${terminalId}] Final fit error:`, error);
+                logger.error(`[Terminal ${terminalId}] Final fit error:`, error);
             }
         };
         addEventListener(window, 'terminal-split-drag-end', doFinalFit);
@@ -1031,13 +1032,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // Synchronously detach if possible to avoid races in tests
             const fn = unlistenRef.current;
             if (fn) { try { fn(); } catch (error) {
-                console.error(`[Terminal ${terminalId}] Event listener cleanup error:`, error);
+                logger.error(`[Terminal ${terminalId}] Event listener cleanup error:`, error);
             }}
             else if (unlistenPromiseRef.current) {
                 // Detach once promise resolves
                 unlistenPromiseRef.current.then((resolved) => { 
                     try { resolved(); } catch (error) {
-                        console.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
+                        logger.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
                     }
                 });
             }
@@ -1047,7 +1048,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 rendererObserver?.disconnect();
             } catch (e) {
                 // Already disconnected during initialization, this is expected
-                console.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
+                logger.debug(`[Terminal ${terminalId}] Renderer observer already disconnected:`, e);
             }
             try { visibilityObserver?.disconnect(); } catch { /* ignore */ }
             webglAddon.current?.dispose();
@@ -1086,7 +1087,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         const atBottom = buffer.viewportY === buffer.baseY;
                         if (atBottom) terminal.current!.scrollToBottom();
                     } catch (e) {
-                        console.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+                        logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
                     }
                 });
             }, 2);
@@ -1096,7 +1097,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const detach = () => {
             if (unlistenRef.current) {
                 try { unlistenRef.current(); } catch (e) {
-                    console.warn(`[Terminal ${terminalId}] Listener detach failed:`, e);
+                    logger.warn(`[Terminal ${terminalId}] Listener detach failed:`, e);
                 }
                 unlistenRef.current = null;
             }
@@ -1118,7 +1119,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 });
                 listenerAgentRef.current = agentType;
             } catch (e) {
-                console.warn(`[Terminal ${terminalId}] Failed to reconfigure output listener:`, e);
+                logger.warn(`[Terminal ${terminalId}] Failed to reconfigure output listener:`, e);
             }
         };
         attach();
@@ -1158,7 +1159,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     rows = terminal.current.rows;
                                 }
                             } catch (e) {
-                                console.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
+                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
                             }
                             await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId, cols, rows });
                             // OPTIMIZATION: Immediate focus and loading state update
@@ -1169,13 +1170,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
                          startedGlobal.delete(terminalId);
-                         console.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
+                         logger.error(`[Terminal ${terminalId}] Failed to start Claude:`, e);
                         
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
                         if (errorMessage.includes('No project is currently open')) {
                             // Handle no project error
-                            console.error(`[Terminal ${terminalId}] No project open:`, errorMessage);
+                            logger.error(`[Terminal ${terminalId}] No project open:`, errorMessage);
                             window.dispatchEvent(new CustomEvent('schaltwerk:no-project-error', {
                                 detail: { error: errorMessage, terminalId }
                             }));
@@ -1185,14 +1186,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             }));
                         } else if (errorMessage.includes('Failed to spawn command')) {
                             // Log more details about spawn failures
-                            console.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
+                            logger.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
                             // Dispatch a specific event for spawn failures
                             window.dispatchEvent(new CustomEvent('schaltwerk:spawn-error', {
                                 detail: { error: errorMessage, terminalId }
                             }));
                          } else if (errorMessage.includes('not a git repository')) {
                              // Handle non-git repository error
-                             console.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
+                             logger.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
                              window.dispatchEvent(new CustomEvent('schaltwerk:not-git-error', {
                                  detail: { error: errorMessage, terminalId }
                              }));
@@ -1226,7 +1227,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                    rows = terminal.current.rows;
                                }
                            } catch (e) {
-                               console.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
+                               logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
                            await invoke('schaltwerk_core_start_claude', { sessionName, cols, rows });
                            // Focus the terminal after Claude starts successfully
@@ -1244,7 +1245,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
                          startedGlobal.delete(terminalId);
-                         console.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
+                         logger.error(`[Terminal ${terminalId}] Failed to start Claude for session ${sessionName}:`, e);
                         
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
@@ -1260,7 +1261,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      startingTerminals.current.set(terminalId, false);
                  }
               } catch (error) {
-                  console.error(`[Terminal ${terminalId}] Failed to auto-start Claude:`, error);
+                  logger.error(`[Terminal ${terminalId}] Failed to auto-start Claude:`, error);
                   // Ensure terminal state is properly reset
                   requestAnimationFrame(() => {
                       requestAnimationFrame(() => {
@@ -1285,7 +1286,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     try {
                         terminal.current?.scrollToBottom();
                     } catch (error) {
-                        console.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
+                        logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
                     }
                 });
             }

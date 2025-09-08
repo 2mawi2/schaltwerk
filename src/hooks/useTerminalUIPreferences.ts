@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 interface TerminalUIPreferencesResponse {
     is_collapsed: boolean
@@ -30,7 +31,7 @@ export function useTerminalUIPreferences() {
                 dividerPosition: prefs.divider_position
             })
         } catch (error) {
-            console.error('Failed to load terminal UI preferences:', error)
+            logger.error('Failed to load terminal UI preferences:', error)
         } finally {
             setLoading(false)
         }
@@ -41,7 +42,7 @@ export function useTerminalUIPreferences() {
             await invoke('set_terminal_collapsed', { isCollapsed })
             setPreferences(prev => ({ ...prev, isCollapsed }))
         } catch (error) {
-            console.error('Failed to save terminal collapsed state:', error)
+            logger.error('Failed to save terminal collapsed state:', error)
         }
     }
 
@@ -50,7 +51,7 @@ export function useTerminalUIPreferences() {
             await invoke('set_terminal_divider_position', { position })
             setPreferences(prev => ({ ...prev, dividerPosition: position }))
         } catch (error) {
-            console.error('Failed to save terminal divider position:', error)
+            logger.error('Failed to save terminal divider position:', error)
         }
     }
 

@@ -4,6 +4,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { VscFolderOpened, VscClose, VscNewFolder } from 'react-icons/vsc'
 import { homeDir } from '@tauri-apps/api/path'
 import { AnimatedText } from '../common/AnimatedText'
+import { logger } from '../../utils/logger'
 
 interface NewProjectDialogProps {
   isOpen: boolean
@@ -23,7 +24,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
         const home = await homeDir()
         setParentPath(home)
       } catch (err) {
-        console.error('Failed to get home directory:', err)
+        logger.error('Failed to get home directory:', err)
       }
     }
   }
@@ -40,7 +41,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
         setParentPath(selected as string)
       }
     } catch (err) {
-      console.error('Failed to select directory:', err)
+      logger.error('Failed to select directory:', err)
       setError(`Failed to select directory: ${err}`)
     }
   }
@@ -74,7 +75,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
       onProjectCreated(projectPath)
       onClose()
     } catch (err) {
-      console.error('Failed to create project:', err)
+      logger.error('Failed to create project:', err)
       setError(`Failed to create project: ${err}`)
     } finally {
       setIsCreating(false)

@@ -5,6 +5,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { AsciiBuilderLogo } from './AsciiBuilderLogo'
 import { NewProjectDialog } from './NewProjectDialog'
 import { getHomeLogoPositionStyles, getContentAreaStyles } from '../../constants/layout'
+import { logger } from '../../utils/logger'
 
 interface RecentProject {
   path: string
@@ -30,7 +31,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
       const projects = await invoke<RecentProject[]>('get_recent_projects')
       setRecentProjects(projects.sort((a, b) => b.lastOpened - a.lastOpened))
     } catch (err) {
-      console.error('Failed to load recent projects:', err)
+      logger.error('Failed to load recent projects:', err)
     }
   }
 
@@ -58,7 +59,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
       await invoke('add_recent_project', { path: selected })
       onOpenProject(selected as string)
     } catch (err) {
-      console.error('Failed to select directory:', err)
+      logger.error('Failed to select directory:', err)
       setError(`Failed to open directory: ${err}`)
     }
   }
@@ -92,7 +93,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
       await invoke('update_recent_project_timestamp', { path: project.path })
       onOpenProject(project.path)
     } catch (err) {
-      console.error('Failed to open recent project:', err)
+      logger.error('Failed to open recent project:', err)
       setError(`Failed to open project: ${err}`)
     }
   }
@@ -105,7 +106,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
       await invoke('remove_recent_project', { path: project.path })
       await loadRecentProjects()
     } catch (err) {
-      console.error('Failed to remove project:', err)
+      logger.error('Failed to remove project:', err)
       setError(`Failed to remove project: ${err}`)
     }
   }

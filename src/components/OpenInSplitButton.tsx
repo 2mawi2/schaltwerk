@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { VscFolder, VscChevronDown, VscCheck, VscChevronRight, VscCode, VscTerminal } from 'react-icons/vsc'
+import { logger } from '../utils/logger'
 
 export type OpenApp = {
   id: 'finder' | 'cursor' | 'vscode' | 'ghostty' | 'warp' | 'terminal'
@@ -64,7 +65,7 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
     try {
       await invoke('open_in_app', { appId, worktreePath: path })
     } catch (e: unknown) {
-      console.error('Failed to open in app', appId, e)
+      logger.error('Failed to open in app', appId, e)
       if (showError) {
         const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
         alert(errorMessage)
@@ -91,10 +92,10 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
         await invoke('set_default_open_app', { appId: app.id })
         setDefaultApp(app.id)
       } catch (e) {
-        console.warn('Failed to persist default app, continuing', e)
+        logger.warn('Failed to persist default app, continuing', e)
       }
     } catch (e: unknown) {
-      console.error('Failed to open in app', app.id, e)
+      logger.error('Failed to open in app', app.id, e)
       const errorMessage = typeof e === 'string' ? e : ((e as Error)?.message || String(e) || 'Unknown error')
       alert(errorMessage)
     } finally {

@@ -6,6 +6,7 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
+import { logger } from '../../utils/logger'
 
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
@@ -84,7 +85,7 @@ export function SessionConfigurationPanel({
                     onAgentTypeChangeRef.current?.(storedType)
                 }
             } catch (err) {
-                console.warn('Failed to load configuration:', err)
+                logger.warn('Failed to load configuration:', err)
                 setBranches([])
                 setBaseBranch('')
             } finally {
@@ -104,7 +105,7 @@ export function SessionConfigurationPanel({
             try {
                 await invoke('set_project_default_base_branch', { branch })
             } catch (err) {
-                console.warn('Failed to save default branch:', err)
+                logger.warn('Failed to save default branch:', err)
             }
         }
     }, [branches, onBaseBranchChange])
@@ -302,7 +303,7 @@ export function useInitializedSessionConfiguration(): [SessionConfiguration, (co
                 // Ensure we always have a valid branch
                 const finalBranch = branch && branch.trim() !== '' ? branch.trim() : 'main'
                 
-                console.log('[useInitializedSessionConfiguration] Initialized with:', {
+                logger.info('[useInitializedSessionConfiguration] Initialized with:', {
                     baseBranch: finalBranch,
                     agentType,
                     skipPermissions: storedSkipPerms,
@@ -317,7 +318,7 @@ export function useInitializedSessionConfiguration(): [SessionConfiguration, (co
                     isValid: true // Always valid since we ensure a branch
                 })
             } catch (err) {
-                console.warn('Failed to initialize session configuration:', err)
+                logger.warn('Failed to initialize session configuration:', err)
                 // Set minimal working defaults
                 setConfig(prev => ({
                     ...prev,
@@ -326,7 +327,7 @@ export function useInitializedSessionConfiguration(): [SessionConfiguration, (co
                     skipPermissions: false,
                     isValid: true
                 }))
-                console.log('[useInitializedSessionConfiguration] Using fallback defaults: { baseBranch: "main", agentType: "claude", skipPermissions: false }')
+                logger.info('[useInitializedSessionConfiguration] Using fallback defaults: { baseBranch: "main", agentType: "claude", skipPermissions: false }')
             }
         }
         

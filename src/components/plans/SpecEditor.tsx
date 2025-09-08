@@ -4,6 +4,7 @@ import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
+import { logger } from '../../utils/logger'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -60,7 +61,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
         lastServerContentRef.current = content
         setHasLocalChanges(false)
       } catch (e) {
-        console.error('[DraftEditor] Failed to save spec:', e)
+        logger.error('[DraftEditor] Failed to save spec:', e)
       } finally {
         setSaving(false)
       }
@@ -87,7 +88,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       setCopying(true)
       await navigator.clipboard.writeText(content)
     } catch (err) {
-      console.error('[DraftEditor] Failed to copy content:', err)
+      logger.error('[DraftEditor] Failed to copy content:', err)
     } finally {
       setTimeout(() => setCopying(false), 1000)
     }
@@ -100,7 +101,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       setError(null)
       onStart()
     } catch (e: unknown) {
-      console.error('[DraftEditor] Failed to start spec:', e)
+      logger.error('[DraftEditor] Failed to start spec:', e)
       setError(String(e))
     } finally {
       setStarting(false)
@@ -109,10 +110,10 @@ export function SpecEditor({ sessionName, onStart }: Props) {
 
   // Listen for sessions refreshed events (e.g., from MCP updates)
   useEffect(() => {
-    console.log('[SpecEditor] Setting up sessions-refreshed listener for session:', sessionName)
+    logger.info('[SpecEditor] Setting up sessions-refreshed listener for session:', sessionName)
     
     const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
-      console.log('[SpecEditor] Received sessions-refreshed event')
+      logger.info('[SpecEditor] Received sessions-refreshed event')
       const sessions = event as any[]
 
       const specSession = sessions.find((s: any) => 
@@ -129,26 +130,26 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       // Skip update if we have local changes pending save - let the user finish typing
       // Use ref to get current value without causing re-render
       if (hasLocalChangesRef.current) {
-        console.log('[SpecEditor] Skipping refresh - local changes pending')
+        logger.info('[SpecEditor] Skipping refresh - local changes pending')
         return
       }
       
       // Only update if the server content actually changed from what we last knew
       // This prevents unnecessary flashing when sessions refresh but content hasn't changed
       if (serverContent === lastServerContentRef.current) {
-        console.log('[SpecEditor] Server content unchanged, skipping update')
+        logger.info('[SpecEditor] Server content unchanged, skipping update')
         return
       }
       
       // Also skip if current content matches server content (user hasn't made changes)
       // Use ref to get current content without causing dependency issues
       if (serverContent === contentRef.current) {
-        console.log('[SpecEditor] Content already matches server, updating reference only')
+        logger.info('[SpecEditor] Content already matches server, updating reference only')
         lastServerContentRef.current = serverContent
         return
       }
       
-      console.log('[SpecEditor] Server content changed, updating from', contentRef.current.length, 'to', serverContent.length, 'chars')
+      logger.info('[SpecEditor] Server content changed, updating from', contentRef.current.length, 'to', serverContent.length, 'chars')
       
       // Store current focus and cursor state for restoration
       const activeElement = document.activeElement
@@ -165,7 +166,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
             }
           }
         } catch (e) {
-          console.warn('[SpecEditor] Could not get cursor position:', e)
+          logger.warn('[SpecEditor] Could not get cursor position:', e)
         }
       }
       
@@ -192,7 +193,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
                   })
                 }
               } catch (e) {
-                console.warn('[SpecEditor] Could not restore cursor position:', e)
+                logger.warn('[SpecEditor] Could not restore cursor position:', e)
               }
             }
           }
@@ -201,7 +202,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     })
     
     return () => {
-      console.log('[SpecEditor] Cleaning up sessions-refreshed listener for:', sessionName)
+      logger.info('[SpecEditor] Cleaning up sessions-refreshed listener for:', sessionName)
       unlistenPromise.then(unlisten => unlisten())
     }
   }, [sessionName]) // Only re-register listener when sessionName changes

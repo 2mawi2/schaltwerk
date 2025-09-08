@@ -1,6 +1,7 @@
 import { Component, ReactNode, ErrorInfo } from 'react'
 import { theme } from '../common/theme'
 import { AsciiBuilderLogo } from './home/AsciiBuilderLogo'
+import { logger } from '../utils/logger'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -34,7 +35,7 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     const boundaryName = this.props.name || 'Unknown'
-    console.error(`[ErrorBoundary ${boundaryName}] Component error caught:`, error, errorInfo)
+    logger.error(`[ErrorBoundary ${boundaryName}] Component error caught:`, error, errorInfo)
     
     this.setState({ errorInfo })
     

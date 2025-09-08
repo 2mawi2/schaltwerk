@@ -30,6 +30,7 @@ import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
+import { logger } from './utils/logger'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -118,7 +119,7 @@ export default function App() {
         const parsed = JSON.parse(raw) as number[]
         if (Array.isArray(parsed) && parsed.length === 2) base = parsed 
       } catch (error) {
-        console.warn('[App] Failed to parse right panel sizes from localStorage:', error, 'Raw value:', raw)
+        logger.warn('[App] Failed to parse right panel sizes from localStorage:', error, 'Raw value:', raw)
       }
     }
     const initialIsCollapsed = sessionStorage.getItem(`schaltwerk:right-panel:collapsed:${key}`) === 'true'
@@ -167,7 +168,7 @@ export default function App() {
         const parsed = JSON.parse(rawSizes) as number[]
         if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed 
       } catch (error) {
-        console.warn('[App] Failed to parse stored right panel sizes for session:', key, error, 'Raw value:', rawSizes)
+        logger.warn('[App] Failed to parse stored right panel sizes for session:', key, error, 'Raw value:', rawSizes)
       }
     }
     if (rawExpanded) {
@@ -241,7 +242,7 @@ export default function App() {
       setCancelModalOpen(false)
 
     } catch (error) {
-      console.error('Failed to cancel session:', error)
+      logger.error('Failed to cancel session:', error)
       alert(`Failed to cancel session: ${error}`)
     } finally {
       setIsCancelling(false)
@@ -271,7 +272,7 @@ export default function App() {
       })
       setActiveTabPath(path)
 
-      console.log('Activated project:', path)
+      logger.info('Activated project:', path)
 
       // If repository has no commits, trigger New Project flow
       try {
@@ -281,10 +282,10 @@ export default function App() {
           window.dispatchEvent(new CustomEvent('schaltwerk:open-new-project-dialog'))
         }
       } catch (e) {
-        console.warn('Failed to check if repository is empty:', e)
+        logger.warn('Failed to check if repository is empty:', e)
       }
     } catch (error) {
-      console.error('Failed to activate project:', error)
+      logger.error('Failed to activate project:', error)
     }
   }, [setProjectPath, setShowHome, setOpenTabs, setActiveTabPath])
 
@@ -292,15 +293,15 @@ export default function App() {
   useEffect(() => {
     // Handle opening a Git repository
     const unlistenDirectoryPromise = listenEvent(SchaltEvent.OpenDirectory, async (directoryPath) => {
-      console.log('Received open-directory event:', directoryPath)
+      logger.info('Received open-directory event:', directoryPath)
       await applyActiveProject(directoryPath, { initializeBackend: true })
     })
 
     // Handle opening home screen for non-Git directories
     const unlistenHomePromise = listenEvent(SchaltEvent.OpenHome, async (directoryPath) => {
-      console.log('Received open-home event for non-Git directory:', directoryPath)
+      logger.info('Received open-home event for non-Git directory:', directoryPath)
       setShowHome(true)
-      console.log('Opened home screen because', directoryPath, 'is not a Git repository')
+      logger.info('Opened home screen because', directoryPath, 'is not a Git repository')
     })
 
     // Deterministically pull active project on mount to avoid event race
@@ -308,12 +309,12 @@ export default function App() {
       try {
         const active = await invoke<string | null>('get_active_project_path')
         if (active) {
-          console.log('Detected active project on startup:', active)
+          logger.info('Detected active project on startup:', active)
           // Backend already set the project; only sync UI state
           await applyActiveProject(active, { initializeBackend: false })
         }
       } catch (e) {
-        console.warn('Failed to fetch active project on startup:', e)
+        logger.warn('Failed to fetch active project on startup:', e)
       }
     })()
 
@@ -386,7 +387,7 @@ export default function App() {
 
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
-          console.log('[App] Cmd+N triggered - opening new session modal (agent mode)')
+          logger.info('[App] Cmd+N triggered - opening new session modal (agent mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
            setOpenAsSpec(false) // Explicitly set to false for Cmd+N
@@ -400,7 +401,7 @@ export default function App() {
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
-          console.log('[App] Cmd+Shift+N triggered - opening new session modal (spec mode)')
+          logger.info('[App] Cmd+Shift+N triggered - opening new session modal (spec mode)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
           setOpenAsSpec(true)
@@ -437,7 +438,7 @@ export default function App() {
     const handleGlobalNewSession = () => {
       // Handle ⌘N from terminal (custom event)
       if (!newSessionOpen && !cancelModalOpen) {
-        console.log('[App] Global new session shortcut triggered (agent mode)')
+        logger.info('[App] Global new session shortcut triggered (agent mode)')
         // Store current focus before opening modal
         previousFocusRef.current = document.activeElement
          setOpenAsSpec(false) // Explicitly set to false for global shortcut
@@ -481,7 +482,7 @@ export default function App() {
   // Open NewSessionModal directly in spec mode when requested
   useEffect(() => {
     const handler = () => {
-      console.log('[App] schaltwerk:new-spec event received - opening modal in spec mode')
+      logger.info('[App] schaltwerk:new-spec event received - opening modal in spec mode')
       previousFocusRef.current = document.activeElement
                        setOpenAsSpec(true)
       setNewSessionOpen(true)
@@ -509,7 +510,7 @@ export default function App() {
         sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
       }
     }
-  }, [projectPath, sessions, commanderSpecModeSession])
+  }, [projectPath, sessions, commanderSpecModeSession, setCommanderSpecModeSession])
   
   // Save spec mode state to sessionStorage when it changes
   useEffect(() => {
@@ -525,7 +526,7 @@ export default function App() {
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
-      console.log('[App] schaltwerk:new-session event received - opening modal in agent mode')
+      logger.info('[App] schaltwerk:new-session event received - opening modal in agent mode')
       previousFocusRef.current = document.activeElement
        setOpenAsSpec(false)
       setNewSessionOpen(true)
@@ -538,10 +539,10 @@ export default function App() {
   useEffect(() => {
     const handler = async (event: Event) => {
       const customEvent = event as CustomEvent<{ name?: string }>
-      console.log('[App] Received start-agent-from-spec event:', customEvent.detail)
+      logger.info('[App] Received start-agent-from-spec event:', customEvent.detail)
       const name = customEvent.detail?.name
       if (!name) {
-        console.warn('[App] No name provided in start-agent-from-spec event')
+        logger.warn('[App] No name provided in start-agent-from-spec event')
         return
       }
       // Store focus and open modal
@@ -551,9 +552,9 @@ export default function App() {
       window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill-pending'))
 
       // Fetch spec content first, then open modal with prefilled data
-      console.log('[App] Fetching session data for prefill:', name)
+      logger.info('[App] Fetching session data for prefill:', name)
       const prefillData = await fetchSessionForPrefill(name)
-      console.log('[App] Fetched prefill data:', prefillData)
+      logger.info('[App] Fetched prefill data:', prefillData)
 
       // Open modal after data is ready
       setNewSessionOpen(true)
@@ -563,13 +564,13 @@ export default function App() {
       if (prefillData) {
         // Use requestAnimationFrame to ensure modal is rendered before dispatching
         requestAnimationFrame(() => {
-          console.log('[App] Dispatching prefill event with data')
+          logger.info('[App] Dispatching prefill event with data')
           window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
             detail: prefillData
           }))
         })
       } else {
-        console.warn('[App] No prefill data fetched for session:', name)
+        logger.warn('[App] No prefill data fetched for session:', name)
       }
     }
     window.addEventListener('schaltwerk:start-agent-from-spec', handler as EventListener)
@@ -591,7 +592,7 @@ export default function App() {
       // Reload sessions to update the list
       await invoke('schaltwerk_core_list_enriched_sessions')
     } catch (error) {
-      console.error('Failed to delete spec:', error)
+      logger.error('Failed to delete spec:', error)
       alert(`Failed to delete spec: ${error}`)
     } finally {
       setIsCancelling(false)
@@ -623,7 +624,7 @@ export default function App() {
       await invoke(TauriCommands.CreateTerminal, { id: topTerminalId, cwd: worktreePath })
       await invoke(TauriCommands.CreateTerminal, { id: bottomTerminalId, cwd: worktreePath })
     } catch (e) {
-      console.warn(`[App] Failed to create terminals for session ${sessionName}:`, e)
+      logger.warn(`[App] Failed to create terminals for session ${sessionName}:`, e)
     }
   }
 
@@ -720,9 +721,9 @@ export default function App() {
               cwd: sessionData.worktree_path 
             })
             
-            console.log(`[App] Started agent and created terminals for session ${sessionName}`)
+            logger.info(`[App] Started agent and created terminals for session ${sessionName}`)
           } catch (e) {
-            console.warn(`[App] Failed to start agent for session ${sessionName}:`, e)
+            logger.warn(`[App] Failed to start agent for session ${sessionName}:`, e)
           }
         }
 
@@ -803,7 +804,7 @@ export default function App() {
                 baseBranch: data.baseBranch || null,
               })
             } catch (err) {
-              console.error('Failed to rename version group:', err)
+              logger.error('Failed to rename version group:', err)
             }
           }, 500)
         }
@@ -847,7 +848,7 @@ export default function App() {
         }
       }
     } catch (error) {
-      console.error('Failed to create session:', error)
+      logger.error('Failed to create session:', error)
       alert(`Failed to create session: ${error}`)
     }
   }
@@ -881,7 +882,7 @@ export default function App() {
       setShowHome(false)
       // SelectionContext will automatically update orchestrator when projectPath changes
     } catch (error) {
-      console.error('Failed to open project:', error)
+      logger.error('Failed to open project:', error)
       alert(`Failed to open project: ${error}`)
     }
   }
@@ -900,7 +901,7 @@ export default function App() {
     
     // Prevent concurrent project switches
     if (projectSwitchInProgressRef.current) {
-      console.log('Project switch already in progress, ignoring request')
+      logger.info('Project switch already in progress, ignoring request')
       return
     }
     
@@ -933,7 +934,7 @@ export default function App() {
       }
     } catch (error) {
       if (!abortController.signal.aborted) {
-        console.error('Failed to switch project in backend:', error)
+        logger.error('Failed to switch project in backend:', error)
       }
       // Don't update state if backend switch failed
       return
@@ -962,7 +963,7 @@ export default function App() {
             setActiveTabPath(newActiveTab.projectPath)
             setProjectPath(newActiveTab.projectPath)
           } catch (error) {
-            console.error('Failed to switch to new project:', error)
+            logger.error('Failed to switch to new project:', error)
             // Continue with tab removal even if backend switch fails
           }
         }
@@ -1000,10 +1001,10 @@ export default function App() {
         // Clear creation tracking so ensureTerminals will recreate if needed
         await clearTerminalTracking([topId, bottomBaseId])
       } catch (e) {
-        console.warn('Failed to clear terminal tracking for closed project:', e)
+        logger.warn('Failed to clear terminal tracking for closed project:', e)
       }
     } catch (error) {
-      console.warn('Failed to cleanup closed project:', error)
+      logger.warn('Failed to cleanup closed project:', error)
       // Don't fail the UI operation if cleanup fails
     }
   }
@@ -1230,7 +1231,7 @@ export default function App() {
              open={newSessionOpen}
              initialIsDraft={openAsDraft}
              onClose={() => {
-               console.log('[App] NewSessionModal closing - resetting state')
+               logger.info('[App] NewSessionModal closing - resetting state')
                setNewSessionOpen(false)
                setOpenAsSpec(false) // Always reset to false when closing
                setStartFromSpecName(null)
@@ -1240,7 +1241,7 @@ export default function App() {
                    try {
                      (previousFocusRef.current as HTMLElement).focus()
                    } catch (error) {
-                     console.warn('[App] Failed to restore focus after NewSessionModal closed:', error)
+                     logger.warn('[App] Failed to restore focus after NewSessionModal closed:', error)
                    }
                  }, 100)
                }
@@ -1303,7 +1304,7 @@ export default function App() {
               showOnlyIfNeeded={true}
               folderPath={permissionDeniedPath || undefined}
               onPermissionGranted={() => {
-                console.log(`Folder permission granted for: ${permissionDeniedPath}`)
+                logger.info(`Folder permission granted for: ${permissionDeniedPath}`)
                 setShowPermissionPrompt(false)
                 setPermissionDeniedPath(null)
               }}

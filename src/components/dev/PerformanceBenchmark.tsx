@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { theme } from '../../common/theme';
+import { logger } from '../../utils/logger'
 
 interface BenchmarkResult {
     operation: string;
@@ -28,12 +29,12 @@ export const PerformanceBenchmark: React.FC = () => {
     const runFullBenchmark = async () => {
         setIsRunning(true);
         try {
-            console.log('🚀 Starting comprehensive terminal performance benchmark...');
+            logger.info('🚀 Starting comprehensive terminal performance benchmark...');
             const benchmarkResults = await invoke<DetailedBenchmarkMetrics>('run_terminal_performance_benchmark');
             setResults(benchmarkResults);
-            console.log('✅ Benchmark completed:', benchmarkResults);
+            logger.info('✅ Benchmark completed:', benchmarkResults);
         } catch (error) {
-            console.error('❌ Benchmark failed:', error);
+            logger.error('❌ Benchmark failed:', error);
         } finally {
             setIsRunning(false);
         }
@@ -42,12 +43,12 @@ export const PerformanceBenchmark: React.FC = () => {
     const runQuickBenchmark = async () => {
         setIsRunning(true);
         try {
-            console.log('⚡ Starting quick terminal benchmark...');
+            logger.info('⚡ Starting quick terminal benchmark...');
             const quickBenchmark = await invoke<BenchmarkResult>('run_quick_terminal_benchmark');
             setQuickResult(quickBenchmark);
-            console.log('✅ Quick benchmark completed:', quickBenchmark);
+            logger.info('✅ Quick benchmark completed:', quickBenchmark);
         } catch (error) {
-            console.error('❌ Quick benchmark failed:', error);
+            logger.error('❌ Quick benchmark failed:', error);
         } finally {
             setIsRunning(false);
         }

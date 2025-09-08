@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { ConfirmModal } from './ConfirmModal'
 import { SessionVersionGroup } from '../../utils/sessionVersions'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../../utils/logger'
 
 interface SessionPreferences {
   auto_commit_on_review: boolean
@@ -86,7 +87,7 @@ export function PromoteVersionConfirmation({
           }
         })
       } catch (error) {
-        console.error('Failed to save preference:', error)
+        logger.error('Failed to save preference:', error)
       }
     }
     onConfirm()

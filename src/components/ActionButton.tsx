@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../constants/actionButtonColors'
+import { logger } from '../utils/logger'
 
 export interface HeaderActionConfig {
   id: string
@@ -27,7 +28,7 @@ export function ActionButton({ action, projectId, onExecute }: ActionButtonProps
 
       onExecute?.(action)
     } catch (error) {
-      console.error(`Failed to execute action "${action.label}":`, error)
+      logger.error(`Failed to execute action "${action.label}":`, error)
     }
   }
 

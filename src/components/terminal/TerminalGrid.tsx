@@ -14,6 +14,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { AnimatedText } from '../common/AnimatedText'
 import { useRef, useEffect, useState } from 'react'
+import { logger } from '../../utils/logger'
 
 export function TerminalGrid() {
     const { selection, terminals, isReady, isSpec } = useSelection()
@@ -138,19 +139,19 @@ export function TerminalGrid() {
         if (selection.kind === 'session' && selection.payload) {
             const session = sessions.find(s => s.info.session_id === selection.payload)
             if (!session) {
-                console.warn(`Session not found: ${selection.payload}, using default agent type`)
+                logger.warn(`Session not found: ${selection.payload}, using default agent type`)
                 setAgentType('claude')
                 return
             }
             // Use session's original_agent_type if available, otherwise default to 'claude'
             // This handles existing sessions that don't have the field yet
             const sessionAgentType: AgentType = session.info.original_agent_type || 'claude'
-            console.log(`Session ${selection.payload} agent type: ${sessionAgentType} (original_agent_type: ${session.info.original_agent_type})`)
+            logger.info(`Session ${selection.payload} agent type: ${sessionAgentType} (original_agent_type: ${session.info.original_agent_type})`)
             setAgentType(sessionAgentType)
         } else {
             // For orchestrator or when no session selected, use global agent type
             getAgentType().then(setAgentType).catch(error => {
-                console.error('Failed to get global agent type:', error)
+                logger.error('Failed to get global agent type:', error)
                 // Default to 'claude' if we can't get the global agent type
                 setAgentType('claude')
             })
@@ -479,7 +480,7 @@ export function TerminalGrid() {
                                                         }
                                                     })
                                                 } catch (error) {
-                                                    console.error(`Failed to execute action "${action.label}":`, error)
+                                                    logger.error(`Failed to execute action "${action.label}":`, error)
                                                 }
                                             }}
                                             className={`px-2 py-1 text-[10px] rounded transition-colors flex items-center gap-1 ${getActionButtonColorClasses(action.color)}`}

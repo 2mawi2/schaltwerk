@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
 import { BranchIndicator } from './BranchIndicator'
+import { logger } from '../utils/logger'
 
 interface TopBarProps {
   tabs: ProjectTab[]
@@ -51,7 +52,7 @@ export function TopBar({
       try {
         await getCurrentWindow().startDragging()
       } catch (err) {
-        console.warn('Failed to start window dragging:', err)
+        logger.warn('Failed to start window dragging:', err)
       }
     }
     

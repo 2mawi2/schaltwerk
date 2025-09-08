@@ -58,3 +58,15 @@ pub async fn open_in_vscode(worktree_path: String) -> Result<(), String> {
 pub fn get_app_version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
+
+#[tauri::command]
+pub fn schaltwerk_core_log_frontend_message(level: String, message: String) -> Result<(), String> {
+    match level.as_str() {
+        "error" => log::error!("{message}"),
+        "warn" => log::warn!("{message}"),
+        "info" => log::info!("{message}"),
+        "debug" => log::debug!("{message}"),
+        _ => log::info!("{message}"),
+    }
+    Ok(())
+}

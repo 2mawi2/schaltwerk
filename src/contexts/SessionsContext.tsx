@@ -7,6 +7,7 @@ import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 import { EnrichedSession, SessionInfo } from '../types/session'
+import { logger } from '../utils/logger'
 
 interface SessionsContextValue {
     sessions: EnrichedSession[]
@@ -191,7 +192,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 prevStatesRef.current = nextStates
             }
         } catch (error) {
-            console.error('Failed to load sessions:', error)
+            logger.error('Failed to load sessions:', error)
             setAllSessions([])
         } finally {
             setLoading(false)
@@ -206,7 +207,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             const session = currentSessions?.find(s => s.info.session_id === sessionId)
             
             if (!session) {
-                console.error(`Session ${sessionId} not found`)
+                logger.error(`Session ${sessionId} not found`)
                 return
             }
 
@@ -224,7 +225,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to update session status:', error)
+            logger.error('Failed to update session status:', error)
         }
     }, [reloadSessions])
 
@@ -233,20 +234,20 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             await invoke('schaltwerk_core_create_spec_session', { name, specContent: content })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to create spec:', error)
+            logger.error('Failed to create spec:', error)
             throw error
         }
     }, [reloadSessions])
 
     const addListener = useCallback((unlistenPromise: Promise<UnlistenFn>) => {
         if (!unlistenPromise || typeof unlistenPromise.then !== 'function') {
-            console.warn('[SessionsContext] Invalid listener promise received:', unlistenPromise)
+            logger.warn('[SessionsContext] Invalid listener promise received:', unlistenPromise)
             return
         }
         unlistenPromise.then(cleanup => {
             addCleanup(cleanup)
         }).catch(error => {
-            console.error('[SessionsContext] Failed to add listener:', error)
+            logger.error('[SessionsContext] Failed to add listener:', error)
         })
     }, [addCleanup])
 
@@ -275,7 +276,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 }
                 setSettingsLoaded(true)
             } catch (error) {
-                console.warn('Failed to load project sessions settings:', error)
+                logger.warn('Failed to load project sessions settings:', error)
                 setSettingsLoaded(true)
             }
         }
@@ -296,7 +297,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     }
                 })
             } catch (error) {
-                console.warn('Failed to save sessions settings:', error)
+                logger.warn('Failed to save sessions settings:', error)
             }
         }
         
@@ -374,7 +375,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         await reloadSessions()
                     }
                 } catch (e) {
-                    console.error('[SessionsContext] Failed to reload sessions:', e)
+                    logger.error('[SessionsContext] Failed to reload sessions:', e)
                 }
             }))
 

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 export function useFolderPermission(folderPath?: string) {
   const [hasPermission, setHasPermission] = useState<boolean | null>(null)
@@ -19,7 +20,7 @@ export function useFolderPermission(folderPath?: string) {
       }
       return hasAccess
     } catch (error) {
-      console.error(`Error checking folder permission for ${path}:`, error)
+      logger.error(`Error checking folder permission for ${path}:`, error)
       setPermissionError(String(error))
       setHasPermission(false)
       setDeniedPath(path)
@@ -41,12 +42,12 @@ export function useFolderPermission(folderPath?: string) {
       const hasAccess = await checkPermission(path)
       
       if (!hasAccess) {
-        console.log(`Permission dialog was shown but access not granted yet for ${path}. User may need to grant permission and restart the agent.`)
+        logger.info(`Permission dialog was shown but access not granted yet for ${path}. User may need to grant permission and restart the agent.`)
       }
       
       return hasAccess
     } catch (error) {
-      console.error(`Error requesting folder permission for ${path}:`, error)
+      logger.error(`Error requesting folder permission for ${path}:`, error)
       setPermissionError(String(error))
       return false
     } finally {

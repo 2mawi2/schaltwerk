@@ -5,6 +5,7 @@ import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
+import { logger } from '../utils/logger'
 
 export interface Selection {
     kind: 'session' | 'orchestrator'
@@ -114,7 +115,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 }
                 terminalsCreated.current.add(id)
             } catch (error) {
-                console.error(`Failed to create terminal ${id}:`, error)
+                logger.error(`Failed to create terminal ${id}:`, error)
                 throw error
             }
         })()
@@ -156,7 +157,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
             // For running sessions, worktree_path must exist
             if (!worktreePath) {
-                console.error(`[SelectionContext] Session ${sel.payload} is not a spec but has no worktree_path`)
+                logger.error(`[SelectionContext] Session ${sel.payload} is not a spec but has no worktree_path`)
                 // Don't create terminals with incorrect working directory
                 return ids
             }
@@ -165,7 +166,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 const exists = await invoke<boolean>('path_exists', { path: worktreePath })
                 if (!exists) {
-                    console.warn(`[SelectionContext] Worktree path does not exist for session ${sel.payload}: ${worktreePath}`)
+                    logger.warn(`[SelectionContext] Worktree path does not exist for session ${sel.payload}: ${worktreePath}`)
                     return ids
                 }
                 
@@ -173,11 +174,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 const gitDir = `${worktreePath}/.git`
                 const hasGit = await invoke<boolean>('path_exists', { path: gitDir })
                 if (!hasGit) {
-                    console.warn(`[SelectionContext] Worktree is not properly initialized for session ${sel.payload}: ${worktreePath}`)
+                    logger.warn(`[SelectionContext] Worktree is not properly initialized for session ${sel.payload}: ${worktreePath}`)
                     return ids
                 }
             } catch (e) {
-                console.warn(`[SelectionContext] Could not verify worktree path for session ${sel.payload}:`, e)
+                logger.warn(`[SelectionContext] Could not verify worktree path for session ${sel.payload}:`, e)
                 return ids
             }
 
@@ -189,7 +190,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 workingDirectory: worktreePath
             }
         } catch (e) {
-            console.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
+            logger.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
             setIsSpec(false)
             // Don't create terminals if we can't determine session state
             return ids
@@ -203,14 +204,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 const dbSelection = await invoke<{ kind: string; payload: string | null } | null>('get_project_selection')
                 if (dbSelection) {
-                    console.log('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
+                    logger.info('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
                     return {
                         kind: dbSelection.kind as 'session' | 'orchestrator',
                         payload: dbSelection.payload ?? undefined
                     }
                 }
             } catch (error) {
-                console.error('[SelectionContext] Failed to load saved selection:', error)
+                logger.error('[SelectionContext] Failed to load saved selection:', error)
             }
         }
         
@@ -236,11 +237,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     try {
                         const exists = await invoke<boolean>('directory_exists', { path: worktreePath })
                         if (!exists) {
-                            console.log(`[SelectionContext] Worktree directory ${worktreePath} no longer exists for session ${remembered.payload}, falling back to orchestrator`)
+                            logger.info(`[SelectionContext] Worktree directory ${worktreePath} no longer exists for session ${remembered.payload}, falling back to orchestrator`)
                             return { kind: 'orchestrator' }
                         }
                     } catch (error) {
-                        console.warn(`[SelectionContext] Failed to check worktree directory ${worktreePath}:`, error)
+                        logger.warn(`[SelectionContext] Failed to check worktree directory ${worktreePath}:`, error)
                         // If we can't check, assume it's invalid to be safe
                         return { kind: 'orchestrator' }
                     }
@@ -254,7 +255,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     sessionState: sessionData?.session_state
                 }
             } catch (error) {
-                console.log(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
+                logger.info(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
                 // Session doesn't exist anymore, fallback to orchestrator
                 return { kind: 'orchestrator' }
             }
@@ -277,7 +278,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     await invoke('close_terminal', { id })
                 }
             } catch (e) {
-                console.warn(`[SelectionContext] Failed to close terminal ${id}:`, e)
+                logger.warn(`[SelectionContext] Failed to close terminal ${id}:`, e)
             }
         }
     }, [])
@@ -343,7 +344,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             payload: newSelection.payload ?? null
                         })
                     } catch (e) {
-                        console.error('[SelectionContext] Failed to persist selection to database:', e)
+                        logger.error('[SelectionContext] Failed to persist selection to database:', e)
                     }
                 }
                 
@@ -372,7 +373,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         payload: newSelection.payload ?? null
                     })
                 } catch (e) {
-                    console.error('[SelectionContext] Failed to persist selection to database:', e)
+                    logger.error('[SelectionContext] Failed to persist selection to database:', e)
                 }
             }
             
@@ -380,7 +381,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setIsReady(true)
 
         } catch (error) {
-            console.error('[SelectionContext] Failed to set selection:', error)
+            logger.error('[SelectionContext] Failed to set selection:', error)
             // Stay on current selection if we fail
             setIsReady(true)
         }
@@ -418,15 +419,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 const ids = await ensureTerminals(updatedSelection)
                                 setTerminals(ids)
                             } catch (e) {
-                                console.warn('[SelectionContext] Failed to create terminals for newly running session', e)
+                                logger.warn('[SelectionContext] Failed to create terminals for newly running session', e)
                             }
                         }
                     } catch (e) {
-                        console.warn('[SelectionContext] Failed to refresh current session state after event', e)
+                        logger.warn('[SelectionContext] Failed to refresh current session state after event', e)
                     }
                 })
             } catch (e) {
-                console.warn('[SelectionContext] Failed to attach sessions-refreshed listener', e)
+                logger.warn('[SelectionContext] Failed to attach sessions-refreshed listener', e)
             }
         }
         attach()
@@ -438,17 +439,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Initialize on mount and when project path changes
     useEffect(() => {
         const initialize = async () => {
-            console.log('[SelectionContext] Initialize effect triggered, projectPath:', projectPath)
+            logger.info('[SelectionContext] Initialize effect triggered, projectPath:', projectPath)
             
             // Wait for projectPath to be set before initializing
             if (!projectPath) {
-                console.log('[SelectionContext] No projectPath, skipping initialization')
+                logger.info('[SelectionContext] No projectPath, skipping initialization')
                 return
             }
             
             // Skip if already initialized with same project path
             if (hasInitialized.current && previousProjectPath.current === projectPath) {
-                console.log('[SelectionContext] Already initialized with same project path, skipping')
+                logger.info('[SelectionContext] Already initialized with same project path, skipping')
                 return
             }
             
@@ -457,7 +458,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                   previousProjectPath.current !== null && 
                                   previousProjectPath.current !== projectPath
             
-            console.log('[SelectionContext] Project changed?', projectChanged, 'Previous:', previousProjectPath.current, 'New:', projectPath)
+            logger.info('[SelectionContext] Project changed?', projectChanged, 'Previous:', previousProjectPath.current, 'New:', projectPath)
             
             // Set initialized flag and update previous path
             hasInitialized.current = true
@@ -484,7 +485,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 targetSelection = await validateAndRestoreSelection(defaultSelection)
             }
             
-            console.log('[SelectionContext] Setting selection to:', targetSelection)
+            logger.info('[SelectionContext] Setting selection to:', targetSelection)
             
             // Set the selection - the orchestrator terminals are already project-specific via the ID hash
             // No need to force recreate, just switch to the correct project's orchestrator
@@ -493,7 +494,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         
         // Only run if not currently initializing
         initialize().catch(error => {
-            console.error('[SelectionContext] Failed to initialize:', error)
+            logger.error('[SelectionContext] Failed to initialize:', error)
             // Still mark as ready even on error so UI doesn't hang
             setIsReady(true)
         })
@@ -506,7 +507,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const setupSelectionListener = async () => {
             try {
                 unlisten = await listenEvent(SchaltEvent.Selection, async (target) => {
-                    console.log('Received selection event from backend:', target)
+                    logger.info('Received selection event from backend:', target)
 
                     // Guard: Don't auto-switch to a spec when user is focused on a running session
                     // and the sidebar filter is set to Running. This avoids jumping away from terminals
@@ -520,7 +521,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: target.payload })
                                 targetIsSpec = sessionData?.session_state === 'spec'
                             } catch (e) {
-                                console.warn('[SelectionContext] Failed to resolve session state for backend selection event:', e)
+                                logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', e)
                             }
                         }
 
@@ -531,7 +532,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             !isSpec &&
                             filterMode === FilterMode.Running
                         ) {
-                            console.log('[SelectionContext] Ignoring backend spec selection to preserve running session focus under Running filter')
+                            logger.info('[SelectionContext] Ignoring backend spec selection to preserve running session focus under Running filter')
                             return
                         }
                     }
@@ -540,7 +541,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     await setSelection(target, false, true)
                 })
             } catch (e) {
-                console.error('[SelectionContext] Failed to attach selection listener', e)
+                logger.error('[SelectionContext] Failed to attach selection listener', e)
             }
         }
         

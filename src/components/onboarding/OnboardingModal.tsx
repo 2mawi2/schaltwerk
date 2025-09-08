@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { ONBOARDING_STEPS } from './steps'
+import { logger } from '../../utils/logger'
 
 function SmartModalOverlay({ highlightElement, highlightRect }: { highlightElement: Element | null, highlightRect: DOMRect | null }) {
     if (!highlightElement || !highlightRect) {
@@ -123,7 +124,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                         setHighlightRect(element.getBoundingClientRect())
                     }, 300)
                 } else {
-                    console.warn(`Highlight element not found: ${currentStepData.highlight}`)
+                    logger.warn(`Highlight element not found: ${currentStepData.highlight}`)
                     setHighlightElement(null)
                     setHighlightRect(null)
                 }

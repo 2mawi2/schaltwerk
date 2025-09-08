@@ -6,6 +6,7 @@ import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary }
 // Open button moved to global top bar
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
+import { logger } from '../../utils/logger'
 
 
 interface ChangedFile {
@@ -113,7 +114,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     } catch (error: unknown) {
       // Only log error if it's not a "session not found" error (which is expected after cancellation)
       if (!error?.toString()?.includes('not found')) {
-        console.error(`Failed to load changed files:`, error)
+        logger.error(`Failed to load changed files:`, error)
       }
       // Clear data on error to prevent showing stale data from previous session
       setFiles([])
@@ -170,7 +171,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       if (currentSession) {
         sessionCancellingUnlisten = await listenEvent(SchaltEvent.SessionCancelling, (event) => {
           if (event.session_name === currentSession) {
-            console.log(`Session ${currentSession} is being cancelled, stopping file watcher and polling`)
+            logger.info(`Session ${currentSession} is being cancelled, stopping file watcher and polling`)
             isCancelled = true
             // Mark session as cancelled to prevent future loads
             cancelledSessionsRef.current.add(currentSession)
@@ -199,9 +200,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // Try to start file watcher for session mode
       try {
         await invoke('start_file_watcher', { sessionName: currentSession })
-        console.log(`File watcher started for session: ${currentSession}`)
+        logger.info(`File watcher started for session: ${currentSession}`)
       } catch (error) {
-        console.error('Failed to start file watcher, falling back to polling:', error)
+        logger.error('Failed to start file watcher, falling back to polling:', error)
         // Fallback to polling if file watcher fails
         pollInterval = setInterval(() => {
           if (!isCancelled) {
@@ -236,7 +237,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
           }
         })
       } catch (error) {
-        console.error('Failed to set up event listener:', error)
+        logger.error('Failed to set up event listener:', error)
       }
     }
     
@@ -245,7 +246,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     return () => {
       // Stop file watcher
       if (currentSession) {
-        invoke('stop_file_watcher', { sessionName: currentSession }).catch(console.error)
+        invoke('stop_file_watcher', { sessionName: currentSession }).catch(err => logger.error("Error:", err))
       }
       // Clean up event listeners
       if (eventUnlisten) {

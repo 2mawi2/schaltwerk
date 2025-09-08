@@ -4,6 +4,7 @@ import { EnrichedSession } from '../types/session'
 import { isSpec } from '../utils/sessionFilters'
 import { FilterMode } from '../types/sessionFilters'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
+import { logger } from '../utils/logger'
 
 function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
@@ -33,8 +34,8 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
   
   // Wrap setter with debugging
   const setCommanderSpecModeSession = useCallback((newValue: string | null) => {
-    console.log('[useSpecMode] Setting spec mode session:', commanderSpecModeSession, '→', newValue)
-    console.trace('[useSpecMode] Stack trace for spec mode change')
+    logger.info('[useSpecMode] Setting spec mode session:', commanderSpecModeSession, '→', newValue)
+    logger.debug('[useSpecMode] Stack trace for spec mode change')
     setCommanderSpecModeSessionInternal(newValue)
   }, [commanderSpecModeSession])
   
@@ -46,7 +47,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
   
   // Helper function to enter spec mode and automatically show specs
   const enterSpecMode = useCallback(async (specId: string) => {
-    console.log('[useSpecMode] Entering spec mode with spec:', specId)
+    logger.info('[useSpecMode] Entering spec mode with spec:', specId)
     // First switch to orchestrator if not already there
     if (selection.kind !== 'orchestrator') {
       await setSelection({ kind: 'orchestrator' })
@@ -70,10 +71,10 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
         (session.info.status === 'spec' || session.info.session_state === 'spec')
       )
       if (specExists) {
-        console.log('[useSpecMode] Restoring saved spec mode:', savedSpecMode)
+        logger.info('[useSpecMode] Restoring saved spec mode:', savedSpecMode)
         setCommanderSpecModeSession(savedSpecMode)
       } else {
-        console.log('[useSpecMode] Saved spec no longer exists, clearing:', savedSpecMode)
+        logger.info('[useSpecMode] Saved spec no longer exists, clearing:', savedSpecMode)
         // Saved spec no longer exists, clear from storage
         sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
       }
@@ -112,7 +113,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
 
         // Only exit spec mode if the current spec no longer exists and there are no specs at all
         if (!specSessions.find(p => p.info.session_id === commanderSpecModeSession) && specSessions.length === 0) {
-          console.log('[useSpecMode] Current spec deleted and no specs remain, exiting spec mode')
+          logger.info('[useSpecMode] Current spec deleted and no specs remain, exiting spec mode')
           setCommanderSpecModeSession(null)
         }
         // If current spec is deleted but other specs exist, let user manually select a new one
@@ -175,7 +176,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
           if (specSessions.length > 0) {
             enterSpecMode(specSessions[0].info.session_id)
           } else {
-            console.log('[useSpecMode] No specs found, creating new spec')
+            logger.info('[useSpecMode] No specs found, creating new spec')
             // Switch to orchestrator first before creating spec
             if (selection.kind !== 'orchestrator') {
               setSelection({ kind: 'orchestrator' }).then(() => {
@@ -209,7 +210,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
 
   // Toggle spec mode function  
   const toggleSpecMode = useCallback(async () => {
-    console.log('[useSpecMode] toggleSpecMode called, current session:', commanderSpecModeSession)
+    logger.info('[useSpecMode] toggleSpecMode called, current session:', commanderSpecModeSession)
     if (commanderSpecModeSession && selection.kind === 'orchestrator') {
       setCommanderSpecModeSession(null)
       setSpecModeSidebarFilter('specs-only') // Reset filter when exiting
@@ -219,7 +220,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
       if (specSessions.length > 0) {
         await enterSpecMode(specSessions[0].info.session_id)
       } else {
-        console.log('[useSpecMode] No specs available, creating new spec')
+        logger.info('[useSpecMode] No specs available, creating new spec')
         // Switch to orchestrator first before creating spec
         if (selection.kind !== 'orchestrator') {
           await setSelection({ kind: 'orchestrator' })

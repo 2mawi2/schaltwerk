@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { VscPlay, VscRocket, VscTrash } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { IconButton } from '../common/IconButton'
+import { logger } from '../../utils/logger'
 
 interface Props {
   sessionName: string
@@ -16,11 +17,11 @@ export function SpecInfoPanel({ sessionName }: Props) {
     try {
       setStarting(true)
       setError(null)
-      console.log('[SpecInfoPanel] Dispatching start-agent-from-spec event for:', sessionName)
+      logger.info('[SpecInfoPanel] Dispatching start-agent-from-spec event for:', sessionName)
       // Open Start new agent modal prefilled from spec instead of starting directly
       window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionName } }))
     } catch (e: unknown) {
-      console.error('[SpecInfoPanel] Failed to open start modal from spec:', e)
+      logger.error('[SpecInfoPanel] Failed to open start modal from spec:', e)
       setError(String(e))
     } finally {
       setStarting(false)
@@ -34,7 +35,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
       await invoke('schaltwerk_core_cancel_session', { name: sessionName })
       // The parent component should handle the refresh
     } catch (e: unknown) {
-      console.error('[SpecInfoPanel] Failed to delete spec:', e)
+      logger.error('[SpecInfoPanel] Failed to delete spec:', e)
       setError(String(e))
     } finally {
       setDeleting(false)

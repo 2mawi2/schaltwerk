@@ -11,6 +11,7 @@ import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
 import { organizeSessionsByColumn, findSessionPosition } from '../../utils/sessionOrganizer'
 import { EnrichedSession } from '../../types/session'
+import { logger } from '../../utils/logger'
 
 const ItemType = 'SESSION'
 
@@ -142,7 +143,7 @@ function Column({
             try {
                 onStatusChange(item.sessionId, status)
             } catch (error) {
-                console.error('[KanbanView] Drop handler error:', error)
+                logger.error('[KanbanView] Drop handler error:', error)
                 alert('Failed to move session: ' + error)
             }
         },
@@ -260,7 +261,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             }
             await reloadSessions()
         } catch (error) {
-            console.error('[KanbanView] Failed to change status:', error)
+            logger.error('[KanbanView] Failed to change status:', error)
             alert('Failed to change status: ' + error)
         }
     }
@@ -280,7 +281,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             await invoke('schaltwerk_core_mark_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to mark ready:', error)
+            logger.error('Failed to mark ready:', error)
         }
     }
 
@@ -289,7 +290,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to unmark ready:', error)
+            logger.error('Failed to unmark ready:', error)
         }
     }
 
@@ -306,7 +307,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to cancel session:', error)
+            logger.error('Failed to cancel session:', error)
         }
     }
 
@@ -315,7 +316,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to convert to spec:', error)
+            logger.error('Failed to convert to spec:', error)
         }
     }
 
@@ -324,7 +325,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             // Open Start agent modal prefilled from spec
             window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
         } catch (error) {
-            console.error('Failed to open start modal for spec:', error)
+            logger.error('Failed to open start modal for spec:', error)
         }
     }
 
@@ -334,7 +335,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
             await invoke('schaltwerk_core_cancel_session', { name: sessionId })
             await reloadSessions()
         } catch (error) {
-            console.error('Failed to delete spec:', error)
+            logger.error('Failed to delete spec:', error)
         }
     }
 

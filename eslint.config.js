@@ -127,7 +127,7 @@ export default [
     },
   },
   {
-    files: ['scripts/**/*.js'],
+    files: ['scripts/**/*.{js,cjs}'],
     languageOptions: {
       globals: {
         // Node.js globals

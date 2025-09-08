@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 export interface TabInfo {
   index: number
@@ -95,7 +96,7 @@ export function useTerminalTabs({
       }
       globalTerminalCreated.add(terminalId)
     } catch (error) {
-      console.error(`Failed to create terminal ${terminalId}:`, error)
+      logger.error(`Failed to create terminal ${terminalId}:`, error)
       throw error
     }
   }, [workingDirectory])
@@ -141,7 +142,7 @@ export function useTerminalTabs({
            })
          }
      } catch (error) {
-       console.error('Failed to add new tab:', error)
+       logger.error('Failed to add new tab:', error)
      }
    }, [sessionTabs, baseTerminalId, createTerminal, sessionKey, triggerUpdate])
 
@@ -177,7 +178,7 @@ export function useTerminalTabs({
       globalTabState.set(sessionKey, updatedState)
       triggerUpdate()
     } catch (error) {
-      console.error(`Failed to close terminal ${tabToClose.terminalId}:`, error)
+      logger.error(`Failed to close terminal ${tabToClose.terminalId}:`, error)
     }
   }, [sessionTabs, sessionKey, triggerUpdate])
 
@@ -194,7 +195,7 @@ export function useTerminalTabs({
   useEffect(() => {
     const initialTab = sessionTabs.tabs[0]
     if (initialTab && !globalTerminalCreated.has(initialTab.terminalId)) {
-      createTerminal(initialTab.terminalId).catch(console.error)
+      createTerminal(initialTab.terminalId).catch(err => logger.error("Error:", err))
     }
   }, [createTerminal, sessionTabs.tabs])
 

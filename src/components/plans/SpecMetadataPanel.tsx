@@ -4,6 +4,7 @@ import { VscCalendar, VscWatch, VscNotebook } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
 import { SessionActions } from '../session/SessionActions'
+import { logger } from '../../utils/logger'
 
 interface SpecMetadata {
   created_at?: string
@@ -30,7 +31,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
           agent_content: session.current_task
         })
       } catch (error) {
-        console.error('[SpecMetadataPanel] Failed to load spec metadata:', error)
+        logger.error('[SpecMetadataPanel] Failed to load spec metadata:', error)
         setMetadata({})
       } finally {
         setLoading(false)
@@ -72,7 +73,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
     try {
       await invoke('schaltwerk_core_cancel_session', { name: sessionName })
     } catch (error) {
-      console.error('[SpecMetadataPanel] Failed to delete spec:', error)
+      logger.error('[SpecMetadataPanel] Failed to delete spec:', error)
     }
   }
 

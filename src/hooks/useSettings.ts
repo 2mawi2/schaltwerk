@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 export type AgentType = 'claude' | 'cursor-agent' | 'opencode' | 'gemini' | 'qwen' | 'codex'
 type EnvVars = Record<string, string>
@@ -82,7 +83,7 @@ export const useSettings = () => {
             await saveAgentSettings(envVars, cliArgs)
             savedSettings.push('agent configurations')
         } catch (error) {
-            console.error('Failed to save agent settings:', error)
+            logger.error('Failed to save agent settings:', error)
             failedSettings.push('agent configurations')
         }
         
@@ -90,21 +91,21 @@ export const useSettings = () => {
             await saveProjectSettings(projectSettings)
             savedSettings.push('project settings')
         } catch (error) {
-            console.log('Project settings not saved - requires active project')
+            logger.info('Project settings not saved - requires active project')
         }
         
         try {
             await saveTerminalSettings(terminalSettings)
             savedSettings.push('terminal settings')
         } catch (error) {
-            console.log('Terminal settings not saved - requires active project')
+            logger.info('Terminal settings not saved - requires active project')
         }
         
         try {
             await saveSessionPreferences(sessionPreferences)
             savedSettings.push('session preferences')
         } catch (error) {
-            console.error('Failed to save session preferences:', error)
+            logger.error('Failed to save session preferences:', error)
             failedSettings.push('session preferences')
         }
         
@@ -171,7 +172,7 @@ export const useSettings = () => {
                 environmentVariables: envVarArray
             }
         } catch (error) {
-            console.error('Failed to load project settings:', error)
+            logger.error('Failed to load project settings:', error)
             return { setupScript: '', environmentVariables: [] }
         }
     }, [])
@@ -184,7 +185,7 @@ export const useSettings = () => {
                 shellArgs: settings?.shellArgs || []
             }
         } catch (error) {
-            console.error('Failed to load terminal settings:', error)
+            logger.error('Failed to load terminal settings:', error)
             return { shell: null, shellArgs: [] }
         }
     }, [])
@@ -194,7 +195,7 @@ export const useSettings = () => {
             const preferences = await invoke<SessionPreferences>('get_session_preferences')
             return preferences || { auto_commit_on_review: false, skip_confirmation_modals: false }
         } catch (error) {
-            console.error('Failed to load session preferences:', error)
+            logger.error('Failed to load session preferences:', error)
             return { auto_commit_on_review: false, skip_confirmation_modals: false }
         }
     }, [])

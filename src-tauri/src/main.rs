@@ -650,6 +650,7 @@ fn main() {
             open_in_vscode,
             path_exists,
             get_app_version,
+            schaltwerk_core_log_frontend_message,
             // MCP commands
             start_mcp_server,
             // Para core commands

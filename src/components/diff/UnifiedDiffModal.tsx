@@ -16,6 +16,7 @@ import {
 import hljs from 'highlight.js'
 import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
+import { logger } from '../../utils/logger'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -153,7 +154,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
           const diff = await loadFileDiff(sessionName, file, 'unified')
           setAllFileDiffs(new Map([[selectedFile, diff]]))
         } catch (e) {
-          console.error('Failed to reload selected file:', e)
+          logger.error('Failed to reload selected file:', e)
         }
       }
     }
@@ -163,7 +164,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         preferences: { continuous_scroll: newValue } 
       })
     } catch (err) {
-      console.error('Failed to save diff view preference:', err)
+      logger.error('Failed to save diff view preference:', err)
     }
   }, [continuousScroll, selectedFile, files, sessionName])
 
@@ -214,7 +215,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
        setBranchInfo({ currentBranch, baseBranch, baseCommit, headCommit })
      } catch (error) {
-       console.error('Failed to load changed files:', error)
+       logger.error('Failed to load changed files:', error)
      }
    }, [sessionName, filePath, getChangedFilesForContext, setFiles, setSelectedFile, setSelectedFileIndex, setAllFileDiffs, setFileError, setBranchInfo])
 
@@ -413,7 +414,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
           const diff = await loadFileDiff(sessionName, file, 'unified')
           return { path, diff }
         } catch (e) {
-          console.error(`Failed to load diff for ${path}:`, e)
+          logger.error(`Failed to load diff for ${path}:`, e)
           return null
         }
       })
@@ -565,7 +566,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
           // If continuous scroll is enabled, load all diffs
           // No need to load all diffs - using lazy loading with viewport detection
         })
-        .catch(err => console.error('Failed to load diff view preferences:', err))
+        .catch(err => logger.error('Failed to load diff view preferences:', err))
     }
     // No need to reset loading states - using lazy loading now
   }, [isOpen, loadChangedFiles])
@@ -837,7 +838,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       
       onClose()
     } catch (error) {
-      console.error('Failed to send review to terminal:', error)
+      logger.error('Failed to send review to terminal:', error)
     }
   }, [currentReview, sessionName, formatReviewForPrompt, clearReview, onClose, setSelection, setFocusForSession, setCurrentFocus])
 

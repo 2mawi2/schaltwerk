@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { VscSourceControl } from 'react-icons/vsc'
+import { logger } from '../utils/logger'
 
 interface DevelopmentInfo {
   isDevelopment: boolean
@@ -16,7 +17,7 @@ export function BranchIndicator() {
         const info = await invoke<DevelopmentInfo>('get_development_info')
         setDevInfo(info)
       } catch (error) {
-        console.error('Failed to get development info:', error)
+        logger.error('Failed to get development info:', error)
       }
     }
     loadDevInfo()

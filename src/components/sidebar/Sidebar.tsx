@@ -22,6 +22,7 @@ import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { SpecModeState } from '../../hooks/useSpecMode'
 import { theme } from '../../common/theme'
+import { logger } from '../../utils/logger'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -381,7 +382,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         alert('Failed to mark session as reviewed automatically.')
                     }
                 } catch (error) {
-                    console.error('Failed to auto-mark session as reviewed:', error)
+                    logger.error('Failed to auto-mark session as reviewed:', error)
                     alert(`Failed to mark session as reviewed: ${error}`)
                 }
             } else {
@@ -393,7 +394,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 })
             }
         } catch (error) {
-            console.error('Failed to load auto-commit setting:', error)
+            logger.error('Failed to load auto-commit setting:', error)
             // If settings check fails, fall back to showing the modal
             setMarkReadyModal({
                 open: true,
@@ -409,7 +410,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             if (selectedSession && !selectedSession.info.ready_to_merge) {
                 // Prevent marking specs as reviewed
                 if (isSpec(selectedSession.info)) {
-                    console.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
+                    logger.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
                     return
                 }
 
@@ -438,7 +439,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const targetGroup = sessionGroups.find(g => g.baseName === groupBaseName)
         
         if (!targetGroup) {
-            console.error(`Version group ${groupBaseName} not found`)
+            logger.error(`Version group ${groupBaseName} not found`)
             return
         }
 
@@ -463,7 +464,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         try {
             await selectBestVersionAndCleanup(targetGroup, selectedSessionId, invoke, reloadSessions)
         } catch (error) {
-            console.error('Failed to select best version:', error)
+            logger.error('Failed to select best version:', error)
             alert(`Failed to select best version: ${error}`)
         }
     }
@@ -711,13 +712,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 }
                 
                 // Show a toast notification
-                console.log(`📬 Follow-up message for ${session_name}: ${message}`)
+                logger.info(`📬 Follow-up message for ${session_name}: ${message}`)
                 
                 // For now, just log the message - in the future we could show toast notifications
                 if (message_type === 'system') {
-                    console.log(`📢 System message for session ${session_name}: ${message}`)
+                    logger.info(`📢 System message for session ${session_name}: ${message}`)
                 } else {
-                    console.log(`💬 User message for session ${session_name}: ${message}`)
+                    logger.info(`💬 User message for session ${session_name}: ${message}`)
                 }
             })
             unlisteners.push(u5)
@@ -729,7 +730,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 try {
                     if (typeof unlisten === 'function') unlisten()
                 } catch (e) {
-                    console.warn('Failed to unlisten sidebar event', e)
+                    logger.warn('Failed to unlisten sidebar event', e)
                 }
             })
         }
@@ -1019,7 +1020,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             ])
                                             await reloadSessions()
                                         } catch (err) {
-                                            console.error('Failed to unmark reviewed session:', err)
+                                            logger.error('Failed to unmark reviewed session:', err)
                                         }
                                     }}
                                     onCancel={(sessionId, hasUncommitted) => {
@@ -1042,7 +1043,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         if (session) {
                                             // Only allow converting running sessions to specs, not reviewed sessions
                                             if (isReviewed(session.info)) {
-                                                console.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
+                                                logger.warn(`Cannot convert reviewed session "${sessionId}" to spec. Only running sessions can be converted.`)
                                                 return
                                             }
                                             // Open confirmation modal
@@ -1059,7 +1060,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             // Open Start agent modal prefilled from spec
                                             window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                                         } catch (err) {
-                                            console.error('Failed to open start modal from spec:', err)
+                                            logger.error('Failed to open start modal from spec:', err)
                                         }
                                     }}
                                     onDeleteSpec={async (sessionId) => {
@@ -1072,7 +1073,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             ])
                                             await reloadSessions()
                                         } catch (err) {
-                                            console.error('Failed to delete spec:', err)
+                                            logger.error('Failed to delete spec:', err)
                                         }
                                     }}
                                     onSelectBestVersion={handleSelectBestVersion}

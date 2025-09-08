@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 interface ClaudeSessionOptions {
     sessionName?: string
@@ -19,11 +20,11 @@ export function useClaudeSession() {
                 await invoke('schaltwerk_core_start_claude', { sessionName: options.sessionName })
                 return { success: true }
             } else {
-                console.error('[useClaudeSession] Invalid Claude session options: must specify either isCommander or sessionName')
+                logger.error('[useClaudeSession] Invalid Claude session options: must specify either isCommander or sessionName')
                 return { success: false, error: 'Invalid options' }
             }
         } catch (error) {
-            console.error('[useClaudeSession] Failed to start Claude:', error)
+            logger.error('[useClaudeSession] Failed to start Claude:', error)
             return { success: false, error: String(error) }
         }
     }, [])
@@ -32,7 +33,7 @@ export function useClaudeSession() {
         try {
             return await invoke<boolean>('schaltwerk_core_get_skip_permissions')
         } catch (error) {
-            console.error('Failed to get skip permissions:', error)
+            logger.error('Failed to get skip permissions:', error)
             return false
         }
     }, [])
@@ -42,7 +43,7 @@ export function useClaudeSession() {
             await invoke('schaltwerk_core_set_skip_permissions', { enabled })
             return true
         } catch (error) {
-            console.error('Failed to set skip permissions:', error)
+            logger.error('Failed to set skip permissions:', error)
             return false
         }
     }, [])
@@ -51,7 +52,7 @@ export function useClaudeSession() {
         try {
             return await invoke<string>('schaltwerk_core_get_agent_type')
         } catch (error) {
-            console.error('Failed to get agent type:', error)
+            logger.error('Failed to get agent type:', error)
             return 'claude'
         }
     }, [])
@@ -61,7 +62,7 @@ export function useClaudeSession() {
             await invoke('schaltwerk_core_set_agent_type', { agentType })
             return true
         } catch (error) {
-            console.error('Failed to set agent type:', error)
+            logger.error('Failed to set agent type:', error)
             return false
         }
     }, [])

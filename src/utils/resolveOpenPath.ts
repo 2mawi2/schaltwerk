@@ -1,5 +1,6 @@
 import type { Selection } from '../contexts/SelectionContext'
 import { TauriCommands } from '../common/tauriCommands'
+import { logger } from '../utils/logger'
 
 type InvokeFn = <T>(cmd: string, args?: Record<string, unknown>) => Promise<T>
 
@@ -26,11 +27,11 @@ export async function resolveOpenPathForOpenButton(params: {
           return worktreePath
         }
       } catch (e) {
-        console.warn('[resolveOpenPath] Failed to fetch session; falling back to project path:', e)
+        logger.warn('[resolveOpenPath] Failed to fetch session; falling back to project path:', e)
       }
     }
   } catch (e) {
-    console.warn('[resolveOpenPath] Unexpected error resolving open path, using fallback:', e)
+    logger.warn('[resolveOpenPath] Unexpected error resolving open path, using fallback:', e)
   }
 
   // Fallback to active tab or project root

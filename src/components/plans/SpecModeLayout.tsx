@@ -5,6 +5,7 @@ import { TerminalGrid } from '../terminal/TerminalGrid'
 import { SpecEditor } from './SpecEditor'
 import { VscClose } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
+import { logger } from '../../utils/logger'
 
 interface Props {
   sessionName: string
@@ -23,7 +24,7 @@ export function SpecModeLayout({ sessionName, onExit }: Props) {
           setSplitSizes(parsed as [number, number])
         }
       } catch (error) {
-        console.error('[SpecModeLayout] Failed to parse saved split sizes:', error)
+        logger.error('[SpecModeLayout] Failed to parse saved split sizes:', error)
       }
     }
   }, [])
@@ -53,7 +54,7 @@ export function SpecModeLayout({ sessionName, onExit }: Props) {
       await invoke('schaltwerk_core_start_spec_session', { name: sessionName })
       onExit()
     } catch (error) {
-      console.error('[SpecModeLayout] Failed to start spec:', error)
+      logger.error('[SpecModeLayout] Failed to start spec:', error)
     }
   }, [sessionName, onExit])
   

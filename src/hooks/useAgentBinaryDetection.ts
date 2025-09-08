@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 export interface DetectedBinary {
     path: string
@@ -92,7 +93,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
             
             setBinaryConfigs(configMap)
         } catch (err) {
-            console.error('Failed to load binary configurations:', err)
+            logger.error('Failed to load binary configurations:', err)
             setError(String(err))
         } finally {
             setLoading(false)
@@ -122,7 +123,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
             
             return config
         } catch (err) {
-            console.error(`Failed to get binary config for ${agentName}:`, err)
+            logger.error(`Failed to get binary config for ${agentName}:`, err)
             return null
         }
     }, [getCachedConfig, setCachedConfig])
@@ -144,7 +145,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
             
             return config
         } catch (err) {
-            console.error(`Failed to refresh binary detection for ${agentName}:`, err)
+            logger.error(`Failed to refresh binary detection for ${agentName}:`, err)
             return null
         }
     }, [setCachedConfig])
@@ -172,7 +173,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
             
             return true
         } catch (err) {
-            console.error(`Failed to set binary path for ${agentName}:`, err)
+            logger.error(`Failed to set binary path for ${agentName}:`, err)
             return false
         }
     }, [setCachedConfig])

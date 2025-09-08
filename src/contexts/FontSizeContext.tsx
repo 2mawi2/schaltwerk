@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 interface FontSizeContextType {
   terminalFontSize: number
@@ -38,7 +39,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
         setInitialized(true)
       })
       .catch(err => {
-        console.error('Failed to load font sizes:', err)
+        logger.error('Failed to load font sizes:', err)
         setInitialized(true)
       })
   }, [])
@@ -74,7 +75,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
       invoke('schaltwerk_core_set_font_sizes', {
         terminalFontSize: pending.terminal,
         uiFontSize: pending.ui
-      }).catch(err => console.error('Failed to save font sizes:', err))
+      }).catch(err => logger.error('Failed to save font sizes:', err))
     }, 400)
 
     return () => clearTimeout(t)

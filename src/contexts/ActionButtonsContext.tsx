@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useCallback, ReactNode 
 import { invoke } from '@tauri-apps/api/core'
 import type { HeaderActionConfig } from '../components/ActionButton'
 import { useProject } from './ProjectContext'
+import { logger } from '../utils/logger'
 
 interface ActionButtonsContextType {
   actionButtons: HeaderActionConfig[]
@@ -22,7 +23,7 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
 
   const loadActionButtons = useCallback(async () => {
     if (!projectPath) {
-      console.log('No project path available, skipping action buttons load')
+      logger.info('No project path available, skipping action buttons load')
       setActionButtons([])
       setLoading(false)
       return
@@ -31,12 +32,12 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true)
       setError(null)
-      console.log('Loading action buttons for project:', projectPath)
+      logger.info('Loading action buttons for project:', projectPath)
       const buttons = await invoke<HeaderActionConfig[]>('get_project_action_buttons')
-      console.log('Action buttons loaded:', buttons)
+      logger.info('Action buttons loaded:', buttons)
       setActionButtons(buttons)
     } catch (err) {
-      console.error('Failed to load action buttons:', err)
+      logger.error('Failed to load action buttons:', err)
       setError(err instanceof Error ? err.message : 'Failed to load action buttons')
       setActionButtons([])
     } finally {
@@ -49,10 +50,10 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
       await invoke('set_project_action_buttons', { actions: buttons })
       // Immediately update local state
       setActionButtons(buttons)
-      console.log('Action buttons saved and state updated:', buttons)
+      logger.info('Action buttons saved and state updated:', buttons)
       return true
     } catch (err) {
-      console.error('Failed to save action buttons:', err)
+      logger.error('Failed to save action buttons:', err)
       setError(err instanceof Error ? err.message : 'Failed to save action buttons')
       return false
     }

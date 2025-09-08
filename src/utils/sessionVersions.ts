@@ -1,4 +1,5 @@
 import { EnrichedSession } from '../types/session'
+import { logger } from '../utils/logger'
 
 export { type EnrichedSession }
 
@@ -143,7 +144,7 @@ export async function selectBestVersionAndCleanup(
     await reloadSessions()
     
   } catch (error) {
-    console.error('Error during version cleanup:', error)
+    logger.error('Error during version cleanup:', error)
     throw new Error('Failed to cleanup session versions: ' + (error as Error).message)
   }
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
+import { logger } from '../../utils/logger'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -48,7 +49,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         setSaving(true)
         await invoke('schaltwerk_core_update_spec_content', { name: sessionName, content })
       } catch (e) {
-        console.error('[DraftContentView] Failed to save spec:', e)
+        logger.error('[DraftContentView] Failed to save spec:', e)
       } finally {
         setSaving(false)
       }
@@ -61,7 +62,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       setCopying(true)
       await navigator.clipboard.writeText(content)
     } catch (err) {
-      console.error('[DraftContentView] Failed to copy content:', err)
+      logger.error('[DraftContentView] Failed to copy content:', err)
     } finally {
       setTimeout(() => setCopying(false), 1000)
     }

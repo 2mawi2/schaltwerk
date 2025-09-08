@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 export function useOnboarding() {
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean | null>(null)
@@ -19,7 +20,7 @@ export function useOnboarding() {
                     return () => clearTimeout(timer)
                 }
             } catch (error) {
-                console.error('Failed to check tutorial completion:', error)
+                logger.error('Failed to check tutorial completion:', error)
                 setHasCompletedOnboarding(false)
             }
         }
@@ -33,7 +34,7 @@ export function useOnboarding() {
             setHasCompletedOnboarding(true)
             setIsOnboardingOpen(false)
         } catch (error) {
-            console.error('Failed to mark tutorial as completed:', error)
+            logger.error('Failed to mark tutorial as completed:', error)
         }
     }
 
@@ -42,7 +43,7 @@ export function useOnboarding() {
             await invoke('set_tutorial_completed', { completed: false })
             setHasCompletedOnboarding(false)
         } catch (error) {
-            console.error('Failed to reset tutorial:', error)
+            logger.error('Failed to reset tutorial:', error)
         }
     }
 

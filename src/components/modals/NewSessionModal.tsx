@@ -5,6 +5,7 @@ import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
 import { theme } from '../../common/theme'
 import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
+import { logger } from '../../utils/logger'
 
 interface Props {
     open: boolean
@@ -130,7 +131,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 draftContent: createAsDraft ? taskContent : undefined,
                 versionCount: createAsDraft ? 1 : versionCount,
             }
-            console.log('[NewSessionModal] Creating session with data:', {
+            logger.info('[NewSessionModal] Creating session with data:', {
                 ...createData,
                 createAsDraft,
                 taskContent: taskContent ? taskContent.substring(0, 100) + (taskContent.length > 100 ? '...' : '') : undefined,
@@ -149,7 +150,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
     useLayoutEffect(() => {
         if (open) {
-            console.log('[NewSessionModal] Modal opened with:', {
+            logger.info('[NewSessionModal] Modal opened with:', {
                 initialIsDraft,
                 isPrefillPending,
                 hasPrefillData,
@@ -163,7 +164,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             
             // Only reset state if we're not expecting prefill data AND don't already have it
             if (!isPrefillPending && !hasPrefillData) {
-                console.log('[NewSessionModal] Resetting modal state - reason: no prefill pending or data')
+                logger.info('[NewSessionModal] Resetting modal state - reason: no prefill pending or data')
                 setName(gen)
                 setWasEdited(false)
                 wasEditedRef.current = false
@@ -180,16 +181,16 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         if (baseBranch) setBaseBranch(baseBranch)
                         setAgentType(agentType)
                         setSkipPermissions(skipPermissions)
-                        console.log('[NewSessionModal] Initialized config from persisted state:', { baseBranch, agentType, skipPermissions })
+                        logger.info('[NewSessionModal] Initialized config from persisted state:', { baseBranch, agentType, skipPermissions })
                     })
                     .catch(e => {
-                        console.warn('[NewSessionModal] Failed loading persisted config, falling back to child init:', e)
+                        logger.warn('[NewSessionModal] Failed loading persisted config, falling back to child init:', e)
                         setBaseBranch('')
                         setAgentType('claude')
                         setSkipPermissions(false)
                     })
             } else {
-                console.log('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data')
+                logger.info('[NewSessionModal] Skipping full state reset - reason: prefill pending or has data')
                 // Still need to reset some state
                 setValidationError('')
                 setCreating(false)
@@ -199,7 +200,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             invoke<boolean>('repository_is_empty')
                 .then(setRepositoryIsEmpty)
                 .catch(err => {
-                    console.warn('Failed to check if repository is empty:', err)
+                    logger.warn('Failed to check if repository is empty:', err)
                     setRepositoryIsEmpty(false)
                 })
             
@@ -209,7 +210,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             }, 100)
         } else {
             // Reset ALL state when modal closes to prevent stale state
-            console.log('[NewSessionModal] Modal closed - resetting all state')
+            logger.info('[NewSessionModal] Modal closed - resetting all state')
             setIsPrefillPending(false)
             setHasPrefillData(false)
             setCreateAsDraft(false)
@@ -230,7 +231,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // This ensures we can catch events that are dispatched right when the modal opens
     useEffect(() => {
         const prefillHandler = (event: CustomEvent) => {
-            console.log('[NewSessionModal] Received prefill event with detail:', event?.detail)
+            logger.info('[NewSessionModal] Received prefill event with detail:', event?.detail)
             const detail = event?.detail || {}
             const nameFromDraft: string | undefined = detail.name
             const taskContentFromDraft: string | undefined = detail.taskContent
@@ -239,7 +240,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             const baseBranchFromDraft: string | undefined = detail.baseBranch
 
             if (nameFromDraft) {
-                console.log('[NewSessionModal] Setting name from prefill:', nameFromDraft)
+                logger.info('[NewSessionModal] Setting name from prefill:', nameFromDraft)
                 setName(nameFromDraft)
                 // Treat this as user-provided name to avoid regen
                 wasEditedRef.current = true
@@ -247,28 +248,28 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setNameLocked(!!lockName)
             }
             if (typeof taskContentFromDraft === 'string') {
-                console.log('[NewSessionModal] Setting agent content from prefill:', taskContentFromDraft.substring(0, 100), '...')
+                logger.info('[NewSessionModal] Setting agent content from prefill:', taskContentFromDraft.substring(0, 100), '...')
                 setTaskContent(taskContentFromDraft)
             }
             if (baseBranchFromDraft) {
-                console.log('[NewSessionModal] Setting base branch from prefill:', baseBranchFromDraft)
+                logger.info('[NewSessionModal] Setting base branch from prefill:', baseBranchFromDraft)
                 setBaseBranch(baseBranchFromDraft)
             }
             // If running from an existing spec, don't create another spec
              if (fromDraft) {
-                 console.log('[NewSessionModal] Running from existing spec - forcing createAsDraft to false')
+                 logger.info('[NewSessionModal] Running from existing spec - forcing createAsDraft to false')
                  setCreateAsDraft(false)
              }
             
             // Clear the prefill pending flag and mark that we have data
             setIsPrefillPending(false)
             setHasPrefillData(true)
-            console.log('[NewSessionModal] Prefill data processed, hasPrefillData set to true')
+            logger.info('[NewSessionModal] Prefill data processed, hasPrefillData set to true')
         }
         
         // Listen for a notification that prefill is coming
         const prefillPendingHandler = () => {
-            console.log('[NewSessionModal] Prefill pending notification received')
+            logger.info('[NewSessionModal] Prefill pending notification received')
             setIsPrefillPending(true)
         }
         
@@ -307,7 +308,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         // Use capture phase so this handler runs before others and can stop propagation
         window.addEventListener('keydown', handleKeyDown, true)
         const setDraftHandler = () => {
-            console.log('[NewSessionModal] Received set-spec event - setting createAsDraft to true')
+            logger.info('[NewSessionModal] Received set-spec event - setting createAsDraft to true')
             setCreateAsDraft(true)
         }
         window.addEventListener('schaltwerk:new-session:set-spec' as any, setDraftHandler)

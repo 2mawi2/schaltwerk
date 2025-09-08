@@ -1,3 +1,5 @@
+import { logger } from '../utils/logger'
+
 // Legacy diff utilities - now replaced with Rust backend
 // These functions are kept for backward compatibility and tests only
 export type { LineInfo } from '../types/diff'
@@ -8,7 +10,7 @@ const CONTEXT_LINES = 3
 
 // Legacy function - use Rust backend compute_unified_diff_backend instead
 export function computeUnifiedDiff(oldContent: string, newContent: string): LineInfo[] {
-  console.warn('computeUnifiedDiff is deprecated - use Rust backend instead')
+  logger.warn('computeUnifiedDiff is deprecated - use Rust backend instead')
   
   // Handle empty content edge cases to match test expectations
   if (!oldContent && !newContent) return []

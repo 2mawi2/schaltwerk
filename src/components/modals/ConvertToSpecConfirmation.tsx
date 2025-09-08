@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
+import { logger } from '../../utils/logger'
 
 interface ConvertToDraftConfirmationProps {
   open: boolean
@@ -33,7 +34,7 @@ export function ConvertToSpecConfirmation({
       onSuccess()
       onClose()
     } catch (error) {
-      console.error('Failed to convert session to spec:', error)
+      logger.error('Failed to convert session to spec:', error)
       alert(`Failed to convert session to spec: ${error}`)
     } finally {
       setLoading(false)

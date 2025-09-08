@@ -3,6 +3,7 @@ import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { useProject } from '../contexts/ProjectContext'
 import { SortMode, FilterMode } from '../types/sessionFilters'
+import { logger } from '../utils/logger'
 
 interface EnrichedSession {
     info: {
@@ -70,7 +71,7 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
             setSessions(sortedSessions || [])
             isInitialLoadRef.current = false
         } catch (err) {
-            console.error('Failed to load sorted sessions:', err)
+            logger.error('Failed to load sorted sessions:', err)
             setError(err instanceof Error ? err.message : String(err))
         } finally {
             setLoading(false)

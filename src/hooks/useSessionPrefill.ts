@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { logger } from '../utils/logger'
 
 export interface SessionPrefillData {
   name: string
@@ -34,19 +35,19 @@ export function useSessionPrefill() {
   const [error, setError] = useState<string | null>(null)
 
   const fetchSessionForPrefill = useCallback(async (sessionName: string): Promise<SessionPrefillData | null> => {
-    console.log('[useSessionPrefill] Fetching session for prefill:', sessionName)
+    logger.info('[useSessionPrefill] Fetching session for prefill:', sessionName)
     setIsLoading(true)
     setError(null)
 
     try {
       const sessionData = await invoke<SessionData>('schaltwerk_core_get_session', { name: sessionName })
-      console.log('[useSessionPrefill] Raw session data:', sessionData)
+      logger.info('[useSessionPrefill] Raw session data:', sessionData)
       
       const taskContent = extractSessionContent(sessionData)
-      console.log('[useSessionPrefill] Extracted agent content:', taskContent?.substring(0, 100), '...')
+      logger.info('[useSessionPrefill] Extracted agent content:', taskContent?.substring(0, 100), '...')
       
       const baseBranch = sessionData?.parent_branch || undefined
-      console.log('[useSessionPrefill] Base branch:', baseBranch)
+      logger.info('[useSessionPrefill] Base branch:', baseBranch)
 
       const prefillData = {
         name: sessionName,
@@ -55,12 +56,12 @@ export function useSessionPrefill() {
         lockName: true,
         fromDraft: true,
       }
-      console.log('[useSessionPrefill] Returning prefill data:', prefillData)
+      logger.info('[useSessionPrefill] Returning prefill data:', prefillData)
       return prefillData
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : String(err)
       setError(errorMessage)
-      console.error('[useSessionPrefill] Failed to fetch session for prefill:', errorMessage)
+      logger.error('[useSessionPrefill] Failed to fetch session for prefill:', errorMessage)
       return null
     } finally {
       setIsLoading(false)
