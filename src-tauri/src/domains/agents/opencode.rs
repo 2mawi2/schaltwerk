@@ -108,6 +108,31 @@ pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
     })
 }
 
+fn escape_for_shell(s: &str) -> String {
+    // Escape special characters that could break shell command parsing
+    // We need to handle:
+    // 1. Double quotes -> \"
+    // 2. Backslashes -> \\
+    // 3. Newlines -> \n
+    // 4. Dollar signs -> \$
+    // 5. Backticks -> \`
+    
+    let mut result = String::with_capacity(s.len() * 2);
+    for ch in s.chars() {
+        match ch {
+            '"' => result.push_str(r#"\""#),
+            '\\' => result.push_str(r"\\"),
+            '\n' => result.push_str(r"\n"),
+            '\r' => result.push_str(r"\r"),
+            '\t' => result.push_str(r"\t"),
+            '$' => result.push_str(r"\$"),
+            '`' => result.push_str(r"\`"),
+            _ => result.push(ch),
+        }
+    }
+    result
+}
+
 fn sanitize_path_for_opencode(path: &Path) -> String {
     // Based on analysis of actual OpenCode directory names:
     // Looking at actual directories like:
@@ -191,7 +216,7 @@ pub fn build_opencode_command_with_config(
             if let Some(prompt) = initial_prompt {
                 // Start fresh with the prompt - don't resume the empty session
                 // This avoids showing the auto-created assistant greeting
-                let escaped = prompt.replace('"', r#"\""#);
+                let escaped = escape_for_shell(prompt);
                 cmd.push_str(&format!(r#" --prompt "{escaped}""#));
             } else {
                 // No prompt provided - start a new session instead of resuming
@@ -205,7 +230,7 @@ pub fn build_opencode_command_with_config(
             // No session exists - start a new one
             if let Some(prompt) = initial_prompt {
                 log::debug!("Starting new session with prompt");
-                let escaped = prompt.replace('"', r#"\""#);
+                let escaped = escape_for_shell(prompt);
                 cmd.push_str(&format!(r#" --prompt "{escaped}""#));
             } else {
                 log::debug!("Starting new session without prompt");
@@ -571,5 +596,78 @@ mod tests {
             Some(&config),
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && opencode --prompt "implement \"feature\" with quotes""#);
+    }
+    
+    #[test]
+    fn test_escape_for_shell() {
+        // Test escaping of various special characters
+        assert_eq!(escape_for_shell("simple text"), "simple text");
+        assert_eq!(escape_for_shell(r#"text with "quotes""#), r#"text with \"quotes\""#);
+        assert_eq!(escape_for_shell("text with\nnewline"), r"text with\nnewline");
+        assert_eq!(escape_for_shell("text with\ttab"), r"text with\ttab");
+        assert_eq!(escape_for_shell("text with $variable"), r"text with \$variable");
+        assert_eq!(escape_for_shell("text with `backticks`"), r"text with \`backticks\`");
+        assert_eq!(escape_for_shell(r"text with \ backslash"), r"text with \\ backslash");
+        
+        // Test complex case with multiple special characters
+        let complex = r#"Line 1 with "quotes"
+Line 2 with $var and `cmd`
+Line 3 with \ backslash"#;
+        let escaped = escape_for_shell(complex);
+        assert!(!escaped.contains('\n')); // Actual newlines should be escaped
+        assert!(escaped.contains(r"\n")); // Should contain escaped newlines
+        assert!(escaped.contains(r#"\""#)); // Should contain escaped quotes
+        assert!(escaped.contains(r"\$")); // Should contain escaped dollar signs
+        assert!(escaped.contains(r"\`")); // Should contain escaped backticks
+    }
+    
+    #[test]
+    fn test_multiline_prompt_with_special_chars() {
+        let config = OpenCodeConfig {
+            binary_path: Some("opencode".to_string()),
+        };
+        
+        // Test with a complex multiline prompt that includes quotes, backslashes, and newlines
+        let prompt = r#"# Run Mode Feature Specification
+
+## Overview
+Run Mode is a terminal interface feature that provides a dedicated "Run" tab.
+
+### Requirements
+- **Script Structure**: Run scripts contain:
+  - `command`: The shell command to execute (e.g., "npm run dev")
+  - `workingDirectory`: Optional relative path"#;
+        
+        let cmd = build_opencode_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some(prompt),
+            false,
+            Some(&config),
+        );
+        
+        // The command should properly escape all special characters
+        // Newlines should be escaped, quotes should be escaped, etc.
+        assert!(cmd.starts_with("cd /path/to/worktree && opencode --prompt "));
+        
+        // Print the command for debugging
+        println!("Generated command: {}", cmd);
+        
+        // Check that the prompt is properly quoted and doesn't break the shell command
+        assert!(!cmd.contains('\n')); // Newlines should be escaped
+        
+        // The command should have exactly 2 unescaped quotes (around the prompt)
+        // Count unescaped quotes - should be exactly 2 (opening and closing)
+        let mut unescaped_quotes = 0;
+        let mut chars = cmd.chars().peekable();
+        while let Some(ch) = chars.next() {
+            if ch == '\\' {
+                // Skip the next character as it's escaped
+                chars.next();
+            } else if ch == '"' {
+                unescaped_quotes += 1;
+            }
+        }
+        assert_eq!(unescaped_quotes, 2, "Should have exactly 2 unescaped quotes (opening and closing)");
     }
 }
