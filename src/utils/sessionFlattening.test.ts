@@ -23,7 +23,6 @@ describe('Session Flattening for Navigation', () => {
             branch: `${baseName}-branch`,
             worktree_path: `/path/${id}`,
             base_branch: 'main',
-            merge_mode: 'squash',
             status: 'active',
             is_current: false,
             session_type: 'worktree',

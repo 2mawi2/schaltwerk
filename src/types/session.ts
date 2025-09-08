@@ -12,7 +12,6 @@ export interface SessionInfo {
     branch: string
     worktree_path: string
     base_branch: string
-    merge_mode: string
     status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string
     last_modified?: string

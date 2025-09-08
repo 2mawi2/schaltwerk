@@ -457,7 +457,6 @@ impl SessionManager {
                 branch: session.branch.clone(),
                 worktree_path: session.worktree_path.to_string_lossy().to_string(),
                 base_branch: session.parent_branch.clone(),
-                merge_mode: "rebase".to_string(),
                 status: status_type,
                 created_at: Some(session.created_at),
                 last_modified: session.last_activity,

@@ -35,7 +35,6 @@ function generateMockSessions(count: number) {
             branch: `feature-${i}`,
             worktree_path: `/path/to/worktree-${i}`,
             base_branch: 'main',
-            merge_mode: 'rebase',
             status: 'active',
             last_modified: new Date(Date.now() - i * 1000000).toISOString(),
             has_uncommitted_changes: i % 3 === 0,

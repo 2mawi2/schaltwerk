@@ -54,9 +54,9 @@ describe('Sidebar keyboard navigation basic', () => {
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh)', configurable: true })
 
     const sessions = [
-      { info: { session_id: 'a', branch: 'para/a', worktree_path: '/a', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree' }, terminals: [] },
-      { info: { session_id: 'b', branch: 'para/b', worktree_path: '/b', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree' }, terminals: [] },
-      { info: { session_id: 'c', branch: 'para/c', worktree_path: '/c', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree' }, terminals: [] },
+      { info: { session_id: 'a', branch: 'para/a', worktree_path: '/a', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree' }, terminals: [] },
+      { info: { session_id: 'b', branch: 'para/b', worktree_path: '/b', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree' }, terminals: [] },
+      { info: { session_id: 'c', branch: 'para/c', worktree_path: '/c', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree' }, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
@@ -121,8 +121,8 @@ describe('Sidebar keyboard navigation basic', () => {
 
     // Mock sessions with a spec session
     const sessions = [
-      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
-      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main',  status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main',  status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {
@@ -207,8 +207,8 @@ describe('Sidebar keyboard navigation basic', () => {
   it('prevents converting spec sessions to specs with Cmd+S', async () => {
     // Mock sessions with a spec session and a running session
     const sessions = [
-      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main', merge_mode: 'rebase', status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
-      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'spec-session', branch: 'spec/branch', worktree_path: '/spec', base_branch: 'main',  status: 'spec', session_state: 'spec', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+      { info: { session_id: 'running-session', branch: 'running/branch', worktree_path: '/running', base_branch: 'main',  status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd) => {

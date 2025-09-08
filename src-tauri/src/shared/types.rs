@@ -230,7 +230,6 @@ pub struct SessionInfo {
     pub branch: String,
     pub worktree_path: String,
     pub base_branch: String,
-    pub merge_mode: String,
     pub status: SessionStatusType,
     pub created_at: Option<DateTime<Utc>>,
     pub last_modified: Option<DateTime<Utc>>,

@@ -31,7 +31,6 @@ interface SessionInfo {
   branch: string
   worktree_path: string
   base_branch: string
-  merge_mode: string
   status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
   created_at?: string
   last_modified?: string
@@ -63,7 +62,6 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
     branch: `para/${id}`,
     worktree_path: `/path/${id}`,
     base_branch: 'main',
-    merge_mode: 'rebase',
     status: 'active',
     created_at: createdAt,
     last_modified: lastModified,

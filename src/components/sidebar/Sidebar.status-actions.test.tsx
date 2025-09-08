@@ -50,8 +50,8 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('Sidebar status indicators and actions', () => {
   const sessions: EnrichedSession[] = [
-    { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
-    { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: true }, terminals: [] },
+    { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
+    { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: true }, terminals: [] },
   ]
 
   let unlistenFns: Array<() => void> = []
@@ -137,8 +137,8 @@ describe('Sidebar status indicators and actions', () => {
     // Arrange sessions with last_modified timestamps
     const now = Date.now()
     const sessions: EnrichedSession[] = [
-      { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 6 * 60 * 1000).toISOString(), last_modified_ts: now - 6 * 60 * 1000 } as any, terminals: [] },
-      { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', merge_mode: 'rebase', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 2 * 60 * 1000).toISOString(), last_modified_ts: now - 2 * 60 * 1000 } as any, terminals: [] },
+      { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 6 * 60 * 1000).toISOString(), last_modified_ts: now - 6 * 60 * 1000 } as any, terminals: [] },
+      { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 2 * 60 * 1000).toISOString(), last_modified_ts: now - 2 * 60 * 1000 } as any, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {

@@ -15,7 +15,6 @@ const createMockSession = (sessionId: string, displayName?: string): EnrichedSes
     branch: `branch-${sessionId}`,
     worktree_path: `/path/${sessionId}`,
     base_branch: 'main',
-    merge_mode: 'squash',
     status: 'active',
     created_at: '2023-01-01T00:00:00Z',
     last_modified: '2023-01-01T01:00:00Z',

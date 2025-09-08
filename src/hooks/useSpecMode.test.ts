@@ -23,7 +23,6 @@ describe('useSpecMode', () => {
       branch: `branch-${id}`,
       worktree_path: `/path/to/${id}`,
       base_branch: 'main',
-      merge_mode: 'merge',
       status: 'spec' as const,
       created_at: createdAt,
       last_modified: createdAt,

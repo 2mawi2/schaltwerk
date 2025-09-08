@@ -62,7 +62,6 @@ interface SessionInfo {
   branch: string
   worktree_path: string
   base_branch: string
-  merge_mode: string
   status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
   created_at?: string
   last_modified?: string
@@ -137,7 +136,6 @@ export const sessionReducers = {
       branch: payload.branch,
       worktree_path: payload.worktree_path,
       base_branch: payload.parent_branch,
-      merge_mode: 'rebase',
       status: 'active',
       last_modified: undefined,
       has_uncommitted_changes: false,
@@ -274,7 +272,6 @@ describe('Sidebar', () => {
             branch: 'feature/simple',
             worktree_path: '/path/simple',
             base_branch: 'main',
-            merge_mode: 'rebase',
             status: 'active',
             is_current: false,
             session_type: 'worktree',
@@ -335,7 +332,6 @@ describe('Sidebar', () => {
             branch: 'feature/one',
             worktree_path: '/path1',
             base_branch: 'main',
-            merge_mode: 'rebase',
             status: 'active',
             is_current: false,
             session_type: 'worktree',
@@ -356,7 +352,6 @@ describe('Sidebar', () => {
             branch: 'feature/two',
             worktree_path: '/path2',
             base_branch: 'main',
-            merge_mode: 'rebase',
             status: 'active',
             is_current: false,
             session_type: 'worktree'
@@ -537,7 +532,6 @@ describe('Sidebar', () => {
             branch: 'feature/minimal',
             worktree_path: '/path',
             base_branch: 'main',
-            merge_mode: 'rebase',
             status: 'active',
             is_current: false,
             session_type: 'worktree',
@@ -643,8 +637,7 @@ describe('Sidebar', () => {
                   branch: 'feature/test-1',
                   worktree_path: '/path/to/session-1',
                   base_branch: 'main',
-                  merge_mode: 'rebase',
-                  status: 'active',
+                        status: 'active',
                   has_uncommitted_changes: false,
                   is_current: false,
                   session_type: 'worktree',
@@ -659,8 +652,7 @@ describe('Sidebar', () => {
                   branch: 'feature/test-2',
                   worktree_path: '/path/to/session-2',
                   base_branch: 'main',
-                  merge_mode: 'rebase',
-                  status: 'active',
+                        status: 'active',
                   has_uncommitted_changes: false,
                   is_current: false,
                   session_type: 'worktree',

@@ -17,7 +17,6 @@ const createMockSession = (overrides: any = {}) => {
             branch: 'test-branch',
             worktree_path: '/path/to/worktree',
             base_branch: 'main',
-            merge_mode: 'rebase',
             status: 'active' as const,
             is_current: false,
             session_type: 'worktree' as const,
