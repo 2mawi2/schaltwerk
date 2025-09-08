@@ -2,12 +2,12 @@ import { memo } from 'react'
 import { clsx } from 'clsx'
 import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
-import { SessionInfo } from '../../types/session'
+import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 
 interface SessionButtonProps {
     session: {
         info: SessionInfo
-        status?: any
+        status?: SessionMonitorStatus
         terminals: string[]
     }
     index: number

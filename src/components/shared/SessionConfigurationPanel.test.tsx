@@ -21,18 +21,33 @@ vi.mock('../../hooks/useClaudeSession', () => ({
 
 // Mock child components
 vi.mock('../inputs/BranchAutocomplete', () => ({
-    BranchAutocomplete: ({ value, onChange, branches, onValidationChange, disabled, placeholder }: any) => (
+    BranchAutocomplete: ({
+        value,
+        onChange,
+        branches,
+        onValidationChange,
+        disabled,
+        placeholder
+    }: {
+        value?: string
+        onChange?: (value: string) => void
+        branches?: string[]
+        onValidationChange?: (valid: boolean) => void
+        disabled?: boolean
+        placeholder?: string
+    }) => (
         <div data-testid="branch-autocomplete">
-            <input 
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
+            <input
+                value={value ?? ''}
+                onChange={(e) => onChange?.(e.target.value)}
                 disabled={disabled}
                 placeholder={placeholder}
             />
-            <div data-testid="branch-count">{branches.length}</div>
-            <button 
+            <div data-testid="branch-count">{branches?.length ?? 0}</div>
+            <button
                 onClick={() => onValidationChange?.(true)}
                 data-testid="validate-branch"
+                disabled={!onValidationChange}
             >
                 Validate
             </button>
@@ -41,11 +56,19 @@ vi.mock('../inputs/BranchAutocomplete', () => ({
 }))
 
 vi.mock('../inputs/ModelSelector', () => ({
-    ModelSelector: ({ value, onChange, disabled }: any) => (
+    ModelSelector: ({
+        value,
+        onChange,
+        disabled
+    }: {
+        value?: string
+        onChange?: (value: string) => void
+        disabled?: boolean
+    }) => (
         <div data-testid="model-selector">
-            <select 
-                value={value} 
-                onChange={(e) => onChange(e.target.value)}
+            <select
+                value={value ?? ''}
+                onChange={(e) => onChange?.(e.target.value)}
                 disabled={disabled}
             >
                 <option value="claude">Claude</option>

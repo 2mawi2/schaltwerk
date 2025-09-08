@@ -74,7 +74,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === 'set_project_sessions_settings') {
         return undefined
       }
-      return undefined as any
+      return undefined
     })
 
     vi.mocked(listen).mockImplementation(async () => {
@@ -140,7 +140,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === 'set_project_sessions_settings') {
         return undefined
       }
-      return undefined as any
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)
@@ -226,7 +226,7 @@ describe('Sidebar keyboard navigation basic', () => {
       if (cmd === 'set_project_sessions_settings') {
         return undefined
       }
-      return undefined as any
+      return undefined
     })
 
     renderWithProviders(<Sidebar />)

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { loadAllFileDiffs } from './loadDiffs'
+import { loadAllFileDiffs, FileDiffData } from './loadDiffs'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -49,7 +49,7 @@ describe('loadDiffs concurrency and single-view compute', () => {
           isLargeFile: false
         }
       }
-      return undefined as any
+       return undefined
     })
 
     const start = performance.now()
@@ -62,8 +62,8 @@ describe('loadDiffs concurrency and single-view compute', () => {
     expect(elapsed).toBeLessThan(500)
 
     // Spot check a single file diff contains unified data only
-    const first: any = map.values().next().value
+    const first: FileDiffData | undefined = map.values().next().value
     expect(first).toBeDefined()
-    expect('diffResult' in first).toBe(true)
+    expect(first && 'diffResult' in first).toBe(true)
   })
 })

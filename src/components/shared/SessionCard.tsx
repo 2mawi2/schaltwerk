@@ -2,12 +2,12 @@ import { memo, forwardRef } from 'react'
 import { clsx } from 'clsx'
 import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
-import { SessionInfo } from '../../types/session'
+import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 
 export interface SessionCardProps {
     session: {
         info: SessionInfo
-        status?: any
+        status?: SessionMonitorStatus
         terminals: string[]
     }
     isSelected?: boolean
@@ -203,7 +203,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     if (onSelect) {
         return (
             <button
-                ref={ref as any}
+                ref={ref as unknown as React.Ref<HTMLButtonElement>}
                 onClick={onSelect}
                 className={clsx(
                     'group w-full text-left px-3 py-2.5 rounded-md border transition-all duration-300',

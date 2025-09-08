@@ -70,8 +70,8 @@ function DraggableSessionCard({
     }))
 
     return (
-        <div 
-            ref={drag as any} 
+        <div
+            ref={drag as unknown as React.Ref<HTMLDivElement>}
             className={clsx(
                 "cursor-move mb-2 transition-all duration-200 ease-in-out",
                 isDragging ? "opacity-50 scale-95" : "hover:scale-[1.005]"
@@ -162,7 +162,7 @@ function Column({
 
     return (
         <div
-            ref={drop as any}
+            ref={drop as unknown as React.Ref<HTMLDivElement>}
             className={clsx(
                 'flex-1 flex flex-col bg-gray-900 rounded-lg p-4',
                 'border-2 transition-all duration-300 ease-in-out',
@@ -345,13 +345,13 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     // Use refs to access current values in event handlers
     const focusedSessionIdRef = useRef<string | null>(null)
     const focusedPositionRef = useRef<{ column: number; row: number }>({ column: 0, row: 0 })
-    const sessionsByColumnRef = useRef<any[][]>([[],[],[]])
+    const sessionsByColumnRef = useRef<EnrichedSession[][]>([[],[],[]])
 
     // Organize sessions into columns
     const sessionsByColumn = useMemo(() => {
-        const columns = organizeSessionsByColumn(allSessions || [])
-        sessionsByColumnRef.current = columns
-        return columns
+        const columns = organizeSessionsByColumn(allSessions || [] as any)
+        sessionsByColumnRef.current = columns as unknown as EnrichedSession[][]
+        return columns as unknown as EnrichedSession[][]
     }, [allSessions])
     
     // Update refs when state changes
@@ -443,7 +443,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         const newSession = allSessions.find(s => s.info.session_id === newSessionId)
         
         if (newSession) {
-            const position = findSessionPosition(newSessionId, sessionsByColumn)
+            const position = findSessionPosition(newSessionId, sessionsByColumn as any)
             if (position) {
                 setFocusedSessionId(newSessionId)
                 setFocusedPosition(position)
@@ -692,7 +692,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
 
     const handleSessionClick = useCallback((sessionId: string) => {
         // Find position of clicked session
-        const position = findSessionPosition(sessionId, sessionsByColumn)
+        const position = findSessionPosition(sessionId, sessionsByColumn as any)
         if (position) {
             setFocusedSessionId(sessionId)
             setFocusedPosition(position)

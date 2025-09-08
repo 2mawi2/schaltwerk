@@ -8,6 +8,12 @@ import { DndProvider } from 'react-dnd'
 import { HTML5Backend } from 'react-dnd-html5-backend'
 import { ReactNode } from 'react'
 
+// Extend global interface for test mocks
+declare global {
+  var __mockSessions: typeof mockSessions
+  var __mockLoading: boolean
+}
+
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn()
@@ -35,8 +41,8 @@ vi.mock('../../contexts/SessionsContext', async () => {
     return {
         ...actual,
         useSessions: () => ({
-            allSessions: (globalThis as any).__mockSessions || [],
-            loading: (globalThis as any).__mockLoading || false,
+            allSessions: globalThis.__mockSessions || [],
+            loading: globalThis.__mockLoading || false,
             reloadSessions: vi.fn()
         }),
         SessionsProvider: ({ children }: { children: ReactNode }) => children
@@ -109,8 +115,8 @@ describe('KanbanView', () => {
         vi.mocked(global.prompt).mockReset()
         vi.mocked(global.confirm).mockReset()
         // Reset mock sessions
-        ;(globalThis as any).__mockSessions = mockSessions
-        ;(globalThis as any).__mockLoading = false
+        globalThis.__mockSessions = mockSessions
+        globalThis.__mockLoading = false
         
         // Mock invoke for any components that might use it (like SpecEditor)
         const { invoke } = await import('@tauri-apps/api/core')
@@ -142,8 +148,8 @@ describe('KanbanView', () => {
     )
 
     it('should display loading state initially', () => {
-        ;(globalThis as any).__mockLoading = true
-        ;(globalThis as any).__mockSessions = []
+        globalThis.__mockLoading = true
+        globalThis.__mockSessions = []
         render(<KanbanView />, { wrapper })
         // Should render AnimatedText instead of "Loading sessions..."
         const preElement = document.querySelector('pre')
@@ -272,7 +278,7 @@ describe('KanbanView', () => {
     })
 
     it('should show "No agents or specs found" when there are no sessions', async () => {
-        ;(globalThis as any).__mockSessions = []
+        globalThis.__mockSessions = []
 
         render(<KanbanView />, { wrapper })
 
@@ -284,8 +290,8 @@ describe('KanbanView', () => {
     })
 
     it('should dispatch event when create first spec button is clicked', async () => {
-        ;(globalThis as any).__mockSessions = []
-        
+        globalThis.__mockSessions = []
+
         const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
 
         render(<KanbanView />, { wrapper })
@@ -560,7 +566,7 @@ describe('KanbanView', () => {
                 },
                 terminals: []
             }]
-            ;(globalThis as any).__mockSessions = updatedSessions
+            globalThis.__mockSessions = updatedSessions
 
             // The implementation tracks this internally and will focus the new session
             // when the sessions list is refreshed

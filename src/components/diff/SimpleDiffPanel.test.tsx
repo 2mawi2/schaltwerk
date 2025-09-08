@@ -4,7 +4,7 @@ import { vi } from 'vitest'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
-const invoke = (await import('@tauri-apps/api/core')).invoke as any
+const invoke = (await import('@tauri-apps/api/core')).invoke as ReturnType<typeof vi.fn>
 
 // Mutable selection used by mocked hook
 let currentSelection: Record<string, unknown> = { kind: 'orchestrator' }
@@ -68,7 +68,7 @@ describe('SimpleDiffPanel', () => {
     await waitFor(() => expect(screen.queryByRole('button', { name: /show prompt/i })).not.toBeInTheDocument())
 
     // And we never fetch the session prompt
-    const calls = (invoke as any).mock.calls
+    const calls = invoke.mock.calls
     expect(calls.find((c: unknown[]) => (c as [string, ...unknown[]])[0] === 'schaltwerk_core_get_session')).toBeUndefined()
   })
 

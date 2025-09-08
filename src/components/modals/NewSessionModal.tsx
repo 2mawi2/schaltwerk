@@ -311,10 +311,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             logger.info('[NewSessionModal] Received set-spec event - setting createAsDraft to true')
             setCreateAsDraft(true)
         }
-        window.addEventListener('schaltwerk:new-session:set-spec' as any, setDraftHandler)
+        window.addEventListener('schaltwerk:new-session:set-spec', setDraftHandler)
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)
-            window.removeEventListener('schaltwerk:new-session:set-spec' as any, setDraftHandler)
+            window.removeEventListener('schaltwerk:new-session:set-spec', setDraftHandler)
         }
     }, [open, onClose, createAsDraft])
 

@@ -531,19 +531,19 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                             onClick={() => setSelectedSpec({ name: item.session_name, content: item.content })}
                                         >
                                             <div className="text-slate-200 text-sm truncate">{item.session_name}</div>
-                                            <div className="text-xs text-slate-500">{
-                                              (() => {
-                                                const v = item.archived_at as any
-                                                let ts: number
-                                                if (typeof v === 'number') {
-                                                  ts = v > 1e12 ? v : v * 1000
-                                                } else {
-                                                  const parsed = Date.parse(v)
-                                                  ts = isNaN(parsed) ? Date.now() : parsed
-                                                }
-                                                return new Date(ts).toLocaleString()
-                                              })()
-                                            }</div>
+                                             <div className="text-xs text-slate-500">{
+                                               (() => {
+                                                 const v = item.archived_at as string | number
+                                                 let ts: number
+                                                 if (typeof v === 'number') {
+                                                   ts = v > 1e12 ? v : v * 1000
+                                                 } else {
+                                                   const parsed = Date.parse(v)
+                                                   ts = isNaN(parsed) ? Date.now() : parsed
+                                                 }
+                                                 return new Date(ts).toLocaleString()
+                                               })()
+                                             }</div>
                                             <div className="text-xs text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">

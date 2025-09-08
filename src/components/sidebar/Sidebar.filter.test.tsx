@@ -9,6 +9,7 @@ import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { SessionMonitorStatus } from '../../types/session'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -45,7 +46,7 @@ interface SessionInfo {
 
 interface EnrichedSession {
   info: SessionInfo
-  status?: any
+  status?: SessionMonitorStatus
   terminals: string[]
 }
 
@@ -95,17 +96,17 @@ describe('Sidebar filter functionality and persistence', () => {
       createSession('delta', true, 'active'),  // reviewed
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const fm = (args?.sortMode !== undefined, args?.filterMode || FilterMode.All) as FilterMode
+        const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
         const filtered = fm === FilterMode.All
           ? sessions
           : fm === FilterMode.Spec
-            ? sessions.filter(s => (s.info as any).session_state === 'spec')
+            ? sessions.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
             : fm === FilterMode.Reviewed
               ? sessions.filter(s => s.info.ready_to_merge)
-              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as any).session_state !== 'spec')
+              : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
         return filtered
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -220,20 +221,20 @@ describe('Sidebar filter functionality and persistence', () => {
     let savedSortMode = 'name'
     let settingsLoadCalled = false
     
-    vi.mocked(invoke).mockImplementation(async (command: string, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (command: string, args?: unknown) => {
       if (command === 'get_project_sessions_settings') {
         settingsLoadCalled = true
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
-      if (command === 'set_project_sessions_settings') {
-        // Only save if settings have been loaded (mimics the component behavior)
-        if (settingsLoadCalled) {
-          const s = args?.settings || {}
-          savedFilterMode = s.filter_mode || 'all'
-          savedSortMode = s.sort_mode || 'name'
+        if (command === 'set_project_sessions_settings') {
+          // Only save if settings have been loaded (mimics the component behavior)
+          if (settingsLoadCalled) {
+            const s = (args as Record<string, unknown>)?.settings as Record<string, unknown> || {}
+            savedFilterMode = (s.filter_mode as string) || 'all'
+            savedSortMode = (s.sort_mode as string) || 'name'
+          }
+          return undefined
         }
-        return undefined
-      }
       if (command === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const all = [
           createSession('session1'),
@@ -241,11 +242,11 @@ describe('Sidebar filter functionality and persistence', () => {
           createSession('session3', true),
           createSession('session4', true),
         ]
-        const fm = (args?.filterMode || FilterMode.All) as FilterMode
+        const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
         if (fm === FilterMode.All) return all
-        if (fm === FilterMode.Spec) return all.filter(s => (s.info as any).session_state === 'spec')
+        if (fm === FilterMode.Spec) return all.filter(s => (s.info as SessionInfo & { session_state?: string }).session_state === 'spec')
         if (fm === FilterMode.Reviewed) return all.filter(s => s.info.ready_to_merge)
-        return all.filter(s => !s.info.ready_to_merge && (s.info as any).session_state !== 'spec')
+        return all.filter(s => !s.info.ready_to_merge && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
       }
       if (command === 'schaltwerk_core_list_enriched_sessions') {
         return [

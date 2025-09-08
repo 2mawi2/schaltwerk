@@ -4,6 +4,7 @@ import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
+import { EnrichedSession } from '../../types/session'
 import { logger } from '../../utils/logger'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
@@ -114,17 +115,17 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     
     const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
       logger.info('[SpecEditor] Received sessions-refreshed event')
-      const sessions = event as any[]
+      const sessions = event as EnrichedSession[]
 
-      const specSession = sessions.find((s: any) => 
-        s.info?.session_id === sessionName && 
+      const specSession = sessions.find((s: EnrichedSession) =>
+        s.info?.session_id === sessionName &&
         (s.info?.session_state === 'spec' || s.info?.status === 'spec')
       )
-      
+
       if (!specSession || specSession.info?.spec_content === undefined) {
         return
       }
-      
+
       const serverContent = specSession.info.spec_content || ''
       
       // Skip update if we have local changes pending save - let the user finish typing
@@ -157,17 +158,17 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       let cursorPosition: number | null = null
       
       if (isEditorFocused && activeElement) {
-        try {
-          const cmEditor = activeElement.closest('.cm-editor')
-          if (cmEditor) {
-            const cmView = (cmEditor as any).cmView
-            if (cmView && cmView.state) {
-              cursorPosition = cmView.state.selection.main.head
+          try {
+            const cmEditor = activeElement.closest('.cm-editor') as HTMLElement & { cmView?: { state?: { selection?: { main?: { head?: number } } } } }
+            if (cmEditor) {
+              const cmView = cmEditor.cmView
+              if (cmView && cmView.state) {
+                cursorPosition = cmView.state.selection?.main?.head ?? null
+              }
             }
+          } catch (e) {
+            logger.warn('[SpecEditor] Could not get cursor position:', e)
           }
-        } catch (e) {
-          logger.warn('[SpecEditor] Could not get cursor position:', e)
-        }
       }
       
       setContent(serverContent)
@@ -184,11 +185,11 @@ export function SpecEditor({ sessionName, onStart }: Props) {
             // Try to restore cursor position
             if (cursorPosition !== null) {
               try {
-                const cmView = (editorElement as any).cmView
+                const cmView = (editorElement as HTMLElement & { cmView?: { state?: { doc?: { length?: number } }, dispatch?: (transaction: unknown) => void } }).cmView
                 if (cmView && cmView.state) {
-                  const maxPos = cmView.state.doc.length
+                  const maxPos = cmView.state.doc?.length ?? 0
                   const safePos = Math.min(cursorPosition, maxPos)
-                  cmView.dispatch({
+                  cmView.dispatch?.({
                     selection: { anchor: safePos, head: safePos }
                   })
                 }

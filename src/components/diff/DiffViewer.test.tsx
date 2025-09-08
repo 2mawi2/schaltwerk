@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import React from 'react'
 import { DiffViewer, DiffViewerProps } from './DiffViewer'
 
 const mockFileDiff = {
@@ -38,7 +39,7 @@ const mockProps: Partial<DiffViewerProps> = {
   visibleFileSet: new Set(['src/file1.ts']),
   loadingFiles: new Set<string>(),
   observerRef: { current: null },
-  scrollContainerRef: { current: null as any },
+   scrollContainerRef: { current: null } as unknown as React.RefObject<HTMLDivElement>,
   fileRefs: { current: new Map() },
   getCommentsForFile: vi.fn(() => []),
   getCommentForLine: vi.fn(() => undefined),

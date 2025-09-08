@@ -16,14 +16,21 @@ vi.mock('../../utils/dockerNames', () => ({
 
 // Mock SessionConfigurationPanel
 vi.mock('../shared/SessionConfigurationPanel', () => ({
-    SessionConfigurationPanel: ({ 
-        onBaseBranchChange, 
-        onAgentTypeChange, 
+    SessionConfigurationPanel: ({
+        onBaseBranchChange,
+        onAgentTypeChange,
         onSkipPermissionsChange,
         initialBaseBranch,
         initialAgentType,
         initialSkipPermissions
-    }: any) => {
+    }: {
+        onBaseBranchChange?: (branch: string) => void
+        onAgentTypeChange?: (type: string) => void
+        onSkipPermissionsChange?: (skip: boolean) => void
+        initialBaseBranch?: string
+        initialAgentType?: string
+        initialSkipPermissions?: boolean
+    }) => {
         return (
             <div data-testid="session-config-panel">
                 <div data-testid="initial-branch">{initialBaseBranch || ''}</div>
