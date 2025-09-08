@@ -548,11 +548,11 @@ impl SessionManager {
                 let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::cursor::CursorConfig {
+                let config = crate::domains::agents::cursor::CursorConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                Ok(crate::schaltwerk_core::cursor::build_cursor_command_with_config(
+
+                Ok(crate::domains::agents::cursor::build_cursor_command_with_config(
                     &session.worktree_path,
                     None, // No session ID - always start fresh
                     prompt_to_use,
@@ -566,11 +566,11 @@ impl SessionManager {
                 let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::opencode::OpenCodeConfig {
+                let config = crate::domains::agents::opencode::OpenCodeConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                Ok(crate::schaltwerk_core::opencode::build_opencode_command_with_config(
+
+                Ok(crate::domains::agents::opencode::build_opencode_command_with_config(
                     &session.worktree_path,
                     None, // No session info - always start fresh
                     prompt_to_use,
@@ -584,11 +584,11 @@ impl SessionManager {
                 let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::gemini::GeminiConfig {
+                let config = crate::domains::agents::gemini::GeminiConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                Ok(crate::schaltwerk_core::gemini::build_gemini_command_with_config(
+
+                Ok(crate::domains::agents::gemini::build_gemini_command_with_config(
                     &session.worktree_path,
                     None, // No session ID - always start fresh
                     prompt_to_use,
@@ -602,11 +602,11 @@ impl SessionManager {
                 let prompt_to_use = session.initial_prompt.as_deref();
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("qwen", binary_paths.get("qwen").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::qwen::QwenConfig {
+                let config = crate::domains::agents::qwen::QwenConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                Ok(crate::schaltwerk_core::qwen::build_qwen_command_with_config(
+
+                Ok(crate::domains::agents::qwen::build_qwen_command_with_config(
                     &session.worktree_path,
                     None, // No session ID - always start fresh
                     prompt_to_use,
@@ -626,10 +626,11 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::codex::CodexConfig {
+                let config = crate::domains::agents::codex::CodexConfig {
                     binary_path: Some(binary_path),
                 };
-                Ok(crate::schaltwerk_core::codex::build_codex_command_with_config(
+
+                Ok(crate::domains::agents::codex::build_codex_command_with_config(
                     &session.worktree_path,
                     None, // No session ID - always start fresh
                     prompt_to_use,
@@ -643,7 +644,7 @@ impl SessionManager {
                 
                 // Check for existing Claude session to determine if we should resume or start fresh
                 // Use fast-path detection that just checks if any sessions exist
-                let resumable_session_id = crate::schaltwerk_core::claude::find_resumable_claude_session_fast(&session.worktree_path);
+                let resumable_session_id = crate::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path);
                 log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
                 
                 // Determine session_id and prompt based on force_restart and existing session
@@ -669,11 +670,11 @@ impl SessionManager {
                 }
 
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::claude::ClaudeConfig {
+                let config = crate::domains::agents::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
 
-                Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
+                Ok(crate::domains::agents::claude::build_claude_command_with_config(
                     &session.worktree_path,
                     session_id_to_use.as_deref(),
                     prompt_to_use,
@@ -747,17 +748,17 @@ impl SessionManager {
         match agent_type {
             "cursor" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::cursor::CursorConfig {
+                let config = crate::domains::agents::cursor::CursorConfig {
                     binary_path: Some(binary_path),
                 };
-                
+
                 let session_id = if resume_session {
-                    crate::schaltwerk_core::cursor::find_cursor_session(&self.repo_path)
+                    crate::domains::agents::cursor::find_cursor_session(&self.repo_path)
                 } else {
                     None
                 };
-                
-                Ok(crate::schaltwerk_core::cursor::build_cursor_command_with_config(
+
+                Ok(crate::domains::agents::cursor::build_cursor_command_with_config(
                     &self.repo_path,
                     session_id.as_deref(),
                     None,
@@ -767,17 +768,17 @@ impl SessionManager {
             }
             "opencode" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::opencode::OpenCodeConfig {
+                let config = crate::domains::agents::opencode::OpenCodeConfig {
                     binary_path: Some(binary_path),
                 };
-                
+
                 let session_info = if resume_session {
-                    crate::schaltwerk_core::opencode::find_opencode_session(&self.repo_path)
+                    crate::domains::agents::opencode::find_opencode_session(&self.repo_path)
                 } else {
                     None
                 };
-                
-                Ok(crate::schaltwerk_core::opencode::build_opencode_command_with_config(
+
+                Ok(crate::domains::agents::opencode::build_opencode_command_with_config(
                     &self.repo_path,
                     session_info.as_ref(),
                     None,
@@ -787,19 +788,19 @@ impl SessionManager {
             }
             "gemini" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::gemini::GeminiConfig {
+                let config = crate::domains::agents::gemini::GeminiConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                let session_id = if resume_session {
-                    crate::schaltwerk_core::gemini::find_gemini_session(&self.repo_path)
+
+                let session_info = if resume_session {
+                    crate::domains::agents::gemini::find_gemini_session(&self.repo_path)
                 } else {
                     None
                 };
-                
-                Ok(crate::schaltwerk_core::gemini::build_gemini_command_with_config(
+
+                Ok(crate::domains::agents::gemini::build_gemini_command_with_config(
                     &self.repo_path,
-                    session_id.as_deref(),
+                    session_info.as_deref(),
                     None,
                     skip_permissions,
                     Some(&config),
@@ -807,19 +808,19 @@ impl SessionManager {
             }
             "qwen" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("qwen", binary_paths.get("qwen").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::qwen::QwenConfig {
+                let config = crate::domains::agents::qwen::QwenConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                let session_id = if resume_session {
-                    crate::schaltwerk_core::qwen::find_qwen_session(&self.repo_path)
+
+                let session_info = if resume_session {
+                    crate::domains::agents::qwen::find_qwen_session(&self.repo_path)
                 } else {
                     None
                 };
-                
-                Ok(crate::schaltwerk_core::qwen::build_qwen_command_with_config(
+
+                Ok(crate::domains::agents::qwen::build_qwen_command_with_config(
                     &self.repo_path,
-                    session_id.as_deref(),
+                    session_info.as_deref(),
                     None,
                     skip_permissions,
                     Some(&config),
@@ -833,19 +834,19 @@ impl SessionManager {
                 };
                 
                 let binary_path = self.utils.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::codex::CodexConfig {
+                let config = crate::domains::agents::codex::CodexConfig {
                     binary_path: Some(binary_path),
                 };
-                
-                let session_id = if resume_session {
-                    crate::schaltwerk_core::codex::find_codex_session(&self.repo_path)
+
+                let session_info = if resume_session {
+                    crate::domains::agents::codex::find_codex_session(&self.repo_path)
                 } else {
                     None
                 };
-                
-                Ok(crate::schaltwerk_core::codex::build_codex_command_with_config(
+
+                Ok(crate::domains::agents::codex::build_codex_command_with_config(
                     &self.repo_path,
-                    session_id.as_deref(),
+                    session_info.as_deref(),
                     None,
                     sandbox_mode,
                     Some(&config),
@@ -853,20 +854,20 @@ impl SessionManager {
             }
             "claude" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::schaltwerk_core::claude::ClaudeConfig {
+                let config = crate::domains::agents::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
                 };
 
-                // Use --continue flag for orchestrator instead of finding specific session ID
-                let session_id_to_use = if resume_session {
-                    Some("__continue__") // Special value to trigger --continue flag
+                let session_id = if resume_session {
+                    // For Claude orchestrator, always use --continue when resuming, regardless of session files
+                    Some("__continue__".to_string())
                 } else {
                     None
                 };
 
-                Ok(crate::schaltwerk_core::claude::build_claude_command_with_config(
+                Ok(crate::domains::agents::claude::build_claude_command_with_config(
                     &self.repo_path,
-                    session_id_to_use,
+                    session_id.as_deref(),
                     None,
                     skip_permissions,
                     Some(&config),

@@ -10,13 +10,12 @@ pub mod session_db;
 pub mod session_cache;
 pub mod session_utils;
 pub mod types;
-pub mod claude;
-pub mod cursor;
-pub mod opencode;
-pub mod gemini;
-pub mod qwen;
-pub mod codex;
-pub mod naming;
+// Re-export agent modules from domains for backward compatibility
+pub mod agents {
+    pub use crate::domains::agents::*;
+}
+
+// Agent modules are now re-exported from domains/agents
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

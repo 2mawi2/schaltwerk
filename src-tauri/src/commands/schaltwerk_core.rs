@@ -401,7 +401,7 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
                 for (key, value) in project_env_vars { env_vars.push((key, value)); }
             }
 
-            let ctx = schaltwerk::schaltwerk_core::naming::SessionRenameContext {
+            let ctx = schaltwerk::domains::agents::naming::SessionRenameContext {
                 db: &db_clone,
                 session_id: &session_id,
                 worktree_path: &worktree_path,
@@ -412,7 +412,7 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
                 cli_args: Some(&cli_args),
                 env_vars: &env_vars,
             };
-            match schaltwerk::schaltwerk_core::naming::generate_display_name_and_rename_branch(ctx).await {
+            match schaltwerk::domains::agents::naming::generate_display_name_and_rename_branch(ctx).await {
                 Ok(Some(display_name)) => {
                     log::info!("Successfully generated display name '{display_name}' for session '{session_name_clone}'");
                     
@@ -497,7 +497,7 @@ pub async fn schaltwerk_core_rename_version_group(app: tauri::AppHandle, base_na
     }
     
     // Generate a display name once for the entire group
-    let generated_name = match schaltwerk::schaltwerk_core::naming::generate_display_name(
+    let generated_name = match schaltwerk::domains::agents::naming::generate_display_name(
         &db,
         &first_session.id,
         &worktree_path,
