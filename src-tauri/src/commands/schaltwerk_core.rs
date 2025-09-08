@@ -209,7 +209,7 @@ pub async fn schaltwerk_core_archive_spec_session(app: tauri::AppHandle, name: S
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_list_archived_specs() -> Result<Vec<schaltwerk::schaltwerk_core::types::ArchivedSpec>, String> {
+pub async fn schaltwerk_core_list_archived_specs() -> Result<Vec<schaltwerk::shared::types::ArchivedSpec>, String> {
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();

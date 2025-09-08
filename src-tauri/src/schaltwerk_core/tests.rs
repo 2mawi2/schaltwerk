@@ -23,7 +23,7 @@ use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
 #[cfg(test)]
 use crate::schaltwerk_core::types::SessionState;
 #[cfg(test)]
-use crate::schaltwerk_core::db_archived_specs::ArchivedSpecMethods;
+use crate::infrastructure::database::db_archived_specs::ArchivedSpecMethods;
 
 #[cfg(test)]
 struct TestEnvironment {

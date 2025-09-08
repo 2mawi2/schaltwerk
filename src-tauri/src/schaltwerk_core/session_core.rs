@@ -5,13 +5,14 @@ use chrono::{Utc, TimeZone};
 use log::{info, warn};
 use crate::schaltwerk_core::{
     database::Database,
-    types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode, ArchivedSpec},
+    types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
     session_db::SessionDbManager,
     session_cache::{SessionCacheManager, clear_session_prompted_non_test},
     session_utils::SessionUtils,
 };
 use crate::domains::git;
-use crate::schaltwerk_core::db_archived_specs::ArchivedSpecMethods as _;
+use crate::shared::types::ArchivedSpec;
+use crate::infrastructure::database::db_archived_specs::ArchivedSpecMethods as _;
 use uuid::Uuid;
 
 pub struct SessionManager {

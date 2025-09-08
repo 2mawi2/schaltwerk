@@ -157,6 +157,16 @@ pub struct GitStats {
     pub last_diff_change_ts: Option<i64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchivedSpec {
+    pub id: String,
+    pub session_name: String,
+    pub repository_path: PathBuf,
+    pub repository_name: String,
+    pub content: String,
+    pub archived_at: DateTime<Utc>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateSessionParams {
     pub name: String,
