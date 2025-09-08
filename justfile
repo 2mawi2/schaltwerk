@@ -385,7 +385,7 @@ run-build:
 test:
     npm run test
 
-# Run benchmarks and performance tests
+# Run benchmarks and performance tests (use when specifically needed, not in CI)
 benchmark:
     npm run benchmark
 

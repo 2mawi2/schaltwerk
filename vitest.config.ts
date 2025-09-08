@@ -22,7 +22,9 @@ export default defineConfig({
       'node_modules/**',
       'vscode/**',
       '.schaltwerk/**',
-      'dist/**'
+      'dist/**',
+      '**/*.performance.test.*',
+      '**/*.bench.test.*'
     ],
     coverage: {
       reporter: ['text', 'json', 'json-summary', 'html'],
