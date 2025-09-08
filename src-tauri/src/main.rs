@@ -499,15 +499,9 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
                             
-                            // Emit selection event to automatically open the spec
-                            log::info!("Emitting selection event to open spec: {draft_name}");
-                            let selection = serde_json::json!({
-                                "kind": "session",
-                                "payload": draft_name
-                            });
-                            if let Err(e) = emit_event(&app, SchaltEvent::Selection, &selection) {
-                                log::error!("Failed to emit selection event: {e}");
-                            }
+                            // Don't emit Selection event - let the user stay focused on their current session
+                            // The spec will appear in the sidebar but won't steal focus
+                            log::info!("Spec created via MCP: {draft_name} - preserving current user focus");
                         } else {
                             log::warn!("Spec-created webhook payload missing 'name' field");
                         }

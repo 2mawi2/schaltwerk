@@ -638,16 +638,6 @@ export default function App() {
     versionCount?: number
   }) => {
     try {
-      // Get current filter settings to determine if we should select the new session
-      let currentFilterMode = 'all' // Default
-      try {
-        const settings = await invoke<{ filter_mode: string; sort_mode: string }>('get_project_sessions_settings')
-        if (settings) {
-          currentFilterMode = settings.filter_mode
-        }
-      } catch {
-        // If we can't get settings, assume 'all' filter
-      }
       
        // If starting from an existing spec via the modal, convert that spec to active
        if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
@@ -727,21 +717,8 @@ export default function App() {
           }
         }
 
-        // Get the started session to get correct worktree path and state
-        const sessionData = await invoke<{ worktree_path: string; session_state: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: firstSessionName })
-
-        // Only switch to the first session if it matches the current filter
-        // Running sessions are visible in 'all' and 'running' filters
-        if (currentFilterMode === 'all' || currentFilterMode === 'running') {
-          // Switch to the now-running session - the SelectionContext will handle the state transition
-          // Backend will handle agent start automatically
-          await setSelection({
-            kind: 'session',
-            payload: firstSessionName,
-            worktreePath: sessionData.worktree_path,
-            sessionState: 'running' // Spec has been started, it's now running
-          })
-        }
+        // Don't automatically switch focus when starting spec sessions
+        // The user should remain focused on their current session
         return
       }
 
@@ -805,19 +782,8 @@ export default function App() {
         
         setNewSessionOpen(false)
 
-        // Get the first created session to get the correct worktree path
-        const firstSessionName = createdVersions[0]
-        const sessionData = await invoke<{ worktree_path: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: firstSessionName })
-
-        // Only switch to the new session if it matches the current filter
-        // Running sessions are visible in 'all' and 'running' filters
-        if (currentFilterMode === 'all' || currentFilterMode === 'running') {
-          await setSelection({
-            kind: 'session',
-            payload: firstSessionName,
-            worktreePath: sessionData.worktree_path
-          })
-        }
+        // Don't automatically switch focus when creating new sessions
+        // The user should remain focused on their current session
         
         // Dispatch event for other components to know a session was created
         window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
