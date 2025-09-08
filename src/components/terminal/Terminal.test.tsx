@@ -8,14 +8,14 @@ vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
 // ---- Mock: xterm (defined entirely inside factory to avoid hoist issues) ----
 vi.mock('xterm', () => {
-  const instances: any[] = []
+  const instances: MockFn[] = []
   class MockXTerm {
     static __instances = instances
     options: any
     cols = 80
     rows = 24
     write = vi.fn()
-    keyHandler: ((e: any) => boolean) | null = null
+    keyHandler: ((e: KeyboardEvent) => boolean) | null = null
     dataHandler: ((d: string) => void) | null = null
     loadAddon = vi.fn()
     buffer = {
@@ -29,12 +29,12 @@ vi.mock('xterm', () => {
     parser = {
       registerOscHandler: vi.fn()
     }
-    constructor(options: any) {
+    constructor(options: Record<string, unknown>) {
       this.options = options
       instances.push(this)
     }
-    open(_el: any) {}
-    attachCustomKeyEventHandler(fn: (e: any) => boolean) {
+    open(_el: HTMLElement) {}
+    attachCustomKeyEventHandler(fn: (e: KeyboardEvent) => boolean) {
       this.keyHandler = fn
       return true
     }
@@ -47,7 +47,7 @@ vi.mock('xterm', () => {
     __triggerData(d: string) {
       this.dataHandler?.(d)
     }
-    __triggerKey(e: any) {
+    __triggerKey(e: KeyboardEvent) {
       return this.keyHandler ? this.keyHandler(e) : true
     }
   }
@@ -244,11 +244,11 @@ function __setMobileDevice(_mobile: boolean) {
 
 // Mock canvas and WebGL context
 const originalCreateElement = document.createElement.bind(document)
-document.createElement = function(tagName: string, ...args: any[]) {
+document.createElement = function(tagName: string, ...args: MockFn[]) {
   const element = originalCreateElement.call(this, tagName, ...args) as any
   if (tagName === 'canvas') {
     const originalGetContext = element.getContext?.bind(element)
-    element.getContext = function(type: string, ...contextArgs: any[]) {
+    element.getContext = function(type: string, ...contextArgs: MockFn[]) {
       if (type === 'webgl' || type === 'webgl2') {
         if (!webglSupported) return null
         return { 
@@ -274,6 +274,7 @@ import * as TauriCore from '@tauri-apps/api/core'
 import * as XTermModule from 'xterm'
 import * as FitAddonModule from '@xterm/addon-fit'
 import * as WebglAddonModule from '@xterm/addon-webgl'
+import type { MockFn } from '../../test-utils/types'
 
 function getLastXtermInstance() {
   return (XTermModule as any).__getLastInstance()
@@ -363,7 +364,7 @@ describe('Terminal component', () => {
       expect(xterm.rows).toBeGreaterThan(0)
     } else {
       // If writes did occur, verify the content
-      const allWrites = xterm.write.mock.calls.map((call: any[]) => call[0]).join('')
+      const allWrites = xterm.write.mock.calls.map((call: MockFn[]) => call[0]).join('')
       expect(allWrites).toContain('SNAP') // At least hydration should work
     }
   })
@@ -440,7 +441,7 @@ describe('Terminal component', () => {
     // next macrotask
     await advanceAndFlush(1)
 
-    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls.length).toBe(1)
 
     // Re-render same id -> should not start again due to global guard
@@ -448,7 +449,7 @@ describe('Terminal component', () => {
     await flushAll()
     await advanceAndFlush(1)
 
-    const startCalls2 = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startCalls2 = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls2.length).toBe(1)
   })
 
@@ -461,8 +462,8 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(500)
 
-    const startOrch = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startOrch = (TauriCore as any).invoke.mock.calls.find((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startOrch).toBeUndefined()
     expect(startSess).toBeUndefined()
   })
@@ -472,7 +473,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(200)
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeUndefined()
   })
 
@@ -481,7 +482,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(200)
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeUndefined()
   })
 
@@ -491,7 +492,7 @@ describe('Terminal component', () => {
     vi.advanceTimersByTime(1)
     await flushAll()
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as any).invoke.mock.calls.find((c: MockFn[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeTruthy()
     expect(startSess[1]).toMatchObject({ sessionName: 'work' })
   })
@@ -559,7 +560,7 @@ describe('Terminal component', () => {
       
       // Verify that WebGL addon was not loaded (fallback to Canvas)
       const xterm = getLastXtermInstance()
-      const webglCalls = xterm.loadAddon.mock.calls.filter((call: any[]) => 
+      const webglCalls = xterm.loadAddon.mock.calls.filter((call: MockFn[]) => 
         call[0] && call[0].constructor.name === 'MockWebglAddon'
       )
       expect(webglCalls.length).toBe(0)
@@ -587,7 +588,7 @@ describe('Terminal component', () => {
       
       // Verify that WebGL addon was not loaded (mobile fallback to Canvas)
       const xterm = getLastXtermInstance()
-      const webglCalls = xterm.loadAddon.mock.calls.filter((call: any[]) => 
+      const webglCalls = xterm.loadAddon.mock.calls.filter((call: MockFn[]) => 
         call[0] && call[0].constructor.name === 'MockWebglAddon'
       )
       expect(webglCalls.length).toBe(0)
@@ -612,7 +613,7 @@ describe('Terminal component', () => {
       
       // Verify that WebGL addon failed to load due to SecurityError
       const xterm = getLastXtermInstance()
-      const webglCalls = xterm.loadAddon.mock.calls.filter((call: any[]) => 
+      const webglCalls = xterm.loadAddon.mock.calls.filter((call: MockFn[]) => 
         call[0] && call[0].constructor.name === 'MockWebglAddon'
       )
       expect(webglCalls.length).toBe(0)
@@ -637,7 +638,7 @@ describe('Terminal component', () => {
       
       // Verify that WebGL addon failed to load due to blacklist
       const xterm = getLastXtermInstance()
-      const webglCalls = xterm.loadAddon.mock.calls.filter((call: any[]) => 
+      const webglCalls = xterm.loadAddon.mock.calls.filter((call: MockFn[]) => 
         call[0] && call[0].constructor.name === 'MockWebglAddon'
       )
       expect(webglCalls.length).toBe(0)
@@ -809,7 +810,7 @@ describe('Terminal component', () => {
       await flushAll()
       await advanceAndFlush(1)
       
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBeGreaterThanOrEqual(2)
@@ -822,7 +823,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Verify first start happened
-      const firstStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const firstStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(firstStartCalls.length).toBe(1)
@@ -835,7 +836,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Should still be only 1 call total
-      const totalStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const totalStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(totalStartCalls.length).toBe(1)
@@ -868,7 +869,7 @@ describe('Terminal component', () => {
       await flushAll()
       await advanceAndFlush(1)
       
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude'
       )
       expect(startCalls.length).toBe(0)
@@ -883,13 +884,13 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Should immediately attempt to start without checking existence
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(1)
       
       // Verify no terminal_exists checks were made
-      const existsCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const existsCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'terminal_exists'
       )
       expect(existsCalls.length).toBe(0)
@@ -904,7 +905,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Should attempt to start immediately without any retries
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(1)
@@ -912,7 +913,7 @@ describe('Terminal component', () => {
       // Verify no delays were introduced
       await advanceAndFlush(150 * 12)
       // Should still only have one start call (no retries)
-      const allStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const allStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(allStartCalls.length).toBe(1)
@@ -931,7 +932,7 @@ describe('Terminal component', () => {
       const ro = (globalThis as any).__lastRO as MockResizeObserver
       
       // Count initial calls first
-      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -946,7 +947,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls due to downgrade prevention
-      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -974,7 +975,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should have called resize
-      const resizeCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const resizeCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -988,7 +989,7 @@ describe('Terminal component', () => {
       const ro = (globalThis as any).__lastRO as MockResizeObserver
       
       // Count initial calls
-      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -1000,7 +1001,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls
-      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -1029,7 +1030,7 @@ describe('Terminal component', () => {
       await flushAll()
       
       // Verify resize was called during initialization or setup
-      const allCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const allCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -1044,7 +1045,7 @@ describe('Terminal component', () => {
         vi.advanceTimersByTime(1000) // Advance debouncing timers
         await flushAll()
         
-        const afterTriggerCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+        const afterTriggerCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
           c[0] === 'resize_terminal'
         ).length
         expect(afterTriggerCalls).toBeGreaterThan(0)
@@ -1073,7 +1074,7 @@ describe('Terminal component', () => {
       const ro = (globalThis as any).__lastRO as MockResizeObserver
       
       // Count initial calls
-      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -1089,7 +1090,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls with invalid container
-      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: MockFn[]) => 
         c[0] === 'resize_terminal'
       ).length
       

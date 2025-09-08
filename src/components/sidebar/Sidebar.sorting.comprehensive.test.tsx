@@ -7,6 +7,7 @@ import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
+import type { MockFn } from '../../test-utils/types'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -415,7 +416,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         const specs = sessions.filter(s => (s.info as any).session_state === 'spec')
         const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'spec')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        let sorted: any[]
+        let sorted: MockFn[]
         if (mode === 'created') {
           sorted = [...unreviewed].sort((a, b) => {
             const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0

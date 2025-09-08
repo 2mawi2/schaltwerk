@@ -202,7 +202,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         recomputeIdle()
         const t = setInterval(recomputeIdle, 30_000)
         return () => clearInterval(t)
-    }, [allSessions])
+    }, [allSessions, IDLE_THRESHOLD_MS])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
@@ -615,7 +615,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const handler = () => handleMarkSelectedSessionReady()
         window.addEventListener('global-mark-ready-shortcut', handler as any)
         return () => window.removeEventListener('global-mark-ready-shortcut', handler as any)
-    }, [selection, sessions])
+    }, [selection, sessions, handleMarkSelectedSessionReady])
 
     // Selection is now restored by SelectionContext itself
 
@@ -735,7 +735,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             })
         }
     // Attach once on mount; use refs above for latest values inside handlers
-    }, [setSelection])
+    }, [sessions, setCurrentFocus, setFocusForSession, setSelection])
 
     // Calculate counts based on search and current filter state
     const sessionsToCount = searchQuery ? sessions : allSessions

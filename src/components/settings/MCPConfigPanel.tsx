@@ -26,7 +26,7 @@ export function MCPConfigPanel({ projectPath }: Props) {
 
   useEffect(() => {
     loadStatus()
-  }, [projectPath])
+  }, [projectPath, loadStatus])
 
   useEffect(() => {
     if (status?.is_configured) {
@@ -55,7 +55,7 @@ export function MCPConfigPanel({ projectPath }: Props) {
       try {
         await invoke<string>(TAURI_COMMANDS.MCP_ENSURE_GITIGNORED, { projectPath })
       } catch (gitignoreError) {
-        console.warn('Failed to update gitignore:', gitignoreError)
+        logger.warn('Failed to update gitignore:', gitignoreError)
         // Don't fail the whole operation if gitignore fails
       }
       
