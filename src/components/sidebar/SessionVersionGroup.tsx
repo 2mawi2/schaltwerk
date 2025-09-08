@@ -87,16 +87,6 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   )
   const hasSelectedVersion = !!selectedVersionInGroup
   
-  // Calculate combined stats for the group
-  const totalStats = group.versions.reduce((acc, v) => {
-    const stats = v.session.info.diff_stats
-    if (stats) {
-      acc.additions += stats.insertions || stats.additions || 0
-      acc.deletions += stats.deletions || 0
-      acc.filesChanged += stats.files_changed || 0
-    }
-    return acc
-  }, { additions: 0, deletions: 0, filesChanged: 0 })
 
   return (
     <div className="mb-3 relative">
@@ -193,16 +183,6 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Combined stats for the group */}
-            {totalStats.filesChanged > 0 && (
-              <div className="text-[11px] text-slate-400">
-                <span>{totalStats.filesChanged} files</span>
-                {' '}
-                <span className="text-green-400">+{totalStats.additions}</span>
-                {' '}
-                <span className="text-red-400">-{totalStats.deletions}</span>
-              </div>
-            )}
             
           </div>
         </div>
