@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ONBOARDING_STEPS } from './steps'
 import { logger } from '../../utils/logger'
 
