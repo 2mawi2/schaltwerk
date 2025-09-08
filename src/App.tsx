@@ -755,12 +755,6 @@ export default function App() {
 
         // Only select the new spec if it matches the current filter
         // Specs are visible in 'all' and 'spec' filters
-        if (currentFilterMode === 'all' || currentFilterMode === 'spec') {
-           // If in orchestrator, automatically enter spec mode with the new spec
-           if (selection.kind === 'orchestrator') {
-             setCommanderSpecModeSession(data.name)
-           }
-        }
         
         // Dispatch event for other components to know a spec was created
         window.dispatchEvent(new CustomEvent('schaltwerk:spec-created', {

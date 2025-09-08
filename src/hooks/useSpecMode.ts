@@ -93,15 +93,15 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     }
   }, [commanderSpecModeSession, projectPath])
 
-  // Auto-enter spec mode when a new spec is created
+  // Listen for spec creation events (for potential future use)
   useEffect(() => {
     const handleSpecCreated = (event: CustomEvent<{ name: string }>) => {
-      // Enter spec mode regardless of current selection - we'll switch to orchestrator automatically
-      enterSpecMode(event.detail.name)
+      // Spec created - no automatic spec mode activation
+      logger.info('[useSpecMode] Spec created:', event.detail.name)
     }
     window.addEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
     return () => window.removeEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
-  }, [enterSpecMode])
+  }, [])
   
   // Handle MCP spec updates - only exit spec mode if current spec is deleted
   useEffect(() => {
