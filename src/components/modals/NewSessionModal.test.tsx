@@ -426,6 +426,15 @@ describe('NewSessionModal', () => {
       if (cmd === 'get_project_default_branch') {
         return Promise.resolve('main')
       }
+      if (cmd === 'schaltwerk_core_get_skip_permissions') {
+        return Promise.resolve(false)
+      }
+      if (cmd === 'schaltwerk_core_get_agent_type') {
+        return Promise.resolve('claude')
+      }
+      if (cmd === 'repository_is_empty') {
+        return Promise.resolve(false)
+      }
       return Promise.resolve('main')
     })
     
@@ -435,10 +444,11 @@ describe('NewSessionModal', () => {
     
     render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
     
-    // Wait for branches to load and button to be available
+    // Wait for branches to load, session config to be initialized, and button to be enabled
     await waitFor(() => {
       const btn = screen.queryByTitle('Start agent (Cmd+Enter)')
       expect(btn).toBeTruthy()
+      expect((btn as HTMLButtonElement).disabled).toBe(false)
     })
     
     const btn = screen.getByTitle('Start agent (Cmd+Enter)') as HTMLButtonElement
