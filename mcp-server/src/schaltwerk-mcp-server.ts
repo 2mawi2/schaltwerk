@@ -9,6 +9,8 @@ import {
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
   McpError,
+  CallToolRequest,
+  ListResourcesRequest,
 } from "@modelcontextprotocol/sdk/types.js"
 import { SchaltwerkBridge, Session } from "./schaltwerk-bridge.js"
 
@@ -679,7 +681,7 @@ Use when: Need complete information for specific analysis
   }
 })
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request: CallToolRequest) => {
   const { name, arguments: args } = request.params
 
   try {
@@ -1087,7 +1089,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
   }
 })
 
-server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+server.setRequestHandler(ReadResourceRequestSchema, async (request: { params: { uri: string } }) => {
   const { uri } = request.params
 
   try {
