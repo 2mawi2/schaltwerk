@@ -39,10 +39,29 @@ pub async fn handle_coalesced_output(
     coalescing_state: &CoalescingState,
     params: CoalescingParams<'_>,
 ) {
-    // Add data to coalescing buffer
+    // Add data to coalescing buffer with carriage return optimization
     {
         let mut buffers = coalescing_state.emit_buffers.write().await;
         let buf_ref = buffers.entry(params.terminal_id.to_string()).or_insert_with(Vec::new);
+        
+        // Check if new data contains a carriage return that would overwrite buffered content
+        if let Some(last_cr_pos) = params.data.iter().rposition(|&b| b == b'\r') {
+            // Check if the CR is followed by a newline (CRLF should be preserved)
+            let is_crlf = last_cr_pos + 1 < params.data.len() && params.data[last_cr_pos + 1] == b'\n';
+            
+            if !is_crlf {
+                // This is a standalone CR that will overwrite the current line
+                // Find the last newline in the existing buffer
+                if let Some(last_newline_pos) = buf_ref.iter().rposition(|&b| b == b'\n') {
+                    // Keep everything up to and including the last newline
+                    buf_ref.truncate(last_newline_pos + 1);
+                } else {
+                    // No newline in buffer, CR will overwrite everything
+                    buf_ref.clear();
+                }
+            }
+        }
+        
         buf_ref.extend_from_slice(params.data);
     }
 
@@ -435,5 +454,99 @@ mod tests {
         // Normalized buffers remain empty
         assert!(state.emit_buffers_norm.read().await.is_empty());
         assert!(state.norm_last_cr.read().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_carriage_return_overwrites_current_line() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // Add initial content
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"Line 1\nLine 2 initial",
+            delay_ms: 100,
+        }).await;
+
+        // Send carriage return with new content (should overwrite "Line 2 initial")
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"\rLine 2 replaced",
+            delay_ms: 100,
+        }).await;
+
+        let buffers = state.emit_buffers.read().await;
+        let buffer = buffers.get("test-term").unwrap();
+        // Should have "Line 1\n" followed by "Line 2 replaced"
+        assert_eq!(buffer, b"Line 1\n\rLine 2 replaced");
+    }
+
+    #[tokio::test]
+    async fn test_multiple_carriage_returns_in_sequence() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // Simulating rapid updates like a progress spinner
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"Previous line\nLoading.",
+            delay_ms: 100,
+        }).await;
+
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"\rLoading..",
+            delay_ms: 100,
+        }).await;
+
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"\rLoading...",
+            delay_ms: 100,
+        }).await;
+
+        let buffers = state.emit_buffers.read().await;
+        let buffer = buffers.get("test-term").unwrap();
+        // Should only have the last loading state, not all intermediate ones
+        assert_eq!(buffer, b"Previous line\n\rLoading...");
+    }
+
+    #[tokio::test]
+    async fn test_crlf_sequence_preserved() {
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // CRLF sequences should be preserved as they are actual line endings
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"Line 1\r\nLine 2",
+            delay_ms: 100,
+        }).await;
+
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "test-term",
+            data: b"\r\nLine 3",
+            delay_ms: 100,
+        }).await;
+
+        let buffers = state.emit_buffers.read().await;
+        let buffer = buffers.get("test-term").unwrap();
+        // CRLF sequences should be preserved
+        assert_eq!(buffer, b"Line 1\r\nLine 2\r\nLine 3");
     }
 }
