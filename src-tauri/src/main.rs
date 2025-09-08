@@ -58,7 +58,8 @@ pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::Fi
 
 pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>), String> {
     // Command format: "cd /path/to/worktree && {claude|cursor-agent|<path>/opencode|opencode|gemini} [args]"
-    let parts: Vec<&str> = command.split(" && ").collect();
+    // Use splitn to only split on the FIRST " && " to preserve any " && " in agent arguments
+    let parts: Vec<&str> = command.splitn(2, " && ").collect();
     if parts.len() != 2 {
         return Err(format!("Invalid command format: {command}"));
     }
@@ -1027,6 +1028,35 @@ mod tests {
         assert_eq!(cwd, "/tmp/work");
         assert_eq!(agent, "/usr/local/bin/gemini");
         assert_eq!(args, Vec::<String>::new());
+    }
+
+    #[test]
+    fn test_parse_agent_command_opencode_with_double_ampersand_in_prompt() {
+        // This test demonstrates the bug: prompts containing " && " break the parser
+        let cmd = r#"cd /tmp/work && opencode --prompt "Scripts Configured && run mode active""#;
+        let result = parse_agent_command(cmd);
+        
+        // This should succeed but currently fails with "Invalid command format"
+        assert!(result.is_ok(), "Command with && in prompt should parse successfully");
+        
+        let (cwd, agent, args) = result.unwrap();
+        assert_eq!(cwd, "/tmp/work");
+        assert_eq!(agent, "opencode");
+        assert_eq!(args, vec!["--prompt", "Scripts Configured && run mode active"]);
+    }
+
+    #[test]
+    fn test_parse_agent_command_claude_with_double_ampersand_in_prompt() {
+        // Another test case with claude agent
+        let cmd = r#"cd /path/to/project && claude -d "Check A && B && C conditions""#;
+        let result = parse_agent_command(cmd);
+        
+        assert!(result.is_ok(), "Command with multiple && in prompt should parse successfully");
+        
+        let (cwd, agent, args) = result.unwrap();
+        assert_eq!(cwd, "/path/to/project");
+        assert_eq!(agent, "claude");
+        assert_eq!(args, vec!["-d", "Check A && B && C conditions"]);
     }
 
     #[test]
