@@ -132,12 +132,14 @@ describe('useSpecMode', () => {
       const spec = createMockSpec('saved-spec')
 
       const { result, rerender } = renderHook(
-        (props: { projectPath: string | null; selection: Selection; sessions: EnrichedSession[] }) => useSpecMode(props),
+        (props: { projectPath: string | null; selection: Selection; sessions: EnrichedSession[]; setFilterMode: typeof mockSetFilterMode; setSelection: typeof mockSetSelection }) => useSpecMode(props),
         {
           initialProps: {
             projectPath: null as string | null,
             selection: mockOrchestratorSelection,
-            sessions: [spec]
+            sessions: [spec],
+            setFilterMode: mockSetFilterMode,
+            setSelection: mockSetSelection
           }
         }
       )
@@ -149,7 +151,9 @@ describe('useSpecMode', () => {
       rerender({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: [spec]
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       })
 
       expect(result.current.commanderSpecModeSession).toBe('saved-spec')
@@ -161,7 +165,9 @@ describe('useSpecMode', () => {
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: [] // No specs available
+        sessions: [], // No specs available
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       // Should clear invalid spec from storage
@@ -324,11 +330,13 @@ describe('useSpecMode', () => {
 
     it('should handle no specs available when toggling', () => {
       const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
-      
+
       const { result } = renderHook(() => useSpecMode({
         projectPath: '/test/project',
         selection: mockOrchestratorSelection,
-        sessions: [] // No specs available
+        sessions: [], // No specs available
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection
       }))
 
       act(() => {
