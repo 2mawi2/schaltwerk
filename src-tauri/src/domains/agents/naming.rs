@@ -139,7 +139,18 @@ pub async fn generate_display_name(
     log::info!("generate_display_name called: session_id={}, agent_type={}, prompt={:?}", 
         session_id, agent_type, initial_prompt.map(truncate_prompt));
     
-    let base_prompt = initial_prompt.unwrap_or("Name this coding session succinctly");
+    // Check if there's any meaningful content for name generation
+    if let Some(prompt) = initial_prompt {
+        if prompt.trim().is_empty() {
+            log::info!("Skipping name generation for session '{session_id}' - empty prompt");
+            return Ok(None);
+        }
+    } else {
+        log::info!("Skipping name generation for session '{session_id}' - no prompt provided");
+        return Ok(None);
+    }
+    
+    let base_prompt = initial_prompt.unwrap(); // Safe to unwrap after the check above
     let truncated = truncate_prompt(base_prompt);
     log::debug!("Truncated prompt for name generation: {truncated}");
 
@@ -797,5 +808,57 @@ mod tests {
         // Values follow the short flags
         assert_eq!(args[p + 1], "maibornwolff");
         assert_eq!(args[m + 1], "gpt-5");
+    }
+
+    #[tokio::test]
+    async fn test_generate_display_name_skips_empty_prompt() {
+        use tempfile::TempDir;
+        use crate::schaltwerk_core::database::Database;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
+        let worktree_path = temp_dir.path().join("worktree");
+        
+        // Test with None prompt
+        let result = generate_display_name(
+            &db,
+            "test-session",
+            &worktree_path,
+            "claude",
+            None,
+            None,
+            &[],
+        ).await;
+        
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+        
+        // Test with empty prompt
+        let result = generate_display_name(
+            &db,
+            "test-session",
+            &worktree_path,
+            "claude",
+            Some(""),
+            None,
+            &[],
+        ).await;
+        
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+        
+        // Test with whitespace-only prompt
+        let result = generate_display_name(
+            &db,
+            "test-session",
+            &worktree_path,
+            "claude",
+            Some("   \n\t  "),
+            None,
+            &[],
+        ).await;
+        
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
     }
 }
