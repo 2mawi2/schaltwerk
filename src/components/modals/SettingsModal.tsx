@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactElement } from 'react'
+import { useState, useEffect, useCallback, ReactElement } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
@@ -302,15 +302,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         })
     }
 
-    useEffect(() => {
-        if (open) {
-            loadAllSettings()
-            // Also load the project path for MCP settings
-            invoke<string | null>('get_active_project_path').then(path => {
-                if (path) setProjectPath(path)
-            })
-        }
-    }, [open, loadAllSettings])
 
     // Load archives when the category is opened
     useEffect(() => {
@@ -360,8 +351,38 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             setEditableActionButtons([...actionButtons])
         }
     }, [actionButtons, hasUnsavedChanges])
+
+    const loadBinaryConfigs = useCallback(async () => {
+        try {
+            logger.info('Loading binary configurations...')
+            const configs = await invoke<AgentBinaryConfig[]>('get_all_agent_binary_configs')
+            logger.info('Received binary configurations:', configs)
+            
+            const configMap: Record<AgentType, AgentBinaryConfig> = {
+                claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
+                'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
+                opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
+                gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
+                qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
+                codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
+            }
+            
+            for (const config of configs) {
+                const agent = config.agent_name as AgentType
+                if (agent && configMap[agent]) {
+                    configMap[agent] = config
+                    logger.info(`Loaded config for ${agent}:`, config)
+                }
+            }
+            
+            logger.info('Final configMap:', configMap)
+            setBinaryConfigs(configMap)
+        } catch (error) {
+            logger.error('Failed to load binary configurations:', error)
+        }
+    }, [])
     
-    const loadAllSettings = async () => {
+    const loadAllSettings = useCallback(async () => {
         // Load application-level settings (always available)
         const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences] = await Promise.all([
             loadEnvVars(),
@@ -397,38 +418,17 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         setSessionPreferences(loadedSessionPreferences)
         
         loadBinaryConfigs()
-    }
+    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadProjectSettings, loadTerminalSettings, loadBinaryConfigs])
 
-
-    const loadBinaryConfigs = async () => {
-        try {
-            logger.info('Loading binary configurations...')
-            const configs = await invoke<AgentBinaryConfig[]>('get_all_agent_binary_configs')
-            logger.info('Received binary configurations:', configs)
-            
-            const configMap: Record<AgentType, AgentBinaryConfig> = {
-                claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
-                'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
-                opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
-                gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-                qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
-                codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
-            }
-            
-            for (const config of configs) {
-                const agent = config.agent_name as AgentType
-                if (agent in configMap) {
-                    configMap[agent] = config
-                    logger.info(`Loaded config for ${agent}:`, config)
-                }
-            }
-            
-            logger.info('Final configMap:', configMap)
-            setBinaryConfigs(configMap)
-        } catch (error) {
-            logger.error('Failed to load binary configurations:', error)
+    useEffect(() => {
+        if (open) {
+            loadAllSettings()
+            // Also load the project path for MCP settings
+            invoke<string | null>('get_active_project_path').then(path => {
+                if (path) setProjectPath(path)
+            })
         }
-    }
+    }, [open, loadAllSettings])
 
     const handleBinaryPathChange = async (agent: AgentType, path: string | null) => {
         try {

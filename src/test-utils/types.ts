@@ -1,4 +1,4 @@
-export type MockFn = jest.Mock | (() => void) | ((args?: unknown) => unknown)
+export type MockFn = (() => void) | ((args?: unknown) => unknown)
 
 export interface MockTauriAPI {
   invoke: MockFn

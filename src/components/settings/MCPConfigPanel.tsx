@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { TAURI_COMMANDS } from '../../constants/commands'
+import { logger } from '../../utils/logger'
 
 interface MCPStatus {
   mcp_server_path: string
@@ -24,6 +25,15 @@ export function MCPConfigPanel({ projectPath }: Props) {
   const [showManualSetup, setShowManualSetup] = useState(false)
   const [mcpEnabled, setMcpEnabled] = useState(false)
 
+  const loadStatus = useCallback(async () => {
+    try {
+      const mcpStatus = await invoke<MCPStatus>(TAURI_COMMANDS.MCP_GET_STATUS, { projectPath })
+      setStatus(mcpStatus)
+    } catch (e) {
+      setError(String(e))
+    }
+  }, [projectPath])
+
   useEffect(() => {
     loadStatus()
   }, [projectPath, loadStatus])
@@ -33,15 +43,6 @@ export function MCPConfigPanel({ projectPath }: Props) {
       setMcpEnabled(true)
     }
   }, [status])
-
-  const loadStatus = async () => {
-    try {
-      const mcpStatus = await invoke<MCPStatus>(TAURI_COMMANDS.MCP_GET_STATUS, { projectPath })
-      setStatus(mcpStatus)
-    } catch (e) {
-      setError(String(e))
-    }
-  }
 
   const configureMCP = async () => {
     setLoading(true)
