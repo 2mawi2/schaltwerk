@@ -519,6 +519,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     await invoke('schaltwerk_core_set_archive_max_entries', { limit: archiveMax })
                                     showNotification('Archive limit saved', 'success')
                                 } catch (e) {
+                                    logger.error('Failed to save archive limit', e)
                                     showNotification('Failed to save archive limit', 'error')
                                 }
                             }} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-sm">Save</button>
@@ -560,6 +561,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                     setArchives(list)
                                                     showNotification('Restored to specs', 'success')
                                                 } catch (e) {
+                                                    logger.error('Failed to restore archived spec', e)
                                                     showNotification('Failed to restore', 'error')
                                                 }
                                             }} className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-xs bg-slate-800 hover:bg-slate-700">Restore</button>
@@ -569,6 +571,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                     const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
                                                     setArchives(list)
                                                 } catch (e) {
+                                                    logger.error('Failed to delete archived spec', e)
                                                     showNotification('Failed to delete', 'error')
                                                 }
                                             }} className="px-2 py-1 border border-red-700 rounded text-red-200 text-xs bg-red-900/30 hover:bg-red-900/50">Delete</button>

@@ -298,6 +298,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         });
                     }
                 } catch (e) {
+                    logger.debug('ResizeObserver error during terminal initialization', e)
                     // Fallback: try immediate initialization based on current element size
                     if (termRef.current && termRef.current.clientWidth > 0 && termRef.current.clientHeight > 0) {
                         try { rendererObserver?.disconnect(); } catch {
@@ -454,7 +455,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 terminal.current.scrollToBottom();
                             }
                         } catch (error) {
-                            // Silently ignore scroll errors during normal operation
+                            logger.debug('Scroll error during terminal output', error)
                         }
                     }
                 });
@@ -488,7 +489,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             terminal.current.scrollToBottom();
                         }
                     } catch (error) {
-                        // Silently ignore scroll errors during flush
+                        logger.debug('Scroll error during buffer flush', error)
                     }
                 }
             });

@@ -58,8 +58,29 @@ export default [
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       
-      // TypeScript specific rules
-      'no-unused-vars': 'off', // Disabled due to false positives with interface parameters
+      // TypeScript specific rules - Strict unused code detection
+      'no-unused-vars': 'off', // Turn off base rule as we use TypeScript's rule
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          vars: 'all',
+          args: 'after-used',
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrors: 'all',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+          ignoreRestSiblings: false,
+        },
+      ],
+      '@typescript-eslint/no-unused-expressions': [
+        'error',
+        {
+          allowShortCircuit: false,
+          allowTernary: false,
+          allowTaggedTemplates: false,
+        },
+      ],
       '@typescript-eslint/no-explicit-any': 'warn',
 
       // General rules
@@ -119,14 +140,26 @@ export default [
       'local': localPlugin,
     },
     rules: {
-      // TypeScript specific rules
+      // TypeScript specific rules - Strict unused code detection for tests
       '@typescript-eslint/no-unused-vars': [
         'error',
         {
+          vars: 'all',
+          args: 'after-used',
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
+          caughtErrors: 'all',
           caughtErrorsIgnorePattern: '^_',
-          ignoreRestSiblings: true,
+          destructuredArrayIgnorePattern: '^_',
+          ignoreRestSiblings: false,
+        },
+      ],
+      '@typescript-eslint/no-unused-expressions': [
+        'error',
+        {
+          allowShortCircuit: false,
+          allowTernary: false,
+          allowTaggedTemplates: false,
         },
       ],
       '@typescript-eslint/no-explicit-any': 'warn',

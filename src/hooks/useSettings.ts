@@ -91,14 +91,14 @@ export const useSettings = () => {
             await saveProjectSettings(projectSettings)
             savedSettings.push('project settings')
         } catch (error) {
-            logger.info('Project settings not saved - requires active project')
+            logger.info('Project settings not saved - requires active project', error)
         }
         
         try {
             await saveTerminalSettings(terminalSettings)
             savedSettings.push('terminal settings')
         } catch (error) {
-            logger.info('Terminal settings not saved - requires active project')
+            logger.info('Terminal settings not saved - requires active project', error)
         }
         
         try {

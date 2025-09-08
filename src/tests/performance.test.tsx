@@ -114,7 +114,7 @@ describe('Session Switching Performance', () => {
             expect(screen.getByText('session-0')).toBeInTheDocument()
         })
 
-        performance.now() - startTime // Track initial load time
+        void (performance.now() - startTime) // Track initial load time
 
         const session10Button = screen.getByText('session-10').closest('[role="button"]')
         expect(session10Button).toBeInTheDocument()

@@ -255,7 +255,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     sessionState: sessionData?.session_state
                 }
             } catch (error) {
-                logger.info(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`)
+                logger.info(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`, error)
                 // Session doesn't exist anymore, fallback to orchestrator
                 return { kind: 'orchestrator' }
             }

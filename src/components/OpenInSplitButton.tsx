@@ -34,6 +34,7 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
           setDefaultApp(def as OpenApp['id'])
         }
       } catch (e) {
+        logger.error('Failed to get available apps', e)
         if (!mounted) return
         setApps([{ id: 'finder', name: 'Finder', kind: 'system' }])
         setDefaultApp('finder')
