@@ -272,3 +272,4 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 - No comments in code - self-documenting only
 - Fix problems directly, no fallbacks/alternatives
 - All code must be used now (no YAGNI)
+- Always use the project 'logger' with the appropriate log level instead of using console logs when introducing logging
