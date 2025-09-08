@@ -86,8 +86,9 @@ describe('useSessionPrefill', () => {
         name: 'test-session',
         taskContent: '# Spec Content',
         baseBranch: 'main',
-        lockName: true,
+        lockName: false,
         fromDraft: true,
+        originalSpecName: 'test-session',
       })
 
       expect(invoke).toHaveBeenCalledWith('schaltwerk_core_get_session', { name: 'test-session' })

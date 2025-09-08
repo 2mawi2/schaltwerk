@@ -38,6 +38,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [repositoryIsEmpty, setRepositoryIsEmpty] = useState(false)
     const [isPrefillPending, setIsPrefillPending] = useState(false)
     const [hasPrefillData, setHasPrefillData] = useState(false)
+    const [originalSpecName, setOriginalSpecName] = useState<string>('')
     const nameInputRef = useRef<HTMLInputElement>(null)
     const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
     const wasEditedRef = useRef(false)
@@ -172,6 +173,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setValidationError('')
                 setCreateAsDraft(initialIsDraft)
                 setNameLocked(false)
+                setOriginalSpecName('')
                 setShowVersionMenu(false)
                 // Default version count is 1 (not from settings anymore)
                 setVersionCount(1)
@@ -215,6 +217,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setHasPrefillData(false)
             setCreateAsDraft(false)
             setNameLocked(false)
+            setOriginalSpecName('')
             setTaskContent('')
             setName('')
             setValidationError('')
@@ -238,6 +241,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             const lockName: boolean | undefined = detail.lockName
             const fromDraft: boolean | undefined = detail.fromDraft
             const baseBranchFromDraft: string | undefined = detail.baseBranch
+            const originalSpecNameFromDraft: string | undefined = detail.originalSpecName
 
             if (nameFromDraft) {
                 logger.info('[NewSessionModal] Setting name from prefill:', nameFromDraft)
@@ -254,6 +258,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             if (baseBranchFromDraft) {
                 logger.info('[NewSessionModal] Setting base branch from prefill:', baseBranchFromDraft)
                 setBaseBranch(baseBranchFromDraft)
+            }
+            if (originalSpecNameFromDraft) {
+                logger.info('[NewSessionModal] Setting original spec name from prefill:', originalSpecNameFromDraft)
+                setOriginalSpecName(originalSpecNameFromDraft)
             }
             // If running from an existing spec, don't create another spec
              if (fromDraft) {
@@ -346,6 +354,31 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
                                 <p className="text-xs text-red-400">{validationError}</p>
+                            </div>
+                        )}
+                        {originalSpecName && (
+                            <div className="flex items-center justify-between mt-2 px-2 py-1 rounded text-xs" style={{ backgroundColor: theme.colors.background.elevated, border: `1px solid ${theme.colors.border.subtle}` }}>
+                                <div className="flex items-center gap-2">
+                                    <svg className="w-3 h-3 flex-shrink-0" style={{ color: theme.colors.accent.blue.DEFAULT }} fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v1.5h16V5a2 2 0 00-2-2H4zm14 6H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM2 7h16v1H2V7z" clipRule="evenodd" />
+                                    </svg>
+                                    <span style={{ color: theme.colors.text.secondary }}>From spec: <span style={{ color: theme.colors.text.primary }}>{originalSpecName}</span></span>
+                                </div>
+                                {name !== originalSpecName && (
+                                    <button 
+                                        type="button"
+                                        onClick={() => {
+                                            setName(originalSpecName)
+                                            setWasEdited(true)
+                                            wasEditedRef.current = true
+                                        }}
+                                        className="ml-2 px-2 py-0.5 rounded text-xs hover:opacity-80"
+                                        style={{ backgroundColor: theme.colors.accent.blue.bg, color: theme.colors.accent.blue.DEFAULT }}
+                                        title="Reset to original spec name"
+                                    >
+                                        Reset
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

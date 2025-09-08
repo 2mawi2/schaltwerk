@@ -8,6 +8,7 @@ export interface SessionPrefillData {
   baseBranch?: string
   lockName?: boolean
   fromDraft?: boolean
+  originalSpecName?: string
 }
 
 export interface SessionData {
@@ -53,8 +54,9 @@ export function useSessionPrefill() {
         name: sessionName,
         taskContent,
         baseBranch,
-        lockName: true,
+        lockName: false,
         fromDraft: true,
+        originalSpecName: sessionName,
       }
       logger.info('[useSessionPrefill] Returning prefill data:', prefillData)
       return prefillData
