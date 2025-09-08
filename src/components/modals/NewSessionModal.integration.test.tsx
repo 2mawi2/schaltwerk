@@ -74,6 +74,10 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                     return Promise.resolve(null) // No saved default
                 case 'get_project_default_branch': 
                     return Promise.resolve('main')
+                case 'schaltwerk_core_get_skip_permissions':
+                    return Promise.resolve(false)
+                case 'schaltwerk_core_get_agent_type':
+                    return Promise.resolve('claude')
                 default:
                     return Promise.resolve()
             }
