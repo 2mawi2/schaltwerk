@@ -1,7 +1,8 @@
-import { renderHook, act } from '@testing-library/react'
-import { useSpecMode } from './useSpecMode'
+import { renderHook, act, waitFor } from '@testing-library/react'
+import { useSpecMode, getSpecToSelect } from './useSpecMode'
 import { Selection } from '../contexts/SelectionContext'
 import { EnrichedSession } from '../types/session'
+import { FilterMode } from '../types/sessionFilters'
 
 // Mock event system
 vi.mock('../common/eventSystem', () => ({
@@ -10,6 +11,17 @@ vi.mock('../common/eventSystem', () => ({
   },
   listenEvent: vi.fn().mockResolvedValue(vi.fn())
 }))
+
+// Mock logger
+vi.mock('../utils/logger', () => ({
+  logger: {
+    info: vi.fn(),
+    debug: vi.fn(),
+    error: vi.fn(),
+    warn: vi.fn()
+  }
+}))
+
 
 describe('useSpecMode', () => {
   const mockOrchestratorSelection: Selection = { kind: 'orchestrator' }
@@ -350,6 +362,312 @@ describe('useSpecMode', () => {
       )
 
       dispatchEventSpy.mockRestore()
+    })
+  })
+
+  describe('last selected spec persistence', () => {
+    it('should remember the last selected spec', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec1, spec2],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.All
+      }))
+
+      // Select spec-2
+      act(() => {
+        result.current.setCommanderSpecModeSession('spec-2')
+      })
+
+      // Exit spec mode
+      act(() => {
+        result.current.handleExitSpecMode()
+      })
+
+      // Check that last selected spec is remembered
+      expect(sessionStorage.getItem('schaltwerk:last-spec:project')).toBe('spec-2')
+    })
+
+    it('should persist last selected spec to sessionStorage', () => {
+      const spec = createMockSpec('test-spec')
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.All
+      }))
+
+      act(() => {
+        result.current.setCommanderSpecModeSession('test-spec')
+      })
+
+      expect(sessionStorage.getItem('schaltwerk:last-spec:project')).toBe('test-spec')
+    })
+
+    it('should fall back to first spec if last selected no longer exists', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      
+      const { result, rerender } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec1, spec2],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.All
+      }))
+
+      // Select spec-2
+      act(() => {
+        result.current.setCommanderSpecModeSession('spec-2')
+      })
+
+      // Exit spec mode
+      act(() => {
+        result.current.handleExitSpecMode()
+      })
+
+      // Remove spec-2 from sessions
+      rerender({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec1], // spec-2 removed
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.All
+      })
+
+      // Check that when toggling with removed spec, it would fall back
+      // Note: The actual toggle logic is more complex and involves async operations
+      // so we just verify the getSpecToSelect helper works correctly
+      const specToSelect = getSpecToSelect([spec1], 'spec-2')
+      expect(specToSelect).toBe('spec-1')
+    })
+  })
+
+  describe('filter mode restoration', () => {
+    it('should save and restore filter mode when entering/exiting spec mode', async () => {
+      const spec = createMockSpec('test-spec')
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.Running // Start with Running filter
+      }))
+
+      // Toggle spec mode on
+      act(() => {
+        result.current.toggleSpecMode()
+      })
+
+      // Should switch to Spec filter
+      expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.Spec)
+
+      // Exit spec mode
+      await act(async () => {
+        await result.current.handleExitSpecMode()
+      })
+
+      // Should restore to Running filter
+      expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.Running)
+    })
+
+    it('should persist previous filter mode to sessionStorage', () => {
+      const spec = createMockSpec('test-spec')
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.Reviewed
+      }))
+
+      act(() => {
+        result.current.toggleSpecMode()
+      })
+
+      expect(sessionStorage.getItem('schaltwerk:prev-filter:project')).toBe(FilterMode.Reviewed)
+    })
+
+    it('should keep Spec filter if it was already selected', async () => {
+      const spec = createMockSpec('test-spec')
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.Spec // Already in Spec filter
+      }))
+
+      // Toggle spec mode on
+      act(() => {
+        result.current.toggleSpecMode()
+      })
+
+      // Clear previous calls
+      mockSetFilterMode.mockClear()
+
+      // Exit spec mode
+      await act(async () => {
+        await result.current.handleExitSpecMode()
+      })
+
+      // Should restore to Spec filter (same as before)
+      expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.Spec)
+    })
+
+    it('should default to All filter if no previous filter was saved', async () => {
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection,
+        sessions: [],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: undefined
+      }))
+
+      // Manually set spec mode without going through toggle
+      act(() => {
+        result.current.setCommanderSpecModeSession('test-spec')
+      })
+
+      // Exit spec mode
+      await act(async () => {
+        await result.current.handleExitSpecMode()
+      })
+
+      // Should default to All filter
+      expect(mockSetFilterMode).toHaveBeenCalledWith(FilterMode.All)
+    })
+  })
+
+  describe('selection restoration', () => {
+    it('should save and restore previous selection when entering/exiting spec mode', async () => {
+      const spec = createMockSpec('test-spec')
+      const sessionSelection: Selection = { 
+        kind: 'session', 
+        payload: 'test-session',
+        worktreePath: '/path/to/worktree'
+      }
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: sessionSelection, // Start in a session
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.Running
+      }))
+
+      // Toggle spec mode on
+      act(() => {
+        result.current.toggleSpecMode()
+      })
+
+      // Should switch to orchestrator
+      expect(mockSetSelection).toHaveBeenCalledWith({ kind: 'orchestrator' })
+
+      // Exit spec mode
+      await act(async () => {
+        await result.current.handleExitSpecMode()
+      })
+
+      // Should restore to previous session selection after a delay
+      await waitFor(() => {
+        expect(mockSetSelection).toHaveBeenCalledWith(sessionSelection)
+      })
+    })
+
+    it('should persist previous selection to sessionStorage', () => {
+      const spec = createMockSpec('test-spec')
+      const sessionSelection: Selection = { 
+        kind: 'session', 
+        payload: 'test-session'
+      }
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: sessionSelection,
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.All
+      }))
+
+      act(() => {
+        result.current.toggleSpecMode()
+      })
+
+      const saved = sessionStorage.getItem('schaltwerk:prev-selection:project')
+      expect(saved).toBeTruthy()
+      expect(JSON.parse(saved!)).toEqual(sessionSelection)
+    })
+
+    it('should not save selection if already in orchestrator', () => {
+      const spec = createMockSpec('test-spec')
+      
+      const { result } = renderHook(() => useSpecMode({
+        projectPath: '/test/project',
+        selection: mockOrchestratorSelection, // Already in orchestrator
+        sessions: [spec],
+        setFilterMode: mockSetFilterMode,
+        setSelection: mockSetSelection,
+        currentFilterMode: FilterMode.All
+      }))
+
+      act(() => {
+        result.current.toggleSpecMode()
+      })
+
+      // Should not save orchestrator selection
+      expect(sessionStorage.getItem('schaltwerk:prev-selection:project')).toBeNull()
+    })
+  })
+
+  describe('getSpecToSelect helper function', () => {
+    it('should select last selected spec if it exists', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      const spec3 = createMockSpec('spec-3')
+      
+      const result = getSpecToSelect([spec1, spec2, spec3], 'spec-2')
+      expect(result).toBe('spec-2')
+    })
+
+    it('should return first spec if last selected does not exist', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      
+      const result = getSpecToSelect([spec1, spec2], 'non-existent')
+      expect(result).toBe('spec-1')
+    })
+
+    it('should return null if no specs available', () => {
+      const result = getSpecToSelect([], 'any-spec')
+      expect(result).toBeNull()
+    })
+
+    it('should return first spec if lastSelectedSpec is null', () => {
+      const spec1 = createMockSpec('spec-1')
+      const spec2 = createMockSpec('spec-2')
+      
+      const result = getSpecToSelect([spec1, spec2], null)
+      expect(result).toBe('spec-1')
     })
   })
 

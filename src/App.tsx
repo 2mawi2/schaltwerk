@@ -66,7 +66,7 @@ export function validatePanelPercentage(value: string | null, defaultValue: numb
 export default function App() {
   const { selection, setSelection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
-  const { sessions, allSessions, setFilterMode } = useSessions()
+  const { sessions, allSessions, setFilterMode, filterMode } = useSessions()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
@@ -78,7 +78,7 @@ export default function App() {
     handleSpecConverted, 
     toggleSpecMode,
     specModeState
-  } = useSpecMode({ projectPath, selection, sessions: allSessions, setFilterMode, setSelection })
+  } = useSpecMode({ projectPath, selection, sessions: allSessions, setFilterMode, setSelection, currentFilterMode: filterMode })
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
