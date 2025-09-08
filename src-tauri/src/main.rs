@@ -767,7 +767,12 @@ fn main() {
             start_file_watcher,
             stop_file_watcher,
             is_file_watcher_active,
-            get_active_file_watchers
+            get_active_file_watchers,
+            // MCP configuration commands
+            get_mcp_status,
+            configure_mcp_for_project,
+            remove_mcp_for_project,
+            ensure_mcp_gitignored
         ])
         .setup(move |app| {
             // Get current git branch and update window title asynchronously

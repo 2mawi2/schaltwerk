@@ -98,6 +98,18 @@ install:
     echo "🔨 Building Tauri application..."
     npm install
     npm run build
+    
+    # Build MCP server with production dependencies
+    echo "🔨 Building MCP server..."
+    cd mcp-server
+    npm ci --production=false
+    npm run build
+    # Install production dependencies for embedding
+    npm ci --production --prefix .
+    cd ..
+    echo "✅ MCP server built with dependencies"
+    
+    # Build Tauri application
     npm run tauri build
     
     echo "📦 Installing to ~/Applications..."
@@ -125,11 +137,26 @@ install:
     echo "📋 Copying $APP_NAME to ~/Applications..."
     cp -R "$APP_BUNDLE" ~/Applications/
     
+    # Embed MCP server in installed app
+    MCP_DIR="$HOME/Applications/$APP_NAME/Contents/Resources/mcp-server"
+    mkdir -p "$MCP_DIR"
+    cp -R mcp-server/build "$MCP_DIR/"
+    cp mcp-server/package.json "$MCP_DIR/"
+    cp -R mcp-server/node_modules "$MCP_DIR/"
+    echo "✅ MCP server embedded in app bundle with dependencies"
+    
     # Clear quarantine attributes to avoid Gatekeeper issues
     xattr -cr ~/Applications/"$APP_NAME" 2>/dev/null || true
     
     echo "✅ Successfully installed $APP_NAME to ~/Applications/"
-    echo "🚀 You can now run the app from ~/Applications/$APP_NAME"
+    echo ""
+    echo "📋 MCP Server Setup for Claude Code:"
+    echo "  1. Open Schaltwerk and navigate to your project"
+    echo "  2. Go to Settings → MCP Configuration"
+    echo "  3. Click 'Configure MCP for This Project'"
+    echo ""
+    echo "  Manual command (run from project directory):"
+    echo "  claude mcp add --transport stdio --scope project schaltwerk node \"$MCP_DIR/build/schaltwerk-mcp-server.js\""
 
 # Find an available port starting from a base port
 _find_available_port base_port:

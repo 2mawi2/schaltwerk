@@ -126,6 +126,45 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         action: 'highlight'
     },
     {
+        title: "MCP Integration (Optional)",
+        content: (
+            <div>
+                <p className="mb-4">
+                    <strong>Model Context Protocol (MCP)</strong> enables Claude Code to directly manage your Schaltwerk sessions through natural language commands.
+                </p>
+                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                    <div className="flex items-start gap-2">
+                        <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                        <div>
+                            <p className="text-blue-200 text-sm font-medium mb-2">
+                                Opt-in Setup Required
+                            </p>
+                            <p className="text-blue-300/80 text-sm mb-2">
+                                To enable MCP integration:
+                            </p>
+                            <ul className="text-xs text-blue-300/70 space-y-1 list-disc list-inside">
+                                <li>Go to Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">⌘,</kbd>) → Agent Configuration → Claude</li>
+                                <li>Enable "MCP Server Configuration"</li>
+                                <li>Click "Configure MCP for This Project"</li>
+                                <li>Restart Claude Code to activate</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                <div className="text-sm text-slate-400">
+                    <p className="mb-2">
+                        <strong>What you get:</strong> Natural language session management, orchestrator workflow control, and seamless integration between Claude Code and Schaltwerk.
+                    </p>
+                    <p>
+                        <strong>Note:</strong> This is completely optional - Schaltwerk works perfectly without MCP integration.
+                    </p>
+                </div>
+            </div>
+        )
+    },
+    {
         title: "Keyboard-Driven Session Management",
         content: (
             <div>

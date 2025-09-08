@@ -7,6 +7,7 @@ import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
 import { AnimatedText } from '../common/AnimatedText'
 import { SpecContentModal } from '../SpecContentModal'
+import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { logger } from '../../utils/logger'
 
 interface Props {
@@ -150,6 +151,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const { terminalFontSize, uiFontSize, setTerminalFontSize, setUiFontSize } = useFontSize()
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')
+    const [projectPath, setProjectPath] = useState<string>('')
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
         environmentVariables: []
@@ -303,6 +305,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     useEffect(() => {
         if (open) {
             loadAllSettings()
+            // Also load the project path for MCP settings
+            invoke<string | null>('get_active_project_path').then(path => {
+                if (path) setProjectPath(path)
+            })
         }
     }, [open])
 
@@ -661,6 +667,13 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
+                    {/* Claude MCP Configuration */}
+                    {activeAgentTab === 'claude' && projectPath && (
+                        <div>
+                            <MCPConfigPanel projectPath={projectPath} />
+                        </div>
+                    )}
+
                     {/* Binary Path Configuration */}
                     <div>
                         <h3 className="text-sm font-medium text-slate-200 mb-2">Binary Path</h3>
@@ -1031,6 +1044,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             </div>
         </div>
     )
+
 
     const renderProjectSettings = () => (
         <div className="flex flex-col h-full">
@@ -1786,7 +1800,7 @@ fi`}
                         </div>
 
                         {/* Content Area */}
-                        <div className="flex-1 flex flex-col">
+                        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
                             {renderSettingsContent()}
                         </div>
                     </div>

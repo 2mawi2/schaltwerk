@@ -59,6 +59,17 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Build MCP Server with Dependencies  
+        run: |
+          echo "🔨 Building MCP server..."
+          cd mcp-server
+          npm ci --production=false
+          npm run build
+          # Install production dependencies for embedding
+          npm ci --production --prefix .
+          cd ..
+          echo "✅ MCP server built with dependencies"
+
       - name: Build for Intel and Apple Silicon with CI profile
         env:
           MACOSX_DEPLOYMENT_TARGET: '11.0'
@@ -102,6 +113,14 @@ jobs:
           # Use the arm64 app as base and replace binary
           cp -R ./Schaltwerk-arm64.app ./Schaltwerk.app
           mv ./schaltwerk-universal ./Schaltwerk.app/Contents/MacOS/schaltwerk
+          
+          # Embed MCP server with dependencies in app bundle
+          echo "📦 Embedding MCP server in app bundle..."
+          mkdir -p ./Schaltwerk.app/Contents/Resources/mcp-server
+          cp -R mcp-server/build ./Schaltwerk.app/Contents/Resources/mcp-server/
+          cp mcp-server/package.json ./Schaltwerk.app/Contents/Resources/mcp-server/
+          cp -R mcp-server/node_modules ./Schaltwerk.app/Contents/Resources/mcp-server/
+          echo "✅ MCP server embedded in app bundle with dependencies"
           
           # Ad-hoc sign the universal app
           codesign --force --deep -s - ./Schaltwerk.app
@@ -284,6 +303,8 @@ jobs:
                 fi
               SHELL
               File.chmod 0755, wrapper_script
+              
+              ohai "Schaltwerk MCP configuration is now available through Settings → Agent Configuration → Claude tab."
             end
 
             zap trash: [
