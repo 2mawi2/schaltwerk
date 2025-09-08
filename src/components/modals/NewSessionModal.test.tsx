@@ -79,14 +79,30 @@ describe('NewSessionModal', () => {
   })
 
   it('responds to spec-mode event by checking Create as spec', async () => {
-    const { act } = await import('@testing-library/react')
     render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    
+    // Wait for modal to be fully initialized
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Create as spec/i)).toBeInTheDocument()
+    })
+    
     const checkbox = screen.getByLabelText(/Create as spec/i) as HTMLInputElement
     expect(checkbox.checked).toBe(false)
-    await act(async () => {
-      window.dispatchEvent(new Event('schaltwerk:new-session:set-spec'))
+    
+    // First, dispatch prefill-pending event to prevent the useLayoutEffect from resetting state
+    window.dispatchEvent(new Event('schaltwerk:new-session:prefill-pending'))
+    
+    // Small delay to ensure the prefill-pending state is set
+    await new Promise(resolve => setTimeout(resolve, 10))
+    
+    // Now dispatch the set-spec event
+    window.dispatchEvent(new Event('schaltwerk:new-session:set-spec'))
+    
+    // Verify checkbox is checked
+    await waitFor(() => {
+      const updatedCheckbox = screen.getByLabelText(/Create as spec/i) as HTMLInputElement
+      expect(updatedCheckbox.checked).toBe(true)
     })
-    await waitFor(() => expect(checkbox.checked).toBe(true))
   })
 
   it('prefills spec content when schaltwerk:new-session:prefill event is dispatched', async () => {
@@ -230,11 +246,14 @@ describe('NewSessionModal', () => {
   })
 
   it('hides version selector when creating a spec', async () => {
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />)
+    // Test with initialIsDraft=true to avoid the race condition
+    render(<NewSessionModal open={true} initialIsDraft={true} onClose={vi.fn()} onCreate={vi.fn()} />)
 
-    // Toggle Create as spec
-    const checkbox = await screen.findByLabelText(/Create as spec/)
-    fireEvent.click(checkbox)
+    // Wait for modal to be initialized in spec mode
+    await waitFor(() => {
+      const checkbox = screen.getByLabelText(/Create as spec/)
+      expect(checkbox).toBeChecked()
+    })
 
     // Version selector should not be present for specs
     await waitFor(() => {

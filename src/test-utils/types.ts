@@ -1,4 +1,18 @@
-export type MockFn = (() => void) | ((args?: unknown) => unknown)
+export type MockFn = {
+  (...args: any[]): any
+  mock?: {
+    calls: any[][]
+    results: any[]
+    instances: any[]
+  }
+  mockClear?: () => void
+  mockReset?: () => void
+  mockRestore?: () => void
+  mockImplementation?: (fn: (...args: any[]) => any) => MockFn
+  mockReturnValue?: (value: any) => MockFn
+  mockResolvedValue?: (value: any) => MockFn
+  mockRejectedValue?: (value: any) => MockFn
+}
 
 export interface MockTauriAPI {
   invoke: MockFn

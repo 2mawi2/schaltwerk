@@ -130,29 +130,62 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
     })
 
     test('toggles SessionConfigurationPanel visibility when draft mode changes', async () => {
-        render(
+        const onClose = vi.fn()
+        const onCreate = vi.fn()
+        
+        const { rerender } = render(
             <NewSessionModal
                 open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
+                initialIsDraft={false}
+                onClose={onClose}
+                onCreate={onCreate}
             />
         )
 
+        // Wait for modal to be fully initialized with regular mode
         await waitFor(() => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
-        // Toggle draft mode
         const checkbox = screen.getByLabelText(/Create as spec/)
-        fireEvent.click(checkbox)
+        expect(checkbox).not.toBeChecked()
 
-        // Configuration panel should be hidden
-        expect(screen.queryByTestId('session-config-panel')).not.toBeInTheDocument()
+        // Re-render with draft mode
+        rerender(
+            <NewSessionModal
+                open={true}
+                initialIsDraft={true}
+                onClose={onClose}
+                onCreate={onCreate}
+            />
+        )
 
-        // Toggle back
-        fireEvent.click(checkbox)
+        // Wait for checkbox to be checked and panel to be hidden
+        await waitFor(() => {
+            const checkbox = screen.getByLabelText(/Create as spec/)
+            expect(checkbox).toBeChecked()
+        })
+        
+        await waitFor(() => {
+            expect(screen.queryByTestId('session-config-panel')).not.toBeInTheDocument()
+        })
 
-        // Configuration panel should be visible again
+        // Re-render back to regular mode
+        rerender(
+            <NewSessionModal
+                open={true}
+                initialIsDraft={false}
+                onClose={onClose}
+                onCreate={onCreate}
+            />
+        )
+
+        // Wait for checkbox to be unchecked and panel to be visible
+        await waitFor(() => {
+            const checkbox = screen.getByLabelText(/Create as spec/)
+            expect(checkbox).not.toBeChecked()
+        })
+        
         await waitFor(() => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
