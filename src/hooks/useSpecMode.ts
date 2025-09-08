@@ -3,6 +3,7 @@ import { Selection } from '../contexts/SelectionContext'
 import { EnrichedSession } from '../types/session'
 import { isSpec } from '../utils/sessionFilters'
 import { FilterMode } from '../types/sessionFilters'
+import { listenEvent, SchaltEvent } from '../common/eventSystem'
 
 function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
@@ -101,8 +102,6 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     return () => window.removeEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
   }, [enterSpecMode])
   
-  // Temporarily disable automatic spec switching to diagnose the issue
-  /*
   // Handle MCP spec updates - only exit spec mode if current spec is deleted
   useEffect(() => {
     const handleSessionsRefreshed = () => {
@@ -127,7 +126,6 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
       unlisten.then(unlistenFn => unlistenFn())
     }
   }, [selection, commanderSpecModeSession, sessions])
-  */
 
   // Handle entering spec mode
   useEffect(() => {
