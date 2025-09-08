@@ -649,6 +649,7 @@ fn main() {
             get_current_directory,
             open_in_vscode,
             path_exists,
+            get_app_version,
             // MCP commands
             start_mcp_server,
             // Para core commands

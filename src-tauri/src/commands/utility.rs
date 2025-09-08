@@ -53,3 +53,8 @@ pub async fn open_in_vscode(worktree_path: String) -> Result<(), String> {
     log::info!("Successfully opened VSCode for: {worktree_path}");
     Ok(())
 }
+
+#[tauri::command]
+pub fn get_app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}

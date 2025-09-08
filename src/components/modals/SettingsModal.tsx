@@ -22,7 +22,7 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions' | 'version'
 
 interface DetectedBinary {
     path: string
@@ -119,6 +119,15 @@ const CATEGORIES: CategoryConfig[] = [
             </svg>
         )
     },
+    {
+        id: 'version',
+        label: 'Version',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+        )
+    },
 ]
 
 interface ProjectSettings {
@@ -181,6 +190,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         type: 'info',
         visible: false
     })
+    const [appVersion, setAppVersion] = useState<string>('')
 
     // Archived specs state
     type ArchivedSpec = {
@@ -310,6 +320,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             }
         }
         load()
+    }, [activeCategory])
+
+    // Load app version when the version category is opened
+    useEffect(() => {
+        const loadVersion = async () => {
+            if (activeCategory !== 'version') return
+            try {
+                const version = await invoke<string>('get_app_version')
+                setAppVersion(version)
+            } catch (error) {
+                console.error('Failed to load app version:', error)
+            }
+        }
+        loadVersion()
     }, [activeCategory])
 
     // Sync action buttons when modal opens or buttons change
@@ -1649,6 +1673,29 @@ fi`}
             </div>
         </div>
     )
+
+    const renderVersionSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-4">Application Information</h3>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-200">Version</span>
+                                    <span className="text-xs text-slate-400">Current application version</span>
+                                </div>
+                                <span className="text-sm font-mono text-slate-300 bg-slate-900/50 px-3 py-1 rounded">
+                                    {appVersion || 'Loading...'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
     
     const renderSettingsContent = () => {
         switch (activeCategory) {
@@ -1668,6 +1715,8 @@ fi`}
                 return renderArchivesSettings()
             case 'actions':
                 return renderActionButtonsSettings()
+            case 'version':
+                return renderVersionSettings()
             default:
                 return renderAppearanceSettings()
         }
