@@ -137,19 +137,19 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
         }
     }, [open, currentStep])
 
-    const handleNext = () => {
+    const handleNext = useCallback(() => {
         if (isLastStep) {
             handleComplete()
         } else {
             setCurrentStep(prev => prev + 1)
         }
-    }
+    }, [isLastStep])
 
-    const handlePrevious = () => {
+    const handlePrevious = useCallback(() => {
         if (currentStep > 0) {
             setCurrentStep(prev => prev - 1)
         }
-    }
+    }, [currentStep])
 
     useEffect(() => {
         if (!open) return

@@ -266,12 +266,12 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         }
     }
 
-    const handleCreateDraft = async () => {
+    const handleCreateDraft = useCallback(async () => {
         // Dispatch event to open new session modal in spec mode
         window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
-    }
+    }, [])
 
-    const handleMarkReady = async (sessionId: string, hasUncommitted: boolean) => {
+    const handleMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
         if (hasUncommitted) {
             const confirmed = confirm('This session has uncommitted changes. Mark as reviewed anyway?')
             if (!confirmed) return
@@ -283,18 +283,18 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         } catch (error) {
             logger.error('Failed to mark ready:', error)
         }
-    }
+    }, [reloadSessions])
 
-    const handleUnmarkReady = async (sessionId: string) => {
+    const handleUnmarkReady = useCallback(async (sessionId: string) => {
         try {
             await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to unmark ready:', error)
         }
-    }
+    }, [reloadSessions])
 
-    const handleCancel = async (sessionId: string, hasUncommitted: boolean) => {
+    const handleCancel = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
         if (hasUncommitted) {
             const confirmed = confirm('This session has uncommitted changes. Cancel anyway?')
             if (!confirmed) return
@@ -309,27 +309,27 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         } catch (error) {
             logger.error('Failed to cancel session:', error)
         }
-    }
+    }, [reloadSessions])
 
-    const handleConvertToSpec = async (sessionId: string) => {
+    const handleConvertToSpec = useCallback(async (sessionId: string) => {
         try {
             await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to convert to spec:', error)
         }
-    }
+    }, [reloadSessions])
 
-    const handleRunDraft = async (sessionId: string) => {
+    const handleRunDraft = useCallback(async (sessionId: string) => {
         try {
             // Open Start agent modal prefilled from spec
             window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
         } catch (error) {
             logger.error('Failed to open start modal for spec:', error)
         }
-    }
+    }, [])
 
-    const handleDeleteSpec = async (sessionId: string) => {
+    const handleDeleteSpec = useCallback(async (sessionId: string) => {
         // No confirmation for specs - consistent with sidebar behavior
         try {
             await invoke('schaltwerk_core_cancel_session', { name: sessionId })
@@ -337,7 +337,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         } catch (error) {
             logger.error('Failed to delete spec:', error)
         }
-    }
+    }, [reloadSessions])
 
     const [focusedSessionId, setFocusedSessionId] = useState<string | null>(null)
     const [focusedPosition, setFocusedPosition] = useState<{ column: number; row: number }>({ column: 0, row: 0 })

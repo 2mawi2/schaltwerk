@@ -9,6 +9,7 @@ import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
+import type { MockFn } from '../../test-utils/types'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -104,7 +105,7 @@ describe('Sidebar sorting functionality', () => {
     savedSortMode = SortMode.Name
   })
   
-  const createInvokeMock = (sessions: any[]) => {
+  const createInvokeMock = (sessions: MockFn[]) => {
     return async (cmd: string, args?: any) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
@@ -114,7 +115,7 @@ describe('Sidebar sorting functionality', () => {
         const specs = sessions.filter(s => s.info.session_state === 'spec')
         const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'spec')
         const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        let sorted: any[] = []
+        let sorted: MockFn[] = []
         if (mode === SortMode.Created) {
           sorted = [...unreviewed].sort((a, b) => {
             const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0

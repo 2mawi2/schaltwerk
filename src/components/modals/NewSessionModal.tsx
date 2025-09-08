@@ -225,7 +225,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setVersionCount(1)
             setShowVersionMenu(false)
         }
-    }, [open, initialIsDraft, isPrefillPending, hasPrefillData])
+    }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft])
 
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens

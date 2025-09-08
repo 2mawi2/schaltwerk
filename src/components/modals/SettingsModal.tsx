@@ -310,7 +310,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 if (path) setProjectPath(path)
             })
         }
-    }, [open])
+    }, [open, loadAllSettings])
 
     // Load archives when the category is opened
     useEffect(() => {
@@ -337,7 +337,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 const version = await invoke<string>('get_app_version')
                 setAppVersion(version)
             } catch (error) {
-                console.error('Failed to load app version:', error)
+                logger.error('Failed to load app version:', error)
             }
         }
         loadVersion()
