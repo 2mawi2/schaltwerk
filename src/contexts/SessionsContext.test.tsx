@@ -28,7 +28,7 @@ const mockSessions = [
             session_type: 'worktree',
             ready_to_merge: false
         },
-        terminals: ['session-test-spec-top', 'session-test-spec-bottom']
+        terminals: []
     },
     {
         info: {

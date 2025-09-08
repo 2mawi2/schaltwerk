@@ -6,7 +6,7 @@ import { useProject } from './ProjectContext'
 import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
-import { EnrichedSession, SessionInfo } from '../types/session'
+import { EnrichedSession, SessionInfo, SessionState } from '../types/session'
 import { logger } from '../utils/logger'
 
 interface SessionsContextValue {
@@ -148,19 +148,31 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
             const enrichedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
             const enriched = enrichedSessions || []
+            const hasSpecSessions = (sessions: EnrichedSession[]) => {
+                return sessions.some(s => mapSessionUiState(s.info) === 'spec')
+            }
+
             // If enriched already contains specs, use it as-is
-            if (enriched.some(s => mapSessionUiState(s.info) === 'spec')) {
+            if (hasSpecSessions(enriched)) {
                 setAllSessions(enriched)
                 const nextStates = new Map<string, string>()
-                for (const s of enriched) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
+                for (const s of enriched) {
+                    nextStates.set(s.info.session_id, mapSessionUiState(s.info))
+                }
                 prevStatesRef.current = nextStates
             } else {
                 // Try to fetch explicit specs; if shape is unexpected, ignore
                 let all = enriched
                 try {
-                    const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
-                    if (Array.isArray(draftSessions) && draftSessions.some(d => d && (d.name || d.id))) {
-                        const enrichedDrafts: EnrichedSession[] = draftSessions.map(spec => ({
+                    const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: SessionState.Spec })
+                    
+                    const hasValidDraftSessions = (drafts: any[]): boolean => {
+                        return Array.isArray(drafts) && drafts.some(d => d && (d.name || d.id))
+                    }
+
+                    if (hasValidDraftSessions(draftSessions)) {
+                        const enrichDraftSessions = (drafts: any[]): EnrichedSession[] => {
+                            return drafts.map(spec => ({
                             id: spec.id,
                             info: {
                                 session_id: spec.name,
@@ -170,7 +182,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 base_branch: spec.parent_branch,
                                 merge_mode: 'rebase',
                                 status: 'spec' as any,
-                                session_state: 'spec',
+                                session_state: SessionState.Spec,
                                 created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
                                 last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
                                 has_uncommitted_changes: false,
@@ -179,16 +191,22 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 is_current: false,
                                 session_type: 'worktree' as any,
                             },
-                            terminals: [`session-${spec.name}-top`, `session-${spec.name}-bottom`]
+                            terminals: []
                         }))
+                        }
+                        
+                        const enrichedDrafts = enrichDraftSessions(draftSessions)
                         all = mergeSessionsPreferDraft(enriched, enrichedDrafts)
                     }
-                } catch {
+                } catch (error) {
                     // Failed to fetch draft sessions, continue with enriched only
+                    logger.warn('Failed to fetch draft sessions, continuing with enriched sessions only:', error)
                 }
                 setAllSessions(all)
                 const nextStates = new Map<string, string>()
-                for (const s of all) nextStates.set(s.info.session_id, mapSessionUiState(s.info))
+                for (const s of all) {
+                    nextStates.set(s.info.session_id, mapSessionUiState(s.info))
+                }
                 prevStatesRef.current = nextStates
             }
         } catch (error) {

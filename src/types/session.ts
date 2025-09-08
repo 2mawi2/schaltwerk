@@ -1,5 +1,11 @@
 export type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
 
+export enum SessionState {
+    Spec = 'spec',
+    Running = 'running',
+    Reviewed = 'reviewed'
+}
+
 export interface SessionInfo {
     session_id: string
     display_name?: string
@@ -14,7 +20,7 @@ export interface SessionInfo {
     is_current: boolean
     session_type: 'worktree' | 'container'
     container_status?: string
-    session_state: 'spec' | 'running' | 'reviewed'
+    session_state: SessionState | 'spec' | 'running' | 'reviewed'
     current_task?: string
     todo_percentage?: number
     is_blocked?: boolean
