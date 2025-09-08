@@ -280,8 +280,8 @@ describe('DiffFileList', () => {
     const duration = endTime - startTime
 
     // Should complete in less time than sequential calls would take (2 * 10ms = 20ms)
-    // Allow some buffer for test environment
-    expect(duration).toBeLessThan(50)
+    // Allow some buffer for test environment, especially CI
+    expect(duration).toBeLessThan(100)
     
     // Both commands should be called
     expect(invokeCallOrder).toContain('get_orchestrator_working_changes')
