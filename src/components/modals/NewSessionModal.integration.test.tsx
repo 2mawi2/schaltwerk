@@ -97,6 +97,11 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
         })
 
+        // Wait for async initialization to complete - the branch should be populated
+        await waitFor(() => {
+            expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
+        })
+
         // Should show configuration panel for regular session creation
         // With persisted defaults loaded, initial branch should be 'main'
         expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
@@ -164,6 +169,11 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
         await waitFor(() => {
             expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
+        })
+
+        // Wait for async initialization to complete - the branch should be populated
+        await waitFor(() => {
+            expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         })
 
         // Check that initial values are passed correctly
