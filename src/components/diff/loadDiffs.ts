@@ -12,8 +12,6 @@ export type ViewMode = 'unified' | 'split'
 
 export interface FileDiffDataUnified {
   file: ChangedFile
-  mainContent: string
-  worktreeContent: string
   diffResult: LineInfo[]
   changedLinesCount: number
   fileInfo: FileInfo
@@ -23,8 +21,6 @@ export interface FileDiffDataUnified {
 
 export interface FileDiffDataSplit {
   file: ChangedFile
-  mainContent: string
-  worktreeContent: string
   splitDiffResult: SplitDiffResult
   changedLinesCount: number
   fileInfo: FileInfo
@@ -34,7 +30,6 @@ export interface FileDiffDataSplit {
 
 export type FileDiffData = FileDiffDataUnified | FileDiffDataSplit
 
-// Legacy helper functions - no longer used since we get stats from Rust backend
 
 export async function loadFileDiff(
   sessionName: string | null,
@@ -52,8 +47,6 @@ export async function loadFileDiff(
     const changedLinesCount = diffResponse.stats.additions + diffResponse.stats.deletions
     return { 
       file, 
-      mainContent: '', // No longer needed since diff computation happens in backend
-      worktreeContent: '', // No longer needed since diff computation happens in backend
       diffResult: diffResponse.lines, 
       changedLinesCount,
       fileInfo: diffResponse.fileInfo,
@@ -68,8 +61,6 @@ export async function loadFileDiff(
     const changedLinesCount = splitResponse.stats.additions + splitResponse.stats.deletions
     return { 
       file, 
-      mainContent: '', // No longer needed since diff computation happens in backend
-      worktreeContent: '', // No longer needed since diff computation happens in backend
       splitDiffResult: splitResponse.splitResult, 
       changedLinesCount,
       fileInfo: splitResponse.fileInfo,

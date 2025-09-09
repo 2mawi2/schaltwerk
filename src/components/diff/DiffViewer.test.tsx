@@ -13,8 +13,6 @@ const mockFileDiff = {
   fileInfo: { language: 'typescript', sizeBytes: 1024 },
   isBinary: false,
   file: { path: 'src/file1.ts', change_type: 'modified' as const },
-  mainContent: 'original content',
-  worktreeContent: 'modified content',
   changedLinesCount: 2
 }
 
