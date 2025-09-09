@@ -7,6 +7,7 @@ import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 
@@ -87,7 +88,9 @@ describe('Sidebar sorting functionality', () => {
           <SessionsProvider>
             <SelectionProvider>
               <FocusProvider>
-                {component}
+                <RunProvider>
+                  {component}
+                </RunProvider>
               </FocusProvider>
             </SelectionProvider>
           </SessionsProvider>

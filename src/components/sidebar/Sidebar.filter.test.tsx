@@ -7,6 +7,7 @@ import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { SessionMonitorStatus } from '../../types/session'
@@ -73,7 +74,9 @@ function renderWithProviders(ui: React.ReactElement) {
         <SessionsProvider>
           <SelectionProvider>
             <FocusProvider>
-              {ui}
+              <RunProvider>
+                {ui}
+              </RunProvider>
             </FocusProvider>
           </SelectionProvider>
         </SessionsProvider>

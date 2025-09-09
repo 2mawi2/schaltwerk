@@ -8,6 +8,7 @@ import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 import { mockEnrichedSession, mockDraftSession } from '../../test-utils/sessionMocks'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -43,7 +44,9 @@ const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
             <SessionsProvider>
                 <SelectionProvider>
                     <FocusProvider>
-                        {children}
+                        <RunProvider>
+                            {children}
+                        </RunProvider>
                     </FocusProvider>
                 </SelectionProvider>
             </SessionsProvider>

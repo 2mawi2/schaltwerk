@@ -6,6 +6,7 @@ import { FocusProvider } from '../contexts/FocusContext'
 import { ProjectProvider } from '../contexts/ProjectContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
 import { FontSizeProvider } from '../contexts/FontSizeContext'
+import { RunProvider } from '../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -93,7 +94,9 @@ describe('Session Switching Performance', () => {
                     <SessionsProvider>
                         <SelectionProvider>
                             <FocusProvider>
-                                {children}
+                                <RunProvider>
+                                    {children}
+                                </RunProvider>
                             </FocusProvider>
                         </SelectionProvider>
                     </SessionsProvider>
@@ -178,7 +181,9 @@ describe('Session Switching Performance', () => {
                     <SessionsProvider>
                         <SelectionProvider>
                             <FocusProvider>
-                                <Sidebar />
+                                <RunProvider>
+                                    <Sidebar />
+                                </RunProvider>
                             </FocusProvider>
                         </SelectionProvider>
                     </SessionsProvider>
@@ -197,7 +202,9 @@ describe('Session Switching Performance', () => {
                     <SessionsProvider>
                         <SelectionProvider>
                             <FocusProvider>
-                                <Sidebar />
+                                <RunProvider>
+                                    <Sidebar />
+                                </RunProvider>
                             </FocusProvider>
                         </SelectionProvider>
                     </SessionsProvider>

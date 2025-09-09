@@ -6,6 +6,7 @@ import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core')
@@ -82,7 +83,9 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
           <SessionsProvider>
             <SelectionProvider>
               <FocusProvider>
-                {component}
+                <RunProvider>
+                  {component}
+                </RunProvider>
               </FocusProvider>
             </SelectionProvider>
           </SessionsProvider>

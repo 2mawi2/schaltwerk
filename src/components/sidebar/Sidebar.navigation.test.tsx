@@ -6,6 +6,7 @@ import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 
 // Do NOT mock useKeyboardShortcuts here; we want real keyboard behavior
 
@@ -45,7 +46,9 @@ function createTestWrapper() {
         <SessionsProvider>
           <SelectionProvider>
             <FocusProvider>
-              {children}
+              <RunProvider>
+                {children}
+              </RunProvider>
             </FocusProvider>
           </SelectionProvider>
         </SessionsProvider>

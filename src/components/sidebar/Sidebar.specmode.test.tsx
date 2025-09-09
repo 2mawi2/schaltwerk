@@ -4,8 +4,10 @@ import React from 'react'
 import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 import { FocusProvider } from '../../contexts/FocusContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
+import { ProjectProvider } from '../../contexts/ProjectContext'
 import { SpecModeState } from '../../hooks/useSpecMode'
 import '@testing-library/jest-dom'
 
@@ -46,15 +48,19 @@ describe('Sidebar Spec Mode', () => {
 
   const renderWithProviders = (props = {}) => {
     return render(
-      <FontSizeProvider>
-        <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <Sidebar {...defaultProps} {...props} />
-            </FocusProvider>
-          </SelectionProvider>
-        </SessionsProvider>
-      </FontSizeProvider>
+      <ProjectProvider>
+        <FontSizeProvider>
+          <SessionsProvider>
+            <SelectionProvider>
+              <FocusProvider>
+                <RunProvider>
+                  <Sidebar {...defaultProps} {...props} />
+                </RunProvider>
+              </FocusProvider>
+            </SelectionProvider>
+          </SessionsProvider>
+        </FontSizeProvider>
+      </ProjectProvider>
     )
   }
 
