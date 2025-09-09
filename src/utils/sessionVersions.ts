@@ -119,7 +119,7 @@ export function groupSessionsByVersion(sessions: EnrichedSession[]): SessionVers
 export async function selectBestVersionAndCleanup(
   versionGroup: SessionVersionGroup,
   selectedSessionId: string,
-  invoke: (command: string, args: any) => Promise<any>,
+  invoke: <T>(command: string, args?: Record<string, unknown>) => Promise<T>,
   reloadSessions: () => Promise<void>
 ): Promise<void> {
   if (!versionGroup.isVersionGroup) {

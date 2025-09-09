@@ -786,7 +786,7 @@ describe('TerminalGrid', () => {
       runTerminalStates.set('orchestrator', true)
       
       // Mock the component to simulate tab switching
-      const { getByRole } = render(
+      render(
         <TestProviders>
           <TerminalGrid />
         </TestProviders>
@@ -799,13 +799,7 @@ describe('TerminalGrid', () => {
         sessionStorage.setItem('schaltwerk:has-run-scripts:orchestrator', 'true')
       })
       
-      // Simulate switching to Terminal 1 tab
-      // In the fixed code, this should NOT call toggleRun
-      const tabSwitchEvent = new CustomEvent('schaltwerk:tab-switch', {
-        detail: { tabIndex: 0 }
-      })
-      
-      // Before the fix, toggleRun would have been called here
+      // Before the fix, toggleRun would have been called when switching to Terminal 1 tab
       // After the fix, it should not be called
       expect(toggleRunSpy).not.toHaveBeenCalled()
       
