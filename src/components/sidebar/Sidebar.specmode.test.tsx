@@ -2,12 +2,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import React from 'react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
+import { TestProviders } from '../../tests/test-utils'
 import { SpecModeState } from '../../hooks/useSpecMode'
 import '@testing-library/jest-dom'
 
@@ -48,19 +43,9 @@ describe('Sidebar Spec Mode', () => {
 
   const renderWithProviders = (props = {}) => {
     return render(
-      <ProjectProvider>
-        <FontSizeProvider>
-          <SessionsProvider>
-            <SelectionProvider>
-              <FocusProvider>
-                <RunProvider>
-                  <Sidebar {...defaultProps} {...props} />
-                </RunProvider>
-              </FocusProvider>
-            </SelectionProvider>
-          </SessionsProvider>
-        </FontSizeProvider>
-      </ProjectProvider>
+      <TestProviders>
+        <Sidebar {...defaultProps} {...props} />
+      </TestProviders>
     )
   }
 

@@ -2,12 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
 import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 
 // Do NOT mock useKeyboardShortcuts here; we want real keyboard behavior
 
@@ -40,23 +35,6 @@ const mockInvoke = vi.mocked(invoke)
 const mockListen = vi.mocked(listen)
 const mockUnlisten = vi.fn()
 
-function createTestWrapper() {
-  return ({ children }: { children: React.ReactNode }) => (
-    <ProjectProvider>
-      <FontSizeProvider>
-        <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <RunProvider>
-                {children}
-              </RunProvider>
-            </FocusProvider>
-          </SelectionProvider>
-        </SessionsProvider>
-      </FontSizeProvider>
-    </ProjectProvider>
-  )
-}
 
 function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = false } = {}) {
   const event = new KeyboardEvent('keydown', { key, metaKey, ctrlKey, shiftKey })
@@ -135,7 +113,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
   })
 
   it('ArrowDown from orchestrator selects the first session', async () => {
-    const { getByTitle, queryByTitle, findAllByTitle } = render(<Sidebar />, { wrapper: createTestWrapper() })
+    const { getByTitle, queryByTitle, findAllByTitle } = render(<TestProviders><Sidebar /></TestProviders>)
 
     // Wait for sessions to load and render buttons
     await findAllByTitle(/Select session \(⌘/i)
@@ -161,7 +139,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
   })
 
   it('ArrowUp from first session selects orchestrator', async () => {
-    const { getByTitle, findAllByTitle } = render(<Sidebar />, { wrapper: createTestWrapper() })
+    const { getByTitle, findAllByTitle } = render(<TestProviders><Sidebar /></TestProviders>)
 
     // Wait for sessions to load
     await findAllByTitle(/Select session \(⌘/i)

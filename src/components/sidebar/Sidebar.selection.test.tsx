@@ -1,15 +1,9 @@
-import React from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
 import { invoke } from '@tauri-apps/api/core'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 import { mockEnrichedSession, mockDraftSession } from '../../test-utils/sessionMocks'
 import { MockTauriInvokeArgs } from '../../types/testing'
 
@@ -40,21 +34,6 @@ vi.mock('@tauri-apps/api/event', () => ({
     })
 }))
 
-const TestWrapper: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <ProjectProvider>
-        <FontSizeProvider>
-            <SessionsProvider>
-                <SelectionProvider>
-                    <FocusProvider>
-                        <RunProvider>
-                            {children}
-                        </RunProvider>
-                    </FocusProvider>
-                </SelectionProvider>
-            </SessionsProvider>
-        </FontSizeProvider>
-    </ProjectProvider>
-)
 
 describe('Sidebar - Selection on State Changes', () => {
     beforeEach(() => {
@@ -89,11 +68,7 @@ describe('Sidebar - Selection on State Changes', () => {
             return undefined
         })
 
-        render(
-            <TestWrapper>
-                <Sidebar />
-            </TestWrapper>
-        )
+        render(<TestProviders><Sidebar /></TestProviders>)
 
         // Wait for sessions to load
         await waitFor(() => {
@@ -147,11 +122,7 @@ describe('Sidebar - Selection on State Changes', () => {
             return undefined
         })
 
-        render(
-            <TestWrapper>
-                <Sidebar />
-            </TestWrapper>
-        )
+        render(<TestProviders><Sidebar /></TestProviders>)
 
         // Wait for sessions to load
         await waitFor(() => {
@@ -192,11 +163,7 @@ describe('Sidebar - Selection on State Changes', () => {
             return undefined
         })
 
-        render(
-            <TestWrapper>
-                <Sidebar />
-            </TestWrapper>
-        )
+        render(<TestProviders><Sidebar /></TestProviders>)
 
         // Wait for session to load
         await waitFor(() => {
@@ -261,11 +228,7 @@ describe('Sidebar - Selection on State Changes', () => {
             return undefined
         })
 
-        render(
-            <TestWrapper>
-                <Sidebar />
-            </TestWrapper>
-        )
+        render(<TestProviders><Sidebar /></TestProviders>)
 
         // Wait for sessions to load
         await waitFor(() => {

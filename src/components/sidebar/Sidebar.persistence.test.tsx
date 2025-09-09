@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import React from 'react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { EnrichedSession } from '../../types/session'
@@ -54,24 +48,6 @@ describe('Sidebar sort mode persistence', () => {
   let savedFilterMode: string = FilterMode.All
   let savedSortMode: string = SortMode.Name
 
-  // Helper function to wrap component with all required providers
-  const renderWithProviders = (component: React.ReactElement) => {
-    return render(
-      <ProjectProvider>
-        <FontSizeProvider>
-          <SessionsProvider>
-            <SelectionProvider>
-              <FocusProvider>
-                <RunProvider>
-                  {component}
-                </RunProvider>
-              </FocusProvider>
-            </SelectionProvider>
-          </SessionsProvider>
-        </FontSizeProvider>
-      </ProjectProvider>
-    )
-  }
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -130,7 +106,7 @@ describe('Sidebar sort mode persistence', () => {
   })
 
   it('should default to name sorting when no backend value exists', async () => {
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -160,7 +136,7 @@ describe('Sidebar sort mode persistence', () => {
     // Pre-populate backend with 'created' mode
     savedSortMode = SortMode.Created
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     // Wait until sort mode indicates Creation Time AND sessions are in correct order
     await waitFor(() => {
@@ -193,7 +169,7 @@ describe('Sidebar sort mode persistence', () => {
   })
 
   it('should persist sort mode changes to backend', async () => {
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -237,7 +213,7 @@ describe('Sidebar sort mode persistence', () => {
     // Test that invalid backend values are handled gracefully
     savedSortMode = 'invalid-sort-mode' as string
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -265,7 +241,7 @@ describe('Sidebar sort mode persistence', () => {
   it('should handle backend errors gracefully during saving', async () => {
     const consoleSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -317,7 +293,7 @@ describe('Sidebar sort mode persistence', () => {
     // Pre-populate backend with invalid value
     savedSortMode = 'invalid-mode' as string
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -343,7 +319,7 @@ describe('Sidebar sort mode persistence', () => {
 
   it('should persist sort mode across component remounts', async () => {
     // First render - change to 'last-edited' mode
-    const { unmount } = renderWithProviders(<Sidebar />)
+    const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -370,7 +346,7 @@ describe('Sidebar sort mode persistence', () => {
     unmount()
 
     // Remount component - should restore last-edited mode
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -406,7 +382,7 @@ describe('Sidebar sort mode persistence', () => {
     savedFilterMode = FilterMode.All
     savedSortMode = SortMode.Name
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -439,7 +415,7 @@ describe('Sidebar sort mode persistence', () => {
       // Set up backend with the mode
       savedSortMode = mode
 
-      const { unmount } = renderWithProviders(<Sidebar />)
+      const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
 
       await waitFor(() => {
         const sessionButtons = screen.getAllByRole('button').filter(btn => {

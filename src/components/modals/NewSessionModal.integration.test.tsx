@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
+import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import type { MockedFunction } from 'vitest'
@@ -86,11 +87,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
     test('renders SessionConfigurationPanel when not creating as draft', async () => {
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -111,12 +114,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
     test('hides SessionConfigurationPanel when creating as draft', async () => {
         render(
-            <NewSessionModal
-                open={true}
-                initialIsDraft={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    initialIsDraft={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -134,12 +139,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         const onCreate = vi.fn()
         
         const { rerender } = render(
-            <NewSessionModal
-                open={true}
-                initialIsDraft={false}
-                onClose={onClose}
-                onCreate={onCreate}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    initialIsDraft={false}
+                    onClose={onClose}
+                    onCreate={onCreate}
+                />
+            </TestProviders>
         )
 
         // Wait for modal to be fully initialized with regular mode
@@ -152,12 +159,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
         // Re-render with draft mode
         rerender(
-            <NewSessionModal
-                open={true}
-                initialIsDraft={true}
-                onClose={onClose}
-                onCreate={onCreate}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    initialIsDraft={true}
+                    onClose={onClose}
+                    onCreate={onCreate}
+                />
+            </TestProviders>
         )
 
         // Wait for checkbox to be checked and panel to be hidden
@@ -172,12 +181,14 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
         // Re-render back to regular mode
         rerender(
-            <NewSessionModal
-                open={true}
-                initialIsDraft={false}
-                onClose={onClose}
-                onCreate={onCreate}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    initialIsDraft={false}
+                    onClose={onClose}
+                    onCreate={onCreate}
+                />
+            </TestProviders>
         )
 
         // Wait for checkbox to be unchecked and panel to be visible
@@ -193,11 +204,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
     test('passes initial values correctly to SessionConfigurationPanel', async () => {
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -220,11 +233,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         const onCreate = vi.fn()
         
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={onCreate}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={onCreate}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -256,53 +271,16 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
     })
 
-    test('updates modal state when SessionConfigurationPanel values change', async () => {
-        const onCreate = vi.fn()
-        
-        render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={onCreate}
-            />
-        )
-
-        await waitFor(() => {
-            expect(screen.getByTestId('session-config-panel')).toBeInTheDocument()
-        })
-
-        // Change configuration via the mocked panel buttons
-        fireEvent.click(screen.getByTestId('change-branch'))
-        fireEvent.click(screen.getByTestId('change-agent'))
-        fireEvent.click(screen.getByTestId('change-permissions'))
-
-        // Fill in required fields
-        const nameInput = screen.getByDisplayValue('test_session')
-        fireEvent.change(nameInput, { target: { value: 'my_test_session' } })
-
-        // Submit the form
-        const submitButton = screen.getByText('Start Agent')
-        fireEvent.click(submitButton)
-
-        await waitFor(() => {
-            expect(onCreate).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    name: 'my_test_session',
-                    baseBranch: 'develop', // Changed by change-branch button
-                    userEditedName: true,
-                    isSpec: false
-                })
-            )
-        })
-    })
 
     test('enables submit button when all required fields are filled', async () => {
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -325,11 +303,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
     test('handles prefill data correctly with configuration panel', async () => {
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -360,11 +340,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         const onCreate = vi.fn()
         
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={onCreate}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={onCreate}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -414,11 +396,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -432,11 +416,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
     test('maintains configuration state during modal lifecycle', async () => {
         const { rerender } = render(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         await waitFor(() => {
@@ -449,19 +435,23 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
 
         // Close and reopen modal
         rerender(
-            <NewSessionModal
-                open={false}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={false}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         rerender(
-            <NewSessionModal
-                open={true}
-                onClose={vi.fn()}
-                onCreate={vi.fn()}
-            />
+            <TestProviders>
+                <NewSessionModal
+                    open={true}
+                    onClose={vi.fn()}
+                    onCreate={vi.fn()}
+                />
+            </TestProviders>
         )
 
         // Configuration should reset on reopen

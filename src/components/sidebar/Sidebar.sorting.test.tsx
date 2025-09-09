@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import React from 'react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { EnrichedSession } from '../../types/session'
@@ -54,24 +48,6 @@ describe('Sidebar sorting functionality', () => {
   let savedFilterMode: string = FilterMode.All
   let savedSortMode: string = SortMode.Name
   
-  // Helper function to wrap component with all required providers
-  const renderWithProviders = (component: React.ReactElement) => {
-    return render(
-      <ProjectProvider>
-        <FontSizeProvider>
-          <SessionsProvider>
-            <SelectionProvider>
-              <FocusProvider>
-                <RunProvider>
-                  {component}
-                </RunProvider>
-              </FocusProvider>
-            </SelectionProvider>
-          </SessionsProvider>
-        </FontSizeProvider>
-      </ProjectProvider>
-    )
-  }
   
   beforeEach(() => {
     vi.clearAllMocks()
@@ -135,7 +111,7 @@ describe('Sidebar sorting functionality', () => {
 
     vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       // Check that sessions are loaded by looking for session buttons
@@ -214,7 +190,7 @@ describe('Sidebar sorting functionality', () => {
 
     vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       // Check that sessions are loaded by looking for session buttons
@@ -258,7 +234,7 @@ describe('Sidebar sorting functionality', () => {
 
     vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
-    const { unmount } = renderWithProviders(<Sidebar />)
+    const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       // Check that sessions are loaded by looking for session buttons
@@ -285,7 +261,7 @@ describe('Sidebar sorting functionality', () => {
     // Unmount and remount - should restore last-edited mode
     unmount()
     
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const newSortButton = screen.getByTitle(/^Sort:/i)
@@ -302,7 +278,7 @@ describe('Sidebar sorting functionality', () => {
 
     vi.mocked(invoke).mockImplementation(createInvokeMock(sessions))
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       // Check that sessions are loaded by looking for session buttons

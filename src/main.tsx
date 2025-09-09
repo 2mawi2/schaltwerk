@@ -11,6 +11,7 @@ import { ProjectProvider } from './contexts/ProjectContext'
 import { FontSizeProvider } from './contexts/FontSizeContext'
 import { SessionsProvider } from './contexts/SessionsContext'
 import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
+import { ModalProvider } from './contexts/ModalContext'
 import ErrorBoundary from './components/ErrorBoundary'
 
 // Loading wrapper component
@@ -36,17 +37,19 @@ const AppLoader: React.FC = () => {
           <ProjectProvider>
             <SessionsProvider>
               <ActionButtonsProvider>
-                <SelectionProvider>
-                  <FocusProvider>
-                    <ReviewProvider>
-                      <RunProvider>
-                        <div className="h-screen w-screen">
-                          <App />
-                        </div>
-                      </RunProvider>
-                    </ReviewProvider>
-                  </FocusProvider>
-                </SelectionProvider>
+                <ModalProvider>
+                  <SelectionProvider>
+                    <FocusProvider>
+                      <ReviewProvider>
+                        <RunProvider>
+                          <div className="h-screen w-screen">
+                            <App />
+                          </div>
+                        </RunProvider>
+                      </ReviewProvider>
+                    </FocusProvider>
+                  </SelectionProvider>
+                </ModalProvider>
               </ActionButtonsProvider>
             </SessionsProvider>
           </ProjectProvider>

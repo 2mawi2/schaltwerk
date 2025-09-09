@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 
 // Mock dependencies
 vi.mock('@tauri-apps/api/core', () => ({
@@ -137,23 +132,6 @@ export const sessionReducers = {
   }
 }
 
-function createTestWrapper() {
-  return ({ children }: { children: React.ReactNode }) => (
-    <ProjectProvider>
-      <FontSizeProvider>
-        <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <RunProvider>
-                {children}
-              </RunProvider>
-            </FocusProvider>
-          </SelectionProvider>
-        </SessionsProvider>
-      </FontSizeProvider>
-    </ProjectProvider>
-  )
-}
 
 describe('Sidebar', () => {
   let eventListeners: Map<string, (event: Event<unknown>) => void>
@@ -233,7 +211,7 @@ describe('Sidebar', () => {
         }
       })
 
-      render(<Sidebar />, { wrapper: createTestWrapper() })
+      render(<TestProviders><Sidebar /></TestProviders>)
 
       await waitFor(() => {
         // no session selection buttons should be rendered
@@ -289,7 +267,7 @@ describe('Sidebar', () => {
         }
       })
 
-      render(<Sidebar />, { wrapper: createTestWrapper() })
+      render(<TestProviders><Sidebar /></TestProviders>)
 
       await waitFor(() => {
         expect(screen.getByText('simple-session')).toBeInTheDocument()
@@ -467,7 +445,7 @@ describe('Sidebar', () => {
     it('should render orchestrator button', async () => {
       mockInvoke.mockResolvedValueOnce([])
 
-      render(<Sidebar />, { wrapper: createTestWrapper() })
+      render(<TestProviders><Sidebar /></TestProviders>)
       // The button uses a title attribute
       const orchestratorButton = screen.getByTitle(/Select orchestrator/i)
       expect(orchestratorButton).toBeInTheDocument()
@@ -551,7 +529,7 @@ describe('Sidebar', () => {
         }
       })
 
-      render(<Sidebar />, { wrapper: createTestWrapper() })
+      render(<TestProviders><Sidebar /></TestProviders>)
 
       await waitFor(() => {
         // Search for session element using data attribute
@@ -587,7 +565,7 @@ describe('Sidebar', () => {
         }
       })
 
-      render(<Sidebar />, { wrapper: createTestWrapper() })
+      render(<TestProviders><Sidebar /></TestProviders>)
 
       await waitFor(() => {
         // no session selection buttons rendered on failure
@@ -663,7 +641,7 @@ describe('Sidebar', () => {
         }
       })
 
-      const { container } = render(<Sidebar />, { wrapper: createTestWrapper() })
+      const { container } = render(<TestProviders><Sidebar /></TestProviders>)
 
       // Wait for sessions to load
       await waitFor(() => {

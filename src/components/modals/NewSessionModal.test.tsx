@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
+import { ModalProvider } from '../../contexts/ModalContext'
 
 // Expose spies so tests can assert persistence/saves
 const mockGetSkipPermissions = vi.fn().mockResolvedValue(true)
@@ -40,7 +41,7 @@ import { invoke } from '@tauri-apps/api/core'
 function openModal() {
   const onClose = vi.fn()
   const onCreate = vi.fn()
-  render(<NewSessionModal open={true} onClose={onClose} onCreate={onCreate} />)
+  render(<ModalProvider><NewSessionModal open={true} onClose={onClose} onCreate={onCreate} /></ModalProvider>)
   return { onClose, onCreate }
 }
 
@@ -79,7 +80,7 @@ describe('NewSessionModal', () => {
   })
 
   it('responds to spec-mode event by checking Create as spec', async () => {
-    render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
     // Wait for modal to be fully initialized
     await waitFor(() => {
@@ -107,7 +108,7 @@ describe('NewSessionModal', () => {
 
   it('prefills spec content when schaltwerk:new-session:prefill event is dispatched', async () => {
     const { act } = await import('@testing-library/react')
-    render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
     // Initially the agent content textarea should be empty
     const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
@@ -143,7 +144,7 @@ describe('NewSessionModal', () => {
     const { act } = await import('@testing-library/react')
     
     // Initially render with modal closed
-    const { rerender: rerenderFn } = render(<NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} />)
+    const { rerender: rerenderFn } = render(<ModalProvider><NewSessionModal open={false} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
     // Dispatch the prefill event BEFORE opening modal (simulating the race condition)
     const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'
@@ -164,7 +165,7 @@ describe('NewSessionModal', () => {
     
     // Now open the modal
     await act(async () => {
-      rerenderFn(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+      rerenderFn(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     })
     
     // Wait a bit for the event to be dispatched
@@ -219,7 +220,7 @@ describe('NewSessionModal', () => {
 
   it('shows a version selector defaulting to 1x and passes selection in payload', async () => {
     const onCreate = vi.fn()
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
 
     // Wait for modal ready
     await waitFor(() => {
@@ -247,7 +248,7 @@ describe('NewSessionModal', () => {
 
   it('hides version selector when creating a spec', async () => {
     // Test with initialIsDraft=true to avoid the race condition
-    render(<NewSessionModal open={true} initialIsDraft={true} onClose={vi.fn()} onCreate={vi.fn()} />)
+    render(<ModalProvider><NewSessionModal open={true} initialIsDraft={true} onClose={vi.fn()} onCreate={vi.fn()} /></ModalProvider>)
 
     // Wait for modal to be initialized in spec mode
     await waitFor(() => {
@@ -263,7 +264,7 @@ describe('NewSessionModal', () => {
 
   it('detects when user edits the name field', async () => {
     const onCreate = vi.fn()
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     
     // Wait for modal to be ready
     await waitFor(() => {
@@ -288,7 +289,7 @@ describe('NewSessionModal', () => {
     // Due to test environment limitations with controlled components,
     // we verify the basic flow works: submit without edit = false
     const onCreate = vi.fn()
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     
     await waitFor(() => {
       const createBtn = screen.getByTitle('Start agent (Cmd+Enter)')
@@ -323,7 +324,7 @@ describe('NewSessionModal', () => {
 
   it('shows correct labels and placeholders when starting agent from spec', async () => {
     const { act } = await import('@testing-library/react')
-    render(<NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
     // Dispatch the prefill event to simulate starting from a spec
     const draftContent = '# My Spec\n\nThis is the spec content.'
@@ -351,7 +352,7 @@ describe('NewSessionModal', () => {
 
   it('replaces spaces with underscores in the final name', async () => {
     const onCreate = vi.fn()
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     const input = await screen.findByPlaceholderText('eager_cosmos')
     fireEvent.change(input, { target: { value: 'My New Session' } })
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
@@ -362,7 +363,7 @@ describe('NewSessionModal', () => {
 
   it('Cmd+Enter creates even when the button is disabled due to empty input', async () => {
     const onCreate = vi.fn()
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     const input = await screen.findByPlaceholderText('eager_cosmos')
     // Clear to disable the button
     fireEvent.change(input, { target: { value: '' } })
@@ -379,7 +380,7 @@ describe('NewSessionModal', () => {
 
   it('marks userEditedName true when user edits the field', async () => {
     const onCreate = vi.fn()
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     const input = await screen.findByPlaceholderText('eager_cosmos') as HTMLInputElement
     
     // Actually edit the field by changing its value
@@ -461,7 +462,7 @@ describe('NewSessionModal', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
     
-    render(<NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} />)
+    render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     
     // Wait for branches to load, session config to be initialized, and button to be enabled
     await waitFor(() => {

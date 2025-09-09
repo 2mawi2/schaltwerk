@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 
 // Mock tauri
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -29,23 +24,6 @@ import { EnrichedSession } from '../../types/session'
 import { listen } from '@tauri-apps/api/event'
 
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(
-    <ProjectProvider>
-      <FontSizeProvider>
-        <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <RunProvider>
-                {ui}
-              </RunProvider>
-            </FocusProvider>
-          </SelectionProvider>
-        </SessionsProvider>
-      </FontSizeProvider>
-    </ProjectProvider>
-  )
-}
 
 describe('Sidebar status indicators and actions', () => {
   const sessions: EnrichedSession[] = [
@@ -92,7 +70,7 @@ describe('Sidebar status indicators and actions', () => {
   })
 
   it('shows Reviewed badge for ready sessions and toggles with Unmark', async () => {
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const items = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
@@ -113,7 +91,7 @@ describe('Sidebar status indicators and actions', () => {
   })
 
   it('dispatches cancel event with correct details', async () => {
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const items = screen.getAllByRole('button').filter(b => (b.textContent || '').includes('para/'))
@@ -156,7 +134,7 @@ describe('Sidebar status indicators and actions', () => {
       return undefined as any
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     // Idle indicator appears only for s1 (older than 5 minutes)
     await waitFor(() => {

@@ -7,6 +7,7 @@ import { ProjectProvider } from '../contexts/ProjectContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
 import { FontSizeProvider } from '../contexts/FontSizeContext'
 import { RunProvider } from '../contexts/RunContext'
+import { ModalProvider } from '../contexts/ModalContext'
 import { invoke } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -89,19 +90,21 @@ describe('Session Switching Performance', () => {
         })
 
         const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-            <ProjectProvider>
-                <FontSizeProvider>
-                    <SessionsProvider>
-                        <SelectionProvider>
-                            <FocusProvider>
-                                <RunProvider>
-                                    {children}
-                                </RunProvider>
-                            </FocusProvider>
-                        </SelectionProvider>
-                    </SessionsProvider>
-                </FontSizeProvider>
-            </ProjectProvider>
+            <ModalProvider>
+                <ProjectProvider>
+                    <FontSizeProvider>
+                        <SessionsProvider>
+                            <SelectionProvider>
+                                <FocusProvider>
+                                    <RunProvider>
+                                        {children}
+                                    </RunProvider>
+                                </FocusProvider>
+                            </SelectionProvider>
+                        </SessionsProvider>
+                    </FontSizeProvider>
+                </ProjectProvider>
+            </ModalProvider>
         )
 
         const startTime = performance.now()
@@ -176,19 +179,21 @@ describe('Session Switching Performance', () => {
         })
 
         const { rerender } = render(
-            <ProjectProvider>
-                <FontSizeProvider>
-                    <SessionsProvider>
-                        <SelectionProvider>
-                            <FocusProvider>
-                                <RunProvider>
-                                    <Sidebar />
-                                </RunProvider>
-                            </FocusProvider>
-                        </SelectionProvider>
-                    </SessionsProvider>
-                </FontSizeProvider>
-            </ProjectProvider>
+            <ModalProvider>
+                <ProjectProvider>
+                    <FontSizeProvider>
+                        <SessionsProvider>
+                            <SelectionProvider>
+                                <FocusProvider>
+                                    <RunProvider>
+                                        <Sidebar />
+                                    </RunProvider>
+                                </FocusProvider>
+                            </SelectionProvider>
+                        </SessionsProvider>
+                    </FontSizeProvider>
+                </ProjectProvider>
+            </ModalProvider>
         )
 
         await waitFor(() => {
@@ -197,19 +202,21 @@ describe('Session Switching Performance', () => {
 
         // Force re-render without changing data
         rerender(
-            <ProjectProvider>
-                <FontSizeProvider>
-                    <SessionsProvider>
-                        <SelectionProvider>
-                            <FocusProvider>
-                                <RunProvider>
-                                    <Sidebar />
-                                </RunProvider>
-                            </FocusProvider>
-                        </SelectionProvider>
-                    </SessionsProvider>
-                </FontSizeProvider>
-            </ProjectProvider>
+            <ModalProvider>
+                <ProjectProvider>
+                    <FontSizeProvider>
+                        <SessionsProvider>
+                            <SelectionProvider>
+                                <FocusProvider>
+                                    <RunProvider>
+                                        <Sidebar />
+                                    </RunProvider>
+                                </FocusProvider>
+                            </SelectionProvider>
+                        </SessionsProvider>
+                    </FontSizeProvider>
+                </ProjectProvider>
+            </ModalProvider>
         )
 
         // Debug: log what commands were actually called

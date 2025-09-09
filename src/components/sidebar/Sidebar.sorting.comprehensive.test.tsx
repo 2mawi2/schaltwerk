@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { EnrichedSession } from '../../types/session'
 import { MockTauriInvokeArgs } from '../../types/testing'
@@ -49,24 +44,6 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
 })
 
 describe('Sidebar sorting algorithms comprehensive tests', () => {
-  // Helper function to wrap component with all required providers
-  const renderWithProviders = (component: React.ReactElement) => {
-    return render(
-      <ProjectProvider>
-        <FontSizeProvider>
-          <SessionsProvider>
-            <SelectionProvider>
-              <FocusProvider>
-                <RunProvider>
-                  {component}
-                </RunProvider>
-              </FocusProvider>
-            </SelectionProvider>
-          </SessionsProvider>
-        </FontSizeProvider>
-      </ProjectProvider>
-    )
-  }
   
   beforeEach(() => {
     vi.clearAllMocks()
@@ -114,7 +91,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -176,7 +153,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -246,7 +223,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -332,7 +309,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {
@@ -424,7 +401,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const sessionButtons = screen.getAllByRole('button').filter(btn => {

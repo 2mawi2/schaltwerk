@@ -25,6 +25,7 @@ import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
+import { useModal } from '../../contexts/ModalContext'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -53,6 +54,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { isSessionRunning } = useRun()
+    const { isAnyModalOpen } = useModal()
     const { 
         sessions, 
         allSessions, 
@@ -566,6 +568,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-view'))
         },
         onFocusTerminal: () => {
+            // Don't dispatch focus events if any modal is open
+            if (isAnyModalOpen()) {
+                return
+            }
+            
             const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'terminal')
             setCurrentFocus('terminal')

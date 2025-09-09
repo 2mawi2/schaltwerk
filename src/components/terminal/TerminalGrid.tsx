@@ -18,6 +18,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { useRef, useEffect, useState, useMemo } from 'react'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
+import { useModal } from '../../contexts/ModalContext'
 
 export function TerminalGrid() {
     const { selection, terminals, isReady, isSpec } = useSelection()
@@ -26,6 +27,7 @@ export function TerminalGrid() {
     const { getAgentType } = useClaudeSession()
     const { actionButtons } = useActionButtons()
     const { sessions } = useSessions()
+    const { isAnyModalOpen } = useModal()
     
     // Show action buttons for both orchestrator and sessions
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
@@ -146,6 +148,11 @@ export function TerminalGrid() {
         }
 
         const handleFocusTerminal = () => {
+            // Don't focus terminal if any modal is open
+            if (isAnyModalOpen()) {
+                return
+            }
+            
             // Expand if collapsed
             if (isBottomCollapsed) {
                 const expandedSize = lastExpandedBottomPercent || 28

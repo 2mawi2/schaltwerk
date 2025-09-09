@@ -1,13 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import React from 'react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
 import { EnrichedSession, SessionInfo } from '../../types/session'
@@ -46,23 +40,6 @@ const createSession = (id: string, readyToMerge = false, sessionState?: 'spec' |
   terminals: []
 })
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(
-    <ProjectProvider>
-      <FontSizeProvider>
-        <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <RunProvider>
-                {ui}
-              </RunProvider>
-            </FocusProvider>
-          </SelectionProvider>
-        </SessionsProvider>
-      </FontSizeProvider>
-    </ProjectProvider>
-  )
-}
 
 describe('Sidebar filter functionality and persistence', () => {
   beforeEach(() => {
@@ -109,7 +86,7 @@ describe('Sidebar filter functionality and persistence', () => {
   })
 
   it('filters sessions: All -> Specs -> Reviewed', async () => {
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     // Wait for sessions to load (verify by filter counts)
     await waitFor(() => {
@@ -245,7 +222,7 @@ describe('Sidebar filter functionality and persistence', () => {
     })
     
     // First render: set to Reviewed
-    const { unmount } = renderWithProviders(<Sidebar />)
+    const { unmount } = render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const allButton = screen.getByTitle('Show all agents')
@@ -273,7 +250,7 @@ describe('Sidebar filter functionality and persistence', () => {
     unmount()
 
     // Second render should restore 'reviewed'
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       // Only reviewed sessions should be visible on load

@@ -1,12 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
-import { SelectionProvider } from '../../contexts/SelectionContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ProjectProvider } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { RunProvider } from '../../contexts/RunContext'
+import { TestProviders } from '../../tests/test-utils'
 
 // Use real keyboard hook behavior
 
@@ -28,23 +23,6 @@ vi.mock('../../contexts/ProjectContext', async () => {
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(
-    <ProjectProvider>
-      <FontSizeProvider>
-        <SessionsProvider>
-          <SelectionProvider>
-            <FocusProvider>
-              <RunProvider>
-                {ui}
-              </RunProvider>
-            </FocusProvider>
-          </SelectionProvider>
-        </SessionsProvider>
-      </FontSizeProvider>
-    </ProjectProvider>
-  )
-}
 
 function press(key: string, opts: Partial<KeyboardEvent> = {}) {
   const ev = new KeyboardEvent('keydown', { key, ...opts })
@@ -90,7 +68,7 @@ describe('Sidebar keyboard navigation basic', () => {
   })
 
   it('Cmd+ArrowDown selects first session from orchestrator; Cmd+ArrowUp returns to orchestrator', async () => {
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       const items = screen.getAllByRole('button')
@@ -146,7 +124,7 @@ describe('Sidebar keyboard navigation basic', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       expect(screen.getByText('spec-session')).toBeInTheDocument()
@@ -232,7 +210,7 @@ describe('Sidebar keyboard navigation basic', () => {
       return undefined
     })
 
-    renderWithProviders(<Sidebar />)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
     await waitFor(() => {
       expect(screen.getByText('spec-session')).toBeInTheDocument()

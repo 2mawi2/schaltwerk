@@ -6,6 +6,7 @@ import { theme } from '../../common/theme'
 import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
+import { useModal } from '../../contexts/ModalContext'
 
 interface Props {
     open: boolean
@@ -23,6 +24,7 @@ interface Props {
 }
 
 export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreate }: Props) {
+    const { registerModal, unregisterModal } = useModal()
     const [name, setName] = useState(() => generateDockerStyleName())
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
@@ -152,6 +154,15 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // Track if the modal was previously open and with what initialIsDraft value
     const wasOpenRef = useRef(false)
     const lastInitialIsDraftRef = useRef<boolean | undefined>(undefined)
+
+    // Register/unregister modal with context
+    useEffect(() => {
+        if (open) {
+            registerModal('NewSessionModal')
+        } else {
+            unregisterModal('NewSessionModal')
+        }
+    }, [open, registerModal, unregisterModal])
     
     useLayoutEffect(() => {
         if (open) {
