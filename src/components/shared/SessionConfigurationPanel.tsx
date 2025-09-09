@@ -5,7 +5,6 @@ import { ModelSelector } from '../inputs/ModelSelector'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
-import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 
 interface SessionConfigurationPanelProps {
@@ -143,7 +142,7 @@ export function SessionConfigurationPanel({
                                 backgroundColor: theme.colors.background.elevated
                             }}
                         >
-                            <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" />
+                            <span className="text-slate-500 text-xs">Loading...</span>
                         </div>
                     ) : (
                         <div className="min-w-[120px]">
@@ -210,7 +209,7 @@ export function SessionConfigurationPanel({
                             borderColor: theme.colors.border.default
                         }}
                     >
-                        <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" />
+                        <span className="text-slate-500 text-xs">Loading...</span>
                     </div>
                 ) : (
                     <BranchAutocomplete
