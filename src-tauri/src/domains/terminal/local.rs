@@ -139,17 +139,10 @@ impl LocalPtyAdapter {
     }
 
     fn setup_environment(cmd: &mut CommandBuilder, cols: u16, rows: u16) {
+        // Minimal environment - only essentials
         cmd.env("TERM", "xterm-256color");
-        cmd.env("COLORTERM", "truecolor");
-        
-        // Set initial terminal size for TUI applications
-        // These will be updated by resize commands but help with initial rendering
         cmd.env("LINES", rows.to_string());
         cmd.env("COLUMNS", cols.to_string());
-        
-        // Ensure proper terminal behavior for TUI applications
-        cmd.env("FORCE_COLOR", "1");
-        cmd.env("TERM_PROGRAM", "schaltwerk");
         
         if let Ok(home) = std::env::var("HOME") {
             cmd.env("HOME", home.clone());
@@ -269,11 +262,12 @@ impl LocalPtyAdapter {
                                 // Handle output emission with ANSI-aware buffering
                                 drop(terminals); // release lock before awaits below
                                 
-                                // Use coalescing for all terminals with consistent delay
-                                // Small delay helps batch output and prevents issues with ANSI sequence handling
-                                // 2ms is imperceptible but significantly improves efficiency and prevents
-                                // issues with rapid small chunks causing extra newlines in agent output
-                                let delay_ms = 2;
+                                // Different handling for agent vs bottom terminals
+                                let delay_ms = if Self::is_agent_terminal(&id_clone) {
+                                    2  // Small delay for agent terminals to handle streaming output
+                                } else {
+                                    0  // No delay for bottom terminals - immediate response
+                                };
                                 
                                 handle_coalesced_output(
                                     &coalescing_state_clone,
@@ -1036,10 +1030,7 @@ impl LocalPtyAdapter {
 }
 
 async fn get_shell_config() -> (String, Vec<String>) {
-    // For testing purposes, we'll use a simplified version that doesn't depend on SETTINGS_MANAGER
-    // In the real application, this would check settings first
-
-    // Fall back to default shell detection
+    // Simple shell detection without complex args
     let shell = std::env::var("SHELL").unwrap_or_else(|_| {
         if cfg!(target_os = "windows") {
             "cmd.exe".to_string()
@@ -1048,20 +1039,10 @@ async fn get_shell_config() -> (String, Vec<String>) {
         }
     });
 
-    // Prefer a login + interactive shell so user profile files are sourced.
-    // - zsh: .zprofile + .zshrc
-    // - bash: .bash_profile/.profile + .bashrc (depending on user setup)
-    // - fish: supports -l and -i as well
-    let mut args = Vec::new();
-    if cfg!(target_os = "windows") {
-        // Keep Windows simple and consistent
-        args = vec!["/K".to_string()];
-    } else {
-        args.push("-l".to_string()); // login shell to load environment
-        args.push("-i".to_string()); // interactive for prompt/aliases
-    }
-
-    info!("Using default shell: {shell} with args: {args:?}");
+    // No special args - let shells start normally to avoid doubling issues
+    let args = Vec::new();
+    
+    info!("Using shell: {shell} (no special args)");
     (shell, args)
 }
 
@@ -1826,10 +1807,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_shell_config_fallback() {
-        // Test get_shell_config function
+        // Test get_shell_config function - now returns no args for simplicity
         let (shell, args) = get_shell_config().await;
         assert!(!shell.is_empty());
-        assert!(!args.is_empty());
+        assert!(args.is_empty()); // No special args anymore to avoid shell issues
     }
 
     // ============================================================================
