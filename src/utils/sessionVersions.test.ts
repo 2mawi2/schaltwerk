@@ -304,5 +304,39 @@ describe('sessionVersions', () => {
       expect(mockInvoke).toHaveBeenCalledTimes(1) // 1 cancellation
       expect(mockReloadSessions).toHaveBeenCalledTimes(1)
     })
+
+    it('should keep selected version with its current name when it has a suffix', async () => {
+      const sessions = [
+        createMockSession('feature'),
+        createMockSession('feature_v2'),
+        createMockSession('feature_v3')
+      ]
+      const groups = groupSessionsByVersion(sessions)
+      const featureGroup = groups[0]
+
+      // Reset mocks to ensure clean state
+      mockInvoke.mockReset()
+      mockReloadSessions.mockReset()
+      mockInvoke.mockResolvedValue(undefined)
+      mockReloadSessions.mockResolvedValue(undefined)
+
+      await selectBestVersionAndCleanup(featureGroup, 'feature_v2', mockInvoke, mockReloadSessions)
+
+      // The selected version (feature_v2) should be kept with its current name
+      // since renaming running sessions is not supported by the backend
+      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_create_session', 
+        expect.objectContaining({
+          name: 'feature'
+        })
+      )
+      
+      // Should cancel all other versions except the selected one
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature' })
+      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v2' })
+      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v3' })
+      
+      expect(mockInvoke).toHaveBeenCalledTimes(2) // Only 2 cancellations (feature and feature_v3)
+      expect(mockReloadSessions).toHaveBeenCalledTimes(1)
+    })
   })
 })

@@ -110,9 +110,11 @@ export function groupSessionsByVersion(sessions: EnrichedSession[]): SessionVers
 /**
  * Selects the best version from a version group and cleans up the rest
  * This function:
- * 1. If selected version has a suffix, creates a new session with the base name and same properties
- * 2. Cancels all non-selected session versions (including the original selected one if renamed)  
- * 3. Reloads sessions to reflect changes
+ * 1. Cancels all non-selected session versions
+ * 2. Reloads sessions to reflect changes
+ * 
+ * Note: The selected version keeps its current name (e.g., feature_v2) as renaming
+ * running sessions is not supported by the backend.
  */
 export async function selectBestVersionAndCleanup(
   versionGroup: SessionVersionGroup,
@@ -132,8 +134,6 @@ export async function selectBestVersionAndCleanup(
 
   try {
     // Cancel all other versions (not the selected one)
-    // Note: We keep the selected version with its current name (e.g., base_v2)
-    // Renaming running sessions is not supported by the backend
     const versionsToCancel = versionGroup.versions.filter(v => 
       v.session.info.session_id !== selectedSessionId
     )
