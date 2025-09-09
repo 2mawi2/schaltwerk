@@ -105,6 +105,37 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
     }, []);
 
+    // Listen for force scroll events (e.g., after review comment paste)
+    useEffect(() => {
+        let unlistenForceScroll: UnlistenFn | null = null;
+        
+        const setupForceScrollListener = async () => {
+            try {
+                unlistenForceScroll = await listenEvent(SchaltEvent.TerminalForceScroll, (payload) => {
+                    // Only handle events for this specific terminal
+                    if (payload.terminal_id === terminalId && terminal.current) {
+                        logger.info(`[Terminal] Force scrolling terminal ${terminalId} to bottom`);
+                        try {
+                            terminal.current.scrollToBottom();
+                        } catch (error) {
+                            logger.warn(`[Terminal ${terminalId}] Failed to force scroll to bottom:`, error);
+                        }
+                    }
+                });
+            } catch (e) {
+                logger.error('[Terminal] Failed to set up force scroll listener:', e);
+            }
+        };
+        
+        setupForceScrollListener();
+        
+        return () => {
+            if (unlistenForceScroll) {
+                unlistenForceScroll();
+            }
+        };
+    }, [terminalId]);
+
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;

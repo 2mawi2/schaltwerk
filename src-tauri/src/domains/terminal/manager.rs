@@ -1,4 +1,5 @@
 use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_shell_binary};
+use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -230,6 +231,14 @@ impl TerminalManager {
         // Send Enter key (carriage return) as a separate, non-paste action
         let enter = b"\r";
         self.backend.write(&id, enter).await?;
+        
+        // Emit force scroll event to ensure terminal scrolls to bottom after pasting
+        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id });
+            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalForceScroll, &payload) {
+                warn!("Failed to emit terminal force scroll event for {id}: {e}");
+            }
+        }
         
         Ok(())
     }
