@@ -56,9 +56,13 @@ export function groupSessionsByVersion(sessions: EnrichedSession[]): SessionVers
     const versionNumber = parseVersionFromSessionName(sessionName)
     
     // If we have a display name, extract its base name for the group header
-    if (displayName && versionNumber !== null) {
+    // For version groups, we want to use the display name from any session in the group
+    if (displayName) {
       const displayBaseName = getBaseSessionName(displayName)
-      displayNameMap.set(baseName, displayBaseName)
+      // Only set if we don't already have a display name for this base, or if this is the base session
+      if (!displayNameMap.has(baseName) || versionNumber === null) {
+        displayNameMap.set(baseName, displayBaseName)
+      }
     }
     
     // If no version number, this is a standalone session (not part of a version group)

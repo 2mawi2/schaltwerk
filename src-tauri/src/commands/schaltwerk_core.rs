@@ -17,7 +17,7 @@ fn is_versioned_session_name(name: &str) -> bool {
 
 fn matches_version_pattern(name: &str, base_name: &str) -> bool {
     if let Some(suffix) = name.strip_prefix(&format!("{base_name}_v")) {
-        suffix.chars().all(|c| c.is_numeric())
+        !suffix.is_empty() && suffix.chars().all(|c| c.is_numeric())
     } else {
         false
     }
@@ -465,9 +465,14 @@ pub async fn schaltwerk_core_rename_version_group(app: tauri::AppHandle, base_na
     let all_sessions = manager.list_sessions()
         .map_err(|e| format!("Failed to list sessions: {e}"))?;
     
+    
     let version_sessions: Vec<Session> = all_sessions
         .into_iter()
-        .filter(|s| matches_version_pattern(&s.name, &base_name))
+        .filter(|s| {
+            // Match both the standard pattern (base, base_v2, base_v3) 
+            // and the alternative pattern (base_v1, base_v2, base_v3)
+            s.name == base_name || matches_version_pattern(&s.name, &base_name)
+        })
         .collect();
     
     if version_sessions.is_empty() {
