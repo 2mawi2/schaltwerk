@@ -695,11 +695,15 @@ export function TerminalGrid() {
                             if (!(showRunTab && index === 0)) {
                                 terminalTabsRef.current?.getTabFunctions().closeTab(terminalIndex)
                                 // Update state to reflect the change
-                                setTerminalTabsState(prev => ({
-                                    ...prev,
-                                    tabs: prev.tabs.filter(tab => tab.index !== terminalIndex),
-                                    activeTab: Math.max(0, prev.activeTab - (terminalIndex < prev.activeTab ? 1 : 0))
-                                }))
+                                setTerminalTabsState(prev => {
+                                    const newTabs = prev.tabs.filter(tab => tab.index !== terminalIndex)
+                                    return {
+                                        ...prev,
+                                        tabs: newTabs,
+                                        activeTab: Math.max(0, prev.activeTab - (terminalIndex < prev.activeTab ? 1 : 0)),
+                                        canAddTab: newTabs.length < 6 // Recalculate canAddTab based on remaining tabs
+                                    }
+                                })
                             }
                         }}
                         onTabAdd={() => {
