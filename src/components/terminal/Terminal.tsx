@@ -27,6 +27,7 @@ interface TerminalProps {
     agentType?: string;
     onTerminalClick?: () => void;
     isBackground?: boolean;
+    onReady?: () => void;
 }
 
 export interface TerminalHandle {
@@ -34,7 +35,7 @@ export interface TerminalHandle {
     showSearch: () => void;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick, isBackground = false }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick, isBackground = false, onReady }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver, addTimeout } = useCleanupRegistry();
     const termRef = useRef<HTMLDivElement>(null);
@@ -527,6 +528,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                   hydratedRef.current = true;
                   // Flush immediately to avoid dropping output on rapid remounts/tests
                   flushNow();
+                  
+                  // Call onReady callback if provided
+                  if (onReady) {
+                      onReady();
+                  }
                   
                   // After hydration, ensure a definitive fit+resize once layout/fonts are ready
                   const doHydrationFit = () => {
@@ -1127,8 +1133,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }
 
     return (
-        <div className={`h-full w-full relative ${className}`} onClick={handleTerminalClick}>
-            <div ref={termRef} className="h-full w-full" />
+        <div className={`h-full w-full relative overflow-hidden ${className}`} onClick={handleTerminalClick}>
+            <div ref={termRef} className="h-full w-full overflow-hidden" />
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
                     <AnimatedText

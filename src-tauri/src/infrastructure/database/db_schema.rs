@@ -252,6 +252,12 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         [],
     );
     
+    // Migration: Add run_script column for storing project run script configuration
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN run_script TEXT",
+        [],
+    );
+    
     // Create agent_binaries table for storing agent binary configurations
     conn.execute(
         "CREATE TABLE IF NOT EXISTS agent_binaries (

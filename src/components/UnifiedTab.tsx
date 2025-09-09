@@ -13,6 +13,8 @@ export interface UnifiedTabProps {
   className?: string
   title?: string
   style?: React.CSSProperties
+  isRunTab?: boolean
+  isRunning?: boolean
 }
 
 export function UnifiedTab({
@@ -25,7 +27,9 @@ export function UnifiedTab({
   disabled = false,
   className = '',
   title,
-  style
+  style,
+  isRunTab = false,
+  isRunning = false
 }: UnifiedTabProps) {
   const handleClick = (e: React.MouseEvent) => {
     if (disabled) return
@@ -67,23 +71,30 @@ export function UnifiedTab({
           : 'transparent',
         borderRight: `1px solid ${theme.colors.border.subtle}`,
         borderTop: isActive
-          ? `3px solid ${theme.colors.accent.blue.DEFAULT}`
+          ? isRunTab && isRunning
+            ? `3px solid ${theme.colors.accent.cyan.DEFAULT}`
+            : `3px solid ${theme.colors.accent.blue.DEFAULT}`
           : `3px solid transparent`,
         borderTopLeftRadius: isActive ? theme.borderRadius.md : '0',
         borderTopRightRadius: isActive ? theme.borderRadius.md : '0',
-        paddingLeft: theme.spacing.lg,
-        paddingRight: theme.spacing.lg,
-        paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.md,
-        fontSize: theme.fontSize.body,
+        paddingLeft: '16px',
+        paddingRight: '16px',
+        paddingTop: '6px',
+        paddingBottom: '6px',
+        fontSize: '0.875rem',
         fontWeight: isActive ? '600' : '500',
-        minWidth: '120px',
-        maxWidth: '220px',
+        minWidth: style?.minWidth || '80px',
+        maxWidth: style?.maxWidth || '150px',
         boxShadow: isActive
-          ? `0 4px 12px ${theme.colors.accent.blue.bg}, inset 0 1px 0 rgba(255, 255, 255, 0.1)`
+          ? isRunTab && isRunning
+            ? `0 2px 8px ${theme.colors.accent.cyan.bg}`
+            : `0 2px 8px ${theme.colors.accent.blue.bg}`
           : 'none',
-        backdropFilter: isActive ? 'blur(8px)' : 'none',
-        transform: isActive ? 'translateY(-1px)' : 'translateY(0)',
+        backdropFilter: isActive ? 'blur(4px)' : 'none',
+        transform: 'translateY(0)',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
         ...style,
       }}
       onClick={handleClick}
@@ -95,7 +106,9 @@ export function UnifiedTab({
         <div
           className="absolute inset-0 rounded-t-md opacity-20"
           style={{
-            background: `linear-gradient(135deg, ${theme.colors.accent.blue.bg} 0%, ${theme.colors.accent.blue.border} 100%)`,
+            background: isRunTab && isRunning
+              ? `linear-gradient(135deg, ${theme.colors.accent.cyan.bg} 0%, ${theme.colors.accent.cyan.border} 100%)`
+              : `linear-gradient(135deg, ${theme.colors.accent.blue.bg} 0%, ${theme.colors.accent.blue.border} 100%)`,
           }}
         />
       )}
@@ -110,7 +123,7 @@ export function UnifiedTab({
           <button
             onClick={handleClose}
             className={`
-              ml-3 w-6 h-6 flex items-center justify-center rounded-full transition-all duration-200
+              ml-2 w-4 h-4 flex items-center justify-center rounded-full transition-all duration-200
               ${isActive
                 ? 'text-slate-300 hover:text-white hover:bg-white/20 hover:scale-110'
                 : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-white hover:bg-slate-600/60 hover:scale-110'
@@ -118,7 +131,7 @@ export function UnifiedTab({
               active:scale-95
             `}
             style={{
-              fontSize: theme.fontSize.bodyLarge,
+              fontSize: '14px',
               backgroundColor: 'transparent',
               fontWeight: 'bold',
               lineHeight: 1,
@@ -138,7 +151,9 @@ export function UnifiedTab({
           ${isActive ? 'opacity-0' : 'opacity-0 group-hover:opacity-10'}
         `}
         style={{
-          backgroundColor: theme.colors.accent.blue.DEFAULT,
+          backgroundColor: isRunTab && isRunning
+            ? theme.colors.accent.cyan.DEFAULT
+            : theme.colors.accent.blue.DEFAULT,
         }}
       />
     </div>

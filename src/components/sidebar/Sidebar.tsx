@@ -23,6 +23,7 @@ import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { SpecModeState } from '../../hooks/useSpecMode'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
+import { useRun } from '../../contexts/RunContext'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -85,6 +86,7 @@ interface SidebarProps {
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject, specModeState, onSpecSelect }: SidebarProps) {
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
     const { setFocusForSession, setCurrentFocus } = useFocus()
+    const { isSessionRunning } = useRun()
     const { 
         sessions, 
         allSessions, 
@@ -1090,6 +1092,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         setSwitchOrchestratorModal(true)
                                     }}
                                     isResetting={isResetting}
+                                    isSessionRunning={isSessionRunning}
                                 />
                             )
                         })

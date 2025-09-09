@@ -2,6 +2,13 @@ import { forwardRef } from 'react'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
+import { 
+    canCloseTab, 
+    isRunTab,
+    getRunButtonIcon,
+    getRunButtonLabel,
+    getRunButtonTooltip
+} from './UnifiedBottomBar.logic'
 
 export interface TabInfo {
   index: number
@@ -20,6 +27,11 @@ export interface UnifiedBottomBarProps {
   canAddTab: boolean
   isFocused: boolean
   onBarClick: () => void
+  // Run Mode props
+  hasRunScripts?: boolean
+  isRunning?: boolean
+  onRunScript?: () => void
+  onConfigureRun?: () => void
 }
 
 export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps>(({
@@ -32,7 +44,11 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
   onTabAdd,
   canAddTab,
   isFocused,
-  onBarClick
+  onBarClick,
+  hasRunScripts = false,
+  isRunning = false,
+  onRunScript,
+  onConfigureRun: _onConfigureRun
 }, ref) => {
   return (
     <div
@@ -52,23 +68,30 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
       {!isCollapsed && (
         <div className="flex items-stretch flex-1 min-w-0">
           <div className="flex items-stretch overflow-x-auto scrollbar-hide">
-            {tabs.map((tab) => (
-              <UnifiedTab
-                key={tab.index}
-                id={tab.index}
-                label={tab.label}
-                isActive={tab.index === activeTab}
-                onSelect={() => onTabSelect(tab.index)}
-                onClose={tabs.length > 1 ? () => onTabClose(tab.index) : undefined}
-                onMiddleClick={tabs.length > 1 ? () => onTabClose(tab.index) : undefined}
-                showCloseButton={tabs.length > 1}
-                className="h-full"
-                style={{
-                  maxWidth: '150px',
-                  minWidth: '100px'
-                }}
-              />
-            ))}
+            {tabs.map((tab) => {
+              const runTab = isRunTab(tab)
+              const canClose = canCloseTab(tab, tabs)
+              
+              return (
+                <UnifiedTab
+                  key={tab.index}
+                  id={tab.index}
+                  label={tab.label}
+                  isActive={tab.index === activeTab}
+                  onSelect={() => onTabSelect(tab.index)}
+                  onClose={canClose ? () => onTabClose(tab.index) : undefined}
+                  onMiddleClick={canClose ? () => onTabClose(tab.index) : undefined}
+                  showCloseButton={canClose}
+                  className="h-full"
+                  style={{
+                    maxWidth: runTab ? '70px' : '150px',
+                    minWidth: runTab ? '60px' : '100px'
+                  }}
+                  isRunTab={runTab}
+                  isRunning={runTab && isRunning}
+                />
+              )
+            })}
             
             {canAddTab && (
               <button
@@ -76,42 +99,62 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                   e.stopPropagation()
                   onTabAdd()
                 }}
-                className="flex items-center justify-center w-14 h-full transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+                className="flex items-center justify-center w-12 h-full transition-all duration-200 hover:scale-105 active:scale-95"
                 style={{
                   color: theme.colors.text.tertiary,
                   borderRight: `1px solid ${theme.colors.border.subtle}`,
                   borderTop: `3px solid transparent`,
-                  fontSize: theme.fontSize.bodyLarge,
+                  fontSize: '16px',
                   backgroundColor: 'transparent',
                   fontWeight: '600',
-                  borderTopLeftRadius: theme.borderRadius.md,
-                  borderTopRightRadius: theme.borderRadius.md,
-                  paddingLeft: theme.spacing.md,
-                  paddingRight: theme.spacing.md,
+                  paddingLeft: '0',
+                  paddingRight: '0',
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.color = theme.colors.accent.blue.light
                   e.currentTarget.style.backgroundColor = theme.colors.accent.blue.bg
                   e.currentTarget.style.borderTopColor = theme.colors.accent.blue.DEFAULT
-                  e.currentTarget.style.boxShadow = `0 4px 12px ${theme.colors.accent.blue.bg}`
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.color = theme.colors.text.tertiary
                   e.currentTarget.style.backgroundColor = 'transparent'
                   e.currentTarget.style.borderTopColor = 'transparent'
-                  e.currentTarget.style.boxShadow = 'none'
                 }}
                 title="Add new terminal"
               >
-                <span className="text-lg font-bold leading-none">+</span>
+                <span className="text-base font-bold leading-none">+</span>
               </button>
             )}
           </div>
         </div>
       )}
 
-      {/* Right: Keyboard shortcut + Collapse button */}
+      {/* Right: Run button + Keyboard shortcut + Collapse button */}
       <div className="flex items-center ml-auto gap-1">
+        {/* Run/Stop Button */}
+        {hasRunScripts && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onRunScript?.()
+            }}
+            title={getRunButtonTooltip(isRunning)}
+            className={`px-1.5 py-1 flex items-center gap-0.5 rounded transition-colors text-xs ${
+              isRunning
+                ? isFocused
+                  ? 'bg-red-600/60 hover:bg-red-600/80 text-red-100'
+                  : 'bg-red-700/50 hover:bg-red-700/70 text-red-200'
+                : isFocused
+                  ? 'bg-cyan-600/60 hover:bg-cyan-600/80 text-cyan-100'
+                  : 'bg-cyan-700/50 hover:bg-cyan-700/70 text-cyan-200'
+            }`}
+          >
+            <span className="text-[11px]">{getRunButtonIcon(isRunning)}</span>
+            <span className="text-[11px] font-medium">{getRunButtonLabel(isRunning)}</span>
+            <span className="text-[9px] opacity-60 ml-0.5">⌘E</span>
+          </button>
+        )}
+        
         <span 
           className={`text-[10px] px-1.5 py-0.5 rounded transition-colors duration-200 ${
             isFocused

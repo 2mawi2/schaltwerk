@@ -25,7 +25,7 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions' | 'privacy' | 'version'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'run-scripts' | 'terminal' | 'sessions' | 'archives' | 'actions' | 'privacy' | 'version'
 
 interface DetectedBinary {
     path: string
@@ -96,6 +96,15 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
     {
+        id: 'run-scripts',
+        label: 'Run Scripts',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h1m4 0h1m-7 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+            </svg>
+        )
+    },
+    {
         id: 'terminal',
         label: 'Terminal',
         icon: (
@@ -147,6 +156,12 @@ interface ProjectSettings {
     environmentVariables: Array<{key: string, value: string}>
 }
 
+interface RunScript {
+    command: string
+    workingDirectory?: string
+    environmentVariables: Record<string, string>
+}
+
 interface TerminalSettings {
     shell: string | null
     shellArgs: string[]
@@ -173,6 +188,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
         auto_commit_on_review: false,
         skip_confirmation_modals: false
+    })
+    const [runScript, setRunScript] = useState<RunScript>({
+        command: '',
+        workingDirectory: '',
+        environmentVariables: {}
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
@@ -249,6 +269,22 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
+    const loadRunScript = useCallback(async (): Promise<RunScript> => {
+        try {
+            const result = await invoke<RunScript | null>('get_project_run_script')
+            if (result) {
+                return result
+            }
+        } catch (error) {
+            logger.info('Failed to load run script:', error)
+        }
+        return {
+            command: '',
+            workingDirectory: '',
+            environmentVariables: {}
+        }
+    }, [])
+    
     const normalizeCliText = (text: string): string => {
         return text
             .replace(/—/g, '--') // em dash → double hyphen
@@ -418,11 +454,13 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         // Load project-specific settings (may fail if no project is open)
         let loadedProjectSettings: ProjectSettings = { setupScript: '', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [] }
+        let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         
         try {
             const results = await Promise.allSettled([
                 loadProjectSettings(),
-                loadTerminalSettings()
+                loadTerminalSettings(),
+                loadRunScript()
             ])
             
             if (results[0].status === 'fulfilled') {
@@ -430,6 +468,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             }
             if (results[1].status === 'fulfilled') {
                 loadedTerminalSettings = results[1].value
+            }
+            if (results[2].status === 'fulfilled') {
+                loadedRunScript = results[2].value
             }
         } catch (error) {
             // Project settings not available (likely no project open) - use defaults
@@ -441,9 +482,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         setProjectSettings(loadedProjectSettings)
         setTerminalSettings(loadedTerminalSettings)
         setSessionPreferences(loadedSessionPreferences)
+        setRunScript(loadedRunScript)
         
         loadBinaryConfigs()
-    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadProjectSettings, loadTerminalSettings, loadBinaryConfigs])
+    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadProjectSettings, loadTerminalSettings, loadRunScript, loadBinaryConfigs])
 
     useEffect(() => {
         if (open) {
@@ -504,6 +546,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
     const handleSave = async () => {
         const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences)
+        
+        // Save run script
+        try {
+            await invoke('set_project_run_script', { runScript })
+            result.savedSettings.push('run script')
+        } catch (error) {
+            logger.info('Run script not saved - requires active project', error)
+        }
         
         // Save action buttons if they've been modified
         if (hasUnsavedChanges) {
@@ -1813,6 +1863,47 @@ fi`}
         )
     }
 
+    const renderRunScriptsSettings = () => (
+        <div className="flex flex-col h-full">
+            <div className="flex-1 overflow-y-auto p-6">
+                <div className="space-y-6">
+                    <div>
+                        <h3 className="text-sm font-medium text-slate-200 mb-2">Run Script</h3>
+                        <div className="text-sm text-slate-400 mb-4">Run tests or a development server to test changes in a workspace.</div>
+                        
+                        <div className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Command
+                                </label>
+                                <input
+                                    type="text"
+                                    value={runScript.command}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
+                                    placeholder="just test"
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                            
+                            <div>
+                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                    Working Directory (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={runScript.workingDirectory || ''}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value || undefined }))}
+                                    placeholder="Leave empty to use project root"
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+
     const renderVersionSettings = () => (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
@@ -1846,6 +1937,8 @@ fi`}
                 return renderEnvironmentSettings()
             case 'projects':
                 return renderProjectSettings()
+            case 'run-scripts':
+                return renderRunScriptsSettings()
             case 'terminal':
                 return renderTerminalSettings()
             case 'sessions':

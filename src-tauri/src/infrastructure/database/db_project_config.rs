@@ -28,6 +28,16 @@ pub struct HeaderActionConfig {
     pub color: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct RunScript {
+    pub command: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub working_directory: Option<String>,
+    #[serde(default)]
+    pub environment_variables: HashMap<String, String>,
+}
+
     pub trait ProjectConfigMethods {
         fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;
         fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()>;
@@ -39,6 +49,8 @@ pub struct HeaderActionConfig {
         fn set_project_environment_variables(&self, repo_path: &Path, env_vars: &HashMap<String, String>) -> Result<()>;
         fn get_project_action_buttons(&self, repo_path: &Path) -> Result<Vec<HeaderActionConfig>>;
         fn set_project_action_buttons(&self, repo_path: &Path, actions: &[HeaderActionConfig]) -> Result<()>;
+        fn get_project_run_script(&self, repo_path: &Path) -> Result<Option<RunScript>>;
+        fn set_project_run_script(&self, repo_path: &Path, run_script: &RunScript) -> Result<()>;
     }
 
     impl ProjectConfigMethods for Database {
@@ -273,6 +285,47 @@ pub struct HeaderActionConfig {
                 VALUES (?1, ?2, ?3, ?4)
                 ON CONFLICT(repository_path) DO UPDATE SET
                     action_buttons = excluded.action_buttons,
+                    updated_at = excluded.updated_at",
+                params![canonical_path.to_string_lossy(), json_str, now, now],
+            )?;
+            
+            Ok(())
+        }
+        
+        fn get_project_run_script(&self, repo_path: &Path) -> Result<Option<RunScript>> {
+            let conn = self.conn.lock().unwrap();
+            
+            let canonical_path = std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+            
+            let query_res: rusqlite::Result<Option<String>> = conn.query_row(
+                "SELECT run_script FROM project_config WHERE repository_path = ?1",
+                params![canonical_path.to_string_lossy()],
+                |row| row.get(0),
+            );
+            
+            match query_res {
+                Ok(Some(json_str)) => {
+                    let run_script: RunScript = serde_json::from_str(&json_str)?;
+                    Ok(Some(run_script))
+                }
+                Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e.into()),
+            }
+        }
+        
+        fn set_project_run_script(&self, repo_path: &Path, run_script: &RunScript) -> Result<()> {
+            let conn = self.conn.lock().unwrap();
+            let now = Utc::now().timestamp();
+            
+            let canonical_path = std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+            
+            let json_str = serde_json::to_string(run_script)?;
+            
+            conn.execute(
+                "INSERT INTO project_config (repository_path, run_script, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4)
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    run_script = excluded.run_script,
                     updated_at = excluded.updated_at",
                 params![canonical_path.to_string_lossy(), json_str, now, now],
             )?;

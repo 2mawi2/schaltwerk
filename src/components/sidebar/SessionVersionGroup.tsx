@@ -26,6 +26,7 @@ interface SessionVersionGroupProps {
   isResetting?: boolean
   isInSpecMode?: boolean  // Optional: whether we're in spec mode
   currentSpecId?: string | null  // Optional: current spec selected in spec mode
+  isSessionRunning?: (sessionId: string) => boolean  // Function to check if a session is running
 }
 
 export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
@@ -46,7 +47,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   onSwitchModel,
   isResetting,
   isInSpecMode,
-  currentSpecId
+  currentSpecId,
+  isSessionRunning
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPreviewingDeletion, setIsPreviewingDeletion] = useState(false)
@@ -77,6 +79,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         onReset={onReset}
         onSwitchModel={onSwitchModel}
         isResetting={isResetting}
+        isRunning={isSessionRunning?.(session.session.info.session_id) || false}
       />
     )
   }
@@ -248,6 +251,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                   onReset={onReset}
                   onSwitchModel={onSwitchModel}
                   isResetting={isResetting}
+                  isRunning={isSessionRunning?.(version.session.info.session_id) || false}
                       />
                     </div>
                   )

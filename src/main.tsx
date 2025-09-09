@@ -6,6 +6,7 @@ import { EntryAnimation } from './components/EntryAnimation'
 import { SelectionProvider } from './contexts/SelectionContext'
 import { FocusProvider } from './contexts/FocusContext'
 import { ReviewProvider } from './contexts/ReviewContext'
+import { RunProvider } from './contexts/RunContext'
 import { ProjectProvider } from './contexts/ProjectContext'
 import { FontSizeProvider } from './contexts/FontSizeContext'
 import { SessionsProvider } from './contexts/SessionsContext'
@@ -38,9 +39,11 @@ const AppLoader: React.FC = () => {
                 <SelectionProvider>
                   <FocusProvider>
                     <ReviewProvider>
-                      <div className="h-screen w-screen">
-                        <App />
-                      </div>
+                      <RunProvider>
+                        <div className="h-screen w-screen">
+                          <App />
+                        </div>
+                      </RunProvider>
                     </ReviewProvider>
                   </FocusProvider>
                 </SelectionProvider>

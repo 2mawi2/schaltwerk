@@ -7,7 +7,7 @@ use crate::{
 };
 use schaltwerk::domains::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences, SessionPreferences};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
-use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig};
+use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig, RunScript};
 
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
@@ -387,6 +387,38 @@ pub async fn set_tutorial_completed(completed: bool) -> Result<(), String> {
     let core = schaltwerk_core.lock().await;
     core.db.set_tutorial_completed(completed)
         .map_err(|e| format!("Failed to set tutorial completion status: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_project_run_script() -> Result<Option<RunScript>, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.schaltwerk_core.lock().await;
+    let db = core.database();
+
+    db.get_project_run_script(&project.path)
+        .map_err(|e| format!("Failed to get project run script: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_project_run_script(run_script: RunScript) -> Result<(), String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.schaltwerk_core.lock().await;
+    let db = core.database();
+
+    db.set_project_run_script(&project.path, &run_script)
+        .map_err(|e| format!("Failed to set project run script: {e}"))
 }
 
 #[cfg(test)]

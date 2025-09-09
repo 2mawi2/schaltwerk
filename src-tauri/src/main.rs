@@ -750,6 +750,8 @@ fn main() {
             set_project_environment_variables,
             get_project_action_buttons,
             set_project_action_buttons,
+            get_project_run_script,
+            set_project_run_script,
             get_tutorial_completed,
             set_tutorial_completed,
             // Agent binary commands

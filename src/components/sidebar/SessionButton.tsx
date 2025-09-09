@@ -31,6 +31,7 @@ interface SessionButtonProps {
     onReset?: (sessionId: string) => void
     onSwitchModel?: (sessionId: string) => void
     isResetting?: boolean
+    isRunning?: boolean
 }
 
 function getSessionStateColor(state?: string): 'green' | 'violet' | 'amber' | 'gray' {
@@ -66,7 +67,8 @@ export const SessionButton = memo<SessionButtonProps>(({
     onPromoteVersionHoverEnd,
     onReset,
     onSwitchModel,
-    isResetting = false
+    isResetting = false,
+    isRunning = false
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
@@ -125,7 +127,9 @@ export const SessionButton = memo<SessionButtonProps>(({
                 hasStuckTerminals && !isSelected &&
                     'ring-2 ring-amber-400/50 shadow-lg shadow-amber-400/20 bg-amber-950/20',
                 hasFollowUpMessage && !isSelected &&
-                    'ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20'
+                    'ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20',
+                isRunning && !isSelected &&
+                    'ring-2 ring-cyan-500/50 shadow-lg shadow-cyan-500/20 bg-cyan-950/20'
             )}
             title={isSelected 
                 ? `Selected session • Diff: ⌘G • Cancel: ⌘D (⇧⌘D force) • Mark Reviewed: ⌘R` 
