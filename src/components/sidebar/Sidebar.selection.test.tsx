@@ -41,7 +41,7 @@ describe('Sidebar - Selection on State Changes', () => {
         localStorage.clear()
     })
 
-    it('selects first visible session when current selection disappears due to filter', async () => {
+  it('selects first visible session when current selection disappears due to filter', async () => {
         const draftSession = mockDraftSession('spec-agent')
         const runningSession1 = mockEnrichedSession('running-agent-1', 'active', false)
         const runningSession2 = mockEnrichedSession('running-agent-2', 'active', false)
@@ -66,7 +66,9 @@ describe('Sidebar - Selection on State Changes', () => {
                 return { filter_mode: 'all', sort_mode: 'name' }
             }
             return undefined
-        })
+  })
+
+  
 
         render(<TestProviders><Sidebar /></TestProviders>)
 

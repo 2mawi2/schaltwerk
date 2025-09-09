@@ -660,7 +660,19 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             sessionState: nextSession ? mapSessionUiState(nextSession.info) : undefined
                         }, false, false) // Fallback - not intentional
                     } else {
-                        await setSelection({ kind: 'orchestrator' }, false, false) // Fallback - not intentional
+                        // If the removed item is already gone from the list due to event timing,
+                        // select the first visible item under the current filter, if any
+                        const firstVisible = latestSortedSessionsRef.current[0]
+                        if (firstVisible) {
+                            await setSelection({
+                                kind: 'session',
+                                payload: firstVisible.info.session_id,
+                                worktreePath: firstVisible.info.worktree_path,
+                                sessionState: mapSessionUiState(firstVisible.info)
+                            }, false, false)
+                        } else {
+                            await setSelection({ kind: 'orchestrator' }, false, false) // No items left
+                        }
                     }
                 }
             })

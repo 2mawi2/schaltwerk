@@ -77,7 +77,6 @@ export default function App() {
     commanderSpecModeSession, 
     setCommanderSpecModeSession, 
     handleExitSpecMode, 
-    handleSpecDeleted, 
     handleSpecConverted, 
     toggleSpecMode,
     specModeState
@@ -615,12 +614,7 @@ export default function App() {
       setIsCancelling(true)
       await invoke('schaltwerk_core_archive_spec_session', { name: currentSession.name })
       setDeleteSpecModalOpen(false)
-      
-      // If the deleted spec was the current spec mode session, exit spec mode
-      handleSpecDeleted(currentSession.name)
-      
-      // Reload sessions to update the list
-      await invoke('schaltwerk_core_list_enriched_sessions')
+      // No manual selection here; SessionRemoved + SessionsRefreshed will drive next focus
     } catch (error) {
       logger.error('Failed to delete spec:', error)
       alert(`Failed to delete spec: ${error}`)

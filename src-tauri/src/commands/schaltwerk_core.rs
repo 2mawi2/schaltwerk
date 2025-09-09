@@ -204,6 +204,10 @@ pub async fn schaltwerk_core_archive_spec_session(app: tauri::AppHandle, name: S
     let repo = core.repo_path.to_string_lossy().to_string();
     let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
     let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
+    // Also emit a SessionRemoved event so the frontend can compute the next selection consistently
+    #[derive(serde::Serialize, Clone)]
+    struct SessionRemovedPayload { session_name: String }
+    let _ = emit_event(&app, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name.clone() });
     let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<EnrichedSession>::new());
     Ok(())
 }
@@ -646,6 +650,10 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
     if is_spec {
         // Emit events for spec archive and UI refresh, close terminals if any, then return early
         let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo_path_str, "count": archive_count_after_opt.unwrap_or(0)}));
+        // Ensure frontend selection logic runs consistently by emitting SessionRemoved for specs too
+        #[derive(serde::Serialize, Clone)]
+        struct SessionRemovedPayload { session_name: String }
+        let _ = emit_event(&app, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name.clone() });
         if let Ok(core) = get_schaltwerk_core().await {
             let core = core.lock().await;
             let manager = core.session_manager();
@@ -1411,6 +1419,11 @@ pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: Str
     manager.start_spec_session(&name, base_branch.as_deref())
         .map_err(|e| format!("Failed to start spec session: {e}"))?;
     
+    // Emit selection event for consistent focus on the started session
+    #[derive(serde::Serialize, Clone)]
+    struct SelectionPayload { kind: &'static str, payload: String, session_state: &'static str }
+    let _ = emit_event(&app, SchaltEvent::Selection, &SelectionPayload { kind: "session", payload: name.clone(), session_state: "running" });
+
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after starting spec session");
