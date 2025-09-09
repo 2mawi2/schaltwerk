@@ -1,5 +1,5 @@
 export type MockFn = {
-  (...args: any[]): any
+  (...args: any[]): unknown
   mock?: {
     calls: any[][]
     results: any[]

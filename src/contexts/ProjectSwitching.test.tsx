@@ -7,6 +7,7 @@ import { FocusProvider } from './FocusContext'
 import { FontSizeProvider } from './FontSizeContext'
 import { SessionsProvider } from './SessionsContext'
 import React from 'react'
+import { MockTauriInvokeArgs } from '../types/testing'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -41,7 +42,7 @@ describe('Project Switching Selection Behavior', () => {
         vi.clearAllMocks()
         
         // Setup default mocks
-        mockInvoke.mockImplementation((command: string, args?: any) => {
+        mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
             switch (command) {
                 case 'get_current_directory':
                     return Promise.resolve('/test/cwd')

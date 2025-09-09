@@ -370,7 +370,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
 
     // Organize sessions into columns
     const sessionsByColumn = useMemo(() => {
-        const columns = organizeSessionsByColumn(allSessions || [] as any)
+        const columns = organizeSessionsByColumn((allSessions || []) as any)
         sessionsByColumnRef.current = columns as unknown as EnrichedSession[][]
         return columns as unknown as EnrichedSession[][]
     }, [allSessions])

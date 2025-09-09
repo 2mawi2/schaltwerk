@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
+import { MockTauriInvokeArgs } from '../../types/testing'
 
 // ---- Mocks (must be declared before importing the component) ----
 
@@ -188,7 +189,7 @@ beforeEach(() => {
   // Don't clear focusSpies here - let components register them after mounting
   vi.clearAllMocks()
 
-  mockInvoke.mockImplementation((command: string, args?: any) => {
+  mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
     switch (command) {
       case 'get_current_directory':
         return Promise.resolve('/test/cwd')

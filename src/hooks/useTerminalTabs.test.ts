@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, MockedFunction, afterEach } from 
 import { renderHook, act } from '@testing-library/react'
 import { useTerminalTabs } from './useTerminalTabs'
 import { invoke } from '@tauri-apps/api/core'
+import { MockTauriInvokeArgs } from '../types/testing'
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -208,7 +209,7 @@ describe('useTerminalTabs', () => {
 
   describe('terminal creation logic', () => {
     it('creates terminal when it does not exist', async () => {
-      mockInvoke.mockImplementation((command: string, args?: any) => {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
         if (command === 'terminal_exists') {
           return Promise.resolve(false)
         }
@@ -582,7 +583,7 @@ describe('useTerminalTabs', () => {
 
   describe('initial terminal creation', () => {
     it('creates initial terminal on mount when it does not exist', async () => {
-      mockInvoke.mockImplementation((command: string, args?: any) => {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
         if (command === 'terminal_exists') {
           return Promise.resolve(false)
         }

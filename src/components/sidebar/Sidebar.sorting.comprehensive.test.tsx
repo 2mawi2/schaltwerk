@@ -8,6 +8,8 @@ import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
+import { EnrichedSession } from '../../types/session'
+import { MockTauriInvokeArgs } from '../../types/testing'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -26,36 +28,7 @@ vi.mock('../../contexts/ProjectContext', async () => {
   }
 })
 
-interface SessionInfo {
-  session_id: string
-  display_name?: string
-  branch: string
-  worktree_path: string
-  base_branch: string
-  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-  created_at?: string
-  last_modified?: string
-  has_uncommitted_changes?: boolean
-  is_current: boolean
-  session_type: 'worktree' | 'container'
-  container_status?: string
-  current_task?: string
-  todo_percentage?: number
-  is_blocked?: boolean
-  diff_stats?: {
-    files_changed: number
-    additions: number
-    deletions: number
-    insertions: number
-  }
-  ready_to_merge?: boolean
-}
 
-interface EnrichedSession {
-  info: SessionInfo
-  status?: any
-  terminals: string[]
-}
 
 const createSession = (id: string, lastModified?: string, createdAt?: string, readyToMerge = false): EnrichedSession => ({
   info: {
@@ -63,12 +36,13 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
     branch: `para/${id}`,
     worktree_path: `/path/${id}`,
     base_branch: 'main',
-    status: 'active',
+    status: 'active' as const,
     created_at: createdAt,
     last_modified: lastModified,
     has_uncommitted_changes: false,
     is_current: false,
-    session_type: 'worktree',
+    session_type: 'worktree' as const,
+    session_state: readyToMerge ? 'reviewed' as const : 'running' as const,
     ready_to_merge: readyToMerge
   },
   terminals: []
@@ -106,21 +80,21 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('beta_session', '2024-01-20T10:00:00Z')
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info?.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
         }
         if (mode === 'last-edited') {
           return [...sessions].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            const aT = a.info?.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info?.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
         }
@@ -168,21 +142,21 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('new_session', '2024-01-05T10:00:00Z', '2024-01-02T10:00:00Z')     // Created Jan 2, 2024 - newest
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info?.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
         }
         if (mode === 'last-edited') {
           return [...sessions].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            const aT = a.info?.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info?.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
         }
@@ -238,21 +212,21 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('session_c', '2024-01-15T10:00:00Z')  // Edited Jan 15 (middle edit)
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info?.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
         }
         if (mode === 'last-edited') {
           return [...sessions].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            const aT = a.info?.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info?.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
         }
@@ -310,38 +284,38 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('reviewed_zebra', '2024-01-05T10:00:00Z', '2024-01-04T10:00:00Z', true)    // reviewed, oldest
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
-        const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const specs = sessions.filter(s => (s.info as any).session_state === 'spec')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'spec')
-        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
+        const specs = sessions.filter(s => s.info?.session_state === 'spec')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info?.session_state !== 'spec')
+        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         if (mode === 'created') {
           // created: newest first among unreviewed, then reviewed (alpha), then specs (alpha)
-          const withTs = unreviewed.filter(s => !!s.info.created_at)
-          const without = unreviewed.filter(s => !s.info.created_at).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const withTs = unreviewed.filter(s => !!s.info?.created_at)
+          const without = unreviewed.filter(s => !s.info?.created_at).sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
           withTs.sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info?.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
-          const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const draftsSorted = specs.sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
           return [...withTs, ...without, ...reviewed, ...draftsSorted]
         }
         if (mode === 'last-edited') {
           const sortedUnreviewed = [...unreviewed].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            const aT = a.info?.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info?.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
-          const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          const draftsSorted = specs.sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
           return [...sortedUnreviewed, ...reviewed, ...draftsSorted]
         }
         // name mode: unreviewed (alpha), then reviewed (alpha), then specs (alpha)
-        const unrevAlpha = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const unrevAlpha = [...unreviewed].sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
+        const draftsSorted = specs.sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         return [...unrevAlpha, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'get_current_directory') return '/test/dir'
@@ -408,29 +382,29 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
       createSession('no_timestamp_alpha')                                         // No timestamp
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || 'name'
-        const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const specs = sessions.filter(s => (s.info as any).session_state === 'spec')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && (s.info as any).session_state !== 'spec')
-        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        let sorted: any[]
+        const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
+        const specs = sessions.filter(s => s.info?.session_state === 'spec')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info?.session_state !== 'spec')
+        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
+        let sorted: EnrichedSession[]
         if (mode === 'created') {
           sorted = [...unreviewed].sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info?.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
         } else if (mode === 'last-edited') {
           sorted = [...unreviewed].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            const aT = a.info?.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info?.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
         } else {
-          sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          sorted = [...unreviewed].sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         }
         // Order: unreviewed first (by current mode) then reviewed (alpha), then specs (alpha)
         const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))

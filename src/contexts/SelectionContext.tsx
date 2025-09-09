@@ -33,7 +33,7 @@ const SelectionContext = createContext<SelectionContextType | null>(null)
 
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
-    const { terminalFontSize } = useFontSize()
+    const { terminalFontSize: _terminalFontSize } = useFontSize()
     const { setCurrentSelection, filterMode } = useSessions()
     const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({
@@ -128,7 +128,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         } finally {
             creationLock.current.delete(id)
         }
-    }, [terminalFontSize])
+    }, [])
     
     // Ensure terminals exist for a selection
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
@@ -385,7 +385,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Stay on current selection if we fail
             setIsReady(true)
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection])
 
     // React to backend session refreshes (e.g., spec -> running)
     useEffect(() => {

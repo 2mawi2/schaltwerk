@@ -137,13 +137,18 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
         }
     }, [open, currentStep])
 
+    const handleComplete = useCallback(() => {
+        onComplete()
+        onClose()
+    }, [onComplete, onClose])
+
     const handleNext = useCallback(() => {
         if (isLastStep) {
             handleComplete()
         } else {
             setCurrentStep(prev => prev + 1)
         }
-    }, [isLastStep])
+    }, [isLastStep, handleComplete])
 
     const handlePrevious = useCallback(() => {
         if (currentStep > 0) {
@@ -170,11 +175,6 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [open, currentStep, isLastStep, handleNext, handlePrevious, onClose])
-
-    const handleComplete = () => {
-        onComplete()
-        onClose()
-    }
 
     const handleSkip = () => {
         onComplete()

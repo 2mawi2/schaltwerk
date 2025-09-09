@@ -10,6 +10,8 @@ import { SessionsProvider } from '../../contexts/SessionsContext'
 import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { EnrichedSession } from '../../types/session'
+import { MockTauriInvokeArgs } from '../../types/testing'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -28,36 +30,7 @@ vi.mock('../../contexts/ProjectContext', async () => {
   }
 })
 
-interface SessionInfo {
-  session_id: string
-  display_name?: string
-  branch: string
-  worktree_path: string
-  base_branch: string
-  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-  created_at?: string
-  last_modified?: string
-  has_uncommitted_changes?: boolean
-  is_current: boolean
-  session_type: 'worktree' | 'container'
-  container_status?: string
-  current_task?: string
-  todo_percentage?: number
-  is_blocked?: boolean
-  diff_stats?: {
-    files_changed: number
-    additions: number
-    deletions: number
-    insertions: number
-  }
-  ready_to_merge?: boolean
-}
 
-interface EnrichedSession {
-  info: SessionInfo
-  status?: any
-  terminals: string[]
-}
 
 const createSession = (id: string, lastModified?: string, createdAt?: string, readyToMerge = false): EnrichedSession => ({
   info: {
@@ -65,12 +38,13 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
     branch: `para/${id}`,
     worktree_path: `/path/${id}`,
     base_branch: 'main',
-    status: 'active',
+    status: 'active' as const,
     created_at: createdAt,
     last_modified: lastModified,
     has_uncommitted_changes: false,
     is_current: false,
-    session_type: 'worktree',
+    session_type: 'worktree' as const,
+    session_state: readyToMerge ? 'reviewed' as const : 'running' as const,
     ready_to_merge: readyToMerge
   },
   terminals: []
@@ -112,7 +86,7 @@ describe('Sidebar sort mode persistence', () => {
       createSession('test_session_c', '2024-01-20T10:00:00Z', '2023-12-31T10:00:00Z')
     ]
 
-    vi.mocked(invoke).mockImplementation(async (cmd, args?: any) => {
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || SortMode.Name
@@ -261,7 +235,7 @@ describe('Sidebar sort mode persistence', () => {
 
   it('should handle backend initialization errors gracefully', async () => {
     // Test that invalid backend values are handled gracefully
-    savedSortMode = 'invalid-sort-mode' as any
+    savedSortMode = 'invalid-sort-mode' as string
 
     renderWithProviders(<Sidebar />)
 
@@ -341,7 +315,7 @@ describe('Sidebar sort mode persistence', () => {
 
   it('should ignore invalid backend values and use default', async () => {
     // Pre-populate backend with invalid value
-    savedSortMode = 'invalid-mode' as any
+    savedSortMode = 'invalid-mode' as string
 
     renderWithProviders(<Sidebar />)
 

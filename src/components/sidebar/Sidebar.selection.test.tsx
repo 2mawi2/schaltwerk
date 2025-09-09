@@ -1,6 +1,7 @@
 import React from 'react'
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
 import { invoke } from '@tauri-apps/api/core'
 import { SelectionProvider } from '../../contexts/SelectionContext'
@@ -10,6 +11,7 @@ import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { RunProvider } from '../../contexts/RunContext'
 import { mockEnrichedSession, mockDraftSession } from '../../test-utils/sessionMocks'
+import { MockTauriInvokeArgs } from '../../types/testing'
 
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn()
@@ -27,10 +29,10 @@ vi.mock('../../contexts/ProjectContext', async () => {
     }
 })
 
-let sessionRefreshCallback: ((event: any) => void) | null = null
+let sessionRefreshCallback: ((event: Event<unknown>) => void) | null = null
 
 vi.mock('@tauri-apps/api/event', () => ({
-    listen: vi.fn().mockImplementation((eventName: string, callback: (event: any) => void) => {
+    listen: vi.fn().mockImplementation((eventName: string, callback: (event: Event<unknown>) => void) => {
         if (eventName === 'schaltwerk:sessions-refreshed') {
             sessionRefreshCallback = callback
         }
@@ -66,7 +68,7 @@ describe('Sidebar - Selection on State Changes', () => {
         const runningSession2 = mockEnrichedSession('running-agent-2', 'active', false)
 
         // Start with a spec and two running sessions
-        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [draftSession, runningSession1, runningSession2]
             }
@@ -124,7 +126,7 @@ describe('Sidebar - Selection on State Changes', () => {
         const draftSession = mockDraftSession('spec-agent')
 
         // Start with only a spec session
-        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [draftSession]
             }
@@ -222,7 +224,7 @@ describe('Sidebar - Selection on State Changes', () => {
         // Trigger session refresh event
         if (sessionRefreshCallback) {
             await act(async () => {
-                await sessionRefreshCallback!({ payload: [reviewedSession] })
+                await sessionRefreshCallback!({ event: 'schaltwerk:sessions-refreshed', id: 1, payload: [reviewedSession] } as Event<unknown>)
             })
         }
 
@@ -238,7 +240,7 @@ describe('Sidebar - Selection on State Changes', () => {
         const runningTask = mockEnrichedSession('running-agent', 'active', false)
 
         // Start with a spec and a running session
-        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: any) => {
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
             if (cmd === 'schaltwerk_core_list_enriched_sessions') {
                 return [specAgent, runningTask]
             }

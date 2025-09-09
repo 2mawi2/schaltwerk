@@ -10,6 +10,8 @@ import { SessionsProvider } from '../../contexts/SessionsContext'
 import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
+import { EnrichedSession } from '../../types/session'
+import { MockTauriInvokeArgs } from '../../types/testing'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -28,36 +30,7 @@ vi.mock('../../contexts/ProjectContext', async () => {
   }
 })
 
-interface SessionInfo {
-  session_id: string
-  display_name?: string
-  branch: string
-  worktree_path: string
-  base_branch: string
-  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-  created_at?: string
-  last_modified?: string
-  has_uncommitted_changes?: boolean
-  is_current: boolean
-  session_type: 'worktree' | 'container'
-  container_status?: string
-  current_task?: string
-  todo_percentage?: number
-  is_blocked?: boolean
-  diff_stats?: {
-    files_changed: number
-    additions: number
-    deletions: number
-    insertions: number
-  }
-  ready_to_merge?: boolean
-}
 
-interface EnrichedSession {
-  info: SessionInfo
-  status?: any
-  terminals: string[]
-}
 
 const createSession = (id: string, lastModified?: string, createdAt?: string, readyToMerge = false): EnrichedSession => ({
   info: {
@@ -71,7 +44,8 @@ const createSession = (id: string, lastModified?: string, createdAt?: string, re
     has_uncommitted_changes: false,
     is_current: false,
     session_type: 'worktree',
-    ready_to_merge: readyToMerge
+    ready_to_merge: readyToMerge,
+    session_state: readyToMerge ? 'reviewed' : 'running'
   },
   terminals: []
 })
@@ -105,33 +79,33 @@ describe('Sidebar sorting functionality', () => {
     savedSortMode = SortMode.Name
   })
   
-  const createInvokeMock = (sessions: any[]) => {
-    return async (cmd: string, args?: any) => {
+  const createInvokeMock = (sessions: EnrichedSession[]) => {
+    return async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
         const mode = args?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
-        const isReviewed = (s: any) => !!s.info.ready_to_merge
-        const specs = sessions.filter(s => s.info.session_state === 'spec')
-        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info.session_state !== 'spec')
-        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
-        let sorted: any[] = []
+        const isReviewed = (s: EnrichedSession) => !!s.info.ready_to_merge
+        const specs = sessions.filter(s => s.info?.session_state === 'spec')
+        const unreviewed = sessions.filter(s => !isReviewed(s) && s.info?.session_state !== 'spec')
+        const reviewed = sessions.filter(s => isReviewed(s)).sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
+        let sorted: EnrichedSession[] = []
         if (mode === SortMode.Created) {
           sorted = [...unreviewed].sort((a, b) => {
-            const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
-            const bT = b.info.created_at ? Date.parse(b.info.created_at) : 0
+            const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
+            const bT = b.info?.created_at ? Date.parse(b.info.created_at) : 0
             return bT - aT
           })
         } else if (mode === SortMode.LastEdited) {
           sorted = [...unreviewed].sort((a, b) => {
-            const aT = a.info.last_modified ? Date.parse(a.info.last_modified) : 0
-            const bT = b.info.last_modified ? Date.parse(b.info.last_modified) : 0
+            const aT = a.info?.last_modified ? Date.parse(a.info.last_modified) : 0
+            const bT = b.info?.last_modified ? Date.parse(b.info.last_modified) : 0
             return bT - aT
           })
         } else {
-          sorted = [...unreviewed].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+          sorted = [...unreviewed].sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         }
-        const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
+        const draftsSorted = specs.sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
       if (cmd === 'schaltwerk_core_list_sessions_by_state') return []

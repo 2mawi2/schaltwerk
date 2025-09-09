@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { ReactNode, useEffect } from 'react'
+import { MockTauriInvokeArgs } from '../types/testing'
 
 // Mock Tauri APIs BEFORE importing provider modules
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -48,7 +49,7 @@ describe('SelectionContext', () => {
     localStorage.clear()
     
     // Setup default mocks
-    mockInvoke.mockImplementation((command: string, args?: any) => {
+    mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       switch (command) {
         case 'get_current_directory':
           return Promise.resolve('/test/cwd')
@@ -182,7 +183,7 @@ describe('SelectionContext', () => {
 
     it('should use worktree path when provided for session', async () => {
       // Mock specific session data to return the custom path
-      mockInvoke.mockImplementation((command: string, args?: any) => {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
         switch (command) {
           case 'schaltwerk_core_get_session':
             if (args?.name === 'test-session') {
@@ -299,7 +300,7 @@ describe('SelectionContext', () => {
     })
 
     it('should not create terminals that already exist', async () => {
-      mockInvoke.mockImplementation((command: string, args?: any) => {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
         switch (command) {
           case 'terminal_exists':
             if (args?.id === 'session-test-top') {
@@ -360,7 +361,7 @@ describe('SelectionContext', () => {
       let createTerminalCalls = 0
       const createdTerminals = new Set<string>()
       
-      mockInvoke.mockImplementation((command: string, args?: any) => {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
         switch (command) {
           case 'create_terminal':
             if (!createdTerminals.has(args?.id)) {

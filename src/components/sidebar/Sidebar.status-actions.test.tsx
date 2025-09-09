@@ -25,13 +25,9 @@ vi.mock('../../contexts/ProjectContext', async () => {
 })
 
 import { invoke } from '@tauri-apps/api/core'
+import { EnrichedSession } from '../../types/session'
 import { listen } from '@tauri-apps/api/event'
 
-interface EnrichedSession {
-  info: any
-  status?: any
-  terminals: string[]
-}
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(
@@ -53,8 +49,8 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('Sidebar status indicators and actions', () => {
   const sessions: EnrichedSession[] = [
-    { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false }, terminals: [] },
-    { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: true }, terminals: [] },
+    { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, session_state: 'running' }, terminals: [] },
+    { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: true, session_state: 'reviewed' }, terminals: [] },
   ]
 
   let unlistenFns: Array<() => void> = []
@@ -127,7 +123,7 @@ describe('Sidebar status indicators and actions', () => {
     const cancelBtn = screen.getAllByTitle(/Cancel session/)[0]
 
     const eventSpy = vi.fn()
-    window.addEventListener('schaltwerk:session-action', eventSpy as any, { once: true })
+    window.addEventListener('schaltwerk:session-action', eventSpy as EventListener, { once: true })
 
     fireEvent.click(cancelBtn)
 

@@ -31,7 +31,9 @@ vi.mock('../../contexts/ProjectContext', async () => {
 })
 
 import { invoke } from '@tauri-apps/api/core'
+import { EnrichedSession, SessionInfo } from '../../types/session'
 import { listen } from '@tauri-apps/api/event'
+import type { Event } from '@tauri-apps/api/event'
 
 const mockInvoke = vi.mocked(invoke)
 const mockListen = vi.mocked(listen)
@@ -50,37 +52,8 @@ vi.mock('../utils/time', () => ({
   })
 }))
 
-interface DiffStats {
-  files_changed: number
-  additions: number
-  deletions: number
-  insertions: number
-}
 
-interface SessionInfo {
-  session_id: string
-  display_name?: string  // Human-friendly name generated from prompt
-  branch: string
-  worktree_path: string
-  base_branch: string
-  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-  created_at?: string
-  last_modified?: string
-  has_uncommitted_changes?: boolean
-  is_current: boolean
-  session_type: 'worktree' | 'container'
-  container_status?: string
-  current_task?: string
-  todo_percentage?: number
-  is_blocked?: boolean
-  diff_stats?: DiffStats
-}
 
-interface EnrichedSession {
-  info: SessionInfo
-  status?: any
-  terminals: string[]
-}
 
 // Reducer functions extracted for testing
 export const sessionReducers = {
@@ -142,6 +115,7 @@ export const sessionReducers = {
       has_uncommitted_changes: false,
       is_current: false,
       session_type: 'worktree',
+      session_state: 'running',
       container_status: undefined,
       current_task: undefined,
       todo_percentage: undefined,
@@ -182,7 +156,7 @@ function createTestWrapper() {
 }
 
 describe('Sidebar', () => {
-  let eventListeners: Map<string, (event: any) => void>
+  let eventListeners: Map<string, (event: Event<unknown>) => void>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -220,7 +194,7 @@ describe('Sidebar', () => {
     })
 
     // Mock event listener setup
-    mockListen.mockImplementation((event: string, handler: (event: any) => void) => {
+    mockListen.mockImplementation((event: string, handler: (event: Event<unknown>) => void) => {
       eventListeners.set(event, handler)
       return Promise.resolve(mockUnlisten)
     })
@@ -278,6 +252,7 @@ describe('Sidebar', () => {
             status: 'active',
             is_current: false,
             session_type: 'worktree',
+            session_state: 'running',
             current_task: 'Simple agent',
             has_uncommitted_changes: false
           },
@@ -338,6 +313,7 @@ describe('Sidebar', () => {
             status: 'active',
             is_current: false,
             session_type: 'worktree',
+            session_state: 'running',
             last_modified: '2025-01-01T10:00:00Z',
             diff_stats: {
               files_changed: 2,
@@ -357,7 +333,8 @@ describe('Sidebar', () => {
             base_branch: 'main',
             status: 'active',
             is_current: false,
-            session_type: 'worktree'
+            session_type: 'worktree',
+            session_state: 'running'
           },
           status: undefined,
           terminals: []
@@ -538,6 +515,7 @@ describe('Sidebar', () => {
             status: 'active',
             is_current: false,
             session_type: 'worktree',
+            session_state: 'running'
             // Missing optional fields
           },
           status: undefined,

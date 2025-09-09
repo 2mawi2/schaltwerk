@@ -86,7 +86,7 @@ export function useDiffHover() {
           clearTimeoutRef.current = null
         }
       }
-    }, [hoveredLine, onStartComment, isModalOpen])
+    }, [onStartComment, isModalOpen])
   }
   
   return {

@@ -228,7 +228,7 @@ export function TerminalGrid() {
             }
             // TODO: Add diff focus handling when we implement it
         })
-    }, [selection, getFocusForSession])
+    }, [selection, getFocusForSession, getSessionKey])
 
     // If global focus changes to claude/terminal, apply it immediately.
     // Avoid overriding per-session default when only the selection changed
@@ -268,7 +268,7 @@ export function TerminalGrid() {
             setLocalFocus(null)
             lastAppliedGlobalFocusRef.current = null
         }
-    }, [currentFocus, selection])
+    }, [currentFocus, selection, getSessionKey])
 
     // Keyboard shortcut handling for Run Mode (Cmd+E)
     useEffect(() => {
@@ -369,7 +369,7 @@ export function TerminalGrid() {
             clearTimeout(timer)
             ro.disconnect()
         }
-    }, [isBottomCollapsed])
+    }, [isBottomCollapsed, collapsedPercent])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
     const getStorageKey = () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown')
@@ -420,13 +420,13 @@ export function TerminalGrid() {
             setLastExpandedBottomPercent(sizes[1])
             sessionStorage.setItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`, String(sizes[1]))
         }
-    }, [sizes, isBottomCollapsed])
+    }, [sizes, isBottomCollapsed, sessionKey])
 
     // Persist collapsed state
     useEffect(() => {
         const key = getStorageKey()
         sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
-    }, [isBottomCollapsed, selection])
+    }, [isBottomCollapsed, selection, sessionKey])
 
     // Initialize terminal tabs state when terminals change
     useEffect(() => {

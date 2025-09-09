@@ -125,5 +125,5 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
         return () => {
             window.removeEventListener('keydown', handleKeyDown, true)
         }
-    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen])
+    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen, onPromoteSelectedVersion])
 }

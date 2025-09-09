@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { clsx } from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -23,6 +23,7 @@ import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { SpecModeState } from '../../hooks/useSpecMode'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
+import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 
 // Normalize backend states to UI categories
@@ -34,41 +35,6 @@ function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
 
 function isSpec(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
-
-interface DiffStats {
-    files_changed: number
-    additions: number
-    deletions: number
-    insertions: number
-}
-
-interface SessionInfo {
-    session_id: string
-    display_name?: string  // Human-friendly name generated from prompt
-    branch: string
-    worktree_path: string
-    base_branch: string
-    status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-    created_at?: string
-    last_modified?: string
-    has_uncommitted_changes?: boolean
-    is_current: boolean
-    session_type: 'worktree' | 'container'
-    container_status?: string
-    // Monitor fields
-    session_state: 'spec' | 'running' | 'reviewed'
-    current_task?: string
-    todo_percentage?: number
-    is_blocked?: boolean
-    diff_stats?: DiffStats
-    ready_to_merge?: boolean
-}
-
-interface EnrichedSession {
-    info: SessionInfo
-    status?: any // Additional status if available
-    terminals: string[]
-}
 
 
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
@@ -408,7 +374,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
-    const handleMarkSelectedSessionReady = () => {
+    const handleMarkSelectedSessionReady = useCallback(() => {
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession && !selectedSession.info.ready_to_merge) {
@@ -421,7 +387,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 handleMarkReady(selectedSession.info.session_id, selectedSession.info.has_uncommitted_changes || false)
             }
         }
-    }
+    }, [selection, sessions, handleMarkReady])
 
     const handleSpecSelectedSession = () => {
         if (selection.kind === 'session') {
@@ -617,7 +583,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
         const handler = () => handleMarkSelectedSessionReady()
-        window.addEventListener('global-mark-ready-shortcut', handler as any)
+        window.addEventListener('global-mark-ready-shortcut', handler as EventListener)
         return () => window.removeEventListener('global-mark-ready-shortcut', handler as any)
     }, [selection, sessions, handleMarkSelectedSessionReady])
 

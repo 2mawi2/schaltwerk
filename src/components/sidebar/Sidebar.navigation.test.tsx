@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
+import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
 import { SelectionProvider } from '../../contexts/SelectionContext'
 import { FocusProvider } from '../../contexts/FocusContext'
@@ -63,7 +64,7 @@ function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = fa
 }
 
 describe('Sidebar navigation with arrow keys including orchestrator', () => {
-  let eventListeners: Map<string, (event: any) => void>
+  let eventListeners: Map<string, (event: Event<unknown>) => void>
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -122,7 +123,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
       }
     })
 
-    mockListen.mockImplementation((event: string, handler: (event: any) => void) => {
+    mockListen.mockImplementation((event: string, handler: (event: Event<unknown>) => void) => {
       eventListeners.set(event, handler)
       return Promise.resolve(mockUnlisten)
     })

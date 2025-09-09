@@ -31,7 +31,7 @@ interface EnrichedSession {
         }
         ready_to_merge?: boolean
     }
-    status?: any
+    status?: string
     terminals: string[]
 }
 

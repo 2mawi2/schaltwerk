@@ -10,7 +10,7 @@ import { SessionsProvider } from '../../contexts/SessionsContext'
 import { RunProvider } from '../../contexts/RunContext'
 import { invoke } from '@tauri-apps/api/core'
 import { FilterMode, SortMode } from '../../types/sessionFilters'
-import { SessionMonitorStatus } from '../../types/session'
+import { EnrichedSession, SessionInfo } from '../../types/session'
 
 vi.mock('@tauri-apps/api/core')
 vi.mock('@tauri-apps/api/event', () => ({
@@ -29,26 +29,7 @@ vi.mock('../../contexts/ProjectContext', async () => {
   }
 })
 
-interface SessionInfo {
-  session_id: string
-  display_name?: string
-  branch: string
-  worktree_path: string
-  base_branch: string
-  status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
-  created_at?: string
-  last_modified?: string
-  has_uncommitted_changes?: boolean
-  is_current: boolean
-  session_type: 'worktree' | 'container'
-  ready_to_merge?: boolean
-}
 
-interface EnrichedSession {
-  info: SessionInfo
-  status?: SessionMonitorStatus
-  terminals: string[]
-}
 
 const createSession = (id: string, readyToMerge = false, sessionState?: 'spec' | 'active'): EnrichedSession => ({
   info: {
@@ -60,9 +41,7 @@ const createSession = (id: string, readyToMerge = false, sessionState?: 'spec' |
     is_current: false,
     session_type: 'worktree',
     ready_to_merge: readyToMerge,
-    // Explicit session state for spec filtering in UI
-    // @ts-expect-error test-only relaxed shape
-    session_state: sessionState,
+    session_state: sessionState === 'spec' ? 'spec' : (readyToMerge ? 'reviewed' : 'running')
   },
   terminals: []
 })

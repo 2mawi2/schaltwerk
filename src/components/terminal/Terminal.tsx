@@ -932,7 +932,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId]); // Recreate only when terminalId changes
+    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {

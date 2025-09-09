@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { groupSessionsByVersion } from './sessionVersions'
+import { EnrichedSession } from '../types/session'
 
 // Test helper for flattening grouped sessions (extracted from Sidebar.tsx)
-function flattenGroupedSessions(sessions: any[]): any[] {
+function flattenGroupedSessions(sessions: EnrichedSession[]): EnrichedSession[] {
     const sessionGroups = groupSessionsByVersion(sessions)
-    const flattenedSessions: any[] = []
+    const flattenedSessions: EnrichedSession[] = []
     
     for (const group of sessionGroups) {
         for (const version of group.versions) {
@@ -16,21 +17,22 @@ function flattenGroupedSessions(sessions: any[]): any[] {
 }
 
 describe('Session Flattening for Navigation', () => {
-    const createMockSession = (id: string, baseName: string, _versionNum?: number) => ({
+    const createMockSession = (id: string, baseName: string, _versionNum?: number): EnrichedSession => ({
         info: {
             session_id: id,
             display_name: baseName,
             branch: `${baseName}-branch`,
             worktree_path: `/path/${id}`,
             base_branch: 'main',
-            status: 'active',
+            status: 'active' as const,
             is_current: false,
-            session_type: 'worktree',
-            session_state: 'running',
+            session_type: 'worktree' as const,
+            session_state: 'running' as const,
             diff_stats: {
                 files_changed: 1,
                 additions: 10,
-                deletions: 5
+                deletions: 5,
+                insertions: 10
             }
         },
         terminals: []

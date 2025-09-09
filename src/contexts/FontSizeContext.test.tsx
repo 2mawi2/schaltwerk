@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, act, waitFor } from '@testing-library/react'
 import { FontSizeProvider, useFontSize } from './FontSizeContext'
+import { MockTauriInvokeArgs } from '../types/testing'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn((cmd: string, _args?: any) => {
+  invoke: vi.fn((cmd: string, _args?: MockTauriInvokeArgs) => {
     if (cmd === 'schaltwerk_core_get_font_sizes') {
       return Promise.resolve([13, 12])
     }
