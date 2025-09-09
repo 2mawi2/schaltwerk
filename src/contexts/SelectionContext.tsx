@@ -285,6 +285,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     
     // Set selection atomically
     const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = false) => {
+        // Mark session switching to prevent terminal resize interference
+        document.body.classList.add('session-switching')
+        
         // Get the new terminal IDs to check if they're changing
         const newTerminalIds = getTerminalIds(newSelection)
         
@@ -299,6 +302,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             selection.kind === newSelection.kind && 
             selection.payload === newSelection.payload &&
             terminals.top === newTerminalIds.top) {
+            // Remove session switching class if no actual change
+            document.body.classList.remove('session-switching')
             return
         }
         
@@ -352,6 +357,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (!isReady) {
                     setIsReady(true)
                 }
+                
+                // Remove session switching class after immediate switch
+                requestAnimationFrame(() => {
+                    document.body.classList.remove('session-switching')
+                })
                 return
             }
             
@@ -384,6 +394,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             logger.error('[SelectionContext] Failed to set selection:', error)
             // Stay on current selection if we fail
             setIsReady(true)
+        } finally {
+            // Always remove session switching class after selection change completes
+            requestAnimationFrame(() => {
+                document.body.classList.remove('session-switching')
+            })
         }
     }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection])
 

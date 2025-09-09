@@ -695,8 +695,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
 
-                    // Always scroll to bottom on font size change if user was at bottom
-                    if (wasAtBottom) {
+                    // Only scroll to bottom on font size change if user was at bottom AND we're not during session switching
+                    const isUILayoutChange = document.body.classList.contains('session-switching');
+                    if (wasAtBottom && !isUILayoutChange) {
                         requestAnimationFrame(() => {
                             try {
                                 terminal.current?.scrollToBottom();
@@ -759,9 +760,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
             const { cols, rows } = terminal.current;
 
-            // Always scroll to bottom on resize if user was at bottom
-            // This ensures we stay at bottom during resize events
-            if (wasAtBottom) {
+            // Only scroll to bottom on resize if user was at bottom AND we're not during a UI layout change
+            // Skip auto-scroll during session switches to prevent interference with scrolling
+            const isUILayoutChange = document.body.classList.contains('session-switching');
+            if (wasAtBottom && !isUILayoutChange) {
                 requestAnimationFrame(() => {
                     try {
                         terminal.current?.scrollToBottom();
@@ -865,8 +867,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         fitAddon.current.fit();
                         const { cols, rows } = terminal.current;
                         
-                        // Always scroll to bottom after drag if user was at bottom
-                        if (wasAtBottom) {
+                        // Only scroll to bottom after drag if user was at bottom AND we're not during session switching
+                        const isUILayoutChange = document.body.classList.contains('session-switching');
+                        if (wasAtBottom && !isUILayoutChange) {
                             requestAnimationFrame(() => {
                                 try {
                                     terminal.current?.scrollToBottom();
