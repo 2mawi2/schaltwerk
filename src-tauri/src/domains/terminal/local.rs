@@ -626,8 +626,13 @@ impl TerminalBackend for LocalPtyAdapter {
             }.or_else(|| Self::find_latest_transcript_path(id));
 
             if let Some(p) = path {
-                match std::fs::read(&p) {
+                let start_time = std::time::Instant::now();
+                match tokio::fs::read(&p).await {
                     Ok(mut bytes) => {
+                        let read_duration = start_time.elapsed();
+                        let size_mb = bytes.len() as f64 / (1024.0 * 1024.0);
+                        info!("Read transcript for {id}: {:.2}MB in {:.1}ms", size_mb, read_duration.as_secs_f64() * 1000.0);
+                        
                         // Backward-compat: remove any historical transcript header lines so UI doesn't render them
                         // Pattern: lines starting with "==== TRANSCRIPT START"
                         if let Some(pos) = memchr::memmem::find(&bytes, b"==== TRANSCRIPT START") {

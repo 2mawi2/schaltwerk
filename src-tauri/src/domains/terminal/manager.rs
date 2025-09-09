@@ -259,8 +259,25 @@ impl TerminalManager {
     }
     
     pub async fn get_terminal_buffer(&self, id: String) -> Result<String, String> {
+        let start_time = std::time::Instant::now();
         let (_, data) = self.backend.snapshot(&id, None).await?;
-        Ok(String::from_utf8_lossy(&data).to_string())
+        let snapshot_duration = start_time.elapsed();
+        
+        let string_start = std::time::Instant::now();
+        let result = String::from_utf8_lossy(&data).to_string();
+        let string_duration = string_start.elapsed();
+        
+        let size_mb = data.len() as f64 / (1024.0 * 1024.0);
+        info!(
+            "get_terminal_buffer {}: {:.2}MB, snapshot: {:.1}ms, string conversion: {:.1}ms, total: {:.1}ms",
+            id,
+            size_mb,
+            snapshot_duration.as_secs_f64() * 1000.0,
+            string_duration.as_secs_f64() * 1000.0,
+            start_time.elapsed().as_secs_f64() * 1000.0
+        );
+        
+        Ok(result)
     }
     
     pub async fn close_all(&self) -> Result<(), String> {
