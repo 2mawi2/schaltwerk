@@ -6,6 +6,7 @@ pub mod mcp;
 pub mod mcp_config;
 pub mod utility;
 pub mod agent_binaries;
+pub mod analytics;
 
 #[cfg(test)]
 mod tests;
@@ -60,3 +61,4 @@ pub use mcp::*;
 pub use mcp_config::*;
 pub use utility::*;
 pub use agent_binaries::*;
+pub use analytics::*;

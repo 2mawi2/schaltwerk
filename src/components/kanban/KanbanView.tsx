@@ -12,6 +12,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { organizeSessionsByColumn, findSessionPosition } from '../../utils/sessionOrganizer'
 import { EnrichedSession } from '../../types/session'
 import { logger } from '../../utils/logger'
+import { analytics, AnalyticsEventName } from '../../analytics'
 
 const ItemType = 'SESSION'
 
@@ -256,6 +257,16 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                     await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
+                // Track session completion
+                const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sessionId })
+                const filesChanged = sessionData?.git_stats?.files_changed || 0
+                const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
+                const durationMinutes = Math.round((Date.now() - startTime) / 60000)
+                analytics.track(AnalyticsEventName.SESSION_COMPLETED, {
+                    duration_minutes: durationMinutes,
+                    files_changed: filesChanged
+                })
+                
                 // Mark as ready to merge
                 await invoke('schaltwerk_core_mark_session_ready', { name: sessionId, autoCommit: false })
             }
@@ -278,6 +289,16 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         }
         
         try {
+            // Track session completion
+            const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sessionId })
+            const filesChanged = sessionData?.git_stats?.files_changed || 0
+            const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
+            const durationMinutes = Math.round((Date.now() - startTime) / 60000)
+            analytics.track(AnalyticsEventName.SESSION_COMPLETED, {
+                duration_minutes: durationMinutes,
+                files_changed: filesChanged
+            })
+            
             await invoke('schaltwerk_core_mark_ready', { name: sessionId })
             await reloadSessions()
         } catch (error) {

@@ -31,6 +31,9 @@ import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
 import { logger } from './utils/logger'
+import { analytics, AnalyticsEventName } from './analytics'
+import { ConsentBanner } from './components/ConsentBanner'
+import { getVersion } from '@tauri-apps/api/app'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -236,6 +239,18 @@ export default function App() {
 
     try {
       setIsCancelling(true)
+      
+      // Track session cancellation (optional - only if session info is available)
+      try {
+        const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: currentSession.name })
+        const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
+        const durationMinutes = Math.round((Date.now() - startTime) / 60000)
+        analytics.track(AnalyticsEventName.SESSION_CANCELLED, { duration_minutes: durationMinutes })
+      } catch {
+        // Session might not exist, just track without duration
+        analytics.track(AnalyticsEventName.SESSION_CANCELLED, { duration_minutes: 0 })
+      }
+      
       await invoke('schaltwerk_core_cancel_session', {
         name: currentSession.name
       })
@@ -291,6 +306,21 @@ export default function App() {
 
   // Handle CLI directory argument
   useEffect(() => {
+    // Initialize analytics on app start
+    ;(async () => {
+      try {
+        await analytics.initialize()
+        const version = await getVersion()
+        analytics.track(AnalyticsEventName.APP_STARTED, { 
+          version,
+          environment: analytics.getEnvironment(),
+          build_source: analytics.getBuildSource()
+        })
+      } catch (e) {
+        logger.error('Failed to initialize analytics:', e)
+      }
+    })()
+    
     // Handle opening a Git repository
     const unlistenDirectoryPromise = listenEvent(SchaltEvent.OpenDirectory, async (directoryPath) => {
       logger.info('Received open-directory event:', directoryPath)
@@ -662,6 +692,11 @@ export default function App() {
            i === 0 ? data.name : `${data.name}_v${i + 1}`
          )
          
+         // Track spec to session conversion
+         analytics.track(AnalyticsEventName.SPEC_CONVERTED_TO_SESSION, {
+           spec_age_minutes: 0 // Could calculate actual age if we had spec creation time
+         })
+         
          for (const [index, sessionName] of sessionNames.entries()) {
            if (index === 0) {
              // Start the original spec session (transitions spec -> active and creates worktree)
@@ -723,6 +758,11 @@ export default function App() {
       }
 
       if (data.isSpec) {
+         // Track spec creation
+         analytics.track(AnalyticsEventName.SPEC_CREATED, {
+           from_mcp: false
+         })
+         
          // Create spec session
          await invoke('schaltwerk_core_create_spec_session', {
            name: data.name,
@@ -751,6 +791,14 @@ export default function App() {
         for (let i = 1; i <= count; i++) {
           // When creating multiple versions, ALL get version suffix including the first one
           const versionName = count > 1 ? `${baseName}_v${i}` : baseName
+          
+          // Track session creation (only once for first version)
+          if (i === 1) {
+            analytics.track(AnalyticsEventName.SESSION_CREATED, {
+              agent_type: 'claude',
+              from_spec: false
+            })
+          }
           
           // For single sessions, use userEditedName flag as provided
           // For multiple versions, don't mark as user-edited so they can be renamed as a group
@@ -1041,6 +1089,9 @@ export default function App() {
 
   return (
     <ErrorBoundary name="App">
+      {/* Analytics consent banner */}
+      <ConsentBanner />
+      
       {/* Show TopBar always */}
       <TopBar
         tabs={openTabs}

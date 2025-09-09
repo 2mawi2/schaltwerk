@@ -9,6 +9,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { logger } from '../../utils/logger'
+import { analytics } from '../../analytics'
 
 interface Props {
     open: boolean
@@ -24,7 +25,7 @@ interface NotificationState {
     visible: boolean
 }
 
-type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions' | 'version'
+type SettingsCategory = 'appearance' | 'keyboard' | 'environment' | 'projects' | 'terminal' | 'sessions' | 'archives' | 'actions' | 'privacy' | 'version'
 
 interface DetectedBinary {
     path: string
@@ -122,6 +123,15 @@ const CATEGORIES: CategoryConfig[] = [
         )
     },
     {
+        id: 'privacy',
+        label: 'Privacy',
+        icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+        )
+    },
+    {
         id: 'version',
         label: 'Version',
         icon: (
@@ -194,6 +204,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         visible: false
     })
     const [appVersion, setAppVersion] = useState<string>('')
+    const [analyticsConsent, setAnalyticsConsent] = useState<boolean>(false)
 
     // Archived specs state
     type ArchivedSpec = {
@@ -332,6 +343,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             }
         }
         loadVersion()
+    }, [activeCategory])
+
+    // Load analytics consent when the privacy category is opened
+    useEffect(() => {
+        const loadConsent = async () => {
+            if (activeCategory !== 'privacy') return
+            try {
+                const consent = await invoke<boolean>('get_analytics_consent')
+                setAnalyticsConsent(consent)
+            } catch (error) {
+                logger.error('Failed to load analytics consent:', error)
+            }
+        }
+        loadConsent()
     }, [activeCategory])
 
     // Sync action buttons when modal opens or buttons change
@@ -1692,6 +1717,102 @@ fi`}
         </div>
     )
 
+    const renderPrivacySettings = () => {
+        const handleToggleAnalytics = async (enabled: boolean) => {
+            try {
+                await invoke('set_analytics_consent', { consent: enabled })
+                await analytics.updateConsent(enabled)
+                setAnalyticsConsent(enabled)
+                showNotification(
+                    enabled ? 'Analytics enabled' : 'Analytics disabled',
+                    'success'
+                )
+            } catch (error) {
+                logger.error('Failed to update analytics consent:', error)
+                showNotification('Failed to update analytics settings', 'error')
+            }
+        }
+
+        return (
+            <div className="flex flex-col h-full">
+                <div className="flex-1 overflow-y-auto p-6">
+                    <div className="space-y-6">
+                        <div>
+                            <h3 className="text-sm font-medium text-slate-200 mb-4">Privacy Settings</h3>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
+                                    <div className="flex flex-col flex-1 mr-4">
+                                        <span className="text-sm font-medium text-slate-200">Anonymous Analytics</span>
+                                        <span className="text-xs text-slate-400 mt-1">
+                                            Help improve Schaltwerk by sharing anonymous usage metrics.
+                                            All data is completely anonymous and GDPR compliant.
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => handleToggleAnalytics(!analyticsConsent)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                                            analyticsConsent ? 'bg-blue-600' : 'bg-slate-600'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                                analyticsConsent ? 'translate-x-6' : 'translate-x-1'
+                                            }`}
+                                        />
+                                    </button>
+                                </div>
+                                
+                                <div className="mt-4 p-4 bg-slate-800/30 rounded-lg">
+                                    <h4 className="text-xs font-medium text-slate-300 mb-2">Metrics we collect:</h4>
+                                    <ul className="space-y-1 text-xs text-slate-400">
+                                        <li>• <span className="text-slate-300">App started:</span> Version number only</li>
+                                        <li>• <span className="text-slate-300">Sessions:</span> Agent type, duration, file count</li>
+                                        <li>• <span className="text-slate-300">Specs:</span> Creation source (MCP/manual)</li>
+                                        <li>• <span className="text-slate-300">Conversions:</span> Age in minutes when converted</li>
+                                        <li>• <span className="text-slate-300">Features:</span> Feature name when used</li>
+                                    </ul>
+                                    
+                                    <h4 className="text-xs font-medium text-slate-300 mb-2 mt-4">What we NEVER collect:</h4>
+                                    <ul className="space-y-1 text-xs text-slate-400">
+                                        <li>• No file paths, project names, or repository URLs</li>
+                                        <li>• No code content, terminal output, or commands</li>
+                                        <li>• No git data, branch names, or commit messages</li>
+                                        <li>• No error messages, stack traces, or logs</li>
+                                        <li>• No IP addresses or device identifiers</li>
+                                        <li>• No personal or identifiable information</li>
+                                    </ul>
+                                </div>
+                                
+                                <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">
+                                    <div className="flex items-start space-x-2">
+                                        <svg className="w-4 h-4 text-blue-400 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div className="flex-1">
+                                            <p className="text-xs text-slate-300">
+                                                Data is processed by PostHog on EU servers and retained for 90 days.
+                                                You can opt-out at any time and all future data collection will stop.
+                                            </p>
+                                            <button
+                                                onClick={() => {
+                                                    // Open privacy policy in browser
+                                                    window.open('https://github.com/yourusername/schaltwerk/blob/main/PRIVACY.md', '_blank')
+                                                }}
+                                                className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
+                                            >
+                                                View full privacy policy →
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+
     const renderVersionSettings = () => (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
@@ -1733,6 +1854,8 @@ fi`}
                 return renderArchivesSettings()
             case 'actions':
                 return renderActionButtonsSettings()
+            case 'privacy':
+                return renderPrivacySettings()
             case 'version':
                 return renderVersionSettings()
             default:
