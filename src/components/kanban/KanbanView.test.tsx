@@ -502,7 +502,7 @@ describe('KanbanView', () => {
             // Should attempt to convert to spec (would call invoke in real scenario)
         })
 
-        it('should handle Enter key to start spec', async () => {
+        it('should handle Cmd+Enter key to start spec', async () => {
             const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
 
             const { container } = render(<KanbanView isModalOpen={true} />, { wrapper })
@@ -517,15 +517,46 @@ describe('KanbanView', () => {
                 expect(focusedElement).toBeTruthy()
             })
 
-            // Press Enter on spec
+            // Press Cmd+Enter on spec
             const event = new KeyboardEvent('keydown', { 
                 key: 'Enter',
+                metaKey: true,
                 bubbles: true 
             })
             window.dispatchEvent(event)
 
             // Should dispatch start-agent-from-spec event for specs
             expect(dispatchEventSpy).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    type: 'schaltwerk:start-agent-from-spec'
+                })
+            )
+        })
+
+        it('should NOT handle plain Enter key to start spec', async () => {
+            const dispatchEventSpy = vi.spyOn(window, 'dispatchEvent')
+
+            const { container } = render(<KanbanView isModalOpen={true} />, { wrapper })
+
+            await waitFor(() => {
+                expect(screen.getByText('Spec Session 1')).toBeInTheDocument()
+            })
+
+            // Spec should be focused initially since it's first
+            await waitFor(() => {
+                const focusedElement = container.querySelector('[data-focused="true"]')
+                expect(focusedElement).toBeTruthy()
+            })
+
+            // Press plain Enter on spec (without cmd/ctrl)
+            const event = new KeyboardEvent('keydown', { 
+                key: 'Enter',
+                bubbles: true 
+            })
+            window.dispatchEvent(event)
+
+            // Should NOT dispatch start-agent-from-spec event for plain Enter
+            expect(dispatchEventSpy).not.toHaveBeenCalledWith(
                 expect.objectContaining({
                     type: 'schaltwerk:start-agent-from-spec'
                 })

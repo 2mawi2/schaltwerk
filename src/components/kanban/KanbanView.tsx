@@ -560,8 +560,8 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                 }
             }
             
-            // Handle Enter key to start/focus session
-            if (event.key === 'Enter' && !event.metaKey && !event.ctrlKey && !event.shiftKey) {
+            // Handle Cmd+Enter key to start/focus session
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
                 if (currentSession) {
                     event.preventDefault()
                     event.stopPropagation()
