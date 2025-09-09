@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use chrono::{Utc, TimeZone};
 use log::{info, warn};
+
+const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
 use crate::{
     schaltwerk_core::database::Database,
     domains::git::service as git,
@@ -894,7 +896,7 @@ impl SessionManager {
         if has_uncommitted && auto_commit {
             git::commit_all_changes(
                 &session.worktree_path,
-                &format!("Mark session {session_name} as reviewed")
+                &SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name)
             )?;
         }
         

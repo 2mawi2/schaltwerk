@@ -98,7 +98,7 @@ export function MarkReadyConfirmation({
               className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
             />
             <span className="text-sm text-slate-300">
-              Automatically commit all changes with message "Mark session {sessionName} as reviewed"
+              Automatically commit all changes with message "Complete development work for {sessionName}"
             </span>
           </label>
           <p className="text-slate-500 text-xs mt-2">

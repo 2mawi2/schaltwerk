@@ -1746,7 +1746,7 @@ fi`}
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>When enabled: Sessions with uncommitted changes are automatically committed when marked as reviewed</li>
                                     <li>When disabled: A confirmation dialog appears with the option to commit changes</li>
-                                    <li>Commit message format: "Mark session {'{session_name}'} as reviewed"</li>
+                                    <li>Commit message format: "Complete development work for {'{session_name}'}"</li>
                                     <li>All file types are included: modified, deleted, and new untracked files</li>
                                 </ul>
                                 
