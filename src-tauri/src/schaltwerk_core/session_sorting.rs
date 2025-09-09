@@ -1,6 +1,9 @@
 #[cfg(test)]
 mod session_sorting_tests {
-    use crate::schaltwerk_core::{Database, SessionManager};
+    use crate::{
+        schaltwerk_core::Database,
+        domains::sessions::service::SessionManager,
+    };
     use crate::domains::sessions::db_sessions::SessionMethods;
     use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState, SortMode, FilterMode};
     use chrono::{Utc, Duration};

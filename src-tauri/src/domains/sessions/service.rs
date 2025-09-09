@@ -12,7 +12,10 @@ use crate::{
     domains::sessions::repository::SessionDbManager,
     domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
     domains::sessions::utils::SessionUtils,
+    shared::types::ArchivedSpec,
+    infrastructure::database::db_archived_specs::ArchivedSpecMethods as _,
 };
+use uuid::Uuid;
 
 pub struct SessionManager {
     db_manager: SessionDbManager,
@@ -369,19 +372,31 @@ impl SessionManager {
     }
 
     pub fn list_enriched_sessions(&self) -> Result<Vec<EnrichedSession>> {
+        let start_time = std::time::Instant::now();
         let sessions = self.db_manager.list_sessions()?;
-        log::info!("list_enriched_sessions: Found {} total sessions in database", sessions.len());
+        let db_time = start_time.elapsed();
+        log::info!("list_enriched_sessions: Found {} total sessions in database ({}ms)", sessions.len(), db_time.as_millis());
+        
         let mut enriched = Vec::new();
+        let mut git_stats_total_time = std::time::Duration::ZERO;
+        let mut worktree_check_time = std::time::Duration::ZERO;
+        let mut session_count = 0;
         
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
                 continue;
             }
+            
+            session_count += 1;
+            let session_start = std::time::Instant::now();
+            
             log::debug!("Processing session '{}': status={:?}, session_state={:?}", 
                        session.name, session.status, session.session_state);
             
             // Check if worktree exists for non-spec sessions
+            let worktree_check_start = std::time::Instant::now();
             let worktree_exists = session.worktree_path.exists();
+            worktree_check_time += worktree_check_start.elapsed();
             let is_spec_session = session.session_state == SessionState::Spec;
             
             // For spec sessions, we don't need worktrees to exist
@@ -395,7 +410,14 @@ impl SessionManager {
                 continue;
             }
             
+            let git_stats_start = std::time::Instant::now();
             let git_stats = self.db_manager.get_enriched_git_stats(&session)?;
+            let git_stats_elapsed = git_stats_start.elapsed();
+            git_stats_total_time += git_stats_elapsed;
+            
+            if git_stats_elapsed.as_millis() > 100 {
+                log::warn!("Slow git stats for session '{}': {}ms", session.name, git_stats_elapsed.as_millis());
+            }
             let has_uncommitted = if worktree_exists {
                 git_stats.as_ref().map(|s| s.has_uncommitted).unwrap_or(false)
             } else {
@@ -461,9 +483,27 @@ impl SessionManager {
                 status: None,
                 terminals,
             });
+            
+            let session_elapsed = session_start.elapsed();
+            if session_elapsed.as_millis() > 50 {
+                log::debug!("Session '{}' processing took {}ms", session.name, session_elapsed.as_millis());
+            }
         }
         
-        log::info!("list_enriched_sessions: Returning {} enriched sessions", enriched.len());
+        let total_elapsed = start_time.elapsed();
+        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)", 
+            enriched.len(), 
+            total_elapsed.as_millis(),
+            db_time.as_millis(),
+            git_stats_total_time.as_millis(),
+            worktree_check_time.as_millis(),
+            if session_count > 0 { total_elapsed.as_millis() / session_count as u128 } else { 0 }
+        );
+        
+        if total_elapsed.as_millis() > 500 {
+            log::warn!("PERFORMANCE WARNING: list_enriched_sessions took {}ms - consider optimizing", total_elapsed.as_millis());
+        }
+        
         Ok(enriched)
     }
 
@@ -598,7 +638,7 @@ impl SessionManager {
                     Some(&config),
                 ))
             }
-            _ => {
+            "claude" => {
                 log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
                 log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
                 
@@ -641,6 +681,10 @@ impl SessionManager {
                     skip_permissions,
                     Some(&config),
                 ))
+            }
+            _ => {
+                log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
+                Err(anyhow!("Unsupported agent type: {}. Supported types are: claude, cursor, codex", agent_type))
             }
         }
     }
@@ -808,7 +852,7 @@ impl SessionManager {
                     Some(&config),
                 ))
             }
-            _ => {
+            "claude" => {
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
                 let config = crate::domains::agents::claude::ClaudeConfig {
                     binary_path: Some(binary_path),
@@ -828,6 +872,10 @@ impl SessionManager {
                     skip_permissions,
                     Some(&config),
                 ))
+            }
+            _ => {
+                log::error!("Unknown agent type '{agent_type}' for orchestrator");
+                Err(anyhow!("Unsupported agent type: {}. Supported types are: claude, cursor, codex, opencode, gemini, qwen", agent_type))
             }
         }
     }
@@ -1227,6 +1275,106 @@ impl SessionManager {
         }
         
         self.db_manager.rename_draft_session(old_name, new_name)?;
+        Ok(())
+    }
+
+
+    pub fn archive_spec_session(&self, name: &str) -> Result<()> {
+        // Only archive Spec sessions
+        let session = self.db_manager.get_session_by_name(name)?;
+        if session.session_state != SessionState::Spec {
+            return Err(anyhow!("Can only archive spec sessions"));
+        }
+
+        let content = session
+            .spec_content
+            .or(session.initial_prompt)
+            .unwrap_or_default();
+
+        let archived = ArchivedSpec {
+            id: Uuid::new_v4().to_string(),
+            session_name: session.name.clone(),
+            repository_path: self.repo_path.clone(),
+            repository_name: session.repository_name.clone(),
+            content,
+            archived_at: Utc::now(),
+        };
+
+        // Insert into archive, then delete the session
+        self.db_manager.db.insert_archived_spec(&archived)?;
+
+        // Physically remove spec session from DB to declutter
+        {
+            let conn = self.db_manager.db.conn.lock().unwrap();
+            use rusqlite::params;
+            conn.execute("DELETE FROM sessions WHERE id = ?1", params![session.id])?;
+        }
+
+        // Enforce archive limit for this repository
+        self.db_manager.db.enforce_archive_limit(&self.repo_path)?;
+
+        log::info!("Archived spec session '{name}' and removed from active sessions");
+        Ok(())
+    }
+
+    pub fn list_archived_specs(&self) -> Result<Vec<ArchivedSpec>> {
+        self.db_manager.db.list_archived_specs(&self.repo_path)
+    }
+
+    pub fn restore_archived_spec(&self, archived_id: &str, new_name: Option<&str>) -> Result<Session> {
+        // Load archived entry
+        let archived = {
+            let specs = self.db_manager.db.list_archived_specs(&self.repo_path)?;
+            specs.into_iter().find(|s| s.id == archived_id)
+                .ok_or_else(|| anyhow!("Archived spec not found"))?
+        };
+
+        // Create new spec session
+        let desired = new_name.unwrap_or(&archived.session_name);
+        let spec = self.create_spec_session(desired, &archived.content)?;
+
+        // Remove archive entry
+        self.db_manager.db.delete_archived_spec(archived_id)?;
+
+        Ok(spec)
+    }
+
+    pub fn delete_archived_spec(&self, archived_id: &str) -> Result<()> {
+        self.db_manager.db.delete_archived_spec(archived_id)
+    }
+
+    pub fn get_archive_max_entries(&self) -> Result<i32> {
+        self.db_manager.db.get_archive_max_entries()
+    }
+
+    pub fn set_archive_max_entries(&self, limit: i32) -> Result<()> {
+        self.db_manager.db.set_archive_max_entries(limit)
+    }
+
+    pub fn archive_prompt_for_session(&self, name: &str) -> Result<()> {
+        // Archive prompt/spec content for any session state (without deleting the session here)
+        let session = self.db_manager.get_session_by_name(name)?;
+        let content = session
+            .spec_content
+            .or(session.initial_prompt)
+            .unwrap_or_default();
+
+        if content.trim().is_empty() {
+            // Nothing to archive
+            return Ok(());
+        }
+
+        let archived = ArchivedSpec {
+            id: Uuid::new_v4().to_string(),
+            session_name: session.name.clone(),
+            repository_path: self.repo_path.clone(),
+            repository_name: session.repository_name.clone(),
+            content,
+            archived_at: Utc::now(),
+        };
+
+        self.db_manager.db.insert_archived_spec(&archived)?;
+        self.db_manager.db.enforce_archive_limit(&self.repo_path)?;
         Ok(())
     }
 

@@ -4,7 +4,7 @@
 mod draft_fixed_tests {
     use crate::schaltwerk_core::types::{SessionStatus, SessionState};
     use crate::schaltwerk_core::database::Database;
-    use crate::schaltwerk_core::session::SessionManager;
+    use crate::domains::sessions::service::SessionManager;
     use tempfile::TempDir;
     use std::fs;
     use std::process::Command;

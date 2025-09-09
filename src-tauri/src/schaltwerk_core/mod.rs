@@ -5,7 +5,6 @@ pub mod db_app_config;
 pub mod db_project_config;
 pub mod db_archived_specs;
 // pub mod mcp;  // Temporarily disabled - will be used for MCP server later
-pub mod session_core;
 pub mod session_db;
 pub mod session_cache;
 pub mod session_utils;
@@ -21,12 +20,10 @@ mod tests;
 #[cfg(test)]
 mod session_sorting;
 #[cfg(test)]
-mod session_core_test;
-#[cfg(test)]
 pub mod session_benchmark;
 
 pub use database::Database;
-pub use session_core::SessionManager;
+pub use crate::domains::sessions::service::SessionManager;
 pub use types::{SessionState, EnrichedSession};
 
 use std::path::PathBuf;

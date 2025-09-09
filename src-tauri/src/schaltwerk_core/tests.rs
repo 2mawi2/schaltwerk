@@ -1,5 +1,8 @@
 #[cfg(test)]
-use crate::schaltwerk_core::{Database, SessionManager, git};
+use crate::{
+    schaltwerk_core::{Database, git},
+    domains::sessions::service::SessionManager,
+};
 #[cfg(test)]
 use crate::schaltwerk_core::types::SessionStatus;
 #[cfg(test)]
