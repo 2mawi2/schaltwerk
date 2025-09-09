@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use once_cell::sync::Lazy;
 
 static BINARY_EXTENSIONS: &[&str] = &[
     // Image files
@@ -21,11 +22,9 @@ static BINARY_EXTENSIONS: &[&str] = &[
     "pyc", "class", "jar", "war", "ear", "o", "obj", "lib", "a"
 ];
 
-lazy_static::lazy_static! {
-    static ref BINARY_EXTENSIONS_SET: HashSet<&'static str> = {
-        BINARY_EXTENSIONS.iter().cloned().collect()
-    };
-}
+static BINARY_EXTENSIONS_SET: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    BINARY_EXTENSIONS.iter().cloned().collect()
+});
 
 pub fn is_binary_file_by_extension(file_path: &str) -> bool {
     if file_path.is_empty() {
