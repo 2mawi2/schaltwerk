@@ -4,7 +4,7 @@ use uuid::Uuid;
 use rand::Rng;
 use crate::{
     domains::git::service as git,
-    schaltwerk_core::types::{EnrichedSession, SortMode, FilterMode, SessionState},
+    domains::sessions::entity::{EnrichedSession, SortMode, FilterMode, SessionState},
     domains::sessions::cache::SessionCacheManager,
     domains::sessions::repository::SessionDbManager,
 };

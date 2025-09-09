@@ -69,7 +69,7 @@ impl<E: EventEmitter> ActivityTracker<E> {
         Ok(())
     }
     
-    fn refresh_stats_and_activity_for_session(&self, session: &crate::schaltwerk_core::types::Session) -> Result<bool> {
+    fn refresh_stats_and_activity_for_session(&self, session: &crate::domains::sessions::entity::Session) -> Result<bool> {
         // Prefer diff-aware last change time via git stats; fall back to filesystem walk only if unavailable
         let mut emitted_activity = false;
         
@@ -206,7 +206,7 @@ mod tests {
     use crate::{
         schaltwerk_core::database::Database,
         domains::sessions::db_sessions::SessionMethods,
-        schaltwerk_core::types::{Session, SessionStatus, SessionState},
+        domains::sessions::entity::{Session, SessionStatus, SessionState},
         domains::git::service::{create_worktree_from_base, get_current_branch},
     };
     use chrono::Utc;

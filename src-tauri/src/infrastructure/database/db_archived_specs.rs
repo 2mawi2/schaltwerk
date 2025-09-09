@@ -4,7 +4,7 @@ use rusqlite::params;
 use std::path::{Path, PathBuf};
 
 use crate::schaltwerk_core::database::Database;
-use crate::shared::types::ArchivedSpec;
+use crate::domains::sessions::entity::ArchivedSpec;
 
 pub trait ArchivedSpecMethods {
     fn insert_archived_spec(&self, spec: &ArchivedSpec) -> Result<()>;

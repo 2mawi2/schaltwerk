@@ -2,7 +2,7 @@ use std::path::Path;
 // no serde derives used in this module
 use crate::{get_schaltwerk_core, get_project_manager};
 use crate::domains::git::service as git;
-use crate::schaltwerk_core::types::ChangedFile;
+use crate::domains::sessions::entity::ChangedFile;
 use crate::domains::workspace::file_utils;
 use crate::domains::workspace::diff_engine::{
     compute_unified_diff, add_collapsible_sections, compute_split_diff,

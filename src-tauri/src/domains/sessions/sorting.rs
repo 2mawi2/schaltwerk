@@ -4,7 +4,7 @@ mod session_sorting_tests {
         schaltwerk_core::database::Database,
         domains::sessions::service::SessionManager,
         domains::sessions::db_sessions::SessionMethods,
-        schaltwerk_core::types::{Session, SessionStatus, SessionState, SortMode, FilterMode},
+        domains::sessions::entity::{Session, SessionStatus, SessionState, SortMode, FilterMode},
     };
     use chrono::{Utc, Duration};
     use tempfile::TempDir;

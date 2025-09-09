@@ -8,7 +8,7 @@ use crate::{
     schaltwerk_core::db_app_config::AppConfigMethods,
     schaltwerk_core::db_project_config::ProjectConfigMethods,
     domains::git::service as git,
-    schaltwerk_core::types::{Session, SessionStatus, SessionState, GitStats},
+    domains::sessions::entity::{Session, SessionStatus, SessionState, GitStats},
 };
 
 #[derive(Clone)]
@@ -147,7 +147,7 @@ impl SessionDbManager {
     pub fn get_enriched_git_stats(&self, session: &Session) -> Result<Option<GitStats>> {
         match self.get_git_stats(&session.id)? {
             Some(existing) => {
-                let is_stale = (Utc::now() - existing.calculated_at).num_seconds() > 60;
+                let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp() > 60;
                 if is_stale {
                     let mut updated = git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch).ok();
                     if let Some(ref mut s) = updated {

@@ -8,11 +8,11 @@ const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
 use crate::{
     schaltwerk_core::database::Database,
     domains::git::service as git,
-    schaltwerk_core::types::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
+    domains::sessions::entity::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
     domains::sessions::repository::SessionDbManager,
     domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
     domains::sessions::utils::SessionUtils,
-    shared::types::ArchivedSpec,
+    domains::sessions::entity::ArchivedSpec,
     infrastructure::database::db_archived_specs::ArchivedSpecMethods as _,
 };
 use uuid::Uuid;

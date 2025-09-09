@@ -4,7 +4,7 @@ use crate::{
     domains::sessions::service::SessionManager,
 };
 #[cfg(test)]
-use crate::schaltwerk_core::types::SessionStatus;
+use crate::domains::sessions::entity::SessionStatus;
 #[cfg(test)]
 use tempfile::TempDir;
 #[cfg(test)]
@@ -24,7 +24,7 @@ use crate::schaltwerk_core::db_git_stats::GitStatsMethods;
 #[cfg(test)]
 use crate::schaltwerk_core::db_project_config::ProjectConfigMethods;
 #[cfg(test)]
-use crate::schaltwerk_core::types::SessionState;
+use crate::domains::sessions::entity::SessionState;
 #[cfg(test)]
 use crate::infrastructure::database::db_archived_specs::ArchivedSpecMethods;
 
@@ -928,7 +928,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
 
     #[test]
     fn test_convert_running_session_to_draft() {
-        use crate::schaltwerk_core::types::SessionState;
+        use crate::domains::sessions::entity::SessionState;
         
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();
@@ -965,7 +965,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
     
     #[test]
     fn test_convert_session_to_draft_preserves_content() {
-        use crate::schaltwerk_core::types::SessionState;
+        use crate::domains::sessions::entity::SessionState;
         
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();

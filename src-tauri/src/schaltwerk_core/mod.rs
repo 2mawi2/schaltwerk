@@ -4,8 +4,6 @@ pub mod db_git_stats;
 pub mod db_app_config;
 pub mod db_project_config;
 pub mod db_archived_specs;
-// pub mod mcp;  // Temporarily disabled - will be used for MCP server later
-pub mod types;
 // Re-export agent modules from domains for backward compatibility
 pub mod agents {
     pub use crate::domains::agents::*;
@@ -14,12 +12,10 @@ pub mod agents {
 // Agent modules are now re-exported from domains/agents
 #[cfg(test)]
 mod tests;
-#[cfg(test)]
-mod session_sorting;
 
 pub use database::Database;
 pub use crate::domains::sessions::service::SessionManager;
-pub use types::{SessionState, EnrichedSession};
+pub use crate::domains::sessions::entity::{SessionState, EnrichedSession};
 
 use std::path::PathBuf;
 use anyhow::Result;

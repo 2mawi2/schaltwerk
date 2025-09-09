@@ -198,7 +198,6 @@ pub enum SessionStatusType {
 #[serde(rename_all = "lowercase")]
 pub enum SessionType {
     Worktree,
-    Container,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -262,4 +261,14 @@ pub enum TestStatus {
     Passed,
     Failed,
     Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArchivedSpec {
+    pub id: String,
+    pub session_name: String,
+    pub repository_path: PathBuf,
+    pub repository_name: String,
+    pub content: String,
+    pub archived_at: DateTime<Utc>,
 }

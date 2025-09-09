@@ -1,4 +1,4 @@
-use schaltwerk::schaltwerk_core::types::{SessionState, EnrichedSession, Session, SortMode, FilterMode};
+use schaltwerk::domains::sessions::entity::{SessionState, EnrichedSession, Session, SortMode, FilterMode};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
@@ -213,7 +213,7 @@ pub async fn schaltwerk_core_archive_spec_session(app: tauri::AppHandle, name: S
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_list_archived_specs() -> Result<Vec<schaltwerk::shared::types::ArchivedSpec>, String> {
+pub async fn schaltwerk_core_list_archived_specs() -> Result<Vec<schaltwerk::domains::sessions::entity::ArchivedSpec>, String> {
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
@@ -221,7 +221,7 @@ pub async fn schaltwerk_core_list_archived_specs() -> Result<Vec<schaltwerk::sha
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_restore_archived_spec(app: tauri::AppHandle, id: String, new_name: Option<String>) -> Result<schaltwerk::schaltwerk_core::types::Session, String> {
+pub async fn schaltwerk_core_restore_archived_spec(app: tauri::AppHandle, id: String, new_name: Option<String>) -> Result<schaltwerk::domains::sessions::entity::Session, String> {
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
     let manager = core.session_manager();
@@ -632,7 +632,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
             format!("Session not found: {e}")
         })?;
 
-        if session.session_state == schaltwerk::schaltwerk_core::types::SessionState::Spec {
+        if session.session_state == schaltwerk::domains::sessions::entity::SessionState::Spec {
             // Archive spec sessions instead of deleting
             manager.archive_spec_session(&name).map_err(|e| format!("Failed to archive spec: {e}"))?;
             let repo = core.repo_path.to_string_lossy().to_string();

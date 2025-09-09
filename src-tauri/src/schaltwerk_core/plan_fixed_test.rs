@@ -2,7 +2,7 @@
 
 #[cfg(test)]
 mod draft_fixed_tests {
-    use crate::schaltwerk_core::types::{SessionStatus, SessionState};
+    use crate::domains::sessions::entity::{SessionStatus, SessionState};
     use crate::schaltwerk_core::database::Database;
     use crate::domains::sessions::service::SessionManager;
     use tempfile::TempDir;
