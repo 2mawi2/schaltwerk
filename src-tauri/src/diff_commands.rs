@@ -119,15 +119,6 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_name_status_line() {
-        assert_eq!(parse_name_status_line("M\tfile.txt"), Some(("M", "file.txt")));
-        assert_eq!(parse_name_status_line("A\tnew_file.txt"), Some(("A", "new_file.txt")));
-        assert_eq!(parse_name_status_line("D\tdeleted.txt"), Some(("D", "deleted.txt")));
-        assert_eq!(parse_name_status_line("invalid"), None);
-        assert_eq!(parse_name_status_line(""), None);
-    }
-
-    #[test]
     fn test_orchestrator_working_changes_filters_schaltwerk() {
         let temp_dir = setup_test_git_repo();
         let repo_path = temp_dir.path();
@@ -323,15 +314,6 @@ mod tests {
     }
 }
 
-#[allow(dead_code)]
-fn parse_name_status_line(line: &str) -> Option<(&str, &str)> {
-    let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.len() >= 2 {
-        Some((parts[0], parts[1]))
-    } else {
-        None
-    }
-}
 
 #[tauri::command]
 pub async fn get_file_diff_from_main(

@@ -21,14 +21,6 @@ export async function listenEvent<T extends SchaltEvent>(
   return await tauriListen(event, (event) => handler(event.payload as EventPayloadMap[T]))
 }
 
-// Deprecated: Use listenEvent with SchaltEvent enum instead
-// @deprecated This function is deprecated. Use listenEvent(SchaltEvent.*, handler) instead.
-export async function listen<T extends SchaltEvent>(
-  _event: T,
-  _handler: (payload: EventPayloadMap[T]) => void | Promise<void>
-): Promise<UnlistenFn> {
-  throw new Error('Direct listen() calls are deprecated. Use listenEvent(SchaltEvent.*, handler) or listenTerminalOutput() instead.')
-}
 
 export async function listenTerminalOutput(
   terminalId: string,
@@ -53,14 +45,6 @@ export async function emitEvent<T extends SchaltEvent>(
   return await tauriEmit(event, payload)
 }
 
-// Deprecated: Use emitEvent with SchaltEvent enum instead
-// @deprecated This function is deprecated. Use emitEvent(SchaltEvent.*, payload) instead.
-export async function emit(
-  _event: never, // This prevents the function from being called with string literals
-  _payload: unknown
-): Promise<void> {
-  throw new Error('Direct emit() calls are deprecated. Use emitEvent(SchaltEvent.*, payload) or emitTerminalOutput() instead.')
-}
 
 export async function emitTerminalOutput(
   terminalId: string,

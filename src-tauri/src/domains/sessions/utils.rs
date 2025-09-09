@@ -284,7 +284,6 @@ impl SessionUtils {
         }
     }
 
-    #[allow(dead_code)]
     pub fn validate_session_name(name: &str) -> bool {
         if name.is_empty() || name.len() > 100 {
             return false;

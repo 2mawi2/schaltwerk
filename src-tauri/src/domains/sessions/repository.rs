@@ -134,7 +134,6 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to get skip permissions: {}", e))
     }
 
-    #[allow(dead_code)]
     pub fn set_skip_permissions(&self, skip: bool) -> Result<()> {
         self.db.set_skip_permissions(skip)
             .map_err(|e| anyhow!("Failed to set skip permissions: {}", e))
@@ -178,7 +177,6 @@ impl SessionDbManager {
 
 #[cfg(test)]
 impl SessionDbManager {
-    #[allow(dead_code)]
     pub fn db_ref(&self) -> &Database {
         &self.db
     }

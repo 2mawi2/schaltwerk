@@ -80,13 +80,6 @@ pub async fn paste_and_submit_terminal(id: String, data: String) -> Result<(), S
 }
 
 #[tauri::command]
-#[allow(dead_code)] // Will be used by frontend for immediate input feedback
-pub async fn write_terminal_immediate(id: String, data: String) -> Result<(), String> {
-    let manager = get_terminal_manager().await?;
-    manager.write_terminal_immediate(id, data.into_bytes()).await
-}
-
-#[tauri::command]
 pub async fn resize_terminal(id: String, cols: u16, rows: u16) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager.resize_terminal(id, cols, rows).await

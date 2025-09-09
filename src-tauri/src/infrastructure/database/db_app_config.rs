@@ -270,7 +270,6 @@ mod tests {
         
         let db = Database {
             conn: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-            db_path: std::path::PathBuf::from(":memory:"),
         };
         
         // Should return false when column doesn't exist
@@ -294,7 +293,6 @@ mod tests {
         
         let db = Database {
             conn: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-            db_path: std::path::PathBuf::from(":memory:"),
         };
         
         // Should handle missing row gracefully

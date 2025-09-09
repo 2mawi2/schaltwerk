@@ -5,9 +5,6 @@ pub mod db_app_config;
 pub mod db_project_config;
 pub mod db_archived_specs;
 // pub mod mcp;  // Temporarily disabled - will be used for MCP server later
-pub mod session_db;
-pub mod session_cache;
-pub mod session_utils;
 pub mod types;
 // Re-export agent modules from domains for backward compatibility
 pub mod agents {
