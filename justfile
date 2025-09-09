@@ -385,9 +385,6 @@ run-build:
 test:
     npm run test
 
-# Run benchmarks and performance tests (use when specifically needed, not in CI)
-benchmark:
-    npm run benchmark
 
 # Run the application using the compiled release binary (no autoreload)
 run-release:

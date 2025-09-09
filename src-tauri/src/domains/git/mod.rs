@@ -6,12 +6,6 @@ pub mod stats;
 pub mod worktrees;
 pub mod db_git_stats;
 
-#[cfg(test)]
-pub mod branches_benchmark;
-#[cfg(test)]
-pub mod stats_benchmark;
-#[cfg(test)]
-pub mod worktree_benchmark;
 
 pub use service::*;
 pub use db_git_stats::*;

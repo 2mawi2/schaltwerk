@@ -19,8 +19,6 @@ pub mod agents {
 mod tests;
 #[cfg(test)]
 mod session_sorting;
-#[cfg(test)]
-pub mod session_benchmark;
 
 pub use database::Database;
 pub use crate::domains::sessions::service::SessionManager;
