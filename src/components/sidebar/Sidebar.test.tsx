@@ -6,6 +6,7 @@ import { FocusProvider } from '../../contexts/FocusContext'
 import { ProjectProvider } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
+import { RunProvider } from '../../contexts/RunContext'
 
 // Mock dependencies
 vi.mock('@tauri-apps/api/core', () => ({
@@ -169,7 +170,9 @@ function createTestWrapper() {
         <SessionsProvider>
           <SelectionProvider>
             <FocusProvider>
-              {children}
+              <RunProvider>
+                {children}
+              </RunProvider>
             </FocusProvider>
           </SelectionProvider>
         </SessionsProvider>

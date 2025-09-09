@@ -7,6 +7,7 @@ import { ProjectProvider, useProject } from '../contexts/ProjectContext'
 import { FontSizeProvider } from '../contexts/FontSizeContext'
 import { SessionsProvider } from '../contexts/SessionsContext'
 import { ActionButtonsProvider } from '../contexts/ActionButtonsContext'
+import { RunProvider } from '../contexts/RunContext'
 
 export function renderWithProviders(ui: React.ReactElement) {
   return render(
@@ -17,7 +18,9 @@ export function renderWithProviders(ui: React.ReactElement) {
             <SelectionProvider>
               <FocusProvider>
                 <ReviewProvider>
-                  {ui}
+                  <RunProvider>
+                    {ui}
+                  </RunProvider>
                 </ReviewProvider>
               </FocusProvider>
             </SelectionProvider>
@@ -50,7 +53,9 @@ export function TestProviders({ children }: { children: React.ReactNode }) {
               <SelectionProvider>
                 <FocusProvider>
                   <ReviewProvider>
-                    {children}
+                    <RunProvider>
+                      {children}
+                    </RunProvider>
                   </ReviewProvider>
                 </FocusProvider>
               </SelectionProvider>
