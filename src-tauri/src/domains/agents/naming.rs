@@ -6,7 +6,6 @@ use crate::{
 };
 use std::path::Path;
 use tokio::process::Command;
-use tokio::time::{timeout, Duration};
 
 pub struct SessionRenameContext<'a> {
     pub db: &'a Database,
@@ -214,28 +213,26 @@ Respond with just the short kebab-case name:"#
     if agent_type == "cursor" {
         log::info!("Attempting to generate name with cursor-agent");
 
-        // Cursor Agent can take longer to initialize; allow a bit more time
-        let timeout_duration = Duration::from_secs(45);
-        let cursor_future = Command::new("cursor-agent")
+        let output = Command::new("cursor-agent")
             .args(cursor_namegen_args(&prompt_plain))
             .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
-            .output();
+            .env("TERM", "dumb")
+            .env("CI", "1")
+            .env("NONINTERACTIVE", "1")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .await;
         
-        let output = match timeout(timeout_duration, cursor_future).await {
-            Ok(Ok(output)) => {
+        let output = match output {
+            Ok(output) => {
                 log::debug!("cursor-agent executed successfully");
                 Some(output)
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 log::warn!("Failed to execute cursor-agent: {e}");
-                // User selected cursor but it's not available - don't fall back to claude
                 return Err(anyhow!("cursor-agent not available: {e}"));
-            },
-            Err(_) => {
-                log::warn!("Cursor-agent timed out after 30 seconds");
-                return Err(anyhow!("cursor-agent timed out"));
             },
         };
         
@@ -312,24 +309,24 @@ Respond with just the short kebab-case name:"#
         args.push(tmp_file.to_string_lossy().to_string());
         args.push(prompt_plain.clone());
 
-        let timeout_duration = Duration::from_secs(45);
         log::info!("codex exec args for namegen: {args:?}");
-        let fut = Command::new("codex")
+        let output = Command::new("codex")
             .args(&args)
             .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
+            .env("TERM", "dumb")
+            .env("CI", "1")
+            .env("NONINTERACTIVE", "1")
+            .stdin(std::process::Stdio::null())
             .envs(env_vars.iter().cloned())
-            .output();
+            .output()
+            .await;
 
-        let output = match timeout(timeout_duration, fut).await {
-            Ok(Ok(output)) => output,
-            Ok(Err(e)) => {
+        let output = match output {
+            Ok(output) => output,
+            Err(e) => {
                 log::warn!("Failed to execute codex for name generation: {e}");
-                return Ok(None);
-            }
-            Err(_) => {
-                log::warn!("codex timed out after 20 seconds during name generation");
                 return Ok(None);
             }
         };
@@ -385,27 +382,27 @@ Respond with just the short kebab-case name:"#
         log::info!("Attempting to generate name with opencode");
         
         // OpenCode uses the `run` command with a specific model and prompt
-        let timeout_duration = Duration::from_secs(20);
         let binary = super::opencode::resolve_opencode_binary();
-        let opencode_future = Command::new(&binary)
+        let output = Command::new(&binary)
             .args(["run", "--model", "openrouter/openai/gpt-4o-mini", &prompt_plain])
             .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
-            .env("OPENCODE_NO_INTERACTIVE", "1") // Ensure non-interactive mode
-            .output();
+            .env("TERM", "dumb")
+            .env("CI", "1")
+            .env("NONINTERACTIVE", "1")
+            .env("OPENCODE_NO_INTERACTIVE", "1")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .await;
         
-        let output = match timeout(timeout_duration, opencode_future).await {
-            Ok(Ok(output)) => {
+        let output = match output {
+            Ok(output) => {
                 log::debug!("opencode executed successfully");
                 output
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 log::warn!("Failed to execute opencode: {e}");
-                return Ok(None);
-            },
-            Err(_) => {
-                log::warn!("OpenCode timed out after 15 seconds");
                 return Ok(None);
             },
         };
@@ -455,26 +452,26 @@ Respond with just the short kebab-case name:"#
     if agent_type == "gemini" {
         log::info!("Attempting to generate name with gemini");
         
-        let timeout_duration = Duration::from_secs(15);
         let binary = super::gemini::resolve_gemini_binary();
-        let gemini_future = Command::new(&binary)
+        let output = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
             .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
-            .output();
+            .env("TERM", "dumb")
+            .env("CI", "1")
+            .env("NONINTERACTIVE", "1")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .await;
         
-        let output = match timeout(timeout_duration, gemini_future).await {
-            Ok(Ok(output)) => {
+        let output = match output {
+            Ok(output) => {
                 log::debug!("gemini executed successfully");
                 output
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 log::warn!("Failed to execute gemini: {e}");
-                return Ok(None);
-            },
-            Err(_) => {
-                log::warn!("Gemini timed out after 15 seconds");
                 return Ok(None);
             },
         };
@@ -524,26 +521,26 @@ Respond with just the short kebab-case name:"#
     if agent_type == "qwen" {
         log::info!("Attempting to generate name with qwen");
         
-        let timeout_duration = Duration::from_secs(15);
         let binary = super::qwen::resolve_qwen_binary();
-        let qwen_future = Command::new(&binary)
+        let output = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
             .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
-            .output();
+            .env("TERM", "dumb")
+            .env("CI", "1")
+            .env("NONINTERACTIVE", "1")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .await;
         
-        let output = match timeout(timeout_duration, qwen_future).await {
-            Ok(Ok(output)) => {
+        let output = match output {
+            Ok(output) => {
                 log::debug!("qwen executed successfully");
                 output
             },
-            Ok(Err(e)) => {
+            Err(e) => {
                 log::warn!("Failed to execute qwen: {e}");
-                return Ok(None);
-            },
-            Err(_) => {
-                log::warn!("Qwen timed out after 15 seconds");
                 return Ok(None);
             },
         };
@@ -598,26 +595,26 @@ Respond with just the short kebab-case name:"#
     }
     
     log::info!("Attempting to generate name with claude");
-    let timeout_duration = Duration::from_secs(10);
-    let claude_future = Command::new("claude")
+    let output = Command::new("claude")
         .args(["--print", prompt_plain.as_str(), "--output-format", "json", "--model", "sonnet"])
         .current_dir(&run_dir)
         .env("NO_COLOR", "1")
         .env("CLICOLOR", "0")
-        .output();
+        .env("TERM", "dumb")
+        .env("CI", "1")
+        .env("NONINTERACTIVE", "1")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .await;
     
-    let output = match timeout(timeout_duration, claude_future).await {
-        Ok(Ok(output)) => {
+    let output = match output {
+        Ok(output) => {
             log::debug!("claude executed successfully");
             output
         },
-        Ok(Err(e)) => {
+        Err(e) => {
             log::error!("Failed to execute claude: {e}");
             return Err(anyhow!("Failed to execute claude: {e}"))
-        },
-        Err(_) => {
-            log::error!("Claude timed out after 10 seconds");
-            return Err(anyhow!("Claude timed out after 10 seconds"))
         },
     };
     
