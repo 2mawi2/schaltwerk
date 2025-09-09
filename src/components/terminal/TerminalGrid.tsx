@@ -23,7 +23,7 @@ import { useModal } from '../../contexts/ModalContext'
 export function TerminalGrid() {
     const { selection, terminals, isReady, isSpec } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
-    const { addRunningSession, removeRunningSession, isSessionRunning } = useRun()
+    const { addRunningSession, removeRunningSession } = useRun()
     const { getAgentType } = useClaudeSession()
     const { actionButtons } = useActionButtons()
     const { sessions } = useSessions()
@@ -678,12 +678,6 @@ export function TerminalGrid() {
                                 requestAnimationFrame(() => {
                                     terminalTabsRef.current?.focus()
                                 })
-                                // Stop run if switching away from Run tab
-                                const currentSessionId = selection.kind === 'session' ? selection.payload : 'orchestrator'
-                                if (currentSessionId && isSessionRunning(currentSessionId)) {
-                                    const runTerminalRef = runTerminalRefs.current.get(currentSessionId)
-                                    runTerminalRef?.toggleRun()
-                                }
                             }
                         }}
                         onTabClose={(index) => {

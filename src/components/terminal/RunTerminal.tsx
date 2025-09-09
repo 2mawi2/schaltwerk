@@ -100,7 +100,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             }
         }
         checkExistingTerminal()
-    }, [runTerminalId, runStateKey, onRunningStateChange])
+    }, [runTerminalId, runStateKey, onRunningStateChange, isRunning])
     
     // Monitor process exit by watching terminal output
     useEffect(() => {
@@ -111,15 +111,14 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             try {
                 // Listen for terminal output to detect process exit
                 const unlisten = await listenTerminalOutput(runTerminalId, (output) => {
-                    // Check for common exit patterns
+                    // Check for more specific exit patterns that indicate the main process has exited
                     const exitPatterns = [
                         /Process finished with exit code/i,
-                        /npm ERR!/,
-                        /Error:/,
                         /\[Exit code: \d+\]/,
-                        /Terminated/i,
-                        /Killed/i,
-                        /^\s*$/  // Empty output after previously having output might indicate exit
+                        /^\[Process exited with code \d+\]/,
+                        /^Process terminated/i,
+                        /^Killed: 9$/,
+                        /^npm ERR! Lifecycle script.*failed/
                     ]
                     
                     const hasExitPattern = exitPatterns.some(pattern => pattern.test(output))
