@@ -638,21 +638,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             return { wasAtBottom, scrollPosition };
         };
 
-        const restoreScrollPosition = (wasAtBottom: boolean, scrollPosition: number) => {
-            if (wasAtBottom || !terminal.current) return;
-            
-            try {
-                const buffer = terminal.current.buffer.active;
-                // Only preserve scroll for terminals with substantial content
-                if (buffer.length > 50) {
-                    const maxScroll = Math.max(0, buffer.baseY - terminal.current.rows + 1);
-                    const targetScroll = Math.min(scrollPosition, maxScroll);
-                    terminal.current.scrollToLine(targetScroll);
-                }
-            } catch (error) {
-                logger.warn(`[Terminal ${terminalId}] Failed to restore scroll position:`, error);
-            }
-        };
 
         // Handle font size changes with better debouncing
         let fontSizeChangeTimer: NodeJS.Timeout | null = null;
@@ -673,14 +658,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
 
                 // Capture scroll position before font size change
-                const { wasAtBottom, scrollPosition } = captureScrollPosition();
+                const { wasAtBottom } = captureScrollPosition();
 
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
 
-                    // Restore scroll position after font size change
-                    restoreScrollPosition(wasAtBottom, scrollPosition);
+                    // Always scroll to bottom on font size change if user was at bottom
+                    if (wasAtBottom) {
+                        requestAnimationFrame(() => {
+                            try {
+                                terminal.current?.scrollToBottom();
+                            } catch (error) {
+                                logger.debug('Failed to scroll to bottom after font size change', error);
+                            }
+                        });
+                    }
 
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
@@ -724,7 +717,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
 
             // Capture scroll position before resize
-            const { wasAtBottom, scrollPosition } = captureScrollPosition();
+            const { wasAtBottom } = captureScrollPosition();
 
             try {
                 // Force a proper fit with accurate dimensions
@@ -735,8 +728,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
             const { cols, rows } = terminal.current;
 
-            // Restore scroll position after resize
-            restoreScrollPosition(wasAtBottom, scrollPosition);
+            // Always scroll to bottom on resize if user was at bottom
+            // This ensures we stay at bottom during resize events
+            if (wasAtBottom) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.scrollToBottom();
+                    } catch (error) {
+                        logger.debug('Failed to scroll to bottom after resize', error);
+                    }
+                });
+            }
 
             // Only send resize if dimensions actually changed
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
@@ -826,14 +828,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         if (!fitAddon.current || !terminal.current) return;
                         
                         // Capture scroll position before final fit
-                        const { wasAtBottom, scrollPosition } = captureScrollPosition();
+                        const { wasAtBottom } = captureScrollPosition();
 
                         // Force a complete refit after drag ends
                         fitAddon.current.fit();
                         const { cols, rows } = terminal.current;
                         
-                        // Restore scroll position after final fit
-                        restoreScrollPosition(wasAtBottom, scrollPosition);
+                        // Always scroll to bottom after drag if user was at bottom
+                        if (wasAtBottom) {
+                            requestAnimationFrame(() => {
+                                try {
+                                    terminal.current?.scrollToBottom();
+                                } catch (error) {
+                                    logger.debug('Failed to scroll to bottom after drag', error);
+                                }
+                            });
+                        }
 
                         lastSize.current = { cols, rows };
                         invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
