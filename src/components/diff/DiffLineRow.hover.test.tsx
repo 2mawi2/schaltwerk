@@ -93,13 +93,13 @@ describe('DiffLineRow hover functionality', () => {
     const row = screen.getByRole('row')
     
     // Initially no hover ring
-    expect(row).not.toHaveClass('ring-1', 'ring-blue-500/30')
+    expect(row).not.toHaveClass('ring-1', 'ring-blue-400/50')
     
     // Hover
     fireEvent.mouseEnter(row)
     
     // Should have hover ring
-    expect(row).toHaveClass('ring-1', 'ring-blue-500/30')
+    expect(row).toHaveClass('ring-1', 'ring-blue-400/50')
   })
 
   it('should handle collapsible lines without showing hover hint', () => {

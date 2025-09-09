@@ -108,7 +108,7 @@ export function DiffViewer({
   return (
     <>
       {branchInfo && (
-        <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-800 bg-slate-900/30">
+        <div className="px-4 py-2 text-xs text-slate-400 border-b border-slate-700 bg-slate-950">
           {branchInfo.baseBranch} ({branchInfo.baseCommit.slice(0, 7)}) → {branchInfo.currentBranch} ({branchInfo.headCommit.slice(0, 7)})
         </div>
       )}
@@ -137,15 +137,15 @@ export function DiffViewer({
                 {/* File header */}
                 <div 
                   className={clsx(
-                    "sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between",
-                    isCurrentFile && "bg-slate-800"
+                    "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
+                    isCurrentFile && "bg-slate-900"
                   )}
                 >
                   <div className="flex items-center gap-3">
                     {getFileIcon(file.change_type, file.path)}
                     <div>
-                      <div className="font-medium text-sm">{file.path}</div>
-                      <div className="text-xs text-slate-500">
+                      <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                      <div className="text-xs text-slate-400">
                         {file.change_type === 'added' && 'New file'}
                         {file.change_type === 'deleted' && 'Deleted file'}
                         {file.change_type === 'modified' && 'Modified'}
@@ -275,15 +275,15 @@ export function DiffViewer({
               {/* File header */}
               <div 
                 className={clsx(
-                  "sticky top-0 z-10 bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between",
-                  isCurrentFile && "bg-slate-800"
+                  "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
+                  isCurrentFile && "bg-slate-900"
                 )}
               >
                 <div className="flex items-center gap-3">
                   {getFileIcon(file.change_type, file.path)}
                   <div>
-                    <div className="font-medium text-sm">{file.path}</div>
-                    <div className="text-xs text-slate-500">
+                    <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                    <div className="text-xs text-slate-400">
                       {file.change_type === 'added' && 'New file'}
                       {file.change_type === 'deleted' && 'Deleted file'}
                       {file.change_type === 'modified' && 'Modified'}

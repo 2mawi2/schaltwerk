@@ -80,11 +80,11 @@ function DiffLineRowComponent({
     <tr
       className={clsx(
         "group transition-colors relative",
-        line.type === 'added' && "bg-green-900/20 hover:bg-green-900/30",
-        line.type === 'removed' && "bg-red-900/20 hover:bg-red-900/30", 
-        line.type === 'unchanged' && "hover:bg-slate-900/30",
-        isSelected && "!bg-blue-500/20 hover:!bg-blue-500/25",
-        isHovered && "ring-1 ring-blue-500/30"
+        line.type === 'added' && "bg-green-900/30 hover:bg-green-900/40",
+        line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40", 
+        line.type === 'unchanged' && "hover:bg-slate-800/50",
+        isSelected && "!bg-blue-500/30 hover:!bg-blue-500/40",
+        isHovered && "ring-1 ring-blue-400/50"
       )}
       data-line-num={lineNum}
       data-side={side}
@@ -113,18 +113,18 @@ function DiffLineRowComponent({
       </td>
       
       {/* Line numbers - show old number for removed lines, new for added/unchanged */}
-      <td className="w-12 px-2 py-0.5 text-slate-500 text-right select-none text-xs font-mono">
+      <td className="w-12 px-2 py-0.5 text-slate-400 text-right select-none text-xs font-mono">
         {line.type === 'removed' ? line.oldLineNumber : ''}
       </td>
-      <td className="w-12 px-2 py-0.5 text-slate-500 text-right select-none text-xs font-mono">
+      <td className="w-12 px-2 py-0.5 text-slate-400 text-right select-none text-xs font-mono">
         {line.type !== 'removed' ? (line.newLineNumber || line.oldLineNumber) : ''}
       </td>
       
       {/* Change indicator */}
       <td className={clsx(
-        "w-6 text-center select-none font-mono",
-        line.type === 'added' && "text-green-500",
-        line.type === 'removed' && "text-red-500"
+        "w-6 text-center select-none font-mono font-bold",
+        line.type === 'added' && "text-green-400",
+        line.type === 'removed' && "text-red-400"
       )}>
         {line.type === 'added' ? '+' : line.type === 'removed' ? '-' : ''}
       </td>
@@ -132,10 +132,10 @@ function DiffLineRowComponent({
       {/* Code content */}
       <td className="px-2 py-0.5 font-mono text-sm relative whitespace-pre overflow-x-auto">
         {line.type === 'added' && (
-          <div className="absolute left-0 top-0 w-1 h-full bg-green-500/70" />
+          <div className="absolute left-0 top-0 w-1 h-full bg-green-400" />
         )}
         {line.type === 'removed' && (
-          <div className="absolute left-0 top-0 w-1 h-full bg-red-500/70" />
+          <div className="absolute left-0 top-0 w-1 h-full bg-red-400" />
         )}
         <div className="flex items-start gap-2">
           {highlightedContent ? (
@@ -144,7 +144,7 @@ function DiffLineRowComponent({
               dangerouslySetInnerHTML={{ __html: highlightedContent }}
             />
           ) : (
-            <code className="text-slate-300 inline-block whitespace-pre">{line.content}</code>
+            <code className="text-slate-200 inline-block whitespace-pre">{line.content}</code>
           )}
           <div className="flex items-center gap-2">
             {hasComment && (

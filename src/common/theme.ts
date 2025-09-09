@@ -109,12 +109,12 @@ export const theme = {
     },
     
     diff: {
-      addedBg: 'rgba(87, 166, 74, 0.15)',
-      addedText: '#57a64a',
-      removedBg: 'rgba(244, 135, 113, 0.15)',
-      removedText: '#f48771',
-      modifiedBg: 'rgba(245, 158, 11, 0.15)',
-      modifiedText: '#f59e0b',
+      addedBg: 'rgba(34, 197, 94, 0.25)',
+      addedText: '#4ade80',
+      removedBg: 'rgba(239, 68, 68, 0.25)',
+      removedText: '#f87171',
+      modifiedBg: 'rgba(245, 158, 11, 0.25)',
+      modifiedText: '#fbbf24',
     },
     
     scrollbar: {
