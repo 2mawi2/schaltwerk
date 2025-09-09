@@ -103,14 +103,6 @@
   --color-gray-900: #0f172a;
   --color-gray-950: #020617;
   
-   /* Font Size Variables */
-   --font-xs: 0.75rem;
-   --font-sm: 0.875rem;
-   --font-base: 1rem;
-   --font-lg: 1.125rem;
-   --font-xl: 1.25rem;
-   --font-2xl: 1.5rem;
-
    /* Standardized Semantic Font Sizes */
    --font-caption: 0.6875rem;    /* 11px - Small labels, metadata */
    --font-body: 0.875rem;        /* 14px - Primary body text */

@@ -579,10 +579,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Archived Specs</h3>
-                        <div className="text-sm text-slate-400 mb-4">Recover deleted prompts back to specs.</div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Archived Specs</h3>
+                        <div className="text-body text-slate-400 mb-4">Recover deleted prompts back to specs.</div>
                         <div className="mb-4 flex items-center gap-3">
-                            <label className="text-sm text-slate-300">Max entries</label>
+                            <label className="text-body text-slate-300">Max entries</label>
                             <input
                                 type="number"
                                 value={archiveMax}
@@ -597,12 +597,12 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     logger.error('Failed to save archive limit', e)
                                     showNotification('Failed to save archive limit', 'error')
                                 }
-                            }} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-sm">Save</button>
+                            }} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-body">Save</button>
                         </div>
                         {archivesLoading ? (
                             <div className="py-6"><AnimatedText text="loading" size="sm" /></div>
                         ) : archives.length === 0 ? (
-                            <div className="text-slate-400 text-sm">No archived specs.</div>
+                            <div className="text-slate-400 text-body">No archived specs.</div>
                         ) : (
                             <div className="space-y-3 w-full">
                                 {archives.map(item => (
@@ -612,8 +612,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                             style={{maxWidth: 'calc(100% - 140px)'}}
                                             onClick={() => setSelectedSpec({ name: item.session_name, content: item.content })}
                                         >
-                                            <div className="text-slate-200 text-sm truncate">{item.session_name}</div>
-                                             <div className="text-xs text-slate-500">{
+                                            <div className="text-slate-200 text-body truncate">{item.session_name}</div>
+                                             <div className="text-caption text-slate-500">{
                                                (() => {
                                                  const v = item.archived_at as string | number
                                                  let ts: number
@@ -626,7 +626,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                  return new Date(ts).toLocaleString()
                                                })()
                                              }</div>
-                                            <div className="text-xs text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
+                                            <div className="text-caption text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
                                         </div>
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <button onClick={async () => {
@@ -639,7 +639,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                     logger.error('Failed to restore archived spec', e)
                                                     showNotification('Failed to restore', 'error')
                                                 }
-                                            }} className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-xs bg-slate-800 hover:bg-slate-700">Restore</button>
+                                            }} className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-caption bg-slate-800 hover:bg-slate-700">Restore</button>
                                             <button onClick={async () => {
                                                 try {
                                                     await invoke('schaltwerk_core_delete_archived_spec', { id: item.id })
@@ -649,7 +649,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                     logger.error('Failed to delete archived spec', e)
                                                     showNotification('Failed to delete', 'error')
                                                 }
-                                            }} className="px-2 py-1 border border-red-700 rounded text-red-200 text-xs bg-red-900/30 hover:bg-red-900/50">Delete</button>
+                                            }} className="px-2 py-1 border border-red-700 rounded text-red-200 text-caption bg-red-900/30 hover:bg-red-900/50">Delete</button>
                                         </div>
                                     </div>
                                 ))}
@@ -731,7 +731,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
-                            className={`px-6 py-3 text-sm font-medium transition-colors capitalize ${
+                            className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
                                 activeAgentTab === agent
                                     ? 'text-slate-200 border-b-2 border-blue-500'
                                     : 'text-slate-400 hover:text-slate-300'
@@ -754,11 +754,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {/* Binary Path Configuration */}
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Binary Path</h3>
-                        <div className="text-sm text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Binary Path</h3>
+                        <div className="text-body text-slate-400 mb-4">
                             Configure which {activeAgentTab === 'cursor-agent' ? 'cursor-agent' : activeAgentTab} binary to use. 
                             Auto-detection finds all installed versions and recommends the best one.
-                            <span className="block mt-2 text-xs text-slate-500">
+                            <span className="block mt-2 text-caption text-slate-500">
                                 Note: Agent binary configurations are stored globally and apply to all projects.
                             </span>
                         </div>
@@ -766,10 +766,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         {/* Current Configuration */}
                         <div className="mb-4 p-3 bg-slate-800 rounded border border-slate-700">
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs text-slate-400">Current Binary</span>
+                                <span className="text-caption text-slate-400">Current Binary</span>
                                 <button
                                     onClick={() => handleRefreshBinaryDetection(activeAgentTab)}
-                                    className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+                                    className="text-caption text-blue-400 hover:text-blue-300 transition-colors"
                                     title="Refresh detection"
                                 >
                                     <svg className="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -781,13 +781,13 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             
                             {binaryConfigs[activeAgentTab].custom_path ? (
                                 <div className="space-y-2">
-                                    <div className="font-mono text-sm text-green-400">
+                                    <div className="font-mono text-body text-green-400">
                                         {binaryConfigs[activeAgentTab].custom_path}
                                     </div>
-                                    <div className="text-xs text-slate-500">Custom path (user configured)</div>
+                                    <div className="text-caption text-slate-500">Custom path (user configured)</div>
                                     <button
                                         onClick={() => handleBinaryPathChange(activeAgentTab, null)}
-                                        className="text-xs text-orange-400 hover:text-orange-300 transition-colors"
+                                        className="text-caption text-orange-400 hover:text-orange-300 transition-colors"
                                     >
                                         Reset to auto-detection
                                     </button>
@@ -798,10 +798,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                         const recommended = binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)
                                         return recommended ? (
                                             <div>
-                                                <div className="font-mono text-sm text-slate-200">
+                                                <div className="font-mono text-body text-slate-200">
                                                     {recommended.path}
                                                 </div>
-                                                <div className="flex items-center gap-2 text-xs">
+                                                <div className="flex items-center gap-2 text-caption">
                                                     <span className="text-green-400">✓ Recommended</span>
                                                     <span className="text-slate-500">•</span>
                                                     <span className="text-slate-400">{recommended.installation_method}</span>
@@ -814,14 +814,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className="text-sm text-slate-400">
+                                            <div className="text-body text-slate-400">
                                                 {binaryConfigs[activeAgentTab].detected_binaries[0].path}
                                             </div>
                                         )
                                     })()}
                                 </div>
                             ) : (
-                                <div className="text-sm text-yellow-400">
+                                <div className="text-body text-yellow-400">
                                     No {activeAgentTab} binary detected
                                 </div>
                             )}
@@ -835,11 +835,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     value={binaryConfigs[activeAgentTab].custom_path || ''}
                                     onChange={(e) => handleBinaryPathChange(activeAgentTab, e.target.value || null)}
                                     placeholder={binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)?.path || `Path to ${activeAgentTab} binary`}
-                                    className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                                    className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
                                 <button
                                     onClick={() => openFilePicker(activeAgentTab)}
-                                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded border border-slate-600 text-sm transition-colors"
+                                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded border border-slate-600 text-body transition-colors"
                                     title="Browse for binary"
                                 >
                                     Browse
@@ -849,7 +849,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             {/* Detected Binaries List */}
                             {binaryConfigs[activeAgentTab].detected_binaries.length > 0 && (
                                 <div className="mt-4">
-                                    <h4 className="text-xs font-medium text-slate-300 mb-2">Detected Binaries</h4>
+                                    <h4 className="text-caption font-medium text-slate-300 mb-2">Detected Binaries</h4>
                                     <div className="space-y-1 max-h-32 overflow-y-auto">
                                         {binaryConfigs[activeAgentTab].detected_binaries.map((binary, index) => (
                                             <div
@@ -858,10 +858,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                 onClick={() => handleBinaryPathChange(activeAgentTab, binary.path)}
                                             >
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="font-mono text-xs text-slate-200 truncate">
+                                                    <div className="font-mono text-caption text-slate-200 truncate">
                                                         {binary.path}
                                                     </div>
-                                                    <div className="flex items-center gap-2 text-xs mt-1">
+                                                    <div className="flex items-center gap-2 text-caption mt-1">
                                                         {binary.is_recommended && (
                                                             <span className="text-green-400">Recommended</span>
                                                         )}
@@ -889,8 +889,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                     </div>
 
                     <div className="border-t border-slate-700 pt-6">
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">CLI Arguments</h3>
-                        <div className="text-sm text-slate-400 mb-3">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">CLI Arguments</h3>
+                        <div className="text-body text-slate-400 mb-3">
                             Add custom command-line arguments that will be appended to the {activeAgentTab === 'cursor-agent' ? 'cursor-agent' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} command.
                         </div>
                         <input
@@ -912,7 +912,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                 )
                             }
                             placeholder="e.g., --profile test or -p some 'quoted value'"
-                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                             autoCorrect="off"
                             autoCapitalize="off"
                             autoComplete="off"
@@ -920,14 +920,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             inputMode="text"
                             style={{ fontVariantLigatures: 'none' }}
                         />
-                        <div className="mt-2 text-xs text-slate-500">
+                        <div className="mt-2 text-caption text-slate-500">
                             Examples: <code className="text-blue-400">--profile test</code>, <code className="text-blue-400">-d</code>, <code className="text-blue-400">--model gpt-4</code>
                         </div>
                     </div>
 
                     <div className="border-t border-slate-700 pt-6">
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Environment Variables</h3>
-                        <div className="text-sm text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Environment Variables</h3>
+                        <div className="text-body text-slate-400 mb-4">
                             Configure environment variables for {activeAgentTab === 'cursor-agent' ? 'Cursor' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
                             These variables will be available when starting agents with this agent type.
                         </div>
@@ -1014,7 +1014,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {activeAgentTab === 'claude' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common Claude CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>-d</code> or <code>--dangerously-skip-permissions</code> - Skip permission prompts</li>
@@ -1032,7 +1032,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {activeAgentTab === 'cursor-agent' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common Cursor CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--model gpt-4</code> - Specify model preference</li>
@@ -1049,7 +1049,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {activeAgentTab === 'opencode' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common OpenCode CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--model gpt-4-turbo</code> - Specify OpenAI model</li>
@@ -1066,7 +1066,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {activeAgentTab === 'gemini' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common Gemini CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--model gemini-1.5-pro</code> - Specify Gemini model</li>
@@ -1083,7 +1083,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {activeAgentTab === 'qwen' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common Qwen Code CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--prompt "task description"</code> - Start with specific prompt</li>
@@ -1102,7 +1102,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
                     {activeAgentTab === 'codex' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common Codex CLI arguments:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li><code>--sandbox workspace-write</code> - Workspace write access</li>
@@ -1129,17 +1129,17 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
-                        <div className="text-sm text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
+                        <div className="text-body text-slate-400 mb-4">
                             Configure a script that runs automatically when a new worktree is created for this project.
                             The script will be executed in the new worktree directory.
                         </div>
                         
                         <div className="mb-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400 mb-2">
+                            <div className="text-caption text-slate-400 mb-2">
                                 <strong>Available variables:</strong>
                             </div>
-                            <ul className="text-xs text-slate-500 space-y-1 list-disc list-inside">
+                            <ul className="text-caption text-slate-500 space-y-1 list-disc list-inside">
                                 <li><code className="text-blue-400">$WORKTREE_PATH</code> - Path to the new worktree</li>
                                 <li><code className="text-blue-400">$REPO_PATH</code> - Path to the main repository</li>
                                 <li><code className="text-blue-400">$SESSION_NAME</code> - Name of the agent</li>
@@ -1157,7 +1157,7 @@ if [ -f "$REPO_PATH/.env" ]; then
     cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
     echo "✓ Copied .env file to worktree"
 fi`}
-                                className="w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm resize-none overflow-auto focus:outline-none focus:border-blue-500 transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+                                className="w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body resize-none overflow-auto focus:outline-none focus:border-blue-500 transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
                                 spellCheck={false}
                                 style={{ 
                                     scrollbarWidth: 'thin',
@@ -1167,10 +1167,10 @@ fi`}
                         </div>
                         
                         <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded">
-                            <div className="text-xs text-blue-300 mb-2">
+                            <div className="text-caption text-blue-300 mb-2">
                                 <strong>Example use cases:</strong>
                             </div>
-                            <ul className="text-xs text-slate-400 space-y-1 list-disc list-inside">
+                            <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
                                 <li>Copy environment files (.env, .env.local)</li>
                                 <li>Install dependencies (npm install, pip install)</li>
                                 <li>Set up database connections</li>
@@ -1181,8 +1181,8 @@ fi`}
                     </div>
                     
                     <div className="mt-8">
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Project Environment Variables</h3>
-                        <div className="text-sm text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Project Environment Variables</h3>
+                        <div className="text-body text-slate-400 mb-4">
                             Configure environment variables that will be set for all agents in this project.
                             These variables are applied to all terminals and agent processes.
                         </div>
@@ -1227,7 +1227,7 @@ fi`}
                         </div>
                         
                         <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Common project environment variables:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>API keys and tokens specific to this project</li>
@@ -1248,12 +1248,12 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Font Sizes</h3>
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Font Sizes</h3>
                         <div className="space-y-4">
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-slate-300">Terminal Font Size</span>
-                                    <span className="text-sm text-slate-400">{terminalFontSize}px</span>
+                                    <span className="text-body text-slate-300">Terminal Font Size</span>
+                                    <span className="text-body text-slate-400">{terminalFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input
@@ -1269,7 +1269,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => setTerminalFontSize(13)}
-                                        className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400"
+                                        className="px-3 py-1 text-caption bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400"
                                     >
                                         Reset
                                     </button>
@@ -1278,8 +1278,8 @@ fi`}
                             
                             <div>
                                 <label className="flex items-center justify-between mb-2">
-                                    <span className="text-sm text-slate-300">UI Font Size</span>
-                                    <span className="text-sm text-slate-400">{uiFontSize}px</span>
+                                    <span className="text-body text-slate-300">UI Font Size</span>
+                                    <span className="text-body text-slate-400">{uiFontSize}px</span>
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input
@@ -1295,7 +1295,7 @@ fi`}
                                     />
                                     <button
                                         onClick={() => setUiFontSize(12)}
-                                        className="px-3 py-1 text-xs bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400"
+                                        className="px-3 py-1 text-caption bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400"
                                     >
                                         Reset
                                     </button>
@@ -1304,12 +1304,12 @@ fi`}
                         </div>
                         
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Keyboard shortcuts:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">+</kbd> Increase both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">-</kbd> Decrease both font sizes</li>
-                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">0</kbd> Reset both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">+</kbd> Increase both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">-</kbd> Decrease both font sizes</li>
+                                    <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd/Ctrl</kbd> + <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">0</kbd> Reset both font sizes</li>
                                 </ul>
                             </div>
                         </div>
@@ -1324,122 +1324,122 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Navigation</h3>
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Navigation</h3>
                         <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                            <ul className="space-y-2 text-sm">
+                            <ul className="space-y-2 text-body">
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Switch to Orchestrator</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + 1</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + 1</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Switch to Session 1-8</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + 2-9</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + 2-9</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Previous Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + ↑</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + ↑</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Next Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + ↓</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + ↓</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Switch to Previous Project</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + ←</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + ←</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Switch to Next Project</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + →</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + →</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Focus Claude Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + T</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + T</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Focus Terminal</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + /</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + /</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">New Line in Terminal (when terminal focused)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Enter</kbd>
                                 </li>
                             </ul>
                         </div>
                     </div>
                     
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Session Management</h3>
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Session Management</h3>
                         <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                            <ul className="space-y-2 text-sm">
+                            <ul className="space-y-2 text-body">
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">New Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + N</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + N</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">New Spec</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + N</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + N</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Cancel Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + D</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + D</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Force Cancel Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + D</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + D</kbd>
                                 </li>
                                  <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Mark Ready for Review</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + R</kbd>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + R</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Promote Best Version (in group)</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + B</kbd>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + B</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Convert Session to Spec</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + S</kbd>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + S</kbd>
                                  </li>
                                  <li className="flex justify-between items-center">
                                      <span className="text-slate-300">Open Diff Viewer (Session/Orchestrator)</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + G</kbd>
+                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + G</kbd>
                                  </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Open Agent Board (Kanban)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + K</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + K</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Enter Spec Mode (Orchestrator)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Shift + S</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + S</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Finish Review (in diff viewer)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Enter</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Add Comment (hover over diff line)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Enter</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Enter</kbd>
                                 </li>
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Run Spec Agent (when focused)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">Cmd/Ctrl + Enter</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Enter</kbd>
                                 </li>
                             </ul>
                         </div>
                     </div>
                     
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Action Buttons</h3>
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Action Buttons</h3>
                         <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                            <p className="text-sm text-slate-300 mb-3">
+                            <p className="text-body text-slate-300 mb-3">
                                 Action buttons appear in the terminal header and provide quick access to common AI prompts.
                             </p>
-                            <ul className="space-y-2 text-sm">
+                            <ul className="space-y-2 text-body">
                                 <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Action Button 1-6</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-xs">F1-F6</kbd>
+                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">F1-F6</kbd>
                                 </li>
                             </ul>
-                            <div className="mt-3 pt-3 border-t border-slate-600 text-xs text-slate-400">
+                            <div className="mt-3 pt-3 border-t border-slate-600 text-caption text-slate-400">
                                 <p className="mb-2">💡 Tip: Configure your action buttons in the "Action Buttons" settings tab.</p>
                                 <p>You can customize up to 6 buttons with different colors and AI prompts that will be pasted into Claude.</p>
                             </div>
@@ -1447,8 +1447,8 @@ fi`}
                     </div>
                     
                     <div className="p-4 bg-slate-800/30 border border-slate-700 rounded">
-                        <div className="text-xs text-slate-400">
-                            <p className="mb-2">Note: Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-xs">Cmd</kbd> on Windows/Linux systems.</p>
+                        <div className="text-caption text-slate-400">
+                            <p className="mb-2">Note: Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd</kbd> on Windows/Linux systems.</p>
                             <p>Keyboard shortcuts work globally throughout the application and can be used to efficiently navigate between agents and manage your workflow.</p>
                         </div>
                     </div>
@@ -1462,25 +1462,25 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Terminal Shell Configuration</h3>
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Terminal Shell Configuration</h3>
                         
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm text-slate-300 mb-2">Shell Path</label>
+                                <label className="block text-body text-slate-300 mb-2">Shell Path</label>
                                 <input
                                     type="text"
                                     value={terminalSettings.shell || ''}
                                     onChange={(e) => setTerminalSettings({ ...terminalSettings, shell: e.target.value || null })}
                                     placeholder="Leave empty to use system default ($SHELL)"
-                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
-                                <div className="mt-2 text-xs text-slate-500">
+                                <div className="mt-2 text-caption text-slate-500">
                                     Examples: <code className="text-blue-400">/usr/local/bin/nu</code>, <code className="text-blue-400">/opt/homebrew/bin/fish</code>, <code className="text-blue-400">/bin/zsh</code>
                                 </div>
                             </div>
                             
                             <div>
-                                <label className="block text-sm text-slate-300 mb-2">Shell Arguments</label>
+                                <label className="block text-body text-slate-300 mb-2">Shell Arguments</label>
                                 <input
                                     type="text"
                                     value={(terminalSettings.shellArgs || []).join(' ')}
@@ -1489,16 +1489,16 @@ fi`}
                                         setTerminalSettings({ ...terminalSettings, shellArgs: args })
                                     }}
                                     placeholder="Default: -i (interactive mode)"
-                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-sm"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
-                                <div className="mt-2 text-xs text-slate-500">
+                                <div className="mt-2 text-caption text-slate-500">
                                     Space-separated arguments passed to the shell. Leave empty for default interactive mode.
                                 </div>
                             </div>
                         </div>
                         
                         <div className="mt-6 p-4 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong className="text-slate-300">Popular Shell Configurations:</strong>
                                 <ul className="mt-3 space-y-2">
                                     <li className="flex items-start gap-2">
@@ -1547,14 +1547,14 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Action Buttons</h3>
-                        <p className="text-sm text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Action Buttons</h3>
+                        <p className="text-body text-slate-400 mb-4">
                             Configure custom action buttons that appear in the terminal header for both orchestrator and agent views.
                             These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
                         </p>
                         
                         <div className="bg-blue-900/20 border border-blue-700/50 rounded p-3 mb-6">
-                            <div className="text-xs text-blue-300">
+                            <div className="text-caption text-blue-300">
                                 <strong>💡 How it works:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside text-blue-200">
                                     <li>Click any action button to instantly paste its prompt into Claude</li>
@@ -1570,7 +1570,7 @@ fi`}
                                 <div key={button.id} className="bg-slate-800/50 border border-slate-700 rounded p-4">
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm text-slate-300 mb-2">Label</label>
+                                            <label className="block text-body text-slate-300 mb-2">Label</label>
                                             <input
                                                 type="text"
                                                 value={button.label}
@@ -1585,7 +1585,7 @@ fi`}
                                             />
                                         </div>
                                         <div>
-                                            <label className="block text-sm text-slate-300 mb-2">Color</label>
+                                            <label className="block text-body text-slate-300 mb-2">Color</label>
                                             <select
                                                 value={button.color || 'slate'}
                                                 onChange={(e) => {
@@ -1604,7 +1604,7 @@ fi`}
                                         </div>
                                     </div>
                                     <div className="mt-4">
-                                        <label className="block text-sm text-slate-300 mb-2">AI Prompt</label>
+                                        <label className="block text-body text-slate-300 mb-2">AI Prompt</label>
                                         <textarea
                                             value={button.prompt}
                                             onChange={(e) => {
@@ -1613,7 +1613,7 @@ fi`}
                                                 setEditableActionButtons(updated)
                                                 setHasUnsavedChanges(true)
                                             }}
-                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm min-h-[80px] resize-y"
+                                            className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-body min-h-[80px] resize-y"
                                             placeholder="Enter the AI prompt that will be pasted into Claude chat..."
                                         />
                                     </div>
@@ -1623,7 +1623,7 @@ fi`}
                                                 setEditableActionButtons(editableActionButtons.filter((_, i) => i !== index))
                                                 setHasUnsavedChanges(true)
                                             }}
-                                            className="text-red-400 hover:text-red-300 text-sm flex items-center gap-1"
+                                            className="text-red-400 hover:text-red-300 text-body flex items-center gap-1"
                                         >
                                             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -1677,7 +1677,7 @@ fi`}
                                 showNotification('Action buttons reset to defaults', 'success')
                             }
                         }}
-                        className="text-slate-400 hover:text-slate-300 text-sm"
+                        className="text-slate-400 hover:text-slate-300 text-body"
                     >
                         Reset to Defaults
                     </button>
@@ -1691,8 +1691,8 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Session Review Settings</h3>
-                        <div className="text-sm text-slate-400 mb-4">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Session Review Settings</h3>
+                        <div className="text-body text-slate-400 mb-4">
                             Configure how sessions are handled when marked as reviewed.
                         </div>
                         
@@ -1708,10 +1708,10 @@ fi`}
                                     className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
                                 />
                                 <div className="flex-1">
-                                    <div className="text-sm font-medium text-slate-200">
+                                    <div className="text-body font-medium text-slate-200">
                                         Auto-commit on Review
                                     </div>
-                                    <div className="text-xs text-slate-400 mt-1">
+                                    <div className="text-caption text-slate-400 mt-1">
                                         Automatically commit all changes when marking a session as reviewed.
                                         When disabled, you'll be prompted to commit changes manually.
                                     </div>
@@ -1729,10 +1729,10 @@ fi`}
                                     className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
                                 />
                                 <div className="flex-1">
-                                    <div className="text-sm font-medium text-slate-200">
+                                    <div className="text-body font-medium text-slate-200">
                                         Skip Confirmation Dialogs
                                     </div>
-                                    <div className="text-xs text-slate-400 mt-1">
+                                    <div className="text-caption text-slate-400 mt-1">
                                         Skip confirmation dialogs for actions that ask "Don't ask me again".
                                         When enabled, previously dismissed confirmations will be automatically applied.
                                     </div>
@@ -1741,7 +1741,7 @@ fi`}
                         </div>
                         
                         <div className="mt-4 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-xs text-slate-400">
+                            <div className="text-caption text-slate-400">
                                 <strong>Auto-commit on Review:</strong>
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>When enabled: Sessions with uncommitted changes are automatically committed when marked as reviewed</li>
@@ -1788,12 +1788,12 @@ fi`}
                 <div className="flex-1 overflow-y-auto p-6">
                     <div className="space-y-6">
                         <div>
-                            <h3 className="text-sm font-medium text-slate-200 mb-4">Privacy Settings</h3>
+                            <h3 className="text-body font-medium text-slate-200 mb-4">Privacy Settings</h3>
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
                                     <div className="flex flex-col flex-1 mr-4">
-                                        <span className="text-sm font-medium text-slate-200">Anonymous Analytics</span>
-                                        <span className="text-xs text-slate-400 mt-1">
+                                        <span className="text-body font-medium text-slate-200">Anonymous Analytics</span>
+                                        <span className="text-caption text-slate-400 mt-1">
                                             Help improve Schaltwerk by sharing anonymous usage metrics.
                                             All data is completely anonymous and GDPR compliant.
                                         </span>
@@ -1813,8 +1813,8 @@ fi`}
                                 </div>
                                 
                                 <div className="mt-4 p-4 bg-slate-800/30 rounded-lg">
-                                    <h4 className="text-xs font-medium text-slate-300 mb-2">Metrics we collect:</h4>
-                                    <ul className="space-y-1 text-xs text-slate-400">
+                                    <h4 className="text-caption font-medium text-slate-300 mb-2">Metrics we collect:</h4>
+                                    <ul className="space-y-1 text-caption text-slate-400">
                                         <li>• <span className="text-slate-300">App started:</span> Version number only</li>
                                         <li>• <span className="text-slate-300">Sessions:</span> Agent type, duration, file count</li>
                                         <li>• <span className="text-slate-300">Specs:</span> Creation source (MCP/manual)</li>
@@ -1822,8 +1822,8 @@ fi`}
                                         <li>• <span className="text-slate-300">Features:</span> Feature name when used</li>
                                     </ul>
                                     
-                                    <h4 className="text-xs font-medium text-slate-300 mb-2 mt-4">What we NEVER collect:</h4>
-                                    <ul className="space-y-1 text-xs text-slate-400">
+                                    <h4 className="text-caption font-medium text-slate-300 mb-2 mt-4">What we NEVER collect:</h4>
+                                    <ul className="space-y-1 text-caption text-slate-400">
                                         <li>• No file paths, project names, or repository URLs</li>
                                         <li>• No code content, terminal output, or commands</li>
                                         <li>• No git data, branch names, or commit messages</li>
@@ -1839,7 +1839,7 @@ fi`}
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                                         </svg>
                                         <div className="flex-1">
-                                            <p className="text-xs text-slate-300">
+                                            <p className="text-caption text-slate-300">
                                                 Data is processed by PostHog on EU servers and retained for 90 days.
                                                 You can opt-out at any time and all future data collection will stop.
                                             </p>
@@ -1848,7 +1848,7 @@ fi`}
                                                     // Open privacy policy in browser
                                                     window.open('https://github.com/yourusername/schaltwerk/blob/main/PRIVACY.md', '_blank')
                                                 }}
-                                                className="mt-2 text-xs text-blue-400 hover:text-blue-300 underline transition-colors"
+                                                className="mt-2 text-caption text-blue-400 hover:text-blue-300 underline transition-colors"
                                             >
                                                 View full privacy policy →
                                             </button>
@@ -1868,12 +1868,12 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-2">Run Script</h3>
-                        <div className="text-sm text-slate-400 mb-4">Run tests or a development server to test changes in a workspace.</div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Run Script</h3>
+                        <div className="text-body text-slate-400 mb-4">Run tests or a development server to test changes in a workspace.</div>
                         
                         <div className="space-y-4">
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-body font-medium text-slate-300 mb-2">
                                     Command
                                 </label>
                                 <input
@@ -1881,12 +1881,12 @@ fi`}
                                     value={runScript.command}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
                                     placeholder="just test"
-                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-200 text-body font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-medium text-slate-300 mb-2">
+                                <label className="block text-body font-medium text-slate-300 mb-2">
                                     Working Directory (Optional)
                                 </label>
                                 <input
@@ -1894,7 +1894,7 @@ fi`}
                                     value={runScript.workingDirectory || ''}
                                     onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value || undefined }))}
                                     placeholder="Leave empty to use project root"
-                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-200 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                    className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-slate-200 text-body font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                                 />
                             </div>
                         </div>
@@ -1909,14 +1909,14 @@ fi`}
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
                     <div>
-                        <h3 className="text-sm font-medium text-slate-200 mb-4">Application Information</h3>
+                        <h3 className="text-body font-medium text-slate-200 mb-4">Application Information</h3>
                         <div className="space-y-4">
                             <div className="flex items-center justify-between py-3 px-4 bg-slate-800/50 rounded-lg">
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-slate-200">Version</span>
-                                    <span className="text-xs text-slate-400">Current application version</span>
+                                    <span className="text-body font-medium text-slate-200">Version</span>
+                                    <span className="text-caption text-slate-400">Current application version</span>
                                 </div>
-                                <span className="text-sm font-mono text-slate-300 bg-slate-900/50 px-3 py-1 rounded">
+                                <span className="text-body font-mono text-slate-300 bg-slate-900/50 px-3 py-1 rounded">
                                     {appVersion || 'Loading...'}
                                 </span>
                             </div>
@@ -1970,7 +1970,7 @@ fi`}
                     notification.type === 'error' ? 'bg-red-900' : 
                     notification.type === 'success' ? 'bg-green-900' : 'bg-blue-900'
                 }`}>
-                    <div className="text-white text-sm">{notification.message}</div>
+                    <div className="text-white text-body">{notification.message}</div>
                 </div>
             )}
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center">
@@ -1997,14 +1997,14 @@ fi`}
                         {/* Sidebar */}
                         <div className="w-56 bg-slate-950/50 border-r border-slate-800 py-4">
                             <div className="px-3 mb-2">
-                                <div className="text-xs font-medium text-slate-500 uppercase tracking-wider">Configuration</div>
+                                <div className="text-caption font-medium text-slate-500 uppercase tracking-wider">Configuration</div>
                             </div>
                             <nav className="space-y-1 px-2">
                                 {CATEGORIES.map(category => (
                                     <button
                                         key={category.id}
                                         onClick={() => setActiveCategory(category.id)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2 text-sm rounded-lg transition-colors ${
+                                        className={`w-full flex items-center gap-3 px-3 py-2 text-body rounded-lg transition-colors ${
                                             activeCategory === category.id
                                                 ? 'bg-slate-800 text-slate-200'
                                                 : 'text-slate-400 hover:text-slate-300 hover:bg-slate-800/50'
