@@ -678,6 +678,9 @@ fn cursor_namegen_args(prompt_plain: &str) -> Vec<String> {
 }
 
 // Codex helpers (keep in sync with schaltwerk_core)
+// NOTE: These functions are duplicated here because the naming module needs to apply
+// the same Codex-specific flag normalization when invoking Codex for name generation.
+// Any changes to these functions should be synchronized with the versions in schaltwerk_core.rs
 fn fix_codex_single_dash_long_flags(args: &mut [String]) {
     for a in args.iter_mut() {
         if a.starts_with("--") { continue; }
@@ -727,6 +730,8 @@ fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
+    use tokio::time::timeout;
 
     #[test]
     fn test_cursor_namegen_arg_shape_with_gpt5() {
@@ -755,6 +760,19 @@ mod tests {
     }
 
     #[test]
+    fn test_sanitize_name_edge_cases() {
+        // Test various edge cases
+        assert_eq!(sanitize_name(""), "");
+        assert_eq!(sanitize_name("---"), "");
+        assert_eq!(sanitize_name("123-numbers"), "123-numbers");
+        assert_eq!(sanitize_name("UPPERCASE"), "uppercase");
+        assert_eq!(sanitize_name("Special!@#$%^&*()Chars"), "special-chars");
+        assert_eq!(sanitize_name("snake_case_to_kebab"), "snake-case-to-kebab");
+        assert_eq!(sanitize_name("   spaces   around   "), "spaces-around");
+        assert_eq!(sanitize_name("ümlaut-çhars"), "mlaut-hars"); // Non-ASCII removed
+    }
+
+    #[test]
     fn test_truncate_prompt() {
         let short_prompt = "Short agent";
         assert_eq!(truncate_prompt(short_prompt), "Short agent");
@@ -763,6 +781,41 @@ mod tests {
         let result = truncate_prompt(long_prompt);
         assert!(result.lines().count() <= 4);
         assert!(result.len() <= 400);
+    }
+
+    #[test]
+    fn test_truncate_prompt_edge_cases() {
+        // Empty prompt
+        assert_eq!(truncate_prompt(""), "");
+        
+        // Single very long line
+        let long_line = "a".repeat(500);
+        let result = truncate_prompt(&long_line);
+        assert_eq!(result.len(), 400);
+        
+        // Exactly 4 lines
+        let four_lines = "Line 1\nLine 2\nLine 3\nLine 4";
+        assert_eq!(truncate_prompt(four_lines), four_lines);
+        
+        // More than 4 lines
+        let many_lines = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6";
+        let result = truncate_prompt(many_lines);
+        assert_eq!(result, "Line 1\nLine 2\nLine 3\nLine 4");
+    }
+
+    #[test]
+    fn test_ansi_strip() {
+        // Test ANSI escape sequences removal
+        assert_eq!(ansi_strip("\x1b[31mRed Text\x1b[0m"), "Red Text");
+        assert_eq!(ansi_strip("\x1b[1;32mBold Green\x1b[0m"), "Bold Green");
+        assert_eq!(ansi_strip("Normal \x1b[33mYellow\x1b[0m Text"), "Normal Yellow Text");
+        assert_eq!(ansi_strip("\x1b[2J\x1b[H"), ""); // Clear screen codes
+        assert_eq!(ansi_strip("No ANSI codes"), "No ANSI codes");
+        assert_eq!(ansi_strip(""), "");
+        
+        // Complex sequences
+        assert_eq!(ansi_strip("\x1b[38;5;196mExtended Color\x1b[0m"), "Extended Color");
+        assert_eq!(ansi_strip("\x1b[48;2;255;0;0mRGB Background\x1b[0m"), "RGB Background");
     }
 
     #[test]
@@ -775,6 +828,38 @@ mod tests {
     }
 
     #[test]
+    fn test_fix_codex_single_dash_long_flags_comprehensive() {
+        // Test various flag formats
+        let mut args = vec![
+            "-model".to_string(),
+            "gpt-4".to_string(),
+            "-m".to_string(),       // Should remain as short flag
+            "sonnet".to_string(),
+            "--model=claude".to_string(), // Already correct
+            "-profile".to_string(),
+            "work".to_string(),
+            "-p".to_string(),       // Should remain as short flag  
+            "dev".to_string(),
+            "-v".to_string(),       // Other short flag
+            "-verbose".to_string(), // Not a known long flag, should remain
+        ];
+        
+        fix_codex_single_dash_long_flags(&mut args);
+        
+        assert_eq!(args[0], "--model");
+        assert_eq!(args[1], "gpt-4");
+        assert_eq!(args[2], "-m");
+        assert_eq!(args[3], "sonnet");
+        assert_eq!(args[4], "--model=claude");
+        assert_eq!(args[5], "--profile");
+        assert_eq!(args[6], "work");
+        assert_eq!(args[7], "-p");
+        assert_eq!(args[8], "dev");
+        assert_eq!(args[9], "-v");
+        assert_eq!(args[10], "-verbose"); // Unknown long flag unchanged
+    }
+
+    #[test]
     fn test_reorder_codex_model_after_profile() {
         let mut v = vec!["--model".to_string(), "gpt".to_string(), "--profile".to_string(), "work".to_string()];
         reorder_codex_model_after_profile(&mut v);
@@ -782,6 +867,61 @@ mod tests {
         let pos_profile = v.iter().position(|x| x == "--profile").unwrap();
         let pos_model = v.iter().position(|x| x == "--model").unwrap();
         assert!(pos_profile < pos_model);
+    }
+
+    #[test]
+    fn test_reorder_codex_model_after_profile_complex() {
+        // Test with multiple model flags and mixed formats
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "--other".to_string(),
+            "-m".to_string(),
+            "claude".to_string(),
+            "--profile".to_string(),
+            "work".to_string(),
+            "--model=sonnet".to_string(),
+            "--verbose".to_string(),
+        ];
+        
+        reorder_codex_model_after_profile(&mut args);
+        
+        // Find positions
+        let profile_pos = args.iter().position(|x| x == "--profile").unwrap();
+        let first_model = args.iter().position(|x| x == "--model").unwrap();
+        let short_model = args.iter().position(|x| x == "-m").unwrap();
+        let equals_model = args.iter().position(|x| x.starts_with("--model=")).unwrap();
+        
+        // All model flags should come after profile
+        assert!(profile_pos < first_model);
+        assert!(profile_pos < short_model);
+        assert!(profile_pos < equals_model);
+        
+        // Other flags should maintain relative order
+        assert!(args.iter().position(|x| x == "--other").unwrap() < profile_pos);
+        assert!(args.iter().position(|x| x == "--verbose").unwrap() < first_model);
+    }
+
+    #[test]
+    fn test_reorder_codex_model_no_profile() {
+        // Test when there's no profile flag
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "--verbose".to_string(),
+            "-m".to_string(),
+            "claude".to_string(),
+        ];
+        
+        let _original = args.clone();
+        reorder_codex_model_after_profile(&mut args);
+        
+        // Model flags should be moved to the end
+        assert_eq!(args[0], "--verbose");
+        assert_eq!(args[1], "--model");
+        assert_eq!(args[2], "gpt-4");
+        assert_eq!(args[3], "-m");
+        assert_eq!(args[4], "claude");
     }
 
     #[test]
@@ -857,5 +997,108 @@ mod tests {
         
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_generate_display_name_timeout_simulation() {
+        use tempfile::TempDir;
+        use crate::schaltwerk_core::database::Database;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
+        let worktree_path = temp_dir.path().join("worktree");
+        
+        // Simulate timeout by using a non-existent agent
+        let result = timeout(
+            Duration::from_millis(100),
+            generate_display_name(
+                &db,
+                "test-timeout",
+                &worktree_path,
+                "non_existent_agent",
+                Some("Test prompt for timeout"),
+                None,
+                &[],
+            )
+        ).await;
+        
+        // Should either timeout or return None (agent not found)
+        match result {
+            Ok(Ok(None)) => {}, // Agent not found
+            Ok(Ok(Some(_))) => panic!("Should not generate name for non-existent agent"),
+            Ok(Err(_)) => {}, // Agent execution error
+            Err(_) => {}, // Timeout
+        }
+    }
+
+    #[tokio::test]
+    async fn test_generate_display_name_handles_invalid_agent_output() {
+        use tempfile::TempDir;
+        use crate::schaltwerk_core::database::Database;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
+        let worktree_path = temp_dir.path().join("worktree");
+        
+        // Test with unsupported agent type
+        let result = generate_display_name(
+            &db,
+            "test-unsupported",
+            &worktree_path,
+            "unsupported_agent_type",
+            Some("Test prompt"),
+            None,
+            &[],
+        ).await;
+        
+        // Should return None for unsupported agent types
+        assert!(result.is_ok());
+        assert!(result.unwrap().is_none());
+    }
+
+    #[test]
+    fn test_session_rename_context_creation() {
+        use tempfile::TempDir;
+        use crate::schaltwerk_core::database::Database;
+        
+        let temp_dir = TempDir::new().unwrap();
+        let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
+        let worktree_path = temp_dir.path().join("worktree");
+        let repo_path = temp_dir.path().join("repo");
+        
+        let ctx = SessionRenameContext {
+            db: &db,
+            session_id: "test-session",
+            worktree_path: &worktree_path,
+            repo_path: &repo_path,
+            current_branch: "schaltwerk/old-name",
+            agent_type: "claude",
+            initial_prompt: Some("Test prompt"),
+            cli_args: Some("--model sonnet"),
+            env_vars: &[("KEY".to_string(), "VALUE".to_string())],
+        };
+        
+        // Verify context fields are accessible
+        assert_eq!(ctx.session_id, "test-session");
+        assert_eq!(ctx.agent_type, "claude");
+        assert_eq!(ctx.initial_prompt, Some("Test prompt"));
+        assert_eq!(ctx.cli_args, Some("--model sonnet"));
+        assert_eq!(ctx.env_vars.len(), 1);
+    }
+
+    #[test]
+    fn test_cursor_namegen_args_structure() {
+        // Test that cursor args are properly formatted for name generation
+        let prompt = "Build a todo app with React";
+        let args = cursor_namegen_args(prompt);
+        
+        // Verify the exact structure expected by cursor-agent
+        assert_eq!(args.len(), 6);
+        assert_eq!(args[0], "--print");
+        assert_eq!(args[1], "--output-format");
+        assert_eq!(args[2], "json");
+        assert_eq!(args[3], "-m");
+        assert_eq!(args[4], "gpt-5");
+        assert_eq!(args[5], prompt);
     }
 }

@@ -86,6 +86,23 @@ fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
     args.pop()
 }
 
+// CODEX FLAG NORMALIZATION - Why It's Needed:
+// 
+// Codex has inconsistent CLI flag handling that differs from standard Unix conventions:
+// 1. Users often type `-model` expecting it to work like `--model`, but Codex only accepts
+//    the double-dash form for long flags (or the short form `-m`)
+// 2. The `--profile` flag must appear BEFORE `--model` in the argument list for Codex to
+//    properly apply profile settings that might override the model
+// 3. This normalization ensures user intent is preserved regardless of how they type flags
+//
+// Examples of what this fixes:
+// - User types: `-model gpt-4` → Normalized to: `--model gpt-4`
+// - User types: `-profile work -model gpt-4` → Reordered so profile comes first
+// - Short flags like `-m` and `-p` are preserved as-is (they work correctly)
+//
+// Without this normalization, Codex would silently ignore malformed flags, leading to
+// unexpected behavior where the wrong model or profile is used.
+
 // Turn accidental single-dash long options into proper double-dash for Codex
 // Only affects known long flags: model, profile. Keeps true short flags intact.
 fn fix_codex_single_dash_long_flags(args: &mut [String]) {
@@ -1711,5 +1728,222 @@ mod tests {
         assert!(!matches_version_pattern("peaceful_robinson_v1", "happy_tesla"));
         assert!(!matches_version_pattern("peaceful_robinson_version1", "peaceful_robinson"));
         assert!(!matches_version_pattern("peaceful_robinson_v1a", "peaceful_robinson"));
+    }
+
+    #[test]
+    fn test_fix_codex_single_dash_long_flags() {
+        // Test basic model and profile flags
+        let mut args = vec!["-model=gpt-4o".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--model=gpt-4o");
+
+        let mut args = vec!["-profile=dev".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--profile=dev");
+
+        // Test flags without values
+        let mut args = vec!["-model".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--model");
+
+        // Test short flags should remain unchanged
+        let mut args = vec!["-m".to_string(), "-p".to_string(), "-v".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args, vec!["-m", "-p", "-v"]);
+
+        // Test already correct double-dash flags
+        let mut args = vec!["--model=gpt-4".to_string(), "--profile=work".to_string()];
+        let original = args.clone();
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args, original);
+
+        // Test unknown long flags should remain unchanged
+        let mut args = vec!["-verbose".to_string(), "-output".to_string()];
+        let original = args.clone();
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args, original);
+
+        // Test mixed scenarios
+        let mut args = vec![
+            "-model=gpt-4".to_string(),
+            "-m".to_string(),
+            "sonnet".to_string(),
+            "--profile=prod".to_string(),
+            "-profile".to_string(),
+            "dev".to_string(),
+            "-p".to_string(),
+            "-verbose".to_string(),
+        ];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--model=gpt-4");
+        assert_eq!(args[1], "-m");
+        assert_eq!(args[2], "sonnet");
+        assert_eq!(args[3], "--profile=prod");
+        assert_eq!(args[4], "--profile");
+        assert_eq!(args[5], "dev");
+        assert_eq!(args[6], "-p");
+        assert_eq!(args[7], "-verbose");
+    }
+
+    #[test]
+    fn test_fix_codex_single_dash_long_flags_edge_cases() {
+        // Empty vector
+        let mut args: Vec<String> = vec![];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert!(args.is_empty());
+
+        // Single hyphen alone
+        let mut args = vec!["-".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "-");
+
+        // Double hyphen alone
+        let mut args = vec!["--".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--");
+
+        // Flags with special characters
+        let mut args = vec!["-model=gpt-4-turbo".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--model=gpt-4-turbo");
+
+        // Flags with multiple equals
+        let mut args = vec!["-model=key=value".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--model=key=value");
+    }
+
+    #[test]
+    fn test_reorder_codex_model_after_profile() {
+        // Basic reordering
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "--profile".to_string(),
+            "work".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(args, vec!["--profile", "work", "--model", "gpt-4"]);
+
+        // Multiple model flags
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "-m".to_string(),
+            "claude".to_string(),
+            "--profile".to_string(),
+            "dev".to_string(),
+            "--model=sonnet".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        
+        // Profile should come first
+        assert_eq!(args[0], "--profile");
+        assert_eq!(args[1], "dev");
+        
+        // All model flags should be at the end
+        let model_start = 2;
+        assert!(args[model_start..].contains(&"--model".to_string()));
+        assert!(args[model_start..].contains(&"-m".to_string()));
+        assert!(args[model_start..].contains(&"--model=sonnet".to_string()));
+
+        // No profile present - models move to end
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "--verbose".to_string(),
+            "-m".to_string(),
+            "claude".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(args[0], "--verbose");
+        assert_eq!(args[1], "--model");
+        assert_eq!(args[2], "gpt-4");
+        assert_eq!(args[3], "-m");
+        assert_eq!(args[4], "claude");
+    }
+
+    #[test]
+    fn test_reorder_codex_model_after_profile_edge_cases() {
+        // Empty vector
+        let mut args: Vec<String> = vec![];
+        reorder_codex_model_after_profile(&mut args);
+        assert!(args.is_empty());
+
+        // Only model flags
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "-m".to_string(),
+            "claude".to_string(),
+        ];
+        let original = args.clone();
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(args, original);
+
+        // Only profile flag
+        let mut args = vec!["--profile".to_string(), "work".to_string()];
+        let original = args.clone();
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(args, original);
+
+        // Model flag without value at end
+        let mut args = vec![
+            "--profile".to_string(),
+            "work".to_string(),
+            "--model".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        assert_eq!(args, vec!["--profile", "work", "--model"]);
+
+        // Complex mixed scenario
+        let mut args = vec![
+            "--model=gpt-4".to_string(),
+            "--other".to_string(),
+            "value".to_string(),
+            "-m".to_string(),
+            "claude".to_string(),
+            "--profile".to_string(),
+            "prod".to_string(),
+            "--model".to_string(),
+            "sonnet".to_string(),
+            "--verbose".to_string(),
+            "-m=turbo".to_string(),
+        ];
+        reorder_codex_model_after_profile(&mut args);
+        
+        let profile_idx = args.iter().position(|x| x == "--profile").unwrap();
+        let first_model_idx = args.iter().position(|x| x.contains("model") || x == "-m").unwrap();
+        
+        assert!(profile_idx < first_model_idx);
+        assert_eq!(args[profile_idx], "--profile");
+        assert_eq!(args[profile_idx + 1], "prod");
+    }
+
+    #[test]
+    fn test_codex_flag_normalization_integration() {
+        // Test the full pipeline as used in actual code
+        let cli_args = "-model gpt-4 -p work -m claude";
+        let mut args = shell_words::split(cli_args).unwrap();
+        
+        fix_codex_single_dash_long_flags(&mut args);
+        reorder_codex_model_after_profile(&mut args);
+        
+        // After normalization:
+        // 1. -model should become --model
+        // 2. -p should stay as -p (short flag)
+        // 3. -m should stay as -m (short flag)
+        // 4. Profile flags should come before model flags
+        
+        assert!(args.contains(&"--model".to_string()));
+        assert!(args.contains(&"-p".to_string()));
+        assert!(args.contains(&"-m".to_string()));
+        
+        let p_idx = args.iter().position(|x| x == "-p").unwrap();
+        let model_idx = args.iter().position(|x| x == "--model").unwrap();
+        let m_idx = args.iter().position(|x| x == "-m").unwrap();
+        
+        assert!(p_idx < model_idx);
+        assert!(p_idx < m_idx);
     }
 }
