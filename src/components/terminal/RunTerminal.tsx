@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { listenTerminalOutput } from '../../common/eventSystem'
+import { theme } from '../../common/theme'
 
 interface RunScript {
     command: string
@@ -256,7 +257,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
     if (isLoading) {
         return (
-            <div className={`${className} flex items-center justify-center bg-slate-950`}>
+            <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: theme.colors.background.primary }}>
                 <div className="text-center">
                     <AnimatedText text="loading" size="md" colorClassName="text-slate-500" />
                     <div className="text-xs text-slate-600 mt-2">Loading run script...</div>
@@ -267,7 +268,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
     if (error || !runScript) {
         return (
-            <div className={`${className} flex items-center justify-center bg-slate-950`}>
+            <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: theme.colors.background.primary }}>
                 <div className="text-center p-8 max-w-md">
                     <div className="text-slate-600 text-5xl mb-4">⚡</div>
                     <div className="text-slate-400 font-medium text-lg mb-2">No Run Script Configured</div>
@@ -283,7 +284,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     }
 
     return (
-        <div className={`${className} flex flex-col bg-slate-950 overflow-hidden`}>
+        <div className={`${className} flex flex-col overflow-hidden`} style={{ backgroundColor: theme.colors.background.primary }}>
             {/* Run script info header */}
             <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex-shrink-0">
                 <div className="flex items-center gap-3 text-xs">
@@ -298,7 +299,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             </div>
             
             {/* Terminal or placeholder */}
-            <div className="flex-1 min-h-0 bg-black overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ backgroundColor: theme.colors.background.secondary }}>
                 {terminalCreatedRef.current ? (
                     <Terminal
                         terminalId={runTerminalId}
@@ -309,7 +310,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                         onTerminalClick={onTerminalClick}
                     />
                 ) : (
-                    <div className="h-full flex items-center justify-center">
+                    <div className="h-full flex items-center justify-center" style={{ backgroundColor: theme.colors.background.secondary }}>
                         <div className="text-center">
                             <div className="text-slate-600 text-4xl mb-4">▶</div>
                             <div className="text-slate-500 text-sm">Press ⌘E or click Run to start</div>
