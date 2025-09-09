@@ -266,7 +266,7 @@ impl LocalPtyAdapter {
                                 let delay_ms = if Self::is_agent_terminal(&id_clone) {
                                     2  // Small delay for agent terminals to handle streaming output
                                 } else {
-                                    0  // No delay for bottom terminals - immediate response
+                                    1  // Tiny coalescing for non-agent terminals to reduce fragmentation
                                 };
                                 
                                 handle_coalesced_output(

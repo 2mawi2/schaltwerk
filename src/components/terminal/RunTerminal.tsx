@@ -39,6 +39,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     const [error, setError] = useState<string | null>(null)
     const terminalCreatedRef = useRef(false)
     const processMonitorIntervalRef = useRef<NodeJS.Timeout | null>(null)
+    const terminalReadyRef = useRef(false)
+    const awaitingStartRef = useRef(false)
     
     // Create unique terminal ID for this session
     const runTerminalId = sessionName ? `run-terminal-${sessionName}` : 'run-terminal-orchestrator'
@@ -173,6 +175,40 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             unlistenPromise?.then(unlisten => unlisten?.())
         }
     }, [isRunning, onRunningStateChange, runTerminalId])
+
+    // Listen for terminal-ready events to know when hydration is complete
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ terminalId: string }>).detail
+            if (!detail) return
+            if (detail.terminalId === runTerminalId) {
+                terminalReadyRef.current = true
+                // If a run is pending, execute it now
+                if (awaitingStartRef.current) {
+                    executeRunCommand()
+                }
+            }
+        }
+        window.addEventListener('schaltwerk:terminal-ready' as any, handler as any)
+        return () => window.removeEventListener('schaltwerk:terminal-ready' as any, handler as any)
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [runTerminalId])
+
+    // Encapsulate command execution to ensure single-shot behavior
+    const executeRunCommand = async () => {
+        awaitingStartRef.current = false
+        try {
+            await invoke('write_terminal', {
+                id: runTerminalId,
+                data: (runScript?.command ?? '') + '\n'
+            })
+            logger.info('Executed run script command:', runScript?.command)
+            setIsRunning(true)
+            onRunningStateChange?.(true)
+        } catch (err) {
+            logger.error('Failed to execute run script:', err)
+        }
+    }
     
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -214,25 +250,20 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                         })
                         logger.info(`Created new run terminal with cwd: ${cwd}`)
                         terminalCreatedRef.current = true
+                        terminalReadyRef.current = false
                     } else {
                         logger.info(`Reusing existing run terminal: ${runTerminalId}`)
                         terminalCreatedRef.current = true
+                        // If terminal has already hydrated previously, we may already be ready
+                        // The onReady callback below will also set this flag on re-hydration
                     }
-                    
-                    // Execute the command after a small delay
-                    setTimeout(async () => {
-                        try {
-                            await invoke('write_terminal', {
-                                id: runTerminalId,
-                                data: runScript.command + '\n'
-                            })
-                            logger.info('Executed run script command:', runScript.command)
-                            setIsRunning(true)
-                            onRunningStateChange?.(true)
-                        } catch (err) {
-                            logger.error('Failed to execute run script:', err)
-                        }
-                    }, 500)
+
+                    // Schedule command execution when terminal is confirmed ready
+                    awaitingStartRef.current = true
+                    if (terminalReadyRef.current) {
+                        // If already ready, execute immediately
+                        executeRunCommand()
+                    }
                 } catch (err) {
                     logger.error('Failed to start run terminal:', err)
                 }
@@ -308,6 +339,12 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                         isCommander={isCommander}
                         agentType="run"
                         onTerminalClick={onTerminalClick}
+                        onReady={() => {
+                            terminalReadyRef.current = true
+                            if (awaitingStartRef.current) {
+                                executeRunCommand()
+                            }
+                        }}
                     />
                 ) : (
                     <div className="h-full flex items-center justify-center" style={{ backgroundColor: theme.colors.background.secondary }}>
