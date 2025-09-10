@@ -726,9 +726,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Attach once on mount; use refs above for latest values inside handlers
     }, [sessions, setCurrentFocus, setFocusForSession, setSelection])
 
-    // Calculate counts based on search and current filter state
-    const sessionsToCount = searchQuery ? sessions : allSessions
-    const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(sessionsToCount)
+    // Calculate counts based on all sessions (unaffected by search)
+    const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(allSessions)
 
     // Check if we're in spec mode
     const isInSpecMode = selection.kind === 'orchestrator' && specModeState?.isActive

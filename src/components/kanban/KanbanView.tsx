@@ -103,6 +103,7 @@ interface ColumnProps {
     title: string
     status: 'spec' | 'active' | 'dirty'
     sessions: EnrichedSession[]
+    totalCount: number
     onStatusChange: (sessionId: string, newStatus: string) => void
     selectedSessionId?: string | null
     focusedSessionId?: string | null
@@ -121,6 +122,7 @@ function Column({
     title, 
     status, 
     sessions, 
+    totalCount,
     onStatusChange, 
     selectedSessionId,
     focusedSessionId,
@@ -173,7 +175,7 @@ function Column({
         >
             <div className="flex items-center justify-between mb-3 flex-shrink-0">
                 <h3 className="text-lg font-semibold text-white">{title}</h3>
-                <span className="text-sm text-gray-500">{columnSessions.length}</span>
+                <span className="text-sm text-gray-500">{totalCount}</span>
             </div>
             
             <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-700 scrollbar-track-transparent min-h-0">
@@ -235,6 +237,20 @@ interface KanbanViewProps {
 export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     const { allSessions, loading, reloadSessions } = useSessions()
     const [selectedForDetails, setSelectedForDetails] = useState<{ kind: 'session'; payload: string; isSpec?: boolean } | null>(null)
+    
+    // Calculate total counts for each column (unaffected by search/filtering)
+    const totalSpecCount = useMemo(() => 
+        allSessions.filter(s => s.info.session_state === 'spec').length,
+        [allSessions]
+    )
+    const totalRunningCount = useMemo(() => 
+        allSessions.filter(s => s.info.session_state === 'running' && !s.info.ready_to_merge).length,
+        [allSessions]
+    )
+    const totalReviewedCount = useMemo(() => 
+        allSessions.filter(s => s.info.ready_to_merge === true).length,
+        [allSessions]
+    )
 
     const handleStatusChange = async (sessionId: string, newStatus: string) => {
         const session = allSessions.find(s => s.info.session_id === sessionId)
@@ -779,6 +795,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                 title="Spec"
                 status="spec"
                 sessions={allSessions}
+                totalCount={totalSpecCount}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
                 focusedSessionId={focusedSessionId}
@@ -796,6 +813,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                 title="Running"
                 status="active"
                 sessions={allSessions}
+                totalCount={totalRunningCount}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
                 focusedSessionId={focusedSessionId}
@@ -812,6 +830,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                 title="Reviewed"
                 status="dirty"
                 sessions={allSessions}
+                totalCount={totalReviewedCount}
                 onStatusChange={handleStatusChange}
                 selectedSessionId={selectedForDetails?.payload ?? null}
                 focusedSessionId={focusedSessionId}
