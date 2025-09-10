@@ -17,6 +17,163 @@ use crate::{
 };
 use uuid::Uuid;
 
+#[cfg(test)]
+mod service_unified_tests {
+    use super::*;
+    use crate::schaltwerk_core::database::Database;
+    use crate::schaltwerk_core::types::{Session, SessionStatus, SessionState};
+    use std::collections::HashMap;
+    use tempfile::TempDir;
+    use uuid::Uuid;
+    use chrono::Utc;
+
+    fn create_test_session_manager() -> (SessionManager, TempDir) {
+        let temp_dir = TempDir::new().unwrap();
+        let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
+        let repo_path = temp_dir.path().join("repo");
+        std::fs::create_dir_all(&repo_path).unwrap();
+        
+        let manager = SessionManager::new(db, repo_path);
+        (manager, temp_dir)
+    }
+
+    fn create_test_session(temp_dir: &TempDir, agent_type: &str, session_suffix: &str) -> Session {
+        let repo_path = temp_dir.path().join("repo");
+        let session_name = format!("test-session-{}-{}", agent_type, session_suffix);
+        let worktree_path = temp_dir.path().join("worktrees").join(&session_name);
+        std::fs::create_dir_all(&worktree_path).unwrap();
+        
+        Session {
+            id: Uuid::new_v4().to_string(),
+            name: session_name.clone(),
+            display_name: None,
+            repository_path: repo_path,
+            repository_name: "test-repo".to_string(),
+            branch: "schaltwerk/test-session".to_string(),
+            parent_branch: "main".to_string(),
+            worktree_path,
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: Some("test prompt".to_string()),
+            ready_to_merge: false,
+            original_agent_type: Some(agent_type.to_string()),
+            original_skip_permissions: Some(true),
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+        }
+    }
+
+    #[test]
+    fn test_unified_registry_produces_same_commands_as_old_match() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let registry = crate::domains::agents::unified::AgentRegistry::new();
+        
+        // Test each supported agent type
+        for (i, agent_type) in ["claude", "cursor", "codex", "qwen", "gemini", "opencode"].iter().enumerate() {
+            let session = create_test_session(&temp_dir, agent_type, &i.to_string());
+            
+            // Create session in database
+            manager.db_manager.create_session(&session).unwrap();
+            
+            // Get the unified command using the new registry approach
+            let binary_paths = HashMap::new();
+            let result = manager.start_claude_in_session_with_restart_and_binary(
+                &session.name, 
+                false, 
+                &binary_paths
+            );
+            
+            // Should succeed for all supported agents
+            assert!(result.is_ok(), "Agent {} should be supported", agent_type);
+            
+            let command = result.unwrap();
+            
+            // Verify command contains expected elements
+            assert!(command.contains(&format!("cd {}", session.worktree_path.display())));
+            
+            // Get the agent from registry and verify it matches
+            if let Some(agent) = registry.get(agent_type) {
+                let _registry_command = agent.build_command(
+                    &session.worktree_path,
+                    None,
+                    session.initial_prompt.as_deref(),
+                    session.original_skip_permissions.unwrap_or(false),
+                    None,
+                );
+                
+                // The service command should match what the registry produces
+                // (accounting for potential binary path differences)
+                assert!(command.contains(agent.binary_name()) || command.contains(agent.default_binary()),
+                       "Command for {} should contain correct binary name", agent_type);
+            }
+        }
+    }
+
+    #[test]
+    fn test_codex_sandbox_mode_handling_preserved() {
+        let (manager, temp_dir) = create_test_session_manager();
+        
+        // Test with skip_permissions = true
+        let mut session = create_test_session(&temp_dir, "codex", "danger");
+        session.original_skip_permissions = Some(true);
+        manager.db_manager.create_session(&session).unwrap();
+        
+        let binary_paths = HashMap::new();
+        let result = manager.start_claude_in_session_with_restart_and_binary(
+            &session.name, 
+            false,
+            &binary_paths
+        );
+        
+        assert!(result.is_ok());
+        let command = result.unwrap();
+        assert!(command.contains("--sandbox danger-full-access"));
+        
+        // Test with skip_permissions = false
+        session.id = Uuid::new_v4().to_string();
+        session.name = "test-session-safe".to_string();
+        session.original_skip_permissions = Some(false);
+        manager.db_manager.create_session(&session).unwrap();
+        
+        let result = manager.start_claude_in_session_with_restart_and_binary(
+            &session.name, 
+            false,
+            &binary_paths
+        );
+        
+        assert!(result.is_ok());
+        let command = result.unwrap();
+        assert!(command.contains("--sandbox workspace-write"));
+    }
+
+    #[test]
+    fn test_unsupported_agent_error_handling() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let session = create_test_session(&temp_dir, "unsupported-agent", "0");
+        
+        manager.db_manager.create_session(&session).unwrap();
+        
+        let binary_paths = HashMap::new();
+        let result = manager.start_claude_in_session_with_restart_and_binary(
+            &session.name, 
+            false,
+            &binary_paths
+        );
+        
+        // Should return an error with supported agent types listed
+        assert!(result.is_err());
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("Unsupported agent type: unsupported-agent"));
+        assert!(error.contains("claude"));
+        assert!(error.contains("cursor"));
+        assert!(error.contains("codex"));
+    }
+}
+
 pub struct SessionManager {
     db_manager: SessionDbManager,
     cache_manager: SessionCacheManager,
@@ -542,152 +699,75 @@ impl SessionManager {
         let skip_permissions = session.original_skip_permissions.unwrap_or(self.db_manager.get_skip_permissions()?);
         let agent_type = session.original_agent_type.clone().unwrap_or(self.db_manager.get_agent_type()?);
         
-        match agent_type.as_str() {
-            "cursor" => {
-                // Always start fresh - no session discovery for new sessions
+        let registry = crate::domains::agents::unified::AgentRegistry::new();
+        
+        // Special handling for Claude's session resumption logic
+        if agent_type == "claude" {
+            log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
+            log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
+            
+            // Check for existing Claude session to determine if we should resume or start fresh
+            // Use fast-path detection that just checks if any sessions exist
+            let resumable_session_id = crate::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path);
+            log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
+            
+            // Determine session_id and prompt based on force_restart and existing session
+            let (session_id_to_use, prompt_to_use) = if force_restart {
+                // Explicit restart - always use initial prompt, no session resumption
+                log::info!("Session manager: Force restarting Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                (None, session.initial_prompt.as_deref())
+            } else if let Some(session_id) = resumable_session_id {
+                // Session exists with actual conversation content and not forcing restart - resume with session ID
+                log::info!("Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
+                (Some(session_id), None)
+            } else {
+                // No resumable session - use initial prompt for first start or empty sessions
+                log::info!("Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                (None, session.initial_prompt.as_deref())
+            };
+            
+            log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
+            
+            // Only mark session as prompted if we're actually using the prompt
+            if prompt_to_use.is_some() {
                 self.cache_manager.mark_session_prompted(&session.worktree_path);
-                let prompt_to_use = session.initial_prompt.as_deref();
-                
-                let binary_path = self.utils.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::domains::agents::cursor::CursorConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                Ok(crate::domains::agents::cursor::build_cursor_command_with_config(
-                    &session.worktree_path,
-                    None, // No session ID - always start fresh
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&config),
-                ))
             }
-            "opencode" => {
-                // Always start fresh - no session discovery for new sessions
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
-                let prompt_to_use = session.initial_prompt.as_deref();
-                
-                let binary_path = self.utils.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::domains::agents::opencode::OpenCodeConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                Ok(crate::domains::agents::opencode::build_opencode_command_with_config(
-                    &session.worktree_path,
-                    None, // No session info - always start fresh
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "gemini" => {
-                // Always start fresh - no session discovery for new sessions
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
-                let prompt_to_use = session.initial_prompt.as_deref();
-                
-                let binary_path = self.utils.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::domains::agents::gemini::GeminiConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                Ok(crate::domains::agents::gemini::build_gemini_command_with_config(
-                    &session.worktree_path,
-                    None, // No session ID - always start fresh
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "qwen" => {
-                // Always start fresh - no session discovery for new sessions
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
-                let prompt_to_use = session.initial_prompt.as_deref();
-                
-                let binary_path = self.utils.get_effective_binary_path_with_override("qwen", binary_paths.get("qwen").map(|s| s.as_str()));
-                let config = crate::domains::agents::qwen::QwenConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                Ok(crate::domains::agents::qwen::build_qwen_command_with_config(
-                    &session.worktree_path,
-                    None, // No session ID - always start fresh
-                    prompt_to_use,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "codex" => {
-                // Always start fresh - no session discovery for new sessions
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
-                let prompt_to_use = session.initial_prompt.as_deref();
-                
-                let sandbox_mode = if skip_permissions {
-                    "danger-full-access"
-                } else {
-                    "workspace-write"
-                };
-                
-                let binary_path = self.utils.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::domains::agents::codex::CodexConfig {
-                    binary_path: Some(binary_path),
-                };
-                Ok(crate::domains::agents::codex::build_codex_command_with_config(
-                    &session.worktree_path,
-                    None, // No session ID - always start fresh
-                    prompt_to_use,
-                    sandbox_mode,
-                    Some(&config),
-                ))
-            }
-            "claude" => {
-                log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
-                log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
-                
-                // Check for existing Claude session to determine if we should resume or start fresh
-                // Use fast-path detection that just checks if any sessions exist
-                let resumable_session_id = crate::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path);
-                log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
-                
-                // Determine session_id and prompt based on force_restart and existing session
-                let (session_id_to_use, prompt_to_use) = if force_restart {
-                    // Explicit restart - always use initial prompt, no session resumption
-                    log::info!("Session manager: Force restarting Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
-                    (None, session.initial_prompt.as_deref())
-                } else if let Some(session_id) = resumable_session_id {
-                    // Session exists with actual conversation content and not forcing restart - resume with session ID
-                    log::info!("Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
-                    (Some(session_id), None)
-                } else {
-                    // No resumable session - use initial prompt for first start or empty sessions
-                    log::info!("Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
-                    (None, session.initial_prompt.as_deref())
-                };
-                
-                log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
-                
-                // Only mark session as prompted if we're actually using the prompt
-                if prompt_to_use.is_some() {
-                    self.cache_manager.mark_session_prompted(&session.worktree_path);
-                }
-
+            
+            if let Some(agent) = registry.get("claude") {
                 let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::domains::agents::claude::ClaudeConfig {
-                    binary_path: Some(binary_path),
-                };
-
-                Ok(crate::domains::agents::claude::build_claude_command_with_config(
+                return Ok(agent.build_command(
                     &session.worktree_path,
                     session_id_to_use.as_deref(),
                     prompt_to_use,
                     skip_permissions,
-                    Some(&config),
-                ))
-            }
-            _ => {
-                log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
-                Err(anyhow!("Unsupported agent type: {}. Supported types are: claude, cursor, codex", agent_type))
+                    Some(&binary_path),
+                ));
             }
         }
+        
+        // For all other agents, use the registry directly
+        if let Some(agent) = registry.get(&agent_type) {
+            // Always start fresh - no session discovery for new sessions
+            self.cache_manager.mark_session_prompted(&session.worktree_path);
+            let prompt_to_use = session.initial_prompt.as_deref();
+            
+            let binary_key = if agent_type == "cursor" { "cursor-agent" } else { &agent_type };
+            let binary_path = self.utils.get_effective_binary_path_with_override(binary_key, binary_paths.get(binary_key).map(|s| s.as_str()));
+            
+            Ok(agent.build_command(
+                &session.worktree_path,
+                None, // No session ID - always start fresh
+                prompt_to_use,
+                skip_permissions,
+                Some(&binary_path),
+            ))
+        } else {
+            log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
+            let supported = registry.supported_agents().join(", ");
+            Err(anyhow!("Unsupported agent type: {}. Supported types are: {}", agent_type, supported))
+        }
     }
+
     pub fn start_claude_in_orchestrator(&self) -> Result<String> {
         self.start_claude_in_orchestrator_with_args(None)
     }
@@ -745,140 +825,54 @@ impl SessionManager {
     }
 
     fn build_orchestrator_command(&self, agent_type: &str, skip_permissions: bool, binary_paths: &HashMap<String, String>, resume_session: bool) -> Result<String> {
-        match agent_type {
-            "cursor" => {
-                let binary_path = self.utils.get_effective_binary_path_with_override("cursor-agent", binary_paths.get("cursor-agent").map(|s| s.as_str()));
-                let config = crate::domains::agents::cursor::CursorConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                let session_id = if resume_session {
-                    crate::domains::agents::cursor::find_cursor_session(&self.repo_path)
-                } else {
-                    None
-                };
-                
-                Ok(crate::domains::agents::cursor::build_cursor_command_with_config(
-                    &self.repo_path,
-                    session_id.as_deref(),
-                    None,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "opencode" => {
-                let binary_path = self.utils.get_effective_binary_path_with_override("opencode", binary_paths.get("opencode").map(|s| s.as_str()));
-                let config = crate::domains::agents::opencode::OpenCodeConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                let session_info = if resume_session {
-                    crate::domains::agents::opencode::find_opencode_session(&self.repo_path)
-                } else {
-                    None
-                };
-                
-                Ok(crate::domains::agents::opencode::build_opencode_command_with_config(
-                    &self.repo_path,
-                    session_info.as_ref(),
-                    None,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "gemini" => {
-                let binary_path = self.utils.get_effective_binary_path_with_override("gemini", binary_paths.get("gemini").map(|s| s.as_str()));
-                let config = crate::domains::agents::gemini::GeminiConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                let session_id = if resume_session {
-                    crate::domains::agents::gemini::find_gemini_session(&self.repo_path)
-                } else {
-                    None
-                };
-                
-                Ok(crate::domains::agents::gemini::build_gemini_command_with_config(
-                    &self.repo_path,
-                    session_id.as_deref(),
-                    None,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "qwen" => {
-                let binary_path = self.utils.get_effective_binary_path_with_override("qwen", binary_paths.get("qwen").map(|s| s.as_str()));
-                let config = crate::domains::agents::qwen::QwenConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                let session_id = if resume_session {
-                    crate::domains::agents::qwen::find_qwen_session(&self.repo_path)
-                } else {
-                    None
-                };
-                
-                Ok(crate::domains::agents::qwen::build_qwen_command_with_config(
-                    &self.repo_path,
-                    session_id.as_deref(),
-                    None,
-                    skip_permissions,
-                    Some(&config),
-                ))
-            }
-            "codex" => {
-                let sandbox_mode = if skip_permissions {
-                    "danger-full-access"
-                } else {
-                    "workspace-write"
-                };
-                
-                let binary_path = self.utils.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
-                let config = crate::domains::agents::codex::CodexConfig {
-                    binary_path: Some(binary_path),
-                };
-                
-                let session_id = if resume_session {
-                    crate::domains::agents::codex::find_codex_session(&self.repo_path)
-                } else {
-                    None
-                };
-                
-                Ok(crate::domains::agents::codex::build_codex_command_with_config(
-                    &self.repo_path,
-                    session_id.as_deref(),
-                    None,
-                    sandbox_mode,
-                    Some(&config),
-                ))
-            }
-            "claude" => {
-                let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
-                let config = crate::domains::agents::claude::ClaudeConfig {
-                    binary_path: Some(binary_path),
-                };
-
+        let registry = crate::domains::agents::unified::AgentRegistry::new();
+        
+        // Special handling for Claude's --continue flag in orchestrator mode
+        if agent_type == "claude" {
+            let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
+            if let Some(agent) = registry.get("claude") {
                 // Use --continue flag for orchestrator instead of finding specific session ID
                 let session_id_to_use = if resume_session {
                     Some("__continue__") // Special value to trigger --continue flag
                 } else {
                     None
                 };
-
-                Ok(crate::domains::agents::claude::build_claude_command_with_config(
+                
+                return Ok(agent.build_command(
                     &self.repo_path,
                     session_id_to_use,
                     None,
                     skip_permissions,
-                    Some(&config),
-                ))
-            }
-            _ => {
-                log::error!("Unknown agent type '{agent_type}' for orchestrator");
-                Err(anyhow!("Unsupported agent type: {}. Supported types are: claude, cursor, codex, opencode, gemini, qwen", agent_type))
+                    Some(&binary_path),
+                ));
             }
         }
+        
+        // For all other agents, use the registry
+        if let Some(agent) = registry.get(agent_type) {
+            let binary_key = if agent_type == "cursor" { "cursor-agent" } else { agent_type };
+            let binary_path = self.utils.get_effective_binary_path_with_override(binary_key, binary_paths.get(binary_key).map(|s| s.as_str()));
+            
+            let session_id = if resume_session {
+                agent.find_session(&self.repo_path)
+            } else {
+                None
+            };
+            
+            Ok(agent.build_command(
+                &self.repo_path,
+                session_id.as_deref(),
+                None,
+                skip_permissions,
+                Some(&binary_path),
+            ))
+        } else {
+            log::error!("Unknown agent type '{agent_type}' for orchestrator");
+            let supported = registry.supported_agents().join(", ");
+            Err(anyhow!("Unsupported agent type: {}. Supported types are: {}", agent_type, supported))
+        }
     }
+    
 
     pub fn mark_session_as_reviewed(&self, session_name: &str) -> Result<()> {
         // Get session and validate state

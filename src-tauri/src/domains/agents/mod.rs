@@ -5,4 +5,5 @@ pub mod gemini;
 pub mod qwen;
 pub mod codex;
 pub mod naming;
+pub mod unified;
 
