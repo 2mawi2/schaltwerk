@@ -277,11 +277,16 @@ export function TerminalGrid() {
         }
     }, [currentFocus, selection, getSessionKey])
 
-    // Keyboard shortcut handling for Run Mode (Cmd+E)
+    // Keyboard shortcut handling for Run Mode (Cmd+E) and Terminal Focus (Cmd+/)
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
-            // Cmd+E (Mac) or Ctrl+E (Windows/Linux) for Run Mode Toggle
-            if ((event.metaKey || event.ctrlKey) && event.key === 'e') {
+            // Don't handle shortcuts if any modal is open
+            if (isAnyModalOpen()) {
+                return
+            }
+
+            // Cmd+E for Run Mode Toggle (Mac only)
+            if (event.metaKey && event.key === 'e') {
                 // Only handle if run scripts are available
                 if (hasRunScripts) {
                     event.preventDefault()
@@ -315,13 +320,74 @@ export function TerminalGrid() {
                     }
                 }
             }
+            
+            // Cmd+/ for Terminal Focus (Mac only)
+            if (event.metaKey && event.key === '/') {
+                event.preventDefault()
+                
+                const sessionKey = getSessionKey()
+                const lastFocus = getFocusForSession(sessionKey)
+                
+                // Special handling: if we're on the run tab, switch to terminal tab
+                const isOnRunTab = runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX
+                
+                if (isOnRunTab) {
+                    // Switch from run tab to first terminal tab
+                    setTerminalTabsState(prev => {
+                        const next = { ...prev, activeTab: 0 }
+                        sessionStorage.setItem(activeTabKey, String(0))
+                        return next
+                    })
+                    
+                    // Always focus terminal when switching from run tab
+                    setFocusForSession(sessionKey, 'terminal')
+                    setLocalFocus('terminal')
+                    
+                    // Expand if collapsed
+                    if (isBottomCollapsed) {
+                        const expandedSize = lastExpandedBottomPercent || 28
+                        setSizes([100 - expandedSize, expandedSize])
+                        setIsBottomCollapsed(false)
+                    }
+                    
+                    // Focus the terminal
+                    requestAnimationFrame(() => {
+                        terminalTabsRef.current?.focus()
+                    })
+                } else {
+                    // Not on run tab - use normal focus logic
+                    // Focus the last focused terminal (claude or terminal)
+                    // Default to terminal if no previous focus or invalid focus
+                    const targetFocus = (lastFocus === 'claude' || lastFocus === 'terminal') ? lastFocus : 'terminal'
+                    
+                    // Set focus for session
+                    setFocusForSession(sessionKey, targetFocus)
+                    setLocalFocus(targetFocus)
+                    
+                    // Expand terminal panel if collapsed and focusing terminal
+                    if (targetFocus === 'terminal' && isBottomCollapsed) {
+                        const expandedSize = lastExpandedBottomPercent || 28
+                        setSizes([100 - expandedSize, expandedSize])
+                        setIsBottomCollapsed(false)
+                    }
+                    
+                    // Focus the appropriate terminal
+                    requestAnimationFrame(() => {
+                        if (targetFocus === 'claude' && claudeTerminalRef.current) {
+                            claudeTerminalRef.current.focus()
+                        } else if (targetFocus === 'terminal' && terminalTabsRef.current) {
+                            terminalTabsRef.current.focus()
+                        }
+                    })
+                }
+            }
         }
 
         document.addEventListener('keydown', handleKeyDown)
         return () => {
             document.removeEventListener('keydown', handleKeyDown)
         }
-    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey])
+    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey])
 
     // Handle pending run toggle after RunTerminal mounts
     useEffect(() => {
