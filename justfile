@@ -90,73 +90,117 @@ release version="patch":
     echo "📊 Monitor progress at:"
     echo "  https://github.com/2mawi2/schaltwerk/actions"
 
-# Install the application to ~/Applications
+# Setup dependencies for development
+setup:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    echo "📦 Installing dependencies..."
+    npm install
+    
+    # Setup MCP server if it exists
+    if [ -d "mcp-server" ]; then
+        echo "📦 Setting up MCP server..."
+        cd mcp-server
+        npm ci --production=false
+        cd ..
+        echo "✅ MCP server dependencies installed"
+    fi
+    
+    echo "✅ Setup complete! You can now run 'just install' to build and install the app"
+
+# Install the application on macOS (builds and installs to /Applications)
 install:
     #!/usr/bin/env bash
     set -euo pipefail
     
-    echo "🔨 Building Tauri application..."
-    npm install
+    echo "🔨 Building Schaltwerk for macOS..."
+    
+    # Check if node_modules exists, if not run setup first
+    if [ ! -d "node_modules" ]; then
+        echo "📦 Dependencies not found. Running setup first..."
+        just setup
+    fi
+    
+    # Build frontend
+    echo "📦 Building frontend..."
     npm run build
     
-    # Build MCP server with production dependencies
-    echo "🔨 Building MCP server..."
-    cd mcp-server
-    npm ci --production=false
-    npm run build
-    # Install production dependencies for embedding
-    npm ci --production --prefix .
-    cd ..
-    echo "✅ MCP server built with dependencies"
+    # Build MCP server if it exists
+    if [ -d "mcp-server" ]; then
+        echo "📦 Building MCP server..."
+        cd mcp-server
+        npm run build
+        # Install production dependencies for embedding
+        npm ci --production --prefix .
+        cd ..
+        echo "✅ MCP server built"
+    fi
     
-    # Build Tauri application
+    # Build Tauri application for release
+    echo "🦀 Building Tauri app..."
     npm run tauri build
     
-    echo "📦 Installing to ~/Applications..."
+    # Find the built app bundle (handle different architectures)
+    APP_PATH=""
+    if [ -d "src-tauri/target/release/bundle/macos/Schaltwerk.app" ]; then
+        APP_PATH="src-tauri/target/release/bundle/macos/Schaltwerk.app"
+    elif [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app" ]; then
+        APP_PATH="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/Schaltwerk.app"
+    elif [ -d "src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Schaltwerk.app" ]; then
+        APP_PATH="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/Schaltwerk.app"
+    elif [ -d "src-tauri/target/universal-apple-darwin/release/bundle/macos/Schaltwerk.app" ]; then
+        APP_PATH="src-tauri/target/universal-apple-darwin/release/bundle/macos/Schaltwerk.app"
+    fi
     
-    # Create user Applications directory if it doesn't exist
-    mkdir -p ~/Applications
-    
-    # Find the built app bundle
-    APP_BUNDLE=$(find src-tauri/target/release/bundle -name "*.app" -type d | head -1)
-    
-    if [ -z "$APP_BUNDLE" ]; then
-        echo "❌ Error: Could not find built app bundle"
+    if [ -z "$APP_PATH" ] || [ ! -d "$APP_PATH" ]; then
+        echo "❌ Build failed - Schaltwerk.app not found"
+        echo "Searched in:"
+        echo "  - src-tauri/target/release/bundle/macos/"
+        echo "  - src-tauri/target/aarch64-apple-darwin/release/bundle/macos/"
+        echo "  - src-tauri/target/x86_64-apple-darwin/release/bundle/macos/"
+        echo "  - src-tauri/target/universal-apple-darwin/release/bundle/macos/"
         exit 1
     fi
     
-    APP_NAME=$(basename "$APP_BUNDLE")
+    echo "📦 Found app bundle at: $APP_PATH"
     
-    # Remove old installation if it exists
-    if [ -d ~/Applications/"$APP_NAME" ]; then
-        echo "🗑️  Removing old installation..."
-        rm -rf ~/Applications/"$APP_NAME"
+    # Embed MCP server if it was built
+    if [ -d "mcp-server/build" ]; then
+        MCP_DIR="$APP_PATH/Contents/Resources/mcp-server"
+        mkdir -p "$MCP_DIR"
+        cp -R mcp-server/build "$MCP_DIR/"
+        cp mcp-server/package.json "$MCP_DIR/"
+        cp -R mcp-server/node_modules "$MCP_DIR/"
+        echo "✅ MCP server embedded in app bundle"
     fi
     
-    # Copy the app bundle to user Applications
-    echo "📋 Copying $APP_NAME to ~/Applications..."
-    cp -R "$APP_BUNDLE" ~/Applications/
+    # Always install to /Applications for simplicity
+    INSTALL_DIR="/Applications"
     
-    # Embed MCP server in installed app
-    MCP_DIR="$HOME/Applications/$APP_NAME/Contents/Resources/mcp-server"
-    mkdir -p "$MCP_DIR"
-    cp -R mcp-server/build "$MCP_DIR/"
-    cp mcp-server/package.json "$MCP_DIR/"
-    cp -R mcp-server/node_modules "$MCP_DIR/"
-    echo "✅ MCP server embedded in app bundle with dependencies"
+    # Remove old installation if it exists
+    if [ -d "$INSTALL_DIR/Schaltwerk.app" ]; then
+        echo "🗑️  Removing existing Schaltwerk installation..."
+        echo "⚠️  Admin password required to remove old installation"
+        sudo rm -rf "$INSTALL_DIR/Schaltwerk.app"
+    fi
+    
+    # Copy the app to Applications
+    echo "📦 Installing Schaltwerk to $INSTALL_DIR..."
+    echo "⚠️  Admin password required for installation"
+    sudo cp -R "$APP_PATH" "$INSTALL_DIR/"
+    
+    # Set proper permissions
+    sudo chmod -R 755 "$INSTALL_DIR/Schaltwerk.app"
     
     # Clear quarantine attributes to avoid Gatekeeper issues
-    xattr -cr ~/Applications/"$APP_NAME" 2>/dev/null || true
+    sudo xattr -cr "$INSTALL_DIR/Schaltwerk.app" 2>/dev/null || true
     
-    echo "✅ Successfully installed $APP_NAME to ~/Applications/"
+    echo "✅ Schaltwerk installed successfully!"
     echo ""
-    echo "📋 MCP Server Setup for Claude Code:"
-    echo "  1. Open Schaltwerk and navigate to your project"
-    echo "  2. Go to Settings → MCP Configuration"
-    echo "  3. Click 'Configure MCP for This Project'"
-    echo ""
-    echo "  Manual command (run from project directory):"
-    echo "  claude mcp add --transport stdio --scope project schaltwerk node \"$MCP_DIR/build/schaltwerk-mcp-server.js\""
+    echo "🚀 Launch Schaltwerk:"
+    echo "  • From Spotlight: Press ⌘+Space and type 'Schaltwerk'"
+    echo "  • From Terminal: open /Applications/Schaltwerk.app"
 
 # Find an available port starting from a base port
 _find_available_port base_port:
@@ -455,36 +499,3 @@ run-port-release port:
     
     cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
 
-# Install the application on macOS as a release build
-install-mac:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "🔨 Building Schaltwerk for macOS..."
-    
-    # Build the release version
-    npm run build
-    npm run tauri build
-    
-    # Check if the app bundle was created
-    if [ ! -d "src-tauri/target/release/bundle/macos/Schaltwerk.app" ]; then
-        echo "❌ Build failed - Schaltwerk.app not found"
-        exit 1
-    fi
-    
-    # Remove old installation if it exists
-    if [ -d "/Applications/Schaltwerk.app" ]; then
-        echo "🗑️  Removing existing Schaltwerk installation..."
-        rm -rf "/Applications/Schaltwerk.app"
-    fi
-    
-    # Copy the app to Applications
-    echo "📦 Installing Schaltwerk to /Applications..."
-    cp -R "src-tauri/target/release/bundle/macos/Schaltwerk.app" "/Applications/"
-    
-    # Set proper permissions
-    chmod -R 755 "/Applications/Schaltwerk.app"
-    
-    echo "✅ Schaltwerk installed successfully!"
-    echo "🚀 You can now launch Schaltwerk from Applications or Spotlight"
-    echo ""
-    echo "To launch from terminal: open /Applications/Schaltwerk.app"
