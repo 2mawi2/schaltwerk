@@ -40,9 +40,18 @@ class Analytics {
         capture_pageleave: false,
         disable_session_recording: true,
         capture_performance: false, // Disable web vitals
+        disable_surveys: true,
+        
+        // CRITICAL: Disable IP tracking for true anonymity
+        ip: false, // This tells PostHog to not track IPs
         
         // No user profiles - anonymous only
         person_profiles: 'never',
+        
+        // Disable session tracking completely
+        disable_persistence: false, // We need this for distinct_id
+        disable_cookie: true, // Don't use cookies
+        disable_compression: false,
         
         // Set initial properties to track environment
         bootstrap: {
@@ -65,9 +74,33 @@ class Analytics {
           delete properties.$viewport_height;
           delete properties.$viewport_width;
           
-          // Remove any property that looks like web vitals
+          // CRITICAL: Remove ALL location data for maximum privacy
+          delete properties.$ip;
+          delete properties.$geoip_city_name;
+          delete properties.$geoip_country_name;  // Even country removed for ultra-privacy
+          delete properties.$geoip_country_code;
+          delete properties.$geoip_continent_name;  // Even continent removed
+          delete properties.$geoip_continent_code;
+          delete properties.$geoip_postal_code;
+          delete properties.$geoip_latitude;
+          delete properties.$geoip_longitude;
+          delete properties.$geoip_time_zone;
+          delete properties.$geoip_subdivision_1_name;
+          delete properties.$geoip_subdivision_1_code;
+          
+          // Remove session tracking
+          delete properties.$session_id;
+          delete properties.$window_id;
+          delete properties.$pageview_id;
+          
+          // Remove any property that looks like web vitals or tracking
           Object.keys(properties).forEach(key => {
-            if (key.startsWith('$') || key.includes('web_vital') || key.includes('performance')) {
+            if (key.startsWith('$') || 
+                key.includes('web_vital') || 
+                key.includes('performance') ||
+                key.includes('session') ||
+                key.includes('ip') ||
+                key.includes('geo')) {
               delete properties[key];
             }
           });

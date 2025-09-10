@@ -1818,6 +1818,7 @@ fi`}
                                         <li>• <span className="text-slate-300">App started:</span> Version number only</li>
                                         <li>• <span className="text-slate-300">Sessions:</span> Agent type, duration, file count</li>
                                         <li>• <span className="text-slate-300">Specs:</span> Creation source (MCP/manual)</li>
+                                        <li>• <span className="text-slate-300">User feedback:</span> Feedback messages (when submitted)</li>
                                         <li>• <span className="text-slate-300">Conversions:</span> Age in minutes when converted</li>
                                         <li>• <span className="text-slate-300">Features:</span> Feature name when used</li>
                                     </ul>
@@ -1831,6 +1832,23 @@ fi`}
                                         <li>• No IP addresses or device identifiers</li>
                                         <li>• No personal or identifiable information</li>
                                     </ul>
+                                </div>
+                                
+                                <div className="mt-4 p-3 bg-amber-900/20 border border-amber-700/40 rounded-lg">
+                                    <div className="flex items-start space-x-2">
+                                        <svg className="w-4 h-4 text-amber-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <div className="flex-1">
+                                            <p className="text-caption font-medium text-amber-200 mb-1">
+                                                Feedback Feature Notice
+                                            </p>
+                                            <p className="text-caption text-amber-300/80">
+                                                The feedback button in the top bar requires analytics to be enabled. 
+                                                When you send feedback, your message and app version are sent anonymously to PostHog.
+                                            </p>
+                                        </div>
+                                    </div>
                                 </div>
                                 
                                 <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded-lg">

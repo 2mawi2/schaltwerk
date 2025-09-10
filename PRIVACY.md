@@ -22,13 +22,16 @@ We collect **anonymous usage metrics only**. No personal information is ever col
   - Spec creation (whether from MCP API or manual)
   - Spec/session conversions (age in minutes)
   - Feature usage (feature name only)
+  - User feedback (feedback message text, app version)
 
 ### What We NEVER Collect:
 
 - ❌ Personal information (names, emails, etc.)
 - ❌ File contents or file paths
 - ❌ Project names or repository URLs
-- ❌ IP addresses or location data
+- ❌ IP addresses (explicitly disabled with `ip: false`)
+- ❌ Location/geo data (all geolocation stripped)
+- ❌ Session IDs or tracking cookies
 - ❌ Device identifiers or fingerprints
 - ❌ Error messages or stack traces
 - ❌ Any data from your coding sessions
@@ -44,6 +47,13 @@ We collect **anonymous usage metrics only**. No personal information is ever col
 - **Data Location:** EU servers (GDPR compliant)
 - **Data Retention:** 90 days
 - **Data Transmission:** Encrypted (HTTPS)
+
+### User Feedback
+When you submit feedback through the app:
+- Your feedback message is sent anonymously to PostHog
+- No identifying information is attached to your feedback
+- Feedback is used solely to improve the application
+- You must have analytics enabled to submit feedback
 
 ## Your Rights
 

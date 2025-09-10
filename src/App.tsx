@@ -11,6 +11,7 @@ import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
 import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
+import { FeedbackModal } from './components/modals/FeedbackModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './contexts/SelectionContext'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
@@ -83,6 +84,7 @@ export default function App() {
   } = useSpecMode({ projectPath, selection, sessions: allSessions, setFilterMode, setSelection, currentFilterMode: filterMode })
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [deleteSpecModalOpen, setDeleteSpecModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -1073,6 +1075,7 @@ export default function App() {
           onSelectTab={() => {}}
           onCloseTab={() => {}}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenFeedback={() => setFeedbackOpen(true)}
         />
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
@@ -1080,6 +1083,10 @@ export default function App() {
         <SettingsModal
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
+        />
+        <FeedbackModal
+          open={feedbackOpen}
+          onClose={() => setFeedbackOpen(false)}
         />
       </>
     )
@@ -1098,6 +1105,7 @@ export default function App() {
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenFeedback={() => setFeedbackOpen(true)}
         onOpenKanban={() => setIsKanbanOpen(true)}
         isOrchestratorActive={selection.kind === 'orchestrator' && !showHome}
         isSpecModeActive={!!commanderSpecModeSession}
@@ -1299,6 +1307,12 @@ export default function App() {
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
             onOpenTutorial={openOnboarding}
+          />
+
+          {/* Feedback Modal */}
+          <FeedbackModal
+            open={feedbackOpen}
+            onClose={() => setFeedbackOpen(false)}
           />
 
           <OnboardingModal

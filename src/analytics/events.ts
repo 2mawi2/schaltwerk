@@ -7,6 +7,7 @@ export enum AnalyticsEventName {
   SPEC_CONVERTED_TO_SESSION = 'spec_converted_to_session',
   SESSION_CONVERTED_TO_SPEC = 'session_converted_to_spec',
   FEATURE_USED = 'feature_used',
+  USER_FEEDBACK = 'user_feedback',
 }
 
 export interface AnalyticsEvents {
@@ -37,5 +38,9 @@ export interface AnalyticsEvents {
   };
   [AnalyticsEventName.FEATURE_USED]: {
     feature: string;
+  };
+  [AnalyticsEventName.USER_FEEDBACK]: {
+    message: string;
+    version: string;
   };
 }

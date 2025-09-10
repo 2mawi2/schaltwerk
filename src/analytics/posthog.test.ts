@@ -208,4 +208,67 @@ describe('Analytics', () => {
       expect(capturedProps).not.toHaveProperty('undefined_prop')
     })
   })
+
+  describe('user feedback tracking', () => {
+    beforeEach(async () => {
+      mockInvoke.mockResolvedValueOnce(true)
+      await analytics.initialize()
+    })
+
+    it('should track user feedback event with message and version', async () => {
+      analytics.track(AnalyticsEventName.USER_FEEDBACK, {
+        message: 'Great app! Love the UI',
+        version: '1.0.0'
+      })
+      
+      expect(posthogMock.capture).toHaveBeenCalledWith(
+        AnalyticsEventName.USER_FEEDBACK,
+        {
+          message: 'Great app! Love the UI',
+          version: '1.0.0'
+        }
+      )
+    })
+
+    it('should sanitize long feedback messages', async () => {
+      const longMessage = 'a'.repeat(150)
+      analytics.track(AnalyticsEventName.USER_FEEDBACK, {
+        message: longMessage,
+        version: '1.0.0'
+      })
+      
+      expect(posthogMock.capture).toHaveBeenCalledWith(
+        AnalyticsEventName.USER_FEEDBACK,
+        {
+          message: 'redacted_long_string',
+          version: '1.0.0'
+        }
+      )
+    })
+
+    it('should not track feedback without consent', async () => {
+      posthogMock.capture.mockClear()
+      await analytics.updateConsent(false)
+      
+      analytics.track(AnalyticsEventName.USER_FEEDBACK, {
+        message: 'Test feedback',
+        version: '1.0.0'
+      })
+      
+      expect(posthogMock.capture).not.toHaveBeenCalled()
+    })
+
+    it('should handle feedback submission errors gracefully', async () => {
+      posthogMock.capture.mockImplementationOnce(() => {
+        throw new Error('Network error')
+      })
+      
+      expect(() => {
+        analytics.track(AnalyticsEventName.USER_FEEDBACK, {
+          message: 'Test feedback',
+          version: '1.0.0'
+        })
+      }).not.toThrow()
+    })
+  })
 })
