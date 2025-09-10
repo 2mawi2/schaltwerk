@@ -985,4 +985,36 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(converted.spec_content, Some(spec_content.to_string()));
         assert_eq!(converted.session_state, SessionState::Spec);
     }
+    
+    #[test]
+    fn test_spec_session_ai_renaming_potential() {
+        // This test demonstrates that spec sessions should have potential for AI renaming
+        // when they contain meaningful spec content
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+        let db = env.get_database().unwrap();
+        
+        // Create a spec session with meaningful content
+        let spec_content = "Implement user authentication:\n- Add login endpoint\n- Add JWT token generation";
+        let spec = manager.create_spec_session("spec-renaming-test", spec_content).unwrap();
+        assert_eq!(spec.session_state, SessionState::Spec);
+        assert_eq!(spec.spec_content, Some(spec_content.to_string()));
+        assert_eq!(spec.initial_prompt, None); // Specs don't use initial_prompt
+        
+        // Start the spec session (convert to running)
+        manager.start_spec_session("spec-renaming-test", None).unwrap();
+        
+        // Get the updated session
+        let running = db.get_session_by_name(&env.repo_path, "spec-renaming-test").unwrap();
+        assert_eq!(running.session_state, SessionState::Running);
+        
+        // The session should have content available for AI renaming
+        // Either through initial_prompt OR spec_content
+        let has_renameable_content = running.initial_prompt.is_some() || running.spec_content.is_some();
+        assert!(has_renameable_content, "Session should have content for AI renaming (either initial_prompt or spec_content)");
+        
+        // For spec-started sessions, the spec_content should be preserved
+        assert_eq!(running.spec_content, Some(spec_content.to_string()), 
+                   "Spec content should be preserved when starting spec session");
+    }
 
