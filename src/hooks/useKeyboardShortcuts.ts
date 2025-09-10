@@ -24,6 +24,12 @@ interface KeyboardShortcutsProps {
 export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onPromoteSelectedVersion, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen }: KeyboardShortcutsProps) {
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Don't handle shortcuts when typing in input fields
+            const target = event.target as HTMLElement
+            if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+                return
+            }
+            
             const modifierKey = navigator.userAgent.includes('Mac') ? event.metaKey : event.ctrlKey
             
             if (!modifierKey) return
