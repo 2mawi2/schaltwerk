@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { VscCopy } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
+import type { MarkdownEditorRef } from './MarkdownEditor'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -20,6 +21,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   const [error, setError] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
   useEffect(() => {
     let mounted = true
@@ -69,6 +71,26 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     }
   }
 
+  // Handle Cmd+T to focus spec content
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 't' || e.key === 'T')) {
+        // Focus the spec editor
+        e.preventDefault()
+        e.stopPropagation()
+        
+        // Focus the markdown editor
+        if (markdownEditorRef.current) {
+          markdownEditorRef.current.focus()
+          logger.info('[SpecContentView] Focused spec content via Cmd+T')
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown, true) // Use capture phase to intercept before global shortcuts
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
+  }, [])
+
 
   if (loading) {
     return (
@@ -82,8 +104,11 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     return (
       <div className="h-full flex flex-col">
         <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-          <div className="text-xs text-slate-400">
-            {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing spec'}
+          <div className="flex items-center gap-2">
+            <div className="text-xs text-slate-400">
+              {saving ? 'Saving…' : error ? <span className="text-red-400">{error}</span> : 'Editing spec'}
+            </div>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
           </div>
           <button
             onClick={handleCopy}
@@ -101,6 +126,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
           </div>
         }>
           <MarkdownEditor
+            ref={markdownEditorRef}
             value={content}
             onChange={setContent}
             placeholder="Enter agent description in markdown…"
@@ -114,7 +140,10 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   return (
     <div className="h-full flex flex-col">
       <div className="px-3 py-2 border-b border-slate-800 flex items-center justify-between">
-        <div className="text-xs text-slate-400">Agent content</div>
+        <div className="flex items-center gap-2">
+          <div className="text-xs text-slate-400">Agent content</div>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleCopy}
@@ -134,6 +163,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
           </div>
         }>
           <MarkdownEditor
+            ref={markdownEditorRef}
             value={content}
             onChange={() => {}}
             readOnly={true}

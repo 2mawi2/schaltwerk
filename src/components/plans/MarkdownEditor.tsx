@@ -1,4 +1,4 @@
-import { useMemo, useCallback, memo, useRef, useEffect, useState } from 'react'
+import { useMemo, useCallback, memo, useRef, useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
@@ -10,6 +10,10 @@ interface MarkdownEditorProps {
   placeholder?: string
   readOnly?: boolean
   className?: string
+}
+
+export interface MarkdownEditorRef {
+  focus: () => void
 }
 
 const customTheme = EditorView.theme({
@@ -166,16 +170,17 @@ const scrollableInnerStyles: React.CSSProperties = {
   backgroundColor: '#0b1220',
 }
 
-export const MarkdownEditor = memo(function MarkdownEditor({
+export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorProps>(function MarkdownEditor({
   value,
   onChange,
   placeholder = 'Enter agent description in markdown…',
   readOnly = false,
   className = '',
-}: MarkdownEditorProps) {
+}, ref) {
   const editorConfig = useMemo(() => EditorState.tabSize.of(2), [])
   const lastValueRef = useRef(value)
   const [internalValue, setInternalValue] = useState(value)
+  const editorViewRef = useRef<EditorView | null>(null)
 
   const extensions = useMemo(() => [
     markdown(),
@@ -198,6 +203,14 @@ export const MarkdownEditor = memo(function MarkdownEditor({
     onChange(val)
   }, [onChange])
 
+  useImperativeHandle(ref, () => ({
+    focus: () => {
+      if (editorViewRef.current) {
+        editorViewRef.current.focus()
+      }
+    }
+  }), [])
+
   return (
     <div className={`markdown-editor-container ${className}`} style={scrollableContainerStyles}>
       <div className="markdown-editor-scroll" style={scrollableInnerStyles}>
@@ -208,6 +221,9 @@ export const MarkdownEditor = memo(function MarkdownEditor({
           theme={undefined}
           placeholder={placeholder}
           editable={!readOnly}
+          onCreateEditor={(view) => {
+            editorViewRef.current = view
+          }}
           basicSetup={{
             lineNumbers: false,
             foldGutter: false,
@@ -225,4 +241,4 @@ export const MarkdownEditor = memo(function MarkdownEditor({
       </div>
     </div>
   )
-})
+}))

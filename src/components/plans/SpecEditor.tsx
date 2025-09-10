@@ -6,6 +6,7 @@ import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { EnrichedSession } from '../../types/session'
 import { logger } from '../../utils/logger'
+import type { MarkdownEditorRef } from './MarkdownEditor'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -27,6 +28,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const lastServerContentRef = useRef<string>('')
   const contentRef = useRef<string>('')
   const hasLocalChangesRef = useRef<boolean>(false)
+  const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
   // Load initial content
   useEffect(() => {
@@ -214,11 +216,21 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !starting) {
         e.preventDefault()
         handleRun()
+      } else if ((e.metaKey || e.ctrlKey) && (e.key === 't' || e.key === 'T')) {
+        // Focus the spec editor
+        e.preventDefault()
+        e.stopPropagation()
+        
+        // Focus the markdown editor
+        if (markdownEditorRef.current) {
+          markdownEditorRef.current.focus()
+          logger.info('[SpecEditor] Focused spec content via Cmd+T')
+        }
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
+    window.addEventListener('keydown', handleKeyDown, true) // Use capture phase to intercept before global shortcuts
+    return () => window.removeEventListener('keydown', handleKeyDown, true)
   }, [handleRun, starting])
 
   if (loading) {
@@ -235,6 +247,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
           <h2 className="text-sm font-semibold text-slate-200 truncate">{sessionName}</h2>
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -283,6 +296,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
           </div>
         }>
           <MarkdownEditor
+            ref={markdownEditorRef}
             value={content}
             onChange={handleContentChange}
             placeholder="Enter agent description in markdown…"
