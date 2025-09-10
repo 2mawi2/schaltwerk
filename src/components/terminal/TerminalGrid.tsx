@@ -809,10 +809,6 @@ export function TerminalGrid() {
                                 }
                             }
                         }}
-                        onConfigureRun={() => {
-                            // Open settings modal to run scripts category
-                            // This will need to be implemented with a settings modal context
-                        }}
                     />
                     <div className={`h-[2px] flex-shrink-0 ${isDraggingSplit ? '' : 'transition-opacity duration-200'} ${
                         localFocus === 'terminal' && !isDraggingSplit

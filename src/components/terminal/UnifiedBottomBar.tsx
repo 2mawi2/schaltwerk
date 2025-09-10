@@ -31,7 +31,6 @@ export interface UnifiedBottomBarProps {
   hasRunScripts?: boolean
   isRunning?: boolean
   onRunScript?: () => void
-  onConfigureRun?: () => void
 }
 
 export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps>(({
@@ -47,8 +46,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
   onBarClick,
   hasRunScripts = false,
   isRunning = false,
-  onRunScript,
-  onConfigureRun: _onConfigureRun
+  onRunScript
 }, ref) => {
   return (
     <div

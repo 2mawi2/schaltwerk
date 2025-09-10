@@ -830,9 +830,18 @@ impl SessionManager {
         if agent_type == "claude" {
             let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
             if let Some(agent) = registry.get("claude") {
-                // Use --continue flag for orchestrator instead of finding specific session ID
+                // Check if we have any existing orchestrator sessions to resume
+                // The orchestrator runs in the main repo path, so we check for sessions there
                 let session_id_to_use = if resume_session {
-                    Some("__continue__") // Special value to trigger --continue flag
+                    // Check for existing Claude sessions in the main repository (orchestrator sessions)
+                    let has_orchestrator_sessions = crate::domains::agents::claude::find_resumable_claude_session_fast(&self.repo_path);
+                    if has_orchestrator_sessions.is_some() {
+                        log::info!("Orchestrator: Found existing Claude orchestrator sessions in main repo, using --continue flag");
+                        Some("__continue__") // Special value to trigger --continue flag
+                    } else {
+                        log::info!("Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh");
+                        None
+                    }
                 } else {
                     None
                 };
