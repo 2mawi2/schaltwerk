@@ -21,6 +21,7 @@ use uuid::Uuid;
 mod service_unified_tests {
     use super::*;
     use crate::schaltwerk_core::database::Database;
+    use crate::domains::sessions::entity::{Session, SessionStatus, SessionState};
     use std::collections::HashMap;
     use tempfile::TempDir;
     use uuid::Uuid;

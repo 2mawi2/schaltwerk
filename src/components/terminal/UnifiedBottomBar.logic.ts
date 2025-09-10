@@ -1,4 +1,4 @@
-import { TabInfo } from './UnifiedBottomBar'
+import { TabInfo } from '../../types/terminalTabs'
 export function canCloseTab(tab: TabInfo, allTabs: TabInfo[]): boolean {
     const isRunTab = tab.terminalId === 'run-terminal'
     

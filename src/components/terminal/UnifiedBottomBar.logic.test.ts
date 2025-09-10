@@ -6,7 +6,7 @@ import {
     getRunButtonLabel,
     getRunButtonTooltip
 } from './UnifiedBottomBar.logic'
-import { TabInfo } from './UnifiedBottomBar'
+import { TabInfo } from '../../types/terminalTabs'
 
 describe('UnifiedBottomBar logic', () => {
     describe('canCloseTab', () => {

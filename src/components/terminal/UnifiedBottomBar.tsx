@@ -2,6 +2,7 @@ import { forwardRef } from 'react'
 import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
+import { TabInfo } from '../../types/terminalTabs'
 import { 
     canCloseTab, 
     isRunTab,
@@ -9,12 +10,6 @@ import {
     getRunButtonLabel,
     getRunButtonTooltip
 } from './UnifiedBottomBar.logic'
-
-export interface TabInfo {
-  index: number
-  terminalId: string
-  label: string
-}
 
 export interface UnifiedBottomBarProps {
   isCollapsed: boolean

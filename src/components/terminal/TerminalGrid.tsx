@@ -19,6 +19,7 @@ import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
+import { safeTerminalFocus } from '../../utils/safeFocus'
 
 export function TerminalGrid() {
     const { selection, terminals, isReady, isSpec } = useSelection()
@@ -161,9 +162,9 @@ export function TerminalGrid() {
             }
             
             // Focus the terminal using requestAnimationFrame for next render
-            requestAnimationFrame(() => {
+            safeTerminalFocus(() => {
                 terminalTabsRef.current?.focus()
-            })
+            }, isAnyModalOpen)
         }
 
         window.addEventListener('schaltwerk:reset-terminals', handleTerminalReset)
@@ -227,14 +228,14 @@ export function TerminalGrid() {
         setLocalFocus(focusArea === 'claude' || focusArea === 'terminal' ? focusArea : null)
         
         // Focus the appropriate terminal after ensuring it's rendered
-        requestAnimationFrame(() => {
+        safeTerminalFocus(() => {
             if (focusArea === 'claude' && claudeTerminalRef.current) {
                 claudeTerminalRef.current.focus()
             } else if (focusArea === 'terminal' && terminalTabsRef.current) {
                 terminalTabsRef.current.focus()
             }
             // TODO: Add diff focus handling when we implement it
-        })
+        }, isAnyModalOpen)
     }, [selection, getFocusForSession, getSessionKey])
 
     // If global focus changes to claude/terminal, apply it immediately.
@@ -425,6 +426,7 @@ export function TerminalGrid() {
             if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
                 // Use requestAnimationFrame to avoid mid-frame updates
+                // Note: setSizes doesn't focus, so no need for safeFocus here
                 requestAnimationFrame(() => {
                     setSizes([100 - pct, pct])
                 })
@@ -521,9 +523,9 @@ export function TerminalGrid() {
         // Only focus the terminal, don't restart Claude
         // Claude is already auto-started by the Terminal component when first mounted
         // Use requestAnimationFrame for more reliable focus
-        requestAnimationFrame(() => {
+        safeTerminalFocus(() => {
             claudeTerminalRef.current?.focus()
-        })
+        }, isAnyModalOpen)
     }
 
     const handleTerminalClick = (e?: React.MouseEvent) => {
@@ -538,14 +540,14 @@ export function TerminalGrid() {
             const expanded = lastExpandedBottomPercent || 28
             setSizes([100 - expanded, expanded])
             setIsBottomCollapsed(false)
-            requestAnimationFrame(() => {
+            safeTerminalFocus(() => {
                 terminalTabsRef.current?.focus()
-            })
+            }, isAnyModalOpen)
             return
         }
-        requestAnimationFrame(() => {
+        safeTerminalFocus(() => {
             terminalTabsRef.current?.focus()
-        })
+        }, isAnyModalOpen)
     }
 
     // No prompt UI here anymore; moved to right panel dock
@@ -659,7 +661,7 @@ export function TerminalGrid() {
                                                     })
                                                     
                                                     // Restore focus to the previously focused terminal
-                                                    requestAnimationFrame(() => {
+                                                    safeTerminalFocus(() => {
                                                         if (localFocus === 'claude' && claudeTerminalRef.current) {
                                                             claudeTerminalRef.current.focus()
                                                         } else if (localFocus === 'terminal' && terminalTabsRef.current) {
@@ -668,7 +670,7 @@ export function TerminalGrid() {
                                                             // Default to focusing claude terminal if no previous focus
                                                             claudeTerminalRef.current?.focus()
                                                         }
-                                                    })
+                                                    }, isAnyModalOpen)
                                                 } catch (error) {
                                                     logger.error(`Failed to execute action "${action.label}":`, error)
                                                 }
@@ -741,9 +743,9 @@ export function TerminalGrid() {
                                     sessionStorage.setItem(activeTabKey, String(terminalIndex))
                                     return next
                                 })
-                                requestAnimationFrame(() => {
+                                safeTerminalFocus(() => {
                                     terminalTabsRef.current?.focus()
-                                })
+                                }, isAnyModalOpen)
                             }
                         }}
                         onTabClose={(index) => {

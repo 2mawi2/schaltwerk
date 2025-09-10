@@ -1,12 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
-
-export interface TabInfo {
-  index: number
-  terminalId: string
-  label: string
-}
+import { TabInfo } from '../types/terminalTabs'
 
 interface SessionTabState {
   activeTab: number
