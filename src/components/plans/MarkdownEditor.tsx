@@ -14,6 +14,7 @@ interface MarkdownEditorProps {
 
 export interface MarkdownEditorRef {
   focus: () => void
+  focusEnd: () => void
 }
 
 const customTheme = EditorView.theme({
@@ -207,6 +208,17 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
     focus: () => {
       if (editorViewRef.current) {
         editorViewRef.current.focus()
+      }
+    },
+    focusEnd: () => {
+      if (editorViewRef.current) {
+        editorViewRef.current.focus()
+        const doc = editorViewRef.current.state.doc
+        const endPos = doc.length
+        editorViewRef.current.dispatch({
+          selection: { anchor: endPos, head: endPos },
+          scrollIntoView: true
+        })
       }
     }
   }), [])

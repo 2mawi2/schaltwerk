@@ -221,10 +221,10 @@ export function SpecEditor({ sessionName, onStart }: Props) {
         e.preventDefault()
         e.stopPropagation()
         
-        // Focus the markdown editor
+        // Focus the markdown editor and move cursor to end
         if (markdownEditorRef.current) {
-          markdownEditorRef.current.focus()
-          logger.info('[SpecEditor] Focused spec content via Cmd+T')
+          markdownEditorRef.current.focusEnd()
+          logger.info('[SpecEditor] Focused spec content via Cmd+T and moved cursor to end')
         }
       }
     }
