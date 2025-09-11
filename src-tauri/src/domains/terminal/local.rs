@@ -54,6 +54,45 @@ impl Default for LocalPtyAdapter {
 }
 
 impl LocalPtyAdapter {
+    /// Detects a cursor position report (CPR) query request in output stream.
+    /// Sequences to detect:
+    /// - ESC [ 6 n (standard CPR request)
+    /// - ESC [ ? 6 n (DEC private mode CPR request) – respond similarly
+    fn contains_cpr_query(data: &[u8]) -> bool {
+        // Fast path: look for ESC '[' first
+        if !data.contains(&0x1b) { return false; }
+        let mut i = 0;
+        while i + 3 < data.len() {
+            if data[i] == 0x1b && data[i + 1] == b'[' {
+                // Standard: ESC [ 6 n
+                if data[i + 2] == b'6' && data[i + 3] == b'n' {
+                    return true;
+                }
+                // DEC private: ESC [ ? 6 n
+                if i + 4 < data.len() && data[i + 2] == b'?' && data[i + 3] == b'6' && data[i + 4] == b'n' {
+                    return true;
+                }
+            }
+            i += 1;
+        }
+        false
+    }
+
+    /// Writes a safe CPR fallback (ESC[1;1R) if the provided data contains a CPR query.
+    fn maybe_reply_cpr(
+        id: &str,
+        data: &[u8],
+        writers: &mut HashMap<String, Box<dyn Write + Send>>,
+    ) {
+        if Self::contains_cpr_query(data) {
+            if let Some(writer) = writers.get_mut(id) {
+                let _ = writer.write_all(b"\x1b[1;1R");
+                let _ = writer.flush();
+                debug!("CPR fallback responded for terminal {id}");
+            }
+        }
+    }
+
     pub fn new() -> Self {
         let app_handle = Arc::new(Mutex::new(None));
         Self {
@@ -226,6 +265,14 @@ impl LocalPtyAdapter {
                     }
                     Ok(n) => {
                         let data = buf[..n].to_vec();
+                        // If the child process is requesting a Cursor Position Report (ESC[6n),
+                        // provide a deterministic fallback response so CLIs that depend on CPR
+                        // (e.g., TUI frameworks) don't time out when the frontend terminal isn't ready.
+                        // We respond with ESC[1;1R (row 1, col 1) as a safe default.
+                        // Respond to CPR queries early to avoid CLI timeouts
+                        let mut writers = runtime.block_on(reader_state.pty_writers.lock());
+                        Self::maybe_reply_cpr(&id, &data, &mut writers);
+                        drop(writers);
                         let id_clone = id.clone();
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
@@ -1128,6 +1175,81 @@ mod tests {
 
     fn unique_id(prefix: &str) -> String {
         format!("{}-{}-{}", prefix, std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
+    }
+
+    #[test]
+    fn detect_standard_cpr_sequence() {
+        let data = b"hello\x1b[6nworld";
+        assert!(LocalPtyAdapter::contains_cpr_query(data));
+    }
+
+    #[test]
+    fn detect_dec_private_cpr_sequence() {
+        let data = b"abc\x1b[?6nxyz";
+        assert!(LocalPtyAdapter::contains_cpr_query(data));
+    }
+
+    #[test]
+    fn no_false_positive_on_similar_sequences() {
+        // ESC [ 6 m (SGR) should not be considered CPR
+        let data = b"test\x1b[6m";
+        assert!(!LocalPtyAdapter::contains_cpr_query(data));
+    }
+
+    #[derive(Default)]
+    struct MemWriter { pub buf: Vec<u8> }
+    impl Write for MemWriter {
+        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> { self.buf.extend_from_slice(data); Ok(data.len()) }
+        fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
+    }
+
+    #[derive(Clone, Default)]
+    struct SharedWriter(std::sync::Arc<tokio::sync::Mutex<MemWriter>>);
+    impl Write for SharedWriter {
+        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let mut g = self.0.lock().await;
+                g.write(data)
+            })
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let mut g = self.0.lock().await;
+                g.flush()
+            })
+        }
+    }
+
+    #[test]
+    fn maybe_reply_cpr_writes_fallback() {
+        let mut map: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
+        let id = "t1".to_string();
+        let shared = SharedWriter::default();
+        let handle = shared.0.clone();
+        map.insert(id.clone(), Box::new(shared));
+
+        LocalPtyAdapter::maybe_reply_cpr(&id, b"prompt\x1b[6n", &mut map);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let buf = rt.block_on(async { handle.lock().await.buf.clone() });
+        assert_eq!(buf, b"\x1b[1;1R".to_vec());
+    }
+
+    #[test]
+    fn maybe_reply_cpr_noop_without_query() {
+        let mut map: HashMap<String, Box<dyn Write + Send>> = HashMap::new();
+        let id = "t2".to_string();
+        let shared = SharedWriter::default();
+        let handle = shared.0.clone();
+        map.insert(id.clone(), Box::new(shared));
+
+        LocalPtyAdapter::maybe_reply_cpr(&id, b"just output", &mut map);
+
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let buf = rt.block_on(async { handle.lock().await.buf.clone() });
+        assert!(buf.is_empty());
     }
 
     async fn safe_close(adapter: &LocalPtyAdapter, id: &str) {
