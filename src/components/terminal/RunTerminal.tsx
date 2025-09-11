@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { Terminal } from './Terminal'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
@@ -194,7 +194,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     }, [runTerminalId])
 
     // Encapsulate command execution to ensure single-shot behavior
-    const executeRunCommand = useCallback(async () => {
+    const executeRunCommand = async () => {
         awaitingStartRef.current = false
         try {
             await invoke('write_terminal', {
@@ -207,7 +207,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         } catch (err) {
             logger.error('Failed to execute run script:', err)
         }
-    }, [runTerminalId, runScript, setIsRunning, onRunningStateChange])
+    }
     
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -284,7 +284,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             }
         },
         isRunning: () => isRunning
-    }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand])
+    }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange])
 
     // Cleanup: only clean up monitoring, NOT the terminal itself
     // Note: We intentionally don't close terminals here to allow switching between sessions

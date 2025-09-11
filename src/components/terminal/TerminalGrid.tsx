@@ -15,7 +15,7 @@ import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { AnimatedText } from '../common/AnimatedText'
-import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
@@ -92,9 +92,9 @@ export function TerminalGrid() {
     const [pendingRunToggle, setPendingRunToggle] = useState(false)
     
 
-    const getSessionKey = useCallback(() => {
+    const getSessionKey = () => {
         return sessionKey
-    }, [sessionKey])
+    }
 
     // Computed tabs that include Run tab when active
     const computedTabs = useMemo(() => {
@@ -122,7 +122,7 @@ export function TerminalGrid() {
             return terminalTabsState.activeTab + 1 // Shift by +1 for Run tab
         }
         return terminalTabsState.activeTab
-    }, [hasRunScripts, runModeActive, terminalTabsState.activeTab, RUN_TAB_INDEX])
+    }, [hasRunScripts, runModeActive, terminalTabsState.activeTab])
 
     const toggleTerminalCollapsed = () => {
         const newCollapsed = !isBottomCollapsed
@@ -173,7 +173,7 @@ export function TerminalGrid() {
             window.removeEventListener('schaltwerk:reset-terminals', handleTerminalReset)
             window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal)
         }
-    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, isAnyModalOpen])
+    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab])
 
     // Fetch agent type based on selection
     useEffect(() => {
@@ -432,7 +432,7 @@ export function TerminalGrid() {
                 if (frameId) cancelAnimationFrame(frameId)
             }
         }
-    }, [pendingRunToggle, runModeActive, terminalTabsState.activeTab, RUN_TAB_INDEX, getSessionKey])
+    }, [pendingRunToggle, runModeActive, terminalTabsState.activeTab])
 
     // Compute collapsed percent based on actual header height and container size
     useEffect(() => {
@@ -473,7 +473,7 @@ export function TerminalGrid() {
     }, [isBottomCollapsed, collapsedPercent])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
-    const getStorageKey = useCallback(() => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'), [selection])
+    const getStorageKey = () => (selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown')
     useEffect(() => {
         const key = getStorageKey()
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${key}`)
@@ -521,13 +521,13 @@ export function TerminalGrid() {
             setLastExpandedBottomPercent(sizes[1])
             sessionStorage.setItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`, String(sizes[1]))
         }
-    }, [sizes, isBottomCollapsed, sessionKey, getStorageKey])
+    }, [sizes, isBottomCollapsed, sessionKey])
 
     // Persist collapsed state
     useEffect(() => {
         const key = getStorageKey()
         sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
-    }, [isBottomCollapsed, selection, sessionKey, getStorageKey])
+    }, [isBottomCollapsed, selection, sessionKey])
 
     // Initialize terminal tabs state when terminals change
     useEffect(() => {

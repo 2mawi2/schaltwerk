@@ -104,7 +104,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         selectedSessionId: ''
     })
     const sidebarRef = useRef<HTMLDivElement>(null)
-    const searchInputRef = useRef<HTMLInputElement>(null)
     const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
     
@@ -144,13 +143,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional
         }
     }, [sessions, selection, setSelection])
-
-    // Maintain focus on search input when visible
-    useEffect(() => {
-        if (isSearchVisible && searchInputRef.current) {
-            searchInputRef.current.focus()
-        }
-    }, [isSearchVisible])
 
     // Fetch current branch for orchestrator
     useEffect(() => {
@@ -342,7 +334,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
-    const handleMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
+    const handleMarkReady = async (sessionId: string, hasUncommitted: boolean) => {
         try {
             // Check global auto-commit setting first
             const globalAutoCommit = await invoke<boolean>('get_auto_commit_on_review')
@@ -382,7 +374,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 hasUncommitted
             })
         }
-    }, [reloadSessions, setMarkReadyModal])
+    }
 
     const handleMarkSelectedSessionReady = useCallback(() => {
         if (selection.kind === 'session') {
@@ -914,19 +906,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                         </svg>
                         <input
-                            ref={searchInputRef}
                             type="text"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            onKeyDown={(e) => {
-                                // Handle Escape key to close search
-                                if (e.key === 'Escape') {
-                                    setSearchQuery('')
-                                    setIsSearchVisible(false)
-                                }
-                                // Prevent event propagation to stop interference from other handlers
-                                e.stopPropagation()
-                            }}
                             placeholder="Search sessions..."
                             className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
                             autoFocus
@@ -942,7 +924,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 setIsSearchVisible(false)
                             }}
                             className="text-slate-400 hover:text-slate-200 p-0.5"
-                            title="Close search (Esc)"
+                            title="Close search"
                         >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
