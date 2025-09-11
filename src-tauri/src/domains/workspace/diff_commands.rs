@@ -575,6 +575,38 @@ pub async fn get_commit_file_contents(
     Ok((old_text, new_text))
 }
 
+/// Find a session by name, with fallback support for versioned sessions.
+/// If the exact session name isn't found, attempts to find a related session with the same base name.
+fn find_session_with_fallback<'a>(
+    sessions: &'a [crate::domains::sessions::entity::EnrichedSession], 
+    name: &str
+) -> Option<&'a crate::domains::sessions::entity::EnrichedSession> {
+    // Try exact match first
+    if let Some(session) = sessions.iter().find(|s| s.info.session_id == name) {
+        return Some(session);
+    }
+    
+    // For versioned sessions that might not exist in the current session list,
+    // try to find a base session or related session.
+    // This commonly happens when inspecting multiple versions of a session.
+    log::warn!("Session '{}' not found in active session list, attempting fallback for versioned session", name);
+    
+    // Try to find a session with a similar base name for versioned sessions
+    // e.g., if looking for "feature_v2", find "feature" or "feature_v3", etc.
+    if name.contains("_v") {
+        let base_name = name.split("_v").next().unwrap_or(name);
+        if let Some(fallback_session) = sessions.iter().find(|s| {
+            s.info.session_id.starts_with(base_name) && 
+            (s.info.session_id == base_name || s.info.session_id.contains("_v"))
+        }) {
+            log::info!("Found fallback session '{}' for versioned session '{}'", fallback_session.info.session_id, name);
+            return Some(fallback_session);
+        }
+    }
+    
+    None
+}
+
 async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
         let core = get_schaltwerk_core().await?;
@@ -584,12 +616,10 @@ async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
         let sessions = manager.list_enriched_sessions()
             .map_err(|e| format!("Failed to get sessions: {e}"))?;
         
-        let session = sessions.into_iter().find(|s| s.info.session_id == name);
-        
-        if let Some(session) = session {
-            Ok(session.info.worktree_path)
+        if let Some(session) = find_session_with_fallback(&sessions, &name) {
+            Ok(session.info.worktree_path.clone())
         } else {
-            Err(format!("Session '{name}' not found"))
+            Err(format!("Session '{name}' not found (tried versioned session fallback)"))
         }
     } else {
         // For diff commands without session, use current project path if available,
@@ -622,12 +652,10 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
         let sessions = manager.list_enriched_sessions()
             .map_err(|e| format!("Failed to get sessions: {e}"))?;
         
-        let session = sessions.into_iter().find(|s| s.info.session_id == name);
-        
-        if let Some(session) = session {
-            Ok(session.info.base_branch)
+        if let Some(session) = find_session_with_fallback(&sessions, &name) {
+            Ok(session.info.base_branch.clone())
         } else {
-            Err(format!("Session '{name}' not found"))
+            Err(format!("Session '{name}' not found (tried versioned session fallback)"))
         }
     } else {
         // No session specified, get default branch from current project
