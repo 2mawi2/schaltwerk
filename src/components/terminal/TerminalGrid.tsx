@@ -390,21 +390,47 @@ export function TerminalGrid() {
         }
     }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey])
 
-    // Handle pending run toggle after RunTerminal mounts
+    // Handle pending run toggle after RunTerminal mounts with proper timing
     useEffect(() => {
         if (!pendingRunToggle) return
         
         // Check if we're on the Run tab
         if (runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX) {
             const sessionId = getSessionKey()
-            const runTerminalRef = runTerminalRefs.current.get(sessionId)
             
-            if (runTerminalRef) {
-                // RunTerminal is ready, toggle it
-                runTerminalRef.toggleRun()
-                setPendingRunToggle(false)
+            logger.info('[TerminalGrid] Setting up pending run toggle for session:', sessionId)
+            
+            let frameId: number
+            let attemptCount = 0
+            const maxAttempts = 10 // Try up to 10 frames (about 160ms at 60fps)
+            
+            const tryToggleRun = () => {
+                attemptCount++
+                const runTerminalRef = runTerminalRefs.current.get(sessionId)
+                
+                if (runTerminalRef) {
+                    // RunTerminal is ready, toggle it
+                    logger.info('[TerminalGrid] Executing pending toggle after mount (attempt', attemptCount, ')')
+                    runTerminalRef.toggleRun()
+                    setPendingRunToggle(false)
+                } else if (attemptCount < maxAttempts) {
+                    // Keep trying on next frame
+                    frameId = requestAnimationFrame(tryToggleRun)
+                } else {
+                    // Give up after max attempts
+                    logger.error('[TerminalGrid] RunTerminal not ready after', maxAttempts, 'attempts, giving up')
+                    setPendingRunToggle(false)
+                }
             }
-            // If ref not ready yet, effect will re-run when ref changes
+            
+            // Start trying after two frames to allow React to complete its render cycle
+            frameId = requestAnimationFrame(() => {
+                requestAnimationFrame(tryToggleRun)
+            })
+            
+            return () => {
+                if (frameId) cancelAnimationFrame(frameId)
+            }
         }
     }, [pendingRunToggle, runModeActive, terminalTabsState.activeTab, RUN_TAB_INDEX, getSessionKey])
 

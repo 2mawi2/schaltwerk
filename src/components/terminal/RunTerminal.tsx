@@ -37,7 +37,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     const [runScript, setRunScript] = useState<RunScript | null>(null)
     const [isLoading, setIsLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
-    const terminalCreatedRef = useRef(false)
+    const [terminalCreated, setTerminalCreated] = useState(false) // Changed to state to trigger re-renders
     const processMonitorIntervalRef = useRef<NodeJS.Timeout | null>(null)
     const terminalReadyRef = useRef(false)
     const awaitingStartRef = useRef(false)
@@ -87,7 +87,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                 const exists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
                 if (exists) {
                     logger.info(`Found existing run terminal: ${runTerminalId}`)
-                    terminalCreatedRef.current = true
+                    setTerminalCreated(true)
                     // Restore running state from storage
                     const storedRunning = sessionStorage.getItem(runStateKey) === 'true'
                     if (storedRunning !== isRunning) {
@@ -104,7 +104,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     
     // Monitor process exit by watching terminal output
     useEffect(() => {
-        if (!isRunning || !terminalCreatedRef.current) return
+        if (!isRunning || !terminalCreated) return
         
         // Start monitoring for process exit patterns
         const checkProcessStatus = async () => {
@@ -147,7 +147,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         processMonitorIntervalRef.current = setInterval(async () => {
             try {
                 const exists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
-                if (!exists && terminalCreatedRef.current) {
+                if (!exists && terminalCreated) {
                     logger.info('Terminal no longer exists, resetting state')
                     handleProcessExit()
                     if (processMonitorIntervalRef.current) {
@@ -173,7 +173,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             // Clean up listener
             unlistenPromise?.then(unlisten => unlisten?.())
         }
-    }, [isRunning, onRunningStateChange, runTerminalId])
+    }, [isRunning, onRunningStateChange, runTerminalId, terminalCreated])
 
     // Listen for terminal-ready events to know when hydration is complete
     useEffect(() => {
@@ -212,10 +212,15 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
         toggleRun: async () => {
-            if (!runScript) return
+            logger.info('[RunTerminal] toggleRun called, isRunning:', isRunning, 'runScript:', runScript?.command)
+            if (!runScript) {
+                logger.warn('[RunTerminal] No run script available')
+                return
+            }
             
             if (isRunning) {
                 // Stop the run - send Ctrl+C but keep terminal alive
+                logger.info('[RunTerminal] Stopping run process')
                 try {
                     const exists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
                     if (exists) {
@@ -224,17 +229,19 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                             id: runTerminalId,
                             data: '\x03' // Ctrl+C
                         })
-                        logger.info('Stopped run process (terminal kept alive)')
+                        logger.info('[RunTerminal] Sent Ctrl+C to stop process')
                     }
                     setIsRunning(false)
                     onRunningStateChange?.(false)
                 } catch (err) {
-                    logger.error('Failed to stop run process:', err)
+                    logger.error('[RunTerminal] Failed to stop run process:', err)
                 }
             } else {
                 // Start the run - reuse existing terminal if possible
+                logger.info('[RunTerminal] Starting run process')
                 try {
                     const exists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
+                    logger.info('[RunTerminal] Terminal exists:', exists, 'terminalId:', runTerminalId)
                     
                     if (!exists) {
                         // Create terminal only if it doesn't exist
@@ -243,28 +250,36 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                             cwd = await invoke<string>('get_current_directory')
                         }
                         
+                        logger.info('[RunTerminal] Creating new terminal with cwd:', cwd)
                         await invoke('create_terminal', {
                             id: runTerminalId,
                             cwd: cwd
                         })
-                        logger.info(`Created new run terminal with cwd: ${cwd}`)
-                        terminalCreatedRef.current = true
+                        logger.info('[RunTerminal] Terminal created successfully')
+                        setTerminalCreated(true) // This will trigger re-render to show Terminal component
                         terminalReadyRef.current = false
                     } else {
-                        logger.info(`Reusing existing run terminal: ${runTerminalId}`)
-                        terminalCreatedRef.current = true
+                        logger.info('[RunTerminal] Reusing existing terminal')
+                        setTerminalCreated(true)
                         // If terminal has already hydrated previously, we may already be ready
                         // The onReady callback below will also set this flag on re-hydration
                     }
 
                     // Schedule command execution when terminal is confirmed ready
                     awaitingStartRef.current = true
+                    logger.info('[RunTerminal] Awaiting terminal ready, current ready state:', terminalReadyRef.current)
+                    
                     if (terminalReadyRef.current) {
                         // If already ready, execute immediately
+                        logger.info('[RunTerminal] Terminal already ready, executing command immediately')
                         executeRunCommand()
+                    } else {
+                        logger.info('[RunTerminal] Terminal not ready yet, waiting for ready event')
+                        // The terminal-ready event listener will handle execution when ready
+                        // No timeout needed - the event system is reliable
                     }
                 } catch (err) {
-                    logger.error('Failed to start run terminal:', err)
+                    logger.error('[RunTerminal] Failed to start run terminal:', err)
                 }
             }
         },
@@ -330,7 +345,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             
             {/* Terminal or placeholder */}
             <div className="flex-1 min-h-0 overflow-hidden" style={{ backgroundColor: theme.colors.background.secondary }}>
-                {terminalCreatedRef.current ? (
+                {terminalCreated ? (
                     <Terminal
                         terminalId={runTerminalId}
                         className="h-full w-full overflow-hidden"

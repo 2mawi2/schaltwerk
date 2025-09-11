@@ -220,11 +220,21 @@ emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
 - Either use the code or delete it
 
 **Non-Deterministic Solutions PROHIBITED**
-- NO timeouts, delays, sleep
+- NO timeouts, delays, sleep (e.g., `setTimeout`, `sleep`)
 - NO retry loops, polling (especially `setInterval` for state sync!)
 - NO timing-based solutions
-- Use event-driven, synchronous operations instead
+- These approaches are unreliable, hard to maintain, and behave inconsistently across different environments
+
+**Preferred Deterministic Solutions**
+- Use event-driven patterns (event listeners, callbacks)
+- Leverage React lifecycle hooks properly (useEffect, useLayoutEffect)
+- Use requestAnimationFrame for DOM timing (but limit to visual updates)
+- Implement proper state management with React hooks
+- Use Promise/async-await for sequential operations
+- Rely on component lifecycle events (onReady, onMount)
 - ALWAYS prefer event callbacks over polling for UI state management
+
+Example: Instead of `setTimeout(() => checkIfReady(), 100)`, use proper event listeners or React effects that respond to state changes.
 
 **Error Handling (MANDATORY)**
 - NEVER use empty catch blocks

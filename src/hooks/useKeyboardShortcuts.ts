@@ -126,10 +126,10 @@ export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, on
             }
         }
         
-        window.addEventListener('keydown', handleKeyDown, true) // Use capture phase
+        window.addEventListener('keydown', handleKeyDown) // Use bubble phase to not interfere with child components
         
         return () => {
-            window.removeEventListener('keydown', handleKeyDown, true)
+            window.removeEventListener('keydown', handleKeyDown)
         }
     }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen, onPromoteSelectedVersion])
 }

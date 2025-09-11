@@ -712,11 +712,11 @@ describe('useKeyboardShortcuts', () => {
         sessionCount: 1
       }))
 
-      expect(addEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function), true)
+      expect(addEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
 
       unmount()
 
-      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function), true)
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('keydown', expect.any(Function))
 
       addEventListenerSpy.mockRestore()
       removeEventListenerSpy.mockRestore()

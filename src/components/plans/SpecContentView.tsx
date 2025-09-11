@@ -77,7 +77,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       if ((e.metaKey || e.ctrlKey) && (e.key === 't' || e.key === 'T')) {
         // Focus the spec editor
         e.preventDefault()
-        e.stopPropagation()
+        // Removed stopPropagation() to allow cmd+e to work
         
         // Focus the markdown editor
         if (markdownEditorRef.current) {
@@ -87,8 +87,8 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       }
     }
 
-    window.addEventListener('keydown', handleKeyDown, true) // Use capture phase to intercept before global shortcuts
-    return () => window.removeEventListener('keydown', handleKeyDown, true)
+    window.addEventListener('keydown', handleKeyDown) // Use bubble phase to not interfere with cmd+e
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
 
