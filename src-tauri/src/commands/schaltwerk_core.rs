@@ -738,6 +738,20 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
     tokio::spawn(async move {
         log::debug!("Cancel {name_for_bg}: Starting background work");
         
+        // Always close terminals BEFORE removing the worktree to avoid leaving
+        // shells in deleted directories (which causes getcwd errors in tools like `just`).
+        if let Ok(terminal_manager) = get_terminal_manager().await {
+            let ids = vec![
+                format!("session-{}-top", name_for_bg),
+                format!("session-{}-bottom", name_for_bg),
+            ];
+            for id in ids {
+                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
+                    log::debug!("Terminal {id} cleanup (pre-cancel): {e}");
+                }
+            }
+        }
+
         let cancel_result = if let Ok(core) = get_schaltwerk_core().await {
             let core = core.lock().await;
             let manager = core.session_manager();
@@ -789,18 +803,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
             }
         }
         
-        if let Ok(terminal_manager) = get_terminal_manager().await {
-            let ids = vec![
-                format!("session-{}-top", name_for_bg),
-                format!("session-{}-bottom", name_for_bg),
-            ];
-            
-            for id in ids {
-                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                    log::debug!("Terminal {id} cleanup: {e}");
-                }
-            }
-        }
+        // Terminals were already closed above; nothing more to do here.
         
         log::info!("Cancel {name_for_bg}: All background work completed");
     });
@@ -817,28 +820,29 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
     let core = core.lock().await;
     let manager = core.session_manager();
     
+    // Close associated terminals BEFORE removing the worktree to avoid leaving shells
+    // pointing at a deleted directory (which triggers getcwd errors).
+    if let Ok(terminal_manager) = get_terminal_manager().await {
+        // Sanitize session name to match frontend's terminal ID generation
+        let sanitized_name = name.chars()
+            .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+            .collect::<String>();
+        let ids = vec![
+            format!("session-{}-top", sanitized_name),
+            format!("session-{}-bottom", sanitized_name),
+        ];
+        for id in ids {
+            if let Ok(true) = terminal_manager.terminal_exists(&id).await {
+                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
+                    log::warn!("Failed to close terminal {id} before convert to spec: {e}");
+                }
+            }
+        }
+    }
+
     match manager.convert_session_to_draft(&name) {
         Ok(()) => {
             log::info!("Successfully converted session to spec: {name}");
-            
-            // Close associated terminals
-            if let Ok(terminal_manager) = get_terminal_manager().await {
-                // Sanitize session name to match frontend's terminal ID generation
-                let sanitized_name = name.chars()
-                    .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
-                    .collect::<String>();
-                let ids = vec![
-                    format!("session-{}-top", sanitized_name),
-                    format!("session-{}-bottom", sanitized_name),
-                ];
-                for id in ids {
-                    if let Ok(true) = terminal_manager.terminal_exists(&id).await {
-                        if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                            log::warn!("Failed to close terminal {id} on convert to spec: {e}");
-                        }
-                    }
-                }
-            }
             
             // Emit event to notify frontend of the change
             // Invalidate cache before emitting refreshed event
