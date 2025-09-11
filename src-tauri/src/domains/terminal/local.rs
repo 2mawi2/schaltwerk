@@ -259,24 +259,30 @@ impl LocalPtyAdapter {
                                 state.seq += 1;
                                 state.last_output = SystemTime::now();
                                 
-                                // Handle output emission with ANSI-aware buffering
+                                // Handle output emission - different strategies for agent vs standard terminals
                                 drop(terminals); // release lock before awaits below
                                 
-                                // Different handling for agent vs bottom terminals
-                                let delay_ms = if Self::is_agent_terminal(&id_clone) {
-                                    2  // Small delay for agent terminals to handle streaming output
+                                if Self::is_agent_terminal(&id_clone) {
+                                    // Agent terminals need ANSI-aware buffering and carriage return optimization
+                                    handle_coalesced_output(
+                                        &coalescing_state_clone,
+                                        CoalescingParams {
+                                            terminal_id: &id_clone,
+                                            data: &data,
+                                            delay_ms: 2, // Small delay for agent terminals to handle streaming output
+                                        },
+                                    ).await;
                                 } else {
-                                    1  // Tiny coalescing for non-agent terminals to reduce fragmentation
-                                };
-                                
-                                handle_coalesced_output(
-                                    &coalescing_state_clone,
-                                    CoalescingParams {
-                                        terminal_id: &id_clone,
-                                        data: &data,
-                                        delay_ms,
-                                    },
-                                ).await;
+                                    // Standard terminals bypass coalescing for immediate, unprocessed output
+                                    // This prevents fish autocomplete interference and typing issues
+                                    if let Some(handle) = coalescing_state_clone.app_handle.lock().await.as_ref() {
+                                        let event_name = format!("terminal-output-{id_clone}");
+                                        let payload = String::from_utf8_lossy(&data).to_string();
+                                        if let Err(e) = handle.emit(&event_name, payload) {
+                                            warn!("Failed to emit direct terminal output: {e}");
+                                        }
+                                    }
+                                }
                             }
                         });
                     }
