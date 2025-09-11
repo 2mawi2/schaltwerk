@@ -408,7 +408,7 @@ describe('Terminal component', () => {
   // Test removed - hydration failure handling confirmed working in production
 
   it('exposes focus via ref', async () => {
-    const ref = createRef<{ focus: () => void; showSearch: () => void }>()
+    const ref = createRef<{ focus: () => void; showSearch: () => void; scrollToBottom: () => void }>()
     render(
       <FontSizeProvider>
         <Terminal terminalId="session-focus-top" sessionName="focus" ref={ref} />

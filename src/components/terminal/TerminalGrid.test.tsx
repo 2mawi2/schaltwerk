@@ -48,7 +48,11 @@ vi.mock('./Terminal', () => {
       }
     }, [terminalId])
 
-    useImperativeHandle(ref, () => ({ focus }), [focus])
+    useImperativeHandle(ref, () => ({ 
+      focus,
+      showSearch: vi.fn(),
+      scrollToBottom: vi.fn()
+    }), [focus])
 
     const handleClick = () => {
       focus()

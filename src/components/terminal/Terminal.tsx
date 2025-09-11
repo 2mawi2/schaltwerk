@@ -33,6 +33,7 @@ interface TerminalProps {
 export interface TerminalHandle {
     focus: () => void;
     showSearch: () => void;
+    scrollToBottom: () => void;
 }
 
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick, isBackground = false, onReady }, ref) => {
@@ -71,6 +72,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         },
         showSearch: () => {
             setIsSearchVisible(true);
+        },
+        scrollToBottom: () => {
+            if (terminal.current) {
+                terminal.current.scrollToBottom();
+            }
         }
     }), []);
 

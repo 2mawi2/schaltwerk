@@ -267,6 +267,11 @@ export function TerminalGrid() {
         if (currentFocus === 'claude') {
             setLocalFocus('claude')
             claudeTerminalRef.current?.focus()
+            // Only scroll to bottom if this is from Cmd+T shortcut
+            if ((window as any).__cmdTPressed) {
+                claudeTerminalRef.current?.scrollToBottom()
+                delete (window as any).__cmdTPressed
+            }
             lastAppliedGlobalFocusRef.current = 'claude'
         } else if (currentFocus === 'terminal') {
             setLocalFocus('terminal')
