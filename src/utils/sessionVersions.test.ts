@@ -105,6 +105,79 @@ describe('sessionVersions', () => {
       expect(otherGroup!.versions).toHaveLength(1)
     })
 
+    it('should prefer DB-backed version grouping when available', () => {
+      const gid = 'group-123'
+      const sessions: EnrichedSession[] = [
+        {
+          ...createMockSession('alpha'),
+          info: {
+            ...createMockSession('alpha').info,
+            version_group_id: gid,
+            version_number: 2,
+            display_name: 'Feature Alpha v2'
+          }
+        },
+        {
+          ...createMockSession('beta'),
+          info: {
+            ...createMockSession('beta').info,
+            version_group_id: gid,
+            version_number: 1,
+            display_name: 'Feature Alpha'
+          }
+        }
+      ]
+
+      const groups = groupSessionsByVersion(sessions)
+      expect(groups).toHaveLength(1)
+      expect(groups[0].isVersionGroup).toBe(true)
+      expect(groups[0].versions.map(v => v.versionNumber)).toEqual([1, 2])
+    })
+
+    it('groups correctly when base name already ends with _vN and DB group is provided', () => {
+      const gid = 'group-abc'
+      const sessions: EnrichedSession[] = [
+        // First version is a spec-turned-running with name already ending in _v2
+        {
+          ...createMockSession('naughty_kirch_v2'),
+          info: {
+            ...createMockSession('naughty_kirch_v2').info,
+            version_group_id: gid,
+            version_number: 1,
+            display_name: 'naughty_kirch_v2'
+          }
+        },
+        // Additional versions created from that spec
+        {
+          ...createMockSession('naughty_kirch_v2_v2'),
+          info: {
+            ...createMockSession('naughty_kirch_v2_v2').info,
+            version_group_id: gid,
+            version_number: 2,
+            display_name: 'naughty_kirch_v2'
+          }
+        },
+        {
+          ...createMockSession('naughty_kirch_v2_v3'),
+          info: {
+            ...createMockSession('naughty_kirch_v2_v3').info,
+            version_group_id: gid,
+            version_number: 3,
+            display_name: 'naughty_kirch_v2'
+          }
+        },
+      ]
+
+      const groups = groupSessionsByVersion(sessions)
+      expect(groups).toHaveLength(1)
+      const g = groups[0]
+      expect(g.isVersionGroup).toBe(true)
+      expect(g.versions.map(v => v.versionNumber)).toEqual([1,2,3])
+      expect(g.versions.map(v => v.session.info.session_id)).toEqual([
+        'naughty_kirch_v2', 'naughty_kirch_v2_v2', 'naughty_kirch_v2_v3'
+      ])
+    })
+
     it('should sort versions correctly (v1, v2, v3, v4)', () => {
       const sessions = [
         createMockSession('test_v3'),

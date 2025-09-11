@@ -96,6 +96,11 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to set session activity: {}", e))
     }
 
+    pub fn set_session_version_info(&self, session_id: &str, group_id: Option<&str>, version_number: Option<i32>) -> Result<()> {
+        self.db.set_session_version_info(session_id, group_id, version_number)
+            .map_err(|e| anyhow!("Failed to set session version info: {}", e))
+    }
+
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
         self.db.rename_draft_session(&self.repo_path, old_name, new_name)
             .map_err(|e| anyhow!("Failed to rename spec session: {}", e))

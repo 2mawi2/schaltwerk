@@ -313,7 +313,15 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String, prompt: Option<String>, base_branch: Option<String>, user_edited_name: Option<bool>) -> Result<Session, String> {
+pub async fn schaltwerk_core_create_session(
+    app: tauri::AppHandle,
+    name: String,
+    prompt: Option<String>,
+    base_branch: Option<String>,
+    user_edited_name: Option<bool>,
+    version_group_id: Option<String>,
+    version_number: Option<i32>,
+) -> Result<Session, String> {
     let was_user_edited = user_edited_name.unwrap_or(false);
     // Consider it auto-generated if:
     // 1. It looks like a Docker-style name (adjective_noun format) AND wasn't user edited
@@ -324,7 +332,14 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    let session = manager.create_session_with_auto_flag(&name, prompt.as_deref(), base_branch.as_deref(), was_auto_generated)
+    let session = manager.create_session_with_auto_flag(
+            &name,
+            prompt.as_deref(),
+            base_branch.as_deref(),
+            was_auto_generated,
+            version_group_id.as_deref(),
+            version_number,
+        )
         .map_err(|e| format!("Failed to create session: {e}"))?;
 
     let session_name_clone = session.name.clone();
@@ -473,7 +488,13 @@ pub async fn schaltwerk_core_create_session(app: tauri::AppHandle, name: String,
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_rename_version_group(app: tauri::AppHandle, base_name: String, prompt: String, _base_branch: Option<String>) -> Result<(), String> {
+pub async fn schaltwerk_core_rename_version_group(
+    app: tauri::AppHandle,
+    base_name: String,
+    prompt: String,
+    _base_branch: Option<String>,
+    version_group_id: Option<String>,
+) -> Result<(), String> {
     log::info!("=== RENAME VERSION GROUP CALLED ===");
     log::info!("Base name: '{base_name}'");
     
@@ -486,15 +507,28 @@ pub async fn schaltwerk_core_rename_version_group(app: tauri::AppHandle, base_na
     let all_sessions = manager.list_sessions()
         .map_err(|e| format!("Failed to list sessions: {e}"))?;
     
-    
-    let version_sessions: Vec<Session> = all_sessions
-        .into_iter()
-        .filter(|s| {
-            // Match both the standard pattern (base, base_v2, base_v3) 
-            // and the alternative pattern (base_v1, base_v2, base_v3)
-            s.name == base_name || matches_version_pattern(&s.name, &base_name)
-        })
-        .collect();
+    // Prefer grouping by version_group_id if provided
+    let version_sessions: Vec<Session> = if let Some(group_id) = &version_group_id {
+        let filtered: Vec<Session> = all_sessions.into_iter().filter(|s| s.version_group_id.as_ref() == Some(group_id)).collect();
+        if filtered.is_empty() {
+            log::warn!("No sessions found for version_group_id '{group_id}', falling back to name-based matching");
+            // fallback to name-based grouping
+            Vec::new()
+        } else {
+            filtered
+        }
+    } else {
+        Vec::new()
+    };
+
+    let version_sessions: Vec<Session> = if version_sessions.is_empty() {
+        // Fallback to name-based matching for backward compatibility
+        manager.list_sessions()
+            .map_err(|e| format!("Failed to list sessions: {e}"))?
+            .into_iter()
+            .filter(|s| s.name == base_name || matches_version_pattern(&s.name, &base_name))
+            .collect()
+    } else { version_sessions };
     
     if version_sessions.is_empty() {
         log::warn!("No version sessions found for base name '{base_name}'");
@@ -1401,14 +1435,27 @@ pub async fn schaltwerk_core_create_spec_session(app: tauri::AppHandle, name: St
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_create_and_start_spec_session(app: tauri::AppHandle, name: String, spec_content: String, base_branch: Option<String>) -> Result<(), String> {
+pub async fn schaltwerk_core_create_and_start_spec_session(
+    app: tauri::AppHandle,
+    name: String,
+    spec_content: String,
+    base_branch: Option<String>,
+    version_group_id: Option<String>,
+    version_number: Option<i32>,
+) -> Result<(), String> {
     log::info!("Creating and starting spec session: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.create_and_start_spec_session(&name, &spec_content, base_branch.as_deref())
+    manager.create_and_start_spec_session(
+            &name,
+            &spec_content,
+            base_branch.as_deref(),
+            version_group_id.as_deref(),
+            version_number,
+        )
         .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
     
     // Emit event with actual sessions list
@@ -1426,14 +1473,25 @@ pub async fn schaltwerk_core_create_and_start_spec_session(app: tauri::AppHandle
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_start_spec_session(app: tauri::AppHandle, name: String, base_branch: Option<String>) -> Result<(), String> {
+pub async fn schaltwerk_core_start_spec_session(
+    app: tauri::AppHandle,
+    name: String,
+    base_branch: Option<String>,
+    version_group_id: Option<String>,
+    version_number: Option<i32>,
+) -> Result<(), String> {
     log::info!("Starting spec session: {name}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.start_spec_session(&name, base_branch.as_deref())
+    manager.start_spec_session(
+            &name,
+            base_branch.as_deref(),
+            version_group_id.as_deref(),
+            version_number,
+        )
         .map_err(|e| format!("Failed to start spec session: {e}"))?;
     
     // Emit selection event for consistent focus on the started session

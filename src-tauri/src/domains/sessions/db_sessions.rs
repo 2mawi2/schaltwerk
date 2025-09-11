@@ -25,6 +25,7 @@ pub trait SessionMethods {
     fn set_pending_name_generation(&self, id: &str, pending: bool) -> Result<()>;
     fn set_session_original_settings(&self, session_id: &str, agent_type: &str, skip_permissions: bool) -> Result<()>;
     fn rename_draft_session(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()>;
+    fn set_session_version_info(&self, id: &str, group_id: Option<&str>, version_number: Option<i32>) -> Result<()>;
 }
 
 impl SessionMethods for Database {
@@ -33,16 +34,19 @@ impl SessionMethods for Database {
         
         conn.execute(
             "INSERT INTO sessions (
-                id, name, display_name, repository_path, repository_name,
+                id, name, display_name, version_group_id, version_number,
+                repository_path, repository_name,
                 branch, parent_branch, worktree_path,
                 status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                 original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
                 spec_content, session_state
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)",
             params![
                 session.id,
                 session.name,
                 session.display_name,
+                session.version_group_id,
+                session.version_number,
                 session.repository_path.to_string_lossy(),
                 session.repository_name,
                 session.branch,
@@ -70,7 +74,7 @@ impl SessionMethods for Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, repository_path, repository_name,
+            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
@@ -86,24 +90,26 @@ impl SessionMethods for Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     display_name: row.get(2).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(3)?),
-                    repository_name: row.get(4)?,
-                    branch: row.get(5)?,
-                    parent_branch: row.get(6)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(7)?),
-                    status: row.get::<_, String>(8)?.parse().unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(9)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(10)?, 0).unwrap(),
-                    last_activity: row.get::<_, Option<i64>>(11)?
+                    version_group_id: row.get(3).ok(),
+                    version_number: row.get(4).ok(),
+                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                    repository_name: row.get(6)?,
+                    branch: row.get(7)?,
+                    parent_branch: row.get(8)?,
+                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    status: row.get::<_, String>(10)?.parse().unwrap_or(SessionStatus::Active),
+                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    last_activity: row.get::<_, Option<i64>>(13)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(12)?,
-                    ready_to_merge: row.get(13).unwrap_or(false),
-                    original_agent_type: row.get(14).ok(),
-                    original_skip_permissions: row.get(15).ok(),
-                    pending_name_generation: row.get(16).unwrap_or(false),
-                    was_auto_generated: row.get(17).unwrap_or(false),
-                    spec_content: row.get(18).ok(),
-                    session_state: row.get::<_, String>(19).ok()
+                    initial_prompt: row.get(14)?,
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
+                    spec_content: row.get(20).ok(),
+                    session_state: row.get::<_, String>(21).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                 })
@@ -117,7 +123,7 @@ impl SessionMethods for Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, repository_path, repository_name,
+            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
@@ -133,24 +139,26 @@ impl SessionMethods for Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     display_name: row.get(2).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(3)?),
-                    repository_name: row.get(4)?,
-                    branch: row.get(5)?,
-                    parent_branch: row.get(6)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(7)?),
-                    status: row.get::<_, String>(8)?.parse().unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(9)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(10)?, 0).unwrap(),
-                    last_activity: row.get::<_, Option<i64>>(11)?
+                    version_group_id: row.get(3).ok(),
+                    version_number: row.get(4).ok(),
+                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                    repository_name: row.get(6)?,
+                    branch: row.get(7)?,
+                    parent_branch: row.get(8)?,
+                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    status: row.get::<_, String>(10)?.parse().unwrap_or(SessionStatus::Active),
+                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    last_activity: row.get::<_, Option<i64>>(13)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(12)?,
-                    ready_to_merge: row.get(13).unwrap_or(false),
-                    original_agent_type: row.get(14).ok(),
-                    original_skip_permissions: row.get(15).ok(),
-                    pending_name_generation: row.get(16).unwrap_or(false),
-                    was_auto_generated: row.get(17).unwrap_or(false),
-                    spec_content: row.get(18).ok(),
-                    session_state: row.get::<_, String>(19).ok()
+                    initial_prompt: row.get(14)?,
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
+                    spec_content: row.get(20).ok(),
+                    session_state: row.get::<_, String>(21).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                 })
@@ -186,7 +194,7 @@ impl SessionMethods for Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, repository_path, repository_name,
+            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
@@ -203,24 +211,26 @@ impl SessionMethods for Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     display_name: row.get(2).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(3)?),
-                    repository_name: row.get(4)?,
-                    branch: row.get(5)?,
-                    parent_branch: row.get(6)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(7)?),
-                    status: row.get::<_, String>(8)?.parse().unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(9)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(10)?, 0).unwrap(),
-                    last_activity: row.get::<_, Option<i64>>(11)?
+                    version_group_id: row.get(3).ok(),
+                    version_number: row.get(4).ok(),
+                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                    repository_name: row.get(6)?,
+                    branch: row.get(7)?,
+                    parent_branch: row.get(8)?,
+                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    status: row.get::<_, String>(10)?.parse().unwrap_or(SessionStatus::Active),
+                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    last_activity: row.get::<_, Option<i64>>(13)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(12)?,
-                    ready_to_merge: row.get(13).unwrap_or(false),
-                    original_agent_type: row.get(14).ok(),
-                    original_skip_permissions: row.get(15).ok(),
-                    pending_name_generation: row.get(16).unwrap_or(false),
-                    was_auto_generated: row.get(17).unwrap_or(false),
-                    spec_content: row.get(18).ok(),
-                    session_state: row.get::<_, String>(19).ok()
+                    initial_prompt: row.get(14)?,
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
+                    spec_content: row.get(20).ok(),
+                    session_state: row.get::<_, String>(21).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                 })
@@ -235,7 +245,7 @@ impl SessionMethods for Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, repository_path, repository_name,
+            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
@@ -252,24 +262,26 @@ impl SessionMethods for Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     display_name: row.get(2).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(3)?),
-                    repository_name: row.get(4)?,
-                    branch: row.get(5)?,
-                    parent_branch: row.get(6)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(7)?),
-                    status: row.get::<_, String>(8)?.parse().unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(9)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(10)?, 0).unwrap(),
-                    last_activity: row.get::<_, Option<i64>>(11)?
+                    version_group_id: row.get(3).ok(),
+                    version_number: row.get(4).ok(),
+                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                    repository_name: row.get(6)?,
+                    branch: row.get(7)?,
+                    parent_branch: row.get(8)?,
+                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    status: row.get::<_, String>(10)?.parse().unwrap_or(SessionStatus::Active),
+                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    last_activity: row.get::<_, Option<i64>>(13)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(12)?,
-                    ready_to_merge: row.get(13).unwrap_or(false),
-                    original_agent_type: row.get(14).ok(),
-                    original_skip_permissions: row.get(15).ok(),
-                    pending_name_generation: row.get(16).unwrap_or(false),
-                    was_auto_generated: row.get(17).unwrap_or(false),
-                    spec_content: row.get(18).ok(),
-                    session_state: row.get::<_, String>(19).ok()
+                    initial_prompt: row.get(14)?,
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
+                    spec_content: row.get(20).ok(),
+                    session_state: row.get::<_, String>(21).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                 })
@@ -346,7 +358,7 @@ impl SessionMethods for Database {
         let conn = self.conn.lock().unwrap();
         
         let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, repository_path, repository_name,
+            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
@@ -363,24 +375,26 @@ impl SessionMethods for Database {
                     id: row.get(0)?,
                     name: row.get(1)?,
                     display_name: row.get(2).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(3)?),
-                    repository_name: row.get(4)?,
-                    branch: row.get(5)?,
-                    parent_branch: row.get(6)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(7)?),
-                    status: row.get::<_, String>(8)?.parse().unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(9)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(10)?, 0).unwrap(),
-                    last_activity: row.get::<_, Option<i64>>(11)?
+                    version_group_id: row.get(3).ok(),
+                    version_number: row.get(4).ok(),
+                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                    repository_name: row.get(6)?,
+                    branch: row.get(7)?,
+                    parent_branch: row.get(8)?,
+                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                    status: row.get::<_, String>(10)?.parse().unwrap_or(SessionStatus::Active),
+                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                    last_activity: row.get::<_, Option<i64>>(13)?
                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(12)?,
-                    ready_to_merge: row.get(13).unwrap_or(false),
-                    original_agent_type: row.get(14).ok(),
-                    original_skip_permissions: row.get(15).ok(),
-                    pending_name_generation: row.get(16).unwrap_or(false),
-                    was_auto_generated: row.get(17).unwrap_or(false),
-                    spec_content: row.get(18).ok(),
-                    session_state: row.get::<_, String>(19).ok()
+                    initial_prompt: row.get(14)?,
+                    ready_to_merge: row.get(15).unwrap_or(false),
+                    original_agent_type: row.get(16).ok(),
+                    original_skip_permissions: row.get(17).ok(),
+                    pending_name_generation: row.get(18).unwrap_or(false),
+                    was_auto_generated: row.get(19).unwrap_or(false),
+                    spec_content: row.get(20).ok(),
+                    session_state: row.get::<_, String>(21).ok()
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(SessionState::Running),
                 })
@@ -452,6 +466,15 @@ impl SessionMethods for Database {
         conn.execute(
             "UPDATE sessions SET original_agent_type = ?1, original_skip_permissions = ?2 WHERE id = ?3",
             params![agent_type, skip_permissions, session_id],
+        )?;
+        Ok(())
+    }
+
+    fn set_session_version_info(&self, id: &str, group_id: Option<&str>, version_number: Option<i32>) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET version_group_id = ?1, version_number = ?2, updated_at = ?3 WHERE id = ?4",
+            params![group_id, version_number, Utc::now().timestamp(), id],
         )?;
         Ok(())
     }

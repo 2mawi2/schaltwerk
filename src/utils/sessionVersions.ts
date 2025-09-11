@@ -46,56 +46,61 @@ export function getBaseSessionName(sessionName: string): string {
  */
 export function groupSessionsByVersion(sessions: EnrichedSession[]): SessionVersionGroup[] {
   const groups = new Map<string, SessionVersion[]>()
-  const displayNameMap = new Map<string, string>() // Map base session_id to display_name base
+  const displayNameMap = new Map<string, string>() // Map base (group key) to display_name base
   
   // Group sessions by base name
   for (const session of sessions) {
     const sessionName = session.info.session_id
     const displayName = session.info.display_name
-    const baseName = getBaseSessionName(sessionName)
-    const versionNumber = parseVersionFromSessionName(sessionName)
+    const hasDbGroup = !!session.info.version_group_id
+    const groupKey = hasDbGroup ? session.info.version_group_id! : getBaseSessionName(sessionName)
+    const versionNumber = session.info.version_number ?? parseVersionFromSessionName(sessionName)
     
     // If we have a display name, extract its base name for the group header
     // For version groups, we want to use the display name from any session in the group
     if (displayName) {
       const displayBaseName = getBaseSessionName(displayName)
-      // Only set if we don't already have a display name for this base, or if this is the base session
-      if (!displayNameMap.has(baseName) || versionNumber === null) {
-        displayNameMap.set(baseName, displayBaseName)
+      if (!displayNameMap.has(groupKey) || versionNumber === null) {
+        displayNameMap.set(groupKey, displayBaseName)
       }
     }
     
     // If no version number, this is a standalone session (not part of a version group)
-    if (versionNumber === null) {
-      // Treat as a standalone session with version 1
-      if (!groups.has(sessionName)) {
-        groups.set(sessionName, [])
-      }
-      groups.get(sessionName)!.push({
-        session,
-        versionNumber: 1
-      })
+    if (hasDbGroup) {
+      if (!groups.has(groupKey)) groups.set(groupKey, [])
+      groups.get(groupKey)!.push({ session, versionNumber: versionNumber ?? 1 })
     } else {
-      // Part of a version group
-      if (!groups.has(baseName)) {
-        groups.set(baseName, [])
+      if (versionNumber === null) {
+        // Treat as a standalone session with version 1
+        if (!groups.has(sessionName)) {
+          groups.set(sessionName, [])
+        }
+        groups.get(sessionName)!.push({
+          session,
+          versionNumber: 1
+        })
+      } else {
+        // Part of a version group (name-based)
+        if (!groups.has(groupKey)) {
+          groups.set(groupKey, [])
+        }
+        groups.get(groupKey)!.push({
+          session,
+          versionNumber
+        })
       }
-      groups.get(baseName)!.push({
-        session,
-        versionNumber
-      })
     }
   }
   
   // Convert to SessionVersionGroup array and sort versions within each group
   const result: SessionVersionGroup[] = []
   
-  for (const [baseName, versions] of groups) {
+  for (const [groupKey, versions] of groups) {
     // Sort versions by number (1, 2, 3, 4)
     versions.sort((a, b) => a.versionNumber - b.versionNumber)
     
     // Use display name base if available, otherwise use session_id base
-    const displayBaseName = displayNameMap.get(baseName) || baseName
+    const displayBaseName = displayNameMap.get(groupKey) || getBaseSessionName(versions[0]?.session.info.display_name || versions[0]?.session.info.session_id)
     
     result.push({
       baseName: displayBaseName,

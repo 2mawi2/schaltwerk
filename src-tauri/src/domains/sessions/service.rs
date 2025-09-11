@@ -47,6 +47,8 @@ mod service_unified_tests {
             id: Uuid::new_v4().to_string(),
             name: session_name.clone(),
             display_name: None,
+            version_group_id: None,
+            version_number: None,
             repository_path: repo_path,
             repository_name: "test-repo".to_string(),
             branch: "schaltwerk/test-session".to_string(),
@@ -199,10 +201,18 @@ impl SessionManager {
 
     #[cfg(test)]
     pub fn create_session(&self, name: &str, prompt: Option<&str>, base_branch: Option<&str>) -> Result<Session> {
-        self.create_session_with_auto_flag(name, prompt, base_branch, false)
+        self.create_session_with_auto_flag(name, prompt, base_branch, false, None, None)
     }
 
-    pub fn create_session_with_auto_flag(&self, name: &str, prompt: Option<&str>, base_branch: Option<&str>, was_auto_generated: bool) -> Result<Session> {
+    pub fn create_session_with_auto_flag(
+        &self,
+        name: &str,
+        prompt: Option<&str>,
+        base_branch: Option<&str>,
+        was_auto_generated: bool,
+        version_group_id: Option<&str>,
+        version_number: Option<i32>,
+    ) -> Result<Session> {
         log::info!("Creating session '{}' in repository: {}", name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
@@ -239,6 +249,8 @@ impl SessionManager {
             id: session_id.clone(),
             name: unique_name.clone(),
             display_name: None,
+            version_group_id: version_group_id.map(|s| s.to_string()),
+            version_number,
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: branch.clone(),
@@ -612,6 +624,8 @@ impl SessionManager {
             let info = SessionInfo {
                 session_id: session.name.clone(),
                 display_name: session.display_name.clone(),
+                version_group_id: session.version_group_id.clone(),
+                version_number: session.version_number,
                 branch: session.branch.clone(),
                 worktree_path: session.worktree_path.to_string_lossy().to_string(),
                 base_branch: session.parent_branch.clone(),
@@ -935,7 +949,7 @@ impl SessionManager {
         }
 
         // Start the draft session
-        self.start_spec_session(session_name, base_branch)?;
+        self.start_spec_session(session_name, base_branch, None, None)?;
         Ok(())
     }
 
@@ -982,6 +996,8 @@ impl SessionManager {
             id: session_id.clone(),
             name: unique_name.clone(),
             display_name: None,
+            version_group_id: None,
+            version_number: None,
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: branch.clone(),
@@ -1010,7 +1026,14 @@ impl SessionManager {
         Ok(session)
     }
 
-    pub fn create_and_start_spec_session(&self, name: &str, spec_content: &str, base_branch: Option<&str>) -> Result<()> {
+    pub fn create_and_start_spec_session(
+        &self,
+        name: &str,
+        spec_content: &str,
+        base_branch: Option<&str>,
+        version_group_id: Option<&str>,
+        version_number: Option<i32>,
+    ) -> Result<()> {
         log::info!("Creating and starting spec session '{}' in repository: {}", name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
@@ -1030,6 +1053,8 @@ impl SessionManager {
             id: session_id.clone(),
             name: unique_name.clone(),
             display_name: None,
+            version_group_id: version_group_id.map(|s| s.to_string()),
+            version_number,
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: branch.clone(),
@@ -1128,13 +1153,17 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn start_spec_session(&self, session_name: &str, base_branch: Option<&str>) -> Result<()> {
+    pub fn start_spec_session(&self, session_name: &str, base_branch: Option<&str>, version_group_id: Option<&str>, version_number: Option<i32>) -> Result<()> {
         log::info!("Starting spec session '{}' in repository: {}", session_name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
         
         let session = self.db_manager.get_session_by_name(session_name)?;
+        // If version grouping info provided, set it on this spec before starting
+        if version_group_id.is_some() || version_number.is_some() {
+            let _ = self.db_manager.set_session_version_info(&session.id, version_group_id, version_number);
+        }
         
         if session.session_state != SessionState::Spec {
             return Err(anyhow!("Session '{}' is not in spec state", session_name));

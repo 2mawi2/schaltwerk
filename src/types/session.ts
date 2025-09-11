@@ -9,6 +9,8 @@ export enum SessionState {
 export interface SessionInfo {
     session_id: string
     display_name?: string
+    version_group_id?: string
+    version_number?: number
     branch: string
     worktree_path: string
     base_branch: string

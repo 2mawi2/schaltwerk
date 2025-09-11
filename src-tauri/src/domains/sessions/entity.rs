@@ -57,6 +57,9 @@ pub struct Session {
     pub name: String,
     // Optional human-friendly display name (does not affect git branch/worktree)
     pub display_name: Option<String>,
+    // DB-backed version grouping for parallel versions
+    pub version_group_id: Option<String>,
+    pub version_number: Option<i32>,
     pub repository_path: PathBuf,
     pub repository_name: String,
     pub branch: String,
@@ -216,6 +219,10 @@ pub struct SessionInfo {
     pub session_id: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub display_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_group_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_number: Option<i32>,
     pub branch: String,
     pub worktree_path: String,
     pub base_branch: String,

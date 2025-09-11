@@ -366,7 +366,7 @@ async fn create_session(
     let was_user_edited = user_edited_name.unwrap_or(false);
     let was_auto_generated = looks_docker_style && !was_user_edited;
     
-    match manager.create_session_with_auto_flag(name, prompt.as_deref(), base_branch.as_deref(), was_auto_generated) {
+    match manager.create_session_with_auto_flag(name, prompt.as_deref(), base_branch.as_deref(), was_auto_generated, None, None) {
         Ok(session) => {
             info!("Created session via API: {name}");
             

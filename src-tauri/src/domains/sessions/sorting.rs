@@ -24,6 +24,8 @@ mod session_sorting_tests {
             id: uuid::Uuid::new_v4().to_string(),
             name: name.to_string(),
             display_name: Some(format!("Display {}", name)),
+            version_group_id: None,
+            version_number: None,
             repository_path: repo_path.clone(),
             repository_name: "test-repo".to_string(),
             branch: format!("branch-{}", name),

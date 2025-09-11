@@ -4,16 +4,18 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
     let conn = db.conn.lock().unwrap();
     
     // Main sessions table - consolidated schema
-    conn.execute(
-        "CREATE TABLE IF NOT EXISTS sessions (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            display_name TEXT,
-            repository_path TEXT NOT NULL,
-            repository_name TEXT NOT NULL,
-            branch TEXT NOT NULL,
-            parent_branch TEXT NOT NULL,
-            worktree_path TEXT NOT NULL,
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS sessions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                display_name TEXT,
+                version_group_id TEXT,
+                version_number INTEGER,
+                repository_path TEXT NOT NULL,
+                repository_name TEXT NOT NULL,
+                branch TEXT NOT NULL,
+                parent_branch TEXT NOT NULL,
+                worktree_path TEXT NOT NULL,
             status TEXT NOT NULL,  -- 'active', 'cancelled', or 'spec'
             session_state TEXT DEFAULT 'running',  -- 'spec', 'running', or 'reviewed'
             created_at INTEGER NOT NULL,
@@ -157,6 +159,8 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN original_agent_type TEXT", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN original_skip_permissions BOOLEAN", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN display_name TEXT", []);
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN version_group_id TEXT", []);
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN version_number INTEGER", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN pending_name_generation BOOLEAN DEFAULT FALSE", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN was_auto_generated BOOLEAN DEFAULT FALSE", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN spec_content TEXT", []);

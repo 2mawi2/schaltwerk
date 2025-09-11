@@ -149,7 +149,7 @@ mod draft_fixed_tests {
         assert_eq!(spec.session_state, SessionState::Spec);
         
         // Start the spec session
-        manager.start_spec_session("transition-spec", None).unwrap();
+        manager.start_spec_session("transition-spec", None, None, None).unwrap();
         
         // Get the updated session - retrieve via list_sessions
         let sessions = manager.list_sessions().unwrap();

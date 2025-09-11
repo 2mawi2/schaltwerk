@@ -693,12 +693,16 @@ export default function App() {
            spec_age_minutes: 0 // Could calculate actual age if we had spec creation time
          })
          
+         // Generate a stable group id for these versions
+         const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as any).randomUUID() : `${data.name}-${Date.now()}`
          for (const [index, sessionName] of sessionNames.entries()) {
            if (index === 0) {
              // Start the original spec session (transitions spec -> active and creates worktree)
              await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
                name: sessionName,
                baseBranch: data.baseBranch || null,
+               versionGroupId,
+               versionNumber: 1,
              })
            } else {
              // For additional versions, create and start in one atomic operation to avoid race conditions
@@ -706,6 +710,8 @@ export default function App() {
                name: sessionName,
                specContent: contentToUse,
                baseBranch: data.baseBranch || null,
+               versionGroupId,
+               versionNumber: index + 1,
              })
            }
          }
@@ -784,6 +790,8 @@ export default function App() {
         
         // Create all versions first
         const createdVersions: string[] = []
+        // Generate a stable group id for DB linkage
+        const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as any).randomUUID() : `${baseName}-${Date.now()}`
         for (let i = 1; i <= count; i++) {
           // First version uses base name, additional versions get _v2, _v3, etc.
           const versionName = i === 1 ? baseName : `${baseName}_v${i}`
@@ -803,8 +811,10 @@ export default function App() {
             prompt: data.prompt || null,
             baseBranch: data.baseBranch || null,
             userEditedName: count > 1 ? false : (data.userEditedName ?? false),
+            versionGroupId,
+            versionNumber: i,
           })
-          
+
           createdVersions.push(versionName)
         }
         
@@ -820,6 +830,7 @@ export default function App() {
                 baseName,
                 prompt: data.prompt,
                 baseBranch: data.baseBranch || null,
+                versionGroupId,
               })
               logger.info(`[App] Successfully renamed version group: '${baseName}'`)
             } catch (err) {

@@ -812,6 +812,66 @@ echo "Branch: $BRANCH_NAME" >> "$WORKTREE_PATH/session_info.txt"
     }
 
     #[test]
+    fn test_spec_to_versions_with_grouping_links_all_versions() {
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a spec that already ends with _v2 to mimic user scenario
+        let spec = manager.create_spec_session("naughty_kirch_v2", "Spec content").unwrap();
+        assert_eq!(spec.session_state, SessionState::Spec);
+
+        let gid = "gid-123";
+
+        // Start the spec as version 1 within the group
+        manager.start_spec_session("naughty_kirch_v2", None, Some(gid), Some(1)).unwrap();
+
+        // Create and start two more versions with names derived from the spec name
+        manager.create_and_start_spec_session("naughty_kirch_v2_v2", "Spec content", None, Some(gid), Some(2)).unwrap();
+        manager.create_and_start_spec_session("naughty_kirch_v2_v3", "Spec content", None, Some(gid), Some(3)).unwrap();
+
+        // All three sessions should carry the same group id and appropriate version numbers
+        let enriched = manager.list_enriched_sessions().unwrap();
+        let ids: std::collections::HashSet<_> = enriched.iter().map(|e| e.info.session_id.clone()).collect();
+        assert!(ids.contains("naughty_kirch_v2"));
+        assert!(ids.contains("naughty_kirch_v2_v2"));
+        assert!(ids.contains("naughty_kirch_v2_v3"));
+
+        let s1 = enriched.iter().find(|e| e.info.session_id == "naughty_kirch_v2").unwrap();
+        let s2 = enriched.iter().find(|e| e.info.session_id == "naughty_kirch_v2_v2").unwrap();
+        let s3 = enriched.iter().find(|e| e.info.session_id == "naughty_kirch_v2_v3").unwrap();
+
+        assert_eq!(s1.info.version_group_id.as_deref(), Some(gid));
+        assert_eq!(s2.info.version_group_id.as_deref(), Some(gid));
+        assert_eq!(s3.info.version_group_id.as_deref(), Some(gid));
+
+        assert_eq!(s1.info.version_number, Some(1));
+        assert_eq!(s2.info.version_number, Some(2));
+        assert_eq!(s3.info.version_number, Some(3));
+    }
+
+    #[test]
+    fn test_version_group_db_linkage_enriched() {
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create two sessions in the same version group via service
+        let gid = "group-test-1";
+        let _s1 = manager.create_session_with_auto_flag("vg-alpha", Some("p"), None, false, Some(gid), Some(1)).unwrap();
+        let _s2 = manager.create_session_with_auto_flag("vg-alpha_v2", Some("p"), None, false, Some(gid), Some(2)).unwrap();
+
+        let enriched = manager.list_enriched_sessions().unwrap();
+
+        // Both should carry the version_group_id and version_number in SessionInfo
+        let one = enriched.iter().find(|s| s.info.session_id == "vg-alpha").unwrap();
+        assert_eq!(one.info.version_group_id.as_deref(), Some(gid));
+        assert_eq!(one.info.version_number, Some(1));
+
+        let two = enriched.iter().find(|s| s.info.session_id == "vg-alpha_v2").unwrap();
+        assert_eq!(two.info.version_group_id.as_deref(), Some(gid));
+        assert_eq!(two.info.version_number, Some(2));
+    }
+
+    #[test]
     fn test_setup_script_environment_variables() {
         let env = TestEnvironment::new().unwrap();
         let manager = env.get_session_manager().unwrap();
@@ -940,7 +1000,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(draft_session.spec_content, Some(spec_content.to_string()));
         
         // Start the spec session (convert to running)
-        manager.start_spec_session("auth-feature", None).unwrap();
+        manager.start_spec_session("auth-feature", None, None, None).unwrap();
         
         // Verify it's now running
         let running_session = manager.db_ref().get_session_by_name(&env.repo_path, "auth-feature").unwrap();
@@ -975,7 +1035,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         let _draft_session = manager.create_spec_session("auth-system", spec_content).unwrap();
         
         // Start the spec session
-        manager.start_spec_session("auth-system", None).unwrap();
+        manager.start_spec_session("auth-system", None, None, None).unwrap();
         
         // Convert back to spec
         manager.convert_session_to_draft("auth-system").unwrap();
@@ -1002,7 +1062,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(spec.initial_prompt, None); // Specs don't use initial_prompt
         
         // Start the spec session (convert to running)
-        manager.start_spec_session("spec-renaming-test", None).unwrap();
+        manager.start_spec_session("spec-renaming-test", None, None, None).unwrap();
         
         // Get the updated session
         let running = db.get_session_by_name(&env.repo_path, "spec-renaming-test").unwrap();
@@ -1017,4 +1077,3 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(running.spec_content, Some(spec_content.to_string()), 
                    "Spec content should be preserved when starting spec session");
     }
-
