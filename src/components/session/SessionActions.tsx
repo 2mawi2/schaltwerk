@@ -150,7 +150,7 @@ export function SessionActions({
               icon={<VscDiscard />}
               onClick={() => onUnmarkReviewed(sessionId)}
               ariaLabel="Unmark as reviewed"
-              tooltip="Unmark as reviewed"
+              tooltip="Unmark as reviewed (⌘R)"
             />
           )}
           {onCancel && (

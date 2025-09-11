@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 
@@ -82,7 +82,8 @@ describe('Sidebar status indicators and actions', () => {
     expect(reviewedItem).toHaveTextContent('Reviewed')
 
     // Click Unmark
-    const unmarkBtn = screen.getAllByTitle('Unmark as reviewed')[0]
+    const unmarkCandidates = within(reviewedItem).getAllByTitle(/Unmark as reviewed/)
+    const unmarkBtn = unmarkCandidates.find(el => (el as HTMLElement).tagName === 'BUTTON') as HTMLElement
     fireEvent.click(unmarkBtn)
 
     await waitFor(() => {

@@ -379,17 +379,30 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleMarkSelectedSessionReady = useCallback(() => {
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
-            if (selectedSession && !selectedSession.info.ready_to_merge) {
-                // Prevent marking specs as reviewed
-                if (isSpec(selectedSession.info)) {
-                    logger.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
-                    return
-                }
+            if (!selectedSession) return
 
-                handleMarkReady(selectedSession.info.session_id, selectedSession.info.has_uncommitted_changes || false)
+            // If already reviewed, Cmd+R should unmark (back to running)
+            if (selectedSession.info.ready_to_merge) {
+                invoke('schaltwerk_core_unmark_session_ready', { name: selectedSession.info.session_id })
+                    .then(async () => {
+                        await reloadSessions()
+                    })
+                    .catch(err => {
+                        logger.error('Failed to unmark reviewed session via keyboard:', err)
+                    })
+                return
             }
+
+            // Prevent marking specs as reviewed
+            if (isSpec(selectedSession.info)) {
+                logger.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
+                return
+            }
+
+            // Running session → mark as reviewed flow
+            handleMarkReady(selectedSession.info.session_id, selectedSession.info.has_uncommitted_changes || false)
         }
-    }, [selection, sessions, handleMarkReady])
+    }, [selection, sessions, handleMarkReady, reloadSessions])
 
     const handleSpecSelectedSession = () => {
         if (selection.kind === 'session') {
