@@ -3,7 +3,8 @@ export const safeTerminalFocus = (
   isAnyModalOpen: () => boolean
 ) => {
   requestAnimationFrame(() => {
-    if (!isAnyModalOpen()) {
+    const bodyHasModal = typeof document !== 'undefined' && document.body.classList.contains('modal-open')
+    if (!isAnyModalOpen() && !bodyHasModal) {
       focusAction()
     }
   })
@@ -13,7 +14,8 @@ export const safeTerminalFocusImmediate = (
   focusAction: () => void,
   isAnyModalOpen: () => boolean
 ) => {
-  if (!isAnyModalOpen()) {
+  const bodyHasModal = typeof document !== 'undefined' && document.body.classList.contains('modal-open')
+  if (!isAnyModalOpen() && !bodyHasModal) {
     focusAction()
   }
 }

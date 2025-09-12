@@ -1,4 +1,5 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
+import { logger } from '../utils/logger'
 
 interface ModalContextType {
     registerModal: (modalId: string) => void
@@ -26,6 +27,23 @@ export function ModalProvider({ children }: { children: ReactNode }) {
 
     const isAnyModalOpen = useCallback(() => {
         return openModals.size > 0
+    }, [openModals])
+
+    // Maintain a body-level flag to close timing gaps for focus guards
+    useEffect(() => {
+        if (openModals.size > 0) {
+            document.body.classList.add('modal-open')
+        } else {
+            document.body.classList.remove('modal-open')
+        }
+        // Emit a simple event others can use to detect modal state changes if needed
+        try {
+            window.dispatchEvent(new CustomEvent('schaltwerk:modals-changed', {
+                detail: { openCount: openModals.size }
+            }))
+        } catch (e) {
+            logger.warn('[ModalContext] Failed to dispatch modals-changed event:', e)
+        }
     }, [openModals])
 
     return (

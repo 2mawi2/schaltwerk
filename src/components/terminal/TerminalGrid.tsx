@@ -263,25 +263,34 @@ export function TerminalGrid() {
             return
         }
 
-        // Apply the new global focus
+        // Never apply programmatic focus while any modal is open
+        if (isAnyModalOpen()) {
+            return
+        }
+
+        // Apply the new global focus (modal-safe)
         if (currentFocus === 'claude') {
             setLocalFocus('claude')
-            claudeTerminalRef.current?.focus()
-            // Only scroll to bottom if this is from Cmd+T shortcut
-            if (window.__cmdTPressed) {
-                claudeTerminalRef.current?.scrollToBottom()
-                delete window.__cmdTPressed
-            }
+            safeTerminalFocus(() => {
+                claudeTerminalRef.current?.focus()
+                // Only scroll to bottom if this is from Cmd+T shortcut
+                if (window.__cmdTPressed) {
+                    claudeTerminalRef.current?.scrollToBottom()
+                    delete window.__cmdTPressed
+                }
+            }, isAnyModalOpen)
             lastAppliedGlobalFocusRef.current = 'claude'
         } else if (currentFocus === 'terminal') {
             setLocalFocus('terminal')
-            terminalTabsRef.current?.focus()
+            safeTerminalFocus(() => {
+                terminalTabsRef.current?.focus()
+            }, isAnyModalOpen)
             lastAppliedGlobalFocusRef.current = 'terminal'
         } else {
             setLocalFocus(null)
             lastAppliedGlobalFocusRef.current = null
         }
-    }, [currentFocus, selection, getSessionKey])
+    }, [currentFocus, selection, getSessionKey, isAnyModalOpen])
 
     // Keyboard shortcut handling for Run Mode (Cmd+E) and Terminal Focus (Cmd+/)
     useEffect(() => {

@@ -3,6 +3,8 @@ import { Terminal, TerminalHandle } from './Terminal'
 import { useTerminalTabs } from '../../hooks/useTerminalTabs'
 import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
+import { useModal } from '../../contexts/ModalContext'
+import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 
 interface TerminalTabsProps {
   baseTerminalId: string
@@ -55,13 +57,14 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   })
 
   const terminalRefs = useRef<Map<number, TerminalHandle>>(new Map())
+  const { isAnyModalOpen } = useModal()
 
    useImperativeHandle(ref, () => ({
      focus: () => {
        // Since we only render the active terminal, it should be the only one in the refs
        const activeTerminalRef = terminalRefs.current.get(activeTab)
        if (activeTerminalRef) {
-         activeTerminalRef.focus()
+         safeTerminalFocusImmediate(() => activeTerminalRef.focus(), isAnyModalOpen)
        }
      },
      focusTerminal: (terminalId: string) => {
@@ -72,7 +75,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
           requestAnimationFrame(() => {
             const terminalRef = terminalRefs.current.get(targetTab.index)
             if (terminalRef) {
-              terminalRef.focus()
+              safeTerminalFocusImmediate(() => terminalRef.focus(), isAnyModalOpen)
             }
           })
        }
@@ -143,7 +146,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
               requestAnimationFrame(() => {
                 const activeTerminalRef = terminalRefs.current.get(tab.index)
                 if (activeTerminalRef) {
-                  activeTerminalRef.focus()
+                  safeTerminalFocus(() => activeTerminalRef.focus(), isAnyModalOpen)
                 }
               })
             }}

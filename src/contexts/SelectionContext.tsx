@@ -7,6 +7,7 @@ import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
 import { RawSession, ProjectSelection } from '../types/session'
 import { logger } from '../utils/logger'
+import { useModal } from './ModalContext'
 
 export interface Selection {
     kind: 'session' | 'orchestrator'
@@ -47,6 +48,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const [isSpec, setIsSpec] = useState(false)
     const previousProjectPath = useRef<string | null>(null)
     const hasInitialized = useRef(false)
+    const { isAnyModalOpen, openModals } = useModal()
+    const pendingSelectionRef = useRef<Selection | null>(null)
     
     // Track which terminals we've created to avoid duplicates
     const terminalsCreated = useRef(new Set<string>())
@@ -570,6 +573,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         }
                     }
 
+                    // If any modal is open, defer selection until after modals close
+                    if (isAnyModalOpen()) {
+                        logger.info('[SelectionContext] Modal open; deferring backend selection until modals close')
+                        pendingSelectionRef.current = target
+                        return
+                    }
                     // Set the selection to the requested session/spec - this is intentional (backend requested)
                     await setSelection(target, false, true)
                 })
@@ -585,7 +594,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 unlisten()
             }
         }
-    }, [setSelection, selection, isSpec, filterMode])
+    }, [setSelection, selection, isSpec, filterMode, isAnyModalOpen])
+
+    // When modals close, apply any deferred selection
+    useEffect(() => {
+        if (openModals.size === 0 && pendingSelectionRef.current) {
+            const pending = pendingSelectionRef.current
+            pendingSelectionRef.current = null
+            logger.info('[SelectionContext] Applying deferred backend selection now that modals are closed:', pending)
+            setSelection(pending, false, true).catch(e => logger.error('Failed to apply deferred selection:', e))
+        }
+    }, [openModals, setSelection])
     
     
     return (

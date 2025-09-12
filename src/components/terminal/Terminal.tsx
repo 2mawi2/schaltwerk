@@ -11,6 +11,8 @@ import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
 import '@xterm/xterm/css/xterm.css';
 import { logger } from '../../utils/logger'
+import { useModal } from '../../contexts/ModalContext'
+import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
@@ -40,6 +42,7 @@ export interface TerminalHandle {
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick, isBackground = false, onReady }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver, addTimeout } = useCleanupRegistry();
+    const { isAnyModalOpen } = useModal();
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -68,9 +71,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
     useImperativeHandle(ref, () => ({
         focus: () => {
-            if (terminal.current) {
-                terminal.current.focus();
-            }
+            safeTerminalFocusImmediate(() => {
+                terminal.current?.focus();
+            }, isAnyModalOpen);
         },
         showSearch: () => {
             setIsSearchVisible(true);
@@ -1067,10 +1070,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
                             }
                             await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId, cols, rows });
-                            // OPTIMIZATION: Immediate focus and loading state update
-                            if (terminal.current) {
-                                terminal.current.focus();
-                            }
+                            // OPTIMIZATION: Immediate focus and loading state update (modal-safe)
+                            safeTerminalFocusImmediate(() => {
+                                terminal.current?.focus();
+                            }, isAnyModalOpen);
                             setAgentLoading(false);
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
@@ -1135,11 +1138,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
                            await invoke('schaltwerk_core_start_claude', { sessionName, cols, rows });
-                           // Focus the terminal after Claude starts successfully
+                           // Focus the terminal after Claude starts successfully (modal-safe)
                            requestAnimationFrame(() => {
-                               if (terminal.current) {
-                                   terminal.current.focus();
-                               }
+                               safeTerminalFocus(() => {
+                                   terminal.current?.focus();
+                               }, isAnyModalOpen)
                            });
                            // Ensure terminal is fully ready before showing it
                            requestAnimationFrame(() => {
@@ -1215,10 +1218,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
 
     const handleTerminalClick = () => {
-        // Focus the terminal when clicked
-        if (terminal.current) {
-            terminal.current.focus()
-        }
+        // Focus the terminal when clicked (modal-safe)
+        safeTerminalFocusImmediate(() => {
+            terminal.current?.focus()
+        }, isAnyModalOpen)
         // Also notify parent about the click to update focus context
         if (onTerminalClick) {
             onTerminalClick()

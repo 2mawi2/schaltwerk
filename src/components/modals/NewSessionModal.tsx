@@ -155,8 +155,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const wasOpenRef = useRef(false)
     const lastInitialIsDraftRef = useRef<boolean | undefined>(undefined)
 
-    // Register/unregister modal with context
-    useEffect(() => {
+    // Register/unregister modal with context using layout effect to minimize timing gaps
+    useLayoutEffect(() => {
         if (open) {
             registerModal('NewSessionModal')
         } else {
