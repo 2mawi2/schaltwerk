@@ -1182,7 +1182,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }
 
     return (
-        <div className={`h-full w-full relative overflow-hidden ${className}`} onClick={handleTerminalClick}>
+        <div className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick}>
             <div ref={termRef} className="h-full w-full overflow-hidden" />
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
