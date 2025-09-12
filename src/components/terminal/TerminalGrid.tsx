@@ -620,7 +620,8 @@ export function TerminalGrid() {
                 const sessionName = session.info.session_id
                 const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
                 const topTerminalId = `session-${sanitizedSessionName}-top`
-                const bottomTerminalId = `session-${sanitizedSessionName}-bottom`
+                // Bottom terminals are managed as tabbed terminals; use first tab id (-bottom-0)
+                const bottomTerminalId = `session-${sanitizedSessionName}-bottom-0`
                 
                 return (
                     <div key={`background-${sessionName}`} style={{ display: 'none' }}>

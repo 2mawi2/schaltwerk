@@ -645,11 +645,9 @@ export default function App() {
       // Create terminals for this session using consistent naming pattern
       const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
       const topTerminalId = `session-${sanitizedSessionName}-top`
-      const bottomTerminalId = `session-${sanitizedSessionName}-bottom`
       
-      // Create both terminals
+      // Create only the top terminal. Bottom terminals are tabbed and created by TerminalTabs as needed (-bottom-0)
       await invoke(TauriCommands.CreateTerminal, { id: topTerminalId, cwd: worktreePath })
-      await invoke(TauriCommands.CreateTerminal, { id: bottomTerminalId, cwd: worktreePath })
     } catch (e) {
       logger.warn(`[App] Failed to create terminals for session ${sessionName}:`, e)
     }
@@ -739,17 +737,8 @@ export default function App() {
               rows: null
             })
             
-            // Create the bottom terminal separately (since agent only creates top)
-            const sessionData = await invoke<{ worktree_path: string }>('schaltwerk_core_get_session', { name: sessionName })
-            const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
-            const bottomTerminalId = `session-${sanitizedSessionName}-bottom`
-            
-            await invoke('create_terminal', { 
-              id: bottomTerminalId, 
-              cwd: sessionData.worktree_path 
-            })
-            
-            logger.info(`[App] Started agent and created terminals for session ${sessionName}`)
+            // Bottom terminals are created on demand by TerminalTabs (-bottom-0). Nothing to do here.
+            logger.info(`[App] Started agent for session ${sessionName}`)
           } catch (e) {
             logger.warn(`[App] Failed to start agent for session ${sessionName}:`, e)
           }

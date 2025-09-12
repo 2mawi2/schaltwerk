@@ -184,7 +184,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             await createTerminal(ids.top, worktreePath)
-            await createTerminal(ids.bottomBase, worktreePath)
+            // Proactively close legacy base bottom terminals if they exist to avoid orphans
+            try {
+                const legacyExists = await invoke<boolean>('terminal_exists', { id: ids.bottomBase })
+                if (legacyExists) {
+                    await invoke('close_terminal', { id: ids.bottomBase })
+                    terminalsCreated.current.delete(ids.bottomBase)
+                }
+            } catch (e) {
+                logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sel.payload}:`, e)
+            }
+            // Bottom terminals are managed by TerminalTabs (tabbed: -bottom-0, -bottom-1, ...)
+            // Do not create the base bottom terminal here to avoid orphan terminals
             // Return TerminalSet with the correct working directory
             return {
                 ...ids,
@@ -503,9 +514,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             logger.info('[SelectionContext] Setting selection to:', targetSelection)
             
-            // Set the selection - the orchestrator terminals are already project-specific via the ID hash
-            // No need to force recreate, just switch to the correct project's orchestrator
-            await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
+            // Avoid overriding an explicit selection that may have been set concurrently
+            // Only apply the automatic restoration if we're still on the default orchestrator
+            if (selection.kind === 'orchestrator') {
+                // Set the selection - the orchestrator terminals are already project-specific via the ID hash
+                // No need to force recreate, just switch to the correct project's orchestrator
+                await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
+            } else {
+                logger.info('[SelectionContext] Skipping automatic selection restore; user selection already set')
+            }
         }
         
         // Only run if not currently initializing
