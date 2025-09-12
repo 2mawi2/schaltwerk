@@ -192,9 +192,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
         if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
 
-        // Disable cursor for TUI-based agents to avoid duplicate cursors
-        // TUI agents (cursor, opencode, gemini, etc.) show their own cursor, so we hide xterm's cursor to prevent visual conflict
-        const isTuiAgent = agentType === 'cursor' || agentType === 'cursor-agent' || agentType === 'opencode' || agentType === 'gemini'
+        // Revert: Always show a visible terminal cursor.
+        // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
+        // "no cursor" reports in bottom terminals (e.g., Neovim/Neogrim). We now
+        // unconditionally enable a blinking block cursor for all terminals.
         // Agent conversation terminals (session/orchestrator top) need deeper scrollback to preserve history
         // Background terminals use reduced scrollback to save memory
         const isAgentTopTerminal = (terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-')))

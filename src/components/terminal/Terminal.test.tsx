@@ -472,6 +472,16 @@ describe('Terminal component', () => {
     expect(focusSpy).toHaveBeenCalled()
   })
 
+  it('shows a visible, blinking block cursor regardless of agent type (bottom terminal)', async () => {
+    // Render a bottom terminal with a TUI agent type (e.g., 'cursor')
+    renderTerminal({ terminalId: 'session-demo-bottom-0', sessionName: 'demo', agentType: 'cursor' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    expect(xterm.options.cursorStyle).toBe('block')
+    expect(xterm.options.cursorBlink).toBe(true)
+  })
+
 
   describe.skip('Auto-start error handling - NEEDS INVESTIGATION', () => {
     it.skip('dispatches permission error event on orchestrator permission failure - POTENTIAL HANG', async () => {
