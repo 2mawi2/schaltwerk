@@ -46,16 +46,28 @@ describe('RunTerminal', () => {
   it('shows [process has ended] after TerminalClosed', async () => {
     render(<Wrapper />)
 
+    // Wait for component to load
+    await screen.findByText('Ready to run:')
+    expect(screen.getByText('npm run dev')).toBeInTheDocument()
+
     // Start run
     await act(async () => {
       screen.getByText('toggle').click()
     })
+
+    // Verify terminal is now running (header should change)
+    await screen.findByText('Running:')
+    
+    // Verify terminal component is now displayed (no longer showing placeholder)
+    expect(screen.queryByText('Press ⌘E or click Run to start')).not.toBeInTheDocument()
 
     // Simulate backend TerminalClosed event for this run terminal
     await act(async () => {
       terminalClosedHandler?.({ payload: { terminal_id: 'run-terminal-test' } })
     })
 
+    // Should now show "Ready to run:" again and the process ended message
+    await screen.findByText('Ready to run:')
     expect(await screen.findByText('[process has ended]')).toBeInTheDocument()
   })
 })
