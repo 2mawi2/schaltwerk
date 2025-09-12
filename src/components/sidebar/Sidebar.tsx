@@ -833,7 +833,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto">
                         {/* Search Icon */}
                         <button
-                            onClick={() => setIsSearchVisible(true)}
+                            onClick={() => {
+                                setIsSearchVisible(true)
+                                // Trigger OpenCode TUI resize workaround for the active context
+                                const detail = selection.kind === 'session'
+                                  ? { kind: 'session', sessionId: selection.payload }
+                                  : { kind: 'orchestrator' as const }
+                                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                            }}
                             className={clsx('px-1 py-0.5 rounded hover:bg-slate-700/50 flex items-center flex-shrink-0',
                                 isSearchVisible ? 'bg-slate-700/50 text-white' : 'text-slate-400 hover:text-white')}
                             title="Search sessions"
@@ -923,7 +930,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         <input
                             type="text"
                             value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
+                            onChange={(e) => {
+                                setSearchQuery(e.target.value)
+                                // Each search keystroke nudges OpenCode to repaint correctly for the active context
+                                const detail = selection.kind === 'session'
+                                  ? { kind: 'session', sessionId: selection.payload }
+                                  : { kind: 'orchestrator' as const }
+                                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                            }}
                             placeholder="Search sessions..."
                             className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
                             autoFocus
@@ -937,6 +951,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onClick={() => {
                                 setSearchQuery('')
                                 setIsSearchVisible(false)
+                                // Also trigger a resize when closing search (layout shifts)
+                                const detail = selection.kind === 'session'
+                                  ? { kind: 'session', sessionId: selection.payload }
+                                  : { kind: 'orchestrator' as const }
+                                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
                             }}
                             className="text-slate-400 hover:text-slate-200 p-0.5"
                             title="Close search"

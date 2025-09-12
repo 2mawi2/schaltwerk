@@ -176,6 +176,87 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
     }, [terminalId]);
 
+    // Workaround: force-fit and send PTY resize when session search runs for OpenCode
+    useEffect(() => {
+        const handleSearchResize = (e: Event) => {
+            // Only affect visible, non-background OpenCode terminals
+            if (agentType !== 'opencode' || isBackground) return;
+            if (!fitAddon.current || !terminal.current || !termRef.current) return;
+            const el = termRef.current;
+            if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
+
+            // Scope to the intended target: current session or orchestrator
+            const detail = (e as CustomEvent).detail as { kind?: 'session' | 'orchestrator'; sessionId?: string } | undefined
+            if (detail && detail.kind) {
+                if (detail.kind === 'session') {
+                    if (!sessionName || detail.sessionId !== sessionName) return;
+                } else if (detail.kind === 'orchestrator') {
+                    if (!isCommander) return;
+                }
+            }
+
+            const doFitAndNotify = () => {
+                try {
+                    fitAddon.current!.fit();
+                    const { cols, rows } = terminal.current!;
+                    // Always notify PTY to nudge the TUI even if equal (OpenCode can need explicit resize)
+                    lastSize.current = { cols, rows };
+                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                } catch (e) {
+                    logger.warn(`[Terminal ${terminalId}] OpenCode search-resize failed:`, e);
+                }
+            };
+
+            // Two-phase fit: layout can change width first then height (or vice versa)
+            // Run once now, once on the next frame to capture both axes after reflow/scrollbar changes
+            doFitAndNotify();
+            requestAnimationFrame(() => {
+                // Guard again in case the component unmounted between frames
+                if (!fitAddon.current || !terminal.current || !termRef.current) return;
+                if (!termRef.current.isConnected) return;
+                doFitAndNotify();
+            });
+        };
+        window.addEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
+        return () => window.removeEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
+        // Deliberately depend on agentType/isBackground to keep logic accurate per mount
+    }, [agentType, isBackground, terminalId, sessionName, isCommander]);
+
+    // Deterministic refit on session switch specifically for OpenCode
+    useEffect(() => {
+        const handleSelectionResize = (e: Event) => {
+            if (agentType !== 'opencode' || isBackground) return;
+            const detail = (e as CustomEvent<{ kind?: 'session' | 'orchestrator'; sessionId?: string }>).detail;
+            if (detail?.kind === 'session') {
+                if (!sessionName || detail.sessionId !== sessionName) return;
+            } else if (detail?.kind === 'orchestrator') {
+                if (!isCommander) return;
+            }
+
+            if (!fitAddon.current || !terminal.current || !termRef.current) return;
+            if (!termRef.current.isConnected) return;
+
+            const run = () => {
+                try {
+                    fitAddon.current!.fit();
+                    const { cols, rows } = terminal.current!;
+                    lastSize.current = { cols, rows };
+                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                } catch (error) {
+                    logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
+                }
+            };
+
+            // Two RAFs to ensure both axes settle after layout toggle
+            requestAnimationFrame(() => {
+                run();
+                requestAnimationFrame(() => run());
+            });
+        };
+        window.addEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
+        return () => window.removeEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander]);
+
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;

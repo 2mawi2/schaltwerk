@@ -373,9 +373,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     setIsReady(true)
                 }
                 
-                // Remove session switching class after immediate switch
+                // Remove session switching class after immediate switch and nudge OpenCode terminal to refit
                 requestAnimationFrame(() => {
                     document.body.classList.remove('session-switching')
+                    try {
+                        const detail = newSelection.kind === 'session'
+                          ? { kind: 'session', sessionId: newSelection.payload }
+                          : { kind: 'orchestrator' as const }
+                        window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+                    } catch { /* no-op */ }
                 })
                 return
             }
@@ -413,6 +419,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Always remove session switching class after selection change completes
             requestAnimationFrame(() => {
                 document.body.classList.remove('session-switching')
+                try {
+                    const detail = newSelection.kind === 'session'
+                      ? { kind: 'session', sessionId: newSelection.payload }
+                      : { kind: 'orchestrator' as const }
+                    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+                } catch { /* no-op */ }
             })
         }
     }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection])

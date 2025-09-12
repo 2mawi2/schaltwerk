@@ -622,6 +622,25 @@ export function TerminalGrid() {
     const currentSessionId = selection.kind === 'session' ? selection.payload : null
     const backgroundSessions = runningSessionsList.filter(s => s.info.session_id !== currentSessionId)
 
+    const dispatchOpencodeFinalResize = () => {
+        try {
+            const detail = selection.kind === 'session'
+                ? { kind: 'session', sessionId: selection.payload }
+                : { kind: 'orchestrator' as const };
+            window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }));
+        } catch {
+            // no-op
+        }
+    };
+
+    const handlePanelTransitionEnd = (e: React.TransitionEvent<HTMLDivElement>) => {
+        const prop = e.propertyName;
+        // Only react to geometry-affecting transitions
+        if (prop === 'height' || prop === 'width' || prop === 'flex-basis' || prop === 'max-height') {
+            dispatchOpencodeFinalResize();
+        }
+    };
+
     return (
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
             {/* Background terminals for all non-active running sessions */}
@@ -676,7 +695,10 @@ export function TerminalGrid() {
                     setIsDraggingSplit(false)
                 }}
             >
-                <div className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'claude' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
+                <div
+                    className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'claude' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+                    onTransitionEnd={handlePanelTransitionEnd}
+                >
                     <div
                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${isDraggingSplit ? '' : 'transition-colors duration-200'} ${
                             localFocus === 'claude'
@@ -923,7 +945,11 @@ export function TerminalGrid() {
                             </>
                         )}
                         {/* Regular terminal tabs - only show when not in run mode */}
-                        <div style={{ display: !hasRunScripts || !runModeActive || terminalTabsState.activeTab !== -1 ? 'block' : 'none' }} className="h-full">
+                        <div
+                            style={{ display: !hasRunScripts || !runModeActive || terminalTabsState.activeTab !== -1 ? 'block' : 'none' }}
+                            className="h-full"
+                            onTransitionEnd={handlePanelTransitionEnd}
+                        >
                             <TerminalErrorBoundary terminalId={terminals.bottomBase}>
                                 <TerminalTabs
                                     key={`terminal-tabs-${terminalKey}`}
