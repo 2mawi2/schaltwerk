@@ -12,7 +12,7 @@
 #   dev-opt (opt-level=3 for deps) - Production-like performance for testing
 #   release (opt-level=3) - Used for production builds with maximum optimization
 
-# Clear all caches (build, WebGL, application)
+# Clear all caches (build and application)
 clear:
     rm -rf node_modules/.vite dist dist-ssr src-tauri/target/debug/incremental src-tauri/target/debug/deps src-tauri/target/debug/build
     rm -rf ~/Library/Application\ Support/schaltwerk/cache ~/Library/Application\ Support/schaltwerk/WebKit ~/.schaltwerk/cache
@@ -498,4 +498,3 @@ run-port-release port:
     fi
     
     cd "$HOME" && VITE_PORT={{port}} PORT={{port}} PARA_REPO_PATH="$PROJECT_ROOT" "$BINARY_PATH"
-

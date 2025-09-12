@@ -249,7 +249,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         searchAddon.current = new SearchAddon();
         terminal.current.loadAddon(searchAddon.current);
         
-        // Open terminal to DOM first (required before WebGL addon)
+        // Open terminal to DOM first
         terminal.current.open(termRef.current);
         
         // Ensure proper initial fit after terminal is opened
@@ -873,7 +873,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         });
         
         // Initial fit pass after mount - delay to ensure renderer is initialized
-        // This is important to prevent resize before WebGL is ready
         addTimeout(() => {
             // Only do initial resize if renderer is ready or if we've waited long enough
             if (rendererInitialized || Date.now() - mountTime > 200) {
