@@ -56,8 +56,19 @@ mod tests {
     }
 
     #[test]
-    fn version_constant_matches_cargo_toml() {
-        assert_eq!(VERSION, "0.1.24");
+    fn version_consistent_with_tauri_conf() {
+        use std::fs;
+        use std::path::PathBuf;
+        let conf_path: PathBuf = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tauri.conf.json");
+        let contents = fs::read_to_string(&conf_path)
+            .expect("failed to read tauri.conf.json for version consistency check");
+        let v: serde_json::Value = serde_json::from_str(&contents)
+            .expect("failed to parse tauri.conf.json as JSON");
+        let tauri_version = v
+            .get("version")
+            .and_then(|x| x.as_str())
+            .expect("missing 'version' in tauri.conf.json");
+        assert_eq!(VERSION, tauri_version, "Rust crate version and tauri.conf.json version must match");
     }
 
     #[test]

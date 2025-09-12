@@ -66,9 +66,5 @@ jobs:
       - name: Install Node dependencies
         run: npm ci
 
-      - name: Run frontend tests
-        run: npm run test:frontend
-        
-      # Temporarily disabled - taking too long on CI
-      # - name: Run Rust tests
-      #   run: npm run test:rust
+      - name: Run full test suite (lint, TS, clippy, frontend, Rust, build)
+        run: npm run test
