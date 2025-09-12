@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Schaltwerk MCP Server - TypeScript implementation for session management",
   "type": "module",
+  "license": "MIT",
+  "author": "Schaltwerk Contributors",
   "bin": {
     "schaltwerk-mcp-server": "./build/schaltwerk-mcp-server.js"
   },

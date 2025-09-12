@@ -1,8 +1,18 @@
 {
   "name": "schaltwerk",
-  "private": true,
   "version": "0.1.0",
   "type": "module",
+  "license": "MIT",
+  "author": "Schaltwerk Contributors",
+  "description": "AI-powered git worktree session manager for isolated development environments",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/schaltwerk/schaltwerk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/schaltwerk/schaltwerk/issues"
+  },
+  "homepage": "https://github.com/schaltwerk/schaltwerk#readme",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit --skipLibCheck && vite build",

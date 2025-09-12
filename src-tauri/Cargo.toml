@@ -1,8 +1,11 @@
 [package]
 name = "schaltwerk"
 version = "0.1.27"
-description = "Schaltwerk - A Terminal UI Application"
-authors = ["you"]
+description = "AI-powered git worktree session manager for isolated development environments"
+authors = ["Schaltwerk Contributors"]
+license = "MIT"
+repository = "https://github.com/schaltwerk/schaltwerk"
+homepage = "https://github.com/schaltwerk/schaltwerk"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
