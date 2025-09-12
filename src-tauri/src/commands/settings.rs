@@ -18,16 +18,17 @@ pub struct InstalledFont {
 
 fn normalize_and_sort_fonts(mut entries: Vec<InstalledFont>) -> Vec<InstalledFont> {
     use std::collections::BTreeMap;
-    let mut map: BTreeMap<String, bool> = BTreeMap::new();
+    let mut map: BTreeMap<String, (String, bool)> = BTreeMap::new();
     for e in entries.drain(..) {
-        let key = e.family.trim().to_string();
-        if key.is_empty() { continue; }
+        let family = e.family.trim().to_string();
+        if family.is_empty() { continue; }
+        let key = family.to_lowercase();
         let mono = e.monospace;
-        map.entry(key).and_modify(|m| *m = *m || mono).or_insert(mono);
+        map.entry(key).and_modify(|(_, m)| *m = *m || mono).or_insert((family, mono));
     }
     let mut list: Vec<InstalledFont> = map
         .into_iter()
-        .map(|(family, monospace)| InstalledFont { family, monospace })
+        .map(|(_, (family, monospace))| InstalledFont { family, monospace })
         .collect();
     list.sort_by(|a, b| {
         let ord = b.monospace.cmp(&a.monospace);

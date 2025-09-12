@@ -1207,14 +1207,14 @@ mod tests {
     struct SharedWriter(std::sync::Arc<tokio::sync::Mutex<MemWriter>>);
     impl Write for SharedWriter {
         fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 let mut g = self.0.lock().await;
                 g.write(data)
             })
         }
         fn flush(&mut self) -> std::io::Result<()> {
-            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 let mut g = self.0.lock().await;
                 g.flush()
