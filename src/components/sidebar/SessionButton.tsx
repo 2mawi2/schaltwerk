@@ -148,16 +148,19 @@ export const SessionButton = memo<SessionButtonProps>(({
                         )}
                         {/* State pill */}
                         {!isReadyToMerge && (
-                            <span
-                                className={clsx(
-                                    'text-[10px] px-1.5 py-0.5 rounded border',
-                                    sessionState === 'running'
-                                        ? 'bg-green-900/30 text-green-300 border-green-700/50'
-                                        : 'bg-amber-900/30 text-amber-300 border-amber-700/50'
+                            <>
+                                {isRunning ? (
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded border bg-cyan-900/30 text-cyan-300 border-cyan-700/50">
+                                        Running
+                                    </span>
+                                ) : (
+                                    sessionState === 'spec' && (
+                                        <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-900/30 text-amber-300 border-amber-700/50">
+                                            Spec
+                                        </span>
+                                    )
                                 )}
-                            >
-                                {sessionState === 'running' ? 'Running' : 'Spec'}
-                            </span>
+                            </>
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
                         {hasStuckTerminals && !isReadyToMerge && (
