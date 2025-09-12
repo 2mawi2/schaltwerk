@@ -212,7 +212,7 @@ jobs:
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', github.event.inputs.version) }}
           name: Schaltwerk ${{ github.event.inputs.version || github.ref_name }}
-          spec: false
+          draft: false
           prerelease: false
           files: |
             artifacts/*.dmg
