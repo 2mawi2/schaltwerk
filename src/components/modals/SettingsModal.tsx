@@ -9,6 +9,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { logger } from '../../utils/logger'
+import { FontPicker } from './FontPicker'
 
 interface Props {
     open: boolean
@@ -146,6 +147,7 @@ interface RunScript {
 interface TerminalSettings {
     shell: string | null
     shellArgs: string[]
+    fontFamily?: string | null
 }
 
 interface SessionPreferences {
@@ -164,12 +166,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     })
     const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
         shell: null,
-        shellArgs: []
+        shellArgs: [],
+        fontFamily: null,
     })
     const [sessionPreferences, setSessionPreferences] = useState<SessionPreferences>({
         auto_commit_on_review: false,
         skip_confirmation_modals: false
     })
+    const [showFontPicker, setShowFontPicker] = useState(false)
     const [runScript, setRunScript] = useState<RunScript>({
         command: '',
         workingDirectory: '',
@@ -228,7 +232,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         loadCliArgs,
         loadProjectSettings,
         loadTerminalSettings,
-        loadSessionPreferences
+        loadSessionPreferences,
+        loadInstalledFonts
     } = useSettings()
     
     const {
@@ -419,7 +424,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         
         // Load project-specific settings (may fail if no project is open)
         let loadedProjectSettings: ProjectSettings = { setupScript: '', environmentVariables: [] }
-        let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [] }
+        let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         
         try {
@@ -1269,6 +1274,36 @@ fi`}
                             </div>
                         </div>
                         
+                        <div className="mt-6">
+                            <label className="block text-body text-slate-300 mb-2">Terminal Font Family</label>
+                            <input
+                                type="text"
+                                value={terminalSettings.fontFamily || ''}
+                                onChange={(e) => setTerminalSettings({ ...terminalSettings, fontFamily: e.target.value || null })}
+                                placeholder='Examples: "JetBrains Mono, MesloLGS NF" or "Monaspace Neon"'
+                                className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
+                            />
+                            <div className="mt-2">
+                                <button
+                                    onClick={() => setShowFontPicker(v => !v)}
+                                    className="px-3 py-1.5 text-caption bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-300"
+                                >Browse installed fonts</button>
+                            </div>
+                            {showFontPicker && (
+                                <FontPicker
+                                    load={loadInstalledFonts}
+                                    onSelect={(fam) => {
+                                        setTerminalSettings(s => ({ ...s, fontFamily: fam }))
+                                        setShowFontPicker(false)
+                                    }}
+                                    onClose={() => setShowFontPicker(false)}
+                                />
+                            )}
+                            <div className="mt-2 text-caption text-slate-500">
+                                Uses your system-installed fonts. Powerline/ glyphs need a Nerd Font. A safe fallback chain is applied automatically.
+                            </div>
+                        </div>
+
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-caption text-slate-400">
                                 <strong>Keyboard shortcuts:</strong>

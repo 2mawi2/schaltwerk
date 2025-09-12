@@ -45,6 +45,8 @@ pub struct SessionPreferences {
 pub struct TerminalSettings {
     pub shell: Option<String>,
     pub shell_args: Vec<String>,
+    #[serde(default)]
+    pub font_family: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -53,6 +53,7 @@ clap = { version = "4", features = ["derive"] }
 notify = "6.1"
 notify-debouncer-mini = "0.4"
 similar = "2.6"
+fontdb = "0.23"
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -139,4 +140,3 @@ debug = false
 [profile.test.build-override]
 opt-level = 0
 debug = false
-

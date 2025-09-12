@@ -157,7 +157,8 @@ describe('useSettings', () => {
       
       const terminalSettings = {
         shell: '/bin/zsh',
-        shellArgs: ['-l', '-c']
+        shellArgs: ['-l', '-c'],
+        fontFamily: null,
       }
 
       await act(async () => {
@@ -174,7 +175,8 @@ describe('useSettings', () => {
       
       const terminalSettings = {
         shell: null,
-        shellArgs: []
+        shellArgs: [],
+        fontFamily: null,
       }
 
       await act(async () => {
@@ -184,6 +186,26 @@ describe('useSettings', () => {
       expect(mockInvoke).toHaveBeenCalledWith('set_terminal_settings', {
         terminal: terminalSettings
       })
+    })
+  })
+
+  describe('loadInstalledFonts', () => {
+    it('returns installed fonts from backend', async () => {
+      const { result } = renderHook(() => useSettings())
+      mockInvoke.mockResolvedValueOnce([
+        { family: 'JetBrains Mono', monospace: true },
+        { family: 'Arial', monospace: false },
+      ])
+      const fonts = await result.current.loadInstalledFonts()
+      expect(fonts.length).toBe(2)
+      expect(fonts[0].family).toBe('JetBrains Mono')
+    })
+
+    it('handles backend failure gracefully', async () => {
+      const { result } = renderHook(() => useSettings())
+      mockInvoke.mockRejectedValueOnce(new Error('boom'))
+      const fonts = await result.current.loadInstalledFonts()
+      expect(fonts).toEqual([])
     })
   })
 
@@ -216,7 +238,8 @@ describe('useSettings', () => {
       
       const terminalSettings = {
         shell: null,
-        shellArgs: []
+        shellArgs: [],
+        fontFamily: null,
       }
 
       const sessionPreferences = {
@@ -478,7 +501,8 @@ describe('useSettings', () => {
     it('loads terminal settings successfully', async () => {
       mockInvoke.mockResolvedValue({
         shell: '/bin/bash',
-        shellArgs: ['-l']
+        shellArgs: ['-l'],
+        fontFamily: null,
       })
 
       const { result } = renderHook(() => useSettings())
@@ -489,7 +513,8 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         shell: '/bin/bash',
-        shellArgs: ['-l']
+        shellArgs: ['-l'],
+        fontFamily: null,
       })
     })
 
@@ -504,7 +529,8 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         shell: null,
-        shellArgs: []
+        shellArgs: [],
+        fontFamily: null,
       })
     })
 
@@ -519,7 +545,8 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         shell: null,
-        shellArgs: []
+        shellArgs: [],
+        fontFamily: null,
       })
     })
   })

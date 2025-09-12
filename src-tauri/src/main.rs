@@ -734,6 +734,7 @@ fn main() {
             set_terminal_divider_position,
             get_terminal_settings,
             set_terminal_settings,
+            list_installed_fonts,
             get_diff_view_preferences,
             set_diff_view_preferences,
             get_session_preferences,

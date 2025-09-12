@@ -9,6 +9,56 @@ use schaltwerk::domains::settings::{TerminalUIPreferences, TerminalSettings, Dif
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig, RunScript};
 
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct InstalledFont {
+    pub family: String,
+    pub monospace: bool,
+}
+
+fn normalize_and_sort_fonts(mut entries: Vec<InstalledFont>) -> Vec<InstalledFont> {
+    use std::collections::BTreeMap;
+    let mut map: BTreeMap<String, bool> = BTreeMap::new();
+    for e in entries.drain(..) {
+        let key = e.family.trim().to_string();
+        if key.is_empty() { continue; }
+        let mono = e.monospace;
+        map.entry(key).and_modify(|m| *m = *m || mono).or_insert(mono);
+    }
+    let mut list: Vec<InstalledFont> = map
+        .into_iter()
+        .map(|(family, monospace)| InstalledFont { family, monospace })
+        .collect();
+    list.sort_by(|a, b| {
+        let ord = b.monospace.cmp(&a.monospace);
+        if ord == std::cmp::Ordering::Equal {
+            a.family.to_lowercase().cmp(&b.family.to_lowercase())
+        } else { ord }
+    });
+    list
+}
+
+#[tauri::command]
+pub async fn list_installed_fonts() -> Result<Vec<InstalledFont>, String> {
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    let mut entries: Vec<InstalledFont> = Vec::new();
+    for info in db.faces() {
+        for fam in &info.families {
+            let name = match fam.0.as_str() {
+                s if !s.is_empty() => s.to_string(),
+                _ => continue,
+            };
+            let inferred = name.to_lowercase().contains("mono")
+                || name.to_lowercase().contains("code")
+                || name.to_lowercase().contains("console")
+                || name.to_lowercase().contains("monospace");
+            entries.push(InstalledFont { family: name, monospace: inferred });
+        }
+    }
+    Ok(normalize_and_sort_fonts(entries))
+}
+
 #[tauri::command]
 pub async fn get_agent_env_vars(agent_type: String) -> Result<HashMap<String, String>, String> {
     let settings_manager = SETTINGS_MANAGER
@@ -1002,5 +1052,24 @@ mod tests {
         assert!(deserialized.label.is_empty());
         assert!(deserialized.prompt.is_empty());
         assert!(deserialized.color.is_none());
+    }
+
+    #[test]
+    fn test_normalize_and_sort_fonts() {
+        let input = vec![
+            InstalledFont { family: "Fira Code".into(), monospace: true },
+            InstalledFont { family: "Fira Code".into(), monospace: false },
+            InstalledFont { family: "Arial".into(), monospace: false },
+            InstalledFont { family: "  ".into(), monospace: true },
+            InstalledFont { family: "JetBrains Mono".into(), monospace: true },
+            InstalledFont { family: "arial".into(), monospace: false },
+        ];
+        let out = normalize_and_sort_fonts(input);
+        assert!(out.len() >= 3);
+        assert_eq!(out[0].monospace, true);
+        assert!(out.iter().any(|f| f.family == "Fira Code" && f.monospace));
+        assert!(out.iter().any(|f| f.family == "Arial"));
+        let mut seen = std::collections::HashSet::new();
+        for f in &out { assert!(seen.insert(f.family.to_lowercase())); }
     }
 }

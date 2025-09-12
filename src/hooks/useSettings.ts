@@ -13,6 +13,7 @@ interface ProjectSettings {
 interface TerminalSettings {
     shell: string | null
     shellArgs: string[]
+    fontFamily?: string | null
 }
 
 interface SessionPreferences {
@@ -61,6 +62,14 @@ export const useSettings = () => {
     
     const saveTerminalSettings = useCallback(async (terminalSettings: TerminalSettings): Promise<void> => {
         await invoke('set_terminal_settings', { terminal: terminalSettings })
+        try {
+            if (typeof window !== 'undefined') {
+                const font = terminalSettings.fontFamily || null
+                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-font-updated', { detail: { fontFamily: font } }))
+            }
+        } catch (e) {
+            logger.warn('Failed to dispatch terminal font update event', e)
+        }
     }, [])
     
     const saveSessionPreferences = useCallback(async (sessionPreferences: SessionPreferences): Promise<void> => {
@@ -182,11 +191,12 @@ export const useSettings = () => {
             const settings = await invoke<TerminalSettings>('get_terminal_settings')
             return {
                 shell: settings?.shell || null,
-                shellArgs: settings?.shellArgs || []
+                shellArgs: settings?.shellArgs || [],
+                fontFamily: settings?.fontFamily ?? null
             }
         } catch (error) {
             logger.error('Failed to load terminal settings:', error)
-            return { shell: null, shellArgs: [] }
+            return { shell: null, shellArgs: [], fontFamily: null }
         }
     }, [])
     
@@ -200,6 +210,16 @@ export const useSettings = () => {
         }
     }, [])
     
+    const loadInstalledFonts = useCallback(async (): Promise<Array<{ family: string, monospace: boolean }>> => {
+        try {
+            const items = await invoke<Array<{ family: string, monospace: boolean }>>('list_installed_fonts')
+            return Array.isArray(items) ? items : []
+        } catch (error) {
+            logger.error('Failed to list installed fonts:', error)
+            return []
+        }
+    }, [])
+
     return {
         loading,
         saving,
@@ -212,6 +232,7 @@ export const useSettings = () => {
         loadCliArgs,
         loadProjectSettings,
         loadTerminalSettings,
-        loadSessionPreferences
+        loadSessionPreferences,
+        loadInstalledFonts,
     }
 }

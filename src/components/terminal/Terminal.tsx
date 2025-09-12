@@ -11,6 +11,7 @@ import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
 import '@xterm/xterm/css/xterm.css';
 import { logger } from '../../utils/logger'
+import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -63,6 +64,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const previousTerminalId = useRef<string>(terminalId);
     const listenerAgentRef = useRef<string | undefined>(agentType);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
+    const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -84,6 +86,34 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     useEffect(() => {
         hydratedRef.current = hydrated;
     }, [hydrated]);
+
+    useEffect(() => {
+        let mounted = true
+        const load = async () => {
+            try {
+                const settings = await invoke<{ fontFamily?: string | null }>('get_terminal_settings')
+                const chain = buildTerminalFontFamily(settings?.fontFamily ?? null)
+                if (mounted) setResolvedFontFamily(chain)
+            } catch (err) {
+                logger.warn('[Terminal] Failed to load terminal settings for font family', err)
+                const chain = buildTerminalFontFamily(null)
+                if (mounted) setResolvedFontFamily(chain)
+            }
+        }
+        load()
+        return () => { mounted = false }
+    }, [])
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail as { fontFamily?: string | null } | undefined
+            const custom = detail?.fontFamily ?? null
+            const chain = buildTerminalFontFamily(custom)
+            setResolvedFontFamily(chain)
+        }
+        window.addEventListener('schaltwerk:terminal-font-updated', handler as EventListener)
+        return () => window.removeEventListener('schaltwerk:terminal-font-updated', handler as EventListener)
+    }, [])
 
     // Listen for Claude auto-start events to prevent double-starting
     useEffect(() => {
@@ -195,7 +225,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 brightCyan: theme.colors.accent.cyan.light,
                 brightWhite: theme.colors.text.primary,
             },
-            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+            fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
             fontSize: terminalFontSize,
             cursorBlink: !isTuiAgent,
             cursorStyle: isTuiAgent ? 'underline' : 'block',
@@ -1151,6 +1181,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const t = setTimeout(start, 0);
         return () => clearTimeout(t);
     }, [hydrated, terminalId, isCommander, sessionName]);
+
+    useEffect(() => {
+        if (!terminal.current || !resolvedFontFamily) return
+        try {
+            if (terminal.current.options.fontFamily !== resolvedFontFamily) {
+                terminal.current.options.fontFamily = resolvedFontFamily
+                if (fitAddon.current) {
+                    fitAddon.current.fit()
+                }
+            }
+        } catch (e) {
+            logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
+        }
+    }, [resolvedFontFamily])
 
     // Force scroll to bottom when switching sessions
     useEffect(() => {
