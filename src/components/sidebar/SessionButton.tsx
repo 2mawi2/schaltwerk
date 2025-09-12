@@ -189,9 +189,7 @@ export const SessionButton = memo<SessionButtonProps>(({
             {sessionState !== 'spec' && (
                 <div className="flex items-center justify-between gap-2 -mt-0.5">
                     <div className="text-[11px] text-slate-400 truncate max-w-[50%]">{s.branch}</div>
-                    <div 
-                        className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
-                    >
+                    <div>
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                             sessionId={s.session_id}
@@ -215,9 +213,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                 </div>
             )}
             {sessionState === 'spec' && (
-                <div 
-                    className="flex items-center justify-end -mt-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"
-                >
+                <div className="flex items-center justify-end -mt-0.5">
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                         sessionId={s.session_id}
