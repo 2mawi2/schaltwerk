@@ -502,7 +502,10 @@ impl SessionManager {
         
         if session.worktree_path.exists() {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
-                return Err(anyhow!("Failed to remove worktree when converting to spec: {}", e));
+                log::warn!("Failed to remove worktree when converting to spec (will continue anyway): {e}. This may be due to active processes or file locks in the worktree directory.");
+                // Continue with conversion even if worktree removal fails - the important part
+                // is updating the session state in the database. The orphaned directory 
+                // can be cleaned up later via cleanup_orphaned_worktrees()
             }
         }
         
@@ -514,6 +517,10 @@ impl SessionManager {
         
         self.db_manager.update_session_status(&session.id, SessionStatus::Spec)?;
         self.db_manager.update_session_state(&session.id, SessionState::Spec)?;
+        
+        // Reset run state fields when converting to spec
+        self.db_manager.update_session_ready_to_merge(&session.id, false)?;
+        self.db_manager.clear_session_run_state(&session.id)?;
         
         clear_session_prompted_non_test(&session.worktree_path);
         

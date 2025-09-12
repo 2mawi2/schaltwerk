@@ -140,16 +140,23 @@ impl SessionUtils {
                 .unwrap_or_else(|_| worktree_path.clone());
             
             let sessions = self.db_manager.list_sessions()?;
-            let exists = sessions.iter().any(|s| {
+            // IMPORTANT: Only check against sessions that should have worktrees
+            // Spec sessions should NOT have worktree directories, so we exclude them
+            let sessions_with_worktrees: Vec<_> = sessions.into_iter()
+                .filter(|s| s.session_state != SessionState::Spec)
+                .collect();
+            
+            let exists = sessions_with_worktrees.iter().any(|s| {
                 let canonical_session = s.worktree_path.canonicalize()
                     .unwrap_or_else(|_| s.worktree_path.clone());
                 canonical_session == canonical_worktree
             });
             
             if !exists {
-                log::info!("Removing orphaned worktree: {}", worktree_path.display());
+                log::info!("Removing orphaned worktree: {} (no matching non-spec session found)", worktree_path.display());
                 let _ = git::remove_worktree(&self.repo_path, &worktree_path);
                 if worktree_path.exists() {
+                    log::debug!("Forcefully removing worktree directory: {}", worktree_path.display());
                     let _ = std::fs::remove_dir_all(&worktree_path);
                 }
             }

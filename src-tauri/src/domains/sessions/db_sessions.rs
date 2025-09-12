@@ -24,6 +24,7 @@ pub trait SessionMethods {
     fn update_session_initial_prompt(&self, id: &str, prompt: &str) -> Result<()>;
     fn set_pending_name_generation(&self, id: &str, pending: bool) -> Result<()>;
     fn set_session_original_settings(&self, session_id: &str, agent_type: &str, skip_permissions: bool) -> Result<()>;
+    fn clear_session_run_state(&self, session_id: &str) -> Result<()>;
     fn rename_draft_session(&self, repo_path: &Path, old_name: &str, new_name: &str) -> Result<()>;
     fn set_session_version_info(&self, id: &str, group_id: Option<&str>, version_number: Option<i32>) -> Result<()>;
 }
@@ -475,6 +476,20 @@ impl SessionMethods for Database {
         conn.execute(
             "UPDATE sessions SET version_group_id = ?1, version_number = ?2, updated_at = ?3 WHERE id = ?4",
             params![group_id, version_number, Utc::now().timestamp(), id],
+        )?;
+        Ok(())
+    }
+    
+    fn clear_session_run_state(&self, session_id: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET last_activity = NULL, original_agent_type = NULL, original_skip_permissions = NULL WHERE id = ?1",
+            params![session_id],
+        )?;
+        // Also delete git stats since specs don't have worktrees
+        conn.execute(
+            "DELETE FROM git_stats WHERE session_id = ?1",
+            params![session_id],
         )?;
         Ok(())
     }

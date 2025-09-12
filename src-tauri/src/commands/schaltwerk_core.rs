@@ -844,10 +844,40 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
         Ok(()) => {
             log::info!("Successfully converted session to spec: {name}");
             
+            // Close associated terminals
+            if let Ok(terminal_manager) = get_terminal_manager().await {
+                // Sanitize session name to match frontend's terminal ID generation
+                let sanitized_name = name.chars()
+                    .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
+                    .collect::<String>();
+                let ids = vec![
+                    format!("session-{}-top", sanitized_name),
+                    format!("session-{}-bottom", sanitized_name),
+                ];
+                for id in ids {
+                    if let Ok(true) = terminal_manager.terminal_exists(&id).await {
+                        if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
+                            log::warn!("Failed to close terminal {id} on convert to spec: {e}");
+                        }
+                    }
+                }
+            }
+            
+            // Clean up any orphaned worktrees after conversion
+            // This handles cases where worktree removal failed during conversion
+            // We do this synchronously but with error handling to ensure it doesn't fail the conversion
+            if let Err(e) = manager.cleanup_orphaned_worktrees() {
+                log::warn!("Worktree cleanup after conversion failed (non-fatal): {e}");
+            } else {
+                log::info!("Successfully cleaned up orphaned worktrees after converting session to spec");
+            }
+            
             // Emit event to notify frontend of the change
-            // Invalidate cache before emitting refreshed event
-                        if let Ok(sessions) = manager.list_enriched_sessions() {
-                let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions);
+            if let Ok(sessions) = manager.list_enriched_sessions() {
+                log::info!("Emitting sessions-refreshed event after converting session to spec");
+                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
+                    log::warn!("Could not emit sessions refreshed: {e}");
+                }
             }
             
             Ok(())
