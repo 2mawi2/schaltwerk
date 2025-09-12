@@ -57,7 +57,7 @@ mod tests {
 
     #[test]
     fn version_constant_matches_cargo_toml() {
-        assert_eq!(VERSION, "0.1.21");
+        assert_eq!(VERSION, "0.1.23");
     }
 
     #[test]
