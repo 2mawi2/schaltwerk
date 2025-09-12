@@ -99,10 +99,37 @@ jobs:
       - name: Create Universal Binary
         run: |
           # Create a universal binary app
-          # Note: GitHub Actions uses /tmp/schaltwerk-shared-target for builds
-          TARGET_DIR="${CARGO_TARGET_DIR:-/tmp/schaltwerk-shared-target}"
-          cp -R "$TARGET_DIR/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app" ./Schaltwerk-arm64.app
-          cp -R "$TARGET_DIR/x86_64-apple-darwin/release/bundle/macos/schaltwerk.app" ./Schaltwerk-x64.app
+          # Check multiple possible target directories
+          TARGET_DIR="${CARGO_TARGET_DIR:-src-tauri/target}"
+          
+          # First check if files exist in the expected locations
+          echo "🔍 Checking for app bundles..."
+          
+          ARM64_APP=""
+          X64_APP=""
+          
+          # Check standard target directory first
+          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app" ]; then
+            ARM64_APP="src-tauri/target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app"
+            X64_APP="src-tauri/target/x86_64-apple-darwin/release/bundle/macos/schaltwerk.app"
+            echo "✅ Found apps in standard target directory"
+          elif [ -d "/tmp/schaltwerk-shared-target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app" ]; then
+            ARM64_APP="/tmp/schaltwerk-shared-target/aarch64-apple-darwin/release/bundle/macos/schaltwerk.app"
+            X64_APP="/tmp/schaltwerk-shared-target/x86_64-apple-darwin/release/bundle/macos/schaltwerk.app"
+            echo "✅ Found apps in shared target directory"
+          else
+            echo "❌ App bundles not found. Searching for them..."
+            find . -name "schaltwerk.app" -type d 2>/dev/null || true
+            find /tmp -name "schaltwerk.app" -type d 2>/dev/null || true
+            exit 1
+          fi
+          
+          echo "📱 ARM64 app: $ARM64_APP"
+          echo "📱 x64 app: $X64_APP"
+          
+          # Copy the app bundles
+          cp -R "$ARM64_APP" ./Schaltwerk-arm64.app
+          cp -R "$X64_APP" ./Schaltwerk-x64.app
           
           # Create universal binary
           lipo -create \
