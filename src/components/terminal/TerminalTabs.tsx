@@ -90,7 +90,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
        closeTab,
        setActiveTab
      })
-   }), [activeTab, tabs, canAddTab, addTab, closeTab, setActiveTab])
+   }), [activeTab, tabs, canAddTab, addTab, closeTab, setActiveTab, isAnyModalOpen])
 
 
 

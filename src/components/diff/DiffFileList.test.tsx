@@ -2,12 +2,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import React, { useEffect } from 'react'
 import { vi } from 'vitest'
 import { DiffFileList } from './DiffFileList'
-import { SelectionProvider, useSelection } from '../../contexts/SelectionContext'
-import { ProjectProvider, useProject } from '../../contexts/ProjectContext'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { SessionsProvider } from '../../contexts/SessionsContext'
-import { FocusProvider } from '../../contexts/FocusContext'
-import { ModalProvider } from '../../contexts/ModalContext'
+import { useSelection } from '../../contexts/SelectionContext'
+import { useProject } from '../../contexts/ProjectContext'
+import { TestProviders } from '../../tests/test-utils'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -34,6 +31,7 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === 'set_project_sessions_settings') return undefined
     if (cmd === 'get_project_selection') return null
     if (cmd === 'set_project_selection') return undefined
+    if (cmd === 'schaltwerk_core_get_font_sizes') return [13, 14]
     return undefined
   }),
 }))
@@ -67,21 +65,11 @@ function TestWrapper({
 
 function Wrapper({ children, sessionName }: { children: React.ReactNode, sessionName?: string }) {
   return (
-    <ProjectProvider>
-      <FontSizeProvider>
-        <FocusProvider>
-          <ModalProvider>
-            <SessionsProvider>
-              <SelectionProvider>
-                <TestWrapper sessionName={sessionName}>
-                  {children}
-                </TestWrapper>
-              </SelectionProvider>
-            </SessionsProvider>
-          </ModalProvider>
-        </FocusProvider>
-      </FontSizeProvider>
-    </ProjectProvider>
+    <TestProviders>
+      <TestWrapper sessionName={sessionName}>
+        {children}
+      </TestWrapper>
+    </TestProviders>
   )
 }
 

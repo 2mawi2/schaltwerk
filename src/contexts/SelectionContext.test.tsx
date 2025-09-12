@@ -1,49 +1,21 @@
 import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
-import { ReactNode, useEffect } from 'react'
+import { ReactNode } from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
 
 // Mock Tauri APIs BEFORE importing provider modules
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 vi.mock('@tauri-apps/api/event', () => ({ listen: vi.fn(async () => () => {}) }))
 
-import { SelectionProvider, useSelection } from './SelectionContext'
-import { ProjectProvider, useProject } from './ProjectContext'
-import { FocusProvider } from './FocusContext'
-import { FontSizeProvider } from './FontSizeContext'
-import { SessionsProvider } from './SessionsContext'
-import { ModalProvider } from './ModalContext'
+import { useSelection } from './SelectionContext'
+import { TestProviders } from '../tests/test-utils'
 
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = invoke as MockedFunction<typeof invoke>
 
-// Component to set project path for tests
-function TestProjectInitializer({ children }: { children: ReactNode }) {
-  const { setProjectPath } = useProject()
-  
-  useEffect(() => {
-    // Set a test project path immediately
-    setProjectPath('/test/project')
-  }, [setProjectPath])
-  
-  return <>{children}</>
-}
-
-// Test wrapper component
+// Test wrapper component using comprehensive TestProviders
 const wrapper = ({ children }: { children: ReactNode }) => (
-  <ProjectProvider>
-    <TestProjectInitializer>
-      <FontSizeProvider>
-        <FocusProvider>
-          <ModalProvider>
-            <SessionsProvider>
-              <SelectionProvider>{children}</SelectionProvider>
-            </SessionsProvider>
-          </ModalProvider>
-        </FocusProvider>
-      </FontSizeProvider>
-    </TestProjectInitializer>
-  </ProjectProvider>
+  <TestProviders>{children}</TestProviders>
 )
 
 describe('SelectionContext', () => {
@@ -83,7 +55,7 @@ describe('SelectionContext', () => {
         case 'set_project_sessions_settings':
           return Promise.resolve()
         case 'schaltwerk_core_get_font_sizes':
-          return Promise.resolve({ terminal: 13, ui: 14 })
+          return Promise.resolve([13, 14])
         default:
           return Promise.resolve()
       }

@@ -108,7 +108,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     setLastSelectedSpec(specId) // Remember this spec
     setFilterMode(FilterMode.Spec) // Automatically show only specs
     setSpecModeSidebarFilter('specs-only')
-  }, [setFilterMode, setSelection, selection, projectPath])
+  }, [setFilterMode, setSelection, selection, projectPath, setCommanderSpecModeSession])
 
   // Temporarily disable project restoration to diagnose switching issue
   /*
@@ -188,7 +188,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     return () => {
       unlisten.then(unlistenFn => unlistenFn())
     }
-  }, [selection, commanderSpecModeSession, sessions])
+  }, [selection, commanderSpecModeSession, sessions, setCommanderSpecModeSession])
 
   // Handle entering spec mode
   useEffect(() => {
@@ -236,7 +236,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
         sessionStorage.removeItem(`schaltwerk:prev-selection:${projectId}`)
       }
     }
-  }, [projectPath, previousSelection, previousFilterMode, setSelection, setFilterMode])
+  }, [projectPath, previousSelection, previousFilterMode, setSelection, setFilterMode, setCommanderSpecModeSession])
   
   // Listen for exit spec mode event
   useEffect(() => {
@@ -286,14 +286,14 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
     if (commanderSpecModeSession === sessionName) {
       setCommanderSpecModeSession(null)
     }
-  }, [commanderSpecModeSession])
+  }, [commanderSpecModeSession, setCommanderSpecModeSession])
 
   // Helper function to handle spec conversion
   const handleSpecConverted = useCallback((sessionName: string) => {
     if (commanderSpecModeSession === sessionName) {
       setCommanderSpecModeSession(null)
     }
-  }, [commanderSpecModeSession])
+  }, [commanderSpecModeSession, setCommanderSpecModeSession])
 
   // Toggle spec mode function  
   const toggleSpecMode = useCallback(async () => {

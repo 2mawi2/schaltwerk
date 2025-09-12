@@ -221,8 +221,7 @@ class MockResizeObserver {
 
 // Now import the component under test
 import { Terminal } from './Terminal'
-import { FontSizeProvider } from '../../contexts/FontSizeContext'
-import { ModalProvider } from '../../contexts/ModalContext'
+import { TestProviders } from '../../tests/test-utils'
 // Also import mocked helpers for control
 import * as TauriEvent from '@tauri-apps/api/event'
 import * as TauriCore from '@tauri-apps/api/core'
@@ -276,14 +275,12 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-// Helper function to render Terminal with FontSizeProvider and ModalProvider
+// Helper function to render Terminal with all required providers
 function renderTerminal(props: React.ComponentProps<typeof Terminal>) {
   return render(
-    <FontSizeProvider>
-      <ModalProvider>
-        <Terminal {...props} />
-      </ModalProvider>
-    </FontSizeProvider>
+    <TestProviders>
+      <Terminal {...props} />
+    </TestProviders>
   )
 }
 
@@ -458,11 +455,9 @@ describe('Terminal component', () => {
   it('exposes focus via ref', async () => {
     const ref = createRef<{ focus: () => void; showSearch: () => void; scrollToBottom: () => void }>()
     render(
-      <FontSizeProvider>
-        <ModalProvider>
-          <Terminal terminalId="session-focus-top" sessionName="focus" ref={ref} />
-        </ModalProvider>
-      </FontSizeProvider>
+      <TestProviders>
+        <Terminal terminalId="session-focus-top" sessionName="focus" ref={ref} />
+      </TestProviders>
     )
     await flushAll()
 

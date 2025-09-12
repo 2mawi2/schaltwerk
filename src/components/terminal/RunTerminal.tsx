@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from 'react'
+import { useEffect, useState, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
 import { Terminal } from './Terminal'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
@@ -134,6 +134,21 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [runTerminalId])
 
+    // Encapsulate command execution to ensure single-shot behavior
+    const executeRunCommand = useCallback(async () => {
+        try {
+            await invoke('write_terminal', {
+                id: runTerminalId,
+                data: (runScript?.command ?? '') + '\n'
+            })
+            logger.info('Executed run script command:', runScript?.command)
+            setIsRunning(true)
+            onRunningStateChange?.(true)
+        } catch (err) {
+            logger.error('Failed to execute run script:', err)
+        }
+    }, [runTerminalId, runScript?.command, setIsRunning, onRunningStateChange])
+    
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
         toggleRun: async () => {
@@ -204,7 +219,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             }
         },
         isRunning: () => isRunning
-    }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange])
+    }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand])
 
     // Cleanup: DO NOT kill the terminal - let it persist for when we come back
     useEffect(() => { return () => {} }, [runTerminalId])

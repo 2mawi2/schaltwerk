@@ -84,7 +84,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 terminal.current.scrollToBottom();
             }
         }
-    }), []);
+    }), [isAnyModalOpen]);
 
     // Keep hydratedRef in sync so listeners see the latest state
     useEffect(() => {
@@ -1054,7 +1054,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize]);
+    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1264,7 +1264,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Delay a tick to ensure xterm is laid out
         const t = setTimeout(start, 0);
         return () => clearTimeout(t);
-    }, [hydrated, terminalId, isCommander, sessionName]);
+    }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) return
@@ -1278,7 +1278,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         } catch (e) {
             logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
         }
-    }, [resolvedFontFamily])
+    }, [resolvedFontFamily, terminalId])
 
     // Force scroll to bottom when switching sessions
     useEffect(() => {

@@ -334,7 +334,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }
 
-    const handleMarkReady = async (sessionId: string, hasUncommitted: boolean) => {
+    const handleMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
         try {
             // Check global auto-commit setting first
             const globalAutoCommit = await invoke<boolean>('get_auto_commit_on_review')
@@ -374,7 +374,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 hasUncommitted
             })
         }
-    }
+    }, [reloadSessions, setMarkReadyModal])
 
     const handleMarkSelectedSessionReady = useCallback(() => {
         if (selection.kind === 'session') {

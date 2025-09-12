@@ -18,10 +18,11 @@ vi.mock('@tauri-apps/api/core', () => ({
 // Mock tauri event layer so listen resolves with a controllable unlisten
 let terminalClosedHandler: ((e: any) => void) | null = null
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async (_event: string, handler: (e: any) => void) => {
-    // Capture TerminalClosed handler
-    // Our wrapper passes the enum value directly as event string
-    terminalClosedHandler = handler
+  listen: vi.fn(async (event: string, handler: (e: any) => void) => {
+    // Capture TerminalClosed handler when the event is 'schaltwerk:terminal-closed' (the enum value)
+    if (event === 'schaltwerk:terminal-closed') {
+      terminalClosedHandler = handler
+    }
     return () => { terminalClosedHandler = null }
   }),
   emit: vi.fn()
@@ -44,6 +45,25 @@ function Wrapper() {
 
 describe('RunTerminal', () => {
   it('shows [process has ended] after TerminalClosed', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = vi.mocked(invoke)
+    
+    let terminalCreated = false
+    
+    // Update mock to track terminal creation
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === 'get_project_run_script') {
+        return { command: 'npm run dev', environmentVariables: {} }
+      }
+      if (cmd === 'terminal_exists') return terminalCreated
+      if (cmd === 'create_run_terminal') {
+        terminalCreated = true
+        return 'run-terminal-test'
+      }
+      if (cmd === 'get_current_directory') return '/tmp'
+      return undefined
+    })
+    
     render(<Wrapper />)
 
     // Wait for component to load
@@ -63,7 +83,17 @@ describe('RunTerminal', () => {
 
     // Simulate backend TerminalClosed event for this run terminal
     await act(async () => {
-      terminalClosedHandler?.({ payload: { terminal_id: 'run-terminal-test' } })
+      if (terminalClosedHandler) {
+        // Call handler with the correct terminal ID format
+        terminalClosedHandler({ payload: { terminal_id: 'run-terminal-test' } })
+      } else {
+        throw new Error('TerminalClosed handler was not registered')
+      }
+    })
+
+    // Wait for state update
+    await act(async () => {
+      await new Promise(resolve => setTimeout(resolve, 10))
     })
 
     // Should now show "Ready to run:" again and the process ended message

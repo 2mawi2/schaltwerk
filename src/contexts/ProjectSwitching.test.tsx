@@ -1,14 +1,11 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { waitFor } from '@testing-library/react'
 import { renderHook, act } from '@testing-library/react'
-import { SelectionProvider, useSelection } from './SelectionContext'
-import { ProjectProvider, useProject } from './ProjectContext'
-import { FocusProvider } from './FocusContext'
-import { FontSizeProvider } from './FontSizeContext'
-import { SessionsProvider } from './SessionsContext'
-import { ModalProvider } from './ModalContext'
+import { useSelection } from './SelectionContext'
+import { useProject } from './ProjectContext'
 import React from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
+import { TestProviders } from '../tests/test-utils'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -24,19 +21,9 @@ import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = vi.mocked(invoke)
 
 const TestWrapper = ({ children }: { children: React.ReactNode }) => (
-    <ProjectProvider>
-        <FontSizeProvider>
-            <FocusProvider>
-                <ModalProvider>
-                    <SessionsProvider>
-                        <SelectionProvider>
-                            {children}
-                        </SelectionProvider>
-                    </SessionsProvider>
-                </ModalProvider>
-            </FocusProvider>
-        </FontSizeProvider>
-    </ProjectProvider>
+    <TestProviders>
+        {children}
+    </TestProviders>
 )
 
 describe('Project Switching Selection Behavior', () => {
@@ -78,7 +65,7 @@ describe('Project Switching Selection Behavior', () => {
                 case 'schaltwerk_core_list_sessions_by_state':
                     return Promise.resolve([])
                 case 'schaltwerk_core_get_font_sizes':
-                    return Promise.resolve({ terminal: 13, ui: 14 })
+                    return Promise.resolve([13, 14])
                 default:
                     return Promise.resolve()
             }
