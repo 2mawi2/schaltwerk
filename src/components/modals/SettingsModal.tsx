@@ -515,6 +515,24 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         }
     }
 
+    // Run Script env var handlers
+    const handleRunEnvVarChange = (index: number, field: 'key' | 'value', value: string) => {
+        const entries = Object.entries(runScript.environmentVariables || {})
+        const next = entries.map(([k, v], i) => i === index ? [field === 'key' ? value : k, field === 'value' ? value : v] : [k, v])
+        const obj = Object.fromEntries(next)
+        setRunScript(prev => ({ ...prev, environmentVariables: obj }))
+    }
+    const handleAddRunEnvVar = () => {
+        const entries = Object.entries(runScript.environmentVariables || {})
+        entries.push(['', ''])
+        setRunScript(prev => ({ ...prev, environmentVariables: Object.fromEntries(entries) }))
+    }
+    const handleRemoveRunEnvVar = (index: number) => {
+        const entries = Object.entries(runScript.environmentVariables || {})
+        const next = entries.filter((_, i) => i !== index)
+        setRunScript(prev => ({ ...prev, environmentVariables: Object.fromEntries(next) }))
+    }
+
     const handleSave = async () => {
         const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences)
         
@@ -1150,7 +1168,81 @@ fi`}
                             </ul>
                         </div>
                     </div>
-                    
+                    {/* Run Script (Cmd+E) configuration */}
+                    <div className="mt-8">
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Run Script</h3>
+                        <div className="text-body text-slate-400 mb-4">
+                            Configure the command executed by Run Mode (⌘E). When it finishes or is killed, the run terminal becomes read-only and shows the exit status.
+                        </div>
+                        <div className="space-y-3">
+                            <div>
+                                <label className="block text-caption text-slate-400 mb-1">Command</label>
+                                <input
+                                    type="text"
+                                    value={runScript.command}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, command: normalizeCliText(e.target.value) }))}
+                                    onBeforeInput={(e) => handleBeforeInputNormalize(e as any, runScript.command, (v) => setRunScript(prev => ({ ...prev, command: v })))}
+                                    onPaste={(e) => handlePasteNormalize(e as any, runScript.command, (v) => setRunScript(prev => ({ ...prev, command: v })))}
+                                    placeholder="e.g., npm run dev"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-caption text-slate-400 mb-1">Working Directory (optional)</label>
+                                <input
+                                    type="text"
+                                    value={runScript.workingDirectory || ''}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
+                                    placeholder="Defaults to active project folder"
+                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-caption text-slate-400 mb-2">Environment Variables</label>
+                                <div className="space-y-2">
+                                    {Object.entries(runScript.environmentVariables || {}).map(([k, v], index) => (
+                                        <div key={index} className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={k}
+                                                onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
+                                                placeholder="KEY"
+                                                className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                            />
+                                            <input
+                                                type="text"
+                                                value={v}
+                                                onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
+                                                placeholder="value"
+                                                className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                                            />
+                                            <button
+                                                onClick={() => handleRemoveRunEnvVar(index)}
+                                                className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
+                                            >
+                                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    ))}
+                                    <button
+                                        onClick={handleAddRunEnvVar}
+                                        className="w-full mt-1 px-4 py-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded transition-colors text-slate-400 flex items-center justify-center gap-2"
+                                    >
+                                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                        Add Environment Variable
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="p-3 bg-slate-800/50 border border-slate-700 rounded text-caption text-slate-500">
+                                Tip: Use an npm script (e.g., "dev") or any shell command. The command runs in a dedicated read-only terminal and ends when the process exits.
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="mt-8">
                         <h3 className="text-body font-medium text-slate-200 mb-2">Project Environment Variables</h3>
                         <div className="text-body text-slate-400 mb-4">

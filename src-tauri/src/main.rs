@@ -633,6 +633,7 @@ fn main() {
             // Terminal commands
             create_terminal,
             create_terminal_with_size,
+            create_run_terminal,
             write_terminal,
             paste_and_submit_terminal,
             resize_terminal,

@@ -28,6 +28,7 @@ interface TerminalProps {
     sessionName?: string;
     isCommander?: boolean;
     agentType?: string;
+    readOnly?: boolean;
     onTerminalClick?: () => void;
     isBackground?: boolean;
     onReady?: () => void;
@@ -39,7 +40,7 @@ export interface TerminalHandle {
     scrollToBottom: () => void;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, onTerminalClick, isBackground = false, onReady }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver, addTimeout } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
@@ -230,13 +231,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             },
             fontFamily: resolvedFontFamily || 'Menlo, Monaco, ui-monospace, SFMono-Regular, monospace',
             fontSize: terminalFontSize,
-            cursorBlink: !isTuiAgent,
-            cursorStyle: isTuiAgent ? 'underline' : 'block',
+            cursorBlink: !isTuiAgent && !readOnly,
+            cursorStyle: (isTuiAgent || readOnly) ? 'underline' : 'block',
             cursorInactiveStyle: 'outline',
             scrollback: scrollbackLines,
             // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
+            disableStdin: readOnly,
         });
 
         // Add fit addon for proper sizing
@@ -758,14 +760,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         addEventListener(window, 'font-size-changed', handleFontSizeChange);
 
-        // Send input to backend
-        terminal.current.onData((data) => {
-            // Gate noisy logs behind a debug flag if needed
-            // if (import.meta.env.VITE_DEBUG_TERMINAL) {
-            //     logger.info(`[Terminal ${terminalId}] Input length=${data.length}`)
-            // }
-            invoke('write_terminal', { id: terminalId, data }).catch(err => logger.error("Error:", err));
-        });
+        // Send input to backend (disabled for readOnly terminals)
+        if (!readOnly) {
+            terminal.current.onData((data) => {
+                invoke('write_terminal', { id: terminalId, data }).catch(err => logger.error("Error:", err));
+            });
+        }
         
         // Send initialization sequence to ensure proper terminal mode
         // This helps with arrow key handling in some shells

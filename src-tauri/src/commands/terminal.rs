@@ -1,5 +1,6 @@
 use crate::{get_terminal_manager, PROJECT_MANAGER};
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 
 #[tauri::command]
 pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> Result<String, String> {
@@ -30,6 +31,73 @@ pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> 
     }
     
     
+    Ok(id)
+}
+
+/// Create a terminal that executes a single run command and then exits.
+/// This spawns a non-interactive shell (bash -lc "{command}") so that
+/// when the command completes or fails, the PTY child exits and the
+/// backend emits TerminalClosed, allowing the UI to update deterministically.
+#[tauri::command]
+pub async fn create_run_terminal(
+    app: tauri::AppHandle,
+    id: String,
+    cwd: String,
+    command: String,
+    env: Option<Vec<(String, String)>>,
+    cols: Option<u16>,
+    rows: Option<u16>,
+) -> Result<String, String> {
+    let manager = get_terminal_manager().await?;
+    manager.set_app_handle(app.clone()).await;
+
+    // Merge project-level env with provided env (provided takes precedence)
+    let mut env_vars: Vec<(String, String)> = if let Some(project_manager) = PROJECT_MANAGER.get() {
+        if let Ok(project) = project_manager.current_project().await {
+            let core = project.schaltwerk_core.lock().await;
+            let db = core.database();
+            db.get_project_environment_variables(&project.path)
+                .unwrap_or_default()
+                .into_iter()
+                .collect::<Vec<(String, String)>>()
+        } else {
+            vec![]
+        }
+    } else {
+        vec![]
+    };
+
+    if let Some(mut provided) = env {
+        // Remove duplicates from base by key, then extend with provided
+        let provided_keys: std::collections::HashSet<String> = provided.iter().map(|(k, _)| k.clone()).collect();
+        env_vars.retain(|(k, _)| !provided_keys.contains(k));
+        env_vars.append(&mut provided);
+    }
+
+    // Spawn bash -lc "{command}" so that the process lifecycle equals the run command
+    let bash = "/bin/bash".to_string();
+    let args = vec!["-lc".to_string(), command];
+
+    if let (Some(c), Some(r)) = (cols, rows) {
+        manager
+            .create_terminal_with_app_and_size(
+                CreateTerminalWithAppAndSizeParams {
+                    id: id.clone(),
+                    cwd,
+                    command: bash,
+                    args,
+                    env: env_vars,
+                    cols: c,
+                    rows: r,
+                },
+            )
+            .await?;
+    } else {
+        manager
+            .create_terminal_with_app(id.clone(), cwd, bash, args, env_vars)
+            .await?;
+    }
+
     Ok(id)
 }
 
