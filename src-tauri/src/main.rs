@@ -1,5 +1,3 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![deny(dead_code)]
 #![warn(unused_imports)]
 #![warn(unused_variables)]
@@ -846,8 +844,20 @@ fn main() {
             tauri::async_runtime::spawn(async move {
                 match SettingsManager::new(&settings_handle) {
                     Ok(manager) => {
-                        let _ = SETTINGS_MANAGER.set(Arc::new(Mutex::new(manager)));
+                        let arc_mgr = Arc::new(Mutex::new(manager));
+                        let _ = SETTINGS_MANAGER.set(arc_mgr.clone());
                         log::info!("Settings manager initialized successfully");
+
+                        // Propagate terminal shell preferences to the domain layer
+                        let (shell, args) = {
+                            let mgr = arc_mgr.lock().await;
+                            let term = mgr.get_terminal_settings();
+                            let shell = term.shell.unwrap_or_else(|| {
+                                std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+                            });
+                            (shell, term.shell_args)
+                        };
+                        schaltwerk::domains::terminal::put_terminal_shell_override(shell, args);
                     }
                     Err(e) => {
                         log::error!("Failed to initialize settings manager: {e}");

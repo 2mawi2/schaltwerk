@@ -1,4 +1,4 @@
-use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_shell_binary};
+use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_effective_shell};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
 use std::collections::HashSet;
@@ -68,14 +68,17 @@ impl TerminalManager {
                 app: None,
             }
         } else {
-            // Create a shell with environment variables set
-            let shell = get_shell_binary();
+            // Create a shell with environment variables set (respect user-configured shell)
+            let (shell, args) = get_effective_shell();
+            // Ensure `$SHELL` inside spawned process matches the configured shell
+            let mut env = env;
+            env.push(("SHELL".to_string(), shell.clone()));
             CreateParams {
                 id: id.clone(),
                 cwd,
                 app: Some(ApplicationSpec {
                     command: shell,
-                    args: vec!["-i".to_string()],
+                    args,
                     env,
                     ready_timeout_ms: 5000,
                 }),
@@ -115,14 +118,17 @@ impl TerminalManager {
                 app: None,
             }
         } else {
-            // Create a shell with environment variables set
-            let shell = get_shell_binary();
+            // Create a shell with environment variables set (respect user-configured shell)
+            let (shell, args) = get_effective_shell();
+            // Ensure `$SHELL` inside spawned process matches the configured shell
+            let mut env = env;
+            env.push(("SHELL".to_string(), shell.clone()));
             CreateParams {
                 id: id.clone(),
                 cwd,
                 app: Some(ApplicationSpec {
                     command: shell,
-                    args: vec!["-i".to_string()],
+                    args,
                     env,
                     ready_timeout_ms: 5000,
                 }),

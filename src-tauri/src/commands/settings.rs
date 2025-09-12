@@ -324,7 +324,15 @@ pub async fn set_terminal_settings(terminal: TerminalSettings) -> Result<(), Str
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     
     let mut manager = settings_manager.lock().await;
-    manager.set_terminal_settings(terminal)
+    // Persist first
+    manager.set_terminal_settings(terminal.clone())
+        .map(|_| {
+            // Propagate new shell to terminal domain for immediate effect
+            let shell = terminal.shell.unwrap_or_else(|| {
+                std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+            });
+            schaltwerk::domains::terminal::put_terminal_shell_override(shell, terminal.shell_args);
+        })
 }
 
 #[tauri::command]

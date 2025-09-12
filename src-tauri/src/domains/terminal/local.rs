@@ -123,10 +123,12 @@ impl LocalPtyAdapter {
     
     async fn get_shell_command() -> CommandBuilder {
         let (shell, args) = get_shell_config().await;
-        let mut cmd = CommandBuilder::new(shell);
+        let mut cmd = CommandBuilder::new(shell.clone());
         for arg in args {
             cmd.arg(arg);
         }
+        // Ensure `$SHELL` inside the session matches the launched shell
+        cmd.env("SHELL", shell);
         cmd
     }
 
@@ -1088,19 +1090,11 @@ impl LocalPtyAdapter {
 }
 
 async fn get_shell_config() -> (String, Vec<String>) {
-    // Simple shell detection without complex args
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| {
-        if cfg!(target_os = "windows") {
-            "cmd.exe".to_string()
-        } else {
-            "/bin/bash".to_string()
-        }
-    });
-
-    // No special args - let shells start normally to avoid doubling issues
-    let args = Vec::new();
-    
-    info!("Using shell: {shell} (no special args)");
+    // Use shared effective shell resolution (respects settings when available)
+    let (shell, args) = super::get_effective_shell();
+    info!("Using shell: {shell}{}",
+        if args.is_empty() { " (no args)" } else { " (with args)" }
+    );
     (shell, args)
 }
 

@@ -189,14 +189,8 @@ impl SessionUtils {
             std::fs::set_permissions(&script_path, perms)?;
         }
         
-        // Set up environment variables
-        let mut cmd = Command::new(if cfg!(windows) { "cmd" } else { "sh" });
-        
-        if cfg!(windows) {
-            cmd.args(["/C", &script_path.to_string_lossy()]);
-        } else {
-            cmd.arg(&script_path);
-        }
+        let mut cmd = Command::new("sh");
+        cmd.arg(&script_path);
         
         let output = cmd
             .current_dir(worktree_path)

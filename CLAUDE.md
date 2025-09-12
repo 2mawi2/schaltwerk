@@ -3,6 +3,9 @@
 ## Project Overview
 Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, Cursor, etc.) can work without affecting the main codebase.
 
+## Platform Support
+- macOS only. Windows and Linux are not supported at this time.
+
 ## System Architecture
 
 ### Core Concepts

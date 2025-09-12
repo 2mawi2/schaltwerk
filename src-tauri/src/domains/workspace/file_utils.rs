@@ -710,12 +710,7 @@ mod tests {
             assert!(!result, "Symlink to binary file should not be diffable");
         }
 
-        #[cfg(windows)]
-        {
-            // On Windows, create a junction or just test the regular file
-            let result = is_file_diffable(&target_file).unwrap();
-            assert!(result, "Regular file should be diffable");
-        }
+        
     }
 
     #[test]
@@ -747,13 +742,7 @@ mod tests {
             }
         }
 
-        #[cfg(not(unix))]
-        {
-            // On non-Unix systems, test with a regular file
-            fs::write(&broken_link, "test").unwrap();
-            let result = is_file_diffable(&broken_link).unwrap();
-            assert!(result, "Regular file should be diffable");
-        }
+        
     }
 
     #[test]
