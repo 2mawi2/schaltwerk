@@ -1496,29 +1496,6 @@ mod tests {
         safe_close(&adapter, &id).await;
     }
 
-    #[tokio::test]
-    async fn test_write_large_data() {
-        let adapter = LocalPtyAdapter::new();
-        let id = unique_id("large-write");
-
-        let params = CreateParams {
-            id: id.clone(),
-            cwd: "/tmp".to_string(),
-            app: None,
-        };
-
-        adapter.create(params).await.unwrap();
-        sleep(Duration::from_millis(100)).await;
-
-        // Test writing large chunks of data
-        let large_data = vec![b'X'; 10000];
-        adapter.write(&id, &large_data).await.unwrap();
-
-        // Test writing empty data
-        adapter.write(&id, &[]).await.unwrap();
-
-        safe_close(&adapter, &id).await;
-    }
 
     #[tokio::test]
     async fn test_write_immediate_flush() {

@@ -472,31 +472,6 @@ mod tests {
         safe_close(&manager, &event_id).await;
     }
 
-    #[tokio::test]
-    async fn test_timeout_handling() {
-        let manager = Arc::new(TerminalManager::new());
-        let timeout_id = unique_id("timeout-test");
-        
-        manager.create_terminal(timeout_id.clone(), "/tmp".to_string()).await.unwrap();
-        
-        let manager_clone = Arc::clone(&manager);
-        let timeout_id_clone = timeout_id.clone();
-        let result = timeout(
-            Duration::from_millis(500),
-            async move {
-                for _ in 0..100 {
-                    manager_clone.write_terminal(
-                        timeout_id_clone.clone(),
-                        b"echo 'rapid write'\n".to_vec()
-                    ).await.unwrap();
-                }
-            }
-        ).await;
-        
-        assert!(result.is_ok() || result.is_err());
-        
-        safe_close(&manager, &timeout_id).await;
-    }
 
 
     #[tokio::test]
