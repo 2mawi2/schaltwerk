@@ -138,9 +138,25 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     useImperativeHandle(ref, () => ({
         toggleRun: async () => {
             logger.info('[RunTerminal] toggleRun called, isRunning:', isRunning, 'runScript:', runScript?.command)
-            if (!runScript) {
-                logger.warn('[RunTerminal] No run script available')
-                return
+            let script = runScript
+            if (!script) {
+                // Lazy-load run script to support immediate toggles after mount
+                try {
+                    const fetched = await invoke<RunScript | null>('get_project_run_script')
+                    if (fetched && fetched.command) {
+                        setRunScript(fetched)
+                        script = fetched
+                        setError(null)
+                    } else {
+                        logger.warn('[RunTerminal] No run script available on demand')
+                        setError('No run script configured')
+                        return
+                    }
+                } catch (err) {
+                    logger.error('[RunTerminal] Failed to fetch run script on demand:', err)
+                    setError('Failed to load run script configuration')
+                    return
+                }
             }
             
             if (isRunning) {
@@ -165,7 +181,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                 // Start the run by spawning the command as the PTY child process
                 logger.info('[RunTerminal] Starting run process')
                 try {
-                    let cwd = workingDirectory || runScript?.workingDirectory
+                    let cwd = workingDirectory || script?.workingDirectory
                     if (!cwd) {
                         cwd = await invoke<string>('get_current_directory')
                     }
@@ -175,8 +191,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                     await invoke('create_run_terminal', {
                         id: runTerminalId,
                         cwd,
-                        command: runScript.command,
-                        env: Object.entries(runScript.environmentVariables || {}),
+                        command: script.command,
+                        env: Object.entries(script.environmentVariables || {}),
                         cols: null,
                         rows: null,
                     })

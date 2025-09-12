@@ -8,6 +8,7 @@ import clsx from 'clsx'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
+import Split from 'react-split'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -57,112 +58,149 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
   const showInfoTab = effectiveSelection.kind === 'session' && effectiveIsSpec
   const showSpecTab = effectiveSelection.kind === 'session' && !effectiveIsSpec
 
+  // Enable split mode for normal running sessions: Changes (top) + Requirements (bottom)
+  const useSplitMode = effectiveSelection.kind === 'session' && !effectiveIsSpec
+
   return (
     <div 
       className={`h-full flex flex-col bg-panel border-2 rounded ${isDragging ? '' : 'transition-all duration-200 ease-in-out'} ${localFocus && !isDragging ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
-      <div className="h-8 flex items-center border-b border-slate-800">
-        {showChangesTab && (
-          <button
-            onClick={() => setUserSelectedTab('changes')}
-            className={clsx(
-              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-              activeTab === 'changes' 
-                ? localFocus 
-                  ? 'text-blue-200 bg-blue-800/30' 
-                  : 'text-slate-200 bg-slate-800/50'
-                : localFocus
-                  ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-            )}
-            title="Changes"
-          >
-            <VscDiff className="text-sm" />
-            <span>Changes</span>
-          </button>
-        )}
-        {showInfoTab && (
-          <button
-            onClick={() => setUserSelectedTab('info')}
-            className={clsx(
-              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-              activeTab === 'info' 
-                ? localFocus 
-                  ? 'text-blue-200 bg-blue-800/30' 
-                  : 'text-slate-200 bg-slate-800/50'
-                : localFocus
-                  ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-            )}
-            title="Spec Info"
-          >
-            <VscInfo className="text-sm" />
-            <span>Info</span>
-          </button>
-        )}
-        {showSpecTab && (
-          <button
-            onClick={() => setUserSelectedTab('agent')}
-            className={clsx(
-              'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
-              activeTab === 'agent'
-                ? localFocus
-                  ? 'text-blue-200 bg-blue-800/30'
-                  : 'text-slate-200 bg-slate-800/50'
-                : localFocus
-                  ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
-            )}
-            title="Spec"
-          >
-            <VscNotebook className="text-sm" />
-            <span>Spec</span>
-          </button>
-        )}
-      </div>
+      {/* Header: hide tabs when split mode is active */}
+      {!useSplitMode && (
+        <div className="h-8 flex items-center border-b border-slate-800">
+          {showChangesTab && (
+            <button
+              onClick={() => setUserSelectedTab('changes')}
+              className={clsx(
+                'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                activeTab === 'changes' 
+                  ? localFocus 
+                    ? 'text-blue-200 bg-blue-800/30' 
+                    : 'text-slate-200 bg-slate-800/50'
+                  : localFocus
+                    ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+              )}
+              data-active={activeTab === 'changes' || undefined}
+              title="Changes"
+            >
+              <VscDiff className="text-sm" />
+              <span>Changes</span>
+            </button>
+          )}
+          {showInfoTab && (
+            <button
+              onClick={() => setUserSelectedTab('info')}
+              className={clsx(
+                'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                activeTab === 'info' 
+                  ? localFocus 
+                    ? 'text-blue-200 bg-blue-800/30' 
+                    : 'text-slate-200 bg-slate-800/50'
+                  : localFocus
+                    ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+              )}
+              data-active={activeTab === 'info' || undefined}
+              title="Spec Info"
+            >
+              <VscInfo className="text-sm" />
+              <span>Info</span>
+            </button>
+          )}
+          {showSpecTab && (
+            <button
+              onClick={() => setUserSelectedTab('agent')}
+              className={clsx(
+                'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                activeTab === 'agent'
+                  ? localFocus
+                    ? 'text-blue-200 bg-blue-800/30'
+                    : 'text-slate-200 bg-slate-800/50'
+                  : localFocus
+                    ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
+              )}
+              data-active={activeTab === 'agent' || undefined}
+              title="Spec"
+            >
+              <VscNotebook className="text-sm" />
+              <span>Spec</span>
+            </button>
+          )}
+        </div>
+      )}
+
       <div className={`h-[2px] flex-shrink-0 ${isDragging ? '' : 'transition-opacity duration-200'} ${
         localFocus && !isDragging
           ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
           : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
       }`} />
 
+      {/* Body: split mode for running sessions; tabbed mode otherwise */}
       <div className="flex-1 overflow-hidden relative">
-        <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
-          {activeTab === 'changes' ? (
-            <SimpleDiffPanel 
-              onFileSelect={onFileSelect} 
-              sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
-              isCommander={effectiveSelection.kind === 'orchestrator'}
-            />
-          ) : activeTab === 'info' ? (
-            // Info tab for specs - shows metadata instead of changes
-            effectiveSelection.kind === 'session' && effectiveIsSpec ? (
-              <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
-            ) : null
-           ) : (
-             // Agent/Specs tab content
-             effectiveSelection.kind === 'session' ? (
-               // For spec sessions, show the info panel; for running sessions, show the agent content
-               effectiveIsSpec ? (
-                 <SpecInfoPanel sessionName={effectiveSelection.payload!} />
-               ) : (
-                 <SpecContentView
-                   sessionName={effectiveSelection.payload!}
-                   editable={false}
-                   debounceMs={1000}
-                 />
-               )
-             ) : (
-               // For orchestrator, show diff panel in the agent tab (since spec tab is removed)
-               <SimpleDiffPanel
-                 onFileSelect={onFileSelect}
-                 sessionNameOverride={undefined}
-                 isCommander={true}
-               />
-             )
-           )}
-        </div>
+        {useSplitMode ? (
+          <Split
+            data-testid="right-split"
+            className="h-full flex flex-col"
+            sizes={[58, 42]}
+            minSize={[140, 120]}
+            gutterSize={8}
+            direction="vertical"
+          >
+            {/* Top: Changes */}
+            <div className="min-h-[120px] overflow-hidden">
+              <SimpleDiffPanel 
+                onFileSelect={onFileSelect} 
+                sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
+                isCommander={effectiveSelection.kind === 'orchestrator'}
+              />
+            </div>
+            {/* Bottom: Requirements (Spec content, read-only) */}
+            <div className="min-h-[100px] overflow-hidden">
+              {effectiveSelection.kind === 'session' && (
+                <SpecContentView
+                  sessionName={effectiveSelection.payload!}
+                  editable={false}
+                  debounceMs={1000}
+                />
+              )}
+            </div>
+          </Split>
+        ) : (
+          <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
+            {activeTab === 'changes' ? (
+              <SimpleDiffPanel 
+                onFileSelect={onFileSelect} 
+                sessionNameOverride={effectiveSelection.kind === 'session' ? (effectiveSelection.payload as string) : undefined}
+                isCommander={effectiveSelection.kind === 'orchestrator'}
+              />
+            ) : activeTab === 'info' ? (
+              effectiveSelection.kind === 'session' && effectiveIsSpec ? (
+                <SpecMetadataPanel sessionName={effectiveSelection.payload!} />
+              ) : null
+            ) : (
+              effectiveSelection.kind === 'session' ? (
+                effectiveIsSpec ? (
+                  <SpecInfoPanel sessionName={effectiveSelection.payload!} />
+                ) : (
+                  <SpecContentView
+                    sessionName={effectiveSelection.payload!}
+                    editable={false}
+                    debounceMs={1000}
+                  />
+                )
+              ) : (
+                <SimpleDiffPanel
+                  onFileSelect={onFileSelect}
+                  sessionNameOverride={undefined}
+                  isCommander={true}
+                />
+              )
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
