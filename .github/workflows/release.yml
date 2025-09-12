@@ -57,8 +57,6 @@ jobs:
       # This saves ~3-4 minutes in release workflow
 
       - name: Build frontend
-        env:
-          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
         run: npm run build
 
       - name: Build MCP Server with Dependencies  
@@ -79,8 +77,6 @@ jobs:
           CARGO_PROFILE_RELEASE_LTO: 'false'
           CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '256'
           CARGO_PROFILE_RELEASE_OPT_LEVEL: '2'
-          # PostHog Analytics API key for production builds
-          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
         run: |
           # Build both targets in parallel with optimized settings (saves 2-3 minutes)
           npm run tauri build -- --target x86_64-apple-darwin &

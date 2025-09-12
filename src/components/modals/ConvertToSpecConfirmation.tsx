@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { logger } from '../../utils/logger'
-import { analytics, AnalyticsEventName } from '../../analytics'
 
 interface ConvertToDraftConfirmationProps {
   open: boolean
@@ -28,20 +27,8 @@ export function ConvertToSpecConfirmation({
     
     setLoading(true)
     try {
-      const sessionInfo = await invoke<{ created_at: string }>('schaltwerk_core_get_session', {
-        name: sessionName
-      })
-      
       await invoke('schaltwerk_core_convert_session_to_draft', {
         name: sessionName
-      })
-      
-      // Track the conversion
-      const sessionAgeMinutes = Math.floor(
-        (Date.now() - new Date(sessionInfo.created_at).getTime()) / (1000 * 60)
-      )
-      analytics.track(AnalyticsEventName.SESSION_CONVERTED_TO_SPEC, {
-        session_age_minutes: sessionAgeMinutes
       })
       
       onSuccess()

@@ -11,7 +11,6 @@ import { NewSessionModal } from './components/modals/NewSessionModal'
 import { CancelConfirmation } from './components/modals/CancelConfirmation'
 import { DeleteSpecConfirmation } from './components/modals/DeleteSpecConfirmation'
 import { SettingsModal } from './components/modals/SettingsModal'
-import { FeedbackModal } from './components/modals/FeedbackModal'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from './contexts/SelectionContext'
 import { clearTerminalStartedTracking } from './components/terminal/Terminal'
@@ -32,10 +31,6 @@ import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
 import { logger } from './utils/logger'
-import { analytics, AnalyticsEventName } from './analytics'
-import { ConsentBanner } from './components/ConsentBanner'
-import { getVersion } from '@tauri-apps/api/app'
-import { SessionInfo } from './types/session'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -85,7 +80,6 @@ export default function App() {
   } = useSpecMode({ projectPath, selection, sessions: allSessions, setFilterMode, setSelection, currentFilterMode: filterMode })
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
   const [deleteSpecModalOpen, setDeleteSpecModalOpen] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -241,18 +235,6 @@ export default function App() {
 
     try {
       setIsCancelling(true)
-      
-      // Track session cancellation (optional - only if session info is available)
-      try {
-        const sessionData = await invoke<SessionInfo | null>('schaltwerk_core_get_session', { name: currentSession.name })
-        const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
-        const durationMinutes = Math.round((Date.now() - startTime) / 60000)
-        analytics.track(AnalyticsEventName.SESSION_CANCELLED, { duration_minutes: durationMinutes })
-      } catch {
-        // Session might not exist, just track without duration
-        analytics.track(AnalyticsEventName.SESSION_CANCELLED, { duration_minutes: 0 })
-      }
-      
       await invoke('schaltwerk_core_cancel_session', {
         name: currentSession.name
       })
@@ -308,21 +290,6 @@ export default function App() {
 
   // Handle CLI directory argument
   useEffect(() => {
-    // Initialize analytics on app start
-    ;(async () => {
-      try {
-        await analytics.initialize()
-        const version = await getVersion()
-        analytics.track(AnalyticsEventName.APP_STARTED, { 
-          version,
-          environment: analytics.getEnvironment(),
-          build_source: analytics.getBuildSource()
-        })
-      } catch (e) {
-        logger.error('Failed to initialize analytics:', e)
-      }
-    })()
-    
     // Handle opening a Git repository
     const unlistenDirectoryPromise = listenEvent(SchaltEvent.OpenDirectory, async (directoryPath) => {
       logger.info('Received open-directory event:', directoryPath)
@@ -686,12 +653,7 @@ export default function App() {
          const sessionNames = Array.from({ length: count }, (_, i) => 
            i === 0 ? data.name : `${data.name}_v${i + 1}`
          )
-         
-         // Track spec to session conversion
-         analytics.track(AnalyticsEventName.SPEC_CONVERTED_TO_SESSION, {
-           spec_age_minutes: 0 // Could calculate actual age if we had spec creation time
-         })
-         
+          
          // Generate a stable group id for these versions
          const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID() : `${data.name}-${Date.now()}`
          for (const [index, sessionName] of sessionNames.entries()) {
@@ -750,11 +712,6 @@ export default function App() {
       }
 
       if (data.isSpec) {
-         // Track spec creation
-         analytics.track(AnalyticsEventName.SPEC_CREATED, {
-           from_mcp: false
-         })
-         
          // Create spec session
          await invoke('schaltwerk_core_create_spec_session', {
            name: data.name,
@@ -785,14 +742,6 @@ export default function App() {
         for (let i = 1; i <= count; i++) {
           // First version uses base name, additional versions get _v2, _v3, etc.
           const versionName = i === 1 ? baseName : `${baseName}_v${i}`
-          
-          // Track session creation (only once for first version)
-          if (i === 1) {
-            analytics.track(AnalyticsEventName.SESSION_CREATED, {
-              agent_type: 'claude',
-              from_spec: false
-            })
-          }
           
           // For single sessions, use userEditedName flag as provided
           // For multiple versions, don't mark as user-edited so they can be renamed as a group
@@ -1076,7 +1025,6 @@ export default function App() {
           onSelectTab={() => {}}
           onCloseTab={() => {}}
           onOpenSettings={() => setSettingsOpen(true)}
-          onOpenFeedback={() => setFeedbackOpen(true)}
         />
         <div className="pt-[32px] h-full">
           <HomeScreen onOpenProject={handleOpenProject} />
@@ -1085,19 +1033,12 @@ export default function App() {
           open={settingsOpen}
           onClose={() => setSettingsOpen(false)}
         />
-        <FeedbackModal
-          open={feedbackOpen}
-          onClose={() => setFeedbackOpen(false)}
-        />
       </>
     )
   }
 
   return (
     <ErrorBoundary name="App">
-      {/* Analytics consent banner */}
-      <ConsentBanner />
-      
       {/* Show TopBar always */}
       <TopBar
         tabs={openTabs}
@@ -1106,7 +1047,6 @@ export default function App() {
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenFeedback={() => setFeedbackOpen(true)}
         onOpenKanban={() => setIsKanbanOpen(true)}
         isOrchestratorActive={selection.kind === 'orchestrator' && !showHome}
         isSpecModeActive={!!commanderSpecModeSession}
@@ -1308,12 +1248,6 @@ export default function App() {
             open={settingsOpen}
             onClose={() => setSettingsOpen(false)}
             onOpenTutorial={openOnboarding}
-          />
-
-          {/* Feedback Modal */}
-          <FeedbackModal
-            open={feedbackOpen}
-            onClose={() => setFeedbackOpen(false)}
           />
 
           <OnboardingModal

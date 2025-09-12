@@ -1,4 +1,4 @@
-import { VscHome, VscSettingsGear, VscListFlat, VscSplitHorizontal, VscLayoutSidebarRight, VscLayoutSidebarRightOff, VscComment } from 'react-icons/vsc'
+import { VscHome, VscSettingsGear, VscListFlat, VscSplitHorizontal, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
 import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
@@ -13,7 +13,6 @@ interface TopBarProps {
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
   onOpenSettings: () => void
-  onOpenFeedback?: () => void
   onOpenKanban?: () => void
   isOrchestratorActive?: boolean
   isSpecModeActive?: boolean
@@ -31,7 +30,6 @@ export function TopBar({
   onSelectTab,
   onCloseTab,
   onOpenSettings,
-  onOpenFeedback,
   onOpenKanban,
   isOrchestratorActive = false,
   isSpecModeActive = false,
@@ -182,18 +180,6 @@ export function TopBar({
             ) : (
               <VscLayoutSidebarRight className="text-[14px]" />
             )}
-          </button>
-        )}
-        
-        {/* Feedback button */}
-        {onOpenFeedback && (
-          <button
-            onClick={onOpenFeedback}
-            className="h-6 w-6 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors mr-2"
-            title="Send Feedback"
-            aria-label="Send Feedback"
-          >
-            <VscComment className="text-[14px]" />
           </button>
         )}
         

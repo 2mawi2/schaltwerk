@@ -771,11 +771,7 @@ fn main() {
             get_mcp_status,
             configure_mcp_for_project,
             remove_mcp_for_project,
-            ensure_mcp_gitignored,
-            // Analytics commands
-            get_analytics_consent,
-            get_analytics_consent_status,
-            set_analytics_consent
+            ensure_mcp_gitignored
         ])
         .setup(move |app| {
             // Get current git branch and update window title asynchronously
