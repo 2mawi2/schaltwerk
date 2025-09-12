@@ -1077,3 +1077,37 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert_eq!(running.spec_content, Some(spec_content.to_string()), 
                    "Spec content should be preserved when starting spec session");
     }
+
+    #[test]
+    fn test_mark_reviewed_refreshes_git_stats() {
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a session
+        let session = manager.create_session("stats-refresh-on-review", None, None).unwrap();
+
+        // Create an uncommitted change and persist cached stats (has_uncommitted = true)
+        std::fs::write(session.worktree_path.join("dirty.txt"), "uncommitted").unwrap();
+        manager.update_git_stats(&session.id).unwrap();
+
+        // Now clean the worktree by committing the change
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&session.worktree_path)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "Clean commit before review"])
+            .current_dir(&session.worktree_path)
+            .output()
+            .unwrap();
+
+        // Immediately mark as reviewed (auto_commit = false)
+        manager.mark_session_as_reviewed(&session.name).unwrap();
+
+        // Fetch enriched sessions; git stats should be refreshed and clean
+        let enriched = manager.list_enriched_sessions().unwrap();
+        let me = enriched.iter().find(|e| e.info.session_id == session.name).expect("session present");
+        assert!(me.info.ready_to_merge, "Session should be marked ready_to_merge");
+        assert_eq!(me.info.has_uncommitted_changes, Some(false), "Git stats should reflect clean state after review");
+    }

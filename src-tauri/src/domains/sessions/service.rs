@@ -972,7 +972,20 @@ impl SessionManager {
             )?;
         }
         
+        // Mark as ready to merge in DB
         self.db_manager.update_session_ready_to_merge(&session.id, true)?;
+
+        // Always refresh git stats immediately so UI reflects the latest state.
+        // This avoids relying on the 60s cache window in get_enriched_git_stats()
+        // and fixes cases where a prior cached value showed uncommitted changes
+        // even though the session is now reviewed and clean.
+        // Note: Safe to run whether or not auto-commit happened above.
+        if let Err(e) = self.db_manager.update_git_stats(&session.id) {
+            // Do not fail the overall action if stats update fails; log and continue
+            log::warn!(
+                "mark_session_ready: failed to refresh git stats for '{session_name}': {e}"
+            );
+        }
         
         Ok(!has_uncommitted || auto_commit)
     }
