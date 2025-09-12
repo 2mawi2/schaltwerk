@@ -34,7 +34,7 @@ export function isBinaryFileByExtension(filePath: string): boolean {
   const ext = filePath.split('.').pop()?.toLowerCase()
   if (!ext) return false
   
-  return BINARY_EXTENSIONS_SET.has(ext as any)
+  return BINARY_EXTENSIONS_SET.has(ext as typeof BINARY_EXTENSIONS[number])
 }
 
 /**
@@ -51,5 +51,5 @@ export function getBinaryExtensions(): readonly string[] {
  * @returns true if extension is for a binary file type
  */
 export function isBinaryExtension(extension: string): boolean {
-  return BINARY_EXTENSIONS_SET.has(extension.toLowerCase() as any)
+  return BINARY_EXTENSIONS_SET.has(extension.toLowerCase() as typeof BINARY_EXTENSIONS[number])
 }

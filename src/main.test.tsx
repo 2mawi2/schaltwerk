@@ -1,4 +1,4 @@
-// no explicit React import needed for these tests
+import React from 'react'
 import { vi } from 'vitest'
 
 // We will mock react-dom/client to capture createRoot calls
@@ -12,11 +12,11 @@ vi.mock('react-dom/client', () => ({
 
 // Mock App and providers to isolate entry setup
 vi.mock('./App', () => ({ default: () => <div data-testid="app" /> }))
-vi.mock('./contexts/SelectionContext', () => ({ SelectionProvider: ({ children }: any) => <div data-testid="selection-provider">{children}</div> }))
-vi.mock('./contexts/FocusContext', () => ({ FocusProvider: ({ children }: any) => <div data-testid="focus-provider">{children}</div> }))
-vi.mock('./contexts/ReviewContext', () => ({ ReviewProvider: ({ children }: any) => <div data-testid="review-provider">{children}</div> }))
-vi.mock('./contexts/ProjectContext', () => ({ ProjectProvider: ({ children }: any) => <div data-testid="project-provider">{children}</div> }))
-vi.mock('./contexts/FontSizeContext', () => ({ FontSizeProvider: ({ children }: any) => <div data-testid="font-size-provider">{children}</div> }))
+vi.mock('./contexts/SelectionContext', () => ({ SelectionProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="selection-provider">{children}</div> }))
+vi.mock('./contexts/FocusContext', () => ({ FocusProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="focus-provider">{children}</div> }))
+vi.mock('./contexts/ReviewContext', () => ({ ReviewProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="review-provider">{children}</div> }))
+vi.mock('./contexts/ProjectContext', () => ({ ProjectProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="project-provider">{children}</div> }))
+vi.mock('./contexts/FontSizeContext', () => ({ FontSizeProvider: ({ children }: { children: React.ReactNode }) => <div data-testid="font-size-provider">{children}</div> }))
 
 // Need to mock styles imported in main
 vi.mock('./index.css', () => ({}))
@@ -45,7 +45,7 @@ describe('main.tsx entry', () => {
     // Make createRoot throw if called with null/undefined
     createRootMock.mockImplementationOnce((el?: Element | null) => {
       if (!el) throw new Error('Missing root element')
-      return { render: renderMock } as any
+      return { render: renderMock }
     })
 
     await expect(import('./main')).rejects.toBeTruthy()

@@ -5,6 +5,7 @@ import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
+import { RawSession, ProjectSelection } from '../types/session'
 import { logger } from '../utils/logger'
 
 export interface Selection {
@@ -144,7 +145,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Always fetch session data to ensure we have the correct worktree path
         try {
-            const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sel.payload })
+            const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sessionData?.worktree_path
             const isSpecSession = state === 'spec'
@@ -202,7 +203,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Try to load saved selection for this project from database
         if (projectPath) {
             try {
-                const dbSelection = await invoke<{ kind: string; payload: string | null } | null>('get_project_selection')
+                const dbSelection = await invoke<ProjectSelection | null>('get_project_selection')
                 if (dbSelection) {
                     logger.info('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
                     return {
@@ -229,7 +230,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // For sessions, check if it still exists and worktree is valid
         if (remembered.kind === 'session' && remembered.payload) {
             try {
-                const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: remembered.payload })
+                const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: remembered.payload })
                 const worktreePath = sessionData?.worktree_path || remembered.worktreePath
 
                 // Check if worktree directory still exists
@@ -410,7 +411,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async () => {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
-                        const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: selection.payload })
+                        const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
                         const worktreePath: string | undefined = sessionData?.worktree_path
                         const nowSpec = state === 'spec'
@@ -533,7 +534,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         // If the event didn't include sessionState, resolve it
                         if (target.sessionState === undefined) {
                             try {
-                                const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: target.payload })
+                                const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: target.payload })
                                 targetIsSpec = sessionData?.session_state === 'spec'
                             } catch (e) {
                                 logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', e)

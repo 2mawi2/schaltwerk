@@ -65,7 +65,7 @@ describe('Sidebar sort mode persistence', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || SortMode.Name
+        const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
         if (mode === SortMode.Created) {
           return [...sessions].sort((a, b) => {
             const aT = a.info.created_at ? Date.parse(a.info.created_at) : 0
@@ -92,9 +92,9 @@ describe('Sidebar sort mode persistence', () => {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       if (cmd === 'set_project_sessions_settings') {
-        const s = args?.settings || {}
-        savedFilterMode = s.filter_mode || FilterMode.All
-        savedSortMode = s.sort_mode || SortMode.Name
+        const settings = (args as { settings?: { filter_mode?: string; sort_mode?: string } })?.settings || {}
+        savedFilterMode = settings.filter_mode || FilterMode.All
+        savedSortMode = settings.sort_mode || SortMode.Name
         return undefined
       }
       return undefined

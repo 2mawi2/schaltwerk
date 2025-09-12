@@ -1,17 +1,17 @@
 export type MockFn = {
-  (...args: any[]): unknown
+  (...args: unknown[]): unknown
   mock?: {
-    calls: any[][]
-    results: any[]
-    instances: any[]
+    calls: unknown[][]
+    results: unknown[]
+    instances: unknown[]
   }
   mockClear?: () => void
   mockReset?: () => void
   mockRestore?: () => void
-  mockImplementation?: (fn: (...args: any[]) => any) => MockFn
-  mockReturnValue?: (value: any) => MockFn
-  mockResolvedValue?: (value: any) => MockFn
-  mockRejectedValue?: (value: any) => MockFn
+  mockImplementation?: (fn: (...args: unknown[]) => unknown) => MockFn
+  mockReturnValue?: (value: unknown) => MockFn
+  mockResolvedValue?: (value: unknown) => MockFn
+  mockRejectedValue?: (value: unknown) => MockFn
 }
 
 export interface MockTauriAPI {

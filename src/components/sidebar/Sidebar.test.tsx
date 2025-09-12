@@ -424,9 +424,9 @@ describe('Sidebar', () => {
       const gitStatsPayload = {
         session_id: 'session1',
         session_name: 'session1',
-        files_changed: undefined as any,
-        lines_added: undefined as any,
-        lines_removed: undefined as any,
+        files_changed: 0,
+        lines_added: 0,
+        lines_removed: 0,
         has_uncommitted: false
       }
 

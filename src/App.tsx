@@ -35,6 +35,7 @@ import { logger } from './utils/logger'
 import { analytics, AnalyticsEventName } from './analytics'
 import { ConsentBanner } from './components/ConsentBanner'
 import { getVersion } from '@tauri-apps/api/app'
+import { SessionInfo } from './types/session'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -243,7 +244,7 @@ export default function App() {
       
       // Track session cancellation (optional - only if session info is available)
       try {
-        const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: currentSession.name })
+        const sessionData = await invoke<SessionInfo | null>('schaltwerk_core_get_session', { name: currentSession.name })
         const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
         const durationMinutes = Math.round((Date.now() - startTime) / 60000)
         analytics.track(AnalyticsEventName.SESSION_CANCELLED, { duration_minutes: durationMinutes })
@@ -694,7 +695,7 @@ export default function App() {
          })
          
          // Generate a stable group id for these versions
-         const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as any).randomUUID() : `${data.name}-${Date.now()}`
+         const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID() : `${data.name}-${Date.now()}`
          for (const [index, sessionName] of sessionNames.entries()) {
            if (index === 0) {
              // Start the original spec session (transitions spec -> active and creates worktree)
@@ -791,7 +792,7 @@ export default function App() {
         // Create all versions first
         const createdVersions: string[] = []
         // Generate a stable group id for DB linkage
-        const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as any).randomUUID() : `${baseName}-${Date.now()}`
+        const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID() : `${baseName}-${Date.now()}`
         for (let i = 1; i <= count; i++) {
           // First version uses base name, additional versions get _v2, _v3, etc.
           const versionName = i === 1 ? baseName : `${baseName}_v${i}`

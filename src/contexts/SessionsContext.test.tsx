@@ -3,6 +3,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { SessionsProvider, useSessions } from './SessionsContext'
 import { ProjectProvider } from './ProjectContext'
+import type { Event } from '@tauri-apps/api/event'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -204,9 +205,9 @@ describe('SessionsContext', () => {
 
     it('should handle session refresh events', async () => {
         const { listen } = await import('@tauri-apps/api/event')
-        const listeners: any = {}
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
         
-        vi.mocked(listen).mockImplementation(async (event: string, handler: any) => {
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
             listeners[event] = handler
             return () => {}
         })
@@ -240,7 +241,11 @@ describe('SessionsContext', () => {
         // Simulate event
         act(() => {
             if (listeners['schaltwerk:sessions-refreshed']) {
-                listeners['schaltwerk:sessions-refreshed']({ payload: newSessions })
+                listeners['schaltwerk:sessions-refreshed']({ 
+                    event: 'schaltwerk:sessions-refreshed', 
+                    id: 1, 
+                    payload: newSessions 
+                })
             }
         })
 
@@ -253,9 +258,9 @@ describe('SessionsContext', () => {
 
     it('should handle session removal events', async () => {
         const { listen } = await import('@tauri-apps/api/event')
-        const listeners: any = {}
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
         
-        vi.mocked(listen).mockImplementation(async (event: string, handler: any) => {
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
             listeners[event] = handler
             return () => {}
         })
@@ -281,7 +286,11 @@ describe('SessionsContext', () => {
         // Simulate removal event
         act(() => {
             if (listeners['schaltwerk:session-removed']) {
-                listeners['schaltwerk:session-removed']({ payload: { session_name: 'test-spec' } })
+                listeners['schaltwerk:session-removed']({ 
+                    event: 'schaltwerk:session-removed', 
+                    id: 2, 
+                    payload: { session_name: 'test-spec' } 
+                })
             }
         })
 

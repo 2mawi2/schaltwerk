@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { ReactNode, useEffect } from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
@@ -14,7 +14,7 @@ import { FontSizeProvider } from './FontSizeContext'
 import { SessionsProvider } from './SessionsContext'
 
 import { invoke } from '@tauri-apps/api/core'
-const mockInvoke = vi.mocked(invoke)
+const mockInvoke = invoke as MockedFunction<typeof invoke>
 
 // Component to set project path for tests
 function TestProjectInitializer({ children }: { children: ReactNode }) {
@@ -50,6 +50,7 @@ describe('SelectionContext', () => {
     
     // Setup default mocks
     mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+      const typedArgs = args as { name?: string; id?: string } | undefined
       switch (command) {
         case 'get_current_directory':
           return Promise.resolve('/test/cwd')
@@ -60,8 +61,9 @@ describe('SelectionContext', () => {
         case 'schaltwerk_core_get_session':
           return Promise.resolve({
             worktree_path: '/test/session/path',
-            session_id: args?.name || 'test-session',
-            session_state: 'running'
+            session_id: typedArgs?.name || 'test-session',
+            session_state: 'running',
+            name: typedArgs?.name || 'test-session'
           })
         case 'path_exists':
           return Promise.resolve(true)
@@ -171,32 +173,35 @@ describe('SelectionContext', () => {
       expect(terminalCalls.length).toBeGreaterThanOrEqual(1)
       
       // Verify we have top terminal created (bottom terminals now managed by tab system)
-      const terminalIds = terminalCalls.map(call => (call[1] as any)?.id as string)
+      const terminalIds = terminalCalls.map(call => (call[1] as { id?: string })?.id).filter((id): id is string => typeof id === 'string')
       const hasTop = terminalIds.some(id => id?.includes('-top'))
       expect(hasTop).toBe(true)
       
       // Verify cwd is from projectPath
       terminalCalls.forEach(call => {
-        expect((call[1] as any)?.cwd).toBe('/test/project')
+        expect((call[1] as { cwd?: string })?.cwd).toBe('/test/project')
       })
     })
 
     it('should use worktree path when provided for session', async () => {
       // Mock specific session data to return the custom path
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+      const typedArgs = args as { name?: string; id?: string } | undefined
         switch (command) {
           case 'schaltwerk_core_get_session':
-            if (args?.name === 'test-session') {
+            if (typedArgs?.name === 'test-session') {
               return Promise.resolve({
                 worktree_path: '/custom/worktree/path',
                 session_id: 'test-session',
-                session_state: 'running'
+                session_state: 'running',
+                name: 'test-session'
               })
             }
             return Promise.resolve({
               worktree_path: '/test/session/path',
-              session_id: args?.name || 'test-session',
-              session_state: 'running'
+              session_id: typedArgs?.name || 'test-session',
+              session_state: 'running',
+              name: typedArgs?.name || 'test-session'
             })
           case 'path_exists':
             return Promise.resolve(true)
@@ -301,18 +306,20 @@ describe('SelectionContext', () => {
 
     it('should not create terminals that already exist', async () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+      const typedArgs = args as { name?: string; id?: string } | undefined
         switch (command) {
           case 'terminal_exists':
-            if (args?.id === 'session-test-top') {
+            if (typedArgs?.id === 'session-test-top') {
               return Promise.resolve(true)
             }
             return Promise.resolve(false)
           case 'schaltwerk_core_get_session':
-            if (args?.name === 'test') {
+            if (typedArgs?.name === 'test') {
               return Promise.resolve({
                 worktree_path: '/test/session/path',
                 session_id: 'test',
-                session_state: 'running'
+                session_state: 'running',
+                name: 'test'
               })
             }
             return Promise.resolve()
@@ -362,11 +369,12 @@ describe('SelectionContext', () => {
       const createdTerminals = new Set<string>()
       
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+      const typedArgs = args as { name?: string; id?: string } | undefined
         switch (command) {
           case 'create_terminal':
-            if (!createdTerminals.has(args?.id)) {
+            if (typedArgs?.id && !createdTerminals.has(typedArgs.id)) {
               createTerminalCalls++
-              createdTerminals.add(args?.id)
+              createdTerminals.add(typedArgs.id)
             }
             // Simulate slow terminal creation
             return new Promise(resolve => setTimeout(resolve, 50))
@@ -375,11 +383,12 @@ describe('SelectionContext', () => {
           case 'get_current_directory':
             return Promise.resolve('/test/cwd')
           case 'schaltwerk_core_get_session':
-            if (args?.name === 'same-session') {
+            if (typedArgs?.name === 'same-session') {
               return Promise.resolve({
                 worktree_path: '/path',
                 session_id: 'same-session',
-                session_state: 'running'
+                session_state: 'running',
+                name: 'same-session'
               })
             }
             return Promise.resolve()

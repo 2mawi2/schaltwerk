@@ -321,7 +321,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         if (!isBackground) {
             // Use ResizeObserver to deterministically initialize renderer when container is ready
             // This avoids polling and ensures we initialize exactly once when dimensions are available
-            rendererObserver = new ResizeObserver((entries?: any) => {
+            rendererObserver = new ResizeObserver((entries?: ResizeObserverEntry[]) => {
                 if (rendererInitialized) return;
                 try {
                     const entry = entries && entries[0];
@@ -593,8 +593,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       doHydrationFit();
                       // Use Font Loading API if available to ensure accurate cell metrics
                       try {
-                          // @ts-ignore
-                          const fontsReady: Promise<any> | undefined = (document as any).fonts?.ready;
+                          const fontsReady: Promise<FontFaceSet> | undefined = (document as Document & { fonts?: { ready?: Promise<FontFaceSet> } }).fonts?.ready;
                           if (fontsReady && typeof fontsReady.then === 'function') {
                               fontsReady.then(() => {
                                   requestAnimationFrame(() => doHydrationFit());

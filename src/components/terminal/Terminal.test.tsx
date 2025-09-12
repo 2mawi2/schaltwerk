@@ -3,16 +3,62 @@ import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 
+// Type definitions for mocks
+interface MockTauriCore {
+  invoke: ReturnType<typeof vi.fn>
+  __setInvokeHandler: (cmd: string, handler: (args: MockTauriInvokeArgs) => unknown | Promise<unknown>) => void
+  __clearInvokeHandlers: () => void
+}
+
+interface MockTauriEvent {
+  listen: ReturnType<typeof vi.fn>
+  __emit: (event: string, payload: unknown) => void
+  __clear: () => void
+}
+
+interface MockFitAddonModule {
+  FitAddon: new () => unknown
+  __setNextFitSize: (size: { cols: number; rows: number } | null) => void
+}
+
+interface MockXTerm {
+  options: Record<string, unknown>
+  cols: number
+  rows: number
+  write: ReturnType<typeof vi.fn>
+  keyHandler: ((e: KeyboardEvent) => boolean) | null
+  dataHandler: ((d: string) => void) | null
+  loadAddon: ReturnType<typeof vi.fn>
+  buffer: {
+    active: {
+      viewportY: number
+      length: number
+      baseY: number
+      cursorY: number
+    }
+  }
+  parser: {
+    registerOscHandler: ReturnType<typeof vi.fn>
+  }
+  __triggerData: (d: string) => void
+  __triggerKey: (e: KeyboardEvent) => boolean
+  focus: () => void
+  scrollToBottom: () => void
+  dispose: () => void
+  resize: (cols: number, rows: number) => void
+}
+
+
 // Mocks must be declared before importing the component under test
 
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
 // ---- Mock: xterm (defined entirely inside factory to avoid hoist issues) ----
 vi.mock('xterm', () => {
-  const instances: any[] = []
+  const instances: unknown[] = []
   class MockXTerm {
     static __instances = instances
-    options: any
+    options: Record<string, unknown>
     cols = 80
     rows = 24
     write = vi.fn()
@@ -75,7 +121,7 @@ vi.mock('@xterm/addon-fit', () => {
     }
     fit() {
       // import lazily to avoid circular init
-      const xterm = require('xterm') as any
+      const xterm = require('xterm') as { __getLastInstance?: () => MockXTerm }
       const last = xterm.__getLastInstance?.()
       if (nextFitSize && last) {
         last.cols = nextFitSize.cols
@@ -130,8 +176,8 @@ vi.mock('@tauri-apps/api/core', () => {
 
 // ---- Mock: @tauri-apps/api/event (listen) ----
 vi.mock('@tauri-apps/api/event', () => {
-  const listenerMap = new Map<string, Array<(evt: any) => void>>()
-  const listen = vi.fn(async (channel: string, cb: (evt: any) => void) => {
+  const listenerMap = new Map<string, Array<(evt: { event: string; payload: unknown }) => void>>()
+  const listen = vi.fn(async (channel: string, cb: (evt: { event: string; payload: unknown }) => void) => {
     const arr = listenerMap.get(channel) ?? []
     arr.push(cb)
     listenerMap.set(channel, arr)
@@ -161,7 +207,7 @@ class MockResizeObserver {
   cb: () => void
   constructor(cb: () => void) {
     this.cb = cb
-    ;(globalThis as any).__lastRO = this
+    ;(globalThis as Record<string, unknown>).__lastRO = this
   }
   observe() {}
   disconnect() {}
@@ -169,7 +215,7 @@ class MockResizeObserver {
     this.cb()
   }
 }
-;(globalThis as any).ResizeObserver = MockResizeObserver as any
+;(globalThis as Record<string, unknown>).ResizeObserver = MockResizeObserver as unknown
 
 
 
@@ -181,10 +227,9 @@ import * as TauriEvent from '@tauri-apps/api/event'
 import * as TauriCore from '@tauri-apps/api/core'
 import * as XTermModule from 'xterm'
 import * as FitAddonModule from '@xterm/addon-fit'
-import type { MockFn } from '../../test-utils/types'
 
-function getLastXtermInstance() {
-  return (XTermModule as any).__getLastInstance()
+function getLastXtermInstance(): MockXTerm {
+  return (XTermModule as unknown as { __getLastInstance: () => MockXTerm }).__getLastInstance()
 }
 
 async function flushAll() {
@@ -203,19 +248,19 @@ async function advanceAndFlush(ms: number) {
 
 beforeEach(() => {
   vi.useFakeTimers()
-  ;(TauriCore as any).invoke.mockClear()
-  ;(TauriCore as any).__clearInvokeHandlers()
-  ;(TauriEvent as any).__clear()
+  ;(TauriCore as unknown as MockTauriCore).invoke.mockClear()
+  ;(TauriCore as unknown as MockTauriCore).__clearInvokeHandlers()
+  ;(TauriEvent as unknown as MockTauriEvent).__clear()
   // sensible defaults
-  ;(TauriCore as any).__setInvokeHandler('get_terminal_buffer', () => '')
-  ;(TauriCore as any).__setInvokeHandler('terminal_exists', () => true)
-  ;(TauriCore as any).__setInvokeHandler('resize_terminal', () => undefined)
-  ;(TauriCore as any).__setInvokeHandler('write_terminal', () => undefined)
-  ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => undefined)
-  ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude', () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('terminal_exists', () => true)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('resize_terminal', () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('write_terminal', () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude', () => undefined)
   const mockFontSizes = [14, 14] as [number, number];
-  ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_get_font_sizes', () => mockFontSizes)
-  ;(FitAddonModule as any).__setNextFitSize(null)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_get_font_sizes', () => mockFontSizes)
+  ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize(null)
   
   
   // Reset navigator for clean tests
@@ -243,7 +288,7 @@ describe('Terminal component', () => {
   // Test removed - resize functionality confirmed working in production
 
   it.skip('hydrates from buffer and flushes pending output in order (batched) - HANGING TEST', async () => {
-    ;(TauriCore as any).__setInvokeHandler('get_terminal_buffer', () => 'SNAP')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => 'SNAP')
 
     renderTerminal({ terminalId: "session-demo-top", sessionName: "demo" })
     
@@ -251,8 +296,8 @@ describe('Terminal component', () => {
     await flushAll()
 
     // Emit outputs after initialization
-    ;(TauriEvent as any).__emit('terminal-output-session-demo-top', 'A')
-    ;(TauriEvent as any).__emit('terminal-output-session-demo-top', 'B')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-demo-top', 'A')
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-demo-top', 'B')
 
     await flushAll()
 
@@ -269,7 +314,7 @@ describe('Terminal component', () => {
       expect(xterm.rows).toBeGreaterThan(0)
     } else {
       // If writes did occur, verify the content
-      const allWrites = xterm.write.mock.calls.map((call: MockFn[]) => call[0]).join('')
+      const allWrites = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((call: unknown[]) => call[0]).join('')
       expect(allWrites).toContain('SNAP') // At least hydration should work
     }
   })
@@ -283,7 +328,7 @@ describe('Terminal component', () => {
     const xterm = getLastXtermInstance()
     xterm.__triggerData('hello')
 
-    expect((TauriCore as any).invoke).toHaveBeenCalledWith('write_terminal', { id: 'session-io-top', data: 'hello' })
+    expect((TauriCore as unknown as MockTauriCore).invoke).toHaveBeenCalledWith('write_terminal', { id: 'session-io-top', data: 'hello' })
   })
 
   // Removed flaky resize debounce test per guidance
@@ -303,10 +348,10 @@ describe('Terminal component', () => {
     window.addEventListener('global-new-session-shortcut', newSessionSpy as EventListener, { once: true })
     window.addEventListener('global-mark-ready-shortcut', markReadySpy as EventListener, { once: true })
 
-    const resNew = xterm.__triggerKey({ key: 'n', metaKey: true, ctrlKey: false })
-    const resReady = xterm.__triggerKey({ key: 'R', metaKey: true, ctrlKey: false })
-    const resSearch = xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false })
-    const resOther = xterm.__triggerKey({ key: 'x', metaKey: true, ctrlKey: false })
+    const resNew = xterm.__triggerKey({ key: 'n', metaKey: true, ctrlKey: false } as KeyboardEvent)
+    const resReady = xterm.__triggerKey({ key: 'R', metaKey: true, ctrlKey: false } as KeyboardEvent)
+    const resSearch = xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
+    const resOther = xterm.__triggerKey({ key: 'x', metaKey: true, ctrlKey: false } as KeyboardEvent)
 
     expect(resNew).toBe(false)
     expect(resReady).toBe(false)
@@ -328,8 +373,8 @@ describe('Terminal component', () => {
     window.addEventListener('global-new-session-shortcut', newSessionSpy as EventListener, { once: true })
     window.addEventListener('global-mark-ready-shortcut', markReadySpy as EventListener, { once: true })
 
-    const resNew = xterm.__triggerKey({ key: 'n', metaKey: false, ctrlKey: true })
-    const resReady = xterm.__triggerKey({ key: 'R', metaKey: false, ctrlKey: true })
+    const resNew = xterm.__triggerKey({ key: 'n', metaKey: false, ctrlKey: true } as KeyboardEvent)
+    const resReady = xterm.__triggerKey({ key: 'R', metaKey: false, ctrlKey: true } as KeyboardEvent)
 
     expect(resNew).toBe(false)
     expect(resReady).toBe(false)
@@ -346,7 +391,7 @@ describe('Terminal component', () => {
     // next macrotask
     await advanceAndFlush(1)
 
-    const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls.length).toBe(1)
 
     // Re-render same id -> should not start again due to global guard
@@ -354,7 +399,7 @@ describe('Terminal component', () => {
     await flushAll()
     await advanceAndFlush(1)
 
-    const startCalls2 = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startCalls2 = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
     expect(startCalls2.length).toBe(1)
   })
 
@@ -367,8 +412,8 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(500)
 
-    const startOrch = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startOrch = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
+    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startOrch).toBeUndefined()
     expect(startSess).toBeUndefined()
   })
@@ -378,7 +423,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(200)
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeUndefined()
   })
 
@@ -387,7 +432,7 @@ describe('Terminal component', () => {
     await flushAll()
     vi.advanceTimersByTime(200)
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeUndefined()
   })
 
@@ -397,9 +442,9 @@ describe('Terminal component', () => {
     vi.advanceTimersByTime(1)
     await flushAll()
 
-    const startSess = (TauriCore as any).invoke.mock.calls.find((c: any[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
     expect(startSess).toBeTruthy()
-    expect(startSess[1]).toMatchObject({ sessionName: 'work' })
+    expect(startSess![1]).toMatchObject({ sessionName: 'work' })
   })
 
 
@@ -428,7 +473,7 @@ describe('Terminal component', () => {
       const permissionErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Permission required for folder: /some/path')
       })
       
@@ -450,7 +495,7 @@ describe('Terminal component', () => {
       const noProjectErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:no-project-error', noProjectErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('No project is currently open')
       })
       
@@ -473,7 +518,7 @@ describe('Terminal component', () => {
       const spawnErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:spawn-error', spawnErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Failed to spawn command: para')
       })
       
@@ -496,7 +541,7 @@ describe('Terminal component', () => {
       const notGitErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:not-git-error', notGitErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('fatal: not a git repository (or any of the parent directories): .git')
       })
       
@@ -516,7 +561,7 @@ describe('Terminal component', () => {
     })
 
     it.skip('rolls back start flags on orchestrator failure to allow retry - POTENTIAL HANG', async () => {
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
         throw new Error('Some failure')
       })
       
@@ -529,12 +574,12 @@ describe('Terminal component', () => {
       clearTerminalStartedTracking(['orchestrator-retry-top'])
       
       // Try again - should attempt to start again
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => 'success')
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => 'success')
       renderTerminal({ terminalId: "orchestrator-retry-top", isCommander: true })
       await flushAll()
       await advanceAndFlush(1)
       
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBeGreaterThanOrEqual(2)
@@ -547,7 +592,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Verify first start happened
-      const firstStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const firstStartCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(firstStartCalls.length).toBe(1)
@@ -560,7 +605,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Should still be only 1 call total
-      const totalStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const totalStartCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(totalStartCalls.length).toBe(1)
@@ -570,7 +615,7 @@ describe('Terminal component', () => {
       const permissionErrorSpy = vi.fn()
       window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
       
-      ;(TauriCore as any).__setInvokeHandler('schaltwerk_core_start_claude', () => {
+      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude', () => {
         throw new Error('Permission required for folder: /some/session/path')
       })
       
@@ -593,7 +638,7 @@ describe('Terminal component', () => {
       await flushAll()
       await advanceAndFlush(1)
       
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude'
       )
       expect(startCalls.length).toBe(0)
@@ -608,13 +653,13 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Should immediately attempt to start without checking existence
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(1)
       
       // Verify no terminal_exists checks were made
-      const existsCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const existsCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'terminal_exists'
       )
       expect(existsCalls.length).toBe(0)
@@ -629,7 +674,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(1)
       
       // Should attempt to start immediately without any retries
-      const startCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(startCalls.length).toBe(1)
@@ -637,7 +682,7 @@ describe('Terminal component', () => {
       // Verify no delays were introduced
       await advanceAndFlush(150 * 12)
       // Should still only have one start call (no retries)
-      const allStartCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const allStartCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'schaltwerk_core_start_claude_orchestrator'
       )
       expect(allStartCalls.length).toBe(1)
@@ -648,20 +693,20 @@ describe('Terminal component', () => {
     // Test removed - OpenCode resize confirmed working in production
 
     it('prevents size downgrade below 100x30 for session terminals', async () => {
-      ;(FitAddonModule as any).__setNextFitSize({ cols: 120, rows: 40 })
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
       
       renderTerminal({ terminalId: "session-downgrade-top", sessionName: "downgrade" })
       await flushAll()
       
-      const ro = (globalThis as any).__lastRO as MockResizeObserver
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       
       // Count initial calls first
-      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
       // Set up small size that should be rejected
-      ;(FitAddonModule as any).__setNextFitSize({ cols: 80, rows: 20 })
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 80, rows: 20 })
       const xterm = getLastXtermInstance()
       xterm.cols = 80
       xterm.rows = 20
@@ -671,7 +716,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls due to downgrade prevention
-      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -680,16 +725,16 @@ describe('Terminal component', () => {
     })
 
     it('allows normal resize for session terminals with reasonable sizes', async () => {
-      ;(FitAddonModule as any).__setNextFitSize({ cols: 100, rows: 30 })
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 100, rows: 30 })
       
       renderTerminal({ terminalId: "session-goodsize-top", sessionName: "goodsize" })
       await flushAll()
       
-      const ro = (globalThis as any).__lastRO as MockResizeObserver
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       
       // Clear initial calls and set up reasonable size that should be accepted
-      ;(TauriCore as any).invoke.mockClear()
-      ;(FitAddonModule as any).__setNextFitSize({ cols: 120, rows: 40 })
+      ;(TauriCore as unknown as MockTauriCore & { invoke: { mockClear: () => void } }).invoke.mockClear()
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
       const xterm = getLastXtermInstance()
       xterm.cols = 120
       xterm.rows = 40
@@ -699,7 +744,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should have called resize
-      const resizeCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const resizeCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -710,10 +755,10 @@ describe('Terminal component', () => {
       renderTerminal({ terminalId: "session-splitdrag-top", sessionName: "splitdrag" })
       await flushAll()
       
-      const ro = (globalThis as any).__lastRO as MockResizeObserver
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       
       // Count initial calls
-      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -725,7 +770,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls
-      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -739,12 +784,12 @@ describe('Terminal component', () => {
     // Test removed - split drag end resize confirmed working in production
 
     it('properly handles resize events with debouncing', async () => {
-      ;(FitAddonModule as any).__setNextFitSize({ cols: 100, rows: 30 })
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 100, rows: 30 })
       
       renderTerminal({ terminalId: "session-debounce-top", sessionName: "debounce" })
       await flushAll()
       
-      const ro = (globalThis as any).__lastRO as MockResizeObserver
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       const xterm = getLastXtermInstance()
       xterm.cols = 100
       xterm.rows = 30
@@ -754,14 +799,14 @@ describe('Terminal component', () => {
       await flushAll()
       
       // Verify resize was called during initialization or setup
-      const allCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const allCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
       // Either initialization calls resize, or we can trigger it manually
       if (allCalls === 0) {
         // If no calls yet, trigger manually
-        ;(FitAddonModule as any).__setNextFitSize({ cols: 110, rows: 35 })
+        ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 110, rows: 35 })
         xterm.cols = 110
         xterm.rows = 35
         
@@ -769,7 +814,7 @@ describe('Terminal component', () => {
         vi.advanceTimersByTime(1000) // Advance debouncing timers
         await flushAll()
         
-        const afterTriggerCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+        const afterTriggerCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
           c[0] === 'resize_terminal'
         ).length
         expect(afterTriggerCalls).toBeGreaterThan(0)
@@ -783,7 +828,7 @@ describe('Terminal component', () => {
       const { unmount } = renderTerminal({ terminalId: "session-cleanup-top", sessionName: "cleanup" })
       await flushAll()
       
-      const ro = (globalThis as any).__lastRO as MockResizeObserver
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       const disconnectSpy = vi.spyOn(ro, 'disconnect')
       
       unmount()
@@ -795,10 +840,10 @@ describe('Terminal component', () => {
       const { container } = renderTerminal({ terminalId: "session-fitfail-top", sessionName: "fitfail" })
       await flushAll()
       
-      const ro = (globalThis as any).__lastRO as MockResizeObserver
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
       
       // Count initial calls
-      const initialCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       
@@ -814,7 +859,7 @@ describe('Terminal component', () => {
       await advanceAndFlush(250)
       
       // Should not have added significant new resize calls with invalid container
-      const afterCalls = (TauriCore as any).invoke.mock.calls.filter((c: any[]) => 
+      const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
         c[0] === 'resize_terminal'
       ).length
       

@@ -69,10 +69,10 @@ export function useModalPrefill(handlers: ModalPrefillHandlers) {
     }
 
     // Type assertion needed for custom event
-    window.addEventListener('schaltwerk:new-session:prefill' as any, prefillHandler as any)
+    window.addEventListener('schaltwerk:new-session:prefill', prefillHandler as EventListener)
     
     return () => {
-      window.removeEventListener('schaltwerk:new-session:prefill' as any, prefillHandler as any)
+      window.removeEventListener('schaltwerk:new-session:prefill', prefillHandler as EventListener)
     }
   }, [handlers])
 }

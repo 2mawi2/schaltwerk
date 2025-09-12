@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
-import { useSessionPrefill, extractSessionContent } from './useSessionPrefill'
+import { useSessionPrefill, extractSessionContent, SessionPrefillData } from './useSessionPrefill'
 
 // Mock the Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -107,13 +107,14 @@ describe('useSessionPrefill', () => {
 
       const { result } = renderHook(() => useSessionPrefill())
 
-      let prefillData: any
+      let prefillData: SessionPrefillData | null = null
       await act(async () => {
         prefillData = await result.current.fetchSessionForPrefill('test-session')
       })
 
-      expect(prefillData?.taskContent).toBe('Initial prompt content')
-      expect(prefillData?.baseBranch).toBe('develop')
+      expect(prefillData).not.toBeNull()
+      expect(prefillData!.taskContent).toBe('Initial prompt content')
+      expect(prefillData!.baseBranch).toBe('develop')
     })
 
     it('handles missing parent_branch', async () => {
@@ -127,12 +128,13 @@ describe('useSessionPrefill', () => {
 
       const { result } = renderHook(() => useSessionPrefill())
 
-      let prefillData: any
+      let prefillData: SessionPrefillData | null = null
       await act(async () => {
         prefillData = await result.current.fetchSessionForPrefill('test-session')
       })
 
-      expect(prefillData?.baseBranch).toBeUndefined()
+      expect(prefillData).not.toBeNull()
+      expect(prefillData!.baseBranch).toBeUndefined()
     })
 
     it('handles fetch errors gracefully', async () => {
@@ -157,7 +159,7 @@ describe('useSessionPrefill', () => {
     })
 
     it('sets loading state during fetch', async () => {
-      let resolvePromise: (value: any) => void
+      let resolvePromise: (value: unknown) => void
       const promise = new Promise((resolve) => {
         resolvePromise = resolve
       })
@@ -167,7 +169,7 @@ describe('useSessionPrefill', () => {
       const { result } = renderHook(() => useSessionPrefill())
 
       // Start the fetch
-      let fetchPromise: Promise<any>
+      let fetchPromise: Promise<SessionPrefillData | null>
       act(() => {
         fetchPromise = result.current.fetchSessionForPrefill('test-session')
       })

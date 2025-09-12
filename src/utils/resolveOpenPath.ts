@@ -20,7 +20,7 @@ export async function resolveOpenPathForOpenButton(params: {
         return selection.worktreePath
       }
       try {
-        const sessionData = await invoke<any>(TauriCommands.SchaltwerkCoreGetSession, { name: selection.payload })
+        const sessionData = await invoke<{ session_state?: string; worktree_path?: string }>(TauriCommands.SchaltwerkCoreGetSession, { name: selection.payload })
         const state: string | undefined = sessionData?.session_state
         const worktreePath: string | undefined = sessionData?.worktree_path
         if (state && state !== 'spec' && worktreePath) {

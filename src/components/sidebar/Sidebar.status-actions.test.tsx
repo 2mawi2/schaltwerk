@@ -22,6 +22,7 @@ vi.mock('../../contexts/ProjectContext', async () => {
 import { invoke } from '@tauri-apps/api/core'
 import { EnrichedSession } from '../../types/session'
 import { listen } from '@tauri-apps/api/event'
+import type { Event } from '@tauri-apps/api/event'
 
 
 
@@ -51,15 +52,16 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === 'set_project_sessions_settings') {
         return undefined
       }
-      return undefined as any
+      return undefined
     })
 
-    vi.mocked(listen).mockImplementation(async (event: string, cb: (evt: any) => void) => {
+    vi.mocked(listen).mockImplementation(async (event: string, cb: (evt: Event<unknown>) => void) => {
       // capture listeners so we can trigger
       const off = () => {}
       unlistenFns.push(off)
-      ;(listen as any).__last = (listen as any).__last || {}
-      ;(listen as any).__last[event] = cb
+      const mockListen = listen as typeof listen & { __last?: Record<string, (evt: Event<unknown>) => void> }
+      mockListen.__last = mockListen.__last || {}
+      mockListen.__last[event] = cb
       return off
     })
   })
@@ -115,8 +117,8 @@ describe('Sidebar status indicators and actions', () => {
     // Arrange sessions with last_modified timestamps
     const now = Date.now()
     const sessions: EnrichedSession[] = [
-      { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 6 * 60 * 1000).toISOString(), last_modified_ts: now - 6 * 60 * 1000 } as any, terminals: [] },
-      { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', ready_to_merge: false, last_modified: new Date(now - 2 * 60 * 1000).toISOString(), last_modified_ts: now - 2 * 60 * 1000 } as any, terminals: [] },
+      { info: { session_id: 's1', branch: 'para/s1', worktree_path: '/p/s1', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', session_state: 'running', ready_to_merge: false, last_modified: new Date(now - 6 * 60 * 1000).toISOString(), last_modified_ts: now - 6 * 60 * 1000 }, terminals: [] },
+      { info: { session_id: 's2', branch: 'para/s2', worktree_path: '/p/s2', base_branch: 'main', status: 'active', is_current: false, session_type: 'worktree', session_state: 'running', ready_to_merge: false, last_modified: new Date(now - 2 * 60 * 1000).toISOString(), last_modified_ts: now - 2 * 60 * 1000 }, terminals: [] },
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
@@ -132,7 +134,7 @@ describe('Sidebar status indicators and actions', () => {
       if (cmd === 'set_project_sessions_settings') {
         return undefined
       }
-      return undefined as any
+      return undefined
     })
 
     render(<TestProviders><Sidebar /></TestProviders>)

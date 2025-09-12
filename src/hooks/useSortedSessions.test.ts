@@ -509,7 +509,7 @@ describe('useSortedSessions', () => {
                 null,
                 undefined
             ]
-            mockInvoke.mockResolvedValueOnce(malformedSessions as any)
+            mockInvoke.mockResolvedValueOnce(malformedSessions as unknown[])
 
             const { result } = renderHook(() =>
                 useSortedSessions({ sortMode: SortMode.Name, filterMode: FilterMode.All })

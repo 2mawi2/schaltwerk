@@ -121,7 +121,7 @@ class Analytics {
           // Override capture to skip initial events
           const originalCapture = posthog.capture.bind(posthog);
           const validEvents = Object.values(AnalyticsEventName) as string[];
-          posthog.capture = (event: string, properties?: any, options?: any) => {
+          posthog.capture = (event: string, properties?: Record<string, unknown>, options?: Record<string, unknown>) => {
             // Always skip opt-in, opt-out, and web vitals events
             if (event === '$opt_in' || event === '$opt_out' || event === '$web_vitals') {
               logger.debug(`Skipping automatic event: ${event}`);
@@ -198,12 +198,12 @@ class Analytics {
     }
   }
   
-  private sanitizeProperties(props: any): Record<string, any> {
-    if (!props) return {};
+  private sanitizeProperties(props: unknown): Record<string, unknown> {
+    if (!props || typeof props !== 'object' || Array.isArray(props)) return {};
     
-    const sanitized: Record<string, any> = {};
+    const sanitized: Record<string, unknown> = {};
     
-    for (const [key, value] of Object.entries(props)) {
+    for (const [key, value] of Object.entries(props as Record<string, unknown>)) {
       if (value === null || value === undefined) {
         continue;
       }

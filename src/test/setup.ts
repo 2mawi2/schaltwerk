@@ -10,9 +10,9 @@ beforeEach(() => {
 // Global mocks for Tauri APIs used across components during tests
 // Prevents happy-dom from calling into real Tauri internals (transformCallback)
 vi.mock('@tauri-apps/api/event', () => {
-  const listeners = new Map<string, Array<(evt: any) => void>>()
+  const listeners = new Map<string, Array<(evt: { event: string; payload?: unknown }) => void>>()
   return {
-    listen: vi.fn(async (event: string, handler: (evt: any) => void) => {
+    listen: vi.fn(async (event: string, handler: (evt: { event: string; payload?: unknown }) => void) => {
       const arr = listeners.get(event) ?? []
       arr.push(handler)
       listeners.set(event, arr)
@@ -25,7 +25,7 @@ vi.mock('@tauri-apps/api/event', () => {
       }
     }),
     // Optional helper for tests that want to emit events manually
-    __emit: (event: string, payload?: any) => {
+    __emit: (event: string, payload?: unknown) => {
       const arr = listeners.get(event) ?? []
       for (const fn of arr) fn({ event, payload })
     }

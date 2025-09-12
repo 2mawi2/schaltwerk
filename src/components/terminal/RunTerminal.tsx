@@ -188,8 +188,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                 }
             }
         }
-        window.addEventListener('schaltwerk:terminal-ready' as any, handler as any)
-        return () => window.removeEventListener('schaltwerk:terminal-ready' as any, handler as any)
+        window.addEventListener('schaltwerk:terminal-ready', handler as EventListener)
+        return () => window.removeEventListener('schaltwerk:terminal-ready', handler as EventListener)
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [runTerminalId])
 

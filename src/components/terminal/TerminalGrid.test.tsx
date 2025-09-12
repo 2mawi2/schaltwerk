@@ -3,13 +3,55 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { MockTauriInvokeArgs } from '../../types/testing'
 
+// Type definitions for proper typing
+interface MockSplitProps {
+  children: React.ReactNode
+  direction?: string
+  sizes?: number[]
+  minSize?: number | number[]
+  gutterSize?: number
+  [key: string]: unknown
+}
+
+interface MockTerminalModule {
+  __getFocusSpy: (id: string) => ReturnType<typeof vi.fn>
+  __getMountCount: (id: string) => number
+  __getUnmountCount: (id: string) => number
+}
+
+interface MockTerminalRef {
+  focus: () => void
+  showSearch: () => void
+  scrollToBottom: () => void
+}
+
+interface MockTerminalTabsRef {
+  focus: () => void
+  focusTerminal: () => void
+  getTabsState: () => {
+    tabs: Array<{ index: number; terminalId: string; label: string }>
+    activeTab: number
+    canAddTab: boolean
+  }
+  getTabFunctions: () => {
+    addTab: ReturnType<typeof vi.fn>
+    closeTab: ReturnType<typeof vi.fn>
+    setActiveTab: ReturnType<typeof vi.fn>
+  }
+}
+
+interface MockRunTerminalRef {
+  toggleRun: ReturnType<typeof vi.fn>
+  isRunning: () => boolean
+}
+
 // ---- Mocks (must be declared before importing the component) ----
 
 // Mock react-split to capture props and render children
 vi.mock('react-split', () => {
-  let lastProps: any = null
-  const SplitMock = ({ children, ...props }: any) => {
-    lastProps = props
+  let lastProps: MockSplitProps | null = null
+  const SplitMock = ({ children, ...props }: MockSplitProps) => {
+    lastProps = { ...props, children }
     return (
       <div
         data-testid="split"
@@ -36,7 +78,7 @@ const focusSpies = new Map<string, ReturnType<typeof vi.fn>>()
 
 // Mock the Terminal component used by TerminalGrid
 vi.mock('./Terminal', () => {
-  const TerminalMock = forwardRef<any, any>(function TerminalMock(props, ref) {
+  const TerminalMock = forwardRef<MockTerminalRef, { terminalId: string; className?: string; sessionName?: string; isCommander?: boolean }>(function TerminalMock(props, ref) {
     const { terminalId, className = '', sessionName, isCommander } = props
     const focus = vi.fn()
     focusSpies.set(terminalId, focus)
@@ -90,7 +132,7 @@ vi.mock('./Terminal', () => {
 
 // Mock TerminalTabs to work with the mount counting system
 vi.mock('./TerminalTabs', () => {
-  const TerminalTabsMock = forwardRef<any, any>(function TerminalTabsMock(props, ref) {
+  const TerminalTabsMock = forwardRef<MockTerminalTabsRef, { baseTerminalId: string; isCommander?: boolean }>(function TerminalTabsMock(props, ref) {
     const { baseTerminalId, isCommander } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
@@ -144,11 +186,11 @@ vi.mock('./TerminalTabs', () => {
 })
 
 // Mock RunTerminal component
-const runTerminalRefs = new Map<string, any>()
+const runTerminalRefs = new Map<string, MockRunTerminalRef>()
 const runTerminalStates = new Map<string, boolean>()
 
 vi.mock('./RunTerminal', () => {
-  const RunTerminalMock = forwardRef<any, any>(function RunTerminalMock(props, ref) {
+  const RunTerminalMock = forwardRef<MockRunTerminalRef, { sessionName?: string; onRunningStateChange?: (running: boolean) => void }>(function RunTerminalMock(props, ref) {
     const { sessionName, onRunningStateChange } = props
     const sessionKey = sessionName || 'orchestrator'
     
@@ -162,7 +204,7 @@ vi.mock('./RunTerminal', () => {
     }), [sessionKey, onRunningStateChange])
     
     useEffect(() => {
-      if (ref && typeof ref === 'object' && 'current' in ref) {
+      if (ref && typeof ref === 'object' && 'current' in ref && ref.current) {
         runTerminalRefs.set(sessionKey, ref.current)
       }
       return () => {
@@ -235,7 +277,7 @@ beforeEach(() => {
         return Promise.resolve(false)
       case 'create_terminal': {
         // Mark as created
-        const terminalId = args?.id
+        const terminalId = (args as { id?: string })?.id
         if (terminalId) {
           mountCount.set(terminalId, 0) // Mark as created but not yet mounted
         }
@@ -244,7 +286,7 @@ beforeEach(() => {
       case 'schaltwerk_core_get_session':
         return Promise.resolve({
           worktree_path: '/session/worktree',
-          session_id: args?.name || 'test-session',
+          session_id: (args as { name?: string })?.name || 'test-session',
         })
       case 'get_project_action_buttons':
         return Promise.resolve([])
@@ -328,7 +370,7 @@ describe('TerminalGrid', () => {
     // Click top header -> focus claude (top) after 100ms
     fireEvent.click(screen.getByText('Orchestrator — main repo'))
     await new Promise(r => setTimeout(r, 120))
-    const topFocus = (await import('./Terminal')) as any
+    const topFocus = (await import('./Terminal')) as unknown as MockTerminalModule
     expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
 
     // Click bottom header -> focus terminal (bottom)
@@ -336,7 +378,7 @@ describe('TerminalGrid', () => {
     const terminalArea = screen.getByTestId('split').lastChild as HTMLElement
     fireEvent.click(terminalArea)
     await new Promise(r => setTimeout(r, 120))
-    const bottomFocusSpy = (await import('./Terminal')) as any
+    const bottomFocusSpy = (await import('./Terminal')) as unknown as MockTerminalModule
     const bottomTerminalId = bridge!.terminals.bottomBase.includes('orchestrator') ? `${bridge!.terminals.bottomBase}-0` : bridge!.terminals.bottomBase
     expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
 
@@ -382,7 +424,7 @@ describe('TerminalGrid', () => {
     }, { timeout: 3000 })
 
     // Click headers to drive focus
-    const m = (await import('./Terminal')) as any
+    const m = (await import('./Terminal')) as unknown as MockTerminalModule
     // Click on terminal area to focus it
     const terminalArea = screen.getByTestId('split').lastChild as HTMLElement
     fireEvent.click(terminalArea)
@@ -405,7 +447,7 @@ describe('TerminalGrid', () => {
       expect(bridge?.isReady).toBe(true)
     }, { timeout: 3000 })
 
-    const m = (await import('./Terminal')) as any
+    const m = (await import('./Terminal')) as unknown as MockTerminalModule
     const topId = bridge!.terminals.top
     const bottomId = bridge!.terminals.bottomBase.includes('orchestrator') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for orchestrator only
     

@@ -32,7 +32,7 @@ describe('useClaudeSession', () => {
 
   it('returns failure when options are invalid', async () => {
     const { result } = renderHook(() => useClaudeSession())
-    const out = await act(async () => result.current.startClaude({} as any))
+    const out = await act(async () => result.current.startClaude({}))
     expect(out).toEqual({ success: false, error: 'Invalid options' })
   })
 

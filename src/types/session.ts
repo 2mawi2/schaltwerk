@@ -17,6 +17,7 @@ export interface SessionInfo {
     status: 'active' | 'dirty' | 'missing' | 'archived' | 'spec'
     created_at?: string
     last_modified?: string
+    last_modified_ts?: number
     has_uncommitted_changes?: boolean
     is_current: boolean
     session_type: 'worktree' | 'container'
@@ -50,4 +51,42 @@ export interface EnrichedSession {
     info: SessionInfo
     status?: SessionMonitorStatus
     terminals: string[]
+}
+
+// Raw Session type returned from Tauri backend (from schaltwerk_core_get_session)
+export interface RawSession {
+    id: string
+    name: string
+    display_name?: string
+    version_group_id?: string
+    version_number?: number
+    repository_path: string
+    repository_name: string
+    branch: string
+    parent_branch: string
+    worktree_path: string
+    status: 'active' | 'cancelled' | 'spec'
+    created_at: string
+    updated_at: string
+    last_activity?: string
+    initial_prompt?: string
+    ready_to_merge: boolean
+    original_agent_type?: AgentType
+    original_skip_permissions?: boolean
+    pending_name_generation: boolean
+    was_auto_generated: boolean
+    spec_content?: string
+    session_state: 'spec' | 'running' | 'reviewed'
+    git_stats?: {
+        files_changed: number
+        additions: number
+        deletions: number
+        insertions: number
+    }
+}
+
+// Project selection returned from get_project_selection
+export interface ProjectSelection {
+    kind: string
+    payload: string | null
 }

@@ -9,8 +9,8 @@ import { Component, ReactNode } from 'react'
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react'
 import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
-import { organizeSessionsByColumn, findSessionPosition } from '../../utils/sessionOrganizer'
-import { EnrichedSession } from '../../types/session'
+import { organizeSessionsByColumn, findSessionPosition, SessionColumns } from '../../utils/sessionOrganizer'
+import { EnrichedSession, RawSession } from '../../types/session'
 import { logger } from '../../utils/logger'
 import { analytics, AnalyticsEventName } from '../../analytics'
 
@@ -274,7 +274,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                 }
             } else if (newStatus === 'dirty') {
                 // Track session completion
-                const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sessionId })
+                const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: sessionId })
                 const filesChanged = sessionData?.git_stats?.files_changed || 0
                 const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
                 const durationMinutes = Math.round((Date.now() - startTime) / 60000)
@@ -306,7 +306,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         
         try {
             // Track session completion
-            const sessionData = await invoke<any>('schaltwerk_core_get_session', { name: sessionId })
+            const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: sessionId })
             const filesChanged = sessionData?.git_stats?.files_changed || 0
             const startTime = sessionData?.created_at ? new Date(sessionData.created_at).getTime() : Date.now()
             const durationMinutes = Math.round((Date.now() - startTime) / 60000)
@@ -382,13 +382,13 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     // Use refs to access current values in event handlers
     const focusedSessionIdRef = useRef<string | null>(null)
     const focusedPositionRef = useRef<{ column: number; row: number }>({ column: 0, row: 0 })
-    const sessionsByColumnRef = useRef<EnrichedSession[][]>([[],[],[]])
+    const sessionsByColumnRef = useRef<SessionColumns<EnrichedSession>>([[], [], []])
 
     // Organize sessions into columns
     const sessionsByColumn = useMemo(() => {
-        const columns = organizeSessionsByColumn((allSessions || []) as any)
-        sessionsByColumnRef.current = columns as unknown as EnrichedSession[][]
-        return columns as unknown as EnrichedSession[][]
+        const columns = organizeSessionsByColumn(allSessions || [])
+        sessionsByColumnRef.current = columns as SessionColumns<EnrichedSession>
+        return columns
     }, [allSessions])
     
     // Update refs when state changes
@@ -480,7 +480,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         const newSession = allSessions.find(s => s.info.session_id === newSessionId)
         
         if (newSession) {
-            const position = findSessionPosition(newSessionId, sessionsByColumn as any)
+            const position = findSessionPosition(newSessionId, sessionsByColumn)
             if (position) {
                 setFocusedSessionId(newSessionId)
                 setFocusedPosition(position)
@@ -729,7 +729,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
 
     const handleSessionClick = useCallback((sessionId: string) => {
         // Find position of clicked session
-        const position = findSessionPosition(sessionId, sessionsByColumn as any)
+        const position = findSessionPosition(sessionId, sessionsByColumn)
         if (position) {
             setFocusedSessionId(sessionId)
             setFocusedPosition(position)

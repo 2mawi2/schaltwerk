@@ -43,6 +43,7 @@ describe('Project Switching Selection Behavior', () => {
         
         // Setup default mocks
         mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+            const typedArgs = args as { name?: string; id?: string } | undefined
             switch (command) {
                 case 'get_current_directory':
                     return Promise.resolve('/test/cwd')
@@ -53,8 +54,9 @@ describe('Project Switching Selection Behavior', () => {
                 case 'schaltwerk_core_get_session':
                     return Promise.resolve({
                         worktree_path: '/test/session/path',
-                        session_id: args?.name || 'test-session',
-                        session_state: 'running'
+                        session_id: typedArgs?.name || 'test-session',
+                        session_state: 'running',
+                        name: typedArgs?.name || 'test-session'
                     })
                 case 'get_project_selection':
                     // Database returns null initially

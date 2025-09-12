@@ -160,7 +160,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             const now = Date.now()
             const next = new Set<string>()
             for (const s of allSessions) {
-                const ts: number | undefined = (s.info as any).last_modified_ts
+                const ts: number | undefined = s.info.last_modified_ts
                 const spec = isSpec(s.info)
                 const reviewed = isReviewed(s.info)
                 if (typeof ts === 'number' && !spec && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
@@ -573,7 +573,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'claude')
             // Set flag to indicate this is from Cmd+T shortcut - should scroll to bottom
-            ;(window as any).__cmdTPressed = true
+            window.__cmdTPressed = true
             setCurrentFocus('claude')
             // This will trigger TerminalGrid's currentFocus effect immediately
         },
@@ -604,9 +604,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
-        const handler = () => handleMarkSelectedSessionReady()
-        window.addEventListener('global-mark-ready-shortcut', handler as EventListener)
-        return () => window.removeEventListener('global-mark-ready-shortcut', handler as any)
+        const handler = (_event: Event) => handleMarkSelectedSessionReady()
+        window.addEventListener('global-mark-ready-shortcut', handler)
+        return () => window.removeEventListener('global-mark-ready-shortcut', handler)
     }, [selection, sessions, handleMarkSelectedSessionReady])
 
     // Selection is now restored by SelectionContext itself
@@ -1019,7 +1019,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             // Reload both regular and spec sessions to avoid dropping specs
                                             await Promise.all([
                                                 invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                                invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
+                                                invoke<SessionInfo[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                                             ])
                                             await reloadSessions()
                                         } catch (err) {
@@ -1072,7 +1072,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             // Reload both regular and spec sessions to ensure remaining specs persist
                                             await Promise.all([
                                                 invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                                invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
+                                                invoke<SessionInfo[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
                                             ])
                                             await reloadSessions()
                                         } catch (err) {

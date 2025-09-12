@@ -313,7 +313,7 @@ describe('useSessionManagement', () => {
 
                 const selection = {
                     kind: 'session' as const,
-                    payload: null as any
+                    payload: null as unknown as string
                 }
 
                 await act(async () => {
@@ -335,7 +335,7 @@ describe('useSessionManagement', () => {
 
                 const selection = {
                     kind: 'session' as const,
-                    payload: undefined as any
+                    payload: undefined as unknown as string
                 }
 
                 await act(async () => {
@@ -356,7 +356,7 @@ describe('useSessionManagement', () => {
                 const { result } = renderHook(() => useSessionManagement())
 
                 const selection = {
-                    kind: 'invalid' as any,
+                    kind: 'invalid' as unknown as 'orchestrator' | 'session',
                     payload: 'test-session'
                 }
 

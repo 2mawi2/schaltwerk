@@ -9,7 +9,7 @@ import {
 } from './sessionFilters'
 
 // Mock session data for testing
-const createMockSession = (overrides: any = {}) => {
+const createMockSession = (overrides: Record<string, unknown> = {}) => {
     return {
         info: {
             session_id: 'test-session',

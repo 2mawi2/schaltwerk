@@ -60,7 +60,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || 'name'
+        const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
             const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
@@ -122,7 +122,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || 'name'
+        const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
             const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
@@ -192,7 +192,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || 'name'
+        const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
             const aT = a.info?.created_at ? Date.parse(a.info.created_at) : 0
@@ -264,7 +264,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || 'name'
+        const mode = (args as { sortMode?: string })?.sortMode || 'name'
         const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')
         const unreviewed = sessions.filter(s => !isReviewed(s) && s.info?.session_state !== 'spec')
@@ -362,7 +362,7 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || 'name'
+        const mode = (args as { sortMode?: string })?.sortMode || 'name'
         const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')
         const unreviewed = sessions.filter(s => !isReviewed(s) && s.info?.session_state !== 'spec')

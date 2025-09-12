@@ -59,7 +59,7 @@ describe('Sidebar sorting functionality', () => {
     return async (cmd: string, args?: MockTauriInvokeArgs) => {
       if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
       if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-        const mode = args?.sortMode || SortMode.Name
+        const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: EnrichedSession) => !!s.info.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')
@@ -93,7 +93,7 @@ describe('Sidebar sorting functionality', () => {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       if (cmd === 'set_project_sessions_settings') {
-        const s = args?.settings || {}
+        const s = (args as { settings?: { filter_mode?: string; sort_mode?: string } })?.settings || {}
         savedFilterMode = s.filter_mode || FilterMode.All
         savedSortMode = s.sort_mode || SortMode.Name
         return undefined

@@ -52,7 +52,7 @@ describe('Sidebar - Selection on State Changes', () => {
                 return [draftSession, runningSession1, runningSession2]
             }
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-                const fm = args?.filterMode || 'all'
+                const fm = (args as { filterMode?: string })?.filterMode || 'all'
                 const all = [draftSession, runningSession1, runningSession2]
                 if (fm === 'spec') return [draftSession]
                 if (fm === 'reviewed') return all.filter(s => s.info.ready_to_merge)
@@ -108,7 +108,7 @@ describe('Sidebar - Selection on State Changes', () => {
                 return [draftSession]
             }
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-                const fm = args?.filterMode || 'all'
+                const fm = (args as { filterMode?: string })?.filterMode || 'all'
                 const all = [draftSession]
                 if (fm === 'spec') return all
                 if (fm === 'running') return []
@@ -214,7 +214,7 @@ describe('Sidebar - Selection on State Changes', () => {
                 return [specAgent, runningTask]
             }
             if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
-                const fm = args?.filterMode || 'all'
+                const fm = (args as { filterMode?: string })?.filterMode || 'all'
                 const all = [specAgent, runningTask]
                 if (fm === 'spec') return [specAgent]
                 if (fm === 'running') return [runningTask]

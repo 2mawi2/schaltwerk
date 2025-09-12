@@ -6,7 +6,7 @@ import { useProject } from './ProjectContext'
 import { useCleanupRegistry } from '../hooks/useCleanupRegistry'
 import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValidSortMode, isValidFilterMode } from '../types/sessionFilters'
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
-import { EnrichedSession, SessionInfo, SessionState } from '../types/session'
+import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types/session'
 import { logger } from '../utils/logger'
 
 interface SessionsContextValue {
@@ -164,14 +164,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 // Try to fetch explicit specs; if shape is unexpected, ignore
                 let all = enriched
                 try {
-                    const draftSessions = await invoke<any[]>('schaltwerk_core_list_sessions_by_state', { state: SessionState.Spec })
+                    const draftSessions = await invoke<RawSession[]>('schaltwerk_core_list_sessions_by_state', { state: SessionState.Spec })
                     
-                    const hasValidDraftSessions = (drafts: any[]): boolean => {
+                    const hasValidDraftSessions = (drafts: RawSession[]): boolean => {
                         return Array.isArray(drafts) && drafts.some(d => d && (d.name || d.id))
                     }
 
                     if (hasValidDraftSessions(draftSessions)) {
-                        const enrichDraftSessions = (drafts: any[]): EnrichedSession[] => {
+                        const enrichDraftSessions = (drafts: RawSession[]): EnrichedSession[] => {
                             return drafts.map(spec => ({
                             id: spec.id,
                             info: {
@@ -180,7 +180,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 branch: spec.branch,
                                 worktree_path: spec.worktree_path || '',
                                 base_branch: spec.parent_branch,
-                                status: 'spec' as any,
+                                status: 'spec',
                                 session_state: SessionState.Spec,
                                 created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
                                 last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
@@ -188,7 +188,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 ready_to_merge: false,
                                 diff_stats: undefined,
                                 is_current: false,
-                                session_type: 'worktree' as any,
+                                session_type: 'worktree',
                             },
                             terminals: []
                         }))
@@ -474,7 +474,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         ...s,
                         info: {
                             ...s.info,
-                            status: 'cancelling' as any
+                            status: 'spec'
                         }
                     }
                 }))

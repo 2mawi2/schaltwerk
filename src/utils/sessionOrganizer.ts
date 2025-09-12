@@ -8,7 +8,7 @@ export interface Session {
     info: SessionInfo
 }
 
-export type SessionColumns = [Session[], Session[], Session[]]
+export type SessionColumns<T extends Session = Session> = [T[], T[], T[]]
 
 /**
  * Organizes sessions into three columns based on their state
@@ -16,8 +16,8 @@ export type SessionColumns = [Session[], Session[], Session[]]
  * Column 1: Running sessions (not ready to merge)
  * Column 2: Reviewed sessions (ready to merge)
  */
-export function organizeSessionsByColumn(sessions: Session[]): SessionColumns {
-    const columns: SessionColumns = [[], [], []]
+export function organizeSessionsByColumn<T extends Session>(sessions: T[]): SessionColumns<T> {
+    const columns: SessionColumns<T> = [[], [], []]
     
     if (!sessions) {
         return columns
@@ -54,9 +54,9 @@ export function getSessionColumn(session: Session): 0 | 1 | 2 {
 /**
  * Finds the position of a session within the organized columns
  */
-export function findSessionPosition(
+export function findSessionPosition<T extends Session>(
     sessionId: string, 
-    columns: SessionColumns
+    columns: SessionColumns<T>
 ): { column: number; row: number } | null {
     for (let col = 0; col < columns.length; col++) {
         const row = columns[col].findIndex(s => s.info.session_id === sessionId)

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, MockedFunction } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useSettings, AgentType } from './useSettings'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke, InvokeArgs } from '@tauri-apps/api/core'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -305,9 +305,9 @@ describe('useSettings', () => {
 
   describe('loadEnvVars', () => {
     it('loads environment variables for all agents', async () => {
-      mockInvoke.mockImplementation((command: string, args: any) => {
+      mockInvoke.mockImplementation((command: string, args?: InvokeArgs) => {
         if (command === 'get_agent_env_vars') {
-          const agentType = args.agentType
+          const agentType = (args as { agentType?: string })?.agentType
           if (agentType === 'claude') {
             return Promise.resolve({ API_KEY: 'claude-key' })
           }
@@ -358,9 +358,9 @@ describe('useSettings', () => {
 
   describe('loadCliArgs', () => {
     it('loads CLI arguments for all agents', async () => {
-      mockInvoke.mockImplementation((command: string, args: any) => {
+      mockInvoke.mockImplementation((command: string, args?: InvokeArgs) => {
         if (command === 'get_agent_cli_args') {
-          const agentType = args.agentType
+          const agentType = (args as { agentType?: string })?.agentType
           if (agentType === 'claude') {
             return Promise.resolve('--verbose --debug')
           }

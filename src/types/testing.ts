@@ -1,7 +1,7 @@
 import type { Event } from '@tauri-apps/api/event'
 import { EnrichedSession, SessionMonitorStatus } from './session'
 
-export type MockTauriInvokeArgs = Record<string, unknown> | any
+export type MockTauriInvokeArgs = Record<string, unknown> | unknown
 
 export type MockEventHandler<T = unknown> = (event: Event<T>) => void
 
