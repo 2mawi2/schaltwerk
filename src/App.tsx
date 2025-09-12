@@ -31,6 +31,7 @@ import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
 import { logger } from './utils/logger'
+import { installSmartDashGuards } from './utils/normalizeCliText'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -323,6 +324,11 @@ export default function App() {
     }
   }, [applyActiveProject, setProjectPath])
 
+  // Install smart dash/quote normalization for all text inputs (except terminals)
+  useEffect(() => {
+    installSmartDashGuards(document)
+    logger.debug('[App] Smart dash normalization installed')
+  }, [])
 
   useEffect(() => {
     const handlePermissionError = (event: Event) => {

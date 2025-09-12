@@ -58,6 +58,10 @@ notify-debouncer-mini = "0.4"
 similar = "2.6"
 fontdb = "0.23"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+core-foundation-sys = "0.8"
+
 [dev-dependencies]
 tokio-test = "0.4"
 mockall = "0.13"

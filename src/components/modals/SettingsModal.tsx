@@ -6,6 +6,7 @@ import { useSettings, AgentType } from '../../hooks/useSettings'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
 import { AnimatedText } from '../common/AnimatedText'
+// macOS-native smart dash/quote substitution is disabled at app startup.
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { logger } from '../../utils/logger'
@@ -270,69 +271,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         }
     }, [])
     
-    const normalizeCliText = (text: string): string => {
-        return text
-            .replace(/—/g, '--') // em dash → double hyphen
-            .replace(/–/g, '--') // en dash → double hyphen
-            .replace(/−/g, '-')  // minus sign → hyphen
-    }
-
-    // Prevent smart punctuation from altering input by intercepting beforeinput
-    // and paste events. Applies normalization and attempts to preserve caret.
-    const handleBeforeInputNormalize = (
-        e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>,
-        currentValue: string,
-        applyValue: (value: string) => void,
-    ) => {
-        // @ts-expect-error: React typings don't expose .data on nativeEvent
-        const data: string | null | undefined = e.nativeEvent?.data
-        if (!data) return
-        if (!/[—–−]/.test(data)) return
-
-        const target = e.currentTarget as HTMLInputElement
-        const selectionStart = target.selectionStart ?? currentValue.length
-        const selectionEnd = target.selectionEnd ?? selectionStart
-        const replacement = normalizeCliText(data)
-
-        e.preventDefault()
-        const next =
-            currentValue.slice(0, selectionStart) +
-            replacement +
-            currentValue.slice(selectionEnd)
-        const newCaret = selectionStart + replacement.length
-        applyValue(next)
-        requestAnimationFrame(() => {
-            try { target.setSelectionRange(newCaret, newCaret) } catch {
-                // Selection range failed, ignore
-            }
-        })
-    }
-
-    const handlePasteNormalize = (
-        e: React.ClipboardEvent<HTMLInputElement | HTMLTextAreaElement>,
-        currentValue: string,
-        applyValue: (value: string) => void,
-    ) => {
-        const pasted = e.clipboardData.getData('text')
-        if (!/[—–−]/.test(pasted)) return
-        const target = e.currentTarget as HTMLInputElement
-        const selectionStart = target.selectionStart ?? currentValue.length
-        const selectionEnd = target.selectionEnd ?? selectionStart
-        const replacement = normalizeCliText(pasted)
-
-        e.preventDefault()
-        const next =
-            currentValue.slice(0, selectionStart) +
-            replacement +
-            currentValue.slice(selectionEnd)
-        const newCaret = selectionStart + replacement.length
-        applyValue(next)
-        requestAnimationFrame(() => {
-            try { target.setSelectionRange(newCaret, newCaret) } catch {
-                // Selection range failed, ignore
-            }
-        })
-    }
+    // JS normalizers removed; native fix handles inputs globally.
 
 
     // Load archives when the category is opened
@@ -885,21 +824,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         <input
                             type="text"
                             value={cliArgs[activeAgentTab]}
-                            onChange={(e) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: normalizeCliText(e.target.value) }))}
-                            onBeforeInput={(e) =>
-                                handleBeforeInputNormalize(
-                                    e,
-                                    cliArgs[activeAgentTab],
-                                    (val) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: val })),
-                                )
-                            }
-                            onPaste={(e) =>
-                                handlePasteNormalize(
-                                    e,
-                                    cliArgs[activeAgentTab],
-                                    (val) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: val })),
-                                )
-                            }
+                            onChange={(e) => setCliArgs(prev => ({ ...prev, [activeAgentTab]: e.target.value }))}
                             placeholder="e.g., --profile test or -p some 'quoted value'"
                             className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                             autoCorrect="off"
@@ -927,21 +852,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     <input
                                         type="text"
                                         value={item.key}
-                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', normalizeCliText(e.target.value))}
-                                        onBeforeInput={(e) =>
-                                            handleBeforeInputNormalize(
-                                                e,
-                                                item.key,
-                                                (val) => handleEnvVarChange(activeAgentTab, index, 'key', val),
-                                            )
-                                        }
-                                        onPaste={(e) =>
-                                            handlePasteNormalize(
-                                                e,
-                                                item.key,
-                                                (val) => handleEnvVarChange(activeAgentTab, index, 'key', val),
-                                            )
-                                        }
+                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'key', e.target.value)}
                                         placeholder="Variable name (e.g., API_KEY)"
                                         className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
                                         autoCorrect="off"
@@ -954,21 +865,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     <input
                                         type="text"
                                         value={item.value}
-                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', normalizeCliText(e.target.value))}
-                                        onBeforeInput={(e) =>
-                                            handleBeforeInputNormalize(
-                                                e,
-                                                item.value,
-                                                (val) => handleEnvVarChange(activeAgentTab, index, 'value', val),
-                                            )
-                                        }
-                                        onPaste={(e) =>
-                                            handlePasteNormalize(
-                                                e,
-                                                item.value,
-                                                (val) => handleEnvVarChange(activeAgentTab, index, 'value', val),
-                                            )
-                                        }
+                                        onChange={(e) => handleEnvVarChange(activeAgentTab, index, 'value', e.target.value)}
                                         placeholder="Value"
                                         className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500"
                                         autoCorrect="off"
@@ -1180,9 +1077,7 @@ fi`}
                                 <input
                                     type="text"
                                     value={runScript.command}
-                                    onChange={(e) => setRunScript(prev => ({ ...prev, command: normalizeCliText(e.target.value) }))}
-                                    onBeforeInput={(e) => handleBeforeInputNormalize(e as any, runScript.command, (v) => setRunScript(prev => ({ ...prev, command: v })))}
-                                    onPaste={(e) => handlePasteNormalize(e as any, runScript.command, (v) => setRunScript(prev => ({ ...prev, command: v })))}
+                                    onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
                                     placeholder="e.g., npm run dev"
                                     className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                                 />
@@ -1578,7 +1473,8 @@ fi`}
                                     type="text"
                                     value={(terminalSettings.shellArgs || []).join(' ')}
                                     onChange={(e) => {
-                                        const args = e.target.value.trim() ? e.target.value.split(' ') : []
+                                        const raw = e.target.value
+                                        const args = raw.trim() ? raw.split(' ') : []
                                         setTerminalSettings({ ...terminalSettings, shellArgs: args })
                                     }}
                                     placeholder="Default: -i (interactive mode)"

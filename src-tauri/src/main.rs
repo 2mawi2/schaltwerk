@@ -9,6 +9,7 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 // Binary-only modules (not part of lib)
 mod cleanup;
+mod macos_prefs;
 mod diff_commands;
 mod diff_engine;
 mod file_utils;
@@ -580,6 +581,10 @@ fn main() {
     // Initialize logging
     schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
+
+    // macOS: disable smart quotes/dashes/text substitutions app-wide
+    macos_prefs::disable_smart_substitutions();
+    // macOS smart substitutions: handled in frontend for now
     
     // Parse command line arguments using Clap (positional DIR)
     use clap::Parser;

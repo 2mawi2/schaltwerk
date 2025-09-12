@@ -3672,6 +3672,8 @@ dependencies = [
  "async-trait",
  "chrono",
  "clap",
+ "core-foundation",
+ "core-foundation-sys",
  "dirs",
  "env_logger",
  "filetime",
