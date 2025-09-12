@@ -6,6 +6,7 @@ import { ProjectProvider, useProject } from './ProjectContext'
 import { FocusProvider } from './FocusContext'
 import { FontSizeProvider } from './FontSizeContext'
 import { SessionsProvider } from './SessionsContext'
+import { ModalProvider } from './ModalContext'
 import React from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
 
@@ -26,11 +27,13 @@ const TestWrapper = ({ children }: { children: React.ReactNode }) => (
     <ProjectProvider>
         <FontSizeProvider>
             <FocusProvider>
-                <SessionsProvider>
-                    <SelectionProvider>
-                        {children}
-                    </SelectionProvider>
-                </SessionsProvider>
+                <ModalProvider>
+                    <SessionsProvider>
+                        <SelectionProvider>
+                            {children}
+                        </SelectionProvider>
+                    </SessionsProvider>
+                </ModalProvider>
             </FocusProvider>
         </FontSizeProvider>
     </ProjectProvider>

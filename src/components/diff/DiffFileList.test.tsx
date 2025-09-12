@@ -7,6 +7,7 @@ import { ProjectProvider, useProject } from '../../contexts/ProjectContext'
 import { FontSizeProvider } from '../../contexts/FontSizeContext'
 import { SessionsProvider } from '../../contexts/SessionsContext'
 import { FocusProvider } from '../../contexts/FocusContext'
+import { ModalProvider } from '../../contexts/ModalContext'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -69,13 +70,15 @@ function Wrapper({ children, sessionName }: { children: React.ReactNode, session
     <ProjectProvider>
       <FontSizeProvider>
         <FocusProvider>
-          <SessionsProvider>
-            <SelectionProvider>
-              <TestWrapper sessionName={sessionName}>
-                {children}
-              </TestWrapper>
-            </SelectionProvider>
-          </SessionsProvider>
+          <ModalProvider>
+            <SessionsProvider>
+              <SelectionProvider>
+                <TestWrapper sessionName={sessionName}>
+                  {children}
+                </TestWrapper>
+              </SelectionProvider>
+            </SessionsProvider>
+          </ModalProvider>
         </FocusProvider>
       </FontSizeProvider>
     </ProjectProvider>

@@ -12,6 +12,7 @@ import { ProjectProvider, useProject } from './ProjectContext'
 import { FocusProvider } from './FocusContext'
 import { FontSizeProvider } from './FontSizeContext'
 import { SessionsProvider } from './SessionsContext'
+import { ModalProvider } from './ModalContext'
 
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = invoke as MockedFunction<typeof invoke>
@@ -34,9 +35,11 @@ const wrapper = ({ children }: { children: ReactNode }) => (
     <TestProjectInitializer>
       <FontSizeProvider>
         <FocusProvider>
-          <SessionsProvider>
-            <SelectionProvider>{children}</SelectionProvider>
-          </SessionsProvider>
+          <ModalProvider>
+            <SessionsProvider>
+              <SelectionProvider>{children}</SelectionProvider>
+            </SessionsProvider>
+          </ModalProvider>
         </FocusProvider>
       </FontSizeProvider>
     </TestProjectInitializer>
