@@ -246,11 +246,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [editableActionButtons, setEditableActionButtons] = useState<HeaderActionConfig[]>([])
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
     
+    const hideNotification = () => setNotification(prev => ({ ...prev, visible: false }))
+    const scheduleHideNotification = (delayMs: number = 3000) => window.setTimeout(hideNotification, delayMs)
     const showNotification = (message: string, type: NotificationType) => {
         setNotification({ message, type, visible: true })
-        setTimeout(() => {
-            setNotification(prev => ({ ...prev, visible: false }))
-        }, 3000)
+        scheduleHideNotification(3000)
     }
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
@@ -686,10 +686,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
-                    {/* Claude MCP Configuration */}
-                    {activeAgentTab === 'claude' && projectPath && (
+                    {/* MCP Configuration for Claude/Codex */}
+                    {projectPath && (activeAgentTab === 'claude' || activeAgentTab === 'codex') && (
                         <div>
-                            <MCPConfigPanel projectPath={projectPath} />
+                            <MCPConfigPanel projectPath={projectPath} agent={activeAgentTab} />
                         </div>
                     )}
 
