@@ -190,17 +190,35 @@ impl LocalPtyAdapter {
             
             let mut path_components = vec![];
             
+            // User-specific paths first (highest priority)
             path_components.push(format!("{home}/.local/bin"));
             path_components.push(format!("{home}/.cargo/bin"));
             path_components.push(format!("{home}/.pyenv/shims"));
             path_components.push(format!("{home}/bin"));
             
+            // Common Node.js version manager paths
+            path_components.push(format!("{home}/.nvm/current/bin"));
+            path_components.push(format!("{home}/.volta/bin"));
+            path_components.push(format!("{home}/.fnm"));
+            
+            // System paths
             path_components.push("/opt/homebrew/bin".to_string());
             path_components.push("/usr/local/bin".to_string());
             path_components.push("/usr/bin".to_string());
             path_components.push("/bin".to_string());
             path_components.push("/usr/sbin".to_string());
             path_components.push("/sbin".to_string());
+            
+            // Also preserve existing PATH to catch any paths we might have missed
+            if let Ok(existing_path) = std::env::var("PATH") {
+                // Split existing PATH and add any components not already included
+                for component in existing_path.split(':') {
+                    let component = component.trim();
+                    if !component.is_empty() && !path_components.contains(&component.to_string()) {
+                        path_components.push(component.to_string());
+                    }
+                }
+            }
             
             let path = path_components.join(":");
             cmd.env("PATH", path);
