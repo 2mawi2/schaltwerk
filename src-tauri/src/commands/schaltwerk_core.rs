@@ -79,6 +79,7 @@ fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
             "--sandbox",
             "--model", "-m",
             "--profile", "-p",
+            "--config", "-c",
         ];
         if flags_consuming_next.contains(&prev) {
             return None;
@@ -117,7 +118,9 @@ fn fix_codex_single_dash_long_flags(args: &mut [String]) {
                 Some((n, v)) => (n, Some(v)),
                 None => (stripped, None),
             };
-            if name == "model" || name == "profile" {
+            // Treat accidental single-dash long options as double-dash for known long flags
+            // Extend this list conservatively to avoid breaking true short flags.
+            if name == "model" || name == "profile" || name == "search" {
                 if let Some(v) = value_opt {
                     *a = format!("--{name}={v}");
                 } else {
@@ -189,6 +192,29 @@ mod codex_prompt_tests {
         let extracted = extract_codex_prompt_if_present(&mut args);
         assert!(extracted.is_none());
         assert_eq!(args, vec!["--sandbox", "workspace-write", "-p", "dev"]);
+    }
+
+    #[test]
+    fn codex_does_not_consume_config_value_as_prompt() {
+        let mut args = vec![
+            "--sandbox".to_string(),
+            "workspace-write".to_string(),
+            "-c".to_string(),
+            "search=true".to_string(),
+        ];
+        let extracted = extract_codex_prompt_if_present(&mut args);
+        assert!(extracted.is_none());
+        assert_eq!(args, vec!["--sandbox", "workspace-write", "-c", "search=true"]);
+
+        let mut args2 = vec![
+            "--sandbox".to_string(),
+            "workspace-write".to_string(),
+            "--config".to_string(),
+            "model=\"o3\"".to_string(),
+        ];
+        let extracted2 = extract_codex_prompt_if_present(&mut args2);
+        assert!(extracted2.is_none());
+        assert_eq!(args2, vec!["--sandbox", "workspace-write", "--config", "model=\"o3\""]);
     }
 }
 #[tauri::command]
@@ -2215,6 +2241,20 @@ mod tests {
         let mut args = vec!["-model=key=value".to_string()];
         fix_codex_single_dash_long_flags(&mut args);
         assert_eq!(args[0], "--model=key=value");
+
+        // Accidental single-dash long option for search should upgrade to --search
+        let mut args = vec!["-search".to_string()];
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--search");
+
+        // Unicode em-dash before search should normalize to single '-' by normalize_cli_text,
+        // then upgraded here to proper "--search"
+        let unicode_dash = "—search"; // EM DASH U+2014
+        let mut args = vec![normalize_cli_text(unicode_dash)];
+        // After normalize_cli_text, this will be "-search"
+        assert_eq!(args[0], "-search");
+        fix_codex_single_dash_long_flags(&mut args);
+        assert_eq!(args[0], "--search");
     }
 
     #[test]
