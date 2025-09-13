@@ -34,6 +34,60 @@ pub struct CoalescingParams<'a> {
     pub delay_ms: u64,
 }
 
+// Conservative maximum payload size for a single Tauri emit.
+// Some platforms/adapters exhibit issues with very large payloads in a single event.
+// Keep this comfortably below 64KiB to avoid truncation in bridges.
+const MAX_EMIT_CHUNK: usize = 60 * 1024;
+
+// Emit a byte slice to the frontend, splitting into ANSI-safe chunks not exceeding MAX_EMIT_CHUNK.
+async fn emit_ansi_safe_chunks(
+    app: &AppHandle,
+    event_name: &str,
+    id_for_task: &str,
+    bytes: Vec<u8>,
+    emit_buffers_for_task: &Arc<RwLock<HashMap<String, Vec<u8>>>>,
+) {
+    let mut offset = 0usize;
+    while offset < bytes.len() {
+        let remaining = &bytes[offset..];
+        let take = if remaining.len() <= MAX_EMIT_CHUNK {
+            remaining.len()
+        } else {
+            // Try to find a safe split point at or before MAX_EMIT_CHUNK
+            let limit = MAX_EMIT_CHUNK;
+            let candidate = &remaining[..limit];
+            let mut split_at = ansi::find_safe_split_point(candidate);
+            if split_at == 0 {
+                // No ANSI-safe split inside the window; as a fallback, try splitting at the last newline
+                if let Some(pos) = candidate.iter().rposition(|&b| b == b'\n') {
+                    split_at = pos + 1;
+                } else {
+                    // As a last resort, take the window size to make forward progress
+                    split_at = limit;
+                }
+            }
+            split_at
+        };
+
+        let end = offset + take;
+        let chunk = &bytes[offset..end];
+        let payload = String::from_utf8_lossy(chunk).to_string();
+        if let Err(e) = app.emit(event_name, payload) {
+            // On emit failure, requeue the remaining bytes to avoid data loss
+            warn!("Failed to emit terminal output: {e}");
+            let mut buffers = emit_buffers_for_task.write().await;
+            let entry = buffers.entry(id_for_task.to_string()).or_insert_with(Vec::new);
+            // Requeue the un-emitted portion (current chunk + the rest)
+            entry.extend_from_slice(&bytes[offset..]);
+            break;
+        }
+
+        offset = end;
+        // Yield to allow UI to process between chunks
+        tokio::task::yield_now().await;
+    }
+}
+
 /// Handle coalesced output with ANSI-aware buffering
 pub async fn handle_coalesced_output(
     coalescing_state: &CoalescingState,
@@ -121,52 +175,120 @@ pub async fn handle_coalesced_output(
                 }
             };
 
-            // Mark unscheduled
-            {
-                let mut scheduled = emit_scheduled_for_task.write().await;
-                if let Some(flag) = scheduled.get_mut(&id_for_task) {
-                    *flag = false;
-                }
-            }
-
-            // Emit the data
-            if let Some(bytes) = data_to_emit {
+            // Emit the first chunk, then drain any additional safe chunks now
+            if let Some(first_bytes) = data_to_emit {
                 if let Some(handle) = app_for_emit.lock().await.as_ref() {
                     let event_name = format!("terminal-output-{id_for_task}");
-                    let payload = String::from_utf8_lossy(&bytes).to_string();
-                    if let Err(e) = handle.emit(&event_name, payload) {
-                        warn!("Failed to emit terminal output: {e}");
+                    // Chunked, ANSI-safe emission to avoid truncation and partial loss
+                    emit_ansi_safe_chunks(
+                        handle,
+                        &event_name,
+                        &id_for_task,
+                        first_bytes,
+                        &emit_buffers_for_task,
+                    )
+                    .await;
+                }
+                // Drain more safe chunks immediately to avoid leaving tail data stuck
+                loop {
+                    let maybe_more: Option<Vec<u8>> = {
+                        let mut buffers = emit_buffers_for_task.write().await;
+                        if let Some(mut buffer) = buffers.remove(&id_for_task) {
+                            if ansi::has_incomplete_ansi_sequence(&buffer) {
+                                let safe_point = ansi::find_safe_split_point(&buffer);
+                                if safe_point > 0 && safe_point < buffer.len() {
+                                    let remaining = buffer.split_off(safe_point);
+                                    buffers.insert(id_for_task.clone(), remaining);
+                                    Some(buffer)
+                                } else if safe_point == 0 {
+                                    buffers.insert(id_for_task.clone(), buffer);
+                                    None
+                                } else {
+                                    Some(buffer)
+                                }
+                            } else {
+                                Some(buffer)
+                            }
+                        } else { None }
+                    };
+                    let Some(bytes) = maybe_more else { break };
+                    if let Some(handle) = app_for_emit.lock().await.as_ref() {
+                        let event_name = format!("terminal-output-{id_for_task}");
+                        emit_ansi_safe_chunks(
+                            handle,
+                            &event_name,
+                            &id_for_task,
+                            bytes,
+                            &emit_buffers_for_task,
+                        )
+                        .await;
                     }
+                    tokio::task::yield_now().await;
                 }
             }
 
-            // If there's remaining data (incomplete sequence), reschedule
+            // Reset scheduling flag so future writes can re-schedule
             {
-                let buffers = emit_buffers_for_task.read().await;
-                if buffers.contains_key(&id_for_task) {
-                    // There's still data, schedule another emission
-                    drop(buffers);
+                let mut scheduled = emit_scheduled_for_task.write().await;
+                if let Some(flag) = scheduled.get_mut(&id_for_task) { *flag = false; }
+                else { scheduled.insert(id_for_task.clone(), false); }
+            }
+
+            // If new data arrived while emitting, schedule another quick pass
+            {
+                let has_remaining = {
+                    let buffers = emit_buffers_for_task.read().await;
+                    buffers.contains_key(&id_for_task)
+                };
+                if has_remaining {
                     let mut scheduled = emit_scheduled_for_task.write().await;
                     if let Some(flag) = scheduled.get_mut(&id_for_task) {
-                        if !*flag {
-                            *flag = true;
-                            // Schedule another emission after a short delay
-                            let _app_for_emit = Arc::clone(&app_for_emit);
-                            let _emit_buffers_for_next = Arc::clone(&emit_buffers_for_task);
-                            let emit_scheduled_for_next = Arc::clone(&emit_scheduled_for_task);
-                            let id_for_next = id_for_task.clone();
-                            
-                            tokio::spawn(async move {
-                                sleep(Duration::from_millis(5)).await; // Slightly longer delay for incomplete sequences
-                                
-                                // Mark it as ready to be processed again on next data
-                                let mut scheduled = emit_scheduled_for_next.write().await;
-                                if let Some(flag) = scheduled.get_mut(&id_for_next) {
-                                    *flag = false; // Allow it to be scheduled again on next data
-                                }
-                            });
+                        if !*flag { *flag = true; }
+                    } else { scheduled.insert(id_for_task.clone(), true); }
+                    let app_for_emit2 = Arc::clone(&app_for_emit);
+                    let emit_buffers_for_task2 = Arc::clone(&emit_buffers_for_task);
+                    let emit_scheduled_for_task2 = Arc::clone(&emit_scheduled_for_task);
+                    let id_for_task2 = id_for_task.clone();
+                    tokio::spawn(async move {
+                        sleep(Duration::from_millis(1)).await;
+                        loop {
+                            let maybe_chunk: Option<Vec<u8>> = {
+                                let mut buffers = emit_buffers_for_task2.write().await;
+                                if let Some(mut buffer) = buffers.remove(&id_for_task2) {
+                                    if ansi::has_incomplete_ansi_sequence(&buffer) {
+                                        let safe_point = ansi::find_safe_split_point(&buffer);
+                                        if safe_point > 0 && safe_point < buffer.len() {
+                                            let remaining = buffer.split_off(safe_point);
+                                            buffers.insert(id_for_task2.clone(), remaining);
+                                            Some(buffer)
+                                        } else if safe_point == 0 {
+                                            buffers.insert(id_for_task2.clone(), buffer);
+                                            None
+                                        } else {
+                                            Some(buffer)
+                                        }
+                                    } else { Some(buffer) }
+                                } else { None }
+                            };
+                            let Some(bytes) = maybe_chunk else { break };
+                            if let Some(handle) = app_for_emit2.lock().await.as_ref() {
+                                let event_name = format!("terminal-output-{id_for_task2}");
+                                emit_ansi_safe_chunks(
+                                    handle,
+                                    &event_name,
+                                    &id_for_task2,
+                                    bytes,
+                                    &emit_buffers_for_task2,
+                                )
+                                .await;
+                            }
+                            tokio::task::yield_now().await;
                         }
-                    }
+                        // Reset flag again
+                        let mut scheduled = emit_scheduled_for_task2.write().await;
+                        if let Some(flag) = scheduled.get_mut(&id_for_task2) { *flag = false; }
+                        else { scheduled.insert(id_for_task2.clone(), false); }
+                    });
                 }
             }
         });
@@ -548,5 +670,42 @@ mod tests {
         let buffer = buffers.get("test-term").unwrap();
         // CRLF sequences should be preserved
         assert_eq!(buffer, b"Line 1\r\nLine 2\r\nLine 3");
+    }
+
+    #[tokio::test]
+    async fn test_emits_remaining_without_new_writes() {
+        // Verifies that if additional data is already buffered after an emit, it will be
+        // emitted in the same scheduling cycle without waiting for a later write.
+        let state = CoalescingState {
+            app_handle: Arc::new(Mutex::new(None)),
+            emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+            emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+            emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+            norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+        };
+
+        // First chunk schedules emission
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "term",
+            data: b"hello ",
+            delay_ms: 0,
+        }).await;
+
+        // Second chunk arrives before the first emission task runs
+        handle_coalesced_output(&state, CoalescingParams {
+            terminal_id: "term",
+            data: b"world",
+            delay_ms: 0,
+        }).await;
+
+        // Give the task time to drain both chunks
+        sleep(Duration::from_millis(10)).await;
+
+        // Buffer should be empty (both chunks were emitted/consumed)
+        assert!(!state.emit_buffers.read().await.contains_key("term"));
+
+        // And the scheduling flag should be reset
+        let scheduled = state.emit_scheduled.read().await;
+        assert_eq!(*scheduled.get("term").unwrap_or(&false), false);
     }
 }
