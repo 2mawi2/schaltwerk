@@ -44,6 +44,7 @@ interface MockXTerm {
   __triggerKey: (e: KeyboardEvent) => boolean
   focus: () => void
   scrollToBottom: () => void
+  scrollLines: (amount: number) => void
   dispose: () => void
   resize: (cols: number, rows: number) => void
 }
@@ -61,16 +62,26 @@ vi.mock('xterm', () => {
     options: Record<string, unknown>
     cols = 80
     rows = 24
-    write = vi.fn()
+    write = vi.fn((_d?: string, cb?: () => void) => {
+      if (typeof cb === 'function') cb()
+      return undefined as unknown as void
+    })
     keyHandler: ((e: KeyboardEvent) => boolean) | null = null
     dataHandler: ((d: string) => void) | null = null
     loadAddon = vi.fn()
+    __blankTail = 0
     buffer = {
       active: {
         viewportY: 0,
         length: 100,
         baseY: 0,
-        cursorY: 0
+        cursorY: 0,
+        getLine: (idx: number) => {
+          const isBlank = idx >= (this.buffer.active.length - this.__blankTail)
+          return {
+            translateToString: () => (isBlank ? '   ' : 'content')
+          }
+        }
       }
     }
     parser = {
@@ -89,11 +100,15 @@ vi.mock('xterm', () => {
       this.dataHandler = fn
     }
     scrollToBottom() {}
+    scrollLines = vi.fn()
     focus() {}
     dispose() {}
     resize(cols: number, rows: number) {
       this.cols = cols
       this.rows = rows
+    }
+    __setTrailingBlankLines(n: number) {
+      this.__blankTail = Math.max(0, n)
     }
     __triggerData(d: string) {
       this.dataHandler?.(d)
@@ -433,6 +448,26 @@ describe('Terminal component', () => {
     const xterm = getLastXtermInstance()
     expect(xterm.options.cursorStyle).toBe('block')
     expect(xterm.options.cursorBlink).toBe(true)
+  })
+
+  it('tightens Codex bottom space during output flush', async () => {
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+    renderTerminal({ terminalId: 'session-codex-top', sessionName: 'codex', agentType: 'codex' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    // Simulate being at bottom
+    xterm.buffer.active.baseY = 50
+    xterm.buffer.active.viewportY = 50
+    xterm.buffer.active.length = 100
+    ;(xterm as any).__setTrailingBlankLines(3)
+
+    // Emit some output to trigger the flush logic
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-codex-top', 'hello')
+    await flushAll()
+
+    // Expect a scrollLines up by trailing blank count
+    expect((xterm.scrollLines as any).mock.calls.some((c: unknown[]) => c[0] === -3)).toBe(true)
   })
 
 

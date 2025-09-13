@@ -14,6 +14,7 @@ import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
+import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -59,6 +60,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const writeQueueRef = useRef<string[]>([]);
     const rafIdRef = useRef<number | null>(null);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const seqRef = useRef<number>(0);
+    const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // When renderer isn't ready, avoid unbounded recursive timers by keeping a single retry timer
     const notReadyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const unlistenRef = useRef<UnlistenFn | null>(null);
@@ -598,22 +601,30 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 if (!terminal.current || writeQueueRef.current.length === 0) return;
                 const chunk = writeQueueRef.current.join('');
                 writeQueueRef.current = [];
-                terminal.current.write(chunk);
-                
-                // Only auto-scroll if user is already at bottom
-                requestAnimationFrame(() => {
-                    if (terminal.current) {
+                try {
+                    // Capture bottom state BEFORE writing; write callback runs after parse
+                    const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                    const wasAtBottom = (buffer as any)?.viewportY === (buffer as any)?.baseY;
+                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
+                    terminal.current.write(chunk, () => {
                         try {
-                            const buffer = terminal.current.buffer.active;
-                            const isAtBottom = buffer.viewportY === buffer.baseY;
-                            if (isAtBottom) {
-                                terminal.current.scrollToBottom();
+                            if (!wasAtBottom) return; // user scrolled up; do not force scroll
+                            const buf = terminal.current!.buffer.active as unknown as ActiveBufferLike;
+                            if (agentType === 'codex' && typeof buf?.getLine === 'function') {
+                                const trailing = countTrailingBlankLines(buf);
+                                terminal.current!.scrollToBottom();
+                                if (trailing > 0) terminal.current!.scrollLines(-trailing);
+                                if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten: trailing=${trailing}`);
+                            } else {
+                                terminal.current!.scrollToBottom();
                             }
                         } catch (error) {
-                            logger.debug('Scroll error during terminal output', error)
+                            logger.debug('Scroll error during terminal output (cb)', error);
                         }
-                    }
-                });
+                    });
+                } catch (e) {
+                    logger.debug('xterm write failed in flushQueuedWrites', e);
+                }
             }, 2);
         };
 
@@ -632,27 +643,38 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (!terminal.current || writeQueueRef.current.length === 0) return;
             const chunk = writeQueueRef.current.join('');
             writeQueueRef.current = [];
-            terminal.current.write(chunk);
-            
-            // Only auto-scroll if user is already at bottom
-            requestAnimationFrame(() => {
-                if (terminal.current) {
+            try {
+                const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                const wasAtBottom = (buffer as any)?.viewportY === (buffer as any)?.baseY;
+                if (termDebug()) logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
+                terminal.current.write(chunk, () => {
                     try {
-                        const buffer = terminal.current.buffer.active;
-                        const isAtBottom = buffer.viewportY === buffer.baseY;
-                        if (isAtBottom) {
-                            terminal.current.scrollToBottom();
+                        if (!wasAtBottom) return;
+                        const buf = terminal.current!.buffer.active as unknown as ActiveBufferLike;
+                        if (agentType === 'codex' && typeof buf?.getLine === 'function') {
+                            const trailing = countTrailingBlankLines(buf);
+                            terminal.current!.scrollToBottom();
+                            if (trailing > 0) terminal.current!.scrollLines(-trailing);
+                            if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(now): trailing=${trailing}`);
+                        } else {
+                            terminal.current!.scrollToBottom();
                         }
                     } catch (error) {
-                        logger.debug('Scroll error during buffer flush', error)
+                        logger.debug('Scroll error during buffer flush (cb)', error);
                     }
-                }
-            });
+                });
+            } catch (e) {
+                logger.debug('xterm write failed in flushNow', e);
+            }
         };
 
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
         unlistenPromiseRef.current = listenTerminalOutput(terminalId, (output) => {
+            if (termDebug()) {
+                const n = ++seqRef.current;
+                logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${writeQueueRef.current.length}`)
+            }
             if (cancelled) return;
             if (!hydratedRef.current) {
                 pendingOutput.current.push(output);
@@ -822,7 +844,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (wasAtBottom && !isUILayoutChange) {
                         requestAnimationFrame(() => {
                             try {
-                                terminal.current?.scrollToBottom();
+                                if (!terminal.current) return
+                                if (agentType === 'codex') {
+                                    const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
+                                    const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                                    terminal.current.scrollToBottom()
+                                    if (trailing > 0) terminal.current.scrollLines(-trailing)
+                                } else {
+                                    terminal.current.scrollToBottom()
+                                }
                             } catch (error) {
                                 logger.debug('Failed to scroll to bottom after font size change', error);
                             }
@@ -886,7 +916,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (wasAtBottom && !isUILayoutChange) {
                 requestAnimationFrame(() => {
                     try {
-                        terminal.current?.scrollToBottom();
+                        if (!terminal.current) return
+                        if (agentType === 'codex') {
+                            const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
+                            const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                            terminal.current.scrollToBottom()
+                            if (trailing > 0) terminal.current.scrollLines(-trailing)
+                        } else {
+                            terminal.current.scrollToBottom()
+                        }
                     } catch (error) {
                         logger.debug('Failed to scroll to bottom after resize', error);
                     }
