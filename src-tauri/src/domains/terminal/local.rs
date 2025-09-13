@@ -322,11 +322,15 @@ impl LocalPtyAdapter {
                                         },
                                     ).await;
                                 } else {
-                                    // Standard terminals bypass coalescing for immediate, unprocessed output
-                                    // This prevents fish autocomplete interference and typing issues
+                                    // Standard terminals use direct output but with minimal ANSI processing
+                                    // for fish shell compatibility while maintaining low latency
                                     if let Some(handle) = coalescing_state_clone.app_handle.lock().await.as_ref() {
                                         let event_name = format!("terminal-output-{id_clone}");
-                                        let payload = String::from_utf8_lossy(&data).to_string();
+                                        
+                                        // Apply minimal carriage return processing for fish compatibility
+                                        let processed_data = Self::process_carriage_returns_minimal(&data);
+                                        let payload = String::from_utf8_lossy(&processed_data).to_string();
+                                        
                                         if let Err(e) = handle.emit(&event_name, payload) {
                                             warn!("Failed to emit direct terminal output: {e}");
                                         }
@@ -721,6 +725,46 @@ impl LocalPtyAdapter {
             terminal_id.contains("session-") ||
             terminal_id.contains("orchestrator-")
         )
+    }
+    
+    /// Minimal carriage return processing for fish shell compatibility
+    /// Only handles standalone CR sequences that would interfere with autosuggestions
+    fn process_carriage_returns_minimal(data: &[u8]) -> Vec<u8> {
+        if !data.contains(&b'\r') {
+            return data.to_vec();
+        }
+        
+        let mut result = Vec::with_capacity(data.len());
+        let mut i = 0;
+        
+        while i < data.len() {
+            if data[i] == b'\r' {
+                // Check if this is CRLF (should be preserved as-is)
+                if i + 1 < data.len() && data[i + 1] == b'\n' {
+                    result.push(b'\r');
+                    result.push(b'\n');
+                    i += 2;
+                } else {
+                    // Standalone CR - this can interfere with fish autosuggestions
+                    // Convert to just the content after CR if there's more data
+                    let remaining = &data[i + 1..];
+                    if remaining.contains(&b'\n') {
+                        // There's a newline later, so this CR overwrites current line content
+                        // Skip the CR and continue with the overwriting content
+                        i += 1;
+                    } else {
+                        // No newline follows, preserve the CR
+                        result.push(b'\r');
+                        i += 1;
+                    }
+                }
+            } else {
+                result.push(data[i]);
+                i += 1;
+            }
+        }
+        
+        result
     }
     
     /// Determines the agent type from terminal ID
