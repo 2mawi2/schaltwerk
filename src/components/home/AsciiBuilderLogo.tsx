@@ -27,6 +27,23 @@ interface AsciiBuilderLogoProps {
   idleArtifactDurationMs?: number
   idleArtifactMagnitude?: number
   idleArtifactFraction?: number
+
+  /** NEW: cap rendering FPS for lower CPU. Default 60. */
+  maxFps?: number
+  /** NEW: pause rendering when component not visible. Default true. */
+  visibilityPause?: boolean
+  /** NEW: respect prefers-reduced-motion (instantly render final state). Default true. */
+  respectReducedMotion?: boolean
+  /** NEW: tiny idle light drift for subtle premium feel. Default true. */
+  idleLightDrift?: boolean
+  /** NEW: optional gradient text (requires Tailwind bg utilities). Default false. */
+  useGradientText?: boolean
+  /** NEW: optional subtle glow (text-shadow). Default 'subtle'. */
+  glow?: 'none' | 'subtle' | 'soft'
+  /** NEW: callback when all particles settle the first time. */
+  onAssembled?: () => void
+  /** NEW: extend classes (keeps your colorClassName). */
+  className?: string
 }
 
 const DEFAULT_ASCII = `╔═══╗╔═══╗╔╗ ╔╗╔═══╗╔╗  ╔═══╗╔╗  ╔╗╔═══╗╔═══╗╔╗╔═╗
@@ -45,26 +62,39 @@ export function AsciiBuilderLogo({
   spinDurationMs = 2600,
   fallDurationMs = 600,
   groupGapMs = 140,
-  cameraDollyMs = 900,
-  shakeIntensity = 0.6,
+  cameraDollyMs = 820, // slightly tighter for a cleaner beat
+  shakeIntensity = 0.5, // toned down for professionalism
   shadingCharset = ' .,:;irsXA253hMHGS#9B&@',
   groupOrder = 'center-out',
   // Idle style defaults to artifact echoes
   idleMode = 'artifact', // 'artifact' | 'artifact+pulse' | 'pulse' | 'wobble' | 'still'
   // Pulse settings
-  idlePulseMinDelayMs = 5200,
-  idlePulseMaxDelayMs = 8200,
-  idlePulseDurationMs = 1100,
-  idlePulseAngleDeg = 1.1,
+  idlePulseMinDelayMs = 5400,
+  idlePulseMaxDelayMs = 8400,
+  idlePulseDurationMs = 1000,
+  idlePulseAngleDeg = 0.9,
   // Artifact echo settings
-  idleArtifactMinDelayMs = 1600,
-  idleArtifactMaxDelayMs = 2600,
-  idleArtifactDurationMs = 900,
-  idleArtifactMagnitude = 3.6,
+  idleArtifactMinDelayMs = 1700,
+  idleArtifactMaxDelayMs = 2700,
+  idleArtifactDurationMs = 920,
+  idleArtifactMagnitude = 3.2, // a touch softer
   idleArtifactFraction = 0.10,
+
+  // NEW
+  maxFps = 60,
+  visibilityPause = true,
+  respectReducedMotion = true,
+  idleLightDrift = true,
+  useGradientText = false,
+  glow = 'subtle',
+  onAssembled,
+  className = '',
 }: AsciiBuilderLogoProps) {
   const preRef = useRef<HTMLPreElement | null>(null)
   const frameRef = useRef<number | null>(null)
+  const lastFrameTsRef = useRef<number>(0)
+  const isInViewportRef = useRef<boolean>(true)
+  const reducedMotionRef = useRef<boolean>(false)
 
   // Parse art and build groups; also compute spatial group orders
   const {
@@ -136,7 +166,6 @@ export function AsciiBuilderLogo({
       segments.splice(0, segments.length, ...segs)
     }
 
-    // Build assembly order based on requested groupOrder
     const cx = (w - 1) / 2
     const orderedIndices = segments
       .map((seg, idx) => ({ idx, seg }))
@@ -150,6 +179,7 @@ export function AsciiBuilderLogo({
         return b.seg.cx - a.seg.cx
       })
       .map(({ idx }) => idx)
+
     const groupOrderIndex: number[] = Array(segments.length)
     for (let rank = 0; rank < orderedIndices.length; rank++) {
       groupOrderIndex[orderedIndices[rank]] = rank
@@ -192,6 +222,7 @@ export function AsciiBuilderLogo({
       centerX,
       centerY
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asciiArt, groupOrder])
 
   // Particles (main build only — no intro flicker/teasers)
@@ -239,6 +270,31 @@ export function AsciiBuilderLogo({
     zSign: number
   }>>(new Map())
 
+  // Visibility & reduced motion setup
+  useEffect(() => {
+    if (!visibilityPause || !preRef.current) return
+    const el = preRef.current
+    const io = new IntersectionObserver(
+      (entries) => {
+        const [e] = entries
+        isInViewportRef.current = !!e?.isIntersecting
+      },
+      { threshold: 0.01 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [visibilityPause])
+
+  useEffect(() => {
+    if (!respectReducedMotion) { reducedMotionRef.current = false; return }
+    if (typeof window === 'undefined') return
+    const m = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    const set = () => { reducedMotionRef.current = !!m?.matches }
+    set()
+    m?.addEventListener?.('change', set)
+    return () => m?.removeEventListener?.('change', set)
+  }, [respectReducedMotion])
+
   useEffect(() => {
     const particles: typeof particlesRef.current = []
 
@@ -273,15 +329,12 @@ export function AsciiBuilderLogo({
       const sy = -(height * 0.9 + 8 + rand() * 8)
       const sz = 16 + rand() * 18
 
-      // Start immediately, but: no per-particle jitter for the very first group
-      // to avoid any pre-build flicker. Later groups keep some jitter.
-      const jitter = groupRank <= 1 ? 0 : Math.floor(rand() * 120)
-
-
+      // No jitter for first two groups to avoid pre-build flicker
+      const jitter = groupRank <= 1 ? 0 : Math.floor(rand() * 110)
       const delayMs = groupRank * perGroupDelay + jitter
 
-      const fallMs = baseFall + Math.floor((rand() - 0.5) * 250)
-      const settleMs = baseSettle + Math.floor((rand() - 0.5) * 150)
+      const fallMs = baseFall + Math.floor((rand() - 0.5) * 220)
+      const settleMs = baseSettle + Math.floor((rand() - 0.5) * 140)
 
       const { nx, ny, nz } = cellNormals[i]
       particles.push({
@@ -316,6 +369,7 @@ export function AsciiBuilderLogo({
     scanIndexRef.current = 0
     scanDirRef.current = 1
     allSetAtRef.current = -1
+    lastFrameTsRef.current = 0
    }, [
      width, height, targetCells, cellNormals, cellToGroup,
      groups, centerX, centerY,
@@ -350,10 +404,11 @@ export function AsciiBuilderLogo({
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t
     const easeInCubic = (t: number) => t * t * t
     const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3)
-    const easeOutBack = (t: number, s = 1.70158) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2)
+    const easeOutBack = (t: number, s = 1.28) => 1 + (s + 1) * Math.pow(t - 1, 3) + s * Math.pow(t - 1, 2) // slightly softer
 
-    const lightDir = normalize3([-0.4, -0.25, 0.88])
-    function normalize3(v: [number, number, number]) {
+    // Base light; may drift subtly after assembly
+    const baseLight: [number, number, number] = [-0.4, -0.25, 0.88]
+    const normalize3 = (v: [number, number, number]) => {
       const m = Math.hypot(v[0], v[1], v[2]) || 1
       return [v[0] / m, v[1] / m, v[2] / m] as [number, number, number]
     }
@@ -392,22 +447,19 @@ export function AsciiBuilderLogo({
       const ids = groupToParticleIdsRef.current[segId] || []
       if (ids.length === 0) return
 
-      const takeFraction = clamp(idleArtifactFraction, 0.02, 0.45)
-      const count = Math.max(3, Math.floor(ids.length * takeFraction))
-      const chosen: number[] = []
+      const takeFraction = clamp(idleArtifactFraction, 0.03, 0.40)
+      const targetCount = Math.max(3, Math.floor(ids.length * takeFraction))
 
-      // Reservoir-like random pick without duplicates
-      for (let i = 0; i < ids.length && chosen.length < count; i++) {
-        const idx = Math.floor(artifactRand() * ids.length)
-        const pid = ids[idx]
-        if (!chosen.includes(pid)) chosen.push(pid)
+      // Random pick without duplicates (Set to avoid O(n^2))
+      const chosen = new Set<number>()
+      while (chosen.size < targetCount && chosen.size < ids.length) {
+        chosen.add(ids[Math.floor(artifactRand() * ids.length)])
       }
 
       const dur = idleArtifactDurationMs
       for (const pid of chosen) {
-        // Create or refresh echo state
         const baseAngle = artifactRand() * Math.PI * 2
-        const mag = idleArtifactMagnitude * (0.8 + artifactRand() * 0.4)
+        const mag = idleArtifactMagnitude * (0.82 + artifactRand() * 0.38)
         const zSign = artifactRand() < 0.5 ? 1 : -1
         echoStatesRef.current.set(pid, { start: now, duration: dur, baseAngle, mag, zSign })
       }
@@ -417,9 +469,42 @@ export function AsciiBuilderLogo({
         artifactRand() * (idleArtifactMaxDelayMs - idleArtifactMinDelayMs)
     }
 
+    const minFrameMs = Math.max(1000 / clamp(maxFps, 12, 120), 8)
+
     const draw = (timestamp: number) => {
       if (!running) return
+      // Respect visibility & tab state & FPS cap
+      if (visibilityPause && (!isInViewportRef.current || (typeof document !== 'undefined' && document.hidden))) {
+        frameRef.current = raf(draw); return
+      }
+      if (maxFps > 0) {
+        const since = timestamp - lastFrameTsRef.current
+        if (since < minFrameMs) { frameRef.current = raf(draw); return }
+        lastFrameTsRef.current = timestamp
+      }
       if (paused) { frameRef.current = raf(draw); return }
+
+      // Render final frame only for reduced motion
+      if (respectReducedMotion && reducedMotionRef.current) {
+        // Compose and print target frame once
+        for (let i = 0; i < depth.length; i++) { depth[i] = -Infinity; chars[i] = ' ' }
+        for (let p = 0; p < particlesRef.current.length; p++) {
+          const prt = particlesRef.current[p]
+          const gx = Math.round(prt.tx + (width - 1) / 2)
+          const gy = Math.round(prt.ty + (height - 1) / 2)
+          if (gx >= 0 && gx < width && gy >= 0 && gy < height) {
+            chars[gy * width + gx] = prt.char
+          }
+        }
+        const outLines: string[] = []
+        for (let y = 0; y < height; y++) {
+          const from = y * width
+          outLines.push(chars.slice(from, from + width).join(''))
+        }
+        pre.textContent = outLines.join('\n')
+        // no raf loop in reduced motion
+        return
+      }
 
       if (startTimeRef.current == null) startTimeRef.current = timestamp
       const elapsed = timestamp - startTimeRef.current
@@ -432,9 +517,9 @@ export function AsciiBuilderLogo({
       const allSet = particlesRef.current.every(p => (elapsed - p.delayMs - p.fallMs) >= p.settleMs)
       if (allSet && allSetAtRef.current < 0) {
         allSetAtRef.current = elapsed
-        // brief beat before the first idle artifact
         lastArtifactAtRef.current = elapsed
         nextArtifactDelayRef.current = Math.max(idleArtifactMinDelayMs * 0.7, 900)
+        onAssembled?.()
       }
 
       // End motion: camera pulse/wobble
@@ -443,7 +528,7 @@ export function AsciiBuilderLogo({
       if (allSet) {
         if (idleMode === 'wobble') {
           const wobblePhase = (elapsed % spinDurationMs) / spinDurationMs
-          const amp = 0.6 * Math.PI / 180
+          const amp = 0.5 * Math.PI / 180
           extraRotX = Math.sin(wobblePhase * Math.PI * 2) * amp
           extraRotY = Math.cos(wobblePhase * Math.PI * 2) * amp
         }
@@ -454,9 +539,8 @@ export function AsciiBuilderLogo({
             if ((elapsed - lastPulseAtRef.current) >= nextPulseDelayRef.current) {
               pulseStartAtRef.current = elapsed
               lastPulseAtRef.current = elapsed
-              const nextDelay = idlePulseMinDelayMs +
+              nextPulseDelayRef.current = idlePulseMinDelayMs +
                 pulseRand() * (idlePulseMaxDelayMs - idlePulseMinDelayMs)
-              nextPulseDelayRef.current = nextDelay
               active = true
             }
           }
@@ -464,27 +548,40 @@ export function AsciiBuilderLogo({
             const t = clamp((elapsed - pulseStartAtRef.current) / idlePulseDurationMs, 0, 1)
             const e = Math.sin(Math.PI * t)
             const amp = (idlePulseAngleDeg * Math.PI) / 180
-            extraRotX += e * amp * 0.75
-            extraRotY += e * amp * 1.0
-            fov += e * 1.2
+            extraRotX += e * amp * 0.7
+            extraRotY += e * amp
+            fov += e * 1.1
           }
         }
       }
 
       // World rotation decays from swirl to idle stillness
-      const swirlDecay = 1 - clamp(elapsed / (fallDurationMs + groups.segments.length * groupGapMs + 400), 0, 1)
-      const worldRotX = (swirlDecay * (18 * Math.PI / 180)) + extraRotX
-      const worldRotY = (swirlDecay * (-22 * Math.PI / 180)) + extraRotY
+      const swirlDecay = 1 - clamp(elapsed / (fallDurationMs + groups.segments.length * groupGapMs + 420), 0, 1)
+      const worldRotX = (swirlDecay * (17 * Math.PI / 180)) + extraRotX
+      const worldRotY = (swirlDecay * (-21 * Math.PI / 180)) + extraRotY
 
-      // Schedule idle artifact echoes (right->left->right ping-pong)
+      // Schedule idle artifact echoes
       if (allSet && (idleMode === 'artifact' || idleMode === 'artifact+pulse')) {
         if ((elapsed - lastArtifactAtRef.current) >= nextArtifactDelayRef.current) {
           scheduleArtifactEcho(elapsed)
         }
       }
 
-      // Light/shade
-      const [lx, ly, lz] = lightDir
+      // Subtle idle light drift for a premium, not flashy, feel
+      let [lx, ly, lz] = baseLight
+      if (allSet && idleLightDrift) {
+        const t = (elapsed - allSetAtRef.current) * 0.001 // seconds since assembled
+        const yaw = Math.sin(t * 0.38) * (2 * Math.PI / 180) // ±2°
+        const pitch = Math.cos(t * 0.27) * (1.5 * Math.PI / 180) // ±1.5°
+        const cosy = Math.cos(yaw), siny = Math.sin(yaw)
+        const cosp = Math.cos(pitch), sinp = Math.sin(pitch)
+        // rotate baseLight by yaw (Y) then pitch (X)
+        const x1 = lx * cosy + lz * siny
+        const z1 = -lx * siny + lz * cosy
+        const y2 = ly * cosp - z1 * sinp
+        const z2 = ly * sinp + z1 * cosp
+        ;[lx, ly, lz] = normalize3([x1, y2, z2])
+      }
 
       // Group snap shake (during assembly only)
       let shakeX = 0, shakeY = 0
@@ -492,10 +589,10 @@ export function AsciiBuilderLogo({
         const now = elapsed
         for (let gi = 0; gi < groupSnapAt.length; gi++) {
           const t = now - groupSnapAt[gi]
-          if (t >= 0 && t < 260) {
-            const k = (1 - t / 260)
-            shakeX += (Math.sin(t * 0.09 + gi) * 0.7) * k
-            shakeY += (Math.cos(t * 0.11 + gi * 1.3) * 0.5) * k
+          if (t >= 0 && t < 240) {
+            const k = (1 - t / 240)
+            shakeX += (Math.sin(t * 0.09 + gi) * 0.6) * k
+            shakeY += (Math.cos(t * 0.11 + gi * 1.3) * 0.45) * k
           }
         }
         shakeX *= shakeIntensity
@@ -512,15 +609,15 @@ export function AsciiBuilderLogo({
         const afterFallTime = localTime - particle.fallMs
         const tSettle = clamp(afterFallTime / particle.settleMs, 0, 1)
 
-        // Pre-target (intro feel)
-        const preTargetX = particle.tx + Math.sin(particle.tx * 0.35 + particle.ty * 0.15) * 0.6
-        const preTargetY = particle.ty - 2
-        const preTargetZ = particle.tz + 2 + Math.cos(particle.tx * 0.3 + particle.ty * 0.27) * 0.8
+        // Pre-target (tiny parallax before settle)
+        const preTargetX = particle.tx + Math.sin(particle.tx * 0.33 + particle.ty * 0.15) * 0.55
+        const preTargetY = particle.ty - 1.8
+        const preTargetZ = particle.tz + 2 + Math.cos(particle.tx * 0.3 + particle.ty * 0.27) * 0.75
 
         let x, y, z
         if (inFall) {
           const e = easeInCubic(tFall)
-          const swirlA = (1 - tFall) * (Math.PI * 0.7)
+          const swirlA = (1 - tFall) * (Math.PI * 0.68)
           const cosA = Math.cos(swirlA), sinA = Math.sin(swirlA)
           let xf = particle.sx + (preTargetX - particle.sx) * e
           let yf = particle.sy + (preTargetY - particle.sy) * e
@@ -529,7 +626,7 @@ export function AsciiBuilderLogo({
           const rz = -xf * sinA + zf * cosA
           x = rx; y = yf; z = rz
         } else {
-          const e = easeOutBack(tSettle, 1.2)
+          const e = easeOutBack(tSettle, 1.22)
           x = preTargetX + (particle.tx - preTargetX) * e
           y = preTargetY + (particle.ty - preTargetY) * e
           z = preTargetZ + (particle.tz - preTargetZ) * e
@@ -550,14 +647,14 @@ export function AsciiBuilderLogo({
               echoStatesRef.current.delete(particle.id)
             } else {
               const amp = Math.sin(Math.PI * te) // 0..1..0
-              const theta = es.baseAngle + te * 5.3
+              const theta = es.baseAngle + te * 5.1
               const rad = es.mag * amp
               const dx = Math.cos(theta) * rad
               const dy = Math.sin(theta * 0.9) * rad * 0.33
               const dz = rad * 0.85 * es.zSign
               x += dx; y += dy; z += dz
               echoActive = amp > 0.12
-              echoSnapFlash = te > 0.85
+              echoSnapFlash = te > 0.86
             }
           }
         }
@@ -591,14 +688,15 @@ export function AsciiBuilderLogo({
             // Shade during fall or echo; flash on snap-in
             if (inFall || echoActive) {
               const lambert = Math.max(0, particle.nx * lx + particle.ny * ly + particle.nz * lz)
-              const ambient = 0.25
-              const b = clamp(ambient + lambert * 0.8, 0, 1)
+              const ambient = 0.24
+              // slight gamma shaping for richer midtones
+              const b = clamp(ambient + Math.pow(lambert, 0.9) * 0.78, 0, 1)
               const i = Math.min(shadingCharset.length - 1, Math.floor(b * (shadingCharset.length - 1)))
               const shadeChar = shadingCharset[i]
               chars[idx] = echoSnapFlash ? '█' : shadeChar
             } else {
               const snapT = Math.max(0, 1 - tSettle)
-              const flash = snapT > 0.85 ? '█' : particle.char
+              const flash = snapT > 0.86 ? '█' : particle.char
               chars[idx] = flash
             }
           }
@@ -626,14 +724,29 @@ export function AsciiBuilderLogo({
      spinDurationMs, cameraDollyMs, fallDurationMs, settleDurationMs, groupGapMs,
      shadingCharset, groups.segments.length, shakeIntensity,
      idleMode, idlePulseMinDelayMs, idlePulseMaxDelayMs, idlePulseDurationMs, idlePulseAngleDeg,
-     idleArtifactMinDelayMs, idleArtifactMaxDelayMs, idleArtifactDurationMs, idleArtifactMagnitude, idleArtifactFraction
+     idleArtifactMinDelayMs, idleArtifactMaxDelayMs, idleArtifactDurationMs, idleArtifactMagnitude, idleArtifactFraction,
+     maxFps, visibilityPause, respectReducedMotion, idleLightDrift, onAssembled
    ])
+
+  // Styling helpers (optional gradient & glow)
+  const gradientClasses = useGradientText
+    ? 'bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-400 bg-clip-text text-transparent'
+    : colorClassName
+
+  const textShadow =
+    glow === 'soft'
+      ? '0 0 10px rgba(59,130,246,0.35), 0 0 22px rgba(59,130,246,0.2)'
+      : glow === 'subtle'
+      ? '0 0 6px rgba(59,130,246,0.25)'
+      : 'none'
 
   return (
     <pre
       ref={preRef}
-      className={`${colorClassName} ascii-logo text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl font-mono select-none`}
+      className={`${gradientClasses} ascii-logo block leading-[1.05] text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl font-mono select-none ${className}`}
+      style={{ textShadow }}
       aria-label="SCHALTWERK 3D assembled logo"
+      role="img"
     />
   )
 }
