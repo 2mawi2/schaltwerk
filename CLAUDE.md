@@ -244,6 +244,11 @@ Example: Instead of `setTimeout(() => checkIfReady(), 100)`, use proper event li
 - Always log with context
 - Provide actionable information
 
+### Comment Style (MANDATORY)
+- Do not use comments to narrate what changed or what is new.
+- Prefer self-documenting code; only add comments when strictly necessary to explain WHY (intent/rationale), not WHAT.
+- Keep any necessary comments concise and local to the logic they justify.
+
 ## Logging
 
 ### Configuration

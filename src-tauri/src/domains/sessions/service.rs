@@ -77,7 +77,56 @@ mod service_unified_tests {
             was_auto_generated: false,
             spec_content: None,
             session_state: SessionState::Running,
+            resume_allowed: true,
         }
+    }
+
+    #[test]
+    fn test_resume_gating_after_spec_then_first_start_is_fresh() {
+        let (manager, temp_dir) = create_test_session_manager();
+        // Arrange temp HOME to simulate Claude history existing
+        let home_dir = tempfile::tempdir().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_dir.path());
+
+        // Make the repo a valid git repo with an initial commit
+        std::process::Command::new("git").args(["init"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+        std::process::Command::new("git").args(["config","user.email","test@example.com"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+        std::process::Command::new("git").args(["config","user.name","Test User"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+        std::fs::write(temp_dir.path().join("repo").join("README.md"), "Initial").unwrap();
+        std::process::Command::new("git").args(["add","."]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+        std::process::Command::new("git").args(["commit","-m","init"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+
+        // Create a spec session, then start it (Spec -> Running; gates resume)
+        let spec_name = "spec-gating";
+        manager.create_spec_session(spec_name, "Build feature A").unwrap();
+        manager.start_spec_session(spec_name, None, None, None).unwrap();
+
+        // Simulate Claude session files existing for this worktree so resume would normally happen
+        let session = manager.db_manager.get_session_by_name(spec_name).unwrap();
+        // Use the same sanitizer as Claude for projects dir name via public fast finder side-effect
+        let projects_root = home_dir.path().join(".claude").join("projects");
+        let sanitized = {
+            // reconstruct sanitized by calling finder on the path and inferring the dir it checks
+            // Since sanitize_path_for_claude is private, mimic behavior: replace '/', '.', '_' with '-'
+            session.worktree_path.to_string_lossy().replace(['/', '.', '_'], "-")
+        };
+        let projects = projects_root.join(sanitized);
+        std::fs::create_dir_all(&projects).unwrap();
+        std::fs::write(projects.join("history.jsonl"), b"dummy").unwrap();
+
+        // First start should be FRESH (no --continue / no -r)
+        let cmd1 = manager.start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new()).unwrap();
+        assert!(cmd1.contains(" claude"));
+        assert!(!cmd1.contains("--continue"));
+        assert!(!cmd1.contains(" -r "));
+
+        // Second start should allow resume now (resume_allowed flipped true)
+        let cmd2 = manager.start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new()).unwrap();
+        assert!(cmd2.contains("--continue"), "Expected resume via --continue on second start");
+
+        // Cleanup HOME
+        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
     }
 
     #[test]
@@ -293,6 +342,7 @@ impl SessionManager {
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
             session_state: SessionState::Running,
+            resume_allowed: true,
         };
         
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
@@ -343,7 +393,6 @@ impl SessionManager {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save session to database: {}", e));
         }
-
         let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
         let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
         let _ = self.db_manager.set_session_original_settings(&session.id, &global_agent, global_skip);
@@ -402,6 +451,8 @@ impl SessionManager {
         }
         
         self.db_manager.update_session_status(&session.id, SessionStatus::Cancelled)?;
+        // Gate resume until the next fresh start
+        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
         log::info!("Cancel {name}: Session cancelled successfully");
         Ok(())
     }
@@ -500,6 +551,8 @@ impl SessionManager {
         
         // Update database status
         self.db_manager.update_session_status(&session.id, SessionStatus::Cancelled)?;
+        // Gate resume until the next fresh start
+        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
         log::info!("Fast cancel {name}: Successfully completed");
         
         Ok(())
@@ -542,6 +595,8 @@ impl SessionManager {
         
         self.db_manager.update_session_status(&session.id, SessionStatus::Spec)?;
         self.db_manager.update_session_state(&session.id, SessionState::Spec)?;
+        // Gate resume until first start after conversion
+        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
         
         // Reset run state fields when converting to spec
         self.db_manager.update_session_ready_to_merge(&session.id, false)?;
@@ -752,24 +807,27 @@ impl SessionManager {
             log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
             log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
             
-            // Check for existing Claude session to determine if we should resume or start fresh
-            // Use fast-path detection that just checks if any sessions exist
-            let resumable_session_id = crate::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path);
+            // Check DB gating first: if resume not allowed, we must start fresh regardless of disk state
+            let resume_allowed = session.resume_allowed;
+            // Check for existing Claude session files (fast-path) only if resume is allowed
+            let resumable_session_id = if resume_allowed {
+                crate::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path)
+            } else { None };
             log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
             
             // Determine session_id and prompt based on force_restart and existing session
-            let (session_id_to_use, prompt_to_use) = if force_restart {
+            let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 // Explicit restart - always use initial prompt, no session resumption
                 log::info!("Session manager: Force restarting Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
-                (None, session.initial_prompt.as_deref())
+                (None, session.initial_prompt.as_deref(), true)
             } else if let Some(session_id) = resumable_session_id {
                 // Session exists with actual conversation content and not forcing restart - resume with session ID
                 log::info!("Session manager: Resuming existing Claude session '{}' with session_id='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
-                (Some(session_id), None)
+                (Some(session_id), None, false)
             } else {
                 // No resumable session - use initial prompt for first start or empty sessions
                 log::info!("Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
-                (None, session.initial_prompt.as_deref())
+                (None, session.initial_prompt.as_deref(), true)
             };
             
             log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
@@ -777,6 +835,11 @@ impl SessionManager {
             // Only mark session as prompted if we're actually using the prompt
             if prompt_to_use.is_some() {
                 self.cache_manager.mark_session_prompted(&session.worktree_path);
+            }
+
+            // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
+            if did_start_fresh && !resume_allowed {
+                let _ = self.db_manager.set_session_resume_allowed(&session.id, true);
             }
             
             if let Some(agent) = registry.get("claude") {
@@ -1110,6 +1173,7 @@ impl SessionManager {
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
+            resume_allowed: true,
         };
         
         self.db_manager.create_session(&session)?;
@@ -1163,6 +1227,7 @@ impl SessionManager {
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
+            resume_allowed: true,
         };
         
         if let Err(e) = self.db_manager.create_session(&session) {
@@ -1309,6 +1374,8 @@ impl SessionManager {
         
         self.db_manager.update_session_status(&session.id, SessionStatus::Active)?;
         self.db_manager.update_session_state(&session.id, SessionState::Running)?;
+        // Ensure we gate resume on first agent start after spec start
+        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
         
         if let Some(spec_content) = session.spec_content {
             log::info!("Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'");

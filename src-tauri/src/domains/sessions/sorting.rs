@@ -47,6 +47,7 @@ mod session_sorting_tests {
                 None 
             },
             session_state: state,
+            resume_allowed: true,
         }
     }
 

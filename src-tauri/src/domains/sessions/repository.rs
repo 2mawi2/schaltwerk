@@ -106,6 +106,11 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to clear session run state: {}", e))
     }
 
+    pub fn set_session_resume_allowed(&self, session_id: &str, allowed: bool) -> Result<()> {
+        self.db.set_session_resume_allowed(session_id, allowed)
+            .map_err(|e| anyhow!("Failed to set resume_allowed: {}", e))
+    }
+
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
         self.db.rename_draft_session(&self.repo_path, old_name, new_name)
             .map_err(|e| anyhow!("Failed to rename spec session: {}", e))

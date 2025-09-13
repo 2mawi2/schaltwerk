@@ -374,7 +374,7 @@ mod tests {
             let mock_emitter = MockEmitter::new();
             let tracker = ActivityTracker::new(db.clone(), mock_emitter.clone());
 
-            let session = Session {
+        let session = Session {
                 id: "s-1".into(),
                 name: "test-session".into(),
                 display_name: None,
@@ -396,8 +396,9 @@ mod tests {
                 pending_name_generation: false,
                 was_auto_generated: false,
                 spec_content: None,
-                session_state: SessionState::Running,
-            };
+            session_state: SessionState::Running,
+            resume_allowed: true,
+        };
             db.create_session(&session).unwrap();
 
             // Create untracked file (should be detected)
@@ -432,7 +433,7 @@ mod tests {
             std::fs::create_dir_all(&dir).unwrap();
             std::fs::write(dir.join("file.txt"), "x").unwrap();
 
-            let session = Session {
+        let session = Session {
                 id: "s-2".into(),
                 name: "fallback".into(),
                 display_name: None,
@@ -454,8 +455,9 @@ mod tests {
                 pending_name_generation: false,
                 was_auto_generated: false,
                 spec_content: None,
-                session_state: SessionState::Running,
-            };
+            session_state: SessionState::Running,
+            resume_allowed: true,
+        };
             db.create_session(&session).unwrap();
 
             let emitted = tracker.refresh_stats_and_activity_for_session(&session).unwrap();

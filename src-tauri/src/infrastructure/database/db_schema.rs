@@ -165,6 +165,8 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN was_auto_generated BOOLEAN DEFAULT FALSE", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN spec_content TEXT", []);
     let _ = conn.execute("ALTER TABLE sessions ADD COLUMN session_state TEXT DEFAULT 'running'", []);
+    // New: gate agent resume after Spec/Cancel until first fresh start
+    let _ = conn.execute("ALTER TABLE sessions ADD COLUMN resume_allowed BOOLEAN DEFAULT TRUE", []);
     Ok(())
 }
 
