@@ -1,16 +1,182 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::fs;
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {
     pub binary_path: Option<String>,
 }
 
-// We rely on PATH for codex binary resolution now
-// Removed unused binary resolution helpers to satisfy dead_code lint
-
-pub fn find_codex_session(_path: &Path) -> Option<String> {
+pub fn find_codex_session_fast(path: &Path) -> Option<String> {
+    log::debug!("🔍 Codex session detection starting for path: {}", path.display());
+    
+    let home = dirs::home_dir()
+        .or_else(|| std::env::var("HOME").ok().map(PathBuf::from));
+    
+    if home.is_none() {
+        log::warn!("❌ Codex session detection: Could not determine home directory");
+        return None;
+    }
+    
+    let home = home.unwrap();
+    let sessions_dir = home.join(".codex").join("sessions");
+    let target_path = path.to_string_lossy().to_string();
+    
+    log::debug!("📁 Codex session detection: Sessions directory: {}", sessions_dir.display());
+    log::debug!("🎯 Codex session detection: Target CWD: {target_path:?}");
+    
+    if !sessions_dir.exists() {
+        log::debug!("📂 Codex session detection: Sessions directory does not exist, no sessions to resume");
+        return None;
+    }
+    
+    match find_sessions_by_cwd(&sessions_dir, &target_path) {
+        Ok(entries) => {
+            log::debug!("📄 Codex session detection: Scanned sessions directory, found {} matching files", entries.len());
+            
+            if !entries.is_empty() {
+                log::debug!("✅ Codex session detection: Found session files:");
+                for (i, entry) in entries.iter().enumerate() {
+                    log::debug!("  {}. {}", i + 1, entry.display());
+                }
+                log::debug!("🔄 Codex session detection: Returning '__continue__' marker for most recent session resumption");
+                return Some("__continue__".to_string());
+            } else {
+                log::debug!("❌ Codex session detection: No sessions found matching CWD: {target_path:?}");
+            }
+        }
+        Err(e) => {
+            log::error!("💥 Codex session detection: Error scanning sessions directory: {e}");
+        }
+    }
+    
+    log::debug!("🚫 Codex session detection: No resumable sessions found for path: {}", path.display());
     None
 }
+
+pub fn find_codex_session(path: &Path) -> Option<String> {
+    find_codex_session_fast(path)
+}
+
+fn find_sessions_by_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut matching_sessions = Vec::new();
+    let mut total_scanned = 0;
+    
+    fn scan_directory(dir: &Path, target: &str, matches: &mut Vec<PathBuf>, scanned_count: &mut i32) -> Result<(), std::io::Error> {
+        log::debug!("📁 Scanning directory: {}", dir.display());
+        
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            
+            if path.is_dir() {
+                scan_directory(&path, target, matches, scanned_count)?;
+            } else if path.extension().is_some_and(|ext| ext == "jsonl") {
+                *scanned_count += 1;
+                log::debug!("🔍 Checking session file: {}", path.display());
+                
+                if session_matches_cwd(&path, target) {
+                    log::debug!("✅ Found matching session: {}", path.display());
+                    matches.push(path);
+                } else {
+                    log::debug!("❌ Session does not match CWD: {}", path.display());
+                }
+            }
+        }
+        Ok(())
+    }
+    
+    scan_directory(sessions_dir, target_cwd, &mut matching_sessions, &mut total_scanned)?;
+    
+    log::debug!("📊 Session scan complete: {} JSONL files scanned, {} matches found", total_scanned, matching_sessions.len());
+    
+    // Sort by modification time (newest first)
+    matching_sessions.sort_by_key(|path| {
+        path.metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+    });
+    matching_sessions.reverse();
+    
+    if !matching_sessions.is_empty() {
+        log::debug!("📅 Sessions sorted by modification time (newest first):");
+        for (i, session) in matching_sessions.iter().enumerate() {
+            if let Ok(metadata) = session.metadata() {
+                if let Ok(modified) = metadata.modified() {
+                    log::debug!("  {}. {} (modified: {:?})", i + 1, session.display(), modified);
+                }
+            }
+        }
+    }
+    
+    Ok(matching_sessions)
+}
+
+fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
+    log::debug!("🔍 Checking session file for CWD match: {}", session_file.display());
+    log::debug!("🎯 Looking for CWD: {target_cwd:?}");
+    
+    let content = match fs::read_to_string(session_file) {
+        Ok(content) => content,
+        Err(e) => {
+            log::debug!("❌ Failed to read session file: {e}");
+            return false;
+        }
+    };
+    
+    let lines: Vec<&str> = content.lines().collect();
+    log::debug!("📄 Session file has {} lines to check", lines.len());
+    
+    for (line_num, line) in lines.iter().enumerate() {
+        if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
+            log::debug!("📝 Parsing JSON on line {}: {:?}", line_num + 1, json.get("type").and_then(|v| v.as_str()).unwrap_or("unknown"));
+            
+            // Check session_meta.cwd field (top-level)
+            if let Some(cwd) = json.get("cwd").and_then(|v| v.as_str()) {
+                log::debug!("🔍 Found top-level CWD: {cwd:?}");
+                if cwd == target_cwd {
+                    log::debug!("✅ CWD match found in top-level field: {}", session_file.display());
+                    return true;
+                }
+            }
+            
+            // Check session_meta payload
+            if let Some(payload) = json.get("payload") {
+                if let Some(cwd) = payload.get("cwd").and_then(|v| v.as_str()) {
+                    log::debug!("🔍 Found payload CWD: {cwd:?}");
+                    if cwd == target_cwd {
+                        log::debug!("✅ CWD match found in payload field: {}", session_file.display());
+                        return true;
+                    }
+                }
+                
+                // Check environment_context in message content
+                if let Some(content_array) = payload.get("content").and_then(|v| v.as_array()) {
+                    log::debug!("📋 Checking {} content items for environment_context", content_array.len());
+                    for (item_idx, content_item) in content_array.iter().enumerate() {
+                        if let Some(text) = content_item.get("text").and_then(|v| v.as_str()) {
+                            if text.contains("<environment_context>") {
+                                log::debug!("🌍 Found environment_context in content item {item_idx}");
+                                let cwd_pattern = format!("<cwd>{target_cwd}</cwd>");
+                                if text.contains(&cwd_pattern) {
+                                    log::debug!("✅ CWD match found in environment_context: {}", session_file.display());
+                                    return true;
+                                } else {
+                                    log::debug!("❌ environment_context does not contain target CWD pattern");
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            log::debug!("⚠️ Line {} is not valid JSON, skipping", line_num + 1);
+        }
+    }
+    
+    log::debug!("❌ No CWD match found in session file");
+    false
+}
+
 
 pub fn build_codex_command_with_config(
     worktree_path: &Path,
@@ -41,18 +207,35 @@ pub fn build_codex_command_with_config(
     // Add sandbox mode first (this is an option)
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));
     
-    // NOTE: Additional CLI args will be inserted by the calling code in schaltwerk_core.rs
-    // between the sandbox flag and the prompt. This ensures proper order:
-    // codex --sandbox MODE [ADDITIONAL_OPTIONS] [PROMPT]
+    // Handle session resumption
+    log::debug!("🛠️ Codex command builder: Configuring session for worktree: {}", worktree_path.display());
+    log::debug!("🛠️ Codex command builder: Binary: {binary_name:?}, Sandbox: {sandbox_mode:?}");
     
-    // Only add prompt at the end if this is a new session (no session_id)
-    // If we have a session_id, we're reopening an existing session, so don't re-prompt
-    if session_id.is_none() {
-        if let Some(prompt) = initial_prompt {
-            let escaped = prompt.replace('"', r#"\""#);
-            cmd.push_str(&format!(r#" "{escaped}""#));
+    if let Some(session) = session_id {
+        if session == "__continue__" {
+            // Special value to indicate using --continue flag for most recent conversation
+            log::debug!("🔄 Codex command builder: Using --continue flag to resume most recent session");
+            log::debug!("🔄 This will resume the newest session found for this project directory");
+            cmd.push_str(" --continue");
+        } else {
+            // Resume specific session with conversation history using --resume flag
+            log::debug!("🎯 Codex command builder: Resuming specific session {session:?} using --resume flag");
+            log::debug!("🎯 This will resume the exact session specified by ID");
+            cmd.push_str(&format!(" --resume {session}"));
         }
+    } else if let Some(prompt) = initial_prompt {
+        // Start fresh with initial prompt
+        log::debug!("✨ Codex command builder: Starting fresh session with initial prompt");
+        log::debug!("✨ Prompt: {prompt:?}");
+        let escaped = prompt.replace('"', r#"\""#);
+        cmd.push_str(&format!(r#" "{escaped}""#));
+    } else {
+        // Start fresh without prompt
+        log::debug!("🆕 Codex command builder: Starting fresh session without prompt or session resumption");
+        log::debug!("🆕 Codex will start a new session by default with no additional flags");
     }
+    
+    log::debug!("🚀 Codex command builder: Final command: {cmd:?}");
     
     cmd
 }
@@ -94,18 +277,33 @@ mod tests {
     }
 
     #[test]
-    fn test_reopening_session_ignores_prompt() {
+    fn test_resume_specific_session() {
         let config = CodexConfig {
             binary_path: Some("codex".to_string()),
         };
         let cmd = build_codex_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("existing-session"),
+            Some("existing-session-uuid"),
             Some("this prompt should be ignored"),
             "workspace-write",
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox workspace-write");
+        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox workspace-write --resume existing-session-uuid");
+    }
+    
+    #[test]
+    fn test_continue_most_recent_session() {
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("__continue__"),
+            Some("this prompt should be ignored"),
+            "workspace-write",
+            Some(&config),
+        );
+        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox workspace-write --continue");
     }
 
     #[test]
@@ -139,8 +337,69 @@ mod tests {
     }
 
     #[test]
-    fn test_find_session_always_returns_none() {
-        let result = find_codex_session(Path::new("/any/path"));
-        assert_eq!(result, None);
+    fn test_session_matches_cwd_session_meta() {
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+        
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, r#"{{"id":"test-session","timestamp":"2025-09-13T01:00:00.000Z","cwd":"/path/to/project","originator":"codex_cli_rs","cli_version":"0.34.0"}}"#).unwrap();
+        writeln!(temp_file, r#"{{"record_type":"state"}}"#).unwrap();
+        
+        assert!(session_matches_cwd(temp_file.path(), "/path/to/project"));
+        assert!(!session_matches_cwd(temp_file.path(), "/different/path"));
+    }
+    
+    #[test]
+    fn test_session_matches_cwd_environment_context() {
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+        
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, r#"{{"timestamp":"2025-09-13T01:00:00.000Z","type":"response_item","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"<environment_context>\n  <cwd>/path/to/project</cwd>\n  <sandbox_mode>workspace-write</sandbox_mode>\n</environment_context>"}}]}}}}"#).unwrap();
+        
+        assert!(session_matches_cwd(temp_file.path(), "/path/to/project"));
+        assert!(!session_matches_cwd(temp_file.path(), "/different/path"));
+    }
+    
+    #[test]
+    fn test_session_matches_cwd_payload_cwd() {
+        use tempfile::NamedTempFile;
+        use std::io::Write;
+        
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(temp_file, r#"{{"timestamp":"2025-09-13T01:00:00.000Z","type":"session_meta","payload":{{"id":"test-session","cwd":"/path/to/project","originator":"codex_cli_rs"}}}}"#).unwrap();
+        
+        assert!(session_matches_cwd(temp_file.path(), "/path/to/project"));
+        assert!(!session_matches_cwd(temp_file.path(), "/different/path"));
+    }
+    
+    #[test]
+    fn test_continue_with_danger_mode() {
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("__continue__"),
+            None,
+            "danger-full-access",
+            Some(&config),
+        );
+        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox danger-full-access --continue");
+    }
+    
+    #[test]
+    fn test_resume_with_danger_mode() {
+        let config = CodexConfig {
+            binary_path: Some("codex".to_string()),
+        };
+        let cmd = build_codex_command_with_config(
+            Path::new("/path/to/worktree"),
+            Some("session-123"),
+            None,
+            "danger-full-access",
+            Some(&config),
+        );
+        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox danger-full-access --resume session-123");
     }
 }
