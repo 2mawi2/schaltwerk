@@ -148,30 +148,58 @@ export function TerminalGrid() {
             setTerminalKey(prev => prev + 1)
         }
 
-        const handleFocusTerminal = () => {
+        // Track the last specifically requested terminal focus so we can apply it when ready
+        let lastRequestedTerminalId: string | null = null
+
+        const handleFocusTerminal = (e?: Event) => {
             // Don't focus terminal if any modal is open
-            if (isAnyModalOpen()) {
-                return
-            }
-            
+            if (isAnyModalOpen()) return
+
             // Expand if collapsed
             if (isBottomCollapsed) {
                 const expandedSize = lastExpandedBottomPercent || 28
                 setSizes([100 - expandedSize, expandedSize])
                 setIsBottomCollapsed(false)
             }
-            
-            // Focus the terminal using requestAnimationFrame for next render
-            safeTerminalFocus(() => {
-                terminalTabsRef.current?.focus()
-            }, isAnyModalOpen)
+
+            // If a specific terminalId was provided, prefer focusing that one
+            const detail = (e as CustomEvent<{ terminalId?: string; focusType?: 'terminal' | 'claude' }> | undefined)?.detail
+            const targetId = detail?.terminalId || null
+            if (targetId) {
+                lastRequestedTerminalId = targetId
+                safeTerminalFocus(() => {
+                    terminalTabsRef.current?.focusTerminal(targetId)
+                }, isAnyModalOpen)
+            } else {
+                // Fallback: focus the active tab
+                safeTerminalFocus(() => {
+                    terminalTabsRef.current?.focus()
+                }, isAnyModalOpen)
+            }
+        }
+
+        // When a terminal instance finishes hydrating, it emits 'schaltwerk:terminal-ready'.
+        // If that matches the last requested terminal to focus, focus it deterministically now.
+        const handleTerminalReady = (e: Event) => {
+            if (isAnyModalOpen()) return
+            const detail = (e as CustomEvent<{ terminalId: string }>).detail
+            if (!detail) return
+            if (lastRequestedTerminalId && detail.terminalId === lastRequestedTerminalId) {
+                safeTerminalFocus(() => {
+                    terminalTabsRef.current?.focusTerminal(detail.terminalId)
+                }, isAnyModalOpen)
+                // Clear to avoid repeated focusing
+                lastRequestedTerminalId = null
+            }
         }
 
         window.addEventListener('schaltwerk:reset-terminals', handleTerminalReset)
-        window.addEventListener('schaltwerk:focus-terminal', handleFocusTerminal)
+        window.addEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
+        window.addEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         return () => {
             window.removeEventListener('schaltwerk:reset-terminals', handleTerminalReset)
-            window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal)
+            window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
+            window.removeEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         }
     }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, isAnyModalOpen])
 

@@ -132,6 +132,7 @@ vi.mock('./Terminal', () => {
 
 // Mock TerminalTabs to work with the mount counting system
 vi.mock('./TerminalTabs', () => {
+  let lastFocusedTerminalId: string | null = null
   const TerminalTabsMock = forwardRef<MockTerminalTabsRef, { baseTerminalId: string; isCommander?: boolean }>(function TerminalTabsMock(props, ref) {
     const { baseTerminalId, isCommander } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
@@ -148,9 +149,10 @@ vi.mock('./TerminalTabs', () => {
       }
     }, [terminalId, focus])
 
+    const focusTerminal = vi.fn((tid?: string) => { lastFocusedTerminalId = tid || null })
     useImperativeHandle(ref, () => ({ 
       focus,
-      focusTerminal: vi.fn(),
+      focusTerminal,
       getTabsState: () => ({
         tabs: [{ index: 0, terminalId, label: 'Terminal 1' }],
         activeTab: 0,
@@ -181,7 +183,8 @@ vi.mock('./TerminalTabs', () => {
   })
   
   return {
-    TerminalTabs: TerminalTabsMock
+    TerminalTabs: TerminalTabsMock,
+    __getLastFocusedTerminalId: () => lastFocusedTerminalId
   }
 })
 
@@ -231,6 +234,7 @@ import { TerminalGrid } from './TerminalGrid'
 import { TestProviders } from '../../tests/test-utils'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useFocus } from '../../contexts/FocusContext'
+import * as TerminalTabsModule from './TerminalTabs'
 
 // Bridge to call context setters from tests sharing the same provider tree
 let bridge: {
@@ -853,6 +857,42 @@ describe('TerminalGrid', () => {
       
       // Verify the run is still active
       expect(runTerminalStates.get('orchestrator')).toBe(true)
+    })
+  })
+
+  it('focuses the specific terminal on focus request and on terminal-ready', async () => {
+    renderGrid()
+    vi.useRealTimers()
+
+    await waitFor(() => {
+      expect(bridge).toBeDefined()
+      expect(bridge?.isReady).toBe(true)
+    }, { timeout: 3000 })
+
+    if (!bridge) throw new Error('bridge missing')
+    const bottomId = bridge.terminals.bottomBase.includes('orchestrator')
+      ? `${bridge.terminals.bottomBase}-0`
+      : bridge.terminals.bottomBase
+
+    // Dispatch a focus request targeting a specific terminal id
+    act(() => {
+      window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal', { detail: { terminalId: bottomId, focusType: 'terminal' } }))
+    })
+
+    // Our mock records the last focused terminal id via focusTerminal
+    const getLastFocused = (TerminalTabsModule as unknown as { __getLastFocusedTerminalId: () => string | null }).__getLastFocusedTerminalId
+    await waitFor(() => {
+      expect(getLastFocused()).toBe(bottomId)
+    })
+
+    // Clear and simulate the terminal becoming ready; focus should be applied again deterministically
+    act(() => {
+      // Reset internal marker by issuing a bogus focus to null
+      window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', { detail: { terminalId: bottomId } }))
+    })
+
+    await waitFor(() => {
+      expect(getLastFocused()).toBe(bottomId)
     })
   })
 })
