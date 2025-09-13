@@ -308,17 +308,7 @@ describe('KanbanView', () => {
         )
     })
 
-    // Scroll-to-view functionality tests
-    describe('Scroll-to-view behavior', () => {
-        beforeEach(() => {
-            mockScrollIntoView.mockReset()
-        })
-
-        it.skip('navigation scroll tests temporarily skipped due to test environment issues', () => {
-            // These tests are skipped because the navigation works in practice but fails in test environment
-            // The functionality has been manually verified to work correctly
-        })
-    })
+    // Scroll-to-view behavior suite removed (no deterministic unit assertions here).
 
     // Keyboard shortcuts tests
     describe('Keyboard Shortcuts', () => {

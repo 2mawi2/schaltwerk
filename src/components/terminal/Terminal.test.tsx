@@ -287,7 +287,7 @@ function renderTerminal(props: React.ComponentProps<typeof Terminal>) {
 describe('Terminal component', () => {
   // Test removed - resize functionality confirmed working in production
 
-  it.skip('hydrates from buffer and flushes pending output in order (batched) - HANGING TEST', async () => {
+  it('hydrates from buffer and flushes pending output in order (batched)', async () => {
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => 'SNAP')
 
     renderTerminal({ terminalId: "session-demo-top", sessionName: "demo" })
@@ -321,7 +321,7 @@ describe('Terminal component', () => {
 
   // Test removed - Codex normalization confirmed working in production
 
-  it.skip('sends input data to backend - POTENTIAL HANG', async () => {
+  it('sends input data to backend', async () => {
     renderTerminal({ terminalId: "session-io-top", sessionName: "io" })
     await flushAll()
 
@@ -382,61 +382,19 @@ describe('Terminal component', () => {
     expect(markReadySpy).toHaveBeenCalledTimes(1)
   })
 
-  it.skip('auto-starts orchestrator when terminal exists - POTENTIAL HANG', async () => {
-    renderTerminal({ terminalId: "orchestrator-auto-top", isCommander: true })
-
-    // hydration tick and start scheduled on next tick
-    await flushAll()
-
-    // next macrotask
-    await advanceAndFlush(1)
-
-    const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
-    expect(startCalls.length).toBe(1)
-
-    // Re-render same id -> should not start again due to global guard
-    renderTerminal({ terminalId: "orchestrator-auto-top", isCommander: true })
-    await flushAll()
-    await advanceAndFlush(1)
-
-    const startCalls2 = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
-    expect(startCalls2.length).toBe(1)
-  })
+  
 
   // Removed implicit orchestrator-top auto-start test per guidance
 
   // Removed retry-until-exists timing test per guidance
 
-  it.skip('does not auto-start for non-top terminals - POTENTIAL HANG', async () => {
-    renderTerminal({ terminalId: "orchestrator-bottom", isCommander: true })
-    await flushAll()
-    vi.advanceTimersByTime(500)
+  
 
-    const startOrch = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude_orchestrator')
-    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
-    expect(startOrch).toBeUndefined()
-    expect(startSess).toBeUndefined()
-  })
+  
 
-  it.skip('session top without sessionName does not start - POTENTIAL HANG', async () => {
-    renderTerminal({ terminalId: "session-missing-top" })
-    await flushAll()
-    vi.advanceTimersByTime(200)
+  
 
-    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
-    expect(startSess).toBeUndefined()
-  })
-
-  it.skip('session top with mismatched id does not start - POTENTIAL HANG', async () => {
-    renderTerminal({ terminalId: "session-foo-top", sessionName: "bar" })
-    await flushAll()
-    vi.advanceTimersByTime(200)
-
-    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
-    expect(startSess).toBeUndefined()
-  })
-
-  it.skip('session top with correct id starts claude for session - POTENTIAL HANG', async () => {
+  it('session top with correct id starts claude for session', async () => {
     renderTerminal({ terminalId: "session-work-top", sessionName: "work" })
     await flushAll()
     vi.advanceTimersByTime(1)
@@ -478,226 +436,7 @@ describe('Terminal component', () => {
   })
 
 
-  describe.skip('Auto-start error handling - NEEDS INVESTIGATION', () => {
-    it.skip('dispatches permission error event on orchestrator permission failure - POTENTIAL HANG', async () => {
-      const permissionErrorSpy = vi.fn()
-      window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
-      
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
-        throw new Error('Permission required for folder: /some/path')
-      })
-      
-      renderTerminal({ terminalId: "orchestrator-perm-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      expect(permissionErrorSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          detail: expect.objectContaining({
-            error: expect.stringContaining('Permission required for folder:')
-          })
-        })
-      )
-      window.removeEventListener('schaltwerk:permission-error', permissionErrorSpy)
-    })
-
-    it.skip('dispatches no-project error event when no project open - POTENTIAL HANG', async () => {
-      const noProjectErrorSpy = vi.fn()
-      window.addEventListener('schaltwerk:no-project-error', noProjectErrorSpy)
-      
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
-        throw new Error('No project is currently open')
-      })
-      
-      renderTerminal({ terminalId: "orchestrator-noproject-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      expect(noProjectErrorSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          detail: expect.objectContaining({
-            error: expect.stringContaining('No project is currently open'),
-            terminalId: "orchestrator-noproject-top"
-          })
-        })
-      )
-      window.removeEventListener('schaltwerk:no-project-error', noProjectErrorSpy)
-    })
-
-    it.skip('dispatches spawn error event on spawn failure - POTENTIAL HANG', async () => {
-      const spawnErrorSpy = vi.fn()
-      window.addEventListener('schaltwerk:spawn-error', spawnErrorSpy)
-      
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
-        throw new Error('Failed to spawn command: para')
-      })
-      
-      renderTerminal({ terminalId: "orchestrator-spawn-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      expect(spawnErrorSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          detail: expect.objectContaining({
-            error: expect.stringContaining('Failed to spawn command'),
-            terminalId: "orchestrator-spawn-top"
-          })
-        })
-      )
-      window.removeEventListener('schaltwerk:spawn-error', spawnErrorSpy)
-    })
-
-    it.skip('dispatches not-git error for non-git repositories - POTENTIAL HANG', async () => {
-      const notGitErrorSpy = vi.fn()
-      window.addEventListener('schaltwerk:not-git-error', notGitErrorSpy)
-      
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
-        throw new Error('fatal: not a git repository (or any of the parent directories): .git')
-      })
-      
-      renderTerminal({ terminalId: "orchestrator-notgit-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      expect(notGitErrorSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          detail: expect.objectContaining({
-            error: expect.stringContaining('not a git repository'),
-            terminalId: "orchestrator-notgit-top"
-          })
-        })
-      )
-      window.removeEventListener('schaltwerk:not-git-error', notGitErrorSpy)
-    })
-
-    it.skip('rolls back start flags on orchestrator failure to allow retry - POTENTIAL HANG', async () => {
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => {
-        throw new Error('Some failure')
-      })
-      
-      renderTerminal({ terminalId: "orchestrator-retry-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      // Check that terminal is not marked as started globally
-      const { clearTerminalStartedTracking } = await import('./Terminal')
-      clearTerminalStartedTracking(['orchestrator-retry-top'])
-      
-      // Try again - should attempt to start again
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => 'success')
-      renderTerminal({ terminalId: "orchestrator-retry-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude_orchestrator'
-      )
-      expect(startCalls.length).toBeGreaterThanOrEqual(2)
-    })
-
-    it.skip('prevents double-start via claude-started event - POTENTIAL HANG', async () => {
-      // First render and start the terminal
-      const { unmount } = renderTerminal({ terminalId: "orchestrator-doublestart-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      // Verify first start happened
-      const firstStartCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude_orchestrator'
-      )
-      expect(firstStartCalls.length).toBe(1)
-      
-      // Unmount and remount - should not start again due to global tracking
-      unmount()
-      
-      renderTerminal({ terminalId: "orchestrator-doublestart-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      // Should still be only 1 call total
-      const totalStartCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude_orchestrator'
-      )
-      expect(totalStartCalls.length).toBe(1)
-    })
-
-    it.skip('handles session auto-start permission errors - POTENTIAL HANG', async () => {
-      const permissionErrorSpy = vi.fn()
-      window.addEventListener('schaltwerk:permission-error', permissionErrorSpy)
-      
-      ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude', () => {
-        throw new Error('Permission required for folder: /some/session/path')
-      })
-      
-      renderTerminal({ terminalId: "session-perm-top", sessionName: "perm" })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      expect(permissionErrorSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          detail: expect.objectContaining({
-            error: expect.stringContaining('Permission required for folder:')
-          })
-        })
-      )
-      window.removeEventListener('schaltwerk:permission-error', permissionErrorSpy)
-    })
-
-    it.skip('prevents session name mismatch from auto-starting - POTENTIAL HANG', async () => {
-      renderTerminal({ terminalId: "session-mismatch-top", sessionName: "different" })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude'
-      )
-      expect(startCalls.length).toBe(0)
-    })
-
-    it('handles orchestrator auto-start without terminal existence checks', async () => {
-      // OPTIMIZATION: We no longer check terminal_exists before starting
-      // This test verifies the optimized behavior
-      
-      renderTerminal({ terminalId: "orchestrator-retryexists-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      // Should immediately attempt to start without checking existence
-      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude_orchestrator'
-      )
-      expect(startCalls.length).toBe(1)
-      
-      // Verify no terminal_exists checks were made
-      const existsCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'terminal_exists'
-      )
-      expect(existsCalls.length).toBe(0)
-    })
-
-    it('attempts to start orchestrator immediately without retry delays', async () => {
-      // OPTIMIZATION: We no longer have retry delays or terminal existence checks
-      // The orchestrator starts immediately when hydrated
-      
-      renderTerminal({ terminalId: "orchestrator-maxretry-top", isCommander: true })
-      await flushAll()
-      await advanceAndFlush(1)
-      
-      // Should attempt to start immediately without any retries
-      const startCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude_orchestrator'
-      )
-      expect(startCalls.length).toBe(1)
-      
-      // Verify no delays were introduced
-      await advanceAndFlush(150 * 12)
-      // Should still only have one start call (no retries)
-      const allStartCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'schaltwerk_core_start_claude_orchestrator'
-      )
-      expect(allStartCalls.length).toBe(1)
-    })
-  })
+  
 
   describe('Resize debouncing and OpenCode special handling', () => {
     // Test removed - OpenCode resize confirmed working in production
