@@ -58,6 +58,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const [searchTerm, setSearchTerm] = useState('');
     // Batch terminal writes to reduce xterm parse/render overhead
     const writeQueueRef = useRef<string[]>([]);
+    const queueBytesRef = useRef(0);
+    const droppedBytesRef = useRef(0);
     const rafIdRef = useRef<number | null>(null);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const seqRef = useRef<number>(0);
@@ -72,6 +74,58 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const listenerAgentRef = useRef<string | undefined>(agentType);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
+
+    // Write queue helpers shared across effects
+    const MAX_QUEUE_BYTES = 4 * 1024 * 1024; // ~4MB soft cap
+    const TARGET_AFTER_DROP = 2 * 1024 * 1024;
+    const MAX_WRITE_CHUNK = 64 * 1024;      // 64KB chunks
+
+    const enqueueWrite = (data: string) => {
+        writeQueueRef.current.push(data);
+        queueBytesRef.current += data.length;
+        if (queueBytesRef.current > MAX_QUEUE_BYTES) {
+            let toDrop = queueBytesRef.current - TARGET_AFTER_DROP;
+            while (toDrop > 0 && writeQueueRef.current.length > 0) {
+                const head = writeQueueRef.current[0];
+                if (head.length <= toDrop) {
+                    writeQueueRef.current.shift();
+                    queueBytesRef.current -= head.length;
+                    droppedBytesRef.current += head.length;
+                    toDrop -= head.length;
+                } else {
+                    writeQueueRef.current[0] = head.slice(toDrop);
+                    queueBytesRef.current -= toDrop;
+                    droppedBytesRef.current += toDrop;
+                    toDrop = 0;
+                }
+            }
+            const note = `\r\n[schaltwerk] output truncated (${Math.round(droppedBytesRef.current/1024)}KB dropped)\r\n`;
+            writeQueueRef.current.unshift(note);
+            queueBytesRef.current += note.length;
+            droppedBytesRef.current = 0;
+        }
+    };
+
+    const dequeueChunk = (limit: number) => {
+        let taken = 0;
+        const pieces: string[] = [];
+        while (writeQueueRef.current.length > 0 && taken < limit) {
+            const next = writeQueueRef.current[0];
+            const room = limit - taken;
+            if (next.length <= room) {
+                pieces.push(next);
+                writeQueueRef.current.shift();
+                queueBytesRef.current -= next.length;
+                taken += next.length;
+            } else {
+                pieces.push(next.slice(0, room));
+                writeQueueRef.current[0] = next.slice(room);
+                queueBytesRef.current -= room;
+                taken += room;
+            }
+        }
+        return pieces.join('');
+    };
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -273,6 +327,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         hydratedRef.current = false;
         pendingOutput.current = [];
         writeQueueRef.current = [];
+        queueBytesRef.current = 0;
+        droppedBytesRef.current = 0;
         if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
         if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
 
@@ -583,6 +639,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Defer initial resize until we have a real fit with measurable container
 
+
         // Flush queued writes with minimal delay for responsiveness
         const flushQueuedWrites = () => {
             // Defer until renderer is ready to avoid xterm renderer invariants
@@ -601,8 +658,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             flushTimerRef.current = setTimeout(() => {
                 flushTimerRef.current = null;
                 if (!terminal.current || writeQueueRef.current.length === 0) return;
-                const chunk = writeQueueRef.current.join('');
-                writeQueueRef.current = [];
+                const chunk = dequeueChunk(MAX_WRITE_CHUNK);
                 try {
                     // Capture bottom state BEFORE writing; write callback runs after parse
                     const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
@@ -612,6 +668,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         try {
                             if (!wasAtBottom) return; // user scrolled up; do not force scroll
                             terminal.current!.scrollToBottom();
+                            if (writeQueueRef.current.length > 0) {
+                                flushQueuedWrites();
+                            }
                         } catch (error) {
                             logger.debug('Scroll error during terminal output (cb)', error);
                         }
@@ -635,8 +694,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
             if (!terminal.current || writeQueueRef.current.length === 0) return;
-            const chunk = writeQueueRef.current.join('');
-            writeQueueRef.current = [];
+            const chunk = dequeueChunk(MAX_WRITE_CHUNK);
             try {
                 const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
                 const wasAtBottom = (buffer as any)?.viewportY === (buffer as any)?.baseY;
@@ -645,6 +703,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     try {
                         if (!wasAtBottom) return;
                         terminal.current!.scrollToBottom();
+                        if (writeQueueRef.current.length > 0) {
+                            flushNow();
+                        }
                     } catch (error) {
                         logger.debug('Scroll error during buffer flush (cb)', error);
                     }
@@ -656,33 +717,43 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
-        unlistenPromiseRef.current = listenTerminalOutput(terminalId, (output) => {
-            if (termDebug()) {
-                const n = ++seqRef.current;
-                logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${writeQueueRef.current.length}`)
-            }
-            if (cancelled) return;
-            if (!hydratedRef.current) {
-                pendingOutput.current.push(output);
-            } else {
-                writeQueueRef.current.push(output);
-                flushQueuedWrites();
-            }
-        }).then((fn) => { unlistenRef.current = fn; return fn; });
+        const attachListener = async () => {
+            unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+                if (termDebug()) {
+                    const n = ++seqRef.current;
+                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${writeQueueRef.current.length}`)
+                }
+                if (cancelled) return;
+                if (!hydratedRef.current) {
+                    pendingOutput.current.push(output);
+                } else {
+                    enqueueWrite(output);
+                    flushQueuedWrites();
+                }
+            });
+            return unlistenRef.current!;
+        };
+        unlistenPromiseRef.current = attachListener();
         listenerAgentRef.current = agentType;
 
         // Hydrate from buffer
         const hydrateTerminal = async () => {
             try {
+                // Ensure listener is attached before snapshot so there is zero gap
+                try {
+                    await unlistenPromiseRef.current;
+                } catch (e) {
+                    logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
+                }
                 const snapshot = await invoke<string>('get_terminal_buffer', { id: terminalId });
                 
                 if (snapshot) {
-                    writeQueueRef.current.push(snapshot);
+                    enqueueWrite(snapshot);
                 }
                 // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
                     for (const output of pendingOutput.current) {
-                        writeQueueRef.current.push(output);
+                        enqueueWrite(output);
                     }
                     pendingOutput.current = [];
                  }
@@ -1089,14 +1160,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             flushTimerRef.current = setTimeout(() => {
                 flushTimerRef.current = null;
                 if (!terminal.current || writeQueueRef.current.length === 0) return;
-                const chunk = writeQueueRef.current.join('');
-                writeQueueRef.current = [];
+                const chunk = dequeueChunk(MAX_WRITE_CHUNK);
                 terminal.current.write(chunk);
                 requestAnimationFrame(() => {
                     try {
                         const buffer = terminal.current!.buffer.active;
                         const atBottom = buffer.viewportY === buffer.baseY;
                         if (atBottom) terminal.current!.scrollToBottom();
+                        if (writeQueueRef.current.length > 0) {
+                            flushQueuedWritesLight();
+                        }
                     } catch (e) {
                         logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
                     }
@@ -1124,7 +1197,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (!hydratedRef.current) {
                         pendingOutput.current.push(output);
                     } else {
-                        writeQueueRef.current.push(output);
+                        enqueueWrite(output);
                         flushQueuedWritesLight();
                     }
                 });

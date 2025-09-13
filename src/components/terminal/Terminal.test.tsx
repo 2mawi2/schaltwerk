@@ -334,6 +334,33 @@ describe('Terminal component', () => {
     }
   })
 
+  it('flushes output even when container has zero size (renderer ready after open)', async () => {
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+
+    const { container } = renderTerminal({ terminalId: 'session-hidden-top', sessionName: 'hidden' })
+    await flushAll()
+
+    // Simulate collapsed/hidden container: measurable element with 0x0 size
+    const terminalDiv = container.querySelector('div')
+    if (terminalDiv) {
+      Object.defineProperty(terminalDiv, 'clientWidth', { value: 0, configurable: true })
+      Object.defineProperty(terminalDiv, 'clientHeight', { value: 0, configurable: true })
+      Object.defineProperty(terminalDiv, 'isConnected', { value: true, configurable: true })
+    }
+
+    // Emit some output; it should still flush despite zero size
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-hidden-top', 'A')
+
+    // Allow internal debounced flush (2ms) and readiness retry timers to run
+    await advanceAndFlush(50)
+
+    const xterm = getLastXtermInstance()
+    const allWrites = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .map((call: unknown[]) => call[0])
+      .join('')
+    expect(allWrites).toContain('A')
+  })
+
   // Test removed - Codex normalization confirmed working in production
 
   it('sends input data to backend', async () => {
