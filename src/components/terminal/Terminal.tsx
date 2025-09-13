@@ -11,6 +11,13 @@ import { theme } from '../../common/theme';
 import { AnimatedText } from '../common/AnimatedText';
 import '@xterm/xterm/css/xterm.css';
 import { logger } from '../../utils/logger'
+import { countTrailingBlankLines } from '../../utils/termScroll'
+
+// Minimal xterm active buffer shape used by our scroll helpers
+type ActiveBufferLike = {
+    length: number
+    getLine: (idx: number) => { translateToString: (trimRight?: boolean) => string } | undefined
+}
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
@@ -723,14 +730,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       }
                   });
 
-                  // Scroll to bottom after hydration to show latest content
+                  // Scroll after hydration. For Codex, tighten to last content line
                   requestAnimationFrame(() => {
-                      if (terminal.current) {
-                          try {
-                              terminal.current.scrollToBottom();
-                          } catch (error) {
-                              logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration:`, error);
+                      if (!terminal.current) return
+                      try {
+                          if (agentType === 'codex') {
+                              const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
+                              const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                              terminal.current.scrollToBottom()
+                              if (trailing > 0) {
+                                  // Move viewport up to place last content line at the bottom
+                                  terminal.current.scrollLines(-trailing)
+                              }
+                          } else {
+                              terminal.current.scrollToBottom()
                           }
+                      } catch (error) {
+                          logger.warn(`[Terminal ${terminalId}] Failed to finalize scroll after hydration:`, error)
                       }
                   });
 
@@ -754,14 +770,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Flush immediately; subsequent events will be batched
                     flushNow();
                     
-                    // Scroll to bottom even on hydration failure
+                    // On hydration failure, still perform Codex-tight scroll if applicable
                     requestAnimationFrame(() => {
-                        if (terminal.current) {
-                            try {
-                                terminal.current.scrollToBottom();
-                            } catch (error) {
-                                logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
+                        if (!terminal.current) return
+                        try {
+                            if (agentType === 'codex') {
+                                const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
+                                const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                                terminal.current.scrollToBottom()
+                                if (trailing > 0) terminal.current.scrollLines(-trailing)
+                            } else {
+                                terminal.current.scrollToBottom()
                             }
+                        } catch (error) {
+                            logger.warn(`[Terminal ${terminalId}] Failed to finalize scroll after hydration failure:`, error)
                         }
                     });
                 }
@@ -1287,15 +1309,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (terminal.current) {
                 requestAnimationFrame(() => {
                     try {
-                        terminal.current?.scrollToBottom();
+                        if (agentType === 'codex') {
+                            const buf = terminal.current!.buffer.active as unknown as ActiveBufferLike
+                            const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                            terminal.current!.scrollToBottom()
+                            if (trailing > 0) terminal.current!.scrollLines(-trailing)
+                        } else {
+                            terminal.current!.scrollToBottom()
+                        }
                     } catch (error) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
+                        logger.warn(`[Terminal ${terminalId}] Failed to adjust scroll on session switch:`, error);
                     }
                 });
             }
             previousTerminalId.current = terminalId;
         }
-    }, [terminalId]);
+    }, [terminalId, agentType]);
 
 
     const handleTerminalClick = () => {
