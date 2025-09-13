@@ -222,7 +222,6 @@ export function AsciiBuilderLogo({
       centerX,
       centerY
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [asciiArt, groupOrder])
 
   // Particles (main build only — no intro flicker/teasers)

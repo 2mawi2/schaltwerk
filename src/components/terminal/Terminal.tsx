@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -80,7 +80,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const TARGET_AFTER_DROP = 2 * 1024 * 1024;
     const MAX_WRITE_CHUNK = 64 * 1024;      // 64KB chunks
 
-    const enqueueWrite = (data: string) => {
+    const enqueueWrite = useCallback((data: string) => {
         writeQueueRef.current.push(data);
         queueBytesRef.current += data.length;
         if (queueBytesRef.current > MAX_QUEUE_BYTES) {
@@ -104,7 +104,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             queueBytesRef.current += note.length;
             droppedBytesRef.current = 0;
         }
-    };
+    }, [MAX_QUEUE_BYTES, TARGET_AFTER_DROP]);
 
     const dequeueChunk = (limit: number) => {
         let taken = 0;
@@ -662,7 +662,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     // Capture bottom state BEFORE writing; write callback runs after parse
                     const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                    const wasAtBottom = (buffer as any)?.viewportY === (buffer as any)?.baseY;
+                    const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
+                        ? buffer.viewportY === buffer.baseY
+                        : false;
                     if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                     terminal.current.write(chunk, () => {
                         try {
@@ -697,7 +699,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const chunk = dequeueChunk(MAX_WRITE_CHUNK);
             try {
                 const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                const wasAtBottom = (buffer as any)?.viewportY === (buffer as any)?.baseY;
+                const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
+                    ? buffer.viewportY === buffer.baseY
+                    : false;
                 if (termDebug()) logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                 terminal.current.write(chunk, () => {
                     try {
@@ -809,7 +813,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                               terminal.current.scrollToBottom();
                               if (agentType === 'codex') {
                                   const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
-                                  const trailing = typeof (buf as any)?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                                  const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
                                   if (trailing > 0) terminal.current.scrollLines(-trailing)
                                   if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(after hydration): trailing=${trailing}`)
                               }
@@ -1147,7 +1151,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly]);
+    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, MAX_WRITE_CHUNK, enqueueWrite]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1212,7 +1216,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId]);
+    }, [agentType, terminalId, enqueueWrite, MAX_WRITE_CHUNK]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready

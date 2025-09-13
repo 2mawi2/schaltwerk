@@ -44,9 +44,10 @@ interface MockXTerm {
   __triggerKey: (e: KeyboardEvent) => boolean
   focus: () => void
   scrollToBottom: () => void
-  scrollLines: (amount: number) => void
+  scrollLines: ReturnType<typeof vi.fn>
   dispose: () => void
   resize: (cols: number, rows: number) => void
+  __setTrailingBlankLines: (n: number) => void
 }
 
 
@@ -487,12 +488,12 @@ describe('Terminal component', () => {
     xterm.buffer.active.baseY = 50
     xterm.buffer.active.viewportY = 50
     xterm.buffer.active.length = 100
-    ;(xterm as any).__setTrailingBlankLines(3)
+    xterm.__setTrailingBlankLines(3)
 
     // Font-size change SHOULD tighten
     window.dispatchEvent(new CustomEvent('font-size-changed', { detail: { terminalFontSize: 14, uiFontSize: 14 } }))
     await advanceAndFlush(150)
-    expect((xterm.scrollLines as any).mock.calls.some((c: unknown[]) => c[0] === -3)).toBe(true)
+    expect(xterm.scrollLines.mock.calls.some((c: unknown[]) => c[0] === -3)).toBe(true)
   })
 
 

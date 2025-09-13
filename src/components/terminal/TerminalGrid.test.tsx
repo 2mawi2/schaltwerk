@@ -163,7 +163,7 @@ vi.mock('./TerminalTabs', () => {
         closeTab: vi.fn(),
         setActiveTab: vi.fn()
       })
-    }), [focus, terminalId])
+    }), [focus, terminalId, focusTerminal])
 
     const handleClick = () => {
       focus()
