@@ -27,6 +27,8 @@ pub fn disable_smart_substitutions() {
         "NSAutomaticQuoteSubstitutionEnabled",
         "NSAutomaticPeriodSubstitutionEnabled",
         "NSAutomaticTextReplacementEnabled",
+        // Also disable automatic capitalization of the first letter
+        "NSAutomaticCapitalizationEnabled",
     ];
 
     unsafe {

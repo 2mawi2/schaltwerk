@@ -227,6 +227,8 @@ export function BranchAutocomplete({
                         : 'border-slate-700 focus:border-blue-500'
                 } focus:outline-none transition-colors ${className}`}
                 autoComplete="off"
+                autoCapitalize="off"
+                autoCorrect="off"
                 spellCheck={false}
             />
             

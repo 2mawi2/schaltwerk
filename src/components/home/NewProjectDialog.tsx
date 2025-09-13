@@ -134,6 +134,9 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
               placeholder="my-awesome-project"
               className="w-full px-3 py-2 bg-slate-950/50 border border-slate-700 rounded-lg text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-600 focus:ring-1 focus:ring-cyan-600"
               autoFocus
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
               disabled={isCreating}
             />
           </div>
