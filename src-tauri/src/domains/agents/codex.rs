@@ -29,23 +29,40 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
         return None;
     }
     
-    match find_sessions_by_cwd(&sessions_dir, &target_path) {
-        Ok(entries) => {
-            log::debug!("📄 Codex session detection: Scanned sessions directory, found {} matching files", entries.len());
-            
-            if !entries.is_empty() {
-                log::debug!("✅ Codex session detection: Found session files:");
-                for (i, entry) in entries.iter().enumerate() {
-                    log::debug!("  {}. {}", i + 1, entry.display());
-                }
-                log::debug!("🔄 Codex session detection: Returning '__continue__' marker for most recent session resumption");
-                return Some("__continue__".to_string());
-            } else {
+    // Determine whether the newest global session belongs to this worktree.
+    // If yes, we can safely use --continue. If not, but there are sessions for
+    // this worktree, fall back to the interactive picker via --resume.
+    match (find_sessions_by_cwd(&sessions_dir, &target_path), find_newest_session(&sessions_dir)) {
+        (Ok(matching), Ok(global_newest)) => {
+            log::debug!("📄 Codex session detection: Found {} matching session file(s)", matching.len());
+            if matching.is_empty() {
                 log::debug!("❌ Codex session detection: No sessions found matching CWD: {target_path:?}");
+            } else {
+                let newest_match = matching.first().cloned();
+                log::debug!("🆚 Comparing newest match vs global newest:");
+                log::debug!("   newest_match: {:?}", newest_match.as_ref().map(|p| p.display().to_string()));
+                log::debug!("   global_newest: {:?}", global_newest.as_ref().map(|p| p.display().to_string()));
+
+                if let (Some(nm), Some(gn)) = (newest_match.as_ref(), global_newest.as_ref()) {
+                    if nm == gn {
+                        log::debug!("✅ Safe to --continue: newest global session matches this worktree");
+                        return Some("__continue__".to_string());
+                    } else {
+                        log::debug!("⚠️ Not safe to --continue: global newest belongs to a different context; using picker");
+                        return Some("__resume__".to_string());
+                    }
+                } else if newest_match.is_some() {
+                    // If we have matches but couldn't determine global newest, be safe and show picker
+                    log::debug!("⚠️ Matches found but global newest unknown; using picker");
+                    return Some("__resume__".to_string());
+                }
             }
         }
-        Err(e) => {
-            log::error!("💥 Codex session detection: Error scanning sessions directory: {e}");
+        (Err(e), _) => {
+            log::error!("💥 Codex session detection: Error scanning sessions directory for matches: {e}");
+        }
+        (_, Err(e)) => {
+            log::error!("💥 Codex session detection: Error determining newest global session: {e}");
         }
     }
     
@@ -55,6 +72,21 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
 
 pub fn find_codex_session(path: &Path) -> Option<String> {
     find_codex_session_fast(path)
+}
+
+/// Returns the newest matching Codex session JSONL path for this worktree, if any.
+pub fn find_codex_resume_path(path: &Path) -> Option<PathBuf> {
+    let home = dirs::home_dir()
+        .or_else(|| std::env::var("HOME").ok().map(PathBuf::from))?;
+    let sessions_dir = home.join(".codex").join("sessions");
+    if !sessions_dir.exists() { return None; }
+    let target_path = path.to_string_lossy().to_string();
+    if let Ok(mut entries) = find_sessions_by_cwd(&sessions_dir, &target_path) {
+        if !entries.is_empty() {
+            return entries.swap_remove(0).into();
+        }
+    }
+    None
 }
 
 fn find_sessions_by_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Vec<PathBuf>, std::io::Error> {
@@ -109,6 +141,37 @@ fn find_sessions_by_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Vec<Pat
     }
     
     Ok(matching_sessions)
+}
+
+fn find_newest_session(sessions_dir: &Path) -> Result<Option<PathBuf>, std::io::Error> {
+    let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
+    fn scan(dir: &Path, newest: &mut Option<(std::time::SystemTime, PathBuf)>) -> Result<(), std::io::Error> {
+        for entry in fs::read_dir(dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                scan(&path, newest)?;
+            } else if path.extension().is_some_and(|ext| ext == "jsonl") {
+                if let Ok(meta) = path.metadata() {
+                    if let Ok(modified) = meta.modified() {
+                        match newest {
+                            Some((ts, _)) if &modified > ts => {
+                                *newest = Some((modified, path.clone()));
+                            }
+                            None => {
+                                *newest = Some((modified, path.clone()));
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+    if !sessions_dir.exists() { return Ok(None); }
+    scan(sessions_dir, &mut newest)?;
+    Ok(newest.map(|(_, p)| p))
 }
 
 fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
@@ -212,16 +275,20 @@ pub fn build_codex_command_with_config(
     log::debug!("🛠️ Codex command builder: Binary: {binary_name:?}, Sandbox: {sandbox_mode:?}");
     
     if let Some(session) = session_id {
-        if session == "__continue__" {
+        // Special case: explicit resume path provided via sentinel "file://"
+        if let Some(rest) = session.strip_prefix("file://") {
+            let path_literal = rest.replace('"', r#"\""#);
+            log::debug!("📄 Codex command builder: Resuming from explicit path via config override: {path_literal:?}");
+            cmd.push_str(&format!(r#" -c experimental_resume="{path_literal}""#));
+        } else if session == "__continue__" {
             // Special value to indicate using --continue flag for most recent conversation
             log::debug!("🔄 Codex command builder: Using --continue flag to resume most recent session");
             log::debug!("🔄 This will resume the newest session found for this project directory");
             cmd.push_str(" --continue");
-        } else {
-            // Resume specific session with conversation history using --resume flag
-            log::debug!("🎯 Codex command builder: Resuming specific session {session:?} using --resume flag");
-            log::debug!("🎯 This will resume the exact session specified by ID");
-            cmd.push_str(&format!(" --resume {session}"));
+        } else if session == "__resume__" {
+            // Special value to open interactive resume picker
+            log::debug!("🧭 Codex command builder: Opening interactive resume picker (--resume)");
+            cmd.push_str(" --resume");
         }
     } else if let Some(prompt) = initial_prompt {
         // Start fresh with initial prompt
@@ -277,18 +344,18 @@ mod tests {
     }
 
     #[test]
-    fn test_resume_specific_session() {
+    fn test_resume_picker_mode() {
         let config = CodexConfig {
             binary_path: Some("codex".to_string()),
         };
         let cmd = build_codex_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("existing-session-uuid"),
+            Some("__resume__"),
             Some("this prompt should be ignored"),
             "workspace-write",
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox workspace-write --resume existing-session-uuid");
+        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox workspace-write --resume");
     }
     
     #[test]
@@ -304,6 +371,34 @@ mod tests {
             Some(&config),
         );
         assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox workspace-write --continue");
+    }
+
+    #[test]
+    fn test_resume_by_explicit_path_with_override() {
+        let config = CodexConfig { binary_path: Some("codex".to_string()) };
+        let cmd = build_codex_command_with_config(
+            Path::new("/repo/worktree-a"),
+            Some("file:///Users/dev/.codex/sessions/2025/09/13/rollout-2025-09-13T10-22-40-uuid.jsonl"),
+            None,
+            "workspace-write",
+            Some(&config),
+        );
+        assert!(cmd.contains("cd /repo/worktree-a && codex --sandbox workspace-write -c experimental_resume=\"/Users/dev/.codex/sessions/2025/09/13/rollout-2025-09-13T10-22-40-uuid.jsonl\""));
+        assert!(!cmd.contains(" --resume "));
+        assert!(!cmd.contains(" --continue"));
+    }
+
+    #[test]
+    fn test_resume_by_explicit_path_with_danger_mode() {
+        let config = CodexConfig { binary_path: Some("codex".to_string()) };
+        let cmd = build_codex_command_with_config(
+            Path::new("/repo/worktree-a"),
+            Some("file:///Users/dev/.codex/sessions/2025/09/13/rollout-2025-09-13T10-22-40-uuid.jsonl"),
+            None,
+            "danger-full-access",
+            Some(&config),
+        );
+        assert!(cmd.contains("cd /repo/worktree-a && codex --sandbox danger-full-access -c experimental_resume=\"/Users/dev/.codex/sessions/2025/09/13/rollout-2025-09-13T10-22-40-uuid.jsonl\""));
     }
 
     #[test]
@@ -389,17 +484,17 @@ mod tests {
     }
     
     #[test]
-    fn test_resume_with_danger_mode() {
+    fn test_resume_picker_with_danger_mode() {
         let config = CodexConfig {
             binary_path: Some("codex".to_string()),
         };
         let cmd = build_codex_command_with_config(
             Path::new("/path/to/worktree"),
-            Some("session-123"),
+            Some("__resume__"),
             None,
             "danger-full-access",
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox danger-full-access --resume session-123");
+        assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox danger-full-access --resume");
     }
 }

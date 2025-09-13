@@ -860,7 +860,9 @@ impl SessionManager {
             log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
             
             // Check for existing Codex session to determine if we should resume or start fresh
+            let resume_path = crate::domains::agents::codex::find_codex_resume_path(&session.worktree_path);
             let resumable_session_id = crate::domains::agents::codex::find_codex_session_fast(&session.worktree_path);
+            log::info!("Session manager: find_codex_resume_path returned: {:?}", resume_path.as_ref().map(|p| p.display().to_string()));
             log::info!("Session manager: find_codex_session_fast returned: {resumable_session_id:?}");
             
             // Determine session_id and prompt based on force_restart and existing session
@@ -868,9 +870,14 @@ impl SessionManager {
                 // Explicit restart - always use initial prompt, no session resumption
                 log::info!("Session manager: Force restarting Codex session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
                 (None, session.initial_prompt.as_deref())
+            } else if let Some(path) = resume_path {
+                // Prefer precise resume via experimental_resume config override (non-interactive)
+                let encoded = format!("file://{}", path.display());
+                log::info!("Session manager: Resuming Codex session via explicit path: {}", path.display());
+                (Some(encoded), None)
             } else if let Some(session_id) = resumable_session_id {
-                // Session exists - resume with session ID ("__continue__" for Codex)
-                log::info!("Session manager: Resuming existing Codex session '{}' with session_id='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
+                // Fallback: Session sentinel exists - either --continue or --resume picker
+                log::info!("Session manager: Resuming existing Codex session '{}' with sentinel='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
                 (Some(session_id), None)
             } else {
                 // No resumable session - use initial prompt for first start
