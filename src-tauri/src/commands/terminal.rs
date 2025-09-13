@@ -34,16 +34,15 @@ pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> 
     Ok(id)
 }
 
-/// Create a terminal that executes a single run command and then exits.
-/// This spawns a non-interactive shell (bash -lc "{command}") so that
-/// when the command completes or fails, the PTY child exits and the
-/// backend emits TerminalClosed, allowing the UI to update deterministically.
+/// Create a terminal with an interactive shell for running commands.
+/// This spawns an interactive shell that stays alive after commands complete,
+/// allowing the UI to preserve output history and run additional commands.
 #[tauri::command]
 pub async fn create_run_terminal(
     app: tauri::AppHandle,
     id: String,
     cwd: String,
-    command: String,
+    _command: String,
     env: Option<Vec<(String, String)>>,
     cols: Option<u16>,
     rows: Option<u16>,
@@ -74,9 +73,10 @@ pub async fn create_run_terminal(
         env_vars.append(&mut provided);
     }
 
-    // Spawn bash -lc "{command}" so that the process lifecycle equals the run command
+    // Spawn an interactive shell instead of bash -lc to keep terminal alive after command
+    // This allows preserving output and running additional commands
     let bash = "/bin/bash".to_string();
-    let args = vec!["-lc".to_string(), command];
+    let args = vec!["-l".to_string()]; // Interactive login shell
 
     if let (Some(c), Some(r)) = (cols, rows) {
         manager

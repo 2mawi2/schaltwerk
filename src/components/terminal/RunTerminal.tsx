@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useImperativeHandle, forwardRef, useCallback } from 'react'
+import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from 'react'
 import { Terminal } from './Terminal'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
@@ -131,23 +131,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         }
         window.addEventListener('schaltwerk:terminal-ready', handler as EventListener)
         return () => window.removeEventListener('schaltwerk:terminal-ready', handler as EventListener)
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [runTerminalId])
 
-    // Encapsulate command execution to ensure single-shot behavior
-    const executeRunCommand = useCallback(async () => {
-        try {
-            await invoke('write_terminal', {
-                id: runTerminalId,
-                data: (runScript?.command ?? '') + '\n'
-            })
-            logger.info('Executed run script command:', runScript?.command)
-            setIsRunning(true)
-            onRunningStateChange?.(true)
-        } catch (err) {
-            logger.error('Failed to execute run script:', err)
-        }
-    }, [runTerminalId, runScript?.command, setIsRunning, onRunningStateChange])
     
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
@@ -193,24 +178,48 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                     logger.error('[RunTerminal] Failed to stop run process:', err)
                 }
             } else {
-                // Start the run by spawning the command as the PTY child process
+                // Start the run process
                 logger.info('[RunTerminal] Starting run process')
                 try {
                     let cwd = workingDirectory || script?.workingDirectory
                     if (!cwd) {
                         cwd = await invoke<string>('get_current_directory')
                     }
+
+                    // Check if terminal already exists (from previous run)
+                    const terminalExists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
+                    
+                    if (terminalExists) {
+                        // Terminal exists (from previous run) - write command to existing terminal
+                        // This preserves previous output while running new command
+                        logger.info('[RunTerminal] Using existing terminal, writing command to preserve previous output')
+                        await invoke('write_terminal', {
+                            id: runTerminalId,
+                            data: script.command + '\n'
+                        })
+                    } else {
+                        // No existing terminal - create new one
+                        logger.info('[RunTerminal] Creating new run terminal')
+                        setTerminalCreated(true)
+                        terminalReadyRef.current = false
+                        await invoke('create_run_terminal', {
+                            id: runTerminalId,
+                            cwd,
+                            command: script.command,
+                            env: Object.entries(script.environmentVariables || {}),
+                            cols: null,
+                            rows: null,
+                        })
+                        
+                        // Send the command to the newly created interactive shell
+                        await invoke('write_terminal', {
+                            id: runTerminalId,
+                            data: script.command + '\n'
+                        })
+                    }
+                    
                     // Ensure terminal pane is visible
                     setTerminalCreated(true)
-                    terminalReadyRef.current = false
-                    await invoke('create_run_terminal', {
-                        id: runTerminalId,
-                        cwd,
-                        command: script.command,
-                        env: Object.entries(script.environmentVariables || {}),
-                        cols: null,
-                        rows: null,
-                    })
                     setIsRunning(true)
                     onRunningStateChange?.(true)
                 } catch (err) {
@@ -219,7 +228,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             }
         },
         isRunning: () => isRunning
-    }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand])
+    }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange])
 
     // Cleanup: DO NOT kill the terminal - let it persist for when we come back
     useEffect(() => { return () => {} }, [runTerminalId])

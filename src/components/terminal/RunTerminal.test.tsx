@@ -16,9 +16,9 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 // Mock tauri event layer so listen resolves with a controllable unlisten
-let terminalClosedHandler: ((e: any) => void) | null = null
+let terminalClosedHandler: ((e: unknown) => void) | null = null
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn(async (event: string, handler: (e: any) => void) => {
+  listen: vi.fn(async (event: string, handler: (e: unknown) => void) => {
     // Capture TerminalClosed handler when the event is 'schaltwerk:terminal-closed' (the enum value)
     if (event === 'schaltwerk:terminal-closed') {
       terminalClosedHandler = handler

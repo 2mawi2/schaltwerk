@@ -1054,7 +1054,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily]);
+    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
