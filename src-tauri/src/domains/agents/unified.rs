@@ -99,6 +99,11 @@ impl AgentCommand for CodexAgent {
     }
 
     fn find_session(&self, path: &Path) -> Option<String> {
+        // Prefer precise resume via explicit session JSONL path if available,
+        // falling back to sentinel-based resume/continue.
+        if let Some(p) = super::codex::find_codex_resume_path(path) {
+            return Some(format!("file://{}", p.display()));
+        }
         super::codex::find_codex_session(path)
     }
 

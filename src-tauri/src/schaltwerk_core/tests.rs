@@ -1112,3 +1112,89 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         assert!(me.info.ready_to_merge, "Session should be marked ready_to_merge");
         assert_eq!(me.info.has_uncommitted_changes, Some(false), "Git stats should reflect clean state after review");
     }
+
+    #[test]
+    fn test_codex_spec_start_respects_resume_gate() {
+        use std::io::Write;
+        use std::fs;
+
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a spec session with Codex as agent
+        let spec_content = "Implement feature X via Codex";
+        let _spec = manager
+            .create_spec_session_with_agent("codex_spec", spec_content, Some("codex"), None)
+            .unwrap();
+
+        // Ensure global agent is Codex so start uses Codex (start_spec_session stores original settings from globals)
+        manager.set_global_agent_type("codex").unwrap();
+
+        // Start the spec session (converts to running and sets resume_allowed=false)
+        manager
+            .start_spec_session("codex_spec", None, None, None)
+            .unwrap();
+
+        // Prepare a fake Codex sessions directory in a temporary HOME
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let codex_sessions = home_dir.path().join(".codex").join("sessions").join("2025").join("09").join("13");
+        fs::create_dir_all(&codex_sessions).unwrap();
+
+        // Create a jsonl file that matches the session worktree CWD
+        let running = manager.db_ref().get_session_by_name(&env.repo_path, "codex_spec").unwrap();
+        let jsonl_path = codex_sessions.join("test-session.jsonl");
+        let mut f = std::fs::File::create(&jsonl_path).unwrap();
+        writeln!(f, "{{\"id\":\"s-1\",\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"cwd\":\"{}\",\"originator\":\"codex_cli_rs\"}}", running.worktree_path.display()).unwrap();
+        writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
+
+        // Point HOME to our temp dir so Codex resume detection picks it up
+        std::env::set_var("HOME", home_dir.path());
+
+        // First start should be a fresh start using the prompt (resume gate is false)
+        let cmd1 = manager.start_claude_in_session(&running.name).unwrap();
+        assert!(cmd1.contains("codex"), "expected Codex command, got: {}", cmd1);
+        assert!(cmd1.contains(&spec_content), "expected initial prompt in first start command: {}", cmd1);
+        assert!(!cmd1.contains(" --resume"), "should not resume on first start: {}", cmd1);
+        assert!(!cmd1.contains(" --continue"), "should not continue on first start: {}", cmd1);
+
+        // Second start should allow resume now (resume_allowed flipped true)
+        let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
+        assert!(cmd2.contains("codex"), "expected Codex command on second start, got: {}", cmd2);
+        // Should prefer resuming (either via explicit resume path, --resume or --continue)
+        let resumed = cmd2.contains("-c experimental_resume=") || cmd2.contains(" --resume") || cmd2.contains(" --continue");
+        assert!(resumed, "expected a resume-capable command on second start: {}", cmd2);
+    }
+
+    #[test]
+    fn test_orchestrator_codex_prefers_explicit_resume_path() {
+        use std::io::Write;
+        use std::fs;
+
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Configure orchestrator to use Codex
+        manager.set_global_agent_type("codex").unwrap();
+        manager.set_global_skip_permissions(false).unwrap();
+
+        // Prepare a fake Codex sessions directory matching the orchestrator repo path
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let codex_sessions = home_dir.path().join(".codex").join("sessions").join("2025").join("09").join("13");
+        fs::create_dir_all(&codex_sessions).unwrap();
+
+        // Create a jsonl file that matches orchestrator CWD (repo root)
+        let jsonl_path = codex_sessions.join("orch.jsonl");
+        let mut f = std::fs::File::create(&jsonl_path).unwrap();
+        writeln!(f, "{{\"id\":\"orch-session\",\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"cwd\":\"{}\",\"originator\":\"codex_cli_rs\"}}", env.repo_path.display()).unwrap();
+        writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
+
+        // Point HOME to our temp dir so Codex resume detection picks it up
+        std::env::set_var("HOME", home_dir.path());
+
+        // Build orchestrator command (resume enabled by default)
+        let cmd = manager.start_claude_in_orchestrator().unwrap();
+        assert!(cmd.contains("codex"), "expected Codex orchestrator command: {}", cmd);
+        // Should prefer explicit resume path via experimental config override
+        assert!(cmd.contains("-c experimental_resume="), "expected experimental resume path in orchestrator start: {}", cmd);
+        assert!(!cmd.contains(" --resume"), "should not fall back to picker when explicit path available: {}", cmd);
+    }
