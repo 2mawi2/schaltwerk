@@ -859,30 +859,36 @@ impl SessionManager {
             log::info!("Session manager: Starting Codex agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
             log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
             
+            // Gate resume after Spec/Convert-to-spec until the first fresh start completes
+            let resume_allowed = session.resume_allowed;
             // Check for existing Codex session to determine if we should resume or start fresh
-            let resume_path = crate::domains::agents::codex::find_codex_resume_path(&session.worktree_path);
-            let resumable_session_id = crate::domains::agents::codex::find_codex_session_fast(&session.worktree_path);
-            log::info!("Session manager: find_codex_resume_path returned: {:?}", resume_path.as_ref().map(|p| p.display().to_string()));
+            let resume_path = if resume_allowed {
+                crate::domains::agents::codex::find_codex_resume_path(&session.worktree_path)
+            } else { None };
+            let resumable_session_id = if resume_allowed {
+                crate::domains::agents::codex::find_codex_session_fast(&session.worktree_path)
+            } else { None };
+            log::info!("Session manager: resume_allowed={resume_allowed}, find_codex_resume_path returned: {:?}", resume_path.as_ref().map(|p| p.display().to_string()));
             log::info!("Session manager: find_codex_session_fast returned: {resumable_session_id:?}");
             
             // Determine session_id and prompt based on force_restart and existing session
-            let (session_id_to_use, prompt_to_use) = if force_restart {
+            let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 // Explicit restart - always use initial prompt, no session resumption
                 log::info!("Session manager: Force restarting Codex session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
-                (None, session.initial_prompt.as_deref())
+                (None, session.initial_prompt.as_deref(), true)
             } else if let Some(path) = resume_path {
                 // Prefer precise resume via experimental_resume config override (non-interactive)
                 let encoded = format!("file://{}", path.display());
                 log::info!("Session manager: Resuming Codex session via explicit path: {}", path.display());
-                (Some(encoded), None)
+                (Some(encoded), None, false)
             } else if let Some(session_id) = resumable_session_id {
                 // Fallback: Session sentinel exists - either --continue or --resume picker
                 log::info!("Session manager: Resuming existing Codex session '{}' with sentinel='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
-                (Some(session_id), None)
+                (Some(session_id), None, false)
             } else {
                 // No resumable session - use initial prompt for first start
                 log::info!("Session manager: Starting fresh Codex session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
-                (None, session.initial_prompt.as_deref())
+                (None, session.initial_prompt.as_deref(), true)
             };
             
             log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
@@ -890,6 +896,11 @@ impl SessionManager {
             // Only mark session as prompted if we're actually using the prompt
             if prompt_to_use.is_some() {
                 self.cache_manager.mark_session_prompted(&session.worktree_path);
+            }
+
+            // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
+            if did_start_fresh && !resume_allowed {
+                let _ = self.db_manager.set_session_resume_allowed(&session.id, true);
             }
             
             if let Some(agent) = registry.get("codex") {
