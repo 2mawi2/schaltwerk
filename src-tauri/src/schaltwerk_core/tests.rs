@@ -1164,3 +1164,37 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         let resumed = cmd2.contains("-c experimental_resume=") || cmd2.contains(" --resume") || cmd2.contains(" --continue");
         assert!(resumed, "expected a resume-capable command on second start: {}", cmd2);
     }
+
+    #[test]
+    fn test_orchestrator_codex_prefers_explicit_resume_path() {
+        use std::io::Write;
+        use std::fs;
+
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Configure orchestrator to use Codex
+        manager.set_global_agent_type("codex").unwrap();
+        manager.set_global_skip_permissions(false).unwrap();
+
+        // Prepare a fake Codex sessions directory matching the orchestrator repo path
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let codex_sessions = home_dir.path().join(".codex").join("sessions").join("2025").join("09").join("13");
+        fs::create_dir_all(&codex_sessions).unwrap();
+
+        // Create a jsonl file that matches orchestrator CWD (repo root)
+        let jsonl_path = codex_sessions.join("orch.jsonl");
+        let mut f = std::fs::File::create(&jsonl_path).unwrap();
+        writeln!(f, "{{\"id\":\"orch-session\",\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"cwd\":\"{}\",\"originator\":\"codex_cli_rs\"}}", env.repo_path.display()).unwrap();
+        writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
+
+        // Point HOME to our temp dir so Codex resume detection picks it up
+        std::env::set_var("HOME", home_dir.path());
+
+        // Build orchestrator command (resume enabled by default)
+        let cmd = manager.start_claude_in_orchestrator().unwrap();
+        assert!(cmd.contains("codex"), "expected Codex orchestrator command: {}", cmd);
+        // Should prefer explicit resume path via experimental config override
+        assert!(cmd.contains("-c experimental_resume="), "expected experimental resume path in orchestrator start: {}", cmd);
+        assert!(!cmd.contains(" --resume"), "should not fall back to picker when explicit path available: {}", cmd);
+    }
