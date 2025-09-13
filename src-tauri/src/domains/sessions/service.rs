@@ -213,6 +213,79 @@ mod service_unified_tests {
     }
 
     #[test]
+    #[serial_test::serial]
+    fn test_start_spec_with_config_uses_codex_and_prompt_without_resume() {
+        use std::process::Command;
+        let (manager, temp_dir) = create_test_session_manager();
+
+        // Initialize a git repo with an initial commit so default branch detection works
+        let repo = temp_dir.path().join("repo");
+        Command::new("git").args(["init"]).current_dir(&repo).output().unwrap();
+        Command::new("git").args(["config","user.email","test@example.com"]).current_dir(&repo).output().unwrap();
+        Command::new("git").args(["config","user.name","Test User"]).current_dir(&repo).output().unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git").args(["add","."]).current_dir(&repo).output().unwrap();
+        Command::new("git").args(["commit","-m","init"]).current_dir(&repo).output().unwrap();
+
+        // Create a spec first (previously created draft)
+        let spec_name = "codex_spec_config";
+        let spec_content = "Implement feature Z with Codex";
+        manager.create_spec_session(spec_name, spec_content).unwrap();
+
+        
+        manager
+            .start_spec_session_with_config(spec_name, None, Some("codex"), Some(true))
+            .unwrap();
+
+        // Fetch running session to start agent
+        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
+
+        // Build the start command (unified start handles correct agent based on original settings)
+        let cmd = manager
+            .start_claude_in_session(&running.name)
+            .expect("expected start command");
+
+        // Verify Codex is used with the correct sandbox and prompt, and no resume flags on first start
+        assert!(cmd.contains(" codex ") || cmd.ends_with(" codex"), "expected Codex binary in command: {cmd}");
+        assert!(cmd.contains("--sandbox danger-full-access"), "expected danger sandbox when skip_permissions=true: {cmd}");
+        assert!(cmd.contains(spec_content), "expected spec content to be used as initial prompt: {cmd}");
+        assert!(!cmd.contains(" --resume"), "should not resume on first start after spec: {cmd}");
+        assert!(!cmd.contains(" --continue"), "should not continue on first start after spec: {cmd}");
+
+        // Prepare a fake Codex sessions directory so resume detection finds a matching session
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let codex_sessions = home_dir
+            .path()
+            .join(".codex")
+            .join("sessions")
+            .join("2025")
+            .join("09")
+            .join("13");
+        std::fs::create_dir_all(&codex_sessions).unwrap();
+        let jsonl_path = codex_sessions.join("test-session.jsonl");
+        use std::io::Write;
+        let mut f = std::fs::File::create(&jsonl_path).unwrap();
+        writeln!(
+            f,
+            "{{\"id\":\"s-1\",\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"cwd\":\"{}\",\"originator\":\"codex_cli_rs\"}}",
+            running.worktree_path.display()
+        )
+        .unwrap();
+        writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
+        
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_dir.path());
+
+        // Second start should allow resume now (gate flips after fresh start and session file exists)
+        let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
+        let resumed = cmd2.contains("-c experimental_resume=") || cmd2.contains(" --resume") || cmd2.contains(" --continue");
+        assert!(resumed, "expected resume-capable command on second start: {cmd2}");
+
+        // Restore HOME
+        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
+    }
+
+    #[test]
     fn test_unsupported_agent_error_handling() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "unsupported-agent", "0");
@@ -1324,6 +1397,43 @@ impl SessionManager {
             }
         }
         
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub fn create_and_start_spec_session_with_config(
+        &self,
+        name: &str,
+        spec_content: &str,
+        base_branch: Option<&str>,
+        version_group_id: Option<&str>,
+        version_number: Option<i32>,
+        agent_type: Option<&str>,
+        skip_permissions: Option<bool>,
+    ) -> Result<()> {
+        // Reuse the existing flow to create and start
+        self.create_and_start_spec_session(
+            name,
+            spec_content,
+            base_branch,
+            version_group_id,
+            version_number,
+        )?;
+
+        // Override original settings if provided, otherwise keep globals already stored
+        if agent_type.is_some() || skip_permissions.is_some() {
+            let session = self.db_manager.get_session_by_name(name)?;
+            let agent = agent_type
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string()));
+            let skip = skip_permissions
+                .unwrap_or_else(|| self.db_manager.get_skip_permissions().unwrap_or(false));
+            let _ = self.db_manager.set_session_original_settings(&session.id, &agent, skip);
+            log::info!(
+                "create_and_start_spec_session_with_config: set original settings for '{name}' to agent='{agent}', skip_permissions={skip}"
+            );
+        }
+
         Ok(())
     }
 

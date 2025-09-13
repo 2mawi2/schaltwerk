@@ -1617,6 +1617,7 @@ pub async fn schaltwerk_core_create_spec_session(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn schaltwerk_core_create_and_start_spec_session(
     app: tauri::AppHandle,
     name: String,
@@ -1624,6 +1625,8 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
     base_branch: Option<String>,
     version_group_id: Option<String>,
     version_number: Option<i32>,
+    agent_type: Option<String>,
+    skip_permissions: Option<bool>,
 ) -> Result<(), String> {
     log::info!("Creating and starting spec session: {name}");
     
@@ -1631,14 +1634,16 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.create_and_start_spec_session(
-            &name,
-            &spec_content,
-            base_branch.as_deref(),
-            version_group_id.as_deref(),
-            version_number,
-        )
-        .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
+    manager.create_and_start_spec_session_with_config(
+        &name,
+        &spec_content,
+        base_branch.as_deref(),
+        version_group_id.as_deref(),
+        version_number,
+        agent_type.as_deref(),
+        skip_permissions,
+    )
+    .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
     
     // Emit event with actual sessions list
     if let Ok(sessions) = manager.list_enriched_sessions() {
@@ -1659,8 +1664,10 @@ pub async fn schaltwerk_core_start_spec_session(
     app: tauri::AppHandle,
     name: String,
     base_branch: Option<String>,
-    version_group_id: Option<String>,
-    version_number: Option<i32>,
+    _version_group_id: Option<String>,
+    _version_number: Option<i32>,
+    agent_type: Option<String>,
+    skip_permissions: Option<bool>,
 ) -> Result<(), String> {
     log::info!("Starting spec session: {name}");
     
@@ -1668,11 +1675,12 @@ pub async fn schaltwerk_core_start_spec_session(
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    manager.start_spec_session(
+    manager
+        .start_spec_session_with_config(
             &name,
             base_branch.as_deref(),
-            version_group_id.as_deref(),
-            version_number,
+            agent_type.as_deref(),
+            skip_permissions,
         )
         .map_err(|e| format!("Failed to start spec session: {e}"))?;
     

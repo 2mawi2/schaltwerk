@@ -667,23 +667,27 @@ export default function App() {
          for (const [index, sessionName] of sessionNames.entries()) {
            if (index === 0) {
              // Start the original spec session (transitions spec -> active and creates worktree)
-             await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
-               name: sessionName,
-               baseBranch: data.baseBranch || null,
-               versionGroupId,
-               versionNumber: 1,
-             })
-           } else {
-             // For additional versions, create and start in one atomic operation to avoid race conditions
-             await invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
-               name: sessionName,
-               specContent: contentToUse,
-               baseBranch: data.baseBranch || null,
-               versionGroupId,
-               versionNumber: index + 1,
-             })
-           }
-         }
+            await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
+              name: sessionName,
+              baseBranch: data.baseBranch || null,
+              versionGroupId,
+              versionNumber: 1,
+              agentType: data.agentType || null,
+              skipPermissions: data.skipPermissions ?? null,
+            })
+          } else {
+            // For additional versions, create and start in one atomic operation to avoid race conditions
+            await invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
+              name: sessionName,
+              specContent: contentToUse,
+              baseBranch: data.baseBranch || null,
+              versionGroupId,
+              versionNumber: index + 1,
+              agentType: data.agentType || null,
+              skipPermissions: data.skipPermissions ?? null,
+            })
+          }
+        }
 
          setNewSessionOpen(false)
          setStartFromSpecName(null)
@@ -693,8 +697,19 @@ export default function App() {
           detail: { name: firstSessionName }
         }))
 
-        // Small delay to ensure sessions list is updated
-        await new Promise(resolve => setTimeout(resolve, 200))
+        // Wait deterministically for SessionsRefreshed before starting agents
+        await new Promise<void>((resolve) => {
+          let done = false
+          let unlistenRef: (() => void) | null = null
+          listenEvent(SchaltEvent.SessionsRefreshed, () => {
+            done = true
+            if (unlistenRef) unlistenRef()
+            resolve()
+          }).then((unlisten) => {
+            unlistenRef = unlisten
+            if (done && unlistenRef) unlistenRef()
+          })
+        })
 
         // Start agents for all spec-derived sessions (this creates terminals with agents)
         // This ensures all versions start working immediately, not just the focused one
@@ -804,8 +819,19 @@ export default function App() {
         // This addresses the lazy initialization issue where only the first selected session 
         // gets terminals created, leaving other versions without terminals until manually switched
         if (!data.isSpec && count > 1) {
-          // Small delay to ensure all sessions are fully created in the database
-          await new Promise(resolve => setTimeout(resolve, 200))
+          // Wait for SessionsRefreshed to ensure sessions exist before creating terminals
+          await new Promise<void>((resolve) => {
+            let done = false
+            let unlistenRef: (() => void) | null = null
+            listenEvent(SchaltEvent.SessionsRefreshed, () => {
+              done = true
+              if (unlistenRef) unlistenRef()
+              resolve()
+            }).then((unlisten) => {
+              unlistenRef = unlisten
+              if (done && unlistenRef) unlistenRef()
+            })
+          })
           
           // Create terminals for all versions of the new session
           const sessionNames = Array.from({ length: count }, (_, i) => 
