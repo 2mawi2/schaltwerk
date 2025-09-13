@@ -47,10 +47,11 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
 
   const saveActionButtons = async (buttons: HeaderActionConfig[]) => {
     try {
+      logger.info('Saving action buttons payload:', buttons)
       await invoke('set_project_action_buttons', { actions: buttons })
-      // Immediately update local state
-      setActionButtons(buttons)
-      logger.info('Action buttons saved and state updated:', buttons)
+      // Round‑trip to backend to ensure canonical state and trigger consumers to update
+      await loadActionButtons()
+      logger.info('Action buttons saved and reloaded:', buttons)
       return true
     } catch (err) {
       logger.error('Failed to save action buttons:', err)

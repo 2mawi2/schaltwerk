@@ -485,11 +485,24 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         
         // Save action buttons if they've been modified
         if (hasUnsavedChanges) {
-            const success = await saveActionButtons(editableActionButtons)
+            // Ensure color is explicitly present (avoid undefined getting dropped over invoke)
+            const normalizedButtons = editableActionButtons.map(b => ({
+                ...b,
+                color: b.color ?? 'slate',
+            }))
+            logger.info('Saving action buttons from SettingsModal:', normalizedButtons)
+            const success = await saveActionButtons(normalizedButtons)
             if (!success) {
                 result.failedSettings.push('action buttons')
+            } else {
+                try {
+                    // Re-fetch persisted buttons to ensure modal reflects canonical state
+                    const latest = await invoke<HeaderActionConfig[]>('get_project_action_buttons')
+                    setEditableActionButtons(latest)
+                } catch (e) {
+                    logger.warn('Failed to reload action buttons after save', e)
+                }
             }
-            // No need to reload - saveActionButtons updates the context state directly
         }
         
         if (result.failedSettings.length > 0) {

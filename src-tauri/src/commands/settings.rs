@@ -407,8 +407,17 @@ pub async fn get_project_action_buttons() -> Result<Vec<HeaderActionConfig>, Str
     let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
-    db.get_project_action_buttons(&project.path)
-        .map_err(|e| format!("Failed to get project action buttons: {e}"))
+    let res = db.get_project_action_buttons(&project.path)
+        .map_err(|e| format!("Failed to get project action buttons: {e}"));
+    if let Ok(ref actions) = res {
+        log::info!(
+            "Loaded {} action buttons for project {}: {:?}",
+            actions.len(),
+            project.path.display(),
+            actions
+        );
+    }
+    res
 }
 
 #[tauri::command]
@@ -427,6 +436,13 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
 
     let core = project.schaltwerk_core.lock().await;
     let db = core.database();
+
+    log::info!(
+        "Saving {} action buttons for project {}: {:?}",
+        actions.len(),
+        project.path.display(),
+        actions
+    );
 
     db.set_project_action_buttons(&project.path, &actions)
         .map_err(|e| format!("Failed to set project action buttons: {e}"))
