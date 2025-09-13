@@ -23,6 +23,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const [copying, setCopying] = useState(false)
   const [starting, setStarting] = useState(false)
   const [hasLocalChanges, setHasLocalChanges] = useState(false)
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const lastSessionNameRef = useRef<string>(sessionName)
   const lastServerContentRef = useRef<string>('')
@@ -30,19 +31,30 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const hasLocalChangesRef = useRef<boolean>(false)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
-  // Load initial content
+  // Load initial content and session info
   useEffect(() => {
     let mounted = true
     lastSessionNameRef.current = sessionName
     setLoading(true)
     setError(null)
     setHasLocalChanges(false)
-    invoke<[string | null, string | null]>('schaltwerk_core_get_session_agent_content', { name: sessionName })
-      .then(([draftContent, initialPrompt]) => {
+    
+    // Load both content and session info
+    Promise.all([
+      invoke<[string | null, string | null]>('schaltwerk_core_get_session_agent_content', { name: sessionName }),
+      invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
+    ])
+      .then(([[draftContent, initialPrompt], sessions]) => {
         if (!mounted) return
         const text: string = draftContent ?? initialPrompt ?? ''
         setContent(text)
         lastServerContentRef.current = text
+        
+        // Find and set display name
+        const session = sessions.find(s => s.info.session_id === sessionName || s.info.branch === sessionName)
+        if (session && session.info.display_name) {
+          setDisplayName(session.info.display_name)
+        }
       })
       .catch((e) => {
         if (!mounted) return
@@ -51,6 +63,27 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       })
       .finally(() => mounted && setLoading(false))
     return () => { mounted = false }
+  }, [sessionName])
+  
+  // Listen for session updates to refresh display name
+  useEffect(() => {
+    const handleSessionsRefresh = async () => {
+      try {
+        const sessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
+        const session = sessions.find(s => s.info.session_id === sessionName || s.info.branch === sessionName)
+        if (session && session.info.display_name) {
+          setDisplayName(session.info.display_name)
+        }
+      } catch (e) {
+        logger.error('Failed to refresh session display name:', e)
+      }
+    }
+    
+    const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, handleSessionsRefresh)
+    
+    return () => {
+      unlistenPromise.then(unlisten => unlisten())
+    }
   }, [sessionName])
 
   // Auto-save content only when there are local changes
@@ -246,7 +279,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
       {/* Header with read-only title */}
       <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between">
         <div className="flex items-center gap-2 flex-1 min-w-0">
-          <h2 className="text-sm font-semibold text-slate-200 truncate">{sessionName}</h2>
+          <h2 className="text-sm font-semibold text-slate-200 truncate">{displayName || sessionName}</h2>
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
         </div>
         <div className="flex items-center gap-2">

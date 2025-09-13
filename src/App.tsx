@@ -634,6 +634,8 @@ export default function App() {
     isSpec?: boolean
     draftContent?: string
     versionCount?: number
+    agentType?: string
+    skipPermissions?: boolean
   }) => {
     try {
       
@@ -722,6 +724,8 @@ export default function App() {
          await invoke('schaltwerk_core_create_spec_session', {
            name: data.name,
            specContent: data.draftContent || '',
+           agentType: data.agentType,
+           skipPermissions: data.skipPermissions,
          })
          setNewSessionOpen(false)
 
@@ -758,6 +762,8 @@ export default function App() {
             userEditedName: count > 1 ? false : (data.userEditedName ?? false),
             versionGroupId,
             versionNumber: i,
+            agentType: data.agentType,
+            skipPermissions: data.skipPermissions,
           })
 
           createdVersions.push(versionName)

@@ -20,6 +20,8 @@ interface Props {
         isSpec?: boolean
         draftContent?: string
         versionCount?: number
+        agentType?: string
+        skipPermissions?: boolean
     }) => void | Promise<void>
 }
 
@@ -133,6 +135,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 isSpec: createAsDraft,
                 draftContent: createAsDraft ? taskContent : undefined,
                 versionCount: createAsDraft ? 1 : versionCount,
+                agentType: createAsDraft ? agentType : undefined,
+                skipPermissions: createAsDraft ? skipPermissions : undefined,
             }
             logger.info('[NewSessionModal] Creating session with data:', {
                 ...createData,
@@ -146,7 +150,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             // Parent handles showing the error; re-enable to allow retry
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount])
+    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate

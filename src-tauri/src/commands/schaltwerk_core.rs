@@ -4,6 +4,7 @@ use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use schaltwerk::domains::agents::naming;
 
 // Helper functions for session name parsing
 fn is_version_suffix(s: &str) -> bool {
@@ -312,7 +313,21 @@ pub async fn schaltwerk_core_list_enriched_sessions_sorted(
     }
 }
 
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateSessionParams {
+    name: String,
+    prompt: Option<String>,
+    base_branch: Option<String>,
+    user_edited_name: Option<bool>,
+    version_group_id: Option<String>,
+    version_number: Option<i32>,
+    agent_type: Option<String>,
+    skip_permissions: Option<bool>,
+}
+
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn schaltwerk_core_create_session(
     app: tauri::AppHandle,
     name: String,
@@ -321,8 +336,21 @@ pub async fn schaltwerk_core_create_session(
     user_edited_name: Option<bool>,
     version_group_id: Option<String>,
     version_number: Option<i32>,
+    agent_type: Option<String>,
+    skip_permissions: Option<bool>,
 ) -> Result<Session, String> {
-    let was_user_edited = user_edited_name.unwrap_or(false);
+    // Wrap in params struct to avoid clippy warning about too many arguments
+    let params = CreateSessionParams {
+        name,
+        prompt,
+        base_branch,
+        user_edited_name,
+        version_group_id,
+        version_number,
+        agent_type,
+        skip_permissions,
+    };
+    let was_user_edited = params.user_edited_name.unwrap_or(false);
     // Consider it auto-generated if:
     // 1. It looks like a Docker-style name (adjective_noun format) AND wasn't user edited
     // 2. OR it wasn't user edited at all (even custom names should be renamed if not edited)
@@ -332,14 +360,17 @@ pub async fn schaltwerk_core_create_session(
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    let session = manager.create_session_with_auto_flag(
-            &name,
-            prompt.as_deref(),
-            base_branch.as_deref(),
-            was_auto_generated,
-            version_group_id.as_deref(),
-            version_number,
-        )
+    let creation_params = schaltwerk::domains::sessions::service::SessionCreationParams {
+        name: &params.name,
+        prompt: params.prompt.as_deref(),
+        base_branch: params.base_branch.as_deref(),
+        was_auto_generated,
+        version_group_id: params.version_group_id.as_deref(),
+        version_number: params.version_number,
+        agent_type: params.agent_type.as_deref(),
+        skip_permissions: params.skip_permissions,
+    };
+    let session = manager.create_session_with_agent(creation_params)
         .map_err(|e| format!("Failed to create session: {e}"))?;
 
     let session_name_clone = session.name.clone();
@@ -364,8 +395,8 @@ pub async fn schaltwerk_core_create_session(
     
     // Only trigger auto-rename for non-versioned Docker-style names
     // Versioned names (ending with _v1, _v2, etc.) will be handled by group rename
-    if was_auto_generated && !is_versioned_session_name(&name) {
-        log::info!("Session '{name}' was auto-generated (non-versioned), spawning name generation agent");
+    if was_auto_generated && !is_versioned_session_name(&params.name) {
+        log::info!("Session '{}' was auto-generated (non-versioned), spawning name generation agent", params.name);
         tokio::spawn(async move {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
             
@@ -481,7 +512,7 @@ pub async fn schaltwerk_core_create_session(
         });
     } else {
         log::info!("Session '{}' was_auto_generated={}, has_prompt={}, skipping name generation", 
-            name, was_auto_generated, prompt.is_some());
+            params.name, was_auto_generated, params.prompt.is_some());
     }
 
     Ok(session)
@@ -1446,15 +1477,32 @@ pub async fn schaltwerk_core_unmark_session_ready(app: tauri::AppHandle, name: S
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_create_spec_session(app: tauri::AppHandle, name: String, spec_content: String) -> Result<Session, String> {
-    log::info!("Creating spec session: {name}");
+pub async fn schaltwerk_core_create_spec_session(
+    app: tauri::AppHandle, 
+    name: String, 
+    spec_content: String,
+    agent_type: Option<String>,
+    skip_permissions: Option<bool>
+) -> Result<Session, String> {
+    log::info!("Creating spec session: {name} with agent_type={agent_type:?}");
     
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    let session = manager.create_spec_session(&name, &spec_content)
-        .map_err(|e| format!("Failed to create spec session: {e}"))?;
+    let session = manager.create_spec_session_with_agent(
+        &name, 
+        &spec_content,
+        agent_type.as_deref(),
+        skip_permissions
+    ).map_err(|e| format!("Failed to create spec session: {e}"))?;
+    
+    // Store session details for name generation
+    let session_id = session.id.clone();
+    let session_name = session.name.clone();
+    let has_agent_type = agent_type.is_some();
+    let has_content = !spec_content.trim().is_empty();
+    let should_generate_name = has_agent_type && has_content && !is_versioned_session_name(&session_name);
     
     // Emit event with actual sessions list
     // Invalidate cache before emitting refreshed event
@@ -1463,6 +1511,106 @@ pub async fn schaltwerk_core_create_spec_session(app: tauri::AppHandle, name: St
         if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
             log::warn!("Could not emit sessions refreshed: {e}");
         }
+    }
+    
+    // Drop the lock before spawning async task
+    drop(core_lock);
+    
+    // Trigger name generation for specs created with agent type
+    if should_generate_name {
+        log::info!("Spec session '{session_name}' created with agent type, spawning name generation");
+        let app_handle = app.clone();
+        let agent_type_clone = agent_type.clone();
+        let spec_content_clone = spec_content.clone();
+        
+        tokio::spawn(async move {
+            // Small delay to ensure database write is complete
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            
+            // Get fresh session data
+            let (repo_path, worktree_path, branch, db_clone) = {
+                let core = match get_schaltwerk_core().await {
+                    Ok(c) => c,
+                    Err(e) => {
+                        log::warn!("Cannot get schaltwerk_core for spec name generation: {e}");
+                        return;
+                    }
+                };
+                let core = core.lock().await;
+                let manager = core.session_manager();
+                let session = match manager.get_session(&session_name) {
+                    Ok(s) => s,
+                    Err(e) => { 
+                        log::warn!("Cannot load spec session '{session_name}' for naming: {e}"); 
+                        return; 
+                    }
+                };
+                
+                (
+                    session.repository_path.clone(),
+                    session.worktree_path.clone(), 
+                    session.branch.clone(),
+                    core.db.clone()
+                )
+            };
+            
+            let agent = agent_type_clone.unwrap_or_else(|| "claude".to_string());
+            let (env_vars, cli_args) = get_agent_env_and_cli_args(&agent);
+            
+            log::info!("Starting name generation for spec session '{session_name}' with agent '{agent}'...");
+            
+            // Generate display name - use spec_content as the prompt
+            let ctx = naming::SessionRenameContext {
+                db: &db_clone,
+                session_id: &session_id,
+                worktree_path: &worktree_path,
+                repo_path: &repo_path,
+                current_branch: &branch,
+                agent_type: &agent,
+                initial_prompt: Some(&spec_content_clone),  // Pass spec content as initial_prompt for name generation
+                cli_args: if cli_args.is_empty() { None } else { Some(cli_args.as_str()) },
+                env_vars: &env_vars,
+            };
+            
+            match naming::generate_display_name_and_rename_branch(ctx).await {
+                Ok(Some(display_name)) => {
+                    log::info!("Generated display name '{display_name}' for spec session '{session_name}'");
+                    
+                    // Update the display name in database
+                    if let Err(e) = db_clone.update_session_display_name(&session_id, &display_name) {
+                        log::warn!("Failed to update display name for spec session '{session_name}': {e}");
+                    } else {
+                        // Clear the pending flag
+                        let _ = db_clone.set_pending_name_generation(&session_id, false);
+                        
+                        // Emit refresh event
+                        let core = match get_schaltwerk_core().await {
+                            Ok(c) => c,
+                            Err(e) => {
+                                log::warn!("Cannot get schaltwerk_core after spec renaming: {e}");
+                                return;
+                            }
+                        };
+                        let core = core.lock().await;
+                        let manager = core.session_manager();
+                        if let Ok(sessions) = manager.list_enriched_sessions() {
+                            log::info!("Emitting sessions-refreshed after spec renaming");
+                            if let Err(e) = emit_event(&app_handle, SchaltEvent::SessionsRefreshed, &sessions) {
+                                log::warn!("Could not emit sessions refreshed after spec renaming: {e}");
+                            }
+                        }
+                    }
+                }
+                Ok(None) => {
+                    log::info!("No display name generated for spec session '{session_name}'");
+                    let _ = db_clone.set_pending_name_generation(&session_id, false);
+                }
+                Err(e) => {
+                    log::warn!("Failed to generate display name for spec session '{session_name}': {e}");
+                    let _ = db_clone.set_pending_name_generation(&session_id, false);
+                }
+            }
+        });
     }
     
     Ok(session)
@@ -1552,6 +1700,14 @@ pub async fn schaltwerk_core_start_spec_session(
     };
     
     // Check if the session has content that could enable AI renaming
+    // Skip if display name already exists (generated when spec was created)
+    let has_display_name = session.display_name.is_some();
+    if has_display_name {
+        log::info!("Spec session '{name}' already has display name, skipping regeneration");
+        drop(core_lock);
+        return Ok(());
+    }
+    
     // For spec sessions, the content is in spec_content field, not initial_prompt
     let has_prompt_content = session.initial_prompt.as_ref()
         .map(|p| !p.trim().is_empty())
@@ -1575,7 +1731,7 @@ pub async fn schaltwerk_core_start_spec_session(
     drop(core_lock);
     
     // Trigger AI renaming for spec-started sessions with meaningful content
-    if should_trigger_renaming && !is_versioned_session_name(&name) {
+    if should_trigger_renaming && !is_versioned_session_name(&name) && !has_display_name {
         log::info!("Spec session '{name}' converted to running, spawning name generation agent");
         let session_name_clone = name.clone();
         let app_handle = app.clone();

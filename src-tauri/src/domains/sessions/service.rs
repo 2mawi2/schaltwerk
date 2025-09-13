@@ -4,6 +4,17 @@ use anyhow::{Result, anyhow};
 use chrono::{Utc, TimeZone};
 use log::{info, warn};
 
+pub struct SessionCreationParams<'a> {
+    pub name: &'a str,
+    pub prompt: Option<&'a str>,
+    pub base_branch: Option<&'a str>,
+    pub was_auto_generated: bool,
+    pub version_group_id: Option<&'a str>,
+    pub version_number: Option<i32>,
+    pub agent_type: Option<&'a str>,
+    pub skip_permissions: Option<bool>,
+}
+
 const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
 use crate::{
     schaltwerk_core::database::Database,
@@ -213,20 +224,34 @@ impl SessionManager {
         version_group_id: Option<&str>,
         version_number: Option<i32>,
     ) -> Result<Session> {
-        log::info!("Creating session '{}' in repository: {}", name, self.repo_path.display());
+        let params = SessionCreationParams {
+            name,
+            prompt,
+            base_branch,
+            was_auto_generated,
+            version_group_id,
+            version_number,
+            agent_type: None,
+            skip_permissions: None,
+        };
+        self.create_session_with_agent(params)
+    }
+    
+    pub fn create_session_with_agent(&self, params: SessionCreationParams) -> Result<Session> {
+        log::info!("Creating session '{}' in repository: {}", params.name, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
         
-        if !git::is_valid_session_name(name) {
+        if !git::is_valid_session_name(params.name) {
             return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
         }
         
-        let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
+        let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(params.name)?;
         let session_id = SessionUtils::generate_session_id();
         self.utils.cleanup_existing_worktree(&worktree_path)?;
         
-        let parent_branch = if let Some(base) = base_branch {
+        let parent_branch = if let Some(base) = params.base_branch {
             base.to_string()
         } else {
             log::info!("No base branch specified, detecting default branch for session creation");
@@ -249,8 +274,8 @@ impl SessionManager {
             id: session_id.clone(),
             name: unique_name.clone(),
             display_name: None,
-            version_group_id: version_group_id.map(|s| s.to_string()),
-            version_number,
+            version_group_id: params.version_group_id.map(|s| s.to_string()),
+            version_number: params.version_number,
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: branch.clone(),
@@ -260,12 +285,12 @@ impl SessionManager {
             created_at: now,
             updated_at: now,
             last_activity: None,
-            initial_prompt: prompt.map(String::from),
+            initial_prompt: params.prompt.map(String::from),
             ready_to_merge: false,
-            original_agent_type: None,
-            original_skip_permissions: None,
-            pending_name_generation: was_auto_generated,
-            was_auto_generated,
+            original_agent_type: params.agent_type.map(|s| s.to_string()),
+            original_skip_permissions: params.skip_permissions,
+            pending_name_generation: params.was_auto_generated,
+            was_auto_generated: params.was_auto_generated,
             spec_content: None,
             session_state: SessionState::Running,
         };
@@ -333,7 +358,7 @@ impl SessionManager {
         }
         
         self.cache_manager.unreserve_name(&unique_name);
-        log::info!("Successfully created session '{name}'");
+        log::info!("Successfully created session '{unique_name}'");
         Ok(session)
     }
 
@@ -1040,7 +1065,11 @@ impl SessionManager {
     }
 
     pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Session> {
-        log::info!("Creating spec session '{}' in repository: {}", name, self.repo_path.display());
+        self.create_spec_session_with_agent(name, spec_content, None, None)
+    }
+    
+    pub fn create_spec_session_with_agent(&self, name: &str, spec_content: &str, agent_type: Option<&str>, skip_permissions: Option<bool>) -> Result<Session> {
+        log::info!("Creating spec session '{}' with agent_type={:?} in repository: {}", name, agent_type, self.repo_path.display());
         
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
@@ -1055,10 +1084,13 @@ impl SessionManager {
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
         
+        // Set pending_name_generation flag if we have agent type and content
+        let pending_name_generation = agent_type.is_some() && !spec_content.trim().is_empty();
+        
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
-            display_name: None,
+            display_name: None,  // Will be generated later when the spec is started
             version_group_id: None,
             version_number: None,
             repository_path: self.repo_path.clone(),
@@ -1070,22 +1102,18 @@ impl SessionManager {
             created_at: now,
             updated_at: now,
             last_activity: None,
-            initial_prompt: None,
+            initial_prompt: None,  // Spec sessions don't use initial_prompt
             ready_to_merge: false,
-            original_agent_type: None,
-            original_skip_permissions: None,
-            pending_name_generation: false,
+            original_agent_type: agent_type.map(|s| s.to_string()),
+            original_skip_permissions: skip_permissions,
+            pending_name_generation,
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
         };
         
-        if let Err(e) = self.db_manager.create_session(&session) {
-            self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save spec session to database: {}", e));
-        }
+        self.db_manager.create_session(&session)?;
         
-        self.cache_manager.unreserve_name(&unique_name);
         Ok(session)
     }
 

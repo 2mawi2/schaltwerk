@@ -115,6 +115,8 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
         }
     };
     let content = payload["content"].as_str().unwrap_or("");
+    let agent_type = payload["agent_type"].as_str();
+    let skip_permissions = payload["skip_permissions"].as_bool();
     
     let core = match get_schaltwerk_core().await {
         Ok(c) => c,
@@ -127,7 +129,7 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
     
-    match manager.create_spec_session(name, content) {
+    match manager.create_spec_session_with_agent(name, content, agent_type, skip_permissions) {
         Ok(session) => {
             info!("Created spec session via API: {name}");
             let json = serde_json::to_string(&session).unwrap_or_else(|e| {
