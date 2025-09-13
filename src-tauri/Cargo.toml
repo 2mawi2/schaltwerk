@@ -26,7 +26,7 @@ tauri-build = { version = "2", features = [] }
 [dependencies]
 mimalloc = { version = "0.1", default-features = false }
 tauri = { version = "2", features = [] }
-tauri-plugin-dialog = "2"
+tauri-plugin-dialog = "2.4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 portable-pty = "0.9.0"
@@ -53,8 +53,8 @@ shell-words = "1.1"
 once_cell = "1.19"
 futures = "0.3"
 clap = { version = "4", features = ["derive"] }
-notify = "6.1"
-notify-debouncer-mini = "0.4"
+notify = "8"
+notify-debouncer-mini = "0.7"
 similar = "2.6"
 fontdb = "0.23"
 
