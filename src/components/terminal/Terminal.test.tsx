@@ -450,23 +450,21 @@ describe('Terminal component', () => {
     expect(xterm.options.cursorBlink).toBe(true)
   })
 
-  it('tightens Codex bottom space during output flush', async () => {
+  it('tightens Codex bottom space on font-size change (not during streaming)', async () => {
     ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
     renderTerminal({ terminalId: 'session-codex-top', sessionName: 'codex', agentType: 'codex' })
     await flushAll()
 
     const xterm = getLastXtermInstance()
-    // Simulate being at bottom
+    // Simulate being at bottom with trailing blanks
     xterm.buffer.active.baseY = 50
     xterm.buffer.active.viewportY = 50
     xterm.buffer.active.length = 100
     ;(xterm as any).__setTrailingBlankLines(3)
 
-    // Emit some output to trigger the flush logic
-    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-codex-top', 'hello')
-    await flushAll()
-
-    // Expect a scrollLines up by trailing blank count
+    // Font-size change SHOULD tighten
+    window.dispatchEvent(new CustomEvent('font-size-changed', { detail: { terminalFontSize: 14, uiFontSize: 14 } }))
+    await advanceAndFlush(150)
     expect((xterm.scrollLines as any).mock.calls.some((c: unknown[]) => c[0] === -3)).toBe(true)
   })
 

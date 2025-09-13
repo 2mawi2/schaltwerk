@@ -336,6 +336,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         // Open terminal to DOM first
         terminal.current.open(termRef.current);
+        // Allow streaming immediately; proper fits will still run later
+        rendererReadyRef.current = true;
         
         // Ensure proper initial fit after terminal is opened
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
@@ -609,15 +611,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     terminal.current.write(chunk, () => {
                         try {
                             if (!wasAtBottom) return; // user scrolled up; do not force scroll
-                            const buf = terminal.current!.buffer.active as unknown as ActiveBufferLike;
-                            if (agentType === 'codex' && typeof buf?.getLine === 'function') {
-                                const trailing = countTrailingBlankLines(buf);
-                                terminal.current!.scrollToBottom();
-                                if (trailing > 0) terminal.current!.scrollLines(-trailing);
-                                if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten: trailing=${trailing}`);
-                            } else {
-                                terminal.current!.scrollToBottom();
-                            }
+                            terminal.current!.scrollToBottom();
                         } catch (error) {
                             logger.debug('Scroll error during terminal output (cb)', error);
                         }
@@ -650,15 +644,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 terminal.current.write(chunk, () => {
                     try {
                         if (!wasAtBottom) return;
-                        const buf = terminal.current!.buffer.active as unknown as ActiveBufferLike;
-                        if (agentType === 'codex' && typeof buf?.getLine === 'function') {
-                            const trailing = countTrailingBlankLines(buf);
-                            terminal.current!.scrollToBottom();
-                            if (trailing > 0) terminal.current!.scrollLines(-trailing);
-                            if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(now): trailing=${trailing}`);
-                        } else {
-                            terminal.current!.scrollToBottom();
-                        }
+                        terminal.current!.scrollToBottom();
                     } catch (error) {
                         logger.debug('Scroll error during buffer flush (cb)', error);
                     }
@@ -745,11 +731,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       }
                   });
 
-                  // Scroll to bottom after hydration to show latest content
+                  // Scroll to bottom after hydration to show latest content (Codex: then tighten once)
                   requestAnimationFrame(() => {
                       if (terminal.current) {
                           try {
                               terminal.current.scrollToBottom();
+                              if (agentType === 'codex') {
+                                  const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
+                                  const trailing = typeof (buf as any)?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
+                                  if (trailing > 0) terminal.current.scrollLines(-trailing)
+                                  if (termDebug()) logger.debug(`[Terminal ${terminalId}] tighten(after hydration): trailing=${trailing}`)
+                              }
                           } catch (error) {
                               logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration:`, error);
                           }
@@ -916,15 +908,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (wasAtBottom && !isUILayoutChange) {
                 requestAnimationFrame(() => {
                     try {
-                        if (!terminal.current) return
-                        if (agentType === 'codex') {
-                            const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
-                            const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
-                            terminal.current.scrollToBottom()
-                            if (trailing > 0) terminal.current.scrollLines(-trailing)
-                        } else {
-                            terminal.current.scrollToBottom()
-                        }
+                        terminal.current?.scrollToBottom();
                     } catch (error) {
                         logger.debug('Failed to scroll to bottom after resize', error);
                     }
