@@ -423,6 +423,72 @@ describe('SelectionContext', () => {
     })
   })
 
+  describe('spec vs running consistency', () => {
+    it('keeps UI in spec mode when terminal id already exists but session became spec', async () => {
+      // Step 1: session starts as running → terminal is created and tracked
+      let state: 'running' | 'spec' = 'running'
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+        const typedArgs = args as { name?: string; id?: string } | undefined
+        switch (command) {
+          case TauriCommands.SchaltwerkCoreGetSession:
+            return Promise.resolve({
+              worktree_path: state === 'running' ? '/test/session/path' : undefined,
+              session_id: typedArgs?.name || 'test-session',
+              session_state: state,
+              name: typedArgs?.name || 'test-session'
+            })
+          case TauriCommands.PathExists:
+            return Promise.resolve(true)
+          case TauriCommands.TerminalExists:
+            // Simulate terminal existence check used during creation/cleanup
+            return Promise.resolve(false)
+          case TauriCommands.CreateTerminal:
+            return Promise.resolve()
+          case TauriCommands.GetProjectSelection:
+            return Promise.resolve(null)
+          case TauriCommands.SetProjectSelection:
+            return Promise.resolve()
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
+            return Promise.resolve([])
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
+            return Promise.resolve([])
+          case TauriCommands.GetProjectSessionsSettings:
+            return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
+          case TauriCommands.SetProjectSessionsSettings:
+            return Promise.resolve()
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
+            return Promise.resolve({ terminal: 13, ui: 14 })
+          default:
+            return Promise.resolve()
+        }
+      })
+
+      const { result } = renderHook(() => useSelection(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.isReady).toBe(true)
+      })
+
+      // Select the running session; this will create and track terminals
+      await act(async () => {
+        await result.current.setSelection({ kind: 'session', payload: 'test-session' })
+      })
+      expect(result.current.isSpec).toBe(false)
+
+      // Step 2: backend converts session to spec; our immediate switch must reflect spec UI
+      state = 'spec'
+
+      // Simulate a direct selection to the same session without providing sessionState
+      // Previously this could render terminals due to stale isSpec on fast path
+      await act(async () => {
+        await result.current.setSelection({ kind: 'session', payload: 'test-session' })
+      })
+
+      // The hook should resolve the true state and report spec
+      expect(result.current.isSpec).toBe(true)
+    })
+  })
+
   // Simplified tests for core functionality without complex async scenarios
   describe('basic functionality', () => {
     it('should start with orchestrator selection', async () => {

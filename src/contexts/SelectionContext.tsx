@@ -57,6 +57,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const creationLock = useRef(new Map<string, Promise<void>>())
     
     const isRestoringRef = useRef(false)
+    // Monotonic token to ignore out-of-order async completions
+    const selectionTokenRef = useRef(0)
     
     // Get terminal IDs for a selection
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
@@ -301,6 +303,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     
     // Set selection atomically
     const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = false) => {
+        // Increment token to invalidate previous async continuations
+        const callToken = ++selectionTokenRef.current
         // Mark session switching to prevent terminal resize interference
         document.body.classList.add('session-switching')
         
@@ -340,19 +344,32 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // If terminal already exists, update state immediately for instant switch
             if (terminalAlreadyExists && !forceRecreate) {
-                // CRITICAL: Update isSpec state based on the new selection
-                // This was missing and causing stale isSpec when switching from spec to running
+                // Ensure we have authoritative state when sessionState is unknown
                 if (newSelection.kind === 'session') {
-                    const isSpecSession = newSelection.sessionState === 'spec'
-                    setIsSpec(isSpecSession)
+                    let resolvedState = newSelection.sessionState
+                    let resolvedWorktree = newSelection.worktreePath
+                    if (!resolvedState) {
+                        try {
+                            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: newSelection.payload })
+                            resolvedState = sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined
+                            resolvedWorktree = resolvedWorktree || sessionData?.worktree_path
+                        } catch (e) {
+                            logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', e)
+                        }
+                    }
+                    setIsSpec(resolvedState === 'spec')
+                    // Persist the resolved state back into selection we apply below
+                    newSelection = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
                 } else {
                     // Orchestrator is never a spec
                     setIsSpec(false)
                 }
                 
                 // Update selection and terminals immediately
-                setSelectionState(newSelection)
-                setTerminals(newTerminalIds)
+                if (callToken === selectionTokenRef.current) {
+                    setSelectionState(newSelection)
+                    setTerminals(newTerminalIds)
+                }
                 
                 // Notify SessionsContext about the selection change to preserve position during sorting
                 setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
@@ -389,6 +406,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // For new terminals, create them first
             const terminalIds = await ensureTerminals(newSelection)
+            // If another selection superseded this call, abandon applying its result
+            if (callToken !== selectionTokenRef.current) {
+                return
+            }
             
             // Now atomically update both selection and terminals
             setSelectionState(newSelection)
@@ -463,6 +484,28 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 setTerminals(ids)
                             } catch (e) {
                                 logger.warn('[SelectionContext] Failed to create terminals for newly running session', e)
+                            }
+                        }
+
+                        // If state changed from running to spec, ensure terminal UI is not shown and clear tracking
+                        if (!wasSpec && nowSpec) {
+                            const updatedSelection = {
+                                ...selection,
+                                sessionState: 'spec' as const,
+                                worktreePath: undefined
+                            }
+                            setSelectionState(updatedSelection)
+                            // Clear created flags for this session's terminals and close if present
+                            const ids = getTerminalIds(updatedSelection)
+                            try {
+                                terminalsCreated.current.delete(ids.top)
+                                creationLock.current.delete(ids.top)
+                                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.top })
+                                if (exists) {
+                                    await invoke(TauriCommands.CloseTerminal, { id: ids.top })
+                                }
+                            } catch (e) {
+                                logger.warn('[SelectionContext] Failed to cleanup terminals after running→spec transition:', e)
                             }
                         }
                     } catch (e) {
@@ -591,6 +634,19 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         logger.info('[SelectionContext] Modal open; deferring backend selection until modals close')
                         pendingSelectionRef.current = target
                         return
+                    }
+                    // Augment target with resolved state/worktree for determinism
+                    if (target?.kind === 'session' && target.payload && target.sessionState === undefined) {
+                        try {
+                            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: target.payload })
+                            target = {
+                                ...target,
+                                sessionState: sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined,
+                                worktreePath: sessionData?.worktree_path || target.worktreePath
+                            }
+                        } catch (e) {
+                            logger.warn('[SelectionContext] Failed to resolve state for backend selection event:', e)
+                        }
                     }
                     // Set the selection to the requested session/spec - this is intentional (backend requested)
                     await setSelection(target, false, true)
