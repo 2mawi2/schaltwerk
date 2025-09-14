@@ -409,11 +409,10 @@ describe('SelectionContext', () => {
         { kind: 'session' as const, payload: 'same-session', worktreePath: '/path' }
       ]
 
-      await Promise.all(selections.map(selection => 
-        act(async () => {
-          await result.current.setSelection(selection)
-        })
-      ))
+      // Avoid overlapping act() calls: batch concurrent selection promises inside a single act
+      await act(async () => {
+        await Promise.all(selections.map(selection => result.current.setSelection(selection)))
+      })
 
       // Should only create terminals once per ID despite multiple calls
       // Allow for possible orchestrator fallback during race conditions, but verify deduplication works

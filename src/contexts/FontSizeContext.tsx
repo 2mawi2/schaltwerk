@@ -29,12 +29,31 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
 
   // Load font sizes from database on mount
   useEffect(() => {
-    invoke<[number, number]>(TauriCommands.SchaltwerkCoreGetFontSizes)
-      .then(([terminal, ui]) => {
-        if (terminal >= MIN_FONT_SIZE && terminal <= MAX_FONT_SIZE) {
+    invoke<unknown>(TauriCommands.SchaltwerkCoreGetFontSizes)
+      .then((value) => {
+        let terminal: number | undefined
+        let ui: number | undefined
+
+        if (Array.isArray(value) && value.length >= 2) {
+          const [t, u] = value as [number, number]
+          terminal = t
+          ui = u
+        } else if (
+          value !== null && typeof value === 'object' &&
+          'terminal' in (value as Record<string, unknown>) &&
+          'ui' in (value as Record<string, unknown>)
+        ) {
+          const obj = value as { terminal: number; ui: number }
+          terminal = obj.terminal
+          ui = obj.ui
+        } else {
+          throw new Error('Unexpected font size format')
+        }
+
+        if (typeof terminal === 'number' && terminal >= MIN_FONT_SIZE && terminal <= MAX_FONT_SIZE) {
           setTerminalFontSize(terminal)
         }
-        if (ui >= MIN_FONT_SIZE && ui <= MAX_FONT_SIZE) {
+        if (typeof ui === 'number' && ui >= MIN_FONT_SIZE && ui <= MAX_FONT_SIZE) {
           setUiFontSize(ui)
         }
         setInitialized(true)

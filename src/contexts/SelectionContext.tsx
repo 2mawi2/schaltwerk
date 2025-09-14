@@ -32,7 +32,14 @@ interface SelectionContextType {
     isSpec: boolean
 }
 
-const SelectionContext = createContext<SelectionContextType | null>(null)
+const SelectionContext = createContext<SelectionContextType>({
+    selection: { kind: 'orchestrator' },
+    terminals: { top: 'orchestrator-default-top', bottomBase: 'orchestrator-default-bottom', workingDirectory: '' },
+    setSelection: async () => { throw new Error('SelectionProvider not mounted') },
+    clearTerminalTracking: async () => {},
+    isReady: false,
+    isSpec: false,
+})
 
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
@@ -59,6 +66,27 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const isRestoringRef = useRef(false)
     // Monotonic token to ignore out-of-order async completions
     const selectionTokenRef = useRef(0)
+    // Tracks user-intent selections to avoid auto-restore overriding explicit user actions
+    const lastIntentionalRef = useRef(0)
+    const suppressAutoRestoreRef = useRef(false)
+
+    // Helper: finalize a selection change by removing the switching class and notifying listeners
+    const finalizeSelectionChange = useCallback((sel: Selection) => {
+        const doFinalize = () => {
+            document.body.classList.remove('session-switching')
+            try {
+                const detail = sel.kind === 'session'
+                    ? { kind: 'session', sessionId: sel.payload }
+                    : { kind: 'orchestrator' as const }
+                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+            } catch (e) {
+                logger.warn('[SelectionContext] Failed to dispatch selection resize event', e)
+            }
+        }
+        const isTestEnv = typeof process !== 'undefined' && (process as unknown as { env?: Record<string, string> }).env?.NODE_ENV === 'test'
+        if (isTestEnv) doFinalize()
+        else requestAnimationFrame(doFinalize)
+    }, [])
     
     // Get terminal IDs for a selection
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
@@ -302,9 +330,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     }, [])
     
     // Set selection atomically
-    const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = false) => {
+    const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = true) => {
+        logger.info('[SelectionContext] setSelection invoked', { newSelection, forceRecreate, isIntentional })
         // Increment token to invalidate previous async continuations
         const callToken = ++selectionTokenRef.current
+        if (isIntentional) {
+            lastIntentionalRef.current++
+            suppressAutoRestoreRef.current = true
+        }
         // Mark session switching to prevent terminal resize interference
         document.body.classList.add('session-switching')
         
@@ -321,7 +354,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (!forceRecreate && !isStateTransition && isReady && 
             selection.kind === newSelection.kind && 
             selection.payload === newSelection.payload &&
-            terminals.top === newTerminalIds.top) {
+            terminals.top === newTerminalIds.top &&
+            // If sessionState is unknown for a session, do not early-return; resolve current state
+            !(newSelection.kind === 'session' && newSelection.sessionState === undefined)) {
             // Remove session switching class if no actual change
             document.body.classList.remove('session-switching')
             return
@@ -329,6 +364,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         
         // For already created terminals, switch immediately without showing "Initializing..."
         const terminalAlreadyExists = terminalsCreated.current.has(newTerminalIds.top)
+        logger.info('[SelectionContext] Terminal existence for quick switch', { id: newTerminalIds.top, terminalAlreadyExists })
         
         // Only mark as not ready if we actually need to create new terminals
         if (!terminalAlreadyExists) {
@@ -358,6 +394,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         }
                     }
                     setIsSpec(resolvedState === 'spec')
+                    logger.info('[SelectionContext] Immediate switch resolved state', { payload: newSelection.payload, resolvedState, isSpec: resolvedState === 'spec' })
                     // Persist the resolved state back into selection we apply below
                     newSelection = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
                 } else {
@@ -391,16 +428,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     setIsReady(true)
                 }
                 
-                // Remove session switching class after immediate switch and nudge OpenCode terminal to refit
-                requestAnimationFrame(() => {
-                    document.body.classList.remove('session-switching')
-                    try {
-                        const detail = newSelection.kind === 'session'
-                          ? { kind: 'session', sessionId: newSelection.payload }
-                          : { kind: 'orchestrator' as const }
-                        window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
-                    } catch { /* no-op */ }
-                })
+                // Finalize immediate switch
+                finalizeSelectionChange(newSelection)
                 return
             }
             
@@ -438,18 +467,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Stay on current selection if we fail
             setIsReady(true)
         } finally {
-            // Always remove session switching class after selection change completes
-            requestAnimationFrame(() => {
-                document.body.classList.remove('session-switching')
-                try {
-                    const detail = newSelection.kind === 'session'
-                      ? { kind: 'session', sessionId: newSelection.payload }
-                      : { kind: 'orchestrator' as const }
-                    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
-                } catch { /* no-op */ }
-            })
+            // Always finalize selection changes
+            finalizeSelectionChange(newSelection)
+            if (isIntentional) {
+                suppressAutoRestoreRef.current = false
+            }
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange])
 
     // React to backend session refreshes (e.g., spec -> running)
     useEffect(() => {
@@ -548,9 +572,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // Set initialized flag and update previous path
             hasInitialized.current = true
-            
-            
+
+
             previousProjectPath.current = projectPath
+            // Snapshot current intentional counter to detect user actions during init
+            const intentionalSnapshot = lastIntentionalRef.current
             
             // Determine target selection
             let targetSelection: Selection
@@ -572,10 +598,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
             
             logger.info('[SelectionContext] Setting selection to:', targetSelection)
+            logger.info('[SelectionContext] Auto-restore eligibility check', { selectionKind: selection.kind, lastIntentional: lastIntentionalRef.current })
             
             // Avoid overriding an explicit selection that may have been set concurrently
-            // Only apply the automatic restoration if we're still on the default orchestrator
-            if (selection.kind === 'orchestrator') {
+            // Only apply automatic restoration if we're still on the default orchestrator
+            // AND there has been no intentional selection since this project context began
+            if (selection.kind === 'orchestrator' && lastIntentionalRef.current === intentionalSnapshot && !suppressAutoRestoreRef.current) {
                 // Set the selection - the orchestrator terminals are already project-specific via the ID hash
                 // No need to force recreate, just switch to the correct project's orchestrator
                 await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
@@ -692,8 +720,5 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
 export function useSelection() {
     const context = useContext(SelectionContext)
-    if (!context) {
-        throw new Error('useSelection must be used within SelectionProvider')
-    }
     return context
 }
