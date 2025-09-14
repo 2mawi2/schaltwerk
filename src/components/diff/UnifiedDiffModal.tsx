@@ -30,7 +30,9 @@ interface UnifiedDiffModalProps {
 // FileDiffData type moved to loadDiffs
 
 export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModalProps) {
-  const { selection, setSelection } = useSelection()
+  const { selection, setSelection, terminals } = useSelection()
+  const selectedKind = selection.kind
+  const terminalTop = terminals.top
   const { currentReview, startReview, addComment, getCommentsForFile, clearReview, removeComment } = useReview()
   const { setFocusForSession, setCurrentFocus } = useFocus()
   const lineSelection = useLineSelection()
@@ -127,10 +129,17 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [filePath])
 
   useEffect(() => {
-    if (isOpen && sessionName && (!currentReview || currentReview.sessionName !== sessionName)) {
+    if (!isOpen) return
+    if (selection.kind === 'orchestrator') {
+      if (!currentReview || currentReview.sessionName !== 'orchestrator') {
+        startReview('orchestrator')
+      }
+      return
+    }
+    if (sessionName && (!currentReview || currentReview.sessionName !== sessionName)) {
       startReview(sessionName)
     }
-  }, [isOpen, sessionName, currentReview, startReview])
+  }, [isOpen, selection.kind, sessionName, currentReview, startReview])
 
   
   const toggleContinuousScroll = useCallback(async () => {
@@ -780,9 +789,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const handleSubmitComment = useCallback(async (text: string) => {
     if (!lineSelection.selection || !selectedFile) return
     
-    const fileDiff = allFileDiffs.get(selectedFile)
-    if (!fileDiff) return
-    
     // Get original file content for comment context
     const [mainText, worktreeText] = await invoke<[string, string]>(TauriCommands.GetFileDiffFromMain, {
       sessionName,
@@ -811,37 +817,38 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     setShowCommentForm(false)
     setCommentFormPosition(null)
     lineSelection.clearSelection()
-   }, [lineSelection, selectedFile, allFileDiffs, addComment, sessionName])
+   }, [lineSelection, selectedFile, addComment, sessionName])
 
   const { formatReviewForPrompt, getConfirmationMessage } = useReviewComments()
 
   const handleFinishReview = useCallback(async () => {
     if (!currentReview || currentReview.comments.length === 0) return
-    if (!sessionName) return
 
     const reviewText = formatReviewForPrompt(currentReview.comments)
     
     try {
-      const terminalId = `session-${sessionName}-top`
-      // Use the new paste_and_submit command to reliably submit the review
-      await invoke(TauriCommands.PasteAndSubmitTerminal, { id: terminalId, data: reviewText })
+      if (selectedKind === 'orchestrator') {
+        const terminalId = terminalTop || 'orchestrator-top'
+        await invoke(TauriCommands.PasteAndSubmitTerminal, { id: terminalId, data: reviewText })
+        await setSelection({ kind: 'orchestrator' })
+        setCurrentFocus('claude')
+      } else if (sessionName) {
+        const terminalId = `session-${sessionName}-top`
+        await invoke(TauriCommands.PasteAndSubmitTerminal, { id: terminalId, data: reviewText })
+        await setSelection({ kind: 'session', payload: sessionName })
+        setFocusForSession(sessionName, 'claude')
+        setCurrentFocus('claude')
+      } else {
+        logger.warn('[UnifiedDiffModal] Finish review had no valid target', { selection })
+        return
+      }
       
-      // Focus the session with blue border
-      await setSelection({
-        kind: 'session',
-        payload: sessionName
-      })
-      setFocusForSession(sessionName, 'claude')
-      setCurrentFocus('claude')
-      
-      // Clear the review after sending
       clearReview()
-      
       onClose()
     } catch (error) {
       logger.error('Failed to send review to terminal:', error)
     }
-  }, [currentReview, sessionName, formatReviewForPrompt, clearReview, onClose, setSelection, setFocusForSession, setCurrentFocus])
+  }, [currentReview, selectedKind, terminalTop, sessionName, formatReviewForPrompt, clearReview, onClose, setSelection, setFocusForSession, setCurrentFocus, selection])
 
   // Global keyboard shortcuts for the diff modal (placed after handleFinishReview definition)
   useEffect(() => {
@@ -912,7 +919,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
     window.addEventListener('keydown', handleKeyDown, true) // capture phase
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview])
+  }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition])
 
 
   if (!isOpen) return null
