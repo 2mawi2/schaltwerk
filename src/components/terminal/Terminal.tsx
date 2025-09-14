@@ -668,13 +668,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                     terminal.current.write(chunk, () => {
                         try {
-                            if (!wasAtBottom) return; // user scrolled up; do not force scroll
-                            terminal.current!.scrollToBottom();
-                            if (writeQueueRef.current.length > 0) {
-                                flushQueuedWrites();
+                            if (wasAtBottom) {
+                                terminal.current!.scrollToBottom();
                             }
                         } catch (error) {
                             logger.debug('Scroll error during terminal output (cb)', error);
+                        } finally {
+                            if (writeQueueRef.current.length > 0) {
+                                flushQueuedWrites();
+                            }
                         }
                     });
                 } catch (e) {
@@ -705,13 +707,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 if (termDebug()) logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                 terminal.current.write(chunk, () => {
                     try {
-                        if (!wasAtBottom) return;
-                        terminal.current!.scrollToBottom();
-                        if (writeQueueRef.current.length > 0) {
-                            flushNow();
+                        if (wasAtBottom) {
+                            terminal.current!.scrollToBottom();
                         }
                     } catch (error) {
                         logger.debug('Scroll error during buffer flush (cb)', error);
+                    } finally {
+                        if (writeQueueRef.current.length > 0) {
+                            flushNow();
+                        }
                     }
                 });
             } catch (e) {

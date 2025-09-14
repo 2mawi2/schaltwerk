@@ -497,6 +497,36 @@ describe('Terminal component', () => {
   })
 
 
+  it('drains output queue while scrolled up (no auto-scroll requirement)', async () => {
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+
+    renderTerminal({ terminalId: 'session-stream-top', sessionName: 'stream' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    // Simulate user scrolled up: viewportY < baseY
+    xterm.buffer.active.baseY = 200
+    xterm.buffer.active.viewportY = 150
+    xterm.buffer.active.length = 400
+
+    // Create a payload larger than internal MAX_WRITE_CHUNK (64KB) to require multiple flush cycles
+    const bigChunk = 'X'.repeat(70 * 1024) // 70KB > 64KB
+    const payload = bigChunk + bigChunk + bigChunk // ~210KB
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-stream-top', payload)
+
+    // Allow internal coalescing timers to run
+    await advanceAndFlush(250)
+
+    const allWrites = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls
+      .map((call: unknown[]) => (call[0] as string).length)
+      .reduce((a: number, b: number) => a + b, 0)
+
+    // Even while scrolled up, the total written bytes should equal the payload size (queue keeps draining)
+    expect(allWrites).toBe(payload.length)
+  })
+
+
   
 
   describe('Resize debouncing and OpenCode special handling', () => {
