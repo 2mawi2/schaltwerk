@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -58,8 +59,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -77,15 +78,15 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         }
         return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined
@@ -120,8 +121,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -139,15 +140,15 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         }
         return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined
@@ -190,8 +191,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         if (mode === 'created') {
           return [...sessions].sort((a, b) => {
@@ -209,15 +210,15 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         }
         return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined
@@ -262,8 +263,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')
@@ -295,15 +296,15 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         const draftsSorted = specs.sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         return [...unrevAlpha, ...reviewed, ...draftsSorted]
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined
@@ -360,8 +361,8 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || 'name'
         const isReviewed = (s: EnrichedSession) => !!s.info?.ready_to_merge
         const specs = sessions.filter(s => s.info?.session_state === 'spec')
@@ -387,15 +388,15 @@ describe('Sidebar sorting algorithms comprehensive tests', () => {
         const draftsSorted = specs.sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined

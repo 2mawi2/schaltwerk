@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { KanbanView } from './KanbanView'
@@ -121,13 +122,13 @@ describe('KanbanView', () => {
             if (cmd === 'schaltwerk_core_get_session_spec_content') {
                 return Promise.resolve(['Test spec content', 'Test prompt'])
             }
-            if (cmd === 'schaltwerk_core_cancel_session') {
+            if (cmd === TauriCommands.SchaltwerkCoreCancelSession) {
                 return Promise.resolve()
             }
-            if (cmd === 'schaltwerk_core_mark_ready') {
+            if (cmd === TauriCommands.SchaltwerkCoreMarkReady) {
                 return Promise.resolve()
             }
-            if (cmd === 'schaltwerk_core_convert_session_to_draft') {
+            if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) {
                 return Promise.resolve()
             }
             return Promise.resolve()
@@ -610,7 +611,7 @@ describe('KanbanView', () => {
             // Should not show confirmation for specs
             expect(global.confirm).not.toHaveBeenCalled()
             // Should call invoke to delete the spec
-            expect(invoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', {
+            expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, {
                 name: 'spec-1'
             })
         })

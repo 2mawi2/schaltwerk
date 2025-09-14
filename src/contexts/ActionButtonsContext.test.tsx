@@ -1,4 +1,5 @@
 import React from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { render, waitFor } from '@testing-library/react'
 import { ProjectProvider, useProject } from './ProjectContext'
@@ -60,7 +61,7 @@ describe('ActionButtonsContext', () => {
       expect(getByTestId('loading')).toHaveTextContent('false')
     })
 
-    expect(mockInvoke).toHaveBeenCalledWith('get_project_action_buttons')
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.GetProjectActionButtons)
     expect(getByTestId('buttons-count')).toHaveTextContent('1')
     expect(getByTestId('first-button-label')).toHaveTextContent('Test')
   })

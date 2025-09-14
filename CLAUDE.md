@@ -202,6 +202,16 @@ use crate::events::{emit_event, SchaltEvent};
 emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
 ```
 
+### Tauri Commands (MANDATORY)
+- NEVER call `invoke('some_command')` with raw strings in TS/TSX.
+- ALWAYS use the centralized enum in `src/common/tauriCommands.ts`.
+- Example: `invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, { name, specContent })`.
+- When adding a new backend command/event:
+  - Add the entry to `src/common/tauriCommands.ts` (PascalCase key → exact command string).
+  - Use that enum entry everywhere (including tests) instead of string literals.
+  - If renaming backend commands, update the enum key/value and fix imports.
+- The one-time migration script used during the enum rollout has been REMOVED; keep the enum current manually.
+
 ## Critical Implementation Rules
 
 ### Session Lifecycle

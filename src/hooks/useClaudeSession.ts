@@ -1,4 +1,5 @@
 import { useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -12,12 +13,12 @@ export function useClaudeSession() {
     const startClaude = useCallback(async (options: ClaudeSessionOptions = {}) => {
         try {
             if (options.isCommander) {
-                await invoke('schaltwerk_core_start_claude_orchestrator', { 
+                await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { 
                     terminalId: options.terminalId || 'orchestrator-default-top' 
                 })
                 return { success: true }
             } else if (options.sessionName) {
-                await invoke('schaltwerk_core_start_claude', { sessionName: options.sessionName })
+                await invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName: options.sessionName })
                 return { success: true }
             } else {
                 logger.error('[useClaudeSession] Invalid Claude session options: must specify either isCommander or sessionName')
@@ -31,7 +32,7 @@ export function useClaudeSession() {
 
     const getSkipPermissions = useCallback(async (): Promise<boolean> => {
         try {
-            return await invoke<boolean>('schaltwerk_core_get_skip_permissions')
+            return await invoke<boolean>(TauriCommands.SchaltwerkCoreGetSkipPermissions)
         } catch (error) {
             logger.error('Failed to get skip permissions:', error)
             return false
@@ -40,7 +41,7 @@ export function useClaudeSession() {
 
     const setSkipPermissions = useCallback(async (enabled: boolean): Promise<boolean> => {
         try {
-            await invoke('schaltwerk_core_set_skip_permissions', { enabled })
+            await invoke(TauriCommands.SchaltwerkCoreSetSkipPermissions, { enabled })
             return true
         } catch (error) {
             logger.error('Failed to set skip permissions:', error)
@@ -50,7 +51,7 @@ export function useClaudeSession() {
 
     const getAgentType = useCallback(async (): Promise<string> => {
         try {
-            return await invoke<string>('schaltwerk_core_get_agent_type')
+            return await invoke<string>(TauriCommands.SchaltwerkCoreGetAgentType)
         } catch (error) {
             logger.error('Failed to get agent type:', error)
             return 'claude'
@@ -59,7 +60,7 @@ export function useClaudeSession() {
 
     const setAgentType = useCallback(async (agentType: string): Promise<boolean> => {
         try {
-            await invoke('schaltwerk_core_set_agent_type', { agentType })
+            await invoke(TauriCommands.SchaltwerkCoreSetAgentType, { agentType })
             return true
         } catch (error) {
             logger.error('Failed to set agent type:', error)

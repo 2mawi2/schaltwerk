@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, MockedFunction, afterEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useTerminalTabs } from './useTerminalTabs'
 import { invoke } from '@tauri-apps/api/core'
@@ -210,10 +211,10 @@ describe('useTerminalTabs', () => {
   describe('terminal creation logic', () => {
     it('creates terminal when it does not exist', async () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === 'create_terminal') {
+        if (command === TauriCommands.CreateTerminal) {
           expect(args).toEqual({
             id: 'test-create-1',
             cwd: '/test/dir'
@@ -232,8 +233,8 @@ describe('useTerminalTabs', () => {
         await result.current.addTab()
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('terminal_exists', { id: 'test-create-1' })
-      expect(mockInvoke).toHaveBeenCalledWith('create_terminal', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-create-1' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
         id: 'test-create-1',
         cwd: '/test/dir'
       })
@@ -241,7 +242,7 @@ describe('useTerminalTabs', () => {
 
     it('skips creation when terminal already exists', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(true)
         }
         return Promise.resolve()
@@ -256,13 +257,13 @@ describe('useTerminalTabs', () => {
         await result.current.addTab()
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('terminal_exists', { id: 'test-exists-1' })
-      expect(mockInvoke).not.toHaveBeenCalledWith('create_terminal', expect.any(Object))
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-exists-1' })
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, expect.any(Object))
     })
 
     it('handles terminal_exists failure gracefully', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.reject(new Error('Permission denied'))
         }
         return Promise.resolve()
@@ -364,10 +365,10 @@ describe('useTerminalTabs', () => {
 
     it('handles creation failure gracefully', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === 'create_terminal') {
+        if (command === TauriCommands.CreateTerminal) {
           return Promise.reject(new Error('Failed to create terminal'))
         }
         return Promise.resolve()
@@ -417,7 +418,7 @@ describe('useTerminalTabs', () => {
 
       expect(result.current.tabs).toHaveLength(1)
       expect(result.current.activeTab).toBe(0) // Should switch to remaining tab
-      expect(mockInvoke).toHaveBeenCalledWith('close_terminal', { id: 'test-close-active-1' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CloseTerminal, { id: 'test-close-active-1' })
     })
 
     it('closes tab and keeps same active tab when closing non-active tab', async () => {
@@ -493,7 +494,7 @@ describe('useTerminalTabs', () => {
       })
 
       expect(result.current.tabs).toHaveLength(1) // Should still have 1 tab
-      expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
     })
 
     it('handles invalid tab index gracefully', async () => {
@@ -509,12 +510,12 @@ describe('useTerminalTabs', () => {
       })
 
       expect(result.current.tabs).toHaveLength(1) // Should remain unchanged
-      expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
     })
 
     it('handles close_terminal failure gracefully', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'close_terminal') {
+        if (command === TauriCommands.CloseTerminal) {
           return Promise.reject(new Error('Failed to close'))
         }
         return Promise.resolve()
@@ -584,10 +585,10 @@ describe('useTerminalTabs', () => {
   describe('initial terminal creation', () => {
     it('creates initial terminal on mount when it does not exist', async () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === 'create_terminal') {
+        if (command === TauriCommands.CreateTerminal) {
           expect(args).toEqual({
             id: 'test-initial-0',
             cwd: '/test/dir'
@@ -607,8 +608,8 @@ describe('useTerminalTabs', () => {
         await new Promise(resolve => setTimeout(resolve, 0))
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('terminal_exists', { id: 'test-initial-0' })
-      expect(mockInvoke).toHaveBeenCalledWith('create_terminal', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-0' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
         id: 'test-initial-0',
         cwd: '/test/dir'
       })
@@ -616,7 +617,7 @@ describe('useTerminalTabs', () => {
 
     it('skips initial terminal creation when it already exists', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(true)
         }
         return Promise.resolve()
@@ -631,16 +632,16 @@ describe('useTerminalTabs', () => {
         await new Promise(resolve => setTimeout(resolve, 0))
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('terminal_exists', { id: 'test-initial-exists-0' })
-      expect(mockInvoke).not.toHaveBeenCalledWith('create_terminal', expect.any(Object))
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-exists-0' })
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, expect.any(Object))
     })
 
     it('handles initial terminal creation failure gracefully', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === 'create_terminal') {
+        if (command === TauriCommands.CreateTerminal) {
           return Promise.reject(new Error('Failed to create initial terminal'))
         }
         return Promise.resolve()
@@ -940,10 +941,10 @@ describe('useTerminalTabs', () => {
     it('prevents memory leaks from duplicate terminal creation attempts', async () => {
       let createCallCount = 0
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === 'create_terminal') {
+        if (command === TauriCommands.CreateTerminal) {
           createCallCount++
           return Promise.resolve()
         }

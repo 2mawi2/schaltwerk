@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, ReactElement } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
@@ -257,7 +258,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
     const loadRunScript = useCallback(async (): Promise<RunScript> => {
         try {
-            const result = await invoke<RunScript | null>('get_project_run_script')
+            const result = await invoke<RunScript | null>(TauriCommands.GetProjectRunScript)
             if (result) {
                 return result
             }
@@ -280,8 +281,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             if (activeCategory !== 'archives') return
             try {
                 setArchivesLoading(true)
-                const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
-                const max = await invoke<number>('schaltwerk_core_get_archive_max_entries')
+                const list = await invoke<ArchivedSpec[]>(TauriCommands.SchaltwerkCoreListArchivedSpecs)
+                const max = await invoke<number>(TauriCommands.SchaltwerkCoreGetArchiveMaxEntries)
                 setArchives(list)
                 setArchiveMax(max)
             } finally {
@@ -296,7 +297,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         const loadVersion = async () => {
             if (activeCategory !== 'version') return
             try {
-                const version = await invoke<string>('get_app_version')
+                const version = await invoke<string>(TauriCommands.GetAppVersion)
                 setAppVersion(version)
             } catch (error) {
                 logger.error('Failed to load app version:', error)
@@ -326,7 +327,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const loadBinaryConfigs = useCallback(async () => {
         try {
             logger.info('Loading binary configurations...')
-            const configs = await invoke<AgentBinaryConfig[]>('get_all_agent_binary_configs')
+            const configs = await invoke<AgentBinaryConfig[]>(TauriCommands.GetAllAgentBinaryConfigs)
             logger.info('Received binary configurations:', configs)
             
             const configMap: Record<AgentType, AgentBinaryConfig> = {
@@ -401,7 +402,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         if (open) {
             loadAllSettings()
             // Also load the project path for MCP settings
-            invoke<string | null>('get_active_project_path').then(path => {
+            invoke<string | null>(TauriCommands.GetActiveProjectPath).then(path => {
                 if (path) setProjectPath(path)
             })
         }
@@ -409,12 +410,12 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
     const handleBinaryPathChange = async (agent: AgentType, path: string | null) => {
         try {
-            await invoke('set_agent_binary_path', { 
+            await invoke(TauriCommands.SetAgentBinaryPath, { 
                 agentName: agent, 
                 path: path || null 
             })
             
-            const updatedConfig = await invoke<AgentBinaryConfig>('get_agent_binary_config', { agentName: agent })
+            const updatedConfig = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, { agentName: agent })
             setBinaryConfigs(prev => ({
                 ...prev,
                 [agent]: updatedConfig
@@ -427,7 +428,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
     const handleRefreshBinaryDetection = async (agent: AgentType) => {
         try {
-            const updatedConfig = await invoke<AgentBinaryConfig>('refresh_agent_binary_detection', { agentName: agent })
+            const updatedConfig = await invoke<AgentBinaryConfig>(TauriCommands.RefreshAgentBinaryDetection, { agentName: agent })
             setBinaryConfigs(prev => ({
                 ...prev,
                 [agent]: updatedConfig
@@ -477,7 +478,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         
         // Save run script
         try {
-            await invoke('set_project_run_script', { runScript })
+            await invoke(TauriCommands.SetProjectRunScript, { runScript })
             result.savedSettings.push('run script')
         } catch (error) {
             logger.info('Run script not saved - requires active project', error)
@@ -497,7 +498,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             } else {
                 try {
                     // Re-fetch persisted buttons to ensure modal reflects canonical state
-                    const latest = await invoke<HeaderActionConfig[]>('get_project_action_buttons')
+                    const latest = await invoke<HeaderActionConfig[]>(TauriCommands.GetProjectActionButtons)
                     setEditableActionButtons(latest)
                 } catch (e) {
                     logger.warn('Failed to reload action buttons after save', e)
@@ -532,7 +533,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             />
                             <button onClick={async () => {
                                 try {
-                                    await invoke('schaltwerk_core_set_archive_max_entries', { limit: archiveMax })
+                                    await invoke(TauriCommands.SchaltwerkCoreSetArchiveMaxEntries, { limit: archiveMax })
                                     showNotification('Archive limit saved', 'success')
                                 } catch (e) {
                                     logger.error('Failed to save archive limit', e)
@@ -572,8 +573,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                         <div className="flex items-center gap-2 flex-shrink-0">
                                             <button onClick={async () => {
                                                 try {
-                                                    await invoke('schaltwerk_core_restore_archived_spec', { id: item.id, newName: null })
-                                                    const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
+                                                    await invoke(TauriCommands.SchaltwerkCoreRestoreArchivedSpec, { id: item.id, newName: null })
+                                                    const list = await invoke<ArchivedSpec[]>(TauriCommands.SchaltwerkCoreListArchivedSpecs)
                                                     setArchives(list)
                                                     showNotification('Restored to specs', 'success')
                                                 } catch (e) {
@@ -583,8 +584,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                             }} className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-caption bg-slate-800 hover:bg-slate-700">Restore</button>
                                             <button onClick={async () => {
                                                 try {
-                                                    await invoke('schaltwerk_core_delete_archived_spec', { id: item.id })
-                                                    const list = await invoke<ArchivedSpec[]>('schaltwerk_core_list_archived_specs')
+                                                    await invoke(TauriCommands.SchaltwerkCoreDeleteArchivedSpec, { id: item.id })
+                                                    const list = await invoke<ArchivedSpec[]>(TauriCommands.SchaltwerkCoreListArchivedSpecs)
                                                     setArchives(list)
                                                 } catch (e) {
                                                     logger.error('Failed to delete archived spec', e)

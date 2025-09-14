@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useSortedSessions } from './useSortedSessions'
 import { invoke } from '@tauri-apps/api/core'
@@ -64,7 +65,7 @@ describe('useSortedSessions', () => {
                 await new Promise(resolve => setTimeout(resolve, 0))
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions_sorted', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode: SortMode.Name,
                 filterMode: FilterMode.All
             })
@@ -189,7 +190,7 @@ describe('useSortedSessions', () => {
                 await new Promise(resolve => setTimeout(resolve, 0))
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions_sorted', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode,
                 filterMode
             })
@@ -214,7 +215,7 @@ describe('useSortedSessions', () => {
             })
 
             expect(mockInvoke).toHaveBeenCalledTimes(2)
-            expect(mockInvoke).toHaveBeenLastCalledWith('schaltwerk_core_list_enriched_sessions_sorted', {
+            expect(mockInvoke).toHaveBeenLastCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode: SortMode.Created,
                 filterMode: FilterMode.All
             })
@@ -239,7 +240,7 @@ describe('useSortedSessions', () => {
             })
 
             expect(mockInvoke).toHaveBeenCalledTimes(2)
-            expect(mockInvoke).toHaveBeenLastCalledWith('schaltwerk_core_list_enriched_sessions_sorted', {
+            expect(mockInvoke).toHaveBeenLastCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode: SortMode.Name,
                 filterMode: FilterMode.Spec
             })
@@ -389,7 +390,7 @@ describe('useSortedSessions', () => {
                 await result.current.reloadSessions()
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions_sorted', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode: SortMode.Name,
                 filterMode: FilterMode.All
             })

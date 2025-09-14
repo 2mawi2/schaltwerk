@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { useCallback } from 'react'
 import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
@@ -41,8 +42,8 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     
     // Load both content and session info
     Promise.all([
-      invoke<[string | null, string | null]>('schaltwerk_core_get_session_agent_content', { name: sessionName }),
-      invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
+      invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName }),
+      invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
     ])
       .then(([[draftContent, initialPrompt], sessions]) => {
         if (!mounted) return
@@ -69,7 +70,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   useEffect(() => {
     const handleSessionsRefresh = async () => {
       try {
-        const sessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
+        const sessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
         const session = sessions.find(s => s.info.session_id === sessionName || s.info.branch === sessionName)
         if (session && session.info.display_name) {
           setDisplayName(session.info.display_name)
@@ -94,7 +95,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     saveTimerRef.current = setTimeout(async () => {
       try {
         setSaving(true)
-        await invoke('schaltwerk_core_update_spec_content', { name: sessionName, content })
+        await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, { name: sessionName, content })
         lastServerContentRef.current = content
         setHasLocalChanges(false)
       } catch (e) {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { SelectionProvider } from '../../contexts/SelectionContext'
@@ -39,11 +40,11 @@ describe('UnifiedDiffModal performance', () => {
     const files = Array.from({ length: 40 }, (_, i) => ({ path: `file-${i}.ts`, change_type: 'modified' as const }))
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_changed_files_from_main') return files
-      if (cmd === 'get_current_branch_name') return 'feature/x'
-      if (cmd === 'get_base_branch_name') return 'main'
-      if (cmd === 'get_commit_comparison_info') return ['abc1234', 'def5678']
-      if (cmd === 'get_file_diff_from_main') {
+      if (cmd === TauriCommands.GetChangedFilesFromMain) return files
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
+      if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+      if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc1234', 'def5678']
+      if (cmd === TauriCommands.GetFileDiffFromMain) {
         const base = Array.from({ length: 4000 }, (_, i) => `line ${i}`).join('\n') + '\n'
         const head = base
         return [base, head]

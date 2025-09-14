@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { NewSessionModal } from './NewSessionModal'
 import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
@@ -67,17 +68,17 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         vi.clearAllMocks()
         mockInvoke.mockImplementation((command: string) => {
             switch (command) {
-                case 'repository_is_empty':
+                case TauriCommands.RepositoryIsEmpty:
                     return Promise.resolve(false)
-                case 'list_project_branches':
+                case TauriCommands.ListProjectBranches:
                     return Promise.resolve(['main', 'develop'])
-                case 'get_project_default_base_branch':
+                case TauriCommands.GetProjectDefaultBaseBranch:
                     return Promise.resolve(null) // No saved default
-                case 'get_project_default_branch': 
+                case TauriCommands.GetProjectDefaultBranch: 
                     return Promise.resolve('main')
-                case 'schaltwerk_core_get_skip_permissions':
+                case TauriCommands.SchaltwerkCoreGetSkipPermissions:
                     return Promise.resolve(false)
-                case 'schaltwerk_core_get_agent_type':
+                case TauriCommands.SchaltwerkCoreGetAgentType:
                     return Promise.resolve('claude')
                 default:
                     return Promise.resolve()
@@ -382,13 +383,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
     test('handles repository empty state with configuration panel', async () => {
         mockInvoke.mockImplementation((command: string) => {
             switch (command) {
-                case 'repository_is_empty':
+                case TauriCommands.RepositoryIsEmpty:
                     return Promise.resolve(true)
-                case 'list_project_branches':
+                case TauriCommands.ListProjectBranches:
                     return Promise.resolve(['main', 'develop'])
-                case 'get_project_default_base_branch':
+                case TauriCommands.GetProjectDefaultBaseBranch:
                     return Promise.resolve(null)
-                case 'get_project_default_branch': 
+                case TauriCommands.GetProjectDefaultBranch: 
                     return Promise.resolve('main')
                 default:
                     return Promise.resolve()

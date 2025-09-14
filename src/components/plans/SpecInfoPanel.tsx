@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { VscPlay, VscRocket, VscTrash } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { IconButton } from '../common/IconButton'
@@ -32,7 +33,7 @@ export function SpecInfoPanel({ sessionName }: Props) {
     try {
       setDeleting(true)
       setError(null)
-      await invoke('schaltwerk_core_cancel_session', { name: sessionName })
+      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
       // The parent component should handle the refresh
     } catch (e: unknown) {
       logger.error('[SpecInfoPanel] Failed to delete spec:', e)

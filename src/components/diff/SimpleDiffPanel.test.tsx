@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { vi } from 'vitest'
 
@@ -55,10 +56,10 @@ describe('SimpleDiffPanel', () => {
     currentSelection = { kind: 'session', payload: 's1' }
 
     invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_changed_files_from_main') return []
-      if (cmd === 'get_current_branch_name') return 'feat'
-      if (cmd === 'get_base_branch_name') return 'main'
-      if (cmd === 'get_commit_comparison_info') return ['a', 'b']
+      if (cmd === TauriCommands.GetChangedFilesFromMain) return []
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'feat'
+      if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+      if (cmd === TauriCommands.GetCommitComparisonInfo) return ['a', 'b']
       return null
     })
     const { SimpleDiffPanel } = await import('./SimpleDiffPanel')
@@ -69,7 +70,7 @@ describe('SimpleDiffPanel', () => {
 
     // And we never fetch the session prompt
     const calls = invoke.mock.calls
-    expect(calls.find((c: unknown[]) => (c as [string, ...unknown[]])[0] === 'schaltwerk_core_get_session')).toBeUndefined()
+    expect(calls.find((c: unknown[]) => (c as [string, ...unknown[]])[0] === TauriCommands.SchaltwerkCoreGetSession)).toBeUndefined()
   })
 
   it('renders changed files, highlights selected row, and calls onFileSelect', async () => {
@@ -80,11 +81,11 @@ describe('SimpleDiffPanel', () => {
       { path: 'src/b/file2.ts', change_type: 'added' },
     ]
     invoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_changed_files_from_main') return files
-      if (cmd === 'get_current_branch_name') return 'feat'
-      if (cmd === 'get_base_branch_name') return 'main'
-      if (cmd === 'get_commit_comparison_info') return ['a', 'b']
-      if (cmd === 'schaltwerk_core_get_session') return { initial_prompt: '' }
+      if (cmd === TauriCommands.GetChangedFilesFromMain) return files
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'feat'
+      if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+      if (cmd === TauriCommands.GetCommitComparisonInfo) return ['a', 'b']
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { initial_prompt: '' }
       return null
     })
 

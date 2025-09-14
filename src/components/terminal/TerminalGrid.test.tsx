@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { MockTauriInvokeArgs } from '../../types/testing'
@@ -274,12 +275,12 @@ beforeEach(() => {
 
   mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
     switch (command) {
-      case 'get_current_directory':
+      case TauriCommands.GetCurrentDirectory:
         return Promise.resolve('/test/cwd')
-      case 'terminal_exists':
+      case TauriCommands.TerminalExists:
         // Terminal doesn't exist initially, forcing creation
         return Promise.resolve(false)
-      case 'create_terminal': {
+      case TauriCommands.CreateTerminal: {
         // Mark as created
         const terminalId = (args as { id?: string })?.id
         if (terminalId) {
@@ -287,12 +288,12 @@ beforeEach(() => {
         }
         return Promise.resolve()
       }
-      case 'schaltwerk_core_get_session':
+      case TauriCommands.SchaltwerkCoreGetSession:
         return Promise.resolve({
           worktree_path: '/session/worktree',
           session_id: (args as { name?: string })?.name || 'test-session',
         })
-      case 'get_project_action_buttons':
+      case TauriCommands.GetProjectActionButtons:
         return Promise.resolve([])
       default:
         return Promise.resolve(undefined)

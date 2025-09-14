@@ -1,4 +1,5 @@
 import { Terminal, TerminalHandle } from './Terminal'
+import { TauriCommands } from '../../common/tauriCommands'
 import { TerminalTabs, TerminalTabsHandle } from './TerminalTabs'
 import { RunTerminal, RunTerminalHandle } from './RunTerminal'
 import { UnifiedBottomBar } from './UnifiedBottomBar'
@@ -746,7 +747,7 @@ export function TerminalGrid() {
                                                 e.stopPropagation()
                                                 try {
                                                     // Use the actual terminal ID from context
-                                                    await invoke('paste_and_submit_terminal', { 
+                                                    await invoke(TauriCommands.PasteAndSubmitTerminal, { 
                                                         id: terminals.top, 
                                                         data: action.prompt 
                                                     })

@@ -236,7 +236,7 @@ export default function App() {
 
     try {
       setIsCancelling(true)
-      await invoke('schaltwerk_core_cancel_session', {
+      await invoke(TauriCommands.SchaltwerkCoreCancelSession, {
         name: currentSession.name
       })
       setCancelModalOpen(false)
@@ -255,8 +255,8 @@ export default function App() {
 
     try {
       if (initializeBackend) {
-        await invoke('initialize_project', { path })
-        await invoke('add_recent_project', { path })
+        await invoke(TauriCommands.InitializeProject, { path })
+        await invoke(TauriCommands.AddRecentProject, { path })
       }
 
       setProjectPath(path)
@@ -276,7 +276,7 @@ export default function App() {
 
       // If repository has no commits, trigger New Project flow
       try {
-        const isEmpty = await invoke<boolean>('repository_is_empty')
+        const isEmpty = await invoke<boolean>(TauriCommands.RepositoryIsEmpty)
         if (isEmpty) {
           setShowHome(true)
           window.dispatchEvent(new CustomEvent('schaltwerk:open-new-project-dialog'))
@@ -307,7 +307,7 @@ export default function App() {
     // Deterministically pull active project on mount to avoid event race
     ;(async () => {
       try {
-        const active = await invoke<string | null>('get_active_project_path')
+        const active = await invoke<string | null>(TauriCommands.GetActiveProjectPath)
         if (active) {
           logger.info('Detected active project on startup:', active)
           // Backend already set the project; only sync UI state
@@ -588,7 +588,7 @@ export default function App() {
 
     try {
       setIsCancelling(true)
-      await invoke('schaltwerk_core_archive_spec_session', { name: currentSession.name })
+      await invoke(TauriCommands.SchaltwerkCoreArchiveSpecSession, { name: currentSession.name })
       setDeleteSpecModalOpen(false)
       // No manual selection here; SessionRemoved + SessionsRefreshed will drive next focus
     } catch (error) {
@@ -647,7 +647,7 @@ export default function App() {
          // Ensure the spec content reflects latest prompt before starting
          const contentToUse = data.prompt || ''
          if (contentToUse.trim().length > 0) {
-           await invoke('schaltwerk_core_update_spec_content', {
+           await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
              name: data.name,
              content: contentToUse,
            })
@@ -716,7 +716,7 @@ export default function App() {
         for (const sessionName of sessionNames) {
           try {
             // Start the AI agent (this creates the top terminal with agent)
-            await invoke('schaltwerk_core_start_claude', {
+            await invoke(TauriCommands.SchaltwerkCoreStartClaude, {
               sessionName: sessionName,
               cols: null,
               rows: null
@@ -736,7 +736,7 @@ export default function App() {
 
       if (data.isSpec) {
          // Create spec session
-         await invoke('schaltwerk_core_create_spec_session', {
+         await invoke(TauriCommands.SchaltwerkCoreCreateSpecSession, {
            name: data.name,
            specContent: data.draftContent || '',
            agentType: data.agentType,
@@ -792,7 +792,7 @@ export default function App() {
           setTimeout(async () => {
             try {
               logger.info(`[App] Attempting to rename version group with baseName: '${baseName}' and prompt: '${data.prompt}'`)
-              await invoke('schaltwerk_core_rename_version_group', {
+              await invoke(TauriCommands.SchaltwerkCoreRenameVersionGroup, {
                 baseName,
                 prompt: data.prompt,
                 baseBranch: data.baseBranch || null,
@@ -855,7 +855,7 @@ export default function App() {
       const existingTab = openTabs.find(tab => tab.projectPath === path)
       if (existingTab) {
         // Switch to existing tab - ensure backend knows about the project switch
-        await invoke('initialize_project', { path })
+        await invoke(TauriCommands.InitializeProject, { path })
         setActiveTabPath(path)
         setProjectPath(path)
         setShowHome(false)
@@ -863,8 +863,8 @@ export default function App() {
       }
 
       // Initialize and add new tab
-      await invoke('initialize_project', { path })
-      await invoke('add_recent_project', { path })
+      await invoke(TauriCommands.InitializeProject, { path })
+      await invoke(TauriCommands.AddRecentProject, { path })
 
       const projectName = getBasename(path)
       const newTab: ProjectTab = {
@@ -917,7 +917,7 @@ export default function App() {
         setTimeout(() => reject(new Error('Project switch timeout')), 5000)
       })
       
-      const switchPromise = invoke('initialize_project', { path })
+      const switchPromise = invoke(TauriCommands.InitializeProject, { path })
       
       // Race between the actual switch and timeout
       await Promise.race([switchPromise, timeoutPromise])
@@ -955,7 +955,7 @@ export default function App() {
         if (newActiveTab && newActiveTab.projectPath !== path) {
           // Switch to the new project in backend first
           try {
-            await invoke('initialize_project', { path: newActiveTab.projectPath })
+            await invoke(TauriCommands.InitializeProject, { path: newActiveTab.projectPath })
             setActiveTabPath(newActiveTab.projectPath)
             setProjectPath(newActiveTab.projectPath)
           } catch (error) {
@@ -975,7 +975,7 @@ export default function App() {
 
     // Clean up the closed project in backend
     try {
-      await invoke('close_project', { path })
+      await invoke(TauriCommands.CloseProject, { path })
       // Also clear frontend terminal tracking to avoid stale state on reopen
       // Compute orchestrator terminal IDs for this project (must match SelectionContext logic)
       try {

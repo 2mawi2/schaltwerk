@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { TauriCommands } from '../common/tauriCommands'
 import { determineRunModeState } from './runModeLogic'
 
 export interface RunScriptLoadResult {
@@ -11,7 +12,7 @@ export async function loadRunScriptConfiguration(sessionKey: string): Promise<Ru
     try {
         // Check if run scripts are available in the project
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const runScript = await invoke<any>('get_project_run_script')
+        const runScript = await invoke<any>(TauriCommands.GetProjectRunScript)
         const scriptsAvailable = !!(runScript && runScript.command)
         
         if (!scriptsAvailable) {

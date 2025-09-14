@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -41,7 +42,7 @@ export function useSessionPrefill() {
     setError(null)
 
     try {
-      const sessionData = await invoke<SessionData>('schaltwerk_core_get_session', { name: sessionName })
+      const sessionData = await invoke<SessionData>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
       logger.info('[useSessionPrefill] Raw session data:', sessionData)
       
       const taskContent = extractSessionContent(sessionData)

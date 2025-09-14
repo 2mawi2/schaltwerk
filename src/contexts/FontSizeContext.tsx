@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState, ReactNode } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -28,7 +29,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
 
   // Load font sizes from database on mount
   useEffect(() => {
-    invoke<[number, number]>('schaltwerk_core_get_font_sizes')
+    invoke<[number, number]>(TauriCommands.SchaltwerkCoreGetFontSizes)
       .then(([terminal, ui]) => {
         if (terminal >= MIN_FONT_SIZE && terminal <= MAX_FONT_SIZE) {
           setTerminalFontSize(terminal)
@@ -72,7 +73,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
         return
       }
       lastSavedRef.current = pending
-      invoke('schaltwerk_core_set_font_sizes', {
+      invoke(TauriCommands.SchaltwerkCoreSetFontSizes, {
         terminalFontSize: pending.terminal,
         uiFontSize: pending.ui
       }).catch(err => logger.error('Failed to save font sizes:', err))

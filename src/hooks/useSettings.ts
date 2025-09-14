@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -44,24 +45,24 @@ export const useSettings = () => {
                     vars[item.key.trim()] = item.value
                 }
             }
-            await invoke('set_agent_env_vars', { agentType: agent, envVars: vars })
-            await invoke('set_agent_cli_args', { agentType: agent, cliArgs: cliArgs[agent] })
+            await invoke(TauriCommands.SetAgentEnvVars, { agentType: agent, envVars: vars })
+            await invoke(TauriCommands.SetAgentCliArgs, { agentType: agent, cliArgs: cliArgs[agent] })
         }
     }, [])
     
     const saveProjectSettings = useCallback(async (projectSettings: ProjectSettings): Promise<void> => {
-        await invoke('set_project_settings', { settings: { setupScript: projectSettings.setupScript } })
+        await invoke(TauriCommands.SetProjectSettings, { settings: { setupScript: projectSettings.setupScript } })
         
         const projectEnvVarsObject = projectSettings.environmentVariables.reduce((acc, { key, value }) => {
             if (key) acc[key] = value
             return acc
         }, {} as Record<string, string>)
         
-        await invoke('set_project_environment_variables', { envVars: projectEnvVarsObject })
+        await invoke(TauriCommands.SetProjectEnvironmentVariables, { envVars: projectEnvVarsObject })
     }, [])
     
     const saveTerminalSettings = useCallback(async (terminalSettings: TerminalSettings): Promise<void> => {
-        await invoke('set_terminal_settings', { terminal: terminalSettings })
+        await invoke(TauriCommands.SetTerminalSettings, { terminal: terminalSettings })
         try {
             if (typeof window !== 'undefined') {
                 const font = terminalSettings.fontFamily || null
@@ -73,7 +74,7 @@ export const useSettings = () => {
     }, [])
     
     const saveSessionPreferences = useCallback(async (sessionPreferences: SessionPreferences): Promise<void> => {
-        await invoke('set_session_preferences', { preferences: sessionPreferences })
+        await invoke(TauriCommands.SetSessionPreferences, { preferences: sessionPreferences })
     }, [])
     
     const saveAllSettings = useCallback(async (
@@ -141,7 +142,7 @@ export const useSettings = () => {
             }
             
             for (const agent of agents) {
-                const vars = await invoke<EnvVars>('get_agent_env_vars', { agentType: agent })
+                const vars = await invoke<EnvVars>(TauriCommands.GetAgentEnvVars, { agentType: agent })
                 loadedVars[agent] = Object.entries(vars || {}).map(([key, value]) => ({ key, value }))
             }
             
@@ -163,7 +164,7 @@ export const useSettings = () => {
         }
         
         for (const agent of agents) {
-            const args = await invoke<string>('get_agent_cli_args', { agentType: agent })
+            const args = await invoke<string>(TauriCommands.GetAgentCliArgs, { agentType: agent })
             loadedArgs[agent] = args || ''
         }
         
@@ -172,7 +173,7 @@ export const useSettings = () => {
     
     const loadProjectSettings = useCallback(async (): Promise<ProjectSettings> => {
         try {
-            const settings = await invoke<ProjectSettings>('get_project_settings')
+            const settings = await invoke<ProjectSettings>(TauriCommands.GetProjectSettings)
             const envVars = await invoke<Record<string, string>>('get_project_environment_variables')
             const envVarArray = Object.entries(envVars || {}).map(([key, value]) => ({ key, value }))
             
@@ -188,7 +189,7 @@ export const useSettings = () => {
     
     const loadTerminalSettings = useCallback(async (): Promise<TerminalSettings> => {
         try {
-            const settings = await invoke<TerminalSettings>('get_terminal_settings')
+            const settings = await invoke<TerminalSettings>(TauriCommands.GetTerminalSettings)
             return {
                 shell: settings?.shell || null,
                 shellArgs: settings?.shellArgs || [],
@@ -202,7 +203,7 @@ export const useSettings = () => {
     
     const loadSessionPreferences = useCallback(async (): Promise<SessionPreferences> => {
         try {
-            const preferences = await invoke<SessionPreferences>('get_session_preferences')
+            const preferences = await invoke<SessionPreferences>(TauriCommands.GetSessionPreferences)
             return preferences || { auto_commit_on_review: false, skip_confirmation_modals: false }
         } catch (error) {
             logger.error('Failed to load session preferences:', error)

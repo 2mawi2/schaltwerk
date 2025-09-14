@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
@@ -27,7 +28,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     let mounted = true
     setLoading(true)
     setError(null)
-    invoke<[string | null, string | null]>('schaltwerk_core_get_session_agent_content', { name: sessionName })
+    invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName })
       .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
         const text: string = draftContent ?? initialPrompt ?? ''
@@ -50,7 +51,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       if (!editable) return
       try {
         setSaving(true)
-        await invoke('schaltwerk_core_update_spec_content', { name: sessionName, content })
+        await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, { name: sessionName, content })
       } catch (e) {
         logger.error('[DraftContentView] Failed to save spec:', e)
       } finally {

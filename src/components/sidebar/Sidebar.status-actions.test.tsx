@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -39,17 +40,17 @@ describe('Sidebar status indicators and actions', () => {
     unlistenFns = []
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'schaltwerk_core_unmark_session_ready') return undefined
-      if (cmd === 'get_current_directory') return '/cwd'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.SchaltwerkCoreUnmarkSessionReady) return undefined
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined
@@ -89,7 +90,7 @@ describe('Sidebar status indicators and actions', () => {
     fireEvent.click(unmarkBtn)
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('schaltwerk_core_unmark_session_ready', { name: 's2' })
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: 's2' })
     })
   })
 
@@ -122,16 +123,16 @@ describe('Sidebar status indicators and actions', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_current_directory') return '/cwd'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/cwd'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: 'all', sort_mode: 'name' }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined

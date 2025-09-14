@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -81,7 +82,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
             setLoading(true)
             setError(null)
             
-            const configs = await invoke<AgentBinaryConfig[]>('get_all_agent_binary_configs')
+            const configs = await invoke<AgentBinaryConfig[]>(TauriCommands.GetAllAgentBinaryConfigs)
             
             const configMap: Record<AgentType, AgentBinaryConfig> = { ...DEFAULT_CONFIGS }
             
@@ -111,7 +112,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
                 return cached
             }
             
-            const config = await invoke<AgentBinaryConfig>('get_agent_binary_config', { 
+            const config = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, { 
                 agentName: binaryName 
             })
             
@@ -133,7 +134,7 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
         try {
             const binaryName = mapAgentToBinary(agentName)
             
-            const config = await invoke<AgentBinaryConfig>('refresh_agent_binary_detection', { 
+            const config = await invoke<AgentBinaryConfig>(TauriCommands.RefreshAgentBinaryDetection, { 
                 agentName: binaryName 
             })
             
@@ -155,13 +156,13 @@ export function useAgentBinaryDetection(options: UseAgentBinaryDetectionOptions 
         try {
             const binaryName = mapAgentToBinary(agentName)
             
-            await invoke('set_agent_binary_path', { 
+            await invoke(TauriCommands.SetAgentBinaryPath, { 
                 agentName: binaryName, 
                 path: path || null 
             })
             
             // Get the updated config
-            const updatedConfig = await invoke<AgentBinaryConfig>('get_agent_binary_config', { 
+            const updatedConfig = await invoke<AgentBinaryConfig>(TauriCommands.GetAgentBinaryConfig, { 
                 agentName: binaryName 
             })
             

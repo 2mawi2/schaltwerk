@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -13,7 +14,7 @@ export function useFolderPermission(folderPath?: string) {
     setPermissionError(null)
     
     try {
-      const hasAccess = await invoke<boolean>('check_folder_access', { path })
+      const hasAccess = await invoke<boolean>(TauriCommands.CheckFolderAccess, { path })
       setHasPermission(hasAccess)
       if (!hasAccess) {
         setDeniedPath(path)
@@ -35,7 +36,7 @@ export function useFolderPermission(folderPath?: string) {
     setPermissionError(null)
     
     try {
-      await invoke('ensure_folder_permission', { path })
+      await invoke(TauriCommands.EnsureFolderPermission, { path })
       
       await new Promise(resolve => setTimeout(resolve, 500))
       

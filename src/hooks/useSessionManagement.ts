@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 
 export interface SessionSelection {
@@ -27,18 +28,18 @@ export function useSessionManagement(): SessionManagementHookReturn {
     const [isResetting, setIsResetting] = useState(false)
 
     const resetOrchestratorTerminal = useCallback(async (terminalId: string): Promise<void> => {
-        await invoke('schaltwerk_core_reset_orchestrator', { terminalId })
+        await invoke(TauriCommands.SchaltwerkCoreResetOrchestrator, { terminalId })
     }, [])
 
     const closeTerminalIfExists = useCallback(async (terminalId: string): Promise<void> => {
-        const exists = await invoke<boolean>('terminal_exists', { id: terminalId })
+        const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
         if (exists) {
-            await invoke('close_terminal', { id: terminalId })
+            await invoke(TauriCommands.CloseTerminal, { id: terminalId })
         }
     }, [])
 
     const restartClaudeInSession = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke('schaltwerk_core_start_claude_with_restart', { sessionName, forceRestart: true })
+        await invoke(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, { sessionName, forceRestart: true })
     }, [])
 
     const waitForTerminalCleanup = useCallback(async (): Promise<void> => {
@@ -89,11 +90,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
         sessionName: string, 
         agentType: string
     ): Promise<void> => {
-        await invoke('schaltwerk_core_set_session_agent_type', { sessionName, agentType })
+        await invoke(TauriCommands.SchaltwerkCoreSetSessionAgentType, { sessionName, agentType })
     }, [])
 
     const updateGlobalAgentType = useCallback(async (agentType: string): Promise<void> => {
-        await invoke('schaltwerk_core_set_agent_type', { agentType })
+        await invoke(TauriCommands.SchaltwerkCoreSetAgentType, { agentType })
     }, [])
 
     const updateAgentType = useCallback(async (
@@ -119,11 +120,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [closeTerminalIfExists, waitForTerminalCleanup])
 
     const startOrchestratorWithNewModel = useCallback(async (terminalId: string): Promise<void> => {
-        await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId })
+        await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId })
     }, [])
 
     const startSessionWithNewModel = useCallback(async (sessionName: string): Promise<void> => {
-        await invoke('schaltwerk_core_start_claude_with_restart', { sessionName, forceRestart: true })
+        await invoke(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, { sessionName, forceRestart: true })
     }, [])
 
     const restartWithNewModel = useCallback(async (

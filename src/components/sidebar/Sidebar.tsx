@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { clsx } from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
@@ -146,7 +147,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     // Fetch current branch for orchestrator
     useEffect(() => {
-        invoke<string>("get_current_branch_name", { sessionName: null })
+        invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
             .then(branch => setOrchestratorBranch(branch))
             .catch(error => {
                 logger.warn('Failed to get current branch, defaulting to main:', error)
@@ -337,12 +338,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const handleMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
         try {
             // Check global auto-commit setting first
-            const globalAutoCommit = await invoke<boolean>('get_auto_commit_on_review')
+            const globalAutoCommit = await invoke<boolean>(TauriCommands.GetAutoCommitOnReview)
             
             if (globalAutoCommit) {
                 // Auto-commit is enabled, execute directly without modal
                 try {
-                    const success = await invoke<boolean>('schaltwerk_core_mark_session_ready', {
+                    const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
                         name: sessionId,
                         autoCommit: true // Explicitly commit when global auto-commit is enabled
                     })
@@ -383,7 +384,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
             // If already reviewed, Cmd+R should unmark (back to running)
             if (selectedSession.info.ready_to_merge) {
-                invoke('schaltwerk_core_unmark_session_ready', { name: selectedSession.info.session_id })
+                invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: selectedSession.info.session_id })
                     .then(async () => {
                         await reloadSessions()
                     })
@@ -1034,11 +1035,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }}
                                     onUnmarkReady={async (sessionId) => {
                                         try {
-                                            await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
+                                            await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
                                             // Reload both regular and spec sessions to avoid dropping specs
                                             await Promise.all([
-                                                invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                                invoke<SessionInfo[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
+                                                invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
+                                                invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
                                             ])
                                             await reloadSessions()
                                         } catch (err) {
@@ -1087,11 +1088,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }}
                                     onDeleteSpec={async (sessionId) => {
                                         try {
-                                            await invoke('schaltwerk_core_cancel_session', { name: sessionId })
+                                            await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
                                             // Reload both regular and spec sessions to ensure remaining specs persist
                                             await Promise.all([
-                                                invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions'),
-                                                invoke<SessionInfo[]>('schaltwerk_core_list_sessions_by_state', { state: 'spec' })
+                                                invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
+                                                invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
                                             ])
                                             await reloadSessions()
                                         } catch (err) {

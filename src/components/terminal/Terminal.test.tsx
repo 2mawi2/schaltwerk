@@ -1,4 +1,5 @@
 import { render, act } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
@@ -268,14 +269,14 @@ beforeEach(() => {
   ;(TauriCore as unknown as MockTauriCore).__clearInvokeHandlers()
   ;(TauriEvent as unknown as MockTauriEvent).__clear()
   // sensible defaults
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('terminal_exists', () => true)
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('resize_terminal', () => undefined)
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('write_terminal', () => undefined)
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude_orchestrator', () => undefined)
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_start_claude', () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.TerminalExists, () => true)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaude, () => undefined)
   const mockFontSizes = [14, 14] as [number, number];
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('schaltwerk_core_get_font_sizes', () => mockFontSizes)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreGetFontSizes, () => mockFontSizes)
   ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize(null)
   
   
@@ -304,7 +305,7 @@ describe('Terminal component', () => {
   // Test removed - resize functionality confirmed working in production
 
   it('hydrates from buffer and flushes pending output in order (batched)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => 'SNAP')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => 'SNAP')
 
     renderTerminal({ terminalId: "session-demo-top", sessionName: "demo" })
     
@@ -336,7 +337,7 @@ describe('Terminal component', () => {
   })
 
   it('flushes output even when container has zero size (renderer ready after open)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
 
     const { container } = renderTerminal({ terminalId: 'session-hidden-top', sessionName: 'hidden' })
     await flushAll()
@@ -371,7 +372,7 @@ describe('Terminal component', () => {
     const xterm = getLastXtermInstance()
     xterm.__triggerData('hello')
 
-    expect((TauriCore as unknown as MockTauriCore).invoke).toHaveBeenCalledWith('write_terminal', { id: 'session-io-top', data: 'hello' })
+    expect((TauriCore as unknown as MockTauriCore).invoke).toHaveBeenCalledWith(TauriCommands.WriteTerminal, { id: 'session-io-top', data: 'hello' })
   })
 
   // Removed flaky resize debounce test per guidance
@@ -443,7 +444,7 @@ describe('Terminal component', () => {
     vi.advanceTimersByTime(1)
     await flushAll()
 
-    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === 'schaltwerk_core_start_claude')
+    const startSess = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.find((c: unknown[]) => c[0] === TauriCommands.SchaltwerkCoreStartClaude)
     expect(startSess).toBeTruthy()
     expect(startSess![1]).toMatchObject({ sessionName: 'work' })
   })
@@ -479,7 +480,7 @@ describe('Terminal component', () => {
   })
 
   it('tightens Codex bottom space on font-size change (not during streaming)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
     renderTerminal({ terminalId: 'session-codex-top', sessionName: 'codex', agentType: 'codex' })
     await flushAll()
 
@@ -498,7 +499,7 @@ describe('Terminal component', () => {
 
 
   it('drains output queue while scrolled up (no auto-scroll requirement)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler('get_terminal_buffer', () => '')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
 
     renderTerminal({ terminalId: 'session-stream-top', sessionName: 'stream' })
     await flushAll()
@@ -542,7 +543,7 @@ describe('Terminal component', () => {
       
       // Count initial calls first
       const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Set up small size that should be rejected
@@ -557,7 +558,7 @@ describe('Terminal component', () => {
       
       // Should not have added significant new resize calls due to downgrade prevention
       const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Allow for up to 1 attempt that gets rejected
@@ -585,7 +586,7 @@ describe('Terminal component', () => {
       
       // Should have called resize
       const resizeCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       expect(resizeCalls).toBe(1)
@@ -599,7 +600,7 @@ describe('Terminal component', () => {
       
       // Count initial calls
       const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Add split dragging class
@@ -611,7 +612,7 @@ describe('Terminal component', () => {
       
       // Should not have added significant new resize calls
       const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Allow for minimal additional calls but should be limited during drag
@@ -640,7 +641,7 @@ describe('Terminal component', () => {
       
       // Verify resize was called during initialization or setup
       const allCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Either initialization calls resize, or we can trigger it manually
@@ -655,7 +656,7 @@ describe('Terminal component', () => {
         await flushAll()
         
         const afterTriggerCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-          c[0] === 'resize_terminal'
+          c[0] === TauriCommands.ResizeTerminal
         ).length
         expect(afterTriggerCalls).toBeGreaterThan(0)
       } else {
@@ -684,7 +685,7 @@ describe('Terminal component', () => {
       
       // Count initial calls
       const initialCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Mock a failing fit by making the container report zero dimensions
@@ -700,7 +701,7 @@ describe('Terminal component', () => {
       
       // Should not have added significant new resize calls with invalid container
       const afterCalls = (TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }).invoke.mock.calls.filter((c: unknown[]) => 
-        c[0] === 'resize_terminal'
+        c[0] === TauriCommands.ResizeTerminal
       ).length
       
       // Allow for minimal additional calls but should be limited with invalid container

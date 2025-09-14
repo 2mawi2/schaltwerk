@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { TauriCommands } from '../../common/tauriCommands'
 import { DiffResponse, SplitDiffResponse, LineInfo, SplitDiffResult, FileInfo } from '../../types/diff'
 
 export type ChangeType = 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
@@ -40,7 +41,7 @@ export async function loadFileDiff(
   // This eliminates the double file loading that was killing performance
   
   if (viewMode === 'unified') {
-    const diffResponse = await invoke<DiffResponse>('compute_unified_diff_backend', {
+    const diffResponse = await invoke<DiffResponse>(TauriCommands.ComputeUnifiedDiffBackend, {
       sessionName,
       filePath: file.path,
     })
@@ -54,7 +55,7 @@ export async function loadFileDiff(
       unsupportedReason: diffResponse.unsupportedReason
     }
   } else {
-    const splitResponse = await invoke<SplitDiffResponse>('compute_split_diff_backend', {
+    const splitResponse = await invoke<SplitDiffResponse>(TauriCommands.ComputeSplitDiffBackend, {
       sessionName,
       filePath: file.path,
     })

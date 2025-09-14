@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { render, act, waitFor } from '@testing-library/react'
 import { FontSizeProvider, useFontSize } from './FontSizeContext'
 import { MockTauriInvokeArgs } from '../types/testing'
@@ -6,10 +7,10 @@ import { MockTauriInvokeArgs } from '../types/testing'
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn((cmd: string, _args?: MockTauriInvokeArgs) => {
-    if (cmd === 'schaltwerk_core_get_font_sizes') {
+    if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) {
       return Promise.resolve([13, 12])
     }
-    if (cmd === 'schaltwerk_core_set_font_sizes') {
+    if (cmd === TauriCommands.SchaltwerkCoreSetFontSizes) {
       return Promise.resolve()
     }
     return Promise.reject(new Error(`Unknown command: ${cmd}`))
@@ -124,7 +125,7 @@ describe('FontSizeContext', () => {
     })
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_font_sizes', { 
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetFontSizes, { 
         terminalFontSize: 14,
         uiFontSize: 13
       })

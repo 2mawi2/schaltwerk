@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useReview } from '../../contexts/ReviewContext'
@@ -160,7 +161,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
     
     try {
-      await invoke('set_diff_view_preferences', { 
+      await invoke(TauriCommands.SetDiffViewPreferences, { 
         preferences: { continuous_scroll: newValue } 
       })
     } catch (err) {
@@ -170,9 +171,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
    const getChangedFilesForContext = useCallback(async () => {
      if (isCommanderView()) {
-       return await invoke<ChangedFile[]>('get_orchestrator_working_changes')
+       return await invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges)
      }
-      return await invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName })
+      return await invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName })
     }, [sessionName, isCommanderView])
 
    const loadChangedFiles = useCallback(async () => {
@@ -209,9 +210,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
        // Note: We now use lazy loading - diffs are loaded on-demand when user navigates to them
        // This provides instant modal opening and smooth performance
 
-       const currentBranch = await invoke<string>('get_current_branch_name', { sessionName })
-       const baseBranch = await invoke<string>('get_base_branch_name', { sessionName })
-       const [baseCommit, headCommit] = await invoke<[string, string]>('get_commit_comparison_info', { sessionName })
+       const currentBranch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName })
+       const baseBranch = await invoke<string>(TauriCommands.GetBaseBranchName, { sessionName })
+       const [baseCommit, headCommit] = await invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName })
 
        setBranchInfo({ currentBranch, baseBranch, baseCommit, headCommit })
      } catch (error) {
@@ -560,7 +561,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (isOpen) {
       loadChangedFiles()
       // Load user's diff view preference
-      invoke<{ continuous_scroll: boolean }>('get_diff_view_preferences')
+      invoke<{ continuous_scroll: boolean }>(TauriCommands.GetDiffViewPreferences)
         .then(prefs => {
           setContinuousScroll(prefs.continuous_scroll)
           // If continuous scroll is enabled, load all diffs
@@ -783,7 +784,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (!fileDiff) return
     
     // Get original file content for comment context
-    const [mainText, worktreeText] = await invoke<[string, string]>('get_file_diff_from_main', {
+    const [mainText, worktreeText] = await invoke<[string, string]>(TauriCommands.GetFileDiffFromMain, {
       sessionName,
       filePath: selectedFile,
     })
@@ -823,7 +824,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     try {
       const terminalId = `session-${sessionName}-top`
       // Use the new paste_and_submit command to reliably submit the review
-      await invoke('paste_and_submit_terminal', { id: terminalId, data: reviewText })
+      await invoke(TauriCommands.PasteAndSubmitTerminal, { id: terminalId, data: reviewText })
       
       // Focus the session with blue border
       await setSelection({

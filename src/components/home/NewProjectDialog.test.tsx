@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { NewProjectDialog } from './NewProjectDialog'
 import { vi } from 'vitest'
@@ -121,7 +122,7 @@ describe('NewProjectDialog', () => {
       await user.click(createBtn)
       
       await waitFor(() => {
-        expect(invoke).toHaveBeenCalledWith('create_new_project', {
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
           name: name,
           parentPath: '/home/user'
         })
@@ -160,7 +161,7 @@ describe('NewProjectDialog', () => {
     await user.click(createBtn)
     
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('create_new_project', {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
         name: 'test-project',
         parentPath: '/home/user'
       })
@@ -217,7 +218,7 @@ describe('NewProjectDialog', () => {
     await user.keyboard('{Enter}')
     
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('create_new_project', {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
         name: 'test-project',
         parentPath: '/home/user'
       })
@@ -236,7 +237,7 @@ describe('NewProjectDialog', () => {
     await user.click(createBtn)
     
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('create_new_project', {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
         name: 'test-project',
         parentPath: '/home/user'
       })

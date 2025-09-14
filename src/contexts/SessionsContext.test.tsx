@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { SessionsProvider, useSessions } from './SessionsContext'
@@ -87,9 +88,9 @@ describe('SessionsContext', () => {
     it('should load sessions when project is available', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === 'set_project_sessions_settings') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             return undefined
         })
 
@@ -127,9 +128,9 @@ describe('SessionsContext', () => {
         let _callCount = 0
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
             _callCount++
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'schaltwerk_core_start_spec_session') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) return undefined
             return undefined
         })
 
@@ -140,16 +141,16 @@ describe('SessionsContext', () => {
         })
 
         // First call is to get current sessions, second is start_draft_session, third is reload
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_start_spec_session', { name: 'test-spec' })
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartSpecSession, { name: 'test-spec' })
     })
 
     it('should update session status from active to spec', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'schaltwerk_core_convert_session_to_draft') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) return undefined
             return undefined
         })
 
@@ -159,16 +160,16 @@ describe('SessionsContext', () => {
             await result.current.updateSessionStatus('test-active', 'spec')
         })
 
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_convert_session_to_draft', { name: 'test-active' })
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: 'test-active' })
     })
 
     it('should mark session as ready for merge', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'schaltwerk_core_mark_ready') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreMarkReady) return undefined
             return undefined
         })
 
@@ -178,16 +179,16 @@ describe('SessionsContext', () => {
             await result.current.updateSessionStatus('test-active', 'dirty')
         })
 
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_list_enriched_sessions')
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_mark_ready', { name: 'test-active' })
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreListEnrichedSessions)
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkReady, { name: 'test-active' })
     })
 
     it('should create a new spec session', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return mockSessions
-            if (cmd === 'schaltwerk_core_create_spec_session') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
+            if (cmd === TauriCommands.SchaltwerkCoreCreateSpecSession) return undefined
             return undefined
         })
 
@@ -197,7 +198,7 @@ describe('SessionsContext', () => {
             await result.current.createDraft('new-spec', '# New Spec')
         })
 
-        expect(invoke).toHaveBeenCalledWith('schaltwerk_core_create_spec_session', {
+        expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCreateSpecSession, {
             name: 'new-spec',
             specContent: '# New Spec'
         })
@@ -214,9 +215,9 @@ describe('SessionsContext', () => {
 
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === 'set_project_sessions_settings') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             return undefined
         })
 
@@ -267,9 +268,9 @@ describe('SessionsContext', () => {
 
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') return mockSessions
-            if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === 'set_project_sessions_settings') return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             return undefined
         })
 

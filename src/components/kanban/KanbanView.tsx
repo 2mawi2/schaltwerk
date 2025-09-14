@@ -1,4 +1,5 @@
 import { useDrag, useDrop } from 'react-dnd'
+import { TauriCommands } from '../../common/tauriCommands'
 import { clsx } from 'clsx'
 import { useSessions } from '../../contexts/SessionsContext'
 import { SessionCard } from '../shared/SessionCard'
@@ -261,7 +262,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         try {
             if (newStatus === 'spec') {
                 // Convert to spec
-                await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
+                await invoke(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: sessionId })
             } else if (newStatus === 'active') {
                 // If it's a spec, open modal to start it; if ready_to_merge, unmark it
                 if (session.info.session_state === 'spec') {
@@ -269,11 +270,11 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
                     window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
                     return // Don't reload sessions yet, modal will handle the start
                 } else if (session.info.ready_to_merge) {
-                    await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
+                    await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
                 // Mark as ready to merge
-                await invoke('schaltwerk_core_mark_session_ready', { name: sessionId, autoCommit: false })
+                await invoke(TauriCommands.SchaltwerkCoreMarkSessionReady, { name: sessionId, autoCommit: false })
             }
             await reloadSessions()
         } catch (error) {
@@ -294,7 +295,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         }
         
         try {
-            await invoke('schaltwerk_core_mark_ready', { name: sessionId })
+            await invoke(TauriCommands.SchaltwerkCoreMarkReady, { name: sessionId })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to mark ready:', error)
@@ -303,7 +304,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
 
     const handleUnmarkReady = useCallback(async (sessionId: string) => {
         try {
-            await invoke('schaltwerk_core_unmark_session_ready', { name: sessionId })
+            await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to unmark ready:', error)
@@ -317,7 +318,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
         }
         
         try {
-            await invoke('schaltwerk_core_cancel_session', { 
+            await invoke(TauriCommands.SchaltwerkCoreCancelSession, { 
                 name: sessionId,
                 immediate: !hasUncommitted 
             })
@@ -329,7 +330,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
 
     const handleConvertToSpec = useCallback(async (sessionId: string) => {
         try {
-            await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
+            await invoke(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: sessionId })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to convert to spec:', error)
@@ -348,7 +349,7 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     const handleDeleteSpec = useCallback(async (sessionId: string) => {
         // No confirmation for specs - consistent with sidebar behavior
         try {
-            await invoke('schaltwerk_core_cancel_session', { name: sessionId })
+            await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionId })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to delete spec:', error)

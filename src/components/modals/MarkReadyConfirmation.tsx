@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { logger } from '../../utils/logger'
@@ -32,7 +33,7 @@ export function MarkReadyConfirmation({
     let cancelled = false
     ;(async () => {
       try {
-        const dirty = await invoke<boolean>('schaltwerk_core_has_uncommitted_changes', { name: sessionName })
+        const dirty = await invoke<boolean>(TauriCommands.SchaltwerkCoreHasUncommittedChanges, { name: sessionName })
         
         if (!cancelled) {
           setFreshHasUncommitted(dirty)
@@ -59,7 +60,7 @@ export function MarkReadyConfirmation({
     
     setLoading(true)
     try {
-      const success = await invoke<boolean>('schaltwerk_core_mark_session_ready', {
+      const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
         name: sessionName,
         // Always pass current autoCommit choice; backend is idempotent if clean
         autoCommit: autoCommit

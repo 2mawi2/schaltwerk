@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import React from 'react'
 import { BranchAutocomplete } from '../inputs/BranchAutocomplete'
 import { ModelSelector } from '../inputs/ModelSelector'
@@ -58,9 +59,9 @@ export function SessionConfigurationPanel({
             setLoadingBranches(true)
             try {
                 const [branchList, savedDefaultBranch, gitDefaultBranch, storedSkipPerms, storedAgentType] = await Promise.all([
-                    invoke<string[]>('list_project_branches'),
-                    invoke<string | null>('get_project_default_base_branch'),
-                    invoke<string>('get_project_default_branch'),
+                    invoke<string[]>(TauriCommands.ListProjectBranches),
+                    invoke<string | null>(TauriCommands.GetProjectDefaultBaseBranch),
+                    invoke<string>(TauriCommands.GetProjectDefaultBranch),
                     getSkipPermissions(),
                     getAgentType()
                 ])
@@ -102,7 +103,7 @@ export function SessionConfigurationPanel({
         
         if (branch && branches.includes(branch)) {
             try {
-                await invoke('set_project_default_base_branch', { branch })
+                await invoke(TauriCommands.SetProjectDefaultBaseBranch, { branch })
             } catch (err) {
                 logger.warn('Failed to save default branch:', err)
             }
@@ -290,8 +291,8 @@ export function useInitializedSessionConfiguration(): [SessionConfiguration, (co
         const initializeDefaults = async () => {
             try {
                 const [defaultBranch, gitDefaultBranch, storedSkipPerms, storedAgentType] = await Promise.all([
-                    invoke<string | null>('get_project_default_base_branch'),
-                    invoke<string>('get_project_default_branch'),
+                    invoke<string | null>(TauriCommands.GetProjectDefaultBaseBranch),
+                    invoke<string>(TauriCommands.GetProjectDefaultBranch),
                     getSkipPermissions(),
                     getAgentType()
                 ])

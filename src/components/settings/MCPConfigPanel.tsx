@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
-import { TAURI_COMMANDS } from '../../constants/commands'
+import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 
 interface MCPStatus {
@@ -29,7 +29,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
 
   const loadStatus = useCallback(async () => {
     try {
-      const mcpStatus = await invoke<MCPStatus>(TAURI_COMMANDS.MCP_GET_STATUS, { projectPath, client: agent })
+      const mcpStatus = await invoke<MCPStatus>(TauriCommands.GetMcpStatus, { projectPath, client: agent })
       setStatus(mcpStatus)
     } catch (e) {
       setError(String(e))
@@ -52,11 +52,11 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
     setSuccess(null)
     
     try {
-      const result = await invoke<string>(TAURI_COMMANDS.MCP_CONFIGURE_PROJECT, { projectPath, client: agent })
+      const result = await invoke<string>(TauriCommands.ConfigureMcpForProject, { projectPath, client: agent })
       
       // Add .mcp.json to gitignore if needed
       try {
-        await invoke<string>(TAURI_COMMANDS.MCP_ENSURE_GITIGNORED, { projectPath })
+        await invoke<string>(TauriCommands.EnsureMcpGitignored, { projectPath })
       } catch (gitignoreError) {
         logger.warn('Failed to update gitignore:', gitignoreError)
         // Don't fail the whole operation if gitignore fails
@@ -83,7 +83,7 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
   const removeMCP = async () => {
     setLoading(true)
     try {
-      await invoke(TAURI_COMMANDS.MCP_REMOVE_PROJECT, { projectPath, client: agent })
+      await invoke(TauriCommands.RemoveMcpForProject, { projectPath, client: agent })
       setSuccess('MCP configuration removed')
       await loadStatus()
     } catch (e) {

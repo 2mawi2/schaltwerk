@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscFolder, VscChevronDown, VscCheck, VscChevronRight, VscCode, VscTerminal } from 'react-icons/vsc'
 import { logger } from '../utils/logger'
@@ -25,8 +26,8 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
     const load = async () => {
       try {
         const [available, def] = await Promise.all([
-          invoke<OpenApp[]>('list_available_open_apps'),
-          invoke<string>('get_default_open_app'),
+          invoke<OpenApp[]>(TauriCommands.ListAvailableOpenApps),
+          invoke<string>(TauriCommands.GetDefaultOpenApp),
         ])
         if (!mounted) return
         setApps(available)
@@ -64,7 +65,7 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
     
     setIsOpening(true)
     try {
-      await invoke('open_in_app', { appId, worktreePath: path })
+      await invoke(TauriCommands.OpenInApp, { appId, worktreePath: path })
     } catch (e: unknown) {
       logger.error('Failed to open in app', appId, e)
       if (showError) {
@@ -87,10 +88,10 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
     
     setIsOpening(true)
     try {
-      await invoke('open_in_app', { appId: app.id, worktreePath: path })
+      await invoke(TauriCommands.OpenInApp, { appId: app.id, worktreePath: path })
       // Only set as default if opening succeeded
       try {
-        await invoke('set_default_open_app', { appId: app.id })
+        await invoke(TauriCommands.SetDefaultOpenApp, { appId: app.id })
         setDefaultApp(app.id)
       } catch (e) {
         logger.warn('Failed to persist default app, continuing', e)

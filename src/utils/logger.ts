@@ -1,5 +1,6 @@
 /* eslint-disable no-console */
 import { invoke } from '@tauri-apps/api/core'
+import { TauriCommands } from '../common/tauriCommands'
 
 type LogLevel = 'error' | 'warn' | 'info' | 'debug'
 
@@ -22,7 +23,7 @@ async function logToBackend(level: LogLevel, message: string): Promise<void> {
   }
   
   try {
-    await invoke('schaltwerk_core_log_frontend_message', {
+    await invoke(TauriCommands.SchaltwerkCoreLogFrontendMessage, {
       level,
       message: `[Frontend] ${message}`
     })

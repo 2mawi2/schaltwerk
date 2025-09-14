@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 import { TabInfo } from '../types/terminalTabs'
@@ -85,9 +86,9 @@ export function useTerminalTabs({
     }
 
     try {
-      const exists = await invoke<boolean>('terminal_exists', { id: terminalId })
+      const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
       if (!exists) {
-        await invoke('create_terminal', { id: terminalId, cwd: workingDirectory })
+        await invoke(TauriCommands.CreateTerminal, { id: terminalId, cwd: workingDirectory })
       }
       globalTerminalCreated.add(terminalId)
     } catch (error) {
@@ -150,7 +151,7 @@ export function useTerminalTabs({
     if (!tabToClose) return
 
     try {
-      await invoke('close_terminal', { id: tabToClose.terminalId })
+      await invoke(TauriCommands.CloseTerminal, { id: tabToClose.terminalId })
       globalTerminalCreated.delete(tabToClose.terminalId)
 
       const newTabs = sessionTabs.tabs.filter(t => t.index !== tabIndex)

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, MockedFunction } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useSettings, AgentType } from './useSettings'
 import { invoke, InvokeArgs } from '@tauri-apps/api/core'
@@ -40,27 +41,27 @@ describe('useSettings', () => {
         await result.current.saveAgentSettings(envVars, cliArgs)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_env_vars', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'claude',
         envVars: { API_KEY: 'test-key' }
       })
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_cli_args', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
         agentType: 'claude',
         cliArgs: '--verbose'
       })
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_env_vars', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'cursor-agent',
         envVars: { TOKEN: 'test-token' }
       })
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_cli_args', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
         agentType: 'cursor-agent',
         cliArgs: '--silent'
       })
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_env_vars', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'gemini',
         envVars: { PROJECT_ID: 'test-id' }
       })
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_cli_args', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
         agentType: 'gemini',
         cliArgs: '--project test'
       })
@@ -96,7 +97,7 @@ describe('useSettings', () => {
         await result.current.saveAgentSettings(envVars, cliArgs)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_agent_env_vars', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'claude',
         envVars: { VALID_KEY: 'value' }
       })
@@ -119,10 +120,10 @@ describe('useSettings', () => {
         await result.current.saveProjectSettings(projectSettings)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_project_settings', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
         settings: { setupScript: 'npm install && npm run build' }
       })
-      expect(mockInvoke).toHaveBeenCalledWith('set_project_environment_variables', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectEnvironmentVariables, {
         envVars: {
           NODE_ENV: 'production',
           PORT: '3000'
@@ -145,7 +146,7 @@ describe('useSettings', () => {
         await result.current.saveProjectSettings(projectSettings)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_project_environment_variables', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectEnvironmentVariables, {
         envVars: { VALID: 'yes' }
       })
     })
@@ -165,7 +166,7 @@ describe('useSettings', () => {
         await result.current.saveTerminalSettings(terminalSettings)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_terminal_settings', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetTerminalSettings, {
         terminal: terminalSettings
       })
     })
@@ -183,7 +184,7 @@ describe('useSettings', () => {
         await result.current.saveTerminalSettings(terminalSettings)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('set_terminal_settings', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetTerminalSettings, {
         terminal: terminalSettings
       })
     })
@@ -269,7 +270,7 @@ describe('useSettings', () => {
       const { result } = renderHook(() => useSettings())
       
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'set_agent_env_vars') {
+        if (command === TauriCommands.SetAgentEnvVars) {
           return Promise.reject(new Error('Agent settings failed'))
         }
         return Promise.resolve()
@@ -329,7 +330,7 @@ describe('useSettings', () => {
   describe('loadEnvVars', () => {
     it('loads environment variables for all agents', async () => {
       mockInvoke.mockImplementation((command: string, args?: InvokeArgs) => {
-        if (command === 'get_agent_env_vars') {
+        if (command === TauriCommands.GetAgentEnvVars) {
           const agentType = (args as { agentType?: string })?.agentType
           if (agentType === 'claude') {
             return Promise.resolve({ API_KEY: 'claude-key' })
@@ -382,7 +383,7 @@ describe('useSettings', () => {
   describe('loadCliArgs', () => {
     it('loads CLI arguments for all agents', async () => {
       mockInvoke.mockImplementation((command: string, args?: InvokeArgs) => {
-        if (command === 'get_agent_cli_args') {
+        if (command === TauriCommands.GetAgentCliArgs) {
           const agentType = (args as { agentType?: string })?.agentType
           if (agentType === 'claude') {
             return Promise.resolve('--verbose --debug')
@@ -434,7 +435,7 @@ describe('useSettings', () => {
   describe('loadProjectSettings', () => {
     it('loads project settings and environment variables', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'get_project_settings') {
+        if (command === TauriCommands.GetProjectSettings) {
           return Promise.resolve({ setupScript: 'npm install' })
         }
         if (command === 'get_project_environment_variables') {
@@ -475,7 +476,7 @@ describe('useSettings', () => {
 
     it('handles partial data gracefully', async () => {
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'get_project_settings') {
+        if (command === TauriCommands.GetProjectSettings) {
           return Promise.resolve(null)
         }
         if (command === 'get_project_environment_variables') {

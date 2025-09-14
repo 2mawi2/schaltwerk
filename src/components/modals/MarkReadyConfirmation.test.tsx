@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { MarkReadyConfirmation } from './MarkReadyConfirmation'
 
@@ -40,7 +41,7 @@ describe('MarkReadyConfirmation', () => {
     fireEvent.click(screen.getByRole('button', { name: /Mark as Reviewed/ }))
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, { name: 's1', autoCommit: true })
       expect(onSuccess).toHaveBeenCalled()
       expect(onClose).toHaveBeenCalled()
     })
@@ -73,7 +74,7 @@ describe('MarkReadyConfirmation', () => {
     fireEvent.click(confirmBtn)
 
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, { name: 's1', autoCommit: true })
     })
   })
 
@@ -108,7 +109,7 @@ describe('MarkReadyConfirmation', () => {
     
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await waitFor(() => {
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_mark_session_ready', { name: 's1', autoCommit: true })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreMarkSessionReady, { name: 's1', autoCommit: true })
     })
   })
 

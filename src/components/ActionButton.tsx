@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { TauriCommands } from '../common/tauriCommands'
 import { getActionButtonColorClasses } from '../constants/actionButtonColors'
 import { logger } from '../utils/logger'
 
@@ -21,7 +22,7 @@ export function ActionButton({ action, projectId, onExecute }: ActionButtonProps
       const terminalId = `orchestrator-${projectId}-top`
 
       // Use paste_and_submit_terminal to properly paste into AI session
-      await invoke('paste_and_submit_terminal', {
+      await invoke(TauriCommands.PasteAndSubmitTerminal, {
         id: terminalId,
         data: action.prompt
       })

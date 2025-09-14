@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
@@ -24,13 +25,13 @@ vi.mock('../../utils/dockerNames', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockImplementation((cmd: string) => {
-    if (cmd === 'list_project_branches') {
+    if (cmd === TauriCommands.ListProjectBranches) {
       return Promise.resolve(['main', 'develop', 'feature/test'])
     }
-    if (cmd === 'get_project_default_base_branch') {
+    if (cmd === TauriCommands.GetProjectDefaultBaseBranch) {
       return Promise.resolve(null)
     }
-    if (cmd === 'get_project_default_branch') {
+    if (cmd === TauriCommands.GetProjectDefaultBranch) {
       return Promise.resolve('main')
     }
     return Promise.resolve('main')
@@ -396,13 +397,13 @@ describe('NewSessionModal', () => {
   it('loads base branch via tauri invoke and falls back on error', async () => {
     // Success path
     ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
-      if (cmd === 'list_project_branches') {
+      if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.resolve(['main', 'develop', 'feature/test'])
       }
-      if (cmd === 'get_project_default_base_branch') {
+      if (cmd === TauriCommands.GetProjectDefaultBaseBranch) {
         return Promise.resolve('develop')
       }
-      if (cmd === 'get_project_default_branch') {
+      if (cmd === TauriCommands.GetProjectDefaultBranch) {
         return Promise.resolve('develop')
       }
       return Promise.resolve('develop')
@@ -418,7 +419,7 @@ describe('NewSessionModal', () => {
     // Failure path
     cleanup()
     ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
-      if (cmd === 'list_project_branches') {
+      if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.reject(new Error('no tauri'))
       }
       return Promise.reject(new Error('no tauri'))
@@ -437,22 +438,22 @@ describe('NewSessionModal', () => {
   it('re-enables Create button if onCreate fails', async () => {
     // Setup proper mock for branches first
     ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
-      if (cmd === 'list_project_branches') {
+      if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.resolve(['main', 'develop'])
       }
-      if (cmd === 'get_project_default_base_branch') {
+      if (cmd === TauriCommands.GetProjectDefaultBaseBranch) {
         return Promise.resolve('main')
       }
-      if (cmd === 'get_project_default_branch') {
+      if (cmd === TauriCommands.GetProjectDefaultBranch) {
         return Promise.resolve('main')
       }
-      if (cmd === 'schaltwerk_core_get_skip_permissions') {
+      if (cmd === TauriCommands.SchaltwerkCoreGetSkipPermissions) {
         return Promise.resolve(false)
       }
-      if (cmd === 'schaltwerk_core_get_agent_type') {
+      if (cmd === TauriCommands.SchaltwerkCoreGetAgentType) {
         return Promise.resolve('claude')
       }
-      if (cmd === 'repository_is_empty') {
+      if (cmd === TauriCommands.RepositoryIsEmpty) {
         return Promise.resolve(false)
       }
       return Promise.resolve('main')

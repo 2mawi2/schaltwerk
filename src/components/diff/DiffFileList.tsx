@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
@@ -61,8 +62,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // For orchestrator mode (no session), get working changes
       if (currentIsCommander && !currentSession) {
         const [changedFiles, currentBranch] = await Promise.all([
-          invoke<ChangedFile[]>('get_orchestrator_working_changes'),
-          invoke<string>('get_current_branch_name', { sessionName: null })
+          invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges),
+          invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
         ])
         
         // Check if results actually changed to avoid unnecessary re-renders
@@ -92,10 +93,10 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       }
       
       const [changedFiles, currentBranch, baseBranch, [baseCommit, headCommit]] = await Promise.all([
-        invoke<ChangedFile[]>('get_changed_files_from_main', { sessionName: currentSession }),
-        invoke<string>('get_current_branch_name', { sessionName: currentSession }),
-        invoke<string>('get_base_branch_name', { sessionName: currentSession }),
-        invoke<[string, string]>('get_commit_comparison_info', { sessionName: currentSession })
+        invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName: currentSession }),
+        invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: currentSession }),
+        invoke<string>(TauriCommands.GetBaseBranchName, { sessionName: currentSession }),
+        invoke<[string, string]>(TauriCommands.GetCommitComparisonInfo, { sessionName: currentSession })
       ])
       
       // Check if results actually changed to avoid unnecessary re-renders
@@ -199,7 +200,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       
       // Try to start file watcher for session mode
       try {
-        await invoke('start_file_watcher', { sessionName: currentSession })
+        await invoke(TauriCommands.StartFileWatcher, { sessionName: currentSession })
         logger.info(`File watcher started for session: ${currentSession}`)
       } catch (error) {
         logger.error('Failed to start file watcher, falling back to polling:', error)
@@ -246,7 +247,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     return () => {
       // Stop file watcher
       if (currentSession) {
-        invoke('stop_file_watcher', { sessionName: currentSession }).catch(err => logger.error("Error:", err))
+        invoke(TauriCommands.StopFileWatcher, { sessionName: currentSession }).catch(err => logger.error("Error:", err))
       }
       // Clean up event listeners
       if (eventUnlisten) {

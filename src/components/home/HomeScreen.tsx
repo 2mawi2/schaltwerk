@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { VscFolderOpened, VscHistory, VscWarning, VscTrash, VscNewFolder } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
@@ -28,7 +29,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
 
   const loadRecentProjects = async () => {
     try {
-      const projects = await invoke<RecentProject[]>('get_recent_projects')
+      const projects = await invoke<RecentProject[]>(TauriCommands.GetRecentProjects)
       setRecentProjects(projects.sort((a, b) => b.lastOpened - a.lastOpened))
     } catch (err) {
       logger.error('Failed to load recent projects:', err)
@@ -47,7 +48,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
 
       if (!selected) return
 
-      const isGitRepo = await invoke<boolean>('is_git_repository', { 
+      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, { 
         path: selected 
       })
 
@@ -56,7 +57,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
         return
       }
 
-      await invoke('add_recent_project', { path: selected })
+      await invoke(TauriCommands.AddRecentProject, { path: selected })
       onOpenProject(selected as string)
     } catch (err) {
       logger.error('Failed to select directory:', err)
@@ -68,29 +69,29 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     setError(null)
     
     try {
-      const exists = await invoke<boolean>('directory_exists', { 
+      const exists = await invoke<boolean>(TauriCommands.DirectoryExists, { 
         path: project.path 
       })
 
       if (!exists) {
         setError(`Project directory no longer exists: ${project.path}`)
-        await invoke('remove_recent_project', { path: project.path })
+        await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
         await loadRecentProjects()
         return
       }
 
-      const isGitRepo = await invoke<boolean>('is_git_repository', { 
+      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, { 
         path: project.path 
       })
 
       if (!isGitRepo) {
         setError('Selected directory is no longer a Git repository.')
-        await invoke('remove_recent_project', { path: project.path })
+        await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
         await loadRecentProjects()
         return
       }
 
-      await invoke('update_recent_project_timestamp', { path: project.path })
+      await invoke(TauriCommands.UpdateRecentProjectTimestamp, { path: project.path })
       onOpenProject(project.path)
     } catch (err) {
       logger.error('Failed to open recent project:', err)
@@ -103,7 +104,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     setError(null)
     
     try {
-      await invoke('remove_recent_project', { path: project.path })
+      await invoke(TauriCommands.RemoveRecentProject, { path: project.path })
       await loadRecentProjects()
     } catch (err) {
       logger.error('Failed to remove project:', err)

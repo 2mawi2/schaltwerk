@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { loadAllFileDiffs, FileDiffData } from './loadDiffs'
 import { invoke } from '@tauri-apps/api/core'
 
@@ -15,7 +16,7 @@ describe('loadDiffs concurrency and single-view compute', () => {
     let peak = 0
 
     vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_file_diff_from_main') {
+      if (cmd === TauriCommands.GetFileDiffFromMain) {
         inflight++
         peak = Math.max(peak, inflight)
         await new Promise(r => setTimeout(r, 10))
@@ -23,7 +24,7 @@ describe('loadDiffs concurrency and single-view compute', () => {
         const base = 'a\n'.repeat(1000)
         const head = 'a\n'.repeat(1000)
         return [base, head]
-      } else if (cmd === 'compute_unified_diff_backend') {
+      } else if (cmd === TauriCommands.ComputeUnifiedDiffBackend) {
         // Mock the Rust unified diff computation
         const mockLines = [
           { content: 'a', type: 'unchanged', oldLineNumber: 1, newLineNumber: 1 }
@@ -34,7 +35,7 @@ describe('loadDiffs concurrency and single-view compute', () => {
           fileInfo: { language: 'text', sizeBytes: 1000 },
           isLargeFile: false
         }
-      } else if (cmd === 'compute_split_diff_backend') {
+      } else if (cmd === TauriCommands.ComputeSplitDiffBackend) {
         // Mock the Rust split diff computation
         const mockLeftLines = [
           { content: 'a', type: 'unchanged', oldLineNumber: 1 }

@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { logger } from '../../utils/logger'
@@ -27,7 +28,7 @@ export function ConvertToSpecConfirmation({
     
     setLoading(true)
     try {
-      await invoke('schaltwerk_core_convert_session_to_draft', {
+      await invoke(TauriCommands.SchaltwerkCoreConvertSessionToDraft, {
         name: sessionName
       })
       

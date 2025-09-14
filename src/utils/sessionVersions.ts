@@ -1,4 +1,5 @@
 import { EnrichedSession } from '../types/session'
+import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
 
 export { type EnrichedSession }
@@ -144,7 +145,7 @@ export async function selectBestVersionAndCleanup(
     )
     
     for (const version of versionsToCancel) {
-      await invoke('schaltwerk_core_cancel_session', { 
+      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { 
         name: version.session.info.session_id 
       })
     }

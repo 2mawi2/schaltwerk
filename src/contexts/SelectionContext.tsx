@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { useProject } from './ProjectContext'
@@ -113,9 +114,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Create promise for this creation
         const createPromise = (async () => {
             try {
-                const exists = await invoke<boolean>('terminal_exists', { id })
+                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id })
                 if (!exists) {
-                    await invoke('create_terminal', { id, cwd })
+                    await invoke(TauriCommands.CreateTerminal, { id, cwd })
                 }
                 terminalsCreated.current.add(id)
             } catch (error) {
@@ -141,14 +142,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Orchestrator always has terminals and is never a spec
         if (sel.kind === 'orchestrator') {
             setIsSpec(false)
-            const cwd = projectPath || await invoke<string>('get_current_directory')
+            const cwd = projectPath || await invoke<string>(TauriCommands.GetCurrentDirectory)
             await createTerminal(ids.top, cwd)
             return ids
         }
 
         // Always fetch session data to ensure we have the correct worktree path
         try {
-            const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: sel.payload })
+            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: sel.payload })
             const state: string | undefined = sessionData?.session_state
             const worktreePath: string | undefined = sessionData?.worktree_path
             const isSpecSession = state === 'spec'
@@ -168,7 +169,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
             // Verify worktree directory exists and is valid before creating terminals
             try {
-                const exists = await invoke<boolean>('path_exists', { path: worktreePath })
+                const exists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
                 if (!exists) {
                     logger.warn(`[SelectionContext] Worktree path does not exist for session ${sel.payload}: ${worktreePath}`)
                     return ids
@@ -176,7 +177,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 
                 // Additional check: ensure it's a valid git worktree
                 const gitDir = `${worktreePath}/.git`
-                const hasGit = await invoke<boolean>('path_exists', { path: gitDir })
+                const hasGit = await invoke<boolean>(TauriCommands.PathExists, { path: gitDir })
                 if (!hasGit) {
                     logger.warn(`[SelectionContext] Worktree is not properly initialized for session ${sel.payload}: ${worktreePath}`)
                     return ids
@@ -189,9 +190,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             await createTerminal(ids.top, worktreePath)
             // Proactively close legacy base bottom terminals if they exist to avoid orphans
             try {
-                const legacyExists = await invoke<boolean>('terminal_exists', { id: ids.bottomBase })
+                const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
                 if (legacyExists) {
-                    await invoke('close_terminal', { id: ids.bottomBase })
+                    await invoke(TauriCommands.CloseTerminal, { id: ids.bottomBase })
                     terminalsCreated.current.delete(ids.bottomBase)
                 }
             } catch (e) {
@@ -217,7 +218,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Try to load saved selection for this project from database
         if (projectPath) {
             try {
-                const dbSelection = await invoke<ProjectSelection | null>('get_project_selection')
+                const dbSelection = await invoke<ProjectSelection | null>(TauriCommands.GetProjectSelection)
                 if (dbSelection) {
                     logger.info('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
                     return {
@@ -244,13 +245,13 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // For sessions, check if it still exists and worktree is valid
         if (remembered.kind === 'session' && remembered.payload) {
             try {
-                const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: remembered.payload })
+                const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: remembered.payload })
                 const worktreePath = sessionData?.worktree_path || remembered.worktreePath
 
                 // Check if worktree directory still exists
                 if (worktreePath) {
                     try {
-                        const exists = await invoke<boolean>('directory_exists', { path: worktreePath })
+                        const exists = await invoke<boolean>(TauriCommands.DirectoryExists, { path: worktreePath })
                         if (!exists) {
                             logger.info(`[SelectionContext] Worktree directory ${worktreePath} no longer exists for session ${remembered.payload}, falling back to orchestrator`)
                             return { kind: 'orchestrator' }
@@ -288,9 +289,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             creationLock.current.delete(id)
             // Close the actual terminal process to avoid orphaned processes
             try {
-                const exists = await invoke<boolean>('terminal_exists', { id })
+                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id })
                 if (exists) {
-                    await invoke('close_terminal', { id })
+                    await invoke(TauriCommands.CloseTerminal, { id })
                 }
             } catch (e) {
                 logger.warn(`[SelectionContext] Failed to close terminal ${id}:`, e)
@@ -359,7 +360,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 // Save to database if this is an intentional change and not during restoration
                 if (isIntentional && !isRestoringRef.current && projectPath) {
                     try {
-                        await invoke('set_project_selection', {
+                        await invoke(TauriCommands.SetProjectSelection, {
                             kind: newSelection.kind,
                             payload: newSelection.payload ?? null
                         })
@@ -399,7 +400,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Save to database if this is an intentional change and not during restoration
             if (isIntentional && !isRestoringRef.current && projectPath) {
                 try {
-                    await invoke('set_project_selection', {
+                    await invoke(TauriCommands.SetProjectSelection, {
                         kind: newSelection.kind,
                         payload: newSelection.payload ?? null
                     })
@@ -437,7 +438,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async () => {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
-                        const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: selection.payload })
+                        const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: selection.payload })
                         const state: string | undefined = sessionData?.session_state
                         const worktreePath: string | undefined = sessionData?.worktree_path
                         const nowSpec = state === 'spec'
@@ -566,7 +567,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         // If the event didn't include sessionState, resolve it
                         if (target.sessionState === undefined) {
                             try {
-                                const sessionData = await invoke<RawSession>('schaltwerk_core_get_session', { name: target.payload })
+                                const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: target.payload })
                                 targetIsSpec = sessionData?.session_state === 'spec'
                             } catch (e) {
                                 logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', e)

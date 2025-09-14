@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { HomeScreen } from './HomeScreen'
 
@@ -24,17 +25,17 @@ describe('HomeScreen', () => {
     // Defaults - set BEFORE render so initial effect uses mocks
     invoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
-        case 'get_recent_projects':
+        case TauriCommands.GetRecentProjects:
           return overrides.get_recent_projects ?? []
-        case 'is_git_repository':
+        case TauriCommands.IsGitRepository:
           return overrides.is_git_repository ?? true
-        case 'add_recent_project':
-        case 'remove_recent_project':
-        case 'update_recent_project_timestamp':
-        case 'initialize_project':
-        case 'create_new_project':
+        case TauriCommands.AddRecentProject:
+        case TauriCommands.RemoveRecentProject:
+        case TauriCommands.UpdateRecentProjectTimestamp:
+        case TauriCommands.InitializeProject:
+        case TauriCommands.CreateNewProject:
           return null
-        case 'directory_exists':
+        case TauriCommands.DirectoryExists:
           return overrides.directory_exists ?? true
         default:
           throw new Error(`Unexpected invoke: ${cmd}`)
@@ -74,7 +75,7 @@ describe('HomeScreen', () => {
     await user.click(removeButtons[0])
 
     expect(onOpenProject).not.toHaveBeenCalled()
-    expect(invoke).toHaveBeenCalledWith('remove_recent_project', { path: '/repo/a' })
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.RemoveRecentProject, { path: '/repo/a' })
   })
 
   it('open button triggers directory picker and navigates on valid git repo', async () => {
@@ -85,9 +86,9 @@ describe('HomeScreen', () => {
     await user.click(openBtn)
 
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('is_git_repository', { path: '/some/repo' })
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.IsGitRepository, { path: '/some/repo' })
     })
-    expect(invoke).toHaveBeenCalledWith('add_recent_project', { path: '/some/repo' })
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.AddRecentProject, { path: '/some/repo' })
     expect(onOpenProject).toHaveBeenCalledWith('/some/repo')
   })
 
@@ -133,7 +134,7 @@ describe('HomeScreen', () => {
     await user.click(await screen.findByText('Project Gone'))
 
     expect(await screen.findByText(/no longer exists/i)).toBeInTheDocument()
-    expect(invoke).toHaveBeenCalledWith('remove_recent_project', { path: '/gone/repo' })
+    expect(invoke).toHaveBeenCalledWith(TauriCommands.RemoveRecentProject, { path: '/gone/repo' })
   })
 
   it('handles project creation and opens the new project', async () => {
@@ -142,9 +143,9 @@ describe('HomeScreen', () => {
     // Mock successful project creation
     invoke.mockImplementation(async (cmd: string, _args?: unknown) => {
       switch (cmd) {
-        case 'get_recent_projects':
+        case TauriCommands.GetRecentProjects:
           return []
-        case 'create_new_project':
+        case TauriCommands.CreateNewProject:
           return '/new/project/path'
         default:
           return null
@@ -168,7 +169,7 @@ describe('HomeScreen', () => {
 
     // Should call create command and open the project
     await waitFor(() => {
-      expect(invoke).toHaveBeenCalledWith('create_new_project', {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.CreateNewProject, {
         name: 'test-project',
         parentPath: expect.any(String)
       })

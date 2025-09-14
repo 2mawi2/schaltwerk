@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import React, { useEffect } from 'react'
 import { vi } from 'vitest'
 import { DiffFileList } from './DiffFileList'
@@ -9,10 +10,10 @@ import { TestProviders } from '../../tests/test-utils'
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
-    if (cmd === 'schaltwerk_core_get_session') {
+    if (cmd === TauriCommands.SchaltwerkCoreGetSession) {
       return { worktree_path: '/tmp/worktree/' + (args?.name || 'default') }
     }
-    if (cmd === 'get_changed_files_from_main') {
+    if (cmd === TauriCommands.GetChangedFilesFromMain) {
       return [
         { path: 'src/a.ts', change_type: 'modified' },
         { path: 'src/b.ts', change_type: 'added' },
@@ -20,18 +21,18 @@ vi.mock('@tauri-apps/api/core', () => ({
         { path: 'readme.md', change_type: 'unknown' },
       ]
     }
-    if (cmd === 'get_current_branch_name') return 'feature/x'
-    if (cmd === 'get_base_branch_name') return 'main'
-    if (cmd === 'get_commit_comparison_info') return ['abc', 'def']
-    if (cmd === 'get_current_directory') return '/test/project'
-    if (cmd === 'terminal_exists') return false
-    if (cmd === 'create_terminal') return undefined
-    if (cmd === 'schaltwerk_core_list_enriched_sessions') return []
-    if (cmd === 'get_project_sessions_settings') return { filter_mode: 'all', sort_mode: 'name' }
-    if (cmd === 'set_project_sessions_settings') return undefined
-    if (cmd === 'get_project_selection') return null
-    if (cmd === 'set_project_selection') return undefined
-    if (cmd === 'schaltwerk_core_get_font_sizes') return [13, 14]
+    if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
+    if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+    if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+    if (cmd === TauriCommands.GetCurrentDirectory) return '/test/project'
+    if (cmd === TauriCommands.TerminalExists) return false
+    if (cmd === TauriCommands.CreateTerminal) return undefined
+    if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return []
+    if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+    if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+    if (cmd === TauriCommands.GetProjectSelection) return null
+    if (cmd === TauriCommands.SetProjectSelection) return undefined
+    if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) return [13, 14]
     return undefined
   }),
 }))
@@ -126,15 +127,15 @@ describe('DiffFileList', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementationOnce(async (cmd: string) => {
-      if (cmd === 'schaltwerk_core_get_session') return { worktree_path: '/tmp' }
-      if (cmd === 'get_changed_files_from_main') return []
+      if (cmd === TauriCommands.SchaltwerkCoreGetSession) return { worktree_path: '/tmp' }
+      if (cmd === TauriCommands.GetChangedFilesFromMain) return []
       return 'main'
     })
     // Subsequent calls for branch info
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === 'get_current_branch_name') return 'feature/x'
-      if (cmd === 'get_base_branch_name') return 'main'
-      if (cmd === 'get_commit_comparison_info') return ['abc', 'def']
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
+      if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+      if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
       return []
     })
 
@@ -164,13 +165,13 @@ describe('DiffFileList', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === 'get_orchestrator_working_changes') {
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         return [
           { path: 'src/orchestrator.ts', change_type: 'modified' },
           { path: 'config.json', change_type: 'added' },
         ]
       }
-      if (cmd === 'get_current_branch_name') return 'main'
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
     })
 
@@ -194,8 +195,8 @@ describe('DiffFileList', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === 'get_orchestrator_working_changes') return []
-      if (cmd === 'get_current_branch_name') return 'main'
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) return []
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
     })
 
@@ -215,14 +216,14 @@ describe('DiffFileList', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === 'get_orchestrator_working_changes') {
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         // Backend should filter these out, but test that they don't appear
         return [
           { path: 'src/main.ts', change_type: 'modified' },
           // .schaltwerk files should be filtered by backend
         ]
       }
-      if (cmd === 'get_current_branch_name') return 'main'
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
     })
 
@@ -250,10 +251,10 @@ describe('DiffFileList', () => {
       await new Promise(resolve => setTimeout(resolve, 10))
       invokeCallOrder.push(cmd)
 
-      if (cmd === 'get_orchestrator_working_changes') {
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         return [{ path: 'test.ts', change_type: 'modified' }]
       }
-      if (cmd === 'get_current_branch_name') return 'main'
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
     })
 
@@ -275,8 +276,8 @@ describe('DiffFileList', () => {
     expect(duration).toBeLessThan(100)
     
     // Both commands should be called
-    expect(invokeCallOrder).toContain('get_orchestrator_working_changes')
-    expect(invokeCallOrder).toContain('get_current_branch_name')
+    expect(invokeCallOrder).toContain(TauriCommands.GetOrchestratorWorkingChanges)
+    expect(invokeCallOrder).toContain(TauriCommands.GetCurrentBranchName)
   })
 
   it('prevents concurrent loads with isLoading state', async () => {
@@ -285,13 +286,13 @@ describe('DiffFileList', () => {
 
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
     mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-      if (cmd === 'get_orchestrator_working_changes') {
+      if (cmd === TauriCommands.GetOrchestratorWorkingChanges) {
         callCount++
         // Simulate slow network call
         await new Promise(resolve => setTimeout(resolve, 100))
         return [{ path: 'test.ts', change_type: 'modified' }]
       }
-      if (cmd === 'get_current_branch_name') return 'main'
+      if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
       return undefined
     })
 
@@ -328,7 +329,7 @@ describe('DiffFileList', () => {
 
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
       mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
-        if (cmd === 'get_changed_files_from_main') {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
           const sessionName = args?.sessionName as string | undefined
           sessionCallLog.push(`get_changed_files_from_main:${sessionName}`)
 
@@ -340,9 +341,9 @@ describe('DiffFileList', () => {
           }
           return []
         }
-        if (cmd === 'get_current_branch_name') return 'main'
-        if (cmd === 'get_base_branch_name') return 'main'  
-        if (cmd === 'get_commit_comparison_info') return ['abc123', 'def456']
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
         return undefined
       })
 
@@ -377,7 +378,7 @@ describe('DiffFileList', () => {
       const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
       mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
-        if (cmd === 'get_changed_files_from_main') {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
           const sessionName = args?.sessionName
           // Add delay to simulate async loading
           await new Promise(resolve => setTimeout(resolve, 10))
@@ -389,9 +390,9 @@ describe('DiffFileList', () => {
           }
           return []
         }
-        if (cmd === 'get_current_branch_name') return 'main'
-        if (cmd === 'get_base_branch_name') return 'main'  
-        if (cmd === 'get_commit_comparison_info') return ['abc123', 'def456']
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
         return undefined
       })
 
@@ -426,14 +427,14 @@ describe('DiffFileList', () => {
       let apiCallCount = 0
 
       mockInvoke.mockImplementation(async (cmd: string, _args?: Record<string, unknown>) => {
-        if (cmd === 'get_changed_files_from_main') {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
           apiCallCount++
           // Both sessions return identical files - this tests that session name is included in cache key
           return [{ path: 'identical-file.ts', change_type: 'modified' }]
         }
-        if (cmd === 'get_current_branch_name') return 'main'
-        if (cmd === 'get_base_branch_name') return 'main'  
-        if (cmd === 'get_commit_comparison_info') return ['abc123', 'def456']
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'  
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
         return undefined
       })
 

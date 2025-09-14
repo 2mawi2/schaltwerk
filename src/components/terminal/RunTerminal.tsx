@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useImperativeHandle, forwardRef } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { Terminal } from './Terminal'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
@@ -60,7 +61,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         const loadRunScript = async () => {
             try {
                 setIsLoading(true)
-                const script = await invoke<RunScript | null>('get_project_run_script')
+                const script = await invoke<RunScript | null>(TauriCommands.GetProjectRunScript)
                 if (script && script.command) {
                     setRunScript(script)
                     setError(null)
@@ -82,7 +83,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     useEffect(() => {
         const checkExistingTerminal = async () => {
             try {
-                const exists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
+                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: runTerminalId })
                 if (exists) {
                     logger.info(`Found existing run terminal: ${runTerminalId}`)
                     setTerminalCreated(true)
@@ -142,7 +143,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             if (!script) {
                 // Lazy-load run script to support immediate toggles after mount
                 try {
-                    const fetched = await invoke<RunScript | null>('get_project_run_script')
+                    const fetched = await invoke<RunScript | null>(TauriCommands.GetProjectRunScript)
                     if (fetched && fetched.command) {
                         setRunScript(fetched)
                         script = fetched
@@ -163,10 +164,10 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                 // Stop the run - send Ctrl+C but keep terminal alive
                 logger.info('[RunTerminal] Stopping run process')
                 try {
-                    const exists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
+                    const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: runTerminalId })
                     if (exists) {
                         // Send Ctrl+C to stop the process
-                        await invoke('write_terminal', {
+                        await invoke(TauriCommands.WriteTerminal, {
                             id: runTerminalId,
                             data: '\x03' // Ctrl+C
                         })
@@ -183,17 +184,17 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                 try {
                     let cwd = workingDirectory || script?.workingDirectory
                     if (!cwd) {
-                        cwd = await invoke<string>('get_current_directory')
+                        cwd = await invoke<string>(TauriCommands.GetCurrentDirectory)
                     }
 
                     // Check if terminal already exists (from previous run)
-                    const terminalExists = await invoke<boolean>('terminal_exists', { id: runTerminalId })
+                    const terminalExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: runTerminalId })
                     
                     if (terminalExists) {
                         // Terminal exists (from previous run) - write command to existing terminal
                         // This preserves previous output while running new command
                         logger.info('[RunTerminal] Using existing terminal, writing command to preserve previous output')
-                        await invoke('write_terminal', {
+                        await invoke(TauriCommands.WriteTerminal, {
                             id: runTerminalId,
                             data: script.command + '\n'
                         })
@@ -202,7 +203,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                         logger.info('[RunTerminal] Creating new run terminal')
                         setTerminalCreated(true)
                         terminalReadyRef.current = false
-                        await invoke('create_run_terminal', {
+                        await invoke(TauriCommands.CreateRunTerminal, {
                             id: runTerminalId,
                             cwd,
                             command: script.command,
@@ -212,7 +213,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                         })
                         
                         // Send the command to the newly created interactive shell
-                        await invoke('write_terminal', {
+                        await invoke(TauriCommands.WriteTerminal, {
                             id: runTerminalId,
                             data: script.command + '\n'
                         })

@@ -1,4 +1,5 @@
 import React from 'react'
+import { TauriCommands } from './common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TestProviders } from './tests/test-utils'
 import App, { validatePanelPercentage } from './App'
@@ -62,28 +63,28 @@ const mockState = {
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string) => {
     switch (cmd) {
-      case 'get_current_directory':
+      case TauriCommands.GetCurrentDirectory:
         return mockState.currentDir
-      case 'is_git_repository':
+      case TauriCommands.IsGitRepository:
         return mockState.isGitRepo
-      case 'get_project_default_branch':
+      case TauriCommands.GetProjectDefaultBranch:
         return mockState.defaultBranch
       // Selection/terminal lifecycle stubs
-      case 'terminal_exists':
+      case TauriCommands.TerminalExists:
         return false
-      case 'create_terminal':
+      case TauriCommands.CreateTerminal:
         return null
-      case 'schaltwerk_core_get_session':
+      case TauriCommands.SchaltwerkCoreGetSession:
         return { worktree_path: '/tmp/worktrees/abc' }
-      case 'get_project_action_buttons':
+      case TauriCommands.GetProjectActionButtons:
         return []
-      case 'initialize_project':
-      case 'add_recent_project':
-      case 'schaltwerk_core_create_session':
-      case 'schaltwerk_core_cancel_session':
-      case 'directory_exists':
-      case 'update_recent_project_timestamp':
-      case 'remove_recent_project':
+      case TauriCommands.InitializeProject:
+      case TauriCommands.AddRecentProject:
+      case TauriCommands.SchaltwerkCoreCreateSession:
+      case TauriCommands.SchaltwerkCoreCancelSession:
+      case TauriCommands.DirectoryExists:
+      case TauriCommands.UpdateRecentProjectTimestamp:
+      case TauriCommands.RemoveRecentProject:
         return null
       default:
         return null

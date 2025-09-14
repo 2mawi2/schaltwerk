@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import React from 'react'
 import { Sidebar } from './Sidebar'
@@ -52,7 +53,7 @@ describe('Sidebar Spec Mode', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockInvoke.mockImplementation((cmd: string) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         return Promise.resolve([
           {
             info: {
@@ -82,10 +83,10 @@ describe('Sidebar Spec Mode', () => {
           }
         ])
       }
-      if (cmd === 'get_current_branch_name') {
+      if (cmd === TauriCommands.GetCurrentBranchName) {
         return Promise.resolve('main')
       }
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return Promise.resolve({ sortMode: 'recent', filterMode: 'all' })
       }
       return Promise.resolve(null)

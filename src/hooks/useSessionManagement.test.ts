@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useSessionManagement } from './useSessionManagement'
 import { invoke } from '@tauri-apps/api/core'
@@ -40,7 +41,7 @@ describe('useSessionManagement', () => {
                 await result.current.resetSession(selection, mockTerminals)
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
             expect(mockDispatchEvent).toHaveBeenCalledWith(
@@ -65,13 +66,13 @@ describe('useSessionManagement', () => {
                 await result.current.resetSession(selection, mockTerminals)
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('terminal_exists', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, {
                 id: 'test-terminal-top'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('close_terminal', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CloseTerminal, {
                 id: 'test-terminal-top'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_with_restart', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
                 sessionName: 'test-session',
                 forceRestart: true
             })
@@ -96,8 +97,8 @@ describe('useSessionManagement', () => {
                 await result.current.resetSession(selection, mockTerminals)
             })
 
-            expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_with_restart', {
+            expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
                 sessionName: 'test-session',
                 forceRestart: true
             })
@@ -175,10 +176,10 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_agent_type', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, {
                 agentType: 'gemini'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_orchestrator', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
             expect(mockClearTerminalTracking).toHaveBeenCalledWith(['test-terminal-top'])
@@ -209,11 +210,11 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_session_agent_type', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSessionAgentType, {
                 sessionName: 'test-session',
                 agentType: 'cursor'
             })
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_with_restart', {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
                 sessionName: 'test-session',
                 forceRestart: true
             })
@@ -241,8 +242,8 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockInvoke).not.toHaveBeenCalledWith('close_terminal', expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_orchestrator', {
+            expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
         })
@@ -321,9 +322,9 @@ describe('useSessionManagement', () => {
                 })
 
                 // Should not call any commands when payload is null
-                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith('terminal_exists', expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_start_claude', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(mockDispatchEvent).toHaveBeenCalledWith(
                     expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
@@ -343,9 +344,9 @@ describe('useSessionManagement', () => {
                 })
 
                 // Should not call any commands when payload is undefined
-                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith('terminal_exists', expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_start_claude', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(mockDispatchEvent).toHaveBeenCalledWith(
                     expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
@@ -365,9 +366,9 @@ describe('useSessionManagement', () => {
                 })
 
                 // Should not perform any reset operations for invalid kind
-                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_reset_orchestrator', expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith('terminal_exists', expect.any(Object))
-                expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_start_claude', expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
+                expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(mockDispatchEvent).toHaveBeenCalledWith(
                     expect.objectContaining({ type: 'schaltwerk:reset-terminals' })

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { waitFor } from '@testing-library/react'
 import { renderHook, act } from '@testing-library/react'
 import { useSelection } from './SelectionContext'
@@ -35,36 +36,36 @@ describe('Project Switching Selection Behavior', () => {
         mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
             const typedArgs = args as { name?: string; id?: string } | undefined
             switch (command) {
-                case 'get_current_directory':
+                case TauriCommands.GetCurrentDirectory:
                     return Promise.resolve('/test/cwd')
-                case 'terminal_exists':
+                case TauriCommands.TerminalExists:
                     return Promise.resolve(false)
-                case 'create_terminal':
+                case TauriCommands.CreateTerminal:
                     return Promise.resolve()
-                case 'schaltwerk_core_get_session':
+                case TauriCommands.SchaltwerkCoreGetSession:
                     return Promise.resolve({
                         worktree_path: '/test/session/path',
                         session_id: typedArgs?.name || 'test-session',
                         session_state: 'running',
                         name: typedArgs?.name || 'test-session'
                     })
-                case 'get_project_selection':
+                case TauriCommands.GetProjectSelection:
                     // Database returns null initially
                     return Promise.resolve(null)
-                case 'set_project_selection':
+                case TauriCommands.SetProjectSelection:
                     // Database saves selection
                     return Promise.resolve()
-                case 'schaltwerk_core_list_enriched_sessions':
+                case TauriCommands.SchaltwerkCoreListEnrichedSessions:
                     return Promise.resolve([])
-                case 'get_project_sessions_settings':
+                case TauriCommands.GetProjectSessionsSettings:
                     return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-                case 'set_project_sessions_settings':
+                case TauriCommands.SetProjectSessionsSettings:
                     return Promise.resolve()
-                case 'path_exists':
+                case TauriCommands.PathExists:
                     return Promise.resolve(true)
-                case 'schaltwerk_core_list_sessions_by_state':
+                case TauriCommands.SchaltwerkCoreListSessionsByState:
                     return Promise.resolve([])
-                case 'schaltwerk_core_get_font_sizes':
+                case TauriCommands.SchaltwerkCoreGetFontSizes:
                     return Promise.resolve([13, 14])
                 default:
                     return Promise.resolve()

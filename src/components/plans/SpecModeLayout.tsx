@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import Split from 'react-split'
 import { TerminalGrid } from '../terminal/TerminalGrid'
@@ -51,7 +52,7 @@ export function SpecModeLayout({ sessionName, onExit }: Props) {
   
   const handleStartSpec = useCallback(async () => {
     try {
-      await invoke('schaltwerk_core_start_spec_session', { name: sessionName })
+      await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, { name: sessionName })
       onExit()
     } catch (error) {
       logger.error('[SpecModeLayout] Failed to start spec:', error)

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -57,8 +58,8 @@ describe('Sidebar sorting functionality', () => {
   
   const createInvokeMock = (sessions: EnrichedSession[]) => {
     return async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
         // Ensure reviewed sessions are placed at the end regardless of mode
         const isReviewed = (s: EnrichedSession) => !!s.info.ready_to_merge
@@ -84,15 +85,15 @@ describe('Sidebar sorting functionality', () => {
         const draftsSorted = specs.sort((a, b) => a.info!.session_id.localeCompare(b.info!.session_id))
         return [...sorted, ...reviewed, ...draftsSorted]
       }
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         const s = (args as { settings?: { filter_mode?: string; sort_mode?: string } })?.settings || {}
         savedFilterMode = s.filter_mode || FilterMode.All
         savedSortMode = s.sort_mode || SortMode.Name

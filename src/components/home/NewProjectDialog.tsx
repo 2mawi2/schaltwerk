@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 import { VscFolderOpened, VscClose, VscNewFolder } from 'react-icons/vsc'
@@ -67,7 +68,7 @@ export function NewProjectDialog({ isOpen, onClose, onProjectCreated }: NewProje
     setError(null)
 
     try {
-      const projectPath = await invoke<string>('create_new_project', {
+      const projectPath = await invoke<string>(TauriCommands.CreateNewProject, {
         name: projectName.trim(),
         parentPath
       })

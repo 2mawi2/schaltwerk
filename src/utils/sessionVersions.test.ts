@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { 
   groupSessionsByVersion, 
   parseVersionFromSessionName, 
@@ -283,9 +284,9 @@ describe('sessionVersions', () => {
       await selectBestVersionAndCleanup(featureGroup, 'feature', mockInvoke, mockReloadSessions)
 
       // Should cancel v2 and v3, but not the selected base version
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v2' })
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v3' })
-      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v2' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v3' })
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature' })
       expect(mockInvoke).toHaveBeenCalledTimes(2)
       expect(mockReloadSessions).toHaveBeenCalledTimes(1)
     })
@@ -305,12 +306,12 @@ describe('sessionVersions', () => {
       await selectBestVersionAndCleanup(featureGroup, 'feature_v3', mockInvoke, mockReloadSessions)
 
       // Should cancel all versions except the selected one (feature_v3)
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v1' })
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v2' })
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v4' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v1' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v2' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v4' })
       
       // Should NOT cancel the selected version
-      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v3' })
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v3' })
       
       expect(mockInvoke).toHaveBeenCalledTimes(3) // 3 cancellations
       expect(mockReloadSessions).toHaveBeenCalledTimes(1)
@@ -331,7 +332,7 @@ describe('sessionVersions', () => {
         selectBestVersionAndCleanup(testGroup, 'test', mockInvoke, mockReloadSessions)
       ).rejects.toThrow('Failed to cleanup session versions')
 
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'test_v2' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'test_v2' })
       expect(mockReloadSessions).not.toHaveBeenCalled() // Should not reload on error
     })
 
@@ -351,7 +352,7 @@ describe('sessionVersions', () => {
         selectBestVersionAndCleanup(testGroup, 'test_v2', mockInvoke, mockReloadSessions)
       ).rejects.toThrow('Failed to cleanup session versions')
 
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'test_v1' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'test_v1' })
       expect(mockReloadSessions).not.toHaveBeenCalled()
     })
 
@@ -372,8 +373,8 @@ describe('sessionVersions', () => {
 
       await selectBestVersionAndCleanup(simpleGroup, 'simple_v2', mockInvoke, mockReloadSessions)
 
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'simple' })
-      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'simple_v2' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'simple' })
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'simple_v2' })
       expect(mockInvoke).toHaveBeenCalledTimes(1) // 1 cancellation
       expect(mockReloadSessions).toHaveBeenCalledTimes(1)
     })
@@ -397,16 +398,16 @@ describe('sessionVersions', () => {
 
       // The selected version (feature_v2) should be kept with its current name
       // since renaming running sessions is not supported by the backend
-      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_create_session', 
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCreateSession, 
         expect.objectContaining({
           name: 'feature'
         })
       )
       
       // Should cancel all other versions except the selected one
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature' })
-      expect(mockInvoke).not.toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v2' })
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_cancel_session', { name: 'feature_v3' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature' })
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v2' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreCancelSession, { name: 'feature_v3' })
       
       expect(mockInvoke).toHaveBeenCalledTimes(2) // Only 2 cancellations (feature and feature_v3)
       expect(mockReloadSessions).toHaveBeenCalledTimes(1)

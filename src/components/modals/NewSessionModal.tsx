@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
 import { SessionConfigurationPanel } from '../shared/SessionConfigurationPanel'
@@ -231,7 +232,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             lastInitialIsDraftRef.current = initialIsDraft
             
             // Check if repository is empty for display purposes
-            invoke<boolean>('repository_is_empty')
+            invoke<boolean>(TauriCommands.RepositoryIsEmpty)
                 .then(setRepositoryIsEmpty)
                 .catch(err => {
                     logger.warn('Failed to check if repository is empty:', err)

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -63,8 +64,8 @@ describe('Sidebar sort mode persistence', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { sortMode?: string })?.sortMode || SortMode.Name
         if (mode === SortMode.Created) {
           return [...sessions].sort((a, b) => {
@@ -83,15 +84,15 @@ describe('Sidebar sort mode persistence', () => {
         // Name
         return [...sessions].sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         const settings = (args as { settings?: { filter_mode?: string; sort_mode?: string } })?.settings || {}
         savedFilterMode = settings.filter_mode || FilterMode.All
         savedSortMode = settings.sort_mode || SortMode.Name
@@ -259,13 +260,13 @@ describe('Sidebar sort mode persistence', () => {
     ]
     
     vi.mocked(invoke).mockImplementation(async (cmd) => {
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         throw new Error('Backend save failed')
       }
       // Default handling for other commands
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') return sessions
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return sessions
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
       return undefined

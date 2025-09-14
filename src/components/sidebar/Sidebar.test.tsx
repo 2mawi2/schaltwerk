@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -143,28 +144,28 @@ describe('Sidebar', () => {
     // Setup default mocks
     mockInvoke.mockImplementation((command: string) => {
       switch (command) {
-        case 'schaltwerk_core_list_enriched_sessions':
+        case TauriCommands.SchaltwerkCoreListEnrichedSessions:
           return Promise.resolve([])
-        case 'get_current_directory':
+        case TauriCommands.GetCurrentDirectory:
           return Promise.resolve('/test/cwd')
-        case 'terminal_exists':
+        case TauriCommands.TerminalExists:
           return Promise.resolve(false)
-        case 'create_terminal':
+        case TauriCommands.CreateTerminal:
           return Promise.resolve()
-        case 'schaltwerk_core_get_session':
+        case TauriCommands.SchaltwerkCoreGetSession:
           return Promise.resolve({
             worktree_path: '/test/session/path',
             session_id: 'test-session'
           })
-        case 'schaltwerk_core_list_sessions_by_state':
+        case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
-        case 'get_project_sessions_settings':
+        case TauriCommands.GetProjectSessionsSettings:
           return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-        case 'set_project_sessions_settings':
+        case TauriCommands.SetProjectSessionsSettings:
           return Promise.resolve()
-        case 'schaltwerk_core_get_font_sizes':
+        case TauriCommands.SchaltwerkCoreGetFontSizes:
           return Promise.resolve([13, 12])
-        case 'schaltwerk_core_set_font_sizes':
+        case TauriCommands.SchaltwerkCoreSetFontSizes:
           return Promise.resolve()
         default:
           return Promise.resolve()
@@ -188,23 +189,23 @@ describe('Sidebar', () => {
       // Mock both the regular sessions and specs calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_current_directory':
+          case TauriCommands.GetCurrentDirectory:
             return Promise.resolve('/test/cwd')
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve([13, 12])
-          case 'schaltwerk_core_set_font_sizes':
+          case TauriCommands.SchaltwerkCoreSetFontSizes:
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -242,25 +243,25 @@ describe('Sidebar', () => {
       // Mock both the regular sessions and specs calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve(mockSessions)
-          case 'schaltwerk_core_list_enriched_sessions_sorted':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
             return Promise.resolve(mockSessions)
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_current_directory':
+          case TauriCommands.GetCurrentDirectory:
             return Promise.resolve('/test/cwd')
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve([13, 12])
-          case 'schaltwerk_core_set_font_sizes':
+          case TauriCommands.SchaltwerkCoreSetFontSizes:
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -504,25 +505,25 @@ describe('Sidebar', () => {
       // Mock both the regular sessions and specs calls
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve(mockSessions)
-          case 'schaltwerk_core_list_enriched_sessions_sorted':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
             return Promise.resolve(mockSessions)
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_current_directory':
+          case TauriCommands.GetCurrentDirectory:
             return Promise.resolve('/test/cwd')
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve([13, 12])
-          case 'schaltwerk_core_set_font_sizes':
+          case TauriCommands.SchaltwerkCoreSetFontSizes:
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -542,23 +543,23 @@ describe('Sidebar', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.reject(new Error('Failed to load sessions'))
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_current_directory':
+          case TauriCommands.GetCurrentDirectory:
             return Promise.resolve('/test/cwd')
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve([13, 12])
-          case 'schaltwerk_core_set_font_sizes':
+          case TauriCommands.SchaltwerkCoreSetFontSizes:
             return Promise.resolve()
           default:
             return Promise.resolve()
@@ -587,7 +588,7 @@ describe('Sidebar', () => {
     it('should scroll selected session into view when clicked', async () => {
       mockInvoke.mockImplementation((command: string) => {
         switch (command) {
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([
               {
                 info: {
@@ -620,21 +621,21 @@ describe('Sidebar', () => {
                 terminals: ['terminal-2']
               }
             ])
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_current_directory':
+          case TauriCommands.GetCurrentDirectory:
             return Promise.resolve('/test/cwd')
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve([13, 12])
-          case 'schaltwerk_core_set_font_sizes':
+          case TauriCommands.SchaltwerkCoreSetFontSizes:
             return Promise.resolve()
           default:
             return Promise.resolve()

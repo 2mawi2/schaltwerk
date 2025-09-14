@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { SessionConfigurationPanel, useSessionConfiguration } from './SessionConfigurationPanel'
 import { invoke } from '@tauri-apps/api/core'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
@@ -88,15 +89,15 @@ describe('SessionConfigurationPanel', () => {
         vi.clearAllMocks()
         mockInvoke.mockImplementation((command: string) => {
             switch (command) {
-                case 'list_project_branches':
+                case TauriCommands.ListProjectBranches:
                     return Promise.resolve(['main', 'develop', 'feature/test'])
-                case 'get_project_default_base_branch':
+                case TauriCommands.GetProjectDefaultBaseBranch:
                     return Promise.resolve('main')
-                case 'get_project_default_branch':
+                case TauriCommands.GetProjectDefaultBranch:
                     return Promise.resolve('main')
-                case 'repository_is_empty':
+                case TauriCommands.RepositoryIsEmpty:
                     return Promise.resolve(false)
-                case 'set_project_default_base_branch':
+                case TauriCommands.SetProjectDefaultBaseBranch:
                     return Promise.resolve()
                 default:
                     return Promise.resolve()
@@ -283,9 +284,9 @@ describe('SessionConfigurationPanel', () => {
         )
 
         await waitFor(() => {
-            expect(mockInvoke).toHaveBeenCalledWith('list_project_branches')
-            expect(mockInvoke).toHaveBeenCalledWith('get_project_default_base_branch')
-            expect(mockInvoke).toHaveBeenCalledWith('get_project_default_branch')
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.ListProjectBranches)
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.GetProjectDefaultBaseBranch)
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.GetProjectDefaultBranch)
         })
 
         await waitFor(() => {
@@ -313,13 +314,13 @@ describe('SessionConfigurationPanel', () => {
         fireEvent.change(input, { target: { value: 'develop' } })
 
         await waitFor(() => {
-            expect(mockInvoke).toHaveBeenCalledWith('set_project_default_base_branch', { branch: 'develop' })
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectDefaultBaseBranch, { branch: 'develop' })
         })
     })
 
     test('handles branch loading errors gracefully', async () => {
         mockInvoke.mockImplementation((command: string) => {
-            if (command === 'list_project_branches') {
+            if (command === TauriCommands.ListProjectBranches) {
                 return Promise.reject(new Error('Failed to load branches'))
             }
             return Promise.resolve()

@@ -1,4 +1,5 @@
 import { render, screen, waitFor, act } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
@@ -48,10 +49,10 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with a spec and two running sessions
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [draftSession, runningSession1, runningSession2]
             }
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
                 const fm = (args as { filterMode?: string })?.filterMode || 'all'
                 const all = [draftSession, runningSession1, runningSession2]
                 if (fm === 'spec') return [draftSession]
@@ -59,10 +60,10 @@ describe('Sidebar - Selection on State Changes', () => {
                 if (fm === 'running') return all.filter(s => !s.info.ready_to_merge && s.info.session_state !== 'spec')
                 return all
             }
-            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === 'get_project_sessions_settings') {
+            if (cmd === TauriCommands.GetProjectSessionsSettings) {
                 return { filter_mode: 'all', sort_mode: 'name' }
             }
             return undefined
@@ -104,10 +105,10 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with only a spec session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [draftSession]
             }
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
                 const fm = (args as { filterMode?: string })?.filterMode || 'all'
                 const all = [draftSession]
                 if (fm === 'spec') return all
@@ -115,10 +116,10 @@ describe('Sidebar - Selection on State Changes', () => {
                 if (fm === 'reviewed') return []
                 return all
             }
-            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === 'get_project_sessions_settings') {
+            if (cmd === TauriCommands.GetProjectSessionsSettings) {
                 return { filter_mode: 'all', sort_mode: 'name' }
             }
             return undefined
@@ -150,16 +151,16 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [runningSession]
             }
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
                 return [runningSession]
             }
-            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === 'get_project_sessions_settings') {
+            if (cmd === TauriCommands.GetProjectSessionsSettings) {
                 return { filter_mode: 'all', sort_mode: 'name' }
             }
             return undefined
@@ -178,13 +179,13 @@ describe('Sidebar - Selection on State Changes', () => {
         // Update the session to be reviewed (still visible in "all" filter)
         const reviewedSession = { ...runningSession, info: { ...runningSession.info, ready_to_merge: true } }
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [reviewedSession]
             }
-            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === 'get_project_sessions_settings') {
+            if (cmd === TauriCommands.GetProjectSessionsSettings) {
                 return { filter_mode: 'all', sort_mode: 'name' }
             }
             return undefined
@@ -210,10 +211,10 @@ describe('Sidebar - Selection on State Changes', () => {
 
         // Start with a spec and a running session
         vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-            if (cmd === 'schaltwerk_core_list_enriched_sessions') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
                 return [specAgent, runningTask]
             }
-            if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
                 const fm = (args as { filterMode?: string })?.filterMode || 'all'
                 const all = [specAgent, runningTask]
                 if (fm === 'spec') return [specAgent]
@@ -221,10 +222,10 @@ describe('Sidebar - Selection on State Changes', () => {
                 if (fm === 'reviewed') return []
                 return all
             }
-            if (cmd === 'schaltwerk_core_list_sessions_by_state') {
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
                 return []
             }
-            if (cmd === 'get_project_sessions_settings') {
+            if (cmd === TauriCommands.GetProjectSessionsSettings) {
                 return { filter_mode: 'all', sort_mode: 'name' }
             }
             return undefined

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useSessionPrefill, extractSessionContent, SessionPrefillData } from './useSessionPrefill'
 
@@ -91,7 +92,7 @@ describe('useSessionPrefill', () => {
         originalSpecName: 'test-session',
       })
 
-      expect(invoke).toHaveBeenCalledWith('schaltwerk_core_get_session', { name: 'test-session' })
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSession, { name: 'test-session' })
       expect(result.current.error).toBeNull()
       expect(result.current.isLoading).toBe(false)
     })

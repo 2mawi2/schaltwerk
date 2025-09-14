@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { useProject } from '../contexts/ProjectContext'
@@ -62,7 +63,7 @@ export function useSortedSessions({ sortMode, filterMode }: UseSortedSessionsOpt
             }
             setError(null)
             
-            const sortedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions_sorted', {
+            const sortedSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted, {
                 sortMode,
                 filterMode
             })

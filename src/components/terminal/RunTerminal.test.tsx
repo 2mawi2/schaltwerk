@@ -1,16 +1,17 @@
 import { render, screen, act } from '@testing-library/react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { useRef } from 'react'
 import { vi } from 'vitest'
 import { RunTerminal, type RunTerminalHandle } from './RunTerminal'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string) => {
-    if (cmd === 'get_project_run_script') {
+    if (cmd === TauriCommands.GetProjectRunScript) {
       return { command: 'npm run dev', environmentVariables: {} }
     }
-    if (cmd === 'terminal_exists') return false
-    if (cmd === 'create_run_terminal') return 'run-terminal-test'
-    if (cmd === 'get_current_directory') return '/tmp'
+    if (cmd === TauriCommands.TerminalExists) return false
+    if (cmd === TauriCommands.CreateRunTerminal) return 'run-terminal-test'
+    if (cmd === TauriCommands.GetCurrentDirectory) return '/tmp'
     return undefined
   })
 }))
@@ -52,15 +53,15 @@ describe('RunTerminal', () => {
     
     // Update mock to track terminal creation
     mockInvoke.mockImplementation(async (cmd: string) => {
-      if (cmd === 'get_project_run_script') {
+      if (cmd === TauriCommands.GetProjectRunScript) {
         return { command: 'npm run dev', environmentVariables: {} }
       }
-      if (cmd === 'terminal_exists') return terminalCreated
-      if (cmd === 'create_run_terminal') {
+      if (cmd === TauriCommands.TerminalExists) return terminalCreated
+      if (cmd === TauriCommands.CreateRunTerminal) {
         terminalCreated = true
         return 'run-terminal-test'
       }
-      if (cmd === 'get_current_directory') return '/tmp'
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/tmp'
       return undefined
     })
     

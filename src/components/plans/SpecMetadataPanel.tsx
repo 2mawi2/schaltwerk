@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCalendar, VscWatch, VscNotebook } from 'react-icons/vsc'
 import { theme } from '../../common/theme'
@@ -71,7 +72,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
 
   const handleDeleteSpec = async () => {
     try {
-      await invoke('schaltwerk_core_cancel_session', { name: sessionName })
+      await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: sessionName })
     } catch (error) {
       logger.error('[SpecMetadataPanel] Failed to delete spec:', error)
     }

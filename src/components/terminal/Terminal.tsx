@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { Terminal as XTerm } from 'xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -152,7 +153,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         let mounted = true
         const load = async () => {
             try {
-                const settings = await invoke<{ fontFamily?: string | null }>('get_terminal_settings')
+                const settings = await invoke<{ fontFamily?: string | null }>(TauriCommands.GetTerminalSettings)
                 const chain = buildTerminalFontFamily(settings?.fontFamily ?? null)
                 if (mounted) setResolvedFontFamily(chain)
             } catch (err) {
@@ -258,7 +259,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current!;
                     // Always notify PTY to nudge the TUI even if equal (OpenCode can need explicit resize)
                     lastSize.current = { cols, rows };
-                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] OpenCode search-resize failed:`, e);
                 }
@@ -298,7 +299,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     fitAddon.current!.fit();
                     const { cols, rows } = terminal.current!;
                     lastSize.current = { cols, rows };
-                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -411,7 +412,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                     logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
                 } catch (e) {
@@ -462,7 +463,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             const { cols, rows } = terminal.current;
                             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                 lastSize.current = { cols, rows };
-                                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                             }
                         } catch (e) {
                             logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
@@ -480,7 +481,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 const { cols, rows } = terminal.current;
                                 if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                     lastSize.current = { cols, rows };
-                                    invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                                 }
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
@@ -550,7 +551,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current;
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
@@ -577,7 +578,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
                 // Send a newline character without submitting the command
                 // This allows multiline input in shells that support it
-                invoke('write_terminal', { id: terminalId, data: '\n' }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.error("Error:", err));
                 return false; // Prevent default Enter behavior
             }
             
@@ -626,7 +627,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current;
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                 } catch {
                     // ignore single-shot fit error; RO will retry
@@ -753,7 +754,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
                 }
-                const snapshot = await invoke<string>('get_terminal_buffer', { id: terminalId });
+                const snapshot = await invoke<string>(TauriCommands.GetTerminalBuffer, { id: terminalId });
                 
                 if (snapshot) {
                     enqueueWrite(snapshot);
@@ -785,7 +786,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                           const { cols, rows } = terminal.current;
                           if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                               lastSize.current = { cols, rows };
-                              invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                              invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                           }
                       } catch (e) {
                           // Non-fatal; ResizeObserver and later events will correct
@@ -933,7 +934,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     }
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
@@ -946,7 +947,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Send input to backend (disabled for readOnly terminals)
         if (!readOnly) {
             terminal.current.onData((data) => {
-                invoke('write_terminal', { id: terminalId, data }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.error("Error:", err));
             });
         }
         
@@ -956,7 +957,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (terminal.current) {
                 // Send a null byte to initialize the terminal properly
                 // This helps ensure the shell is in the right mode
-                invoke('write_terminal', { id: terminalId, data: '' }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '' }).catch(err => logger.error("Error:", err));
             }
         }, 100);
 
@@ -998,7 +999,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                 lastSize.current = { cols, rows };
                 // Send resize command immediately to update PTY size
-                invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
             }
         };
 
@@ -1100,7 +1101,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         }
 
                         lastSize.current = { cols, rows };
-                        invoke('resize_terminal', { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
                     });
                 }
             } catch (error) {
@@ -1253,7 +1254,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
                             }
-                            await invoke('schaltwerk_core_start_claude_orchestrator', { terminalId, cols, rows });
+                            await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows });
                             // OPTIMIZATION: Immediate focus and loading state update (modal-safe)
                             safeTerminalFocusImmediate(() => {
                                 terminal.current?.focus();
@@ -1321,7 +1322,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                            } catch (e) {
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
-                           await invoke('schaltwerk_core_start_claude', { sessionName, cols, rows });
+                           await invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName, cols, rows });
                            // Focus the terminal after Claude starts successfully (modal-safe)
                            requestAnimationFrame(() => {
                                safeTerminalFocus(() => {

@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
+import { TauriCommands } from '../../common/tauriCommands'
 import { ConfirmModal } from './ConfirmModal'
 import { SessionVersionGroup } from '../../utils/sessionVersions'
 import { invoke } from '@tauri-apps/api/core'
@@ -35,7 +36,7 @@ export function PromoteVersionConfirmation({
       setDontAskAgain(false)
       setCheckingPreference(true)
       
-      invoke<SessionPreferences>('get_session_preferences')
+      invoke<SessionPreferences>(TauriCommands.GetSessionPreferences)
         .then(preferences => {
           if (preferences?.skip_confirmation_modals) {
             // If skip is enabled, immediately confirm and close
@@ -80,8 +81,8 @@ export function PromoteVersionConfirmation({
     // Store the "don't ask again" preference globally (not per project)
     if (dontAskAgain) {
       try {
-        const preferences = await invoke<SessionPreferences>('get_session_preferences')
-        await invoke('set_session_preferences', { 
+        const preferences = await invoke<SessionPreferences>(TauriCommands.GetSessionPreferences)
+        await invoke(TauriCommands.SetSessionPreferences, { 
           preferences: {
             ...preferences,
             skip_confirmation_modals: true

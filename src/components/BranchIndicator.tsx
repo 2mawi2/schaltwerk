@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { VscSourceControl } from 'react-icons/vsc'
 import { logger } from '../utils/logger'
@@ -14,7 +15,7 @@ export function BranchIndicator() {
   useEffect(() => {
     const loadDevInfo = async () => {
       try {
-        const info = await invoke<DevelopmentInfo>('get_development_info')
+        const info = await invoke<DevelopmentInfo>(TauriCommands.GetDevelopmentInfo)
         setDevInfo(info)
       } catch (error) {
         logger.error('Failed to get development info:', error)

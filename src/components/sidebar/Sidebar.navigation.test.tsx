@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, waitFor } from '@testing-library/react'
 import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
@@ -82,19 +83,19 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
 
     mockInvoke.mockImplementation((command: string) => {
       switch (command) {
-        case 'schaltwerk_core_list_enriched_sessions':
+        case TauriCommands.SchaltwerkCoreListEnrichedSessions:
           return Promise.resolve(sessions)
-        case 'schaltwerk_core_list_enriched_sessions_sorted':
+        case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
           return Promise.resolve(sessions)
-        case 'schaltwerk_core_list_sessions_by_state':
+        case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
-        case 'get_current_directory':
+        case TauriCommands.GetCurrentDirectory:
           return Promise.resolve('/test/cwd')
-        case 'get_project_sessions_settings':
+        case TauriCommands.GetProjectSessionsSettings:
           return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-        case 'terminal_exists':
+        case TauriCommands.TerminalExists:
           return Promise.resolve(false)
-        case 'create_terminal':
+        case TauriCommands.CreateTerminal:
           return Promise.resolve()
         default:
           return Promise.resolve()

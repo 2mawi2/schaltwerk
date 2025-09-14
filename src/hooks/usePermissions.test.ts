@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { useFolderPermission } from './usePermissions'
 import { renderHook, act } from '@testing-library/react'
 
@@ -47,7 +48,7 @@ describe('useFolderPermission', () => {
       const { result } = renderHook(() => useFolderPermission(testPath))
 
       expect(result.current.isChecking).toBe(true)
-      expect(mockInvoke).toHaveBeenCalledWith('check_folder_access', { path: testPath })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CheckFolderAccess, { path: testPath })
 
       await act(async () => {
         await vi.runAllTimersAsync()
@@ -110,7 +111,7 @@ describe('useFolderPermission', () => {
       expect(result.current.isChecking).toBe(false)
       expect(result.current.permissionError).toBeNull()
       expect(result.current.deniedPath).toBeNull()
-      expect(mockInvoke).toHaveBeenCalledWith('check_folder_access', { path: testPath })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CheckFolderAccess, { path: testPath })
     })
 
     it('successfully checks permission and returns false', async () => {
@@ -172,8 +173,8 @@ describe('useFolderPermission', () => {
       expect(result.current.hasPermission).toBe(true)
       expect(result.current.isChecking).toBe(false)
       expect(result.current.permissionError).toBeNull()
-      expect(mockInvoke).toHaveBeenCalledWith('ensure_folder_permission', { path: testPath })
-      expect(mockInvoke).toHaveBeenCalledWith('check_folder_access', { path: testPath })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.EnsureFolderPermission, { path: testPath })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CheckFolderAccess, { path: testPath })
     })
 
     it('waits for 500ms delay before checking permission', async () => {
@@ -189,8 +190,8 @@ describe('useFolderPermission', () => {
         await result.current.requestPermission(testPath)
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('ensure_folder_permission', { path: testPath })
-      expect(mockInvoke).toHaveBeenCalledWith('check_folder_access', { path: testPath })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.EnsureFolderPermission, { path: testPath })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CheckFolderAccess, { path: testPath })
     })
   })
 

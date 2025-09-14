@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { useClaudeSession } from './useClaudeSession'
 import { renderHook, act } from '@testing-library/react'
 
@@ -18,7 +19,7 @@ describe('useClaudeSession', () => {
     mockInvoke.mockResolvedValueOnce(undefined)
     const { result } = renderHook(() => useClaudeSession())
     await act(async () => result.current.startClaude({ isCommander: true }))
-    expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude_orchestrator', { 
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { 
       terminalId: 'orchestrator-default-top' 
     })
   })
@@ -27,7 +28,7 @@ describe('useClaudeSession', () => {
     mockInvoke.mockResolvedValueOnce(undefined)
     const { result } = renderHook(() => useClaudeSession())
     await act(async () => result.current.startClaude({ sessionName: 's1' }))
-    expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_start_claude', { sessionName: 's1' })
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, { sessionName: 's1' })
   })
 
   it('returns failure when options are invalid', async () => {
@@ -46,7 +47,7 @@ describe('useClaudeSession', () => {
 
     const setOk = await result.current.setSkipPermissions(false)
     expect(setOk).toBe(true)
-    expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_skip_permissions', { enabled: false })
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, { enabled: false })
   })
 
   it('gets and sets agent type with defaults on error', async () => {
@@ -65,7 +66,7 @@ describe('useClaudeSession', () => {
     mockInvoke.mockResolvedValueOnce(undefined)
     const setOk = await result.current.setAgentType('cursor')
     expect(setOk).toBe(true)
-    expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_set_agent_type', { agentType: 'cursor' })
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, { agentType: 'cursor' })
     
     consoleErrorSpy.mockRestore()
   })

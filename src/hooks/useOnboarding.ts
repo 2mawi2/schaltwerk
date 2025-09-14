@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 
@@ -9,7 +10,7 @@ export function useOnboarding() {
     useEffect(() => {
         const checkTutorialCompletion = async () => {
             try {
-                const completed = await invoke<boolean>('get_tutorial_completed')
+                const completed = await invoke<boolean>(TauriCommands.GetTutorialCompleted)
                 setHasCompletedOnboarding(completed)
                 
                 if (!completed) {
@@ -30,7 +31,7 @@ export function useOnboarding() {
 
     const completeOnboarding = async () => {
         try {
-            await invoke('set_tutorial_completed', { completed: true })
+            await invoke(TauriCommands.SetTutorialCompleted, { completed: true })
             setHasCompletedOnboarding(true)
             setIsOnboardingOpen(false)
         } catch (error) {
@@ -40,7 +41,7 @@ export function useOnboarding() {
 
     const resetOnboarding = async () => {
         try {
-            await invoke('set_tutorial_completed', { completed: false })
+            await invoke(TauriCommands.SetTutorialCompleted, { completed: false })
             setHasCompletedOnboarding(false)
         } catch (error) {
             logger.error('Failed to reset tutorial:', error)

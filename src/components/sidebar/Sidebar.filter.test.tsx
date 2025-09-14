@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -54,8 +55,8 @@ describe('Sidebar filter functionality and persistence', () => {
     ]
 
     vi.mocked(invoke).mockImplementation(async (cmd, args?: unknown) => {
-      if (cmd === 'schaltwerk_core_list_enriched_sessions') return sessions
-      if (cmd === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const fm = ((args as Record<string, unknown>)?.filterMode as FilterMode) || FilterMode.All
         const filtered = fm === FilterMode.All
           ? sessions
@@ -66,15 +67,15 @@ describe('Sidebar filter functionality and persistence', () => {
               : sessions.filter(s => !(s.info.ready_to_merge) && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
         return filtered
       }
-      if (cmd === 'get_current_directory') return '/test/dir'
-      if (cmd === 'terminal_exists') return false
-      if (cmd === 'create_terminal') return true
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (cmd === TauriCommands.TerminalExists) return false
+      if (cmd === TauriCommands.CreateTerminal) return true
       if (cmd === 'get_buffer') return ''
-      if (cmd === 'schaltwerk_core_list_sessions_by_state') return []
-      if (cmd === 'get_project_sessions_settings') {
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) {
         return { filter_mode: FilterMode.All, sort_mode: SortMode.Name }
       }
-      if (cmd === 'set_project_sessions_settings') {
+      if (cmd === TauriCommands.SetProjectSessionsSettings) {
         return undefined
       }
       return undefined
@@ -179,11 +180,11 @@ describe('Sidebar filter functionality and persistence', () => {
     let settingsLoadCalled = false
     
     vi.mocked(invoke).mockImplementation(async (command: string, args?: unknown) => {
-      if (command === 'get_project_sessions_settings') {
+      if (command === TauriCommands.GetProjectSessionsSettings) {
         settingsLoadCalled = true
         return { filter_mode: savedFilterMode, sort_mode: savedSortMode }
       }
-        if (command === 'set_project_sessions_settings') {
+        if (command === TauriCommands.SetProjectSessionsSettings) {
           // Only save if settings have been loaded (mimics the component behavior)
           if (settingsLoadCalled) {
             const s = (args as Record<string, unknown>)?.settings as Record<string, unknown> || {}
@@ -192,7 +193,7 @@ describe('Sidebar filter functionality and persistence', () => {
           }
           return undefined
         }
-      if (command === 'schaltwerk_core_list_enriched_sessions_sorted') {
+      if (command === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const all = [
           createSession('session1'),
           createSession('session2'),
@@ -205,7 +206,7 @@ describe('Sidebar filter functionality and persistence', () => {
         if (fm === FilterMode.Reviewed) return all.filter(s => s.info.ready_to_merge)
         return all.filter(s => !s.info.ready_to_merge && (s.info as SessionInfo & { session_state?: string }).session_state !== 'spec')
       }
-      if (command === 'schaltwerk_core_list_enriched_sessions') {
+      if (command === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         return [
           createSession('session1'),
           createSession('session2'),
@@ -213,11 +214,11 @@ describe('Sidebar filter functionality and persistence', () => {
           createSession('session4', true),
         ]
       }
-      if (command === 'get_current_directory') return '/test/dir'
-      if (command === 'terminal_exists') return false
-      if (command === 'create_terminal') return true
+      if (command === TauriCommands.GetCurrentDirectory) return '/test/dir'
+      if (command === TauriCommands.TerminalExists) return false
+      if (command === TauriCommands.CreateTerminal) return true
       if (command === 'get_buffer') return ''
-      if (command === 'schaltwerk_core_list_sessions_by_state') return []
+      if (command === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       return undefined
     })
     

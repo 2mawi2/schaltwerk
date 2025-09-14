@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import type { HeaderActionConfig } from '../components/ActionButton'
 import { useProject } from './ProjectContext'
@@ -33,7 +34,7 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
       setLoading(true)
       setError(null)
       logger.info('Loading action buttons for project:', projectPath)
-      const buttons = await invoke<HeaderActionConfig[]>('get_project_action_buttons')
+      const buttons = await invoke<HeaderActionConfig[]>(TauriCommands.GetProjectActionButtons)
       logger.info('Action buttons loaded:', buttons)
       setActionButtons(buttons)
     } catch (err) {
@@ -48,7 +49,7 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
   const saveActionButtons = async (buttons: HeaderActionConfig[]) => {
     try {
       logger.info('Saving action buttons payload:', buttons)
-      await invoke('set_project_action_buttons', { actions: buttons })
+      await invoke(TauriCommands.SetProjectActionButtons, { actions: buttons })
       // Round‑trip to backend to ensure canonical state and trigger consumers to update
       await loadActionButtons()
       logger.info('Action buttons saved and reloaded:', buttons)

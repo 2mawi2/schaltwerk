@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
@@ -146,7 +147,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             if (!hasInitialLoadCompleted.current) {
                 setLoading(true)
             }
-            const enrichedSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
+            const enrichedSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
             const enriched = enrichedSessions || []
             const hasSpecSessions = (sessions: EnrichedSession[]) => {
                 return sessions.some(s => mapSessionUiState(s.info) === 'spec')
@@ -164,7 +165,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 // Try to fetch explicit specs; if shape is unexpected, ignore
                 let all = enriched
                 try {
-                    const draftSessions = await invoke<RawSession[]>('schaltwerk_core_list_sessions_by_state', { state: SessionState.Spec })
+                    const draftSessions = await invoke<RawSession[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: SessionState.Spec })
                     
                     const hasValidDraftSessions = (drafts: RawSession[]): boolean => {
                         return Array.isArray(drafts) && drafts.some(d => d && (d.name || d.id))
@@ -220,7 +221,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const updateSessionStatus = useCallback(async (sessionId: string, newStatus: string) => {
         try {
             // First, we need to get the current session state
-            const currentSessions = await invoke<EnrichedSession[]>('schaltwerk_core_list_enriched_sessions')
+            const currentSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
             const session = currentSessions?.find(s => s.info.session_id === sessionId)
             
             if (!session) {
@@ -229,15 +230,15 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
 
             if (newStatus === 'spec') {
-                await invoke('schaltwerk_core_convert_session_to_draft', { name: sessionId })
+                await invoke(TauriCommands.SchaltwerkCoreConvertSessionToDraft, { name: sessionId })
             } else if (newStatus === 'active') {
                 if (session.info.status === 'spec') {
-                    await invoke('schaltwerk_core_start_spec_session', { name: sessionId })
+                    await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, { name: sessionId })
                 } else if (session.info.ready_to_merge) {
-                    await invoke('schaltwerk_core_unmark_ready', { name: sessionId })
+                    await invoke(TauriCommands.SchaltwerkCoreUnmarkReady, { name: sessionId })
                 }
             } else if (newStatus === 'dirty') {
-                await invoke('schaltwerk_core_mark_ready', { name: sessionId })
+                await invoke(TauriCommands.SchaltwerkCoreMarkReady, { name: sessionId })
             }
 
             await reloadSessions()
@@ -248,7 +249,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const createDraft = useCallback(async (name: string, content: string) => {
         try {
-            await invoke('schaltwerk_core_create_spec_session', { name, specContent: content })
+            await invoke(TauriCommands.SchaltwerkCoreCreateSpecSession, { name, specContent: content })
             await reloadSessions()
         } catch (error) {
             logger.error('Failed to create spec:', error)
@@ -277,7 +278,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         
         const loadProjectSettings = async () => {
             try {
-                const settings = await invoke<{ filter_mode: string; sort_mode: string }>('get_project_sessions_settings')
+                const settings = await invoke<{ filter_mode: string; sort_mode: string }>(TauriCommands.GetProjectSessionsSettings)
                 if (settings) {
                     // Validate and set filter mode with fallback
                     const filterMode = isValidFilterMode(settings.filter_mode) 
@@ -307,7 +308,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         
         const saveSettings = async () => {
             try {
-                await invoke('set_project_sessions_settings', { 
+                await invoke(TauriCommands.SetProjectSessionsSettings, { 
                     settings: {
                         filter_mode: filterMode,
                         sort_mode: sortMode

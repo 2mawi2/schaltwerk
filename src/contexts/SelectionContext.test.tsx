@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 'vitest'
+import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
@@ -27,34 +28,34 @@ describe('SelectionContext', () => {
     mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
       switch (command) {
-        case 'get_current_directory':
+        case TauriCommands.GetCurrentDirectory:
           return Promise.resolve('/test/cwd')
-        case 'terminal_exists':
+        case TauriCommands.TerminalExists:
           return Promise.resolve(false)
-        case 'create_terminal':
+        case TauriCommands.CreateTerminal:
           return Promise.resolve()
-        case 'schaltwerk_core_get_session':
+        case TauriCommands.SchaltwerkCoreGetSession:
           return Promise.resolve({
             worktree_path: '/test/session/path',
             session_id: typedArgs?.name || 'test-session',
             session_state: 'running',
             name: typedArgs?.name || 'test-session'
           })
-        case 'path_exists':
+        case TauriCommands.PathExists:
           return Promise.resolve(true)
-        case 'get_project_selection':
+        case TauriCommands.GetProjectSelection:
           return Promise.resolve(null)
-        case 'set_project_selection':
+        case TauriCommands.SetProjectSelection:
           return Promise.resolve()
-        case 'schaltwerk_core_list_enriched_sessions':
+        case TauriCommands.SchaltwerkCoreListEnrichedSessions:
           return Promise.resolve([])
-        case 'schaltwerk_core_list_sessions_by_state':
+        case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
-        case 'get_project_sessions_settings':
+        case TauriCommands.GetProjectSessionsSettings:
           return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-        case 'set_project_sessions_settings':
+        case TauriCommands.SetProjectSessionsSettings:
           return Promise.resolve()
-        case 'schaltwerk_core_get_font_sizes':
+        case TauriCommands.SchaltwerkCoreGetFontSizes:
           return Promise.resolve([13, 14])
         default:
           return Promise.resolve()
@@ -144,7 +145,7 @@ describe('SelectionContext', () => {
       // Note: get_current_directory is no longer called since we use projectPath directly
       
       // Find the actual terminal creation calls
-      const terminalCalls = mockInvoke.mock.calls.filter(call => call[0] === 'create_terminal')
+      const terminalCalls = mockInvoke.mock.calls.filter(call => call[0] === TauriCommands.CreateTerminal)
       expect(terminalCalls.length).toBeGreaterThanOrEqual(1)
       
       // Verify we have top terminal created (bottom terminals now managed by tab system)
@@ -163,7 +164,7 @@ describe('SelectionContext', () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
         switch (command) {
-          case 'schaltwerk_core_get_session':
+          case TauriCommands.SchaltwerkCoreGetSession:
             if (typedArgs?.name === 'test-session') {
               return Promise.resolve({
                 worktree_path: '/custom/worktree/path',
@@ -178,25 +179,25 @@ describe('SelectionContext', () => {
               session_state: 'running',
               name: typedArgs?.name || 'test-session'
             })
-          case 'path_exists':
+          case TauriCommands.PathExists:
             return Promise.resolve(true)
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case 'get_project_selection':
+          case TauriCommands.GetProjectSelection:
             return Promise.resolve(null)
-          case 'set_project_selection':
+          case TauriCommands.SetProjectSelection:
             return Promise.resolve()
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve({ terminal: 13, ui: 14 })
           default:
             return Promise.resolve()
@@ -213,7 +214,7 @@ describe('SelectionContext', () => {
         })
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('create_terminal', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
         id: 'session-test-session-top',
         cwd: '/custom/worktree/path'
       })
@@ -229,10 +230,10 @@ describe('SelectionContext', () => {
         })
       })
 
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_get_session', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSession, {
         name: 'test-session'
       })
-      expect(mockInvoke).toHaveBeenCalledWith('create_terminal', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
         id: 'session-test-session-top',
         cwd: '/test/session/path'
       })
@@ -242,16 +243,16 @@ describe('SelectionContext', () => {
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
       
       mockInvoke.mockImplementation((command: string) => {
-        if (command === 'schaltwerk_core_get_session') {
+        if (command === TauriCommands.SchaltwerkCoreGetSession) {
           return Promise.reject(new Error('Session not found'))
         }
-        if (command === 'get_current_directory') {
+        if (command === TauriCommands.GetCurrentDirectory) {
           return Promise.resolve('/fallback/cwd')
         }
-        if (command === 'terminal_exists') {
+        if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === 'create_terminal') {
+        if (command === TauriCommands.CreateTerminal) {
           return Promise.resolve()
         }
         return Promise.resolve()
@@ -267,12 +268,12 @@ describe('SelectionContext', () => {
       })
 
       // Should not create terminals when session lookup fails
-      expect(mockInvoke).not.toHaveBeenCalledWith('create_terminal', expect.objectContaining({
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, expect.objectContaining({
         id: 'session-missing-session-top'
       }))
       
       // Should have tried to get the session info
-      expect(mockInvoke).toHaveBeenCalledWith('schaltwerk_core_get_session', {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreGetSession, {
         name: 'missing-session'
       })
       
@@ -283,12 +284,12 @@ describe('SelectionContext', () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
         switch (command) {
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             if (typedArgs?.id === 'session-test-top') {
               return Promise.resolve(true)
             }
             return Promise.resolve(false)
-          case 'schaltwerk_core_get_session':
+          case TauriCommands.SchaltwerkCoreGetSession:
             if (typedArgs?.name === 'test') {
               return Promise.resolve({
                 worktree_path: '/test/session/path',
@@ -298,21 +299,21 @@ describe('SelectionContext', () => {
               })
             }
             return Promise.resolve()
-          case 'path_exists':
+          case TauriCommands.PathExists:
             return Promise.resolve(true)
-          case 'get_project_selection':
+          case TauriCommands.GetProjectSelection:
             return Promise.resolve(null)
-          case 'set_project_selection':
+          case TauriCommands.SetProjectSelection:
             return Promise.resolve()
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve({ terminal: 13, ui: 14 })
           default:
             return Promise.resolve()
@@ -330,10 +331,10 @@ describe('SelectionContext', () => {
       })
 
       // Should check existence for top terminal only (bottom handled by tab system)
-      expect(mockInvoke).toHaveBeenCalledWith('terminal_exists', { id: 'session-test-top' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'session-test-top' })
       
       // Should not create top terminal since it already exists
-      expect(mockInvoke).not.toHaveBeenCalledWith('create_terminal', {
+      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
         id: 'session-test-top',
         cwd: '/test/session/path'
       })
@@ -346,18 +347,18 @@ describe('SelectionContext', () => {
       mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
         switch (command) {
-          case 'create_terminal':
+          case TauriCommands.CreateTerminal:
             if (typedArgs?.id && !createdTerminals.has(typedArgs.id)) {
               createTerminalCalls++
               createdTerminals.add(typedArgs.id)
             }
             // Simulate slow terminal creation
             return new Promise(resolve => setTimeout(resolve, 50))
-          case 'terminal_exists':
+          case TauriCommands.TerminalExists:
             return Promise.resolve(false)
-          case 'get_current_directory':
+          case TauriCommands.GetCurrentDirectory:
             return Promise.resolve('/test/cwd')
-          case 'schaltwerk_core_get_session':
+          case TauriCommands.SchaltwerkCoreGetSession:
             if (typedArgs?.name === 'same-session') {
               return Promise.resolve({
                 worktree_path: '/path',
@@ -367,21 +368,21 @@ describe('SelectionContext', () => {
               })
             }
             return Promise.resolve()
-          case 'path_exists':
+          case TauriCommands.PathExists:
             return Promise.resolve(true)
-          case 'get_project_selection':
+          case TauriCommands.GetProjectSelection:
             return Promise.resolve(null)
-          case 'set_project_selection':
+          case TauriCommands.SetProjectSelection:
             return Promise.resolve()
-          case 'schaltwerk_core_list_enriched_sessions':
+          case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
-          case 'schaltwerk_core_list_sessions_by_state':
+          case TauriCommands.SchaltwerkCoreListSessionsByState:
             return Promise.resolve([])
-          case 'get_project_sessions_settings':
+          case TauriCommands.GetProjectSessionsSettings:
             return Promise.resolve({ filter_mode: 'all', sort_mode: 'name' })
-          case 'set_project_sessions_settings':
+          case TauriCommands.SetProjectSessionsSettings:
             return Promise.resolve()
-          case 'schaltwerk_core_get_font_sizes':
+          case TauriCommands.SchaltwerkCoreGetFontSizes:
             return Promise.resolve({ terminal: 13, ui: 14 })
           default:
             return Promise.resolve()
