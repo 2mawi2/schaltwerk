@@ -431,6 +431,30 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 .unwrap_or_else(|| std::time::SystemTime::now()
                                     .duration_since(std::time::UNIX_EPOCH)
                                     .unwrap().as_millis() as u64);
+
+                            // Move reviewed sessions back to running upon follow-up (only if reviewed)
+                            if let Ok(core) = get_schaltwerk_core().await {
+                                let core = core.lock().await;
+                                let manager = core.session_manager();
+                                match manager.unmark_reviewed_on_follow_up(session_name) {
+                                    Ok(true) => {
+                                        log::info!("Follow-up unmarked review state for '{session_name}', emitting SessionsRefreshed");
+                                        if let Ok(sessions) = manager.list_enriched_sessions() {
+                                            if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
+                                                log::warn!("Failed to emit sessions-refreshed after follow-up: {e}");
+                                            }
+                                        }
+                                    }
+                                    Ok(false) => {
+                                        log::debug!("Follow-up received for '{session_name}' with no review state to clear");
+                                    }
+                                    Err(e) => {
+                                        log::warn!("Failed to process follow-up review state for '{session_name}': {e}");
+                                    }
+                                }
+                            } else {
+                                log::warn!("Could not access SchaltwerkCore to update session state on follow-up");
+                            }
                             
                             let terminal_id = format!("session-{session_name}-top");
                             

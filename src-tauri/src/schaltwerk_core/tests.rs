@@ -1089,6 +1089,66 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
     }
 
     #[test]
+    fn test_follow_up_unmarks_reviewed_and_sets_running() {
+        use crate::domains::sessions::entity::SessionState;
+
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a running session
+        let session = manager.create_session("followup-reviewed", None, None).unwrap();
+
+        // Mark as reviewed
+        manager.mark_session_as_reviewed(&session.name).unwrap();
+
+        // Sanity: is reviewed
+        let s1 = manager.db_ref().get_session_by_name(&env.repo_path, &session.name).unwrap();
+        assert!(s1.ready_to_merge);
+
+        // Follow-up arrives → should unmark reviewed and set Running
+        let changed = manager.unmark_reviewed_on_follow_up(&session.name).unwrap();
+        assert!(changed, "expected a state change for reviewed session");
+
+        let s2 = manager.db_ref().get_session_by_name(&env.repo_path, &session.name).unwrap();
+        assert!(!s2.ready_to_merge, "follow-up should clear ready_to_merge");
+        assert_eq!(s2.session_state, SessionState::Running, "state should be Running");
+    }
+
+    #[test]
+    fn test_follow_up_noop_for_running_unreviewed() {
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a running, unreviewed session
+        let session = manager.create_session("followup-running", None, None).unwrap();
+
+        // Follow-up should be a no-op
+        let changed = manager.unmark_reviewed_on_follow_up(&session.name).unwrap();
+        assert!(!changed, "no change expected for unreviewed running session");
+        let s = manager.db_ref().get_session_by_name(&env.repo_path, &session.name).unwrap();
+        assert!(!s.ready_to_merge);
+    }
+
+    #[test]
+    fn test_follow_up_noop_for_spec() {
+        use crate::domains::sessions::entity::SessionState;
+
+        let env = TestEnvironment::new().unwrap();
+        let manager = env.get_session_manager().unwrap();
+
+        // Create a spec
+        let _spec = manager.create_spec_session("followup-spec", "# plan\n- item").unwrap();
+
+        // No change expected for spec sessions
+        let changed = manager.unmark_reviewed_on_follow_up("followup-spec").unwrap();
+        assert!(!changed, "no change expected for spec session");
+
+        let s = manager.db_ref().get_session_by_name(&env.repo_path, "followup-spec").unwrap();
+        assert_eq!(s.session_state, SessionState::Spec);
+        assert!(!s.ready_to_merge);
+    }
+
+    #[test]
     fn test_codex_spec_start_respects_resume_gate() {
         use std::io::Write;
         use std::fs;

@@ -1217,6 +1217,30 @@ impl SessionManager {
         Ok(())
     }
 
+    // When a follow-up message arrives for a reviewed session, it should move back to running.
+    // Only act if the session is actually marked reviewed (ready_to_merge = true).
+    // Returns true if a change was applied, false if no-op (not reviewed/spec/missing flags).
+    pub fn unmark_reviewed_on_follow_up(&self, session_name: &str) -> Result<bool> {
+        let session = self.db_manager.get_session_by_name(session_name)?;
+
+        // Do nothing for specs (cannot receive follow-ups into terminals)
+        if session.session_state == SessionState::Spec {
+            return Ok(false);
+        }
+
+        if session.ready_to_merge {
+            // Clear review flag and ensure state is Running for UI consistency
+            self.db_manager.update_session_ready_to_merge(&session.id, false)?;
+            self.db_manager.update_session_state(&session.id, SessionState::Running)?;
+
+            // Touch last_activity to surface recency deterministically
+            let _ = self.db_manager.set_session_activity(&session.id, chrono::Utc::now());
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
     pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Session> {
         self.create_spec_session_with_agent(name, spec_content, None, None)
     }
