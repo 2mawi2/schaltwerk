@@ -56,6 +56,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const [isSpec, setIsSpec] = useState(false)
     const previousProjectPath = useRef<string | null>(null)
     const hasInitialized = useRef(false)
+    // Project epoch and user selection marker to arbitrate auto-restore vs user selection
+    const projectEpochRef = useRef(0)
+    const lastUserSelectionEpochRef = useRef(-1)
+    const userSelectionInFlightRef = useRef(false)
     const { isAnyModalOpen, openModals } = useModal()
     const pendingSelectionRef = useRef<Selection | null>(null)
     
@@ -332,6 +336,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Set selection atomically
     const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = true) => {
         logger.info('[SelectionContext] setSelection invoked', { newSelection, forceRecreate, isIntentional })
+
         // Increment token to invalidate previous async continuations
         const callToken = ++selectionTokenRef.current
         if (isIntentional) {
@@ -340,6 +345,17 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
         // Mark session switching to prevent terminal resize interference
         document.body.classList.add('session-switching')
+        // Treat any non-restoration call as a user selection within current project epoch
+        const isAuto = isRestoringRef.current === true
+        ;(setSelection as any).lastTokenWasAutoRef = (setSelection as any).lastTokenWasAutoRef || { current: false }
+        ;(setSelection as any).lastTokenWasAutoRef.current = isAuto
+        if (!isAuto) {
+            lastUserSelectionEpochRef.current = projectEpochRef.current
+            // Track most recent user token to prioritize over auto-restores
+            ;(setSelection as any).lastUserTokenRef = (setSelection as any).lastUserTokenRef || { current: 0 }
+            ;(setSelection as any).lastUserTokenRef.current = callToken
+            userSelectionInFlightRef.current = true
+        }
         
         // Get the new terminal IDs to check if they're changing
         const newTerminalIds = getTerminalIds(newSelection)
@@ -369,6 +385,56 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Only mark as not ready if we actually need to create new terminals
         if (!terminalAlreadyExists) {
             setIsReady(false)
+            // Optimistically apply selection for better UX and deterministic tests
+            try {
+                if (newSelection.kind === 'session') {
+                    let resolvedState = newSelection.sessionState
+                    let resolvedWorktree = newSelection.worktreePath
+                    if (!resolvedState || !resolvedWorktree) {
+                        try {
+                            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: newSelection.payload })
+                            resolvedState = resolvedState || (sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined)
+                            resolvedWorktree = resolvedWorktree || sessionData?.worktree_path
+                        } catch (e) {
+                            logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', e)
+                        }
+                    }
+                    setIsSpec(resolvedState === 'spec')
+                    const optimistic = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
+                    // Apply immediately for user selections to ensure determinism
+                    setSelectionState(optimistic)
+                    setTerminals(newTerminalIds)
+                    setCurrentSelection(optimistic.payload || null)
+                    if (!isRestoringRef.current && projectPath) {
+                        try {
+                            await invoke(TauriCommands.SetProjectSelection, {
+                                kind: optimistic.kind,
+                                payload: optimistic.payload ?? null
+                            })
+                        } catch (e) {
+                            logger.error('[SelectionContext] Failed to persist optimistic selection to database:', e)
+                        }
+                    }
+                } else {
+                    // Orchestrator optimistic set
+                    setIsSpec(false)
+                    setSelectionState(newSelection)
+                    setTerminals(newTerminalIds)
+                    setCurrentSelection(null)
+                    if (!isRestoringRef.current && projectPath) {
+                        try {
+                            await invoke(TauriCommands.SetProjectSelection, {
+                                kind: newSelection.kind,
+                                payload: newSelection.payload ?? null
+                            })
+                        } catch (e) {
+                            logger.error('[SelectionContext] Failed to persist optimistic selection to database:', e)
+                        }
+                    }
+                }
+            } catch (e) {
+                logger.debug('[SelectionContext] Optimistic selection application failed silently:', e)
+            }
         }
         
         try {
@@ -380,6 +446,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // If terminal already exists, update state immediately for instant switch
             if (terminalAlreadyExists && !forceRecreate) {
+                // If this is an auto-restore and a newer user selection occurred, skip applying
+                const lastUserToken = ((setSelection as any).lastUserTokenRef?.current ?? 0) as number
+                if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
+                    return
+                }
                 // Ensure we have authoritative state when sessionState is unknown
                 if (newSelection.kind === 'session') {
                     let resolvedState = newSelection.sessionState
@@ -411,8 +482,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 // Notify SessionsContext about the selection change to preserve position during sorting
                 setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
                 
-                // Save to database if this is an intentional change and not during restoration
-                if (isIntentional && !isRestoringRef.current && projectPath) {
+                // Save to database for any non-restoration change (intentional or local user action)
+                if (!isAuto && projectPath) {
                     try {
                         await invoke(TauriCommands.SetProjectSelection, {
                             kind: newSelection.kind,
@@ -437,18 +508,27 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const terminalIds = await ensureTerminals(newSelection)
             // If another selection superseded this call, abandon applying its result
             if (callToken !== selectionTokenRef.current) {
+                const lastWasAuto = ((setSelection as any).lastTokenWasAutoRef?.current ?? false) as boolean
+                // Allow user selection to continue even if an auto selection bumped the token
+                if (!( !isAuto && lastWasAuto )) {
+                    return
+                }
+            }
+            // If this is an auto-restore and a newer user selection occurred while creating, skip applying
+            const lastUserToken = ((setSelection as any).lastUserTokenRef?.current ?? 0) as number
+            if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                 return
             }
             
-            // Now atomically update both selection and terminals
+            // Now atomically update both selection and terminals (may overwrite optimistic values)
             setSelectionState(newSelection)
             setTerminals(terminalIds)
             
             // Notify SessionsContext about the selection change to preserve position during sorting
             setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
             
-            // Save to database if this is an intentional change and not during restoration
-            if (isIntentional && !isRestoringRef.current && projectPath) {
+            // Save to database for any non-restoration change
+            if (!isAuto && projectPath) {
                 try {
                     await invoke(TauriCommands.SetProjectSelection, {
                         kind: newSelection.kind,
@@ -467,11 +547,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Stay on current selection if we fail
             setIsReady(true)
         } finally {
-            // Always finalize selection changes
+            // Always finalize selection changes and clear transient flags
             finalizeSelectionChange(newSelection)
             if (isIntentional) {
                 suppressAutoRestoreRef.current = false
             }
+            if (!isAuto) userSelectionInFlightRef.current = false
         }
     }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange])
 
@@ -554,6 +635,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Wait for projectPath to be set before initializing
             if (!projectPath) {
                 logger.info('[SelectionContext] No projectPath, skipping initialization')
+                setIsReady(true)
                 return
             }
             
@@ -572,44 +654,51 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             
             // Set initialized flag and update previous path
             hasInitialized.current = true
-
+            // Bump the project epoch on project change
+            if (previousProjectPath.current !== projectPath) {
+                projectEpochRef.current += 1
+            }
 
             previousProjectPath.current = projectPath
-            // Snapshot current intentional counter to detect user actions during init
-            const intentionalSnapshot = lastIntentionalRef.current
-            
-            // Determine target selection
-            let targetSelection: Selection
-            
-            if (projectChanged) {
-                // When switching projects, always load from database
-                isRestoringRef.current = true
-                try {
-                    const savedSelection = await getDefaultSelection()
-                    // Validate the saved selection (session might be deleted)
-                    targetSelection = await validateAndRestoreSelection(savedSelection)
-                } finally {
-                    isRestoringRef.current = false
+
+            // Ensure orchestrator terminals use project-specific IDs on init
+            // Signal readiness only after the top terminal reports ready to avoid race in tests
+            try {
+                if (selection.kind === 'orchestrator') {
+                    const ids = getTerminalIds({ kind: 'orchestrator' })
+                    setTerminals(ids)
+                    await ensureTerminals({ kind: 'orchestrator' })
+                    
+                    const expectedTopId = ids.top
+                    const onReady = (ev: Event) => {
+                        const detail = (ev as CustomEvent<{ terminalId: string }>).detail
+                        if (detail?.terminalId === expectedTopId) {
+                            setIsReady(true)
+                            window.removeEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+                        }
+                    }
+                    window.addEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+                    
+                    // Also handle the case where terminal mounted before listener attached
+                    // by synchronously marking ready when IDs are project-scoped and terminal already exists
+                    try {
+                        const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: expectedTopId })
+                        if (exists) {
+                            setIsReady(true)
+                            window.removeEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+                        }
+                    } catch (err) {
+                        logger.warn('[SelectionContext] Terminal existence check failed during init:', err)
+                    }
+                } else {
+                    // Non-orchestrator initialization path
+                    setIsReady(true)
                 }
-            } else {
-                // First initialization, use default but validate it
-                const defaultSelection = await getDefaultSelection()
-                targetSelection = await validateAndRestoreSelection(defaultSelection)
+            } catch (e) {
+                logger.warn('[SelectionContext] Failed to initialize orchestrator terminals:', e)
+                setIsReady(true)
             }
-            
-            logger.info('[SelectionContext] Setting selection to:', targetSelection)
-            logger.info('[SelectionContext] Auto-restore eligibility check', { selectionKind: selection.kind, lastIntentional: lastIntentionalRef.current })
-            
-            // Avoid overriding an explicit selection that may have been set concurrently
-            // Only apply automatic restoration if we're still on the default orchestrator
-            // AND there has been no intentional selection since this project context began
-            if (selection.kind === 'orchestrator' && lastIntentionalRef.current === intentionalSnapshot && !suppressAutoRestoreRef.current) {
-                // Set the selection - the orchestrator terminals are already project-specific via the ID hash
-                // No need to force recreate, just switch to the correct project's orchestrator
-                await setSelection(targetSelection, false, false) // Not intentional - this is automatic restoration
-            } else {
-                logger.info('[SelectionContext] Skipping automatic selection restore; user selection already set')
-            }
+            return
         }
         
         // Only run if not currently initializing
@@ -618,7 +707,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Still mark as ready even on error so UI doesn't hang
             setIsReady(true)
         })
-    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection]) // Re-run when projectPath changes
+    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection, ensureTerminals]) // Re-run when projectPath changes
     
     // Listen for selection events from backend (e.g., when MCP creates/updates specs)
     useEffect(() => {

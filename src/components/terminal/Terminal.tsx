@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { Terminal as XTerm } from 'xterm';
@@ -16,6 +16,7 @@ import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
+import { applyEnqueuePolicy, makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -61,6 +62,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const writeQueueRef = useRef<string[]>([]);
     const queueBytesRef = useRef(0);
     const droppedBytesRef = useRef(0);
+    const overflowActiveRef = useRef(false);
     const rafIdRef = useRef<number | null>(null);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const seqRef = useRef<number>(0);
@@ -76,36 +78,38 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
 
-    // Write queue helpers shared across effects
-    const MAX_QUEUE_BYTES = 4 * 1024 * 1024; // ~4MB soft cap
-    const TARGET_AFTER_DROP = 2 * 1024 * 1024;
-    const MAX_WRITE_CHUNK = 64 * 1024;      // 64KB chunks
+    // Write queue helpers shared across effects (agent terminals get larger buffers)
+    const queueCfg = useMemo(() => (
+        agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
+    ), [agentType]);
+    const MAX_WRITE_CHUNK = queueCfg.maxWriteChunk;
 
     const enqueueWrite = useCallback((data: string) => {
-        writeQueueRef.current.push(data);
-        queueBytesRef.current += data.length;
-        if (queueBytesRef.current > MAX_QUEUE_BYTES) {
-            let toDrop = queueBytesRef.current - TARGET_AFTER_DROP;
-            while (toDrop > 0 && writeQueueRef.current.length > 0) {
-                const head = writeQueueRef.current[0];
-                if (head.length <= toDrop) {
-                    writeQueueRef.current.shift();
-                    queueBytesRef.current -= head.length;
-                    droppedBytesRef.current += head.length;
-                    toDrop -= head.length;
-                } else {
-                    writeQueueRef.current[0] = head.slice(toDrop);
-                    queueBytesRef.current -= toDrop;
-                    droppedBytesRef.current += toDrop;
-                    toDrop = 0;
-                }
-            }
-            const note = `\r\n[schaltwerk] output truncated (${Math.round(droppedBytesRef.current/1024)}KB dropped)\r\n`;
-            writeQueueRef.current.unshift(note);
-            queueBytesRef.current += note.length;
-            droppedBytesRef.current = 0;
+        const next = applyEnqueuePolicy(
+            {
+                queue: writeQueueRef.current,
+                queuedBytes: queueBytesRef.current,
+                droppedBytes: droppedBytesRef.current,
+                overflowActive: overflowActiveRef.current,
+            },
+            data,
+            queueCfg
+        )
+
+        writeQueueRef.current = next.queue
+        queueBytesRef.current = next.queuedBytes
+        droppedBytesRef.current = next.droppedBytes
+
+        // Emit a single notice per overflow episode to avoid spam
+        if (!overflowActiveRef.current && next.overflowActive) {
+            const droppedKB = Math.max(1, Math.round(next.droppedBytes / 1024))
+            // Do NOT unshift; append so the message appears in order while catching up
+            const note = `\r\n[schaltwerk] high-volume output; ${droppedKB}KB skipped in UI to stay responsive. Full content preserved in transcript for agent terminals.\r\n`
+            writeQueueRef.current.push(note)
+            queueBytesRef.current += note.length
         }
-    }, [MAX_QUEUE_BYTES, TARGET_AFTER_DROP]);
+        overflowActiveRef.current = next.overflowActive
+    }, [queueCfg]);
 
     const dequeueChunk = (limit: number) => {
         let taken = 0;
@@ -1216,7 +1220,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, MAX_WRITE_CHUNK, enqueueWrite]);
+    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1281,7 +1285,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, MAX_WRITE_CHUNK]);
+    }, [agentType, terminalId, enqueueWrite, queueCfg, MAX_WRITE_CHUNK]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready

@@ -8,7 +8,7 @@ import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
-import { computeNextSelectedSessionId, findPreviousSessionIndex } from '../../utils/selectionNext'
+import { computeNextSelectedSessionId } from '../../utils/selectionNext'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
@@ -108,7 +108,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
     
-    // Auto-select appropriate session when current selection disappears from view
+    // Auto-select first visible session when current selection disappears from view
     useEffect(() => {
         // Skip auto-selection during project switches to avoid conflicts with restoration
         if (isProjectSwitching.current) return
@@ -118,27 +118,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const currentSessionVisible = sessions.some(s => s.info.session_id === selection.payload)
         
         if (!currentSessionVisible && sessions.length > 0 && selection.payload) {
-            const prevSessions = latestSortedSessionsRef.current
-            const prevIndex = findPreviousSessionIndex(prevSessions, selection.payload)
-            
-            let targetSession
-            if (prevIndex >= 0) {
-                // Try to select the session now at the same index position
-                const targetIndex = Math.min(prevIndex, sessions.length - 1)
-                targetSession = sessions[targetIndex]
-            } else {
-                // Session wasn't found in previous list, select first available session
-                targetSession = sessions[0]
-            }
-            
-            if (targetSession) {
-                setSelection({
-                    kind: 'session',
-                    payload: targetSession.info.session_id,
-                    worktreePath: targetSession.info.worktree_path,
-                    sessionState: mapSessionUiState(targetSession.info)
-                }, false, false) // Auto-selection - not intentional
-            }
+            // Select the first available session in the new filtered/sorted list
+            const targetSession = sessions[0]
+            setSelection({
+                kind: 'session',
+                payload: targetSession.info.session_id,
+                worktreePath: targetSession.info.worktree_path,
+                sessionState: mapSessionUiState(targetSession.info)
+            }, false, false) // Auto-selection - not intentional
         } else if (!currentSessionVisible && sessions.length === 0) {
             // No sessions visible, select orchestrator
             setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional

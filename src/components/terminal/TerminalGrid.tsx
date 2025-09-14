@@ -621,14 +621,10 @@ export function TerminalGrid() {
 
     // No prompt UI here anymore; moved to right panel dock
 
-    // Don't render terminals until selection is ready
-    if (!isReady) {
-        return (
-            <div className="h-full p-2 relative flex items-center justify-center">
-                <AnimatedText text="loading" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
-            </div>
-        )
-    }
+    // Render terminals as soon as we have project-scoped ids even if not ready yet
+    const hasProjectScopedIds = terminals.top && !terminals.top.includes('orchestrator-default')
+    const shouldRenderTerminals = isReady || hasProjectScopedIds
+    const showLoadingOverlay = !isReady
 
     // Spec sessions show placeholder instead of terminals
     if (selection.kind === 'session' && isSpec) {
@@ -672,8 +668,13 @@ export function TerminalGrid() {
 
     return (
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
+            {showLoadingOverlay && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+                    <AnimatedText text="loading" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
+                </div>
+            )}
             {/* Background terminals for all non-active running sessions */}
-            {backgroundSessions.map(session => {
+            {shouldRenderTerminals && backgroundSessions.map(session => {
                 const sessionName = session.info.session_id
                 const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
                 const topTerminalId = `session-${sanitizedSessionName}-top`
@@ -795,6 +796,7 @@ export function TerminalGrid() {
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`}>
+                        {shouldRenderTerminals && (
                         <TerminalErrorBoundary terminalId={terminals.top}>
                             <Terminal 
                             key={`top-terminal-${terminalKey}`}
@@ -807,6 +809,7 @@ export function TerminalGrid() {
                             onTerminalClick={handleClaudeSessionClick}
                         />
                         </TerminalErrorBoundary>
+                        )}
                     </div>
                 </div>
                 <div className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${isDraggingSplit ? '' : 'transition-all duration-200'} ${localFocus === 'terminal' && !isDraggingSplit ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
@@ -974,6 +977,7 @@ export function TerminalGrid() {
                             </>
                         )}
                         {/* Regular terminal tabs - only show when not in run mode */}
+                        {shouldRenderTerminals && (
                         <div
                             style={{ display: !hasRunScripts || !runModeActive || terminalTabsState.activeTab !== -1 ? 'block' : 'none' }}
                             className="h-full"
@@ -994,6 +998,7 @@ export function TerminalGrid() {
                                 />
                             </TerminalErrorBoundary>
                         </div>
+                        )}
                     </div>
                 </div>
             </Split>

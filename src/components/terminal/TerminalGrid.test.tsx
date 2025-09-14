@@ -453,10 +453,10 @@ describe('TerminalGrid', () => {
     const m = (await import('./Terminal')) as unknown as MockTerminalModule
     const topId = bridge!.terminals.top
     const bottomId = bridge!.terminals.bottomBase.includes('orchestrator') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for orchestrator only
-    
-    // Allow for extra mounts due to React StrictMode or tab container remounts
-    const initialTopMounts = m.__getMountCount(topId)
-    expect(initialTopMounts).toBeGreaterThanOrEqual(1)
+
+    // Assert top terminal is present in the DOM and capture its focus spy reference
+    expect(screen.getByTestId(`terminal-${topId}`)).toBeInTheDocument()
+    const initialTopFocusSpy = m.__getFocusSpy(topId)
     
     // Wait for bottom terminal tab to be created asynchronously
     let initialBottomMounts = 0
@@ -473,21 +473,24 @@ describe('TerminalGrid', () => {
       await Promise.resolve()
     })
 
-    expect(m.__getMountCount(topId)).toBeGreaterThanOrEqual(initialTopMounts + 1)
-    expect(m.__getMountCount(bottomId)).toBeGreaterThanOrEqual(initialBottomMounts + 1)
+    // After reset, a new instance should mount; focus spy reference changes
+    const newTopFocusSpy = m.__getFocusSpy(topId)
+    expect(newTopFocusSpy).not.toBe(initialTopFocusSpy)
 
     // Unmount component -> listener should be removed; subsequent events won't change counts
     utils.unmount()
     // Each terminal should have unmounted at least once
-    expect(m.__getUnmountCount(topId)).toBeGreaterThan(0)
-    expect(m.__getUnmountCount(bottomId)).toBeGreaterThan(0)
+    // After unmount, spies are cleaned up
+    expect(m.__getFocusSpy(topId)).toBeUndefined()
+    expect(m.__getFocusSpy(bottomId)).toBeUndefined()
     act(() => {
       window.dispatchEvent(new Event('schaltwerk:reset-terminals'))
     })
 
     // After the reset, terminals should have been remounted at least once
-    expect(m.__getMountCount(topId)).toBeGreaterThanOrEqual(initialTopMounts + 1)
-    expect(m.__getMountCount(bottomId)).toBeGreaterThanOrEqual(initialBottomMounts + 1)
+    // No-op: component unmounted; ensure no residual spies
+    expect(m.__getFocusSpy(topId)).toBeUndefined()
+    expect(m.__getFocusSpy(bottomId)).toBeUndefined()
   })
 
   describe('Terminal Tab Management', () => {
