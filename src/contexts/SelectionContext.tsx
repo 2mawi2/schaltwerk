@@ -212,8 +212,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     logger.warn(`[SelectionContext] Worktree is not properly initialized for session ${sel.payload}: ${worktreePath}`)
                     return ids
                 }
-            } catch (e) {
-                logger.warn(`[SelectionContext] Could not verify worktree path for session ${sel.payload}:`, e)
+            } catch (_e) {
+                logger.warn(`[SelectionContext] Could not verify worktree path for session ${sel.payload}:`, _e)
                 return ids
             }
 
@@ -225,8 +225,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     await invoke(TauriCommands.CloseTerminal, { id: ids.bottomBase })
                     terminalsCreated.current.delete(ids.bottomBase)
                 }
-            } catch (e) {
-                logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sel.payload}:`, e)
+            } catch (_e) {
+                logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sel.payload}:`, _e)
             }
             // Bottom terminals are managed by TerminalTabs (tabbed: -bottom-0, -bottom-1, ...)
             // Do not create the base bottom terminal here to avoid orphan terminals
@@ -235,12 +235,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 ...ids,
                 workingDirectory: worktreePath
             }
-        } catch (e) {
-            logger.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', e)
-            setIsSpec(false)
-            // Don't create terminals if we can't determine session state
-            return ids
-        }
+            } catch (_e) {
+                logger.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', _e)
+                setIsSpec(false)
+                // Don't create terminals if we can't determine session state
+                return ids
+            }
     }, [getTerminalIds, createTerminal, projectPath])
     
     // Helper to get default selection for current project
@@ -323,8 +323,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (exists) {
                     await invoke(TauriCommands.CloseTerminal, { id })
                 }
-            } catch (e) {
-                logger.warn(`[SelectionContext] Failed to close terminal ${id}:`, e)
+            } catch (_e) {
+                logger.warn(`[SelectionContext] Failed to close terminal ${id}:`, _e)
             }
         }
     }, [])
@@ -389,8 +389,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: newSelection.payload })
                             resolvedState = sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined
                             resolvedWorktree = resolvedWorktree || sessionData?.worktree_path
-                        } catch (e) {
-                            logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', e)
+                        } catch (_e) {
+                            logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', _e)
                         }
                     }
                     setIsSpec(resolvedState === 'spec')
@@ -418,9 +418,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             kind: newSelection.kind,
                             payload: newSelection.payload ?? null
                         })
-                    } catch (e) {
-                        logger.error('[SelectionContext] Failed to persist selection to database:', e)
-                    }
+            } catch (_e) {
+                logger.error('[SelectionContext] Failed to persist selection to database:', _e)
+            }
                 }
                 
                 // Ensure ready state
@@ -454,16 +454,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         kind: newSelection.kind,
                         payload: newSelection.payload ?? null
                     })
-                } catch (e) {
-                    logger.error('[SelectionContext] Failed to persist selection to database:', e)
+                } catch (_e) {
+                    logger.error('[SelectionContext] Failed to persist selection to database:', _e)
                 }
             }
             
             // Mark as ready
             setIsReady(true)
 
-        } catch (error) {
-            logger.error('[SelectionContext] Failed to set selection:', error)
+        } catch (_e) {
+            logger.error('[SelectionContext] Failed to set selection:', _e)
             // Stay on current selection if we fail
             setIsReady(true)
         } finally {
@@ -506,8 +506,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             try { 
                                 const ids = await ensureTerminals(updatedSelection)
                                 setTerminals(ids)
-                            } catch (e) {
-                                logger.warn('[SelectionContext] Failed to create terminals for newly running session', e)
+                            } catch (_e) {
+                                logger.warn('[SelectionContext] Failed to create terminals for newly running session', _e)
                             }
                         }
 
@@ -528,16 +528,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 if (exists) {
                                     await invoke(TauriCommands.CloseTerminal, { id: ids.top })
                                 }
-                            } catch (e) {
-                                logger.warn('[SelectionContext] Failed to cleanup terminals after running→spec transition:', e)
+                            } catch (_e) {
+                                logger.warn('[SelectionContext] Failed to cleanup terminals after running→spec transition:', _e)
                             }
                         }
-                    } catch (e) {
-                        logger.warn('[SelectionContext] Failed to refresh current session state after event', e)
+                    } catch (_e) {
+                        logger.warn('[SelectionContext] Failed to refresh current session state after event', _e)
                     }
                 })
-            } catch (e) {
-                logger.warn('[SelectionContext] Failed to attach sessions-refreshed listener', e)
+            } catch (_e) {
+                logger.warn('[SelectionContext] Failed to attach sessions-refreshed listener', _e)
             }
         }
         attach()
@@ -613,8 +613,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
         
         // Only run if not currently initializing
-        initialize().catch(error => {
-            logger.error('[SelectionContext] Failed to initialize:', error)
+        initialize().catch(_e => {
+            logger.error('[SelectionContext] Failed to initialize:', _e)
             // Still mark as ready even on error so UI doesn't hang
             setIsReady(true)
         })
@@ -640,8 +640,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             try {
                                 const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: target.payload })
                                 targetIsSpec = sessionData?.session_state === 'spec'
-                            } catch (e) {
-                                logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', e)
+                            } catch (_e) {
+                                logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', _e)
                             }
                         }
 
@@ -672,15 +672,15 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 sessionState: sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined,
                                 worktreePath: sessionData?.worktree_path || target.worktreePath
                             }
-                        } catch (e) {
-                            logger.warn('[SelectionContext] Failed to resolve state for backend selection event:', e)
+                        } catch (_e) {
+                            logger.warn('[SelectionContext] Failed to resolve state for backend selection event:', _e)
                         }
                     }
                     // Set the selection to the requested session/spec - this is intentional (backend requested)
                     await setSelection(target, false, true)
                 })
-            } catch (e) {
-                logger.error('[SelectionContext] Failed to attach selection listener', e)
+            } catch (_e) {
+                logger.error('[SelectionContext] Failed to attach selection listener', _e)
             }
         }
         
@@ -699,7 +699,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const pending = pendingSelectionRef.current
             pendingSelectionRef.current = null
             logger.info('[SelectionContext] Applying deferred backend selection now that modals are closed:', pending)
-            setSelection(pending, false, true).catch(e => logger.error('Failed to apply deferred selection:', e))
+            setSelection(pending, false, true).catch(_e => logger.error('Failed to apply deferred selection:', _e))
         }
     }, [openModals, setSelection])
     

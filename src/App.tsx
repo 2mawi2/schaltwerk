@@ -281,8 +281,8 @@ export default function App() {
           setShowHome(true)
           window.dispatchEvent(new CustomEvent('schaltwerk:open-new-project-dialog'))
         }
-      } catch (e) {
-        logger.warn('Failed to check if repository is empty:', e)
+      } catch (_e) {
+        logger.warn('Failed to check if repository is empty:', _e)
       }
     } catch (error) {
       logger.error('Failed to activate project:', error)
@@ -313,8 +313,8 @@ export default function App() {
           // Backend already set the project; only sync UI state
           await applyActiveProject(active, { initializeBackend: false })
         }
-      } catch (e) {
-        logger.warn('Failed to fetch active project on startup:', e)
+      } catch (_e) {
+        logger.warn('Failed to fetch active project on startup:', _e)
       }
     })()
 
@@ -621,8 +621,8 @@ export default function App() {
       
       // Create only the top terminal. Bottom terminals are tabbed and created by TerminalTabs as needed (-bottom-0)
       await invoke(TauriCommands.CreateTerminal, { id: topTerminalId, cwd: worktreePath })
-    } catch (e) {
-      logger.warn(`[App] Failed to create terminals for session ${sessionName}:`, e)
+    } catch (_e) {
+      logger.warn(`[App] Failed to create terminals for session ${sessionName}:`, _e)
     }
   }
 
@@ -718,14 +718,15 @@ export default function App() {
             // Start the AI agent (this creates the top terminal with agent)
             await invoke(TauriCommands.SchaltwerkCoreStartClaude, {
               sessionName: sessionName,
-              cols: null,
-              rows: null
+              // Provide a generous initial size to avoid first-frame wrapping before UI fit
+              cols: 220,
+              rows: 60
             })
             
             // Bottom terminals are created on demand by TerminalTabs (-bottom-0). Nothing to do here.
             logger.info(`[App] Started agent for session ${sessionName}`)
-          } catch (e) {
-            logger.warn(`[App] Failed to start agent for session ${sessionName}:`, e)
+          } catch (_e) {
+            logger.warn(`[App] Failed to start agent for session ${sessionName}:`, _e)
           }
         }
 
@@ -996,8 +997,8 @@ export default function App() {
         clearTerminalStartedTracking([topId])
         // Clear creation tracking so ensureTerminals will recreate if needed
         await clearTerminalTracking([topId, bottomBaseId])
-      } catch (e) {
-        logger.warn('Failed to clear terminal tracking for closed project:', e)
+      } catch (_e) {
+        logger.warn('Failed to clear terminal tracking for closed project:', _e)
       }
     } catch (error) {
       logger.warn('Failed to cleanup closed project:', error)

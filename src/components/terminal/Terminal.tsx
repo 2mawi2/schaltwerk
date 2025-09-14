@@ -724,6 +724,65 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
 
+        // Promise-based drain used only during initial hydration to guarantee "all content applied" before reveal
+        const flushAllNowAsync = async (): Promise<void> => {
+            // Loop until renderer ready, queue empty, and no pending outputs remain
+            // We purposely avoid timeouts and use RAF + xterm write callbacks for determinism
+            // 1) Wait for renderer
+            if (!rendererReadyRef.current) {
+                await new Promise<void>((resolve) => {
+                    const tick = () => {
+                        if (!mountedRef.current) return resolve();
+                        if (rendererReadyRef.current) return resolve();
+                        requestAnimationFrame(tick);
+                    };
+                    requestAnimationFrame(tick);
+                });
+            }
+
+            // 2) Move any pendingOutput into the write queue first
+            if (pendingOutput.current.length > 0) {
+                for (const output of pendingOutput.current) enqueueWrite(output);
+                pendingOutput.current = [];
+            }
+
+            // 3) Drain writeQueueRef to empty using write callbacks
+            if (!terminal.current) return;
+            await new Promise<void>((resolve) => {
+                const step = () => {
+                    if (!mountedRef.current || !terminal.current) return resolve();
+                    if (writeQueueRef.current.length === 0) {
+                        // Double-check no new pending arrived mid-drain; if so, loop again
+                        if (pendingOutput.current.length > 0) {
+                            for (const output of pendingOutput.current) enqueueWrite(output);
+                            pendingOutput.current = [];
+                            // Continue draining
+                        } else {
+                            return resolve();
+                        }
+                    }
+
+                    // Write one chunk synchronously and continue on its callback
+                    try {
+                        const chunk = dequeueChunk(MAX_WRITE_CHUNK);
+                        const buffer = terminal.current!.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                        const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
+                            ? buffer.viewportY === buffer.baseY
+                            : false;
+                        terminal.current!.write(chunk, () => {
+                            try { if (wasAtBottom) terminal.current!.scrollToBottom(); } catch { /* ignore */ }
+                            // Continue draining until truly empty
+                            step();
+                        });
+                    } catch {
+                        // If a write fails, bail out to avoid an infinite loop; normal streaming will recover
+                        resolve();
+                    }
+                };
+                step();
+            });
+        };
+
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
         const attachListener = async () => {
@@ -766,10 +825,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }
                     pendingOutput.current = [];
                  }
-                  setHydrated(true);
-                  hydratedRef.current = true;
-                  // Flush immediately to avoid dropping output on rapid remounts/tests
-                  flushNow();
+                 // Drain all queued content before we reveal the terminal to avoid "partial paint" perception
+                 await flushAllNowAsync();
+                 // Mark as hydrated only after flushing the entire snapshot + pending output
+                 setHydrated(true);
+                 hydratedRef.current = true;
                   
                   // Call onReady callback if provided
                   if (onReady) {
@@ -828,7 +888,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       }
                   });
 
-                  // Emit terminal ready event for focus management
+                  // Emit terminal ready event for focus management after we've fully flushed and fitted
                   if (typeof window !== 'undefined') {
                       window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', {
                           detail: { terminalId }

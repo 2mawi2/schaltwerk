@@ -208,8 +208,9 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
                             cwd,
                             command: script.command,
                             env: Object.entries(script.environmentVariables || {}),
-                            cols: null,
-                            rows: null,
+                            // Spawn with a generous default to avoid early wrapping before frontend fit
+                            cols: 220,
+                            rows: 60,
                         })
                         
                         // Send the command to the newly created interactive shell
