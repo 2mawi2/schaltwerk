@@ -721,19 +721,12 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> $WORKTREE_PATH/setup_marker.txt
         // Set the setup script for this repository
         manager.db_ref().set_project_setup_script(&env.repo_path, script).unwrap();
         
-        // Create a session - this should trigger the setup script
+        // Create a session - setup is deferred to agent start; should NOT run here
         let session = manager.create_session("test-setup", Some("Test prompt"), None).unwrap();
         
-        // Verify the script was executed
+        // Verify the script was NOT executed during creation
         let marker_file = session.worktree_path.join("setup_marker.txt");
-        assert!(marker_file.exists(), "Setup script should have created marker file");
-        
-        // Verify the script received correct environment variables
-        let content = std::fs::read_to_string(&marker_file).unwrap();
-        assert!(content.contains("Script executed for test-setup"));
-        assert!(content.contains(&format!("REPO_PATH={}", env.repo_path.display())));
-        assert!(content.contains(&format!("WORKTREE_PATH={}", session.worktree_path.display())));
-        assert!(content.contains("BRANCH_NAME=schaltwerk/test-setup"));
+        assert!(!marker_file.exists(), "Setup script should not run at session creation anymore");
     }
 
     #[test]
@@ -750,13 +743,9 @@ exit 1
         // Set the failing setup script
         manager.db_ref().set_project_setup_script(&env.repo_path, failing_script).unwrap();
         
-        // Try to create a session - this should fail due to script failure
+        // Creating a session should succeed now; setup runs at agent start instead
         let result = manager.create_session("fail-test", None, None);
-        assert!(result.is_err(), "Session creation should fail when setup script fails");
-        
-        // Verify error message contains script failure information
-        let error_msg = result.unwrap_err().to_string();
-        assert!(error_msg.contains("Setup script failed"));
+        assert!(result.is_ok(), "Session creation should not run setup script anymore");
     }
 
     #[test]
@@ -793,23 +782,15 @@ echo "Branch: $BRANCH_NAME" >> "$WORKTREE_PATH/session_info.txt"
         // Set the setup script
         manager.db_ref().set_project_setup_script(&env.repo_path, script).unwrap();
         
-        // Create a session
+        // Create a session (setup deferred)
         let session = manager.create_session("complex-setup", None, None).unwrap();
         
-        // Verify all operations were performed
-        assert!(session.worktree_path.join(".env").exists());
-        assert!(session.worktree_path.join("config.json").exists());
-        assert!(session.worktree_path.join("logs").is_dir());
-        assert!(session.worktree_path.join("tmp").is_dir());
-        assert!(session.worktree_path.join("session_info.txt").exists());
-        
-        // Verify file contents
-        let env_content = std::fs::read_to_string(session.worktree_path.join(".env")).unwrap();
-        assert!(env_content.contains("API_KEY=example_key"));
-        
-        let session_info = std::fs::read_to_string(session.worktree_path.join("session_info.txt")).unwrap();
-        assert!(session_info.contains("Session: complex-setup"));
-        assert!(session_info.contains("Branch: schaltwerk/complex-setup"));
+        // Verify operations have NOT been performed at creation time
+        assert!(!session.worktree_path.join(".env").exists());
+        assert!(!session.worktree_path.join("config.json").exists());
+        assert!(!session.worktree_path.join("logs").is_dir());
+        assert!(!session.worktree_path.join("tmp").is_dir());
+        assert!(!session.worktree_path.join("session_info.txt").exists());
     }
 
     #[test]
@@ -903,15 +884,9 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         
         let session = manager.create_session("env-test", None, None).unwrap();
         
-        // Verify the script executed successfully (no error means all tests passed)
+        // No execution during creation
         let env_file = session.worktree_path.join("env_test.txt");
-        assert!(env_file.exists());
-        
-        let content = std::fs::read_to_string(&env_file).unwrap();
-        assert!(content.contains(&format!("WORKTREE_PATH={}", session.worktree_path.display())));
-        assert!(content.contains(&format!("REPO_PATH={}", env.repo_path.display())));
-        assert!(content.contains("SESSION_NAME=env-test"));
-        assert!(content.contains("BRANCH_NAME=schaltwerk/env-test"));
+        assert!(!env_file.exists());
     }
 
     #[test]

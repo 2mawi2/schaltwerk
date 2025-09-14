@@ -6,6 +6,17 @@ use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_a
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::domains::agents::naming;
 
+// Simple POSIX sh single-quote helper for safe argument joining in one-liners
+fn sh_quote_string(s: &str) -> String {
+    if s.is_empty() { return "''".to_string(); }
+    let mut out = String::from("'");
+    for ch in s.chars() {
+        if ch == '\'' { out.push_str("'\\''"); } else { out.push(ch); }
+    }
+    out.push('\'');
+    out
+}
+
 // Helper functions for session name parsing
 fn is_version_suffix(s: &str) -> bool {
     s.starts_with('v') && s.len() > 1 && s[1..].chars().all(|c| c.is_numeric())
@@ -1073,6 +1084,42 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     }
     
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
+
+    // If a project setup script exists, run it ONCE inside this terminal before exec'ing the agent.
+    // This streams all setup output to the agent terminal and avoids blocking session creation.
+    // We gate with a marker file in the worktree: .schaltwerk/setup.done
+    let mut use_shell_chain = false;
+    let mut shell_cmd: Option<String> = None;
+    let marker_rel = ".schaltwerk/setup.done";
+    if let Ok(Some(setup)) = core.db.get_project_setup_script(&core.repo_path) {
+            if !setup.trim().is_empty() {
+                // Persist setup script to a temp file for reliable execution
+                let temp_dir = std::env::temp_dir();
+                let ts = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0);
+                let script_path = temp_dir.join(format!("schalt_setup_{session_name}_{ts}.sh"));
+                if let Err(e) = std::fs::write(&script_path, setup) {
+                    log::warn!("Failed to write setup script to temp file: {e}");
+                } else {
+                    // Build: set -e; if [ ! -f marker ]; then sh '<tmp>'; rm -f '<tmp>'; mkdir -p .schaltwerk; touch marker; fi; exec <agent> <args...>
+                    let marker_q = sh_quote_string(marker_rel);
+                    let script_q = sh_quote_string(&script_path.display().to_string());
+                    let mut exec_cmd = String::new();
+                    exec_cmd.push_str(&sh_quote_string(&agent_name));
+                    for a in &agent_args {
+                        exec_cmd.push(' ');
+                        exec_cmd.push_str(&sh_quote_string(a));
+                    }
+                    let chained = format!(
+                        "set -e; if [ ! -f {marker_q} ]; then sh {script_q}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; exec {exec_cmd}"
+                    );
+                    shell_cmd = Some(chained);
+                    use_shell_chain = true;
+                }
+            }
+    }
     
     let _is_opencode = (agent_name == "opencode") || agent_name.ends_with("/opencode");
     
@@ -1106,27 +1153,57 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     log::info!("FINAL COMMAND CONSTRUCTION for {agent_type}: command='{agent_name}', args={final_args:?}");
     
     // Create terminal with initial size if provided
-    if let (Some(c), Some(r)) = (cols, rows) {
-        use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
-        terminal_manager.create_terminal_with_app_and_size(
-            CreateTerminalWithAppAndSizeParams {
-                id: terminal_id.clone(),
+    if use_shell_chain {
+        let sh_cmd = "sh".to_string();
+        let mut sh_args: Vec<String> = vec!["-lc".to_string(), shell_cmd.unwrap()];
+        if let (Some(c), Some(r)) = (cols, rows) {
+            use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
+            terminal_manager.create_terminal_with_app_and_size(
+                CreateTerminalWithAppAndSizeParams {
+                    id: terminal_id.clone(),
+                    cwd,
+                    command: sh_cmd,
+                    args: std::mem::take(&mut sh_args),
+                    env: env_vars,
+                    cols: c,
+                    rows: r,
+                }
+            ).await?;
+        } else {
+            terminal_manager.create_terminal_with_app(
+                terminal_id.clone(),
                 cwd,
-                command: agent_name.clone(),
-                args: final_args,
-                env: env_vars,
-                cols: c,
-                rows: r,
-            }
-        ).await?;
+                sh_cmd,
+                sh_args,
+                env_vars,
+            ).await?;
+        }
     } else {
-        terminal_manager.create_terminal_with_app(
-            terminal_id.clone(),
-            cwd,
-            agent_name.clone(),
-            final_args,
-            env_vars,
-        ).await?;
+        match (cols, rows) {
+            (Some(c), Some(r)) => {
+                use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
+                terminal_manager.create_terminal_with_app_and_size(
+                    CreateTerminalWithAppAndSizeParams {
+                        id: terminal_id.clone(),
+                        cwd,
+                        command: agent_name.clone(),
+                        args: final_args,
+                        env: env_vars.clone(),
+                        cols: c,
+                        rows: r,
+                    }
+                ).await?;
+            }
+            _ => {
+                terminal_manager.create_terminal_with_app(
+                    terminal_id.clone(),
+                    cwd,
+                    agent_name.clone(),
+                    final_args,
+                    env_vars,
+                ).await?;
+            }
+        }
     }
     
     // For OpenCode and other TUI applications, the frontend will handle
@@ -2389,5 +2466,14 @@ mod tests {
         
         assert!(p_idx < model_idx);
         assert!(p_idx < m_idx);
+    }
+
+    #[test]
+    fn test_sh_quote_string_basic() {
+        assert_eq!(sh_quote_string(""), "''");
+        assert_eq!(sh_quote_string("abc"), "'abc'");
+        assert_eq!(sh_quote_string("a'b"), "'a'\\''b'");
+        assert_eq!(sh_quote_string("a b"), "'a b'");
+        assert!(sh_quote_string("--flag").starts_with("'--flag'"));
     }
 }

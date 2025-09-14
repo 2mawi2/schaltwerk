@@ -454,11 +454,10 @@ impl SessionManager {
         
         log::info!("Worktree verified and ready: {}", worktree_path.display());
         
-        if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
-            if !setup_script.trim().is_empty() {
-                self.utils.execute_setup_script(&setup_script, &unique_name, &branch, &worktree_path)?;
-            }
-        }
+        // IMPORTANT: Do not execute project setup script here.
+        // We stream the setup script output directly in the session's top terminal
+        // right before the agent starts (see schaltwerk_core_start_claude). This
+        // keeps session creation fast and provides visible progress to the user.
         
         if let Err(e) = self.db_manager.create_session(&session) {
             let _ = git::remove_worktree(&self.repo_path, &worktree_path);
