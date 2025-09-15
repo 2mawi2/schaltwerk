@@ -66,6 +66,7 @@ export function TerminalGrid() {
     })()
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
+    const isDraggingRef = useRef(false)
     const [sizes, setSizes] = useState<number[]>(() => {
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
         let base: number[] = [70, 30]
@@ -566,6 +567,23 @@ export function TerminalGrid() {
         }
     }, [sizes, isBottomCollapsed, sessionKey, getStorageKey])
 
+    // Safety net: ensure dragging state is cleared if pointer ends outside the gutter/component
+    useEffect(() => {
+        const handlePointerEnd = () => {
+            if (!isDraggingRef.current) return
+            isDraggingRef.current = false
+            document.body.classList.remove('is-split-dragging')
+            window.dispatchEvent(new Event('terminal-split-drag-end'))
+            setIsDraggingSplit(false)
+        }
+        window.addEventListener('pointerup', handlePointerEnd)
+        window.addEventListener('pointercancel', handlePointerEnd)
+        return () => {
+            window.removeEventListener('pointerup', handlePointerEnd)
+            window.removeEventListener('pointercancel', handlePointerEnd)
+        }
+    }, [])
+
     // Persist collapsed state
     useEffect(() => {
         const key = getStorageKey()
@@ -716,6 +734,7 @@ export function TerminalGrid() {
                 onDragStart={() => {
                     document.body.classList.add('is-split-dragging')
                     setIsDraggingSplit(true)
+                    isDraggingRef.current = true
                 }}
                 onDragEnd={(nextSizes: number[]) => {
                     setSizes(nextSizes)
@@ -723,6 +742,7 @@ export function TerminalGrid() {
                     document.body.classList.remove('is-split-dragging')
                     window.dispatchEvent(new Event('terminal-split-drag-end'))
                     setIsDraggingSplit(false)
+                    isDraggingRef.current = false
                 }}
             >
                 <div
