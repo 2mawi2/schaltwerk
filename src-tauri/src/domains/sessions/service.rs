@@ -82,6 +82,7 @@ mod service_unified_tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_resume_gating_after_spec_then_first_start_is_fresh() {
         let (manager, temp_dir) = create_test_session_manager();
         // Arrange temp HOME to simulate Claude history existing
