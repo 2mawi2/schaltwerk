@@ -6,11 +6,13 @@ export enum SchaltEvent {
   SessionCancelling = 'schaltwerk:session-cancelling',
   CancelError = 'schaltwerk:cancel-error',
   ClaudeStarted = 'schaltwerk:claude-started',
+  TerminalCreated = 'schaltwerk:terminal-created',
   TerminalStuck = 'schaltwerk:terminal-stuck',
   TerminalUnstuck = 'schaltwerk:terminal-unstuck',
   SessionActivity = 'schaltwerk:session-activity',
   SessionGitStats = 'schaltwerk:session-git-stats',
   TerminalClosed = 'schaltwerk:terminal-closed',
+  TerminalAgentStarted = 'schaltwerk:terminal-agent-started',
   TerminalForceScroll = 'schaltwerk:terminal-force-scroll',
   ProjectReady = 'schaltwerk:project-ready',
   OpenDirectory = 'schaltwerk:open-directory',
@@ -76,11 +78,13 @@ export type EventPayloadMap = {
   [SchaltEvent.SessionCancelling]: { session_name: string }
   [SchaltEvent.CancelError]: { session_name: string, error: string }
   [SchaltEvent.ClaudeStarted]: { terminal_id: string, session_name: string }
+  [SchaltEvent.TerminalCreated]: { terminal_id: string, cwd: string }
   [SchaltEvent.TerminalStuck]: { terminal_id: string, time: string }
   [SchaltEvent.TerminalUnstuck]: { terminal_id: string, time: string }
   [SchaltEvent.SessionActivity]: SessionActivityUpdated
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
   [SchaltEvent.TerminalClosed]: { terminal_id: string }
+  [SchaltEvent.TerminalAgentStarted]: { terminal_id: string, session_name?: string }
   [SchaltEvent.TerminalForceScroll]: { terminal_id: string }
   [SchaltEvent.ProjectReady]: string
   [SchaltEvent.OpenDirectory]: string

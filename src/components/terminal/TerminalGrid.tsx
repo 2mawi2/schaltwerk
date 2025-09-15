@@ -66,6 +66,7 @@ export function TerminalGrid() {
     })()
     const [isBottomCollapsed, setIsBottomCollapsed] = useState<boolean>(initialIsCollapsed)
     const [lastExpandedBottomPercent, setLastExpandedBottomPercent] = useState<number>(initialExpanded)
+    const isDraggingRef = useRef(false)
     const [sizes, setSizes] = useState<number[]>(() => {
         const raw = sessionStorage.getItem(`schaltwerk:terminal-grid:sizes:${initialPersistKey}`)
         let base: number[] = [70, 30]
@@ -480,39 +481,35 @@ export function TerminalGrid() {
     // Compute collapsed percent based on actual header height and container size
     useEffect(() => {
         if (!isBottomCollapsed) return
-        const computeCollapsedPercent = () => {
+        const compute = () => {
             const container = containerRef.current
             if (!container) return
             const total = container.clientHeight
             if (total <= 0) return
             const headerEl = container.querySelector('[data-bottom-header]') as HTMLElement | null
             const headerHeight = headerEl?.offsetHeight || 40
-            // Ensure minimum 40px for the header bar (including borders)
-            const minPixels = 44 // 40px header + 2px border + 2px gradient line
+            const minPixels = 44
             const minPct = (minPixels / total) * 100
             const pct = Math.max(minPct, Math.min(15, (headerHeight / total) * 100))
-            // Only update if significantly different to avoid cascading resizes
             if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
-                // Use requestAnimationFrame to avoid mid-frame updates
-                // Note: setSizes doesn't focus, so no need for safeFocus here
-                requestAnimationFrame(() => {
-                    setSizes([100 - pct, pct])
-                })
+                requestAnimationFrame(() => setSizes([100 - pct, pct]))
             }
         }
-        // Initial computation with delay to ensure layout is stable
-        const timer = setTimeout(computeCollapsedPercent, 50)
-        const ro = new ResizeObserver(() => {
-            // Debounce resize observations to avoid too frequent updates
-            clearTimeout(timer)
-            setTimeout(computeCollapsedPercent, 100)
-        })
-        if (containerRef.current) ro.observe(containerRef.current)
-        return () => {
-            clearTimeout(timer)
-            ro.disconnect()
+        let rafPending = false
+        const schedule = () => {
+            if (rafPending) return
+            rafPending = true
+            requestAnimationFrame(() => {
+                rafPending = false
+                compute()
+            })
         }
+        // Initial computation (RAF) and observe size changes
+        schedule()
+        const ro = new ResizeObserver(schedule)
+        if (containerRef.current) ro.observe(containerRef.current)
+        return () => { ro.disconnect() }
     }, [isBottomCollapsed, collapsedPercent])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)
@@ -565,6 +562,23 @@ export function TerminalGrid() {
             sessionStorage.setItem(`schaltwerk:terminal-grid:lastExpandedBottom:${key}`, String(sizes[1]))
         }
     }, [sizes, isBottomCollapsed, sessionKey, getStorageKey])
+
+    // Safety net: ensure dragging state is cleared if pointer ends outside the gutter/component
+    useEffect(() => {
+        const handlePointerEnd = () => {
+            if (!isDraggingRef.current) return
+            isDraggingRef.current = false
+            document.body.classList.remove('is-split-dragging')
+            window.dispatchEvent(new Event('terminal-split-drag-end'))
+            setIsDraggingSplit(false)
+        }
+        window.addEventListener('pointerup', handlePointerEnd)
+        window.addEventListener('pointercancel', handlePointerEnd)
+        return () => {
+            window.removeEventListener('pointerup', handlePointerEnd)
+            window.removeEventListener('pointercancel', handlePointerEnd)
+        }
+    }, [])
 
     // Persist collapsed state
     useEffect(() => {
@@ -716,6 +730,7 @@ export function TerminalGrid() {
                 onDragStart={() => {
                     document.body.classList.add('is-split-dragging')
                     setIsDraggingSplit(true)
+                    isDraggingRef.current = true
                 }}
                 onDragEnd={(nextSizes: number[]) => {
                     setSizes(nextSizes)
@@ -723,6 +738,7 @@ export function TerminalGrid() {
                     document.body.classList.remove('is-split-dragging')
                     window.dispatchEvent(new Event('terminal-split-drag-end'))
                     setIsDraggingSplit(false)
+                    isDraggingRef.current = false
                 }}
             >
                 <div

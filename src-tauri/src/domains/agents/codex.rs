@@ -31,30 +31,20 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
     }
     
     // Determine whether the newest global session belongs to this worktree.
-    // If yes, we can safely use --continue. If not, but there are sessions for
-    // this worktree, fall back to the interactive picker via --resume.
-    match (find_sessions_by_cwd(&sessions_dir, &target_path), find_newest_session(&sessions_dir)) {
-        (Ok(matching), Ok(global_newest)) => {
-            log::debug!("📄 Codex session detection: Found {} matching session file(s)", matching.len());
-            if matching.is_empty() {
-                log::debug!("❌ Codex session detection: No sessions found matching CWD: {target_path:?}");
-            } else {
-                let newest_match = matching.first().cloned();
-                log::debug!("🆚 Comparing newest match vs global newest:");
-                log::debug!("   newest_match: {:?}", newest_match.as_ref().map(|p| p.display().to_string()));
-                log::debug!("   global_newest: {:?}", global_newest.as_ref().map(|p| p.display().to_string()));
-
-                if let (Some(nm), Some(gn)) = (newest_match.as_ref(), global_newest.as_ref()) {
-                    if nm == gn {
-                        log::debug!("✅ Safe to --continue: newest global session matches this worktree");
-                        return Some("__continue__".to_string());
-                    } else {
-                        log::debug!("⚠️ Not safe to --continue: global newest belongs to a different context; using picker");
-                        return Some("__resume__".to_string());
-                    }
-                } else if newest_match.is_some() {
-                    // If we have matches but couldn't determine global newest, be safe and show picker
-                    log::debug!("⚠️ Matches found but global newest unknown; using picker");
+    // If yes, we can safely use --continue. If not, but there is at least one match
+    // for this worktree, fall back to the interactive picker via --resume.
+    match (find_newest_session_for_cwd(&sessions_dir, &target_path), find_newest_session(&sessions_dir)) {
+        (Ok(newest_match), Ok(global_newest)) => {
+            match (newest_match.as_ref(), global_newest.as_ref()) {
+                (None, _) => {
+                    log::debug!("❌ Codex session detection: No sessions found matching CWD: {target_path:?}");
+                }
+                (Some(nm), Some(gn)) if nm == gn => {
+                    log::debug!("✅ Safe to --continue: newest global session matches this worktree");
+                    return Some("__continue__".to_string());
+                }
+                (Some(_nm), _) => {
+                    log::debug!("⚠️ Not safe to --continue: global newest belongs to a different context; using picker");
                     return Some("__resume__".to_string());
                 }
             }
@@ -69,6 +59,46 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
     
     log::debug!("🚫 Codex session detection: No resumable sessions found for path: {}", path.display());
     None
+}
+
+// Efficiently finds the newest matching session for a given CWD by scanning
+// date-partitioned subdirectories from newest to oldest and exiting on first match.
+fn find_newest_session_for_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Option<PathBuf>, std::io::Error> {
+    if !sessions_dir.exists() { return Ok(None); }
+
+    // Helper to read and sort directory entries by name descending (YYYY/MM/DD)
+    fn sort_by_name_desc(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+        let mut items: Vec<PathBuf> = fs::read_dir(dir)?.filter_map(|e| e.ok().map(|e| e.path())).collect();
+        items.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+        Ok(items)
+    }
+
+    // Iterate years → months → days (names are ISO-like so lexical desc works)
+    for year in sort_by_name_desc(sessions_dir)? {
+        if !year.is_dir() { continue; }
+        for month in sort_by_name_desc(&year)? {
+            if !month.is_dir() { continue; }
+            for day in sort_by_name_desc(&month)? {
+                if !day.is_dir() { continue; }
+                // Within a day, sort files by modified time desc for accuracy
+                let mut files: Vec<PathBuf> = fs::read_dir(&day)?
+                    .filter_map(|e| e.ok().map(|e| e.path()))
+                    .filter(|p| p.extension().is_some_and(|ext| ext == "jsonl"))
+                    .collect();
+                files.sort_by_key(|p| p.metadata().and_then(|m| m.modified()).unwrap_or(std::time::SystemTime::UNIX_EPOCH));
+                files.reverse();
+
+                for file in files {
+                    log::trace!("🔍 Fast scan check file: {}", file.display());
+                    if session_matches_cwd(&file, target_cwd) {
+                        log::debug!("✅ Newest matching session found: {}", file.display());
+                        return Ok(Some(file));
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 pub fn find_codex_session(path: &Path) -> Option<String> {
@@ -96,7 +126,7 @@ fn find_sessions_by_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Vec<Pat
     let mut total_scanned = 0;
     
     fn scan_directory(dir: &Path, target: &str, matches: &mut Vec<PathBuf>, scanned_count: &mut i32) -> Result<(), std::io::Error> {
-        log::debug!("📁 Scanning directory: {}", dir.display());
+        log::trace!("📁 Scanning directory: {}", dir.display());
         
         for entry in fs::read_dir(dir)? {
             let entry = entry?;
@@ -106,13 +136,13 @@ fn find_sessions_by_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Vec<Pat
                 scan_directory(&path, target, matches, scanned_count)?;
             } else if path.extension().is_some_and(|ext| ext == "jsonl") {
                 *scanned_count += 1;
-                log::debug!("🔍 Checking session file: {}", path.display());
+                log::trace!("🔍 Checking session file: {}", path.display());
                 
                 if session_matches_cwd(&path, target) {
-                    log::debug!("✅ Found matching session: {}", path.display());
+                    log::trace!("✅ Found matching session: {}", path.display());
                     matches.push(path);
                 } else {
-                    log::debug!("❌ Session does not match CWD: {}", path.display());
+                    log::trace!("❌ Session does not match CWD: {}", path.display());
                 }
             }
         }
@@ -132,11 +162,11 @@ fn find_sessions_by_cwd(sessions_dir: &Path, target_cwd: &str) -> Result<Vec<Pat
     matching_sessions.reverse();
     
     if !matching_sessions.is_empty() {
-        log::debug!("📅 Sessions sorted by modification time (newest first):");
+        log::trace!("📅 Sessions sorted by modification time (newest first):");
         for (i, session) in matching_sessions.iter().enumerate() {
             if let Ok(metadata) = session.metadata() {
                 if let Ok(modified) = metadata.modified() {
-                    log::debug!("  {}. {} (modified: {:?})", i + 1, session.display(), modified);
+                    log::trace!("  {}. {} (modified: {:?})", i + 1, session.display(), modified);
                 }
             }
         }
@@ -177,29 +207,29 @@ fn find_newest_session(sessions_dir: &Path) -> Result<Option<PathBuf>, std::io::
 }
 
 fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
-    log::debug!("🔍 Checking session file for CWD match: {}", session_file.display());
-    log::debug!("🎯 Looking for CWD: {target_cwd:?}");
+    log::trace!("🔍 Checking session file for CWD match: {}", session_file.display());
+    log::trace!("🎯 Looking for CWD: {target_cwd:?}");
     
     let content = match fs::read_to_string(session_file) {
         Ok(content) => content,
         Err(e) => {
-            log::debug!("❌ Failed to read session file: {e}");
+            log::trace!("❌ Failed to read session file: {e}");
             return false;
         }
     };
     
     let lines: Vec<&str> = content.lines().collect();
-    log::debug!("📄 Session file has {} lines to check", lines.len());
+    log::trace!("📄 Session file has {} lines to check", lines.len());
     
     for (line_num, line) in lines.iter().enumerate() {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
-            log::debug!("📝 Parsing JSON on line {}: {:?}", line_num + 1, json.get("type").and_then(|v| v.as_str()).unwrap_or("unknown"));
+            log::trace!("📝 Parsing JSON on line {}: {:?}", line_num + 1, json.get("type").and_then(|v| v.as_str()).unwrap_or("unknown"));
             
             // Check session_meta.cwd field (top-level)
             if let Some(cwd) = json.get("cwd").and_then(|v| v.as_str()) {
-                log::debug!("🔍 Found top-level CWD: {cwd:?}");
+                log::trace!("🔍 Found top-level CWD: {cwd:?}");
                 if cwd == target_cwd {
-                    log::debug!("✅ CWD match found in top-level field: {}", session_file.display());
+                    log::trace!("✅ CWD match found in top-level field: {}", session_file.display());
                     return true;
                 }
             }
@@ -207,26 +237,26 @@ fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
             // Check session_meta payload
             if let Some(payload) = json.get("payload") {
                 if let Some(cwd) = payload.get("cwd").and_then(|v| v.as_str()) {
-                    log::debug!("🔍 Found payload CWD: {cwd:?}");
+                    log::trace!("🔍 Found payload CWD: {cwd:?}");
                     if cwd == target_cwd {
-                        log::debug!("✅ CWD match found in payload field: {}", session_file.display());
+                        log::trace!("✅ CWD match found in payload field: {}", session_file.display());
                         return true;
                     }
                 }
                 
                 // Check environment_context in message content
                 if let Some(content_array) = payload.get("content").and_then(|v| v.as_array()) {
-                    log::debug!("📋 Checking {} content items for environment_context", content_array.len());
+                    log::trace!("📋 Checking {} content items for environment_context", content_array.len());
                     for (item_idx, content_item) in content_array.iter().enumerate() {
                         if let Some(text) = content_item.get("text").and_then(|v| v.as_str()) {
                             if text.contains("<environment_context>") {
-                                log::debug!("🌍 Found environment_context in content item {item_idx}");
+                                log::trace!("🌍 Found environment_context in content item {item_idx}");
                                 let cwd_pattern = format!("<cwd>{target_cwd}</cwd>");
                                 if text.contains(&cwd_pattern) {
-                                    log::debug!("✅ CWD match found in environment_context: {}", session_file.display());
+                                    log::trace!("✅ CWD match found in environment_context: {}", session_file.display());
                                     return true;
                                 } else {
-                                    log::debug!("❌ environment_context does not contain target CWD pattern");
+                                    log::trace!("❌ environment_context does not contain target CWD pattern");
                                 }
                             }
                         }
@@ -234,11 +264,11 @@ fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
                 }
             }
         } else {
-            log::debug!("⚠️ Line {} is not valid JSON, skipping", line_num + 1);
+            log::trace!("⚠️ Line {} is not valid JSON, skipping", line_num + 1);
         }
     }
     
-    log::debug!("❌ No CWD match found in session file");
+    log::trace!("❌ No CWD match found in session file");
     false
 }
 
@@ -314,6 +344,9 @@ pub fn build_codex_command_with_config(
 mod tests {
     use super::*;
     use std::path::Path;
+    use std::fs;
+    use std::io::Write;
+    use tempfile::{tempdir, NamedTempFile};
 
     #[test]
     fn test_new_session_with_prompt() {
@@ -498,5 +531,55 @@ mod tests {
             Some(&config),
         );
         assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox danger-full-access --resume");
+    }
+
+    // Avoid touching HOME to keep tests isolated from others.
+    // Test the inner scanning helper directly with a temp directory.
+
+    fn write_jsonl_with_cwd(path: &Path, cwd: &str) {
+        let mut f = fs::File::create(path).unwrap();
+        writeln!(f, "{{\"timestamp\":\"2025-09-13T01:00:00.000Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"s\",\"cwd\":\"{}\"}}}}", cwd).unwrap();
+    }
+
+    fn write_jsonl_without_cwd(path: &Path) {
+        let mut f = fs::File::create(path).unwrap();
+        writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
+    }
+
+    #[test]
+    fn test_find_codex_session_fast_continue_when_global_newest_matches() {
+        let tmp = tempdir().unwrap();
+        let sessions = tmp.path().join(".codex/sessions/2025/09/14");
+        fs::create_dir_all(&sessions).unwrap();
+        let cwd = "/repo/worktree-a";
+        let newest = sessions.join("rollout-2025-09-14T10-00-00-uuid.jsonl");
+        write_jsonl_with_cwd(&newest, cwd);
+        std::thread::sleep(std::time::Duration::from_millis(10));
+
+        let newest_match = find_newest_session_for_cwd(tmp.path().join(".codex/sessions").as_path(), cwd).unwrap();
+        let global_newest = find_newest_session(tmp.path().join(".codex/sessions").as_path()).unwrap();
+        assert!(newest_match.is_some() && global_newest.is_some());
+        assert_eq!(newest_match, global_newest);
+    }
+
+    #[test]
+    fn test_find_codex_session_fast_resume_when_old_match_exists() {
+        let tmp = tempdir().unwrap();
+        let day_old = tmp.path().join(".codex/sessions/2025/08/22");
+        let day_new = tmp.path().join(".codex/sessions/2025/09/14");
+        fs::create_dir_all(&day_old).unwrap();
+        fs::create_dir_all(&day_new).unwrap();
+
+        let cwd = "/repo/worktree-a";
+        let old_match = day_old.join("rollout-2025-08-22T10-00-00-uuid.jsonl");
+        write_jsonl_with_cwd(&old_match, cwd);
+        // Create a newer non-matching session
+        let new_other = day_new.join("rollout-2025-09-14T10-00-00-uuid.jsonl");
+        write_jsonl_without_cwd(&new_other);
+
+        let newest_match = find_newest_session_for_cwd(tmp.path().join(".codex/sessions").as_path(), cwd).unwrap();
+        let global_newest = find_newest_session(tmp.path().join(".codex/sessions").as_path()).unwrap();
+        assert!(newest_match.is_some());
+        assert_ne!(newest_match, global_newest);
     }
 }

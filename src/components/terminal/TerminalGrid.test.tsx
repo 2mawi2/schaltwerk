@@ -899,4 +899,30 @@ describe('TerminalGrid', () => {
       expect(getLastFocused()).toBe(bottomId)
     })
   })
+
+  it('clears split dragging state on global pointerup if onDragEnd is missed', async () => {
+    renderGrid()
+    vi.useRealTimers()
+
+    await waitFor(() => {
+      expect(bridge).toBeDefined()
+      expect(bridge?.isReady).toBe(true)
+    }, { timeout: 3000 })
+
+    // Access the mocked Split props to trigger onDragStart manually
+    const splitMod: any = await import('react-split')
+    const props = splitMod.__getLastProps?.() || null
+    expect(props).toBeTruthy()
+    // Start dragging (adds body class)
+    props.onDragStart()
+    expect(document.body.classList.contains('is-split-dragging')).toBe(true)
+
+    // Simulate a global pointerup that would happen outside the gutter
+    window.dispatchEvent(new Event('pointerup'))
+
+    // Body class should be cleared by the safety net
+    await waitFor(() => {
+      expect(document.body.classList.contains('is-split-dragging')).toBe(false)
+    })
+  })
 })

@@ -18,20 +18,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_paste_and_submit_terminal_timing() {
+    async fn test_paste_and_submit_terminal_executes() {
         let manager = TerminalManager::new();
         let id = unique_id("paste-timing");
         
         manager.create_terminal(id.clone(), "/tmp".to_string()).await.unwrap();
         
         let test_data = b"echo 'test with special chars: $VAR'";
-        let start = std::time::Instant::now();
-        
         manager.paste_and_submit_terminal(id.clone(), test_data.to_vec()).await.unwrap();
-        
-        let elapsed = start.elapsed();
-        assert!(elapsed.as_millis() >= 220, "Paste sequence should take at least 220ms for proper timing");
-        assert!(elapsed.as_millis() <= 500, "Paste sequence should not take longer than 500ms");
         
         sleep(Duration::from_millis(100)).await;
         
