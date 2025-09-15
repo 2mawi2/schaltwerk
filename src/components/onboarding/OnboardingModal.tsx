@@ -190,7 +190,7 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                 
                 {highlightElement && <HighlightCutout highlightRect={highlightRect} />}
                 
-                <div className="w-[600px] max-w-[90vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden relative z-40">
+                <div className="w-[960px] max-w-[96vw] bg-slate-900 border border-slate-700 rounded-xl shadow-xl overflow-hidden relative z-40">
                     <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
