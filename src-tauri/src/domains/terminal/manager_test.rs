@@ -500,6 +500,20 @@ mod tests {
         safe_close(&manager, &multiline_id).await;
     }
 
+    #[test]
+    fn test_build_bracketed_paste_buffer() {
+        use super::super::manager::build_bracketed_paste_buffer;
+        let payload = b"line1\nline2 with \x1b[31mred\x1b[0m";
+        let buf = build_bracketed_paste_buffer(payload);
+        // Must start with bracketed paste start
+        assert!(buf.starts_with(b"\x1b[200~"));
+        // Must end with bracketed paste end + CR
+        assert!(buf.ends_with(b"\x1b[201~\r"));
+        // Payload must appear intact inside
+        let inner = &buf[6..buf.len()-6-1]; // strip start(6), end(6), CR(1)
+        assert_eq!(inner, payload);
+    }
+
     #[tokio::test] 
     async fn test_rapid_create_close_cycles() {
         let manager = Arc::new(TerminalManager::new());

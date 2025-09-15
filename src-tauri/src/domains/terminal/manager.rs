@@ -61,6 +61,7 @@ impl TerminalManager {
     pub async fn create_terminal_with_env(&self, id: String, cwd: String, env: Vec<(String, String)>) -> Result<(), String> {
         info!("Creating terminal through manager: id={id}, cwd={cwd}, env_count={}", env.len());
         
+        let cwd_for_event = cwd.clone();
         let params = if env.is_empty() {
             CreateParams {
                 id: id.clone(),
@@ -87,10 +88,16 @@ impl TerminalManager {
         
         self.backend.create(params).await?;
         self.active_ids.write().await.insert(id.clone());
-        
+
         // Start event bridge for this terminal
-        self.start_event_bridge(id).await;
-        
+        self.start_event_bridge(id.clone()).await;
+        // Emit TerminalCreated event if app handle is available
+        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id, "cwd": cwd_for_event });
+            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalCreated, &payload) {
+                warn!("Failed to emit terminal created event: {e}");
+            }
+        }
         Ok(())
     }
     
@@ -111,6 +118,7 @@ impl TerminalManager {
     pub async fn create_terminal_with_size_and_env(&self, id: String, cwd: String, cols: u16, rows: u16, env: Vec<(String, String)>) -> Result<(), String> {
         info!("Creating terminal through manager with size: id={id}, cwd={cwd}, size={cols}x{rows}, env_count={}", env.len());
         
+        let cwd_for_event = cwd.clone();
         let params = if env.is_empty() {
             CreateParams {
                 id: id.clone(),
@@ -137,10 +145,16 @@ impl TerminalManager {
         
         self.backend.create_with_size(params, cols, rows).await?;
         self.active_ids.write().await.insert(id.clone());
-        
+
         // Start event bridge for this terminal
-        self.start_event_bridge(id).await;
-        
+        self.start_event_bridge(id.clone()).await;
+        // Emit TerminalCreated event if app handle is available
+        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id, "cwd": cwd_for_event });
+            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalCreated, &payload) {
+                warn!("Failed to emit terminal created event: {e}");
+            }
+        }
         Ok(())
     }
     
@@ -161,6 +175,7 @@ impl TerminalManager {
             ready_timeout_ms: 5000,
         };
         
+        let cwd_for_event = cwd.clone();
         let params = CreateParams {
             id: id.clone(),
             cwd,
@@ -169,10 +184,16 @@ impl TerminalManager {
         
         self.backend.create(params).await?;
         self.active_ids.write().await.insert(id.clone());
-        
+
         // Start event bridge for this terminal
-        self.start_event_bridge(id).await;
-        
+        self.start_event_bridge(id.clone()).await;
+        // Emit TerminalCreated event if app handle is available
+        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id, "cwd": cwd_for_event });
+            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalCreated, &payload) {
+                warn!("Failed to emit terminal created event: {e}");
+            }
+        }
         Ok(())
     }
     
@@ -190,6 +211,7 @@ impl TerminalManager {
             ready_timeout_ms: 30000,
         };
         
+        let cwd_for_event = params.cwd.clone();
         let create_params = CreateParams {
             id: params.id.clone(),
             cwd: params.cwd,
@@ -198,10 +220,17 @@ impl TerminalManager {
         
         self.backend.create_with_size(create_params, params.cols, params.rows).await?;
         self.active_ids.write().await.insert(params.id.clone());
-        
+
         // Start event bridge for this terminal
-        self.start_event_bridge(params.id).await;
-        
+        let id_for_event = params.id.clone();
+        self.start_event_bridge(id_for_event.clone()).await;
+        // Emit TerminalCreated event if app handle is available
+        if let Some(app_handle) = self.app_handle.read().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id_for_event, "cwd": cwd_for_event });
+            if let Err(e) = emit_event(app_handle, SchaltEvent::TerminalCreated, &payload) {
+                warn!("Failed to emit terminal created event: {e}");
+            }
+        }
         Ok(())
     }
     
@@ -214,32 +243,9 @@ impl TerminalManager {
     }
     
     pub async fn paste_and_submit_terminal(&self, id: String, data: Vec<u8>) -> Result<(), String> {
-        // Send bracketed paste start sequence
-        let paste_start = b"\x1b[200~";
-        self.backend.write(&id, paste_start).await?;
-
-        // Write content deterministically in bounded chunks to avoid
-        // pipe coalescing with the paste end marker on busy terminals.
-        // No sleeps: rely on write_all+flush in backend for ordering.
-        if !data.is_empty() {
-            const CHUNK: usize = 4096;
-            let mut offset = 0;
-            while offset < data.len() {
-                let end = std::cmp::min(offset + CHUNK, data.len());
-                self.backend.write(&id, &data[offset..end]).await?;
-                offset = end;
-                // Yield to executor to let downstream readers progress without timing hacks
-                tokio::task::yield_now().await;
-            }
-        }
-
-        // Send bracketed paste end sequence
-        let paste_end = b"\x1b[201~";
-        self.backend.write(&id, paste_end).await?;
-
-        // Send Enter key (carriage return) as a separate, non-paste action
-        let enter = b"\r";
-        self.backend.write(&id, enter).await?;
+        let buf = build_bracketed_paste_buffer(&data);
+        // Atomic immediate write: bracketed paste start + data + end + CR
+        self.backend.write_immediate(&id, &buf).await?;
         
         // Emit force scroll event to ensure terminal scrolls to bottom after pasting
         if let Some(app_handle) = self.app_handle.read().await.as_ref() {
@@ -349,6 +355,17 @@ impl TerminalManager {
     pub async fn get_all_terminal_activity(&self) -> Vec<(String, bool, u64)> {
         self.backend.get_all_terminal_activity().await
     }
+}
+
+/// Build a single buffer for bracketed paste with trailing carriage return
+/// Format: ESC[200~ <data> ESC[201~ CR
+pub(crate) fn build_bracketed_paste_buffer(data: &[u8]) -> Vec<u8> {
+    let mut buf = Vec::with_capacity(data.len() + 2 + 5 + 1); // rough extra capacity
+    buf.extend_from_slice(b"\x1b[200~");
+    buf.extend_from_slice(data);
+    buf.extend_from_slice(b"\x1b[201~");
+    buf.push(b'\r');
+    buf
 }
 
 #[cfg(test)]
