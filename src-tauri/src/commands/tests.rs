@@ -43,6 +43,13 @@ async fn test_reset_command_timing() {
     assert!(duration <= std::time::Duration::from_secs(10), "Reset should not hang");
 }
 
+// Test the reset-session-worktree command parses and errors gracefully without project
+#[tokio::test]
+async fn test_reset_session_worktree_command_no_project() {
+    let result = super::schaltwerk_core_reset_session_worktree("some-session".to_string()).await;
+    assert!(result.is_err(), "Should fail when no project is active");
+}
+
 #[tokio::test]
 async fn test_fresh_orchestrator_command_timing() {
     // Test that fresh orchestrator doesn't hang
@@ -90,7 +97,6 @@ async fn test_command_functions_exist_and_callable() {
         }
     }
 }
-
 // Regression: ensure concurrent launch attempts on the same terminal id do not panic
 // and are serialized by the backend lock. We don't assert on success because this
 // file runs without a full project context; we only verify both futures complete.

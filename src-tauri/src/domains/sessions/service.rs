@@ -1723,4 +1723,37 @@ impl SessionManager {
     pub fn db_ref(&self) -> &crate::schaltwerk_core::database::Database {
         &self.db_manager.db
     }
+
+    // Reset a session's worktree to the base branch in a defensive manner.
+    // Verifies the worktree belongs to this project and that HEAD matches the session branch.
+    pub fn reset_session_worktree(&self, name: &str) -> Result<()> {
+        let session = self.db_manager.get_session_by_name(name)?;
+
+        // Ensure worktree path is inside this repository for safety
+        if !session.worktree_path.starts_with(&self.repo_path) {
+            return Err(anyhow!("Invalid worktree path for this project"));
+        }
+
+        // Open the worktree repo and confirm it's a worktree and on the session branch
+        let repo = git2::Repository::open(&session.worktree_path)
+            .map_err(|e| anyhow!("Failed to open worktree repository: {e}"))?;
+
+        if !repo.is_worktree() {
+            return Err(anyhow!("Target repository is not a git worktree"));
+        }
+
+        // Confirm HEAD matches the session branch to avoid resetting the wrong branch
+        let head = repo.head().map_err(|e| anyhow!("Failed to read HEAD: {e}"))?;
+        let expected_ref = format!("refs/heads/{}", session.branch);
+        if head.name() != Some(expected_ref.as_str()) {
+            return Err(anyhow!(
+                "HEAD does not point to the session branch (expected {}, got {:?})",
+                expected_ref,
+                head.name()
+            ));
+        }
+
+        // Delegate to git domain code (already constrained to this repo)
+        crate::domains::git::worktrees::reset_worktree_to_base(&session.worktree_path, &session.parent_branch)
+    }
 }

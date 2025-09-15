@@ -3,11 +3,13 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
-import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary } from 'react-icons/vsc'
+import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, VscDiscard } from 'react-icons/vsc'
 // Open button moved to global top bar
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
+import { AnimatedText } from '../common/AnimatedText'
+import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 
 
 interface ChangedFile {
@@ -34,6 +36,8 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   } | null>(null)
   
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
+  const [isResetting, setIsResetting] = useState(false)
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const lastResultRef = useRef<string>('')
   
   // Use refs to track current values without triggering effect recreations
@@ -280,8 +284,29 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       default: return <VscFile className="text-blue-500" />
     }
   }
+
+  const confirmReset = useCallback(() => {
+    if (!sessionName || isCommander) return
+    setConfirmOpen(true)
+  }, [sessionName, isCommander])
+
+  const handleResetSession = useCallback(async () => {
+    if (!sessionName || isCommander) return
+    setIsResetting(true)
+    try {
+      await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
+      await loadChangedFilesRef.current()
+      window.dispatchEvent(new CustomEvent('schaltwerk:reset-terminals'))
+    } catch (e) {
+      logger.error('Failed to reset session from header:', e)
+    } finally {
+      setIsResetting(false)
+      setConfirmOpen(false)
+    }
+  }, [sessionName, isCommander])
   
   return (
+    <>
     <div className="h-full flex flex-col bg-panel">
       <div className="px-3 py-2 border-b border-slate-800 relative">
         <div className="flex items-center justify-between pr-12">
@@ -302,11 +327,30 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
               </span>
             )}
           </div>
-          {branchInfo && files.length > 0 && (
-            <div className="text-xs text-slate-500">
-              {files.length} files changed
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            {branchInfo && files.length > 0 && (
+              <div className="text-xs text-slate-500">
+                {files.length} files changed
+              </div>
+            )}
+            {sessionName && !isCommander && (
+              <div>
+                {isResetting ? (
+                  <AnimatedText text="resetting" size="xs" />
+                ) : (
+                  <button
+                    title={files.length > 0 ? 'Reset session' : 'No changes to reset'}
+                    aria-label="Reset session"
+                    onClick={files.length > 0 ? confirmReset : undefined}
+                    disabled={files.length === 0}
+                    className={`p-1 rounded ${files.length > 0 ? 'hover:bg-slate-800' : 'opacity-50 cursor-not-allowed'}`}
+                  >
+                    <VscDiscard className="text-lg" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
       
@@ -372,5 +416,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         </div>
       )}
     </div>
+    <ConfirmResetDialog open={confirmOpen} onCancel={() => setConfirmOpen(false)} onConfirm={handleResetSession} isBusy={isResetting} />
+    </>
   )
 }

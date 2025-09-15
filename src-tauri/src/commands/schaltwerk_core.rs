@@ -1747,3 +1747,36 @@ mod tests {
         assert!(sh_quote_string("--flag").starts_with("'--flag'"));
     }
 }
+
+#[tauri::command]
+pub async fn schaltwerk_core_reset_session_worktree(app: tauri::AppHandle, session_name: String) -> Result<(), String> {
+    log::info!("Resetting session worktree to base for: {session_name}");
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+
+    // Delegate to SessionManager (defensive checks live there)
+    manager
+        .reset_session_worktree(&session_name)
+        .map_err(|e| format!("Failed to reset worktree: {e}"))?;
+
+    // Emit sessions refreshed so UI updates its diffs/state
+    if let Ok(sessions) = manager.list_enriched_sessions() {
+        events::emit_sessions_refreshed(&app, &sessions);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod reset_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_reset_session_worktree_requires_project() {
+        // Without a project initialized, expect a readable error
+        let result = schaltwerk_core_reset_session_worktree("nope".to_string()).await;
+        assert!(result.is_err());
+        let msg = result.err().unwrap();
+        assert!(msg.contains("No active project") || msg.contains("Failed to get schaltwerk core") || msg.contains("No project is currently open"));
+    }
+}

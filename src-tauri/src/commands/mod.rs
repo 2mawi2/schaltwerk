@@ -28,6 +28,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_start_claude_orchestrator,
     schaltwerk_core_start_fresh_orchestrator,
     schaltwerk_core_reset_orchestrator,
+    schaltwerk_core_reset_session_worktree,
     schaltwerk_core_set_skip_permissions,
     schaltwerk_core_get_skip_permissions,
     schaltwerk_core_mark_session_ready,

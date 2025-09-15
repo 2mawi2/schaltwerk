@@ -12,12 +12,14 @@ import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
 import { DiffViewer } from './DiffViewer'
 import { 
-  VscClose, VscSend, VscListFlat, VscListSelection
+  VscClose, VscSend, VscListFlat, VscListSelection, VscDiscard
 } from 'react-icons/vsc'
 import hljs from 'highlight.js'
 import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
 import { logger } from '../../utils/logger'
+// AnimatedText imported elsewhere in this file; remove unused import here
+import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -68,6 +70,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [continuousScroll, setContinuousScroll] = useState(false)
   const [isSearchVisible, setIsSearchVisible] = useState(false)
+  const [isResetting, setIsResetting] = useState(false)
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
@@ -178,6 +182,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [continuousScroll, selectedFile, files, sessionName])
 
+
    const getChangedFilesForContext = useCallback(async () => {
      if (isCommanderView()) {
        return await invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges)
@@ -185,7 +190,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       return await invoke<ChangedFile[]>(TauriCommands.GetChangedFilesFromMain, { sessionName })
     }, [sessionName, isCommanderView])
 
-   const loadChangedFiles = useCallback(async () => {
+  const loadChangedFiles = useCallback(async () => {
      try {
        const changedFiles = await getChangedFilesForContext()
        setFiles(changedFiles)
@@ -227,7 +232,24 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
      } catch (error) {
        logger.error('Failed to load changed files:', error)
      }
-   }, [sessionName, filePath, getChangedFilesForContext, setFiles, setSelectedFile, setSelectedFileIndex, setAllFileDiffs, setFileError, setBranchInfo])
+  }, [sessionName, filePath, getChangedFilesForContext, setFiles, setSelectedFile, setSelectedFileIndex, setAllFileDiffs, setFileError, setBranchInfo])
+
+  const handleConfirmReset = useCallback(async () => {
+    if (!sessionName) return
+    try {
+      setIsResetting(true)
+      await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
+      await loadChangedFiles()
+      window.dispatchEvent(new CustomEvent('schaltwerk:reset-terminals'))
+      // Close the diff viewer after a successful reset to avoid showing stale diffs
+      onClose()
+    } catch (err) {
+      logger.error('Failed to reset session worktree:', err)
+    } finally {
+      setIsResetting(false)
+      setConfirmResetOpen(false)
+    }
+  }, [sessionName, loadChangedFiles])
 
   const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
@@ -948,6 +970,17 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
               )}
             </div>
             <div className="flex items-center gap-2">
+              {selection.kind === 'session' && (
+                <button
+                  onClick={() => setConfirmResetOpen(true)}
+                  className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
+                  title="Discard all changes and reset this session"
+                  disabled={isResetting}
+                >
+                  <VscDiscard className="text-lg" />
+                  Reset Session
+                </button>
+              )}
               <button
                 onClick={toggleContinuousScroll}
                 className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
@@ -1014,6 +1047,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 targetRef={scrollContainerRef}
                 isVisible={isSearchVisible}
                 onClose={() => setIsSearchVisible(false)}
+              />
+
+              <ConfirmResetDialog
+                open={confirmResetOpen && selection.kind === 'session'}
+                onCancel={() => setConfirmResetOpen(false)}
+                onConfirm={handleConfirmReset}
+                isBusy={isResetting}
               />
               
               {/* Comment form appears near the selected line */}

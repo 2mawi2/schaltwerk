@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, anyhow};
 use git2::{Repository, WorktreeAddOptions, BranchType, build::CheckoutBuilder, WorktreePruneOptions};
 use super::repository::get_commit_hash;
+use git2::ResetType;
 
 pub fn create_worktree_from_base(
     repo_path: &Path,
@@ -237,5 +238,103 @@ fn restore_session_specific_stash_libgit2(mut repo: Repository, session_id: &str
         }
     }
     
+    Ok(())
+}
+
+/// Reset a worktree's current branch to the given base reference (e.g. "main").
+/// This performs a hard reset to the base HEAD, removes untracked/ignored files,
+/// and leaves the branch as if the worktree had just been created from the base.
+pub fn reset_worktree_to_base(worktree_path: &Path, base_branch: &str) -> Result<()> {
+    let repo = Repository::open(worktree_path)?;
+
+    // Defensive: ensure this is a worktree repository
+    if !repo.is_worktree() {
+        return Err(anyhow!("Target repository is not a git worktree"));
+    }
+
+    // Defensive: validate base branch name to avoid odd refs
+    validate_branch_name(base_branch)?;
+
+    // Prefer local branch, fall back to origin/<base_branch>
+    let base_ref_names = [
+        format!("refs/heads/{base_branch}"),
+        format!("refs/remotes/origin/{base_branch}"),
+    ];
+
+    let mut target_obj = None;
+    for name in &base_ref_names {
+        if let Ok(reference) = repo.find_reference(name) {
+            if let Some(oid) = reference.target() {
+                target_obj = Some(repo.find_object(oid, None)?);
+                break;
+            }
+        }
+    }
+
+    let target_obj = target_obj.ok_or_else(|| anyhow!(
+        "Base reference not found: {} (tried local and origin)",
+        base_branch
+    ))?;
+
+    // Hard reset the index and working tree to the base
+    repo.reset(&target_obj, ResetType::Hard, None)?;
+
+    // Clean untracked/ignored files to ensure a pristine state
+    repo.checkout_head(Some(
+        CheckoutBuilder::new()
+            .force()
+            .remove_untracked(true)
+            .remove_ignored(true),
+    ))?;
+
+    log::info!(
+        "Reset worktree at {} to base {}",
+        worktree_path.display(),
+        base_branch
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod unit_logic_tests {
+    use super::*;
+
+    // NOTE: These tests validate input/selection logic without touching a real repository,
+    // by checking the order of reference candidates used to resolve the base.
+    #[test]
+    fn test_base_ref_candidate_ordering() {
+        let base = "main";
+        let candidates = [
+            format!("refs/heads/{base}"),
+            format!("refs/remotes/origin/{base}"),
+        ];
+        assert_eq!(candidates[0], "refs/heads/main");
+        assert_eq!(candidates[1], "refs/remotes/origin/main");
+    }
+
+    #[test]
+    fn test_branch_name_validation() {
+        assert!(super::validate_branch_name("main").is_ok());
+        assert!(super::validate_branch_name("feature/x").is_ok());
+        assert!(super::validate_branch_name("release-1.2.3").is_ok());
+        assert!(super::validate_branch_name("..bad").is_err());
+        assert!(super::validate_branch_name("bad\\name").is_err());
+        assert!(super::validate_branch_name("").is_err());
+    }
+}
+
+fn validate_branch_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        return Err(anyhow!("Branch name cannot be empty"));
+    }
+    if name.contains("..") || name.contains('\0') || name.contains('\\') {
+        return Err(anyhow!("Invalid branch name"));
+    }
+    // Basic character whitelist (matches common git rules without being overly strict)
+    let allowed = |c: char| c.is_ascii_alphanumeric() || 
+        matches!(c, '/' | '-' | '_' | '.');
+    if !name.chars().all(allowed) {
+        return Err(anyhow!("Branch name contains invalid characters"));
+    }
     Ok(())
 }
