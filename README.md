@@ -6,11 +6,11 @@
 
 # Schaltwerk: The IDE Without an Editor
 
-Schaltwerk manages multiple AI coding agents in isolated git worktrees. Everything runs locally on your machine. You test and review changes before they hit your main branch.
+Schaltwerk manages multiple AI coding agents in isolated git worktrees. Everything runs locally on your machine. You test and review changes locally before they hit your main branch.
 
 ## What is Schaltwerk?
 
-It's an orchestration tool for AI development. Instead of editing code yourself, you manage AI agents that write the code. Each agent works in its own git worktree, completely isolated from your main codebase. You review their work locally, run tests, and merge what works.
+It's an orchestration tool for agentic coding. In this IDE you do not edit code yourself, you delegate specs to terminal-based AI agents (like Claude Code and Codex) that write the code for you. Each agent works in its own git worktree, completely isolated from your main codebase. You review their work locally, run tests, and merge what works.
 
 ## Why Schaltwerk?
 
@@ -222,18 +222,6 @@ Let an agent refactor code in an isolated branch. Run your full test suite, chec
 ### Comparing Implementations
 Have two agents solve the same problem differently. Test both solutions, pick the better one.
 
-### Gradual Migration
-Migrate legacy code module by module. Different agents work on different parts. Test each piece before integration.
-
-## Philosophy
-
-Schaltwerk treats AI agents as tools, not collaborators. You define what needs to be built, agents handle the implementation, and you decide what's good enough to merge.
-
-The goal isn't to have AI write all your code. It's to give you better tools for managing multiple AI agents working on your codebase simultaneously, while keeping full control over what actually ships.
-
-## Contributing
-
-Schaltwerk is built with Schaltwerk - we use it to develop itself! Check out our [contribution guide](./CONTRIBUTING.md) to learn more.
 
 ## License
 
