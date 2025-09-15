@@ -31,6 +31,8 @@ pub struct LocalPtyAdapter {
     pty_children: Arc<Mutex<HashMap<String, Box<dyn Child + Send>>>>,
     pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
+    // Reader task handles, so we can abort residual readers on close to avoid mixed output
+    reader_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     // Coalescing state for terminal output handling
     coalescing_state: CoalescingState,
     // Persistent transcripts for agent terminals
@@ -101,6 +103,7 @@ impl LocalPtyAdapter {
             pty_children: Arc::new(Mutex::new(HashMap::new())),
             pty_masters: Arc::new(Mutex::new(HashMap::new())),
             pty_writers: Arc::new(Mutex::new(HashMap::new())),
+            reader_handles: Arc::new(Mutex::new(HashMap::new())),
             coalescing_state: CoalescingState {
                 app_handle,
                 emit_buffers: Arc::new(RwLock::new(HashMap::new())),
@@ -246,11 +249,11 @@ impl LocalPtyAdapter {
     }
 
 
-    async fn start_reader(
+    fn start_reader(
         id: String,
         mut reader: Box<dyn Read + Send>,
         reader_state: ReaderState,
-    ) {
+    ) -> tokio::task::JoinHandle<()> {
         tokio::task::spawn_blocking(move || {
             let runtime = tokio::runtime::Handle::current();
             let mut buf = [0u8; 8192];
@@ -383,7 +386,7 @@ impl LocalPtyAdapter {
                     }
                 }
             }
-        });
+        })
     }
 
 }
@@ -540,8 +543,8 @@ impl TerminalBackend for LocalPtyAdapter {
         
         self.terminals.write().await.insert(id.clone(), state);
         
-        // Start reader agent
-        Self::start_reader(
+        // Start reader agent and record the handle so we can abort on close
+        let reader_handle = Self::start_reader(
             id.clone(),
             reader,
             ReaderState {
@@ -552,8 +555,8 @@ impl TerminalBackend for LocalPtyAdapter {
                 coalescing_state: self.coalescing_state.clone(),
                 transcript_writers: Arc::clone(&self.transcript_writers),
             },
-        )
-        .await;
+        );
+        self.reader_handles.lock().await.insert(id.clone(), reader_handle);
         
         self.creating.lock().await.remove(&id);
         
@@ -639,6 +642,11 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn close(&self, id: &str) -> Result<(), String> {
         info!("Closing terminal: {id}");
         
+        // Abort reader first to stop any further emission for this terminal id
+        if let Some(handle) = self.reader_handles.lock().await.remove(id) {
+            handle.abort();
+        }
+
         // Try to terminate the child process and wait deterministically without polling
         if let Some(mut child) = self.pty_children.lock().await.remove(id) {
             if let Err(e) = child.kill() {
