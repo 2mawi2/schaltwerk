@@ -381,20 +381,31 @@ export function KanbanView({ isModalOpen = false }: KanbanViewProps) {
     useEffect(() => {
         if (!isModalOpen || !focusedSessionId) return
 
+        let rafId: number | null = null
+        let timeoutId: ReturnType<typeof setTimeout> | null = null
+
         // Use requestAnimationFrame to ensure DOM updates are complete
-        requestAnimationFrame(() => {
+        rafId = requestAnimationFrame(() => {
             // Add a small delay to ensure the focus state has been applied to the DOM
-            setTimeout(() => {
-                const focusedElement = document.querySelector(`[data-focused="true"]`)
-                if (focusedElement) {
-                    focusedElement.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'nearest',
-                        inline: 'nearest'
-                    })
+            timeoutId = setTimeout(() => {
+                // Guard against test teardown environments where document may not exist
+                if (typeof document !== 'undefined') {
+                    const focusedElement = document.querySelector(`[data-focused="true"]`)
+                    if (focusedElement) {
+                        focusedElement.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'nearest',
+                            inline: 'nearest'
+                        })
+                    }
                 }
             }, 50)
         })
+
+        return () => {
+            if (rafId != null) cancelAnimationFrame(rafId)
+            if (timeoutId != null) clearTimeout(timeoutId)
+        }
     }, [focusedSessionId, isModalOpen])
 
     // Initialize focus on first session when modal opens
