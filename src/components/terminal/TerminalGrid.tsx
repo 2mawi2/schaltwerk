@@ -16,6 +16,8 @@ import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { AnimatedText } from '../common/AnimatedText'
+import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
+import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
@@ -86,6 +88,21 @@ export function TerminalGrid() {
     const terminalTabsRef = useRef<TerminalTabsHandle>(null)
     const runTerminalRefs = useRef<Map<string, RunTerminalHandle>>(new Map())
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
+    const [confirmResetOpen, setConfirmResetOpen] = useState(false)
+    const [isResetting, setIsResetting] = useState(false)
+    const handleConfirmReset = useCallback(async () => {
+        if (selection.kind !== 'session' || !selection.payload) return
+        try {
+            setIsResetting(true)
+            await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName: selection.payload })
+            window.dispatchEvent(new CustomEvent('schaltwerk:reset-terminals'))
+            setConfirmResetOpen(false)
+        } catch (err) {
+            logger.error('[TerminalGrid] Failed to reset session worktree:', err)
+        } finally {
+            setIsResetting(false)
+        }
+    }, [selection])
     
     // Run Mode state
     const [hasRunScripts, setHasRunScripts] = useState(false)
@@ -799,8 +816,18 @@ export function TerminalGrid() {
                             {selection.kind === 'orchestrator' ? 'Orchestrator — main repo' : `Agent — ${selection.payload ?? ''}`}
                         </span>
                         
-                        {/* Right side: ⌘T indicator */}
-                        <span className={`ml-auto text-[10px] px-1.5 py-0.5 rounded transition-colors duration-200 ${
+                        {/* Right side: Reset (session only) + ⌘T indicator */}
+                        {selection.kind === 'session' && (
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setConfirmResetOpen(true) }}
+                                className="ml-auto mr-2 p-1 rounded hover:bg-slate-800"
+                                title="Reset session"
+                                aria-label="Reset session"
+                            >
+                                <VscDiscard className="text-base" />
+                            </button>
+                        )}
+                        <span className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded transition-colors duration-200 ${
                             localFocus === 'claude' 
                                 ? 'bg-blue-600/40 text-blue-200' 
                                 : 'bg-slate-700/50 text-slate-400'
@@ -1018,6 +1045,12 @@ export function TerminalGrid() {
                     </div>
                 </div>
             </Split>
+            <ConfirmResetDialog
+                open={confirmResetOpen && selection.kind === 'session'}
+                onCancel={() => setConfirmResetOpen(false)}
+                onConfirm={handleConfirmReset}
+                isBusy={isResetting}
+            />
         </div>
     )
 }

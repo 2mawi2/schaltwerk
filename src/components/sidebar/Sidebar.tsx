@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
-import { clsx } from 'clsx'
+import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
