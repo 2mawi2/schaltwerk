@@ -1771,6 +1771,33 @@ pub async fn schaltwerk_core_reset_session_worktree(app: tauri::AppHandle, sessi
     reset_session_worktree_impl(Some(app), session_name).await
 }
 
+#[tauri::command]
+pub async fn schaltwerk_core_discard_file_in_session(session_name: String, file_path: String) -> Result<(), String> {
+    log::info!("Discarding file changes in session '{session_name}' for path: {file_path}");
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    let manager = core.session_manager();
+    manager.discard_file_in_session(&session_name, &file_path)
+        .map_err(|e| format!("Failed to discard file changes: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_discard_file_in_orchestrator(file_path: String) -> Result<(), String> {
+    log::info!("Discarding file changes in orchestrator for path: {file_path}");
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+    // Operate directly on the main repo workdir
+    let repo_path = std::path::Path::new(&core.repo_path).to_path_buf();
+
+    // Safety: disallow .schaltwerk paths
+    if file_path.starts_with(".schaltwerk/") {
+        return Err("Refusing to discard changes under .schaltwerk".to_string());
+    }
+
+    schaltwerk::domains::git::worktrees::discard_path_in_worktree(&repo_path, std::path::Path::new(&file_path))
+        .map_err(|e| format!("Failed to discard file changes: {e}"))
+}
+
 #[cfg(test)]
 mod reset_tests {
     use super::*;

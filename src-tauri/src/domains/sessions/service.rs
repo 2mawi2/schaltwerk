@@ -1757,4 +1757,37 @@ impl SessionManager {
         // Delegate to git domain code (already constrained to this repo)
         crate::domains::git::worktrees::reset_worktree_to_base(&session.worktree_path, &session.parent_branch)
     }
+
+    /// Discard changes for a single file in a session's worktree (defensive checks included).
+    pub fn discard_file_in_session(&self, name: &str, rel_file_path: &str) -> Result<()> {
+        let session = self.db_manager.get_session_by_name(name)?;
+
+        if !session.worktree_path.starts_with(&self.repo_path) {
+            return Err(anyhow!("Invalid worktree path for this project"));
+        }
+
+        // Open repo; prefer safety but don't hard-fail on head anomalies to avoid blocking user flow
+        let repo = git2::Repository::open(&session.worktree_path)
+            .map_err(|e| anyhow!("Failed to open worktree repository: {e}"))?;
+        if let Ok(head) = repo.head() {
+            if let Some(name) = head.shorthand() {
+                if name != session.branch {
+                    log::warn!(
+                        "Discard file: HEAD shorthand '{}' != session branch '{}' (continuing defensively)",
+                        name, session.branch
+                    );
+                }
+            }
+        } else {
+            log::warn!("Discard file: unable to read HEAD; continuing defensively");
+        }
+
+        // Prevent touching our internal control area
+        if rel_file_path.starts_with(".schaltwerk/") {
+            return Err(anyhow!("Refusing to discard changes under .schaltwerk"));
+        }
+
+        let path = std::path::Path::new(rel_file_path);
+        crate::domains::git::worktrees::discard_path_in_worktree(&session.worktree_path, path)
+    }
 }

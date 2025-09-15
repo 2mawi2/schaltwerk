@@ -10,6 +10,7 @@ import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
 import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
+import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 
 
 interface ChangedFile {
@@ -38,6 +39,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const sessionName = sessionNameOverride ?? (selection.kind === 'session' ? selection.payload : null)
   const [isResetting, setIsResetting] = useState(false)
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
+  const [discardBusy, setDiscardBusy] = useState(false)
+  const [pendingDiscardFile, setPendingDiscardFile] = useState<string | null>(null)
   const lastResultRef = useRef<string>('')
   
   // Use refs to track current values without triggering effect recreations
@@ -391,6 +395,19 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
                    file.change_type === 'deleted' ? 'D' : 
                    file.change_type[0].toUpperCase()}
                 </div>
+                {/* Discard single-file button */}
+                <button
+                  title="Discard changes for this file"
+                  aria-label={`Discard ${file.path}`}
+                  className="ml-2 p-1 rounded hover:bg-slate-800 text-slate-300"
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    setPendingDiscardFile(file.path)
+                    setDiscardOpen(true)
+                  }}
+                >
+                  <VscDiscard className="text-base" />
+                </button>
               </div>
             ))}
           </div>
@@ -417,6 +434,33 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       )}
     </div>
     <ConfirmResetDialog open={confirmOpen} onCancel={() => setConfirmOpen(false)} onConfirm={handleResetSession} isBusy={isResetting} />
+    <ConfirmDiscardDialog
+      open={discardOpen}
+      filePath={pendingDiscardFile}
+      isBusy={discardBusy}
+      onCancel={() => {
+        setDiscardOpen(false)
+        setPendingDiscardFile(null)
+      }}
+      onConfirm={async () => {
+        if (!pendingDiscardFile) return
+        try {
+          setDiscardBusy(true)
+          if (isCommander && !sessionName) {
+            await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: pendingDiscardFile })
+          } else if (sessionName) {
+            await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: pendingDiscardFile })
+          }
+          await loadChangedFilesRef.current()
+        } catch (err) {
+          logger.error('Discard file failed:', err)
+        } finally {
+          setDiscardBusy(false)
+          setDiscardOpen(false)
+          setPendingDiscardFile(null)
+        }
+      }}
+    />
     </>
   )
 }

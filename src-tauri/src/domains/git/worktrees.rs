@@ -3,6 +3,97 @@ use anyhow::{Result, anyhow};
 use git2::{Repository, WorktreeAddOptions, BranchType, build::CheckoutBuilder, WorktreePruneOptions};
 use super::repository::get_commit_hash;
 use git2::ResetType;
+use std::fs;
+
+/// Discard changes for a single path inside a worktree.
+///
+/// Behavior:
+/// - If the file is modified or deleted: restore content from HEAD for that path.
+/// - If the file is newly added and untracked: remove the working copy (path-specific clean).
+/// - If the file is staged: reset index entry for that path to HEAD.
+///
+/// Defensive guarantees:
+/// - Ensures `file_path` resolves inside `worktree_path`.
+/// - Never touches refs/other files; operates only on the provided pathspec.
+pub fn discard_path_in_worktree(worktree_path: &Path, file_path: &Path) -> Result<()> {
+    let repo = Repository::open(worktree_path)?;
+
+    // Accept both the main working directory and proper git worktrees
+
+    // Build absolute path and ensure it resides within the worktree
+    let abs_worktree = worktree_path
+        .canonicalize()
+        .unwrap_or_else(|_| worktree_path.to_path_buf());
+    let candidate = if file_path.is_absolute() {
+        file_path.to_path_buf()
+    } else {
+        abs_worktree.join(file_path)
+    };
+    let abs_candidate = candidate.canonicalize().unwrap_or(candidate.clone());
+    if !abs_candidate.starts_with(&abs_worktree) {
+        return Err(anyhow!("Refusing to discard path outside of worktree"));
+    }
+
+    // Compute repo-relative pathspec
+    let rel = abs_candidate
+        .strip_prefix(&abs_worktree)
+        .map_err(|_| anyhow!("Failed to compute relative path"))?;
+    let rel_str = rel.to_string_lossy().to_string();
+
+    // Determine HEAD tree (may be unborn on empty repo)
+    let head_tree = match repo.head() {
+        Ok(h) => {
+            if let Some(oid) = h.target() {
+                Some(repo.find_commit(oid)?.tree()?)
+            } else {
+                None
+            }
+        }
+        Err(_) => None,
+    };
+
+    // If path is untracked and not in HEAD, deleting the file is the correct discard.
+    let is_tracked_in_head = if let Some(tree) = &head_tree {
+        tree.get_path(rel).is_ok()
+    } else {
+        false
+    };
+
+    // Reset index/working tree for exactly this path.
+    let mut builder = git2::build::CheckoutBuilder::new();
+    builder.force().path(&rel_str);
+    // Do not instruct checkout to delete untracked; we handle untracked safely below
+
+    match head_tree {
+        Some(_) => {
+            // Reset only the given path in the index (None => HEAD)
+            repo.reset_default(None, [rel_str.as_str()])?;
+            // Restore the file content from HEAD for that path
+            repo.checkout_head(Some(&mut builder))?;
+        }
+        None => {
+            // No HEAD yet (rare). Just clear any staged entry
+            let mut index = repo.index()?;
+            index.remove_path(rel).ok();
+            index.write()?;
+        }
+    }
+
+    // Safely handle untracked additions: move to backup rather than hard-delete
+    if !is_tracked_in_head && abs_candidate.exists() && abs_candidate.is_file() {
+        let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
+        let backup_root = abs_worktree.join(".schaltwerk").join("discarded").join(ts);
+        let backup_path = backup_root.join(rel);
+        if let Some(parent) = backup_path.parent() { std::fs::create_dir_all(parent).ok(); }
+        // Best-effort move; if rename fails, try copy+remove
+        if fs::rename(&abs_candidate, &backup_path).is_err()
+            && std::fs::copy(&abs_candidate, &backup_path).is_ok() {
+            let _ = fs::remove_file(&abs_candidate);
+        }
+    }
+
+    Ok(())
+}
 
 pub fn create_worktree_from_base(
     repo_path: &Path,
@@ -319,6 +410,96 @@ mod unit_logic_tests {
         assert!(super::validate_branch_name("..bad").is_err());
         assert!(super::validate_branch_name("bad\\name").is_err());
         assert!(super::validate_branch_name("").is_err());
+    }
+}
+
+#[cfg(test)]
+mod discard_path_tests {
+    use super::*;
+    use tempfile::TempDir;
+    use git2::Repository;
+
+    fn init_repo(dir: &Path) -> Repository {
+        let repo = Repository::init(dir).unwrap();
+        // configure user
+        {
+            let mut cfg = repo.config().unwrap();
+            cfg.set_str("user.name", "Test").unwrap();
+            cfg.set_str("user.email", "test@example.com").unwrap();
+        }
+        // initial commit
+        {
+            let mut index = repo.index().unwrap();
+            let tree_id = index.write_tree().unwrap();
+            let tree = repo.find_tree(tree_id).unwrap();
+            let sig = repo.signature().unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[]).unwrap();
+        }
+        repo
+    }
+
+    #[test]
+    fn discard_modified_file_restores_head() {
+        let tmp = TempDir::new().unwrap();
+        let repo = init_repo(tmp.path());
+        std::fs::write(tmp.path().join("a.txt"), "v1").unwrap();
+        // commit v1
+        let mut idx = repo.index().unwrap();
+        idx.add_path(Path::new("a.txt")).unwrap();
+        idx.write().unwrap();
+        let tree_id = idx.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "add a", &tree, &[&head]).unwrap();
+
+        // modify to v2 (unstaged)
+        std::fs::write(tmp.path().join("a.txt"), "v2").unwrap();
+        discard_path_in_worktree(tmp.path(), Path::new("a.txt")).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("a.txt")).unwrap();
+        assert_eq!(content, "v1");
+    }
+
+    #[test]
+    fn discard_added_untracked_moves_to_backup() {
+        let tmp = TempDir::new().unwrap();
+        let _repo = init_repo(tmp.path());
+        let p = tmp.path().join("new.txt");
+        std::fs::write(&p, "temp").unwrap();
+        assert!(p.exists());
+        discard_path_in_worktree(tmp.path(), Path::new("new.txt")).unwrap();
+        assert!(!p.exists());
+        // Verify it was moved under .schaltwerk/discarded/
+        let disc_dir = tmp.path().join(".schaltwerk/discarded");
+        let mut found = false;
+        if disc_dir.exists() {
+            for entry in std::fs::read_dir(disc_dir).unwrap() {
+                let sub = entry.unwrap().path();
+                let candidate = sub.join("new.txt");
+                if candidate.exists() { found = true; break; }
+            }
+        }
+        assert!(found, "backup copy not found under .schaltwerk/discarded");
+    }
+
+    #[test]
+    fn discard_deleted_restores_file() {
+        let tmp = TempDir::new().unwrap();
+        let repo = init_repo(tmp.path());
+        std::fs::write(tmp.path().join("b.txt"), "keep").unwrap();
+        let mut idx = repo.index().unwrap();
+        idx.add_path(Path::new("b.txt")).unwrap();
+        idx.write().unwrap();
+        let tree_id = idx.write_tree().unwrap();
+        let tree = repo.find_tree(tree_id).unwrap();
+        let sig = repo.signature().unwrap();
+        let head = repo.head().unwrap().peel_to_commit().unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "add b", &tree, &[&head]).unwrap();
+        // delete from workdir
+        std::fs::remove_file(tmp.path().join("b.txt")).unwrap();
+        discard_path_in_worktree(tmp.path(), Path::new("b.txt")).unwrap();
+        let content = std::fs::read_to_string(tmp.path().join("b.txt")).unwrap();
+        assert_eq!(content, "keep");
     }
 }
 

@@ -82,6 +82,9 @@ export const TauriCommands = {
   SchaltwerkCoreRenameVersionGroup: 'schaltwerk_core_rename_version_group',
   SchaltwerkCoreResetOrchestrator: 'schaltwerk_core_reset_orchestrator',
   SchaltwerkCoreResetSessionWorktree: 'schaltwerk_core_reset_session_worktree',
+  // Discard changes for a single file (session or orchestrator)
+  SchaltwerkCoreDiscardFileInSession: 'schaltwerk_core_discard_file_in_session',
+  SchaltwerkCoreDiscardFileInOrchestrator: 'schaltwerk_core_discard_file_in_orchestrator',
   SchaltwerkCoreRestoreArchivedSpec: 'schaltwerk_core_restore_archived_spec',
   SchaltwerkCoreSetAgentType: 'schaltwerk_core_set_agent_type',
   SchaltwerkCoreSetArchiveMaxEntries: 'schaltwerk_core_set_archive_max_entries',

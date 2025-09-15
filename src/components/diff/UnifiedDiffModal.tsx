@@ -20,6 +20,7 @@ import '../../styles/vscode-dark-theme.css'
 import { logger } from '../../utils/logger'
 // AnimatedText imported elsewhere in this file; remove unused import here
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
+import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -72,6 +73,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [isSearchVisible, setIsSearchVisible] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
+  const [isDiscarding, setIsDiscarding] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
@@ -306,6 +309,26 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       suppressAutoSelectRef.current = false
     }, 250)
   }, [isLargeDiffMode, files, sessionName, allFileDiffs])
+
+  const discardCurrentFile = useCallback(async () => {
+    const target = selectedFile
+    if (!target) return
+    try {
+      setIsDiscarding(true)
+      const confirmMsg = `Discard changes for:\n${target}\n\nThis only affects your current changes (index + working tree).`
+      if (!window.confirm(confirmMsg)) return
+      if (isCommanderView() && !sessionName) {
+        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: target })
+      } else if (sessionName) {
+        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: target })
+      }
+      await loadChangedFiles()
+    } catch (e) {
+      logger.error('Failed to discard file in modal:', e)
+    } finally {
+      setIsDiscarding(false)
+    }
+  }, [selectedFile, sessionName, loadChangedFiles, isCommanderView])
 
   // Set up Intersection Observer for virtual scrolling in continuous mode
   useEffect(() => {
@@ -1018,6 +1041,26 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
             {/* Diff viewer */}
             <div className="flex-1 flex flex-col overflow-hidden relative animate-fadeIn">
+              {/* Per-file discard button in modal header area (top-right overlay) */}
+              {selectedFile && (
+                <div className="absolute right-3 top-2 z-20">
+                  <button
+                    onClick={() => setDiscardOpen(true)}
+                    className="px-2 py-1 rounded bg-slate-800/70 hover:bg-slate-800 text-slate-200 text-xs flex items-center gap-1"
+                    title="Discard changes for this file"
+                    disabled={isDiscarding}
+                  >
+                    {isDiscarding ? (
+                      <span className="opacity-80">Discarding…</span>
+                    ) : (
+                      <>
+                        <VscDiscard />
+                        <span>Discard File</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
               <DiffViewer
                 files={files}
                 selectedFile={selectedFile}
@@ -1047,6 +1090,18 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 targetRef={scrollContainerRef}
                 isVisible={isSearchVisible}
                 onClose={() => setIsSearchVisible(false)}
+              />
+
+              {/* Confirm discard modal */}
+              <ConfirmDiscardDialog
+                open={discardOpen}
+                isBusy={isDiscarding}
+                filePath={selectedFile}
+                onCancel={() => setDiscardOpen(false)}
+                onConfirm={async () => {
+                  setDiscardOpen(false)
+                  await discardCurrentFile()
+                }}
               />
 
               <ConfirmResetDialog
