@@ -1,4 +1,4 @@
-import React from 'react'
+// Uses the automatic JSX runtime; no React import needed
 
 function Arrow({ x1, y1, x2, y2, color = '#94a3b8' }: { x1: number; y1: number; x2: number; y2: number; color?: string }) {
   // simple arrow marker replacement (triangle)
