@@ -1073,9 +1073,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         // Initial fit: fonts ready + RAF
         (async () => {
-            try { await (document as any).fonts?.ready }
-            catch (e) { logger.debug('[Terminal] fonts.ready unavailable', e) }
-            finally { requestAnimationFrame(() => handleResize()) }
+            try {
+                const fontsReady = (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts?.ready;
+                if (fontsReady) {
+                    await fontsReady;
+                }
+            } catch (e) {
+                logger.debug('[Terminal] fonts.ready unavailable', e);
+            } finally {
+                requestAnimationFrame(() => handleResize());
+            }
         })();
 
         // After split drag ends, perform a strong fit + resize

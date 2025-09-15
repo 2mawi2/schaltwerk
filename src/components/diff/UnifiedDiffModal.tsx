@@ -249,7 +249,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       setIsResetting(false)
       setConfirmResetOpen(false)
     }
-  }, [sessionName, loadChangedFiles])
+  }, [sessionName, loadChangedFiles, onClose])
 
   const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll

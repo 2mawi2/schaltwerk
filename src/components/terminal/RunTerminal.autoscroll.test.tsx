@@ -9,7 +9,7 @@ vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
 // Minimal xterm mock with scroll spies
 vi.mock('xterm', () => {
-  const instances: any[] = []
+  const instances: unknown[] = []
   class MockXTerm {
     static __instances = instances
     options: Record<string, unknown>
@@ -45,13 +45,13 @@ vi.mock('@xterm/addon-search', () => ({
 
 // Tauri core invoke mock
 vi.mock('@tauri-apps/api/core', () => {
-  const handlers = new Map<string, (args: any) => unknown | Promise<unknown>>()
-  const invoke = vi.fn(async (cmd: string, args?: any) => {
+  const handlers = new Map<string, (args: unknown) => unknown | Promise<unknown>>()
+  const invoke = vi.fn(async (cmd: string, args?: unknown) => {
     const h = handlers.get(cmd)
     if (h) return await h(args || {})
     return undefined
   })
-  function __setInvokeHandler(cmd: string, handler: (args: any) => unknown | Promise<unknown>) { handlers.set(cmd, handler) }
+  function __setInvokeHandler(cmd: string, handler: (args: unknown) => unknown | Promise<unknown>) { handlers.set(cmd, handler) }
   function __clearInvokeHandlers() { handlers.clear() }
   return { invoke, __setInvokeHandler, __clearInvokeHandlers }
 })
@@ -94,12 +94,16 @@ describe('Run terminal auto-scroll behavior', () => {
   beforeEach(async () => {
     vi.useFakeTimers()
     const core = await import('@tauri-apps/api/core')
-    ;(core as any).invoke.mockClear()
-    ;(core as any).__clearInvokeHandlers()
-    ;(core as any).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
-    ;(core as any).__setInvokeHandler(TauriCommands.TerminalExists, () => true)
-    ;(core as any).__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
-    ;(core as any).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)
+    ;(core as unknown as {
+      invoke: { mockClear: () => void }
+      __clearInvokeHandlers: () => void
+      __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void
+    }).invoke.mockClear()
+    ;(core as unknown as { __clearInvokeHandlers: () => void }).__clearInvokeHandlers()
+    ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.TerminalExists, () => true)
+    ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
+    ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)
   })
 
   afterEach(() => {
@@ -108,8 +112,9 @@ describe('Run terminal auto-scroll behavior', () => {
   })
 
   it('does not auto-scroll while user is selecting text (run agent)', async () => {
-    const { __getLastInstance } = await import('xterm') as any
-    const events = await import('@tauri-apps/api/event') as any
+    type MockFn = ((...args: unknown[]) => unknown) & { mock: { calls: unknown[] }, mockClear: () => void }
+    const { __getLastInstance } = await import('xterm') as unknown as { __getLastInstance: () => { buffer: { active: { baseY: number, viewportY: number } }, scrollToBottom: MockFn } }
+    const events = await import('@tauri-apps/api/event') as unknown as { __emit: (event: string, payload: unknown) => void }
 
     const { container } = renderWithProviders(
       <Terminal terminalId="run-terminal-demo" agentType="run" />
@@ -143,7 +148,7 @@ describe('Run terminal auto-scroll behavior', () => {
   })
 
   it('does not focus on click when selecting in run terminal', async () => {
-    const focusUtils = await import('../../utils/safeFocus') as any
+    const focusUtils = await import('../../utils/safeFocus') as unknown as { safeTerminalFocusImmediate: (...args: unknown[]) => unknown }
     const { container } = renderWithProviders(
       <Terminal terminalId="run-terminal-click" agentType="run" />
     )
@@ -175,8 +180,8 @@ vi.mock('../../utils/safeFocus', () => ({
   safeTerminalFocusImmediate: vi.fn((fn: () => void) => fn()),
   safeTerminalFocus: vi.fn((fn: () => void) => fn()),
 }))
-    const { __getLastInstance } = await import('xterm') as any
-    const events = await import('@tauri-apps/api/event') as any
+    const { __getLastInstance } = await import('xterm') as unknown as { __getLastInstance: () => { buffer: { active: { baseY: number, viewportY: number } }, scrollToBottom: (...args: unknown[]) => unknown } }
+    const events = await import('@tauri-apps/api/event') as unknown as { __emit: (event: string, payload: unknown) => void }
 
     renderWithProviders(
       <Terminal terminalId="run-terminal-demo2" agentType="run" />

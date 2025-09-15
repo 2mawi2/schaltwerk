@@ -346,7 +346,7 @@ mod tests {
     use std::path::Path;
     use std::fs;
     use std::io::Write;
-    use tempfile::{tempdir, NamedTempFile};
+    use tempfile::tempdir;
 
     #[test]
     fn test_new_session_with_prompt() {

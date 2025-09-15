@@ -297,7 +297,6 @@ pub fn reset_worktree_to_base(worktree_path: &Path, base_branch: &str) -> Result
 
 #[cfg(test)]
 mod unit_logic_tests {
-    use super::*;
 
     // NOTE: These tests validate input/selection logic without touching a real repository,
     // by checking the order of reference candidates used to resolve the base.

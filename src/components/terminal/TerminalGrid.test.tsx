@@ -910,10 +910,11 @@ describe('TerminalGrid', () => {
     }, { timeout: 3000 })
 
     // Access the mocked Split props to trigger onDragStart manually
-    const splitMod: any = await import('react-split')
+    const splitMod = await import('react-split') as unknown as { __getLastProps?: () => { onDragStart: () => void } }
     const props = splitMod.__getLastProps?.() || null
     expect(props).toBeTruthy()
     // Start dragging (adds body class)
+    if (!props) throw new Error('react-split mock props missing')
     props.onDragStart()
     expect(document.body.classList.contains('is-split-dragging')).toBe(true)
 

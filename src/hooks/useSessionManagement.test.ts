@@ -41,8 +41,9 @@ describe('useSessionManagement', () => {
             await act(async () => {
                 // Emit lifecycle events deterministically as the hook now awaits them
                 setTimeout(() => {
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
                 })
                 await result.current.resetSession(selection, mockTerminals)
             })
@@ -66,11 +67,13 @@ describe('useSessionManagement', () => {
             mockInvoke
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockImplementationOnce(async () => { // close_terminal
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
                 .mockImplementationOnce(async () => { // schaltwerk_core_start_claude
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
 
@@ -104,7 +107,8 @@ describe('useSessionManagement', () => {
             mockInvoke
                 .mockResolvedValueOnce(false) // terminal_exists returns false
                 .mockImplementationOnce(async () => { // schaltwerk_core_start_claude
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
 
@@ -128,8 +132,9 @@ describe('useSessionManagement', () => {
 
             const resetPromise = act(async () => {
                 setTimeout(() => {
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
                 })
                 await result.current.resetSession(selection, mockTerminals)
             })
@@ -181,11 +186,13 @@ describe('useSessionManagement', () => {
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockImplementationOnce(async () => { // close_terminal
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
                 .mockImplementationOnce(async () => { // schaltwerk_core_start_claude_orchestrator
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
 
@@ -223,11 +230,13 @@ describe('useSessionManagement', () => {
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_session_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockImplementationOnce(async () => { // close_terminal
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-closed', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
                 .mockImplementationOnce(async () => { // schaltwerk_core_start_claude
-                    ;(TauriEvent as any).__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
+                    const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
+                    tev.__emit('schaltwerk:terminal-agent-started', { terminal_id: 'test-terminal-top' })
                     return undefined
                 })
 
