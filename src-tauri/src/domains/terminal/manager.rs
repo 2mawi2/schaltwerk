@@ -217,23 +217,26 @@ impl TerminalManager {
         // Send bracketed paste start sequence
         let paste_start = b"\x1b[200~";
         self.backend.write(&id, paste_start).await?;
-        
-        // Small delay to ensure paste start is processed
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        
-        // Send the actual content
-        self.backend.write(&id, &data).await?;
-        
-        // Small delay before paste end
-        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-        
+
+        // Write content deterministically in bounded chunks to avoid
+        // pipe coalescing with the paste end marker on busy terminals.
+        // No sleeps: rely on write_all+flush in backend for ordering.
+        if !data.is_empty() {
+            const CHUNK: usize = 4096;
+            let mut offset = 0;
+            while offset < data.len() {
+                let end = std::cmp::min(offset + CHUNK, data.len());
+                self.backend.write(&id, &data[offset..end]).await?;
+                offset = end;
+                // Yield to executor to let downstream readers progress without timing hacks
+                tokio::task::yield_now().await;
+            }
+        }
+
         // Send bracketed paste end sequence
         let paste_end = b"\x1b[201~";
         self.backend.write(&id, paste_end).await?;
-        
-        // Critical delay to ensure agent processes paste end before Enter
-        tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
-        
+
         // Send Enter key (carriage return) as a separate, non-paste action
         let enter = b"\r";
         self.backend.write(&id, enter).await?;
