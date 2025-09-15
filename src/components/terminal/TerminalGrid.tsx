@@ -481,39 +481,35 @@ export function TerminalGrid() {
     // Compute collapsed percent based on actual header height and container size
     useEffect(() => {
         if (!isBottomCollapsed) return
-        const computeCollapsedPercent = () => {
+        const compute = () => {
             const container = containerRef.current
             if (!container) return
             const total = container.clientHeight
             if (total <= 0) return
             const headerEl = container.querySelector('[data-bottom-header]') as HTMLElement | null
             const headerHeight = headerEl?.offsetHeight || 40
-            // Ensure minimum 40px for the header bar (including borders)
-            const minPixels = 44 // 40px header + 2px border + 2px gradient line
+            const minPixels = 44
             const minPct = (minPixels / total) * 100
             const pct = Math.max(minPct, Math.min(15, (headerHeight / total) * 100))
-            // Only update if significantly different to avoid cascading resizes
             if (Math.abs(pct - collapsedPercent) > 1.0) {
                 setCollapsedPercent(pct)
-                // Use requestAnimationFrame to avoid mid-frame updates
-                // Note: setSizes doesn't focus, so no need for safeFocus here
-                requestAnimationFrame(() => {
-                    setSizes([100 - pct, pct])
-                })
+                requestAnimationFrame(() => setSizes([100 - pct, pct]))
             }
         }
-        // Initial computation with delay to ensure layout is stable
-        const timer = setTimeout(computeCollapsedPercent, 50)
-        const ro = new ResizeObserver(() => {
-            // Debounce resize observations to avoid too frequent updates
-            clearTimeout(timer)
-            setTimeout(computeCollapsedPercent, 100)
-        })
-        if (containerRef.current) ro.observe(containerRef.current)
-        return () => {
-            clearTimeout(timer)
-            ro.disconnect()
+        let rafPending = false
+        const schedule = () => {
+            if (rafPending) return
+            rafPending = true
+            requestAnimationFrame(() => {
+                rafPending = false
+                compute()
+            })
         }
+        // Initial computation (RAF) and observe size changes
+        schedule()
+        const ro = new ResizeObserver(schedule)
+        if (containerRef.current) ro.observe(containerRef.current)
+        return () => { ro.disconnect() }
     }, [isBottomCollapsed, collapsedPercent])
 
     // Load sizes/collapse state when selection changes (avoid unnecessary updates)

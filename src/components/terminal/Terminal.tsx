@@ -45,7 +45,7 @@ export interface TerminalHandle {
 
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady }, ref) => {
     const { terminalFontSize } = useFontSize();
-    const { addEventListener, addResizeObserver, addTimeout } = useCleanupRegistry();
+    const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
@@ -64,11 +64,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const droppedBytesRef = useRef(0);
     const overflowActiveRef = useRef(false);
     const rafIdRef = useRef<number | null>(null);
-    const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const pendingFlushRef = useRef<boolean>(false);
     const seqRef = useRef<number>(0);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
-    // When renderer isn't ready, avoid unbounded recursive timers by keeping a single retry timer
-    const notReadyRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
     const unlistenPromiseRef = useRef<Promise<UnlistenFn> | null>(null);
     const mountedRef = useRef<boolean>(false);
@@ -346,7 +345,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
-        const mountTime = Date.now();
+        // track mounted lifecycle only; no timer-based logic tied to mount time
         if (!termRef.current) {
             logger.error(`[Terminal ${terminalId}] No ref available!`);
             return;
@@ -359,7 +358,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         queueBytesRef.current = 0;
         droppedBytesRef.current = 0;
         if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
-        if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
+        pendingFlushRef.current = false;
 
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
@@ -669,65 +668,32 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Defer initial resize until we have a real fit with measurable container
 
 
-        // Flush queued writes with minimal delay for responsiveness
-        const flushQueuedWrites = () => {
-            // Defer until renderer is ready to avoid xterm renderer invariants
-            if (!rendererReadyRef.current) {
-                if (!mountedRef.current) return;
-                if (!notReadyRetryTimerRef.current) {
-                    notReadyRetryTimerRef.current = setTimeout(() => {
-                        notReadyRetryTimerRef.current = null;
-                        flushQueuedWrites();
-                    }, 16);
-                }
-                return;
-            }
-            if (flushTimerRef.current) return;
-            // Use a very short timeout to coalesce multiple events while maintaining responsiveness
-            flushTimerRef.current = setTimeout(() => {
-                flushTimerRef.current = null;
-                if (!terminal.current || writeQueueRef.current.length === 0) return;
+        const scheduleFlush = () => {
+            if (pendingFlushRef.current) return;
+            pendingFlushRef.current = true;
+            queueMicrotask(() => {
+                pendingFlushRef.current = false;
+                if (!rendererReadyRef.current || !terminal.current || writeQueueRef.current.length === 0) return;
                 const chunk = dequeueChunk(MAX_WRITE_CHUNK);
                 try {
-                    // Capture bottom state BEFORE writing; write callback runs after parse
                     const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
                     const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
                         ? buffer.viewportY === buffer.baseY
                         : false;
                     if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                     terminal.current.write(chunk, () => {
-                        try {
-                            if (shouldAutoScroll(wasAtBottom)) {
-                                terminal.current!.scrollToBottom();
-                            }
-                        } catch (error) {
-                            logger.debug('Scroll error during terminal output (cb)', error);
-                        } finally {
-                            if (writeQueueRef.current.length > 0) {
-                                // Break the synchronous callback chain to avoid deep recursion
-                                // Use microtask to schedule the next drain deterministically
-                                queueMicrotask(() => flushQueuedWrites());
-                            }
-                        }
+                        try { if (shouldAutoScroll(wasAtBottom)) terminal.current!.scrollToBottom(); } catch (error) { logger.debug('Scroll error during terminal output (cb)', error); }
+                        if (writeQueueRef.current.length > 0) scheduleFlush();
                     });
                 } catch (e) {
-                    logger.debug('xterm write failed in flushQueuedWrites', e);
+                    logger.debug('xterm write failed in scheduleFlush', e);
                 }
-            }, 2);
+            });
         };
 
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
-            if (!rendererReadyRef.current) {
-                if (!mountedRef.current) return;
-                if (!notReadyRetryTimerRef.current) {
-                    notReadyRetryTimerRef.current = setTimeout(() => {
-                        notReadyRetryTimerRef.current = null;
-                        flushNow();
-                    }, 16);
-                }
-                return;
-            }
+            if (!rendererReadyRef.current) return;
             if (!terminal.current || writeQueueRef.current.length === 0) return;
             const chunk = dequeueChunk(MAX_WRITE_CHUNK);
             try {
@@ -744,10 +710,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     } catch (error) {
                         logger.debug('Scroll error during buffer flush (cb)', error);
                     } finally {
-                        if (writeQueueRef.current.length > 0) {
-                            // Avoid recursive synchronous reentry; schedule the next slice as a microtask
-                            queueMicrotask(() => flushNow());
-                        }
+                        if (writeQueueRef.current.length > 0) queueMicrotask(() => flushNow());
                     }
                 });
             } catch (e) {
@@ -827,7 +790,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     pendingOutput.current.push(output);
                 } else {
                     enqueueWrite(output);
-                    flushQueuedWrites();
+                    scheduleFlush();
                 }
             });
             return unlistenRef.current!;
@@ -982,7 +945,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
 
         // Handle font size changes with better debouncing
-        let fontSizeChangeTimer: NodeJS.Timeout | null = null;
+        let fontSizeRafPending = false;
         const handleFontSizeChange = (ev: Event) => {
             if (!terminal.current) return;
 
@@ -992,11 +955,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 terminal.current.options.fontSize = newTerminalFontSize;
             }
 
-            // Clear any pending font size change
-            if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
-
-            // Debounce the fit operation to prevent rapid resizes
-            fontSizeChangeTimer = setTimeout(() => {
+            if (fontSizeRafPending) return;
+            fontSizeRafPending = true;
+            requestAnimationFrame(() => {
+                fontSizeRafPending = false;
                 if (!fitAddon.current || !terminal.current || !mountedRef.current) return;
 
                 // Capture scroll position before font size change
@@ -1034,7 +996,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
-            }, 100);
+            });
         };
 
         addEventListener(window, 'font-size-changed', handleFontSizeChange);
@@ -1048,13 +1010,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         
         // Send initialization sequence to ensure proper terminal mode
         // This helps with arrow key handling in some shells
-        setTimeout(() => {
+        requestAnimationFrame(() => {
             if (terminal.current) {
-                // Send a null byte to initialize the terminal properly
-                // This helps ensure the shell is in the right mode
                 invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '' }).catch(err => logger.debug('[Terminal] init write ignored (backend not ready yet)', err));
             }
-        }, 100);
+        });
 
         // Handle terminal resize - only send if size actually changed
         const handleResize = () => {
@@ -1099,77 +1059,28 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
 
         // Use ResizeObserver with more stable debouncing to prevent jitter
-        let resizeTimeout: NodeJS.Timeout | null = null;
-        let immediateResizeTimeout: NodeJS.Timeout | null = null;
-        let lastResizeTime = 0;
-        
-        // Check if this is a TUI application that needs faster resize response
-        const isTuiTerminal = terminalId.includes('opencode') || 
-                             terminalId.includes('cursor-agent') || 
-                             terminalId.includes('cursor') || 
-                             terminalId.includes('gemini') ||
-                             terminalId.includes('claude');
+        let roRafPending = false;
         
         addResizeObserver(termRef.current, () => {
-            // Skip resize work while user drags the split for smoother UI
-            if (document.body.classList.contains('is-split-dragging')) {
-                // Clear any pending immediate resize
-                if (immediateResizeTimeout) {
-                    clearTimeout(immediateResizeTimeout);
-                    immediateResizeTimeout = null;
-                }
-                // Schedule an immediate resize after drag ends
-                immediateResizeTimeout = setTimeout(() => {
-                    handleResize();
-                    immediateResizeTimeout = null;
-                }, 100);
-                return;
-            }
-            
-            const now = Date.now();
-            const timeSinceLastResize = now - lastResizeTime;
-            
-            // Clear any pending resize
-            if (resizeTimeout) clearTimeout(resizeTimeout);
-            
-            // Perform an immediate resize for the first observation to prevent overflow
-            if (timeSinceLastResize > 500) {
-                // Do an immediate resize for significant changes
+            if (document.body.classList.contains('is-split-dragging')) return;
+            if (roRafPending) return;
+            roRafPending = true;
+            requestAnimationFrame(() => {
+                roRafPending = false;
                 handleResize();
-                lastResizeTime = Date.now();
-            } else {
-                // Use shorter debounce for TUI applications for better responsiveness
-                // TUI apps need faster resize feedback to prevent rendering issues
-                const debounceTime = isTuiTerminal 
-                    ? 30  // Even faster response for TUI apps
-                    : 80; // Reduced debouncing for regular terminals
-                
-                resizeTimeout = setTimeout(() => {
-                    lastResizeTime = Date.now();
-                    handleResize();
-                }, debounceTime);
-            }
+            });
         });
         
-        // Initial fit pass after mount - delay to ensure renderer is initialized
-        addTimeout(() => {
-            // Only do initial resize if renderer is ready or if we've waited long enough
-            if (rendererInitialized || Date.now() - mountTime > 200) {
-                handleResize();
-            } else {
-                // Retry after renderer should be initialized
-                addTimeout(() => handleResize(), 100);
-            }
-        }, 60);
+        // Initial fit: fonts ready + RAF
+        (async () => {
+            try { await (document as any).fonts?.ready }
+            catch (e) { logger.debug('[Terminal] fonts.ready unavailable', e) }
+            finally { requestAnimationFrame(() => handleResize()) }
+        })();
 
         // After split drag ends, perform a strong fit + resize
         const doFinalFit = () => {
-            // Clear any immediate resize timeout from drag
-            if (immediateResizeTimeout) {
-                clearTimeout(immediateResizeTimeout);
-                immediateResizeTimeout = null;
-            }
-            
+            // After drag ends, run a strong fit on next frame
             try {
                 if (fitAddon.current && terminal.current && termRef.current) {
                     // Wait a frame for DOM to stabilize after drag
@@ -1213,9 +1124,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cancelled = true;
             rendererReadyRef.current = false;
             
-            if (resizeTimeout) clearTimeout(resizeTimeout);
-            if (immediateResizeTimeout) clearTimeout(immediateResizeTimeout);
-            if (fontSizeChangeTimer) clearTimeout(fontSizeChangeTimer);
+            // no timers to clear
             
             // Synchronously detach if possible to avoid races in tests
             const fn = unlistenRef.current;
@@ -1245,13 +1154,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             pendingOutput.current = [];
             writeQueueRef.current = [];
             if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
-            if (flushTimerRef.current) { clearTimeout(flushTimerRef.current); flushTimerRef.current = null; }
-            if (notReadyRetryTimerRef.current) { clearTimeout(notReadyRetryTimerRef.current); notReadyRetryTimerRef.current = null; }
+            pendingFlushRef.current = false;
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, addTimeout, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1260,25 +1168,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Helper: minimal flush to reuse existing buffering
         const flushQueuedWritesLight = () => {
-            if (flushTimerRef.current) return;
-            flushTimerRef.current = setTimeout(() => {
-                flushTimerRef.current = null;
-                if (!terminal.current || writeQueueRef.current.length === 0) return;
-                const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-                terminal.current.write(chunk);
-                requestAnimationFrame(() => {
-                    try {
-                        const buffer = terminal.current!.buffer.active;
-                        const atBottom = buffer.viewportY === buffer.baseY;
-                        if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
-                        if (writeQueueRef.current.length > 0) {
-                            flushQueuedWritesLight();
-                        }
-                    } catch (e) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
-                    }
-                });
-            }, 2);
+            if (!terminal.current || writeQueueRef.current.length === 0) return;
+            const chunk = dequeueChunk(MAX_WRITE_CHUNK);
+            terminal.current.write(chunk);
+            requestAnimationFrame(() => {
+                try {
+                    const buffer = terminal.current!.buffer.active;
+                    const atBottom = buffer.viewportY === buffer.baseY;
+                    if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
+                    if (writeQueueRef.current.length > 0) flushQueuedWritesLight();
+                } catch (e) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+                }
+            });
         };
 
         // Detach previous listener
@@ -1316,7 +1218,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, queueCfg, MAX_WRITE_CHUNK]);
+    }, [agentType, terminalId, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready
@@ -1461,8 +1363,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
 
         // Delay a tick to ensure xterm is laid out
-        const t = setTimeout(start, 0);
-        return () => clearTimeout(t);
+        let cancelled = false;
+        requestAnimationFrame(() => { if (!cancelled) start(); });
+        return () => { cancelled = true };
     }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen]);
 
     useEffect(() => {
