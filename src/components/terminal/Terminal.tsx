@@ -263,7 +263,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current!;
                     // Always notify PTY to nudge the TUI even if equal (OpenCode can need explicit resize)
                     lastSize.current = { cols, rows };
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] OpenCode search-resize failed:`, e);
                 }
@@ -303,7 +303,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     fitAddon.current!.fit();
                     const { cols, rows } = terminal.current!;
                     lastSize.current = { cols, rows };
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -416,7 +416,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                     }
                     logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
                 } catch (e) {
@@ -467,7 +467,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             const { cols, rows } = terminal.current;
                             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                 lastSize.current = { cols, rows };
-                                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                             }
                         } catch (e) {
                             logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
@@ -485,7 +485,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 const { cols, rows } = terminal.current;
                                 if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                                     lastSize.current = { cols, rows };
-                                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                                 }
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
@@ -555,7 +555,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current;
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                     }
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
@@ -582,7 +582,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
                 // Send a newline character without submitting the command
                 // This allows multiline input in shells that support it
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
                 return false; // Prevent default Enter behavior
             }
             
@@ -631,7 +631,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const { cols, rows } = terminal.current;
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                     }
                 } catch {
                     // ignore single-shot fit error; RO will retry
@@ -680,7 +680,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             logger.debug('Scroll error during terminal output (cb)', error);
                         } finally {
                             if (writeQueueRef.current.length > 0) {
-                                flushQueuedWrites();
+                                // Break the synchronous callback chain to avoid deep recursion
+                                // Use microtask to schedule the next drain deterministically
+                                queueMicrotask(() => flushQueuedWrites());
                             }
                         }
                     });
@@ -719,7 +721,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         logger.debug('Scroll error during buffer flush (cb)', error);
                     } finally {
                         if (writeQueueRef.current.length > 0) {
-                            flushNow();
+                            // Avoid recursive synchronous reentry; schedule the next slice as a microtask
+                            queueMicrotask(() => flushNow());
                         }
                     }
                 });
@@ -775,8 +778,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             : false;
                         terminal.current!.write(chunk, () => {
                             try { if (wasAtBottom) terminal.current!.scrollToBottom(); } catch { /* ignore */ }
-                            // Continue draining until truly empty
-                            step();
+                            // Continue draining until truly empty; use microtask to avoid deep callback chains
+                            queueMicrotask(step);
                         });
                     } catch {
                         // If a write fails, bail out to avoid an infinite loop; normal streaming will recover
@@ -850,7 +853,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                           const { cols, rows } = terminal.current;
                           if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                               lastSize.current = { cols, rows };
-                              invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                              invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                           }
                       } catch (e) {
                           // Non-fatal; ResizeObserver and later events will correct
@@ -998,7 +1001,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // Only send resize if dimensions actually changed
                     if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                         lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                     }
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
@@ -1011,7 +1014,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Send input to backend (disabled for readOnly terminals)
         if (!readOnly) {
             terminal.current.onData((data) => {
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
             });
         }
         
@@ -1021,7 +1024,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (terminal.current) {
                 // Send a null byte to initialize the terminal properly
                 // This helps ensure the shell is in the right mode
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '' }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '' }).catch(err => logger.debug('[Terminal] init write ignored (backend not ready yet)', err));
             }
         }, 100);
 
@@ -1063,7 +1066,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
                 lastSize.current = { cols, rows };
                 // Send resize command immediately to update PTY size
-                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
             }
         };
 
@@ -1165,7 +1168,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         }
 
                         lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.error("Error:", err));
+                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                     });
                 }
             } catch (error) {
