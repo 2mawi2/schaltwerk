@@ -1,0 +1,37 @@
+version: 2
+updates:
+  # Keep GitHub Actions up to date
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "04:00"
+    open-pull-requests-limit: 5
+
+  # Root frontend (vite/ts) dependencies
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "04:10"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+      dev-dependencies:
+        dependency-type: "development"
+
+  # Note: MCP server excluded from Dependabot for now
+  # Rationale: CI test workflow does not build/test mcp-server.
+  # We’ll add this block back once CI covers it to keep PRs safe and fast.
+
+  # Rust crates for the Tauri app
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "daily"
+      time: "04:30"
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: ["minor", "patch"]
