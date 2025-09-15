@@ -784,7 +784,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     <div className="flex items-center justify-between">
                         <div className="font-medium text-slate-100">orchestrator</div>
                     <div className="flex items-center gap-2">
-                        <div className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity flex items-center gap-0.5">
+                        <div className="flex items-center gap-0.5">
                             <IconButton
                                 icon={<VscCode />}
                                 onClick={() => {
