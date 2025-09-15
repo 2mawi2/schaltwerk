@@ -5,6 +5,11 @@ use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER, parse_agent_command};
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::domains::agents::naming;
+mod schaltwerk_core_cli;
+mod events;
+mod terminals;
+mod agent_ctx;
+mod agent_launcher;
 
 // Simple POSIX sh single-quote helper for safe argument joining in one-liners
 fn sh_quote_string(s: &str) -> String {
@@ -48,56 +53,7 @@ fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, Strin
     }
 }
 
-// Normalize user-provided CLI text copied from rich sources:
-// - Replace Unicode dash-like characters with ASCII '-'
-// - Replace various Unicode spaces (including NBSP) with ASCII ' '
-fn normalize_cli_text(s: &str) -> String {
-    s.chars()
-        .map(|c| match c {
-            // Dashes
-            '\u{2010}' /* HYPHEN */
-            | '\u{2011}' /* NON-BREAKING HYPHEN */
-            | '\u{2012}' /* FIGURE DASH */
-            | '\u{2013}' /* EN DASH */
-            | '\u{2014}' /* EM DASH */
-            | '\u{2015}' /* HORIZONTAL BAR */
-            | '\u{2212}' /* MINUS SIGN */ => '-',
-            // Spaces
-            '\u{00A0}' /* NBSP */
-            | '\u{2000}'..='\u{200B}' /* En/Em/Thin spaces incl. ZWSP */
-            | '\u{202F}' /* NNBSP */
-            | '\u{205F}' /* MMSP */
-            | '\u{3000}' /* IDEOGRAPHIC SPACE */ => ' ',
-            _ => c,
-        })
-        .collect()
-}
-
-// For Codex, detect and extract a trailing prompt without
-// accidentally consuming flag values (e.g., sandbox mode).
-// Returns Some(prompt) if a prompt was extracted, otherwise None.
-fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
-    if args.is_empty() { return None; }
-    // If last token is a flag itself, it's not a prompt
-    if args.last().map(|s| s.starts_with('-')).unwrap_or(false) {
-        return None;
-    }
-    // If the previous token is a flag that takes a value, the last token is that value,
-    // not a prompt. Keep this list minimal but sufficient for our usage.
-    if args.len() >= 2 {
-        let prev = args[args.len() - 2].as_str();
-        let flags_consuming_next = [
-            "--sandbox",
-            "--model", "-m",
-            "--profile", "-p",
-            "--config", "-c",
-        ];
-        if flags_consuming_next.contains(&prev) {
-            return None;
-        }
-    }
-    args.pop()
-}
+// CLI helpers live in schaltwerk_core_cli.rs and are consumed by agent_ctx
 
 // CODEX FLAG NORMALIZATION - Why It's Needed:
 // 
@@ -118,116 +74,8 @@ fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
 
 // Turn accidental single-dash long options into proper double-dash for Codex
 // Only affects known long flags: model, profile. Keeps true short flags intact.
-fn fix_codex_single_dash_long_flags(args: &mut [String]) {
-    for a in args.iter_mut() {
-        if a.starts_with("--") { continue; }
-        if let Some(stripped) = a.strip_prefix('-') {
-            // Keep short flags like -m, -p, -v
-            if stripped.len() == 1 { continue; }
-            // Check name part (before optional '=')
-            let (name, value_opt) = match stripped.split_once('=') {
-                Some((n, v)) => (n, Some(v)),
-                None => (stripped, None),
-            };
-            // Treat accidental single-dash long options as double-dash for known long flags
-            // Extend this list conservatively to avoid breaking true short flags.
-            if name == "model" || name == "profile" || name == "search" {
-                if let Some(v) = value_opt {
-                    *a = format!("--{name}={v}");
-                } else {
-                    *a = format!("--{name}");
-                }
-            }
-        }
-    }
-}
-// For Codex, ensure `--model`/`-m` appears after any `--profile`
-fn reorder_codex_model_after_profile(args: &mut Vec<String>) {
-    let mut without_model = Vec::with_capacity(args.len());
-    let mut model_flags = Vec::new();
-    let mut i = 0;
-    while i < args.len() {
-        let a = &args[i];
-        if a == "--model" || a == "-m" {
-            // capture flag and its value if present
-            model_flags.push(a.clone());
-            if i + 1 < args.len() {
-                model_flags.push(args[i + 1].clone());
-                i += 2;
-            } else {
-                i += 1;
-            }
-        } else if a.starts_with("--model=") || a.starts_with("-m=") {
-            model_flags.push(a.clone());
-            i += 1;
-        } else {
-            without_model.push(a.clone());
-            i += 1;
-        }
-    }
-    without_model.extend(model_flags);
-    *args = without_model;
-}
+// (no local wrappers needed)
 
-#[cfg(test)]
-mod codex_prompt_tests {
-    use super::extract_codex_prompt_if_present;
-
-    #[test]
-    fn codex_no_prompt_when_just_sandbox_pair() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string()];
-        let extracted = extract_codex_prompt_if_present(&mut args);
-        assert!(extracted.is_none());
-        assert_eq!(args, vec!["--sandbox", "workspace-write"]);
-    }
-
-    #[test]
-    fn codex_extracts_prompt_when_present() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "do things".to_string()];
-        let extracted = extract_codex_prompt_if_present(&mut args);
-        assert_eq!(extracted.as_deref(), Some("do things"));
-        assert_eq!(args, vec!["--sandbox", "workspace-write"]);
-    }
-
-    #[test]
-    fn codex_does_not_consume_model_value_as_prompt() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "--model".to_string(), "o3".to_string()];
-        let extracted = extract_codex_prompt_if_present(&mut args);
-        assert!(extracted.is_none());
-        assert_eq!(args, vec!["--sandbox", "workspace-write", "--model", "o3"]);
-    }
-
-    #[test]
-    fn codex_does_not_consume_profile_value_as_prompt() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "-p".to_string(), "dev".to_string()];
-        let extracted = extract_codex_prompt_if_present(&mut args);
-        assert!(extracted.is_none());
-        assert_eq!(args, vec!["--sandbox", "workspace-write", "-p", "dev"]);
-    }
-
-    #[test]
-    fn codex_does_not_consume_config_value_as_prompt() {
-        let mut args = vec![
-            "--sandbox".to_string(),
-            "workspace-write".to_string(),
-            "-c".to_string(),
-            "search=true".to_string(),
-        ];
-        let extracted = extract_codex_prompt_if_present(&mut args);
-        assert!(extracted.is_none());
-        assert_eq!(args, vec!["--sandbox", "workspace-write", "-c", "search=true"]);
-
-        let mut args2 = vec![
-            "--sandbox".to_string(),
-            "workspace-write".to_string(),
-            "--config".to_string(),
-            "model=\"o3\"".to_string(),
-        ];
-        let extracted2 = extract_codex_prompt_if_present(&mut args2);
-        assert!(extracted2.is_none());
-        assert_eq!(args2, vec!["--sandbox", "workspace-write", "--config", "model=\"o3\""]);
-    }
-}
 #[tauri::command]
 pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSession>, String> {
     log::debug!("Listing enriched sessions from schaltwerk_core");
@@ -258,12 +106,10 @@ pub async fn schaltwerk_core_archive_spec_session(app: tauri::AppHandle, name: S
     // Emit events to refresh UI
     let repo = core.repo_path.to_string_lossy().to_string();
     let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
-    let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
+    events::emit_archive_updated(&app, &repo, count);
     // Also emit a SessionRemoved event so the frontend can compute the next selection consistently
-    #[derive(serde::Serialize, Clone)]
-    struct SessionRemovedPayload { session_name: String }
-    let _ = emit_event(&app, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name.clone() });
-    let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<EnrichedSession>::new());
+    events::emit_session_removed(&app, &name);
+    events::emit_sessions_refreshed(&app, &Vec::<EnrichedSession>::new());
     Ok(())
 }
 
@@ -287,8 +133,8 @@ pub async fn schaltwerk_core_restore_archived_spec(app: tauri::AppHandle, id: St
     // Notify UI
     let repo = core.repo_path.to_string_lossy().to_string();
     let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
-    let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
-    let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<EnrichedSession>::new());
+    events::emit_archive_updated(&app, &repo, count);
+    events::emit_sessions_refreshed(&app, &Vec::<EnrichedSession>::new());
     Ok(session)
 }
 
@@ -300,7 +146,7 @@ pub async fn schaltwerk_core_delete_archived_spec(app: tauri::AppHandle, id: Str
     manager.delete_archived_spec(&id).map_err(|e| format!("Failed to delete archived spec: {e}"))?;
     let repo = core.repo_path.to_string_lossy().to_string();
     let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
-    let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo, "count": count}));
+    events::emit_archive_updated(&app, &repo, count);
     Ok(())
 }
 
@@ -698,9 +544,8 @@ pub async fn schaltwerk_core_rename_version_group(
     let manager = core_lock.session_manager();
     if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after version group rename");
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        // Using centralized event helper
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     Ok(())
@@ -768,38 +613,23 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
 
     if is_spec {
         // Emit events for spec archive and UI refresh, close terminals if any, then return early
-        let _ = emit_event(&app, SchaltEvent::ArchiveUpdated, &serde_json::json!({"repo": repo_path_str, "count": archive_count_after_opt.unwrap_or(0)}));
+    events::emit_archive_updated(&app, &repo_path_str, archive_count_after_opt.unwrap_or(0));
         // Ensure frontend selection logic runs consistently by emitting SessionRemoved for specs too
-        #[derive(serde::Serialize, Clone)]
-        struct SessionRemovedPayload { session_name: String }
-        let _ = emit_event(&app, SchaltEvent::SessionRemoved, &SessionRemovedPayload { session_name: name.clone() });
+        events::emit_session_removed(&app, &name);
         if let Ok(core) = get_schaltwerk_core().await {
             let core = core.lock().await;
             let manager = core.session_manager();
             if let Ok(sessions) = manager.list_enriched_sessions() {
-                let _ = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions);
+                events::emit_sessions_refreshed(&app, &sessions);
             }
         }
 
-        if let Ok(terminal_manager) = get_terminal_manager().await {
-            let ids = vec![
-                format!("session-{}-top", name),
-                format!("session-{}-bottom", name),
-            ];
-            for id in ids {
-                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                    log::debug!("Terminal {id} cleanup (spec-archive): {e}");
-                }
-            }
-        }
+        terminals::close_session_terminals_if_any(&name).await;
         return Ok(());
     }
     
     // Emit a "cancelling" event instead of "removed"
-    #[derive(serde::Serialize, Clone)]
-    struct SessionCancellingPayload { session_name: String }
-    let _ = emit_event(&app, SchaltEvent::SessionCancelling, &SessionCancellingPayload { session_name: name.clone() }
-    );
+    events::emit_session_cancelling(&app, &name);
     
     let app_for_refresh = app.clone();
     let name_for_bg = name.clone();
@@ -843,7 +673,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
                     let core = core.lock().await;
                     let manager = core.session_manager();
                     if let Ok(sessions) = manager.list_enriched_sessions() {
-                        let _ = emit_event(&app_for_refresh, SchaltEvent::SessionsRefreshed, &sessions);
+                        events::emit_sessions_refreshed(&app_for_refresh, &sessions);
                     }
                 }
             },
@@ -865,7 +695,7 @@ pub async fn schaltwerk_core_cancel_session(app: tauri::AppHandle, name: String)
                     let core = core.lock().await;
                     let manager = core.session_manager();
                     if let Ok(sessions) = manager.list_enriched_sessions() {
-                        let _ = emit_event(&app_for_refresh, SchaltEvent::SessionsRefreshed, &sessions);
+                        events::emit_sessions_refreshed(&app_for_refresh, &sessions);
                     }
                 }
             }
@@ -890,46 +720,14 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
     
     // Close associated terminals BEFORE removing the worktree to avoid leaving shells
     // pointing at a deleted directory (which triggers getcwd errors).
-    if let Ok(terminal_manager) = get_terminal_manager().await {
-        // Sanitize session name to match frontend's terminal ID generation
-        let sanitized_name = name.chars()
-            .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
-            .collect::<String>();
-        let ids = vec![
-            format!("session-{}-top", sanitized_name),
-            format!("session-{}-bottom", sanitized_name),
-        ];
-        for id in ids {
-            if let Ok(true) = terminal_manager.terminal_exists(&id).await {
-                if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                    log::warn!("Failed to close terminal {id} before convert to spec: {e}");
-                }
-            }
-        }
-    }
+    terminals::close_session_terminals_if_any(&name).await;
 
     match manager.convert_session_to_draft(&name) {
         Ok(()) => {
             log::info!("Successfully converted session to spec: {name}");
             
             // Close associated terminals
-            if let Ok(terminal_manager) = get_terminal_manager().await {
-                // Sanitize session name to match frontend's terminal ID generation
-                let sanitized_name = name.chars()
-                    .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
-                    .collect::<String>();
-                let ids = vec![
-                    format!("session-{}-top", sanitized_name),
-                    format!("session-{}-bottom", sanitized_name),
-                ];
-                for id in ids {
-                    if let Ok(true) = terminal_manager.terminal_exists(&id).await {
-                        if let Err(e) = terminal_manager.close_terminal(id.clone()).await {
-                            log::warn!("Failed to close terminal {id} on convert to spec: {e}");
-                        }
-                    }
-                }
-            }
+            terminals::close_session_terminals_if_any(&name).await;
             
             // Clean up any orphaned worktrees after conversion
             // This handles cases where worktree removal failed during conversion
@@ -943,9 +741,7 @@ pub async fn schaltwerk_core_convert_session_to_draft(app: tauri::AppHandle, nam
             // Emit event to notify frontend of the change
             if let Ok(sessions) = manager.list_enriched_sessions() {
                 log::info!("Emitting sessions-refreshed event after converting session to spec");
-                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-                    log::warn!("Could not emit sessions refreshed: {e}");
-                }
+                events::emit_sessions_refreshed(&app, &sessions);
             }
             
             Ok(())
@@ -1022,67 +818,19 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
     
     // Check if we have permission to access the working directory
     log::info!("Checking permissions for working directory: {cwd}");
-    match std::fs::read_dir(&cwd) {
-        Ok(_) => log::info!("Working directory access confirmed: {cwd}"),
-        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-            log::warn!("Permission denied for working directory: {cwd}");
-            return Err(format!("Permission required for folder: {cwd}. Please grant access when prompted and then retry starting the agent."));
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            log::warn!("Working directory not found: {cwd}");
-            return Err(format!("Working directory not found: {cwd}"));
-        }
-        Err(e) => {
-            log::error!("Error checking working directory access: {e}");
-            return Err(format!("Error accessing working directory: {e}"));
-        }
-    }
+    terminals::ensure_cwd_access(&cwd)?;
+    log::info!("Working directory access confirmed: {cwd}");
     
     // Sanitize session name to match frontend's terminal ID generation
-    let sanitized_session_name = session_name.chars()
-        .map(|c| if c.is_alphanumeric() || c == '_' || c == '-' { c } else { '_' })
-        .collect::<String>();
-    let terminal_id = format!("session-{sanitized_session_name}-top");
+    let terminal_id = terminals::terminal_id_for_session_top(&session_name);
     let terminal_manager = get_terminal_manager().await?;
     
     if terminal_manager.terminal_exists(&terminal_id).await? {
         terminal_manager.close_terminal(terminal_id.clone()).await?;
     }
     
-    let agent_type = if agent_name == "claude" || agent_name.ends_with("/claude") {
-        "claude"
-    } else if agent_name == "cursor-agent" || agent_name.ends_with("/cursor-agent") {
-        "cursor"
-    } else if agent_name.contains("opencode") {
-        "opencode"
-    } else if agent_name.contains("gemini") {
-        "gemini"
-    } else if agent_name == "codex" || agent_name.ends_with("/codex") {
-        "codex"
-    } else {
-        "claude"
-    };
-    
-    let (mut env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
-        let manager = settings_manager.lock().await;
-        let env_vars = manager.get_agent_env_vars(agent_type)
-            .into_iter()
-            .collect::<Vec<(String, String)>>();
-        let cli_args = manager.get_agent_cli_args(agent_type);
-        (env_vars, cli_args)
-    } else {
-        (vec![], String::new())
-    };
-    
-    // Add project-specific environment variables
-    if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
-        let count = project_env_vars.len();
-        for (key, value) in project_env_vars {
-            env_vars.push((key, value));
-        }
-        log::info!("Added {count} project environment variables");
-    }
-    
+    let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
+    let (env_vars, cli_args) = agent_ctx::collect_agent_env_and_cli(&agent_kind, &core.repo_path, &core.db).await;
     log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
 
     // If a project setup script exists, run it ONCE inside this terminal before exec'ing the agent.
@@ -1121,36 +869,14 @@ pub async fn schaltwerk_core_start_claude_with_restart(app: tauri::AppHandle, se
             }
     }
     
-    let _is_opencode = (agent_name == "opencode") || agent_name.ends_with("/opencode");
-    
-    let mut final_args = agent_args.clone();
-    
-    log::info!("ARGUMENT BUILDING for {agent_type}: initial agent_args={agent_args:?}, cli_args='{cli_args}'");
-    
-    if !cli_args.is_empty() {
-        let cli_args_for_parse = normalize_cli_text(&cli_args);
-        let mut additional_args = shell_words::split(&cli_args_for_parse)
-            .unwrap_or_else(|_| vec![cli_args.clone()]);
-
-        log::info!("Parsed CLI args: {additional_args:?}");
-
-        if agent_type == "codex" {
-            log::info!("Codex mode: keep --sandbox first, then CLI args");
-            fix_codex_single_dash_long_flags(&mut additional_args);
-            reorder_codex_model_after_profile(&mut additional_args);
-            let mut new_args = final_args;
-            new_args.extend(additional_args);
-            final_args = new_args;
-        } else {
-            log::info!("Standard mode: appending CLI args after existing args");
-            final_args.extend(additional_args);
-        }
-    }
+    // Build final args using centralized logic (handles Codex ordering/normalization)
+    let final_args = agent_ctx::build_final_args(&agent_kind, agent_args.clone(), &cli_args);
     
     // Codex prompt ordering is now handled in the CLI args section above
     
     // Log the exact command that will be executed
-    log::info!("FINAL COMMAND CONSTRUCTION for {agent_type}: command='{agent_name}', args={final_args:?}");
+    let kind_str = match agent_kind { agent_ctx::AgentKind::Claude=>"claude", agent_ctx::AgentKind::Cursor=>"cursor", agent_ctx::AgentKind::Codex=>"codex", agent_ctx::AgentKind::OpenCode=>"opencode", agent_ctx::AgentKind::Gemini=>"gemini", agent_ctx::AgentKind::Fallback=>"claude" };
+    log::info!("FINAL COMMAND CONSTRUCTION for {kind_str}: command='{agent_name}', args={final_args:?}");
     
     // Create terminal with initial size if provided
     if use_shell_chain {
@@ -1281,148 +1007,15 @@ pub async fn schaltwerk_core_start_claude_orchestrator(terminal_id: String, cols
         })?;
     
     log::info!("Claude command for orchestrator: {command}");
-    
-    let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
-    
-    // Check if we have permission to access the working directory
-    log::info!("Checking permissions for orchestrator working directory: {cwd}");
-    match std::fs::read_dir(&cwd) {
-        Ok(_) => log::info!("Orchestrator working directory access confirmed: {cwd}"),
-        Err(e) if e.kind() == std::io::ErrorKind::PermissionDenied => {
-            log::warn!("Permission denied for orchestrator working directory: {cwd}");
-            return Err(format!("Permission required for folder: {cwd}. Please grant access when prompted and then retry starting the agent."));
-        }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            log::warn!("Orchestrator working directory not found: {cwd}");
-            return Err(format!("Working directory not found: {cwd}"));
-        }
-        Err(e) => {
-            log::error!("Error checking orchestrator working directory access: {e}");
-            return Err(format!("Error accessing working directory: {e}"));
-        }
-    }
-    
-    let terminal_manager = get_terminal_manager().await?;
-    
-    if terminal_manager.terminal_exists(&terminal_id).await? {
-        terminal_manager.close_terminal(terminal_id.clone()).await?;
-    }
-    
-    let agent_type = if agent_name == "claude" || agent_name.ends_with("/claude") {
-        "claude"
-    } else if agent_name == "cursor-agent" || agent_name.ends_with("/cursor-agent") {
-        "cursor"
-    } else if agent_name.contains("opencode") {
-        "opencode"
-    } else if agent_name.contains("gemini") {
-        "gemini"
-    } else if agent_name == "codex" || agent_name.ends_with("/codex") {
-        "codex"
-    } else {
-        "claude"
-    };
-    
-    let (mut env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
-        let manager = settings_manager.lock().await;
-        let env_vars = manager.get_agent_env_vars(agent_type)
-            .into_iter()
-            .collect::<Vec<(String, String)>>();
-        let cli_args = manager.get_agent_cli_args(agent_type);
-        (env_vars, cli_args)
-    } else {
-        (vec![], String::new())
-    };
-    
-    // Add project-specific environment variables
-    if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
-        let count = project_env_vars.len();
-        for (key, value) in project_env_vars {
-            env_vars.push((key, value));
-        }
-        log::info!("Added {count} project environment variables");
-    }
-    
-    log::info!("Creating terminal with {agent_name} directly: {terminal_id} with {} env vars and CLI args: '{cli_args}'", env_vars.len());
-    
-    let _is_opencode = agent_name == "opencode" || agent_name.ends_with("/opencode");
-    
-    // Build args for all agents consistently:
-    // 1. Start with parsed args from command string (may include prompt for Claude/Cursor)
-    // 2. Add any additional CLI args from settings
-    let mut final_args = agent_args.clone();
-    
-    log::info!("ARGUMENT BUILDING for {agent_type}: initial agent_args={agent_args:?}, cli_args='{cli_args}'");
-    
-    // Add CLI arguments from settings for all agent types
-    if !cli_args.is_empty() {
-        // Normalize dashes and non-standard spaces for all agents
-        let cli_args_for_parse = normalize_cli_text(&cli_args);
-        let mut additional_args = shell_words::split(&cli_args_for_parse)
-            .unwrap_or_else(|_| vec![cli_args.clone()]);
-
-        log::info!("Parsed CLI args: {additional_args:?}");
-        
-        // For agents that include prompts in their command strings (Claude, Cursor),
-        // the prompt is already in agent_args, so we append CLI args.
-        // For agents that need CLI args before prompts (Codex), we prepend.
-        // This ensures correct argument order for all agent types.
-        if agent_type == "codex" {
-            // Codex requires specific order: codex [OPTIONS] [PROMPT]
-            // Extract any existing prompt first before adding CLI args
-            let extracted_prompt = extract_codex_prompt_if_present(&mut final_args);
-            if extracted_prompt.is_some() {
-                log::info!("Extracted codex prompt for proper ordering");
-            }
-            
-            log::info!("Codex mode: keep --sandbox first, then CLI args, then prompt at end");
-            fix_codex_single_dash_long_flags(&mut additional_args);
-            reorder_codex_model_after_profile(&mut additional_args);
-            let mut new_args = final_args; // starts with ["--sandbox", mode] (minus extracted prompt)
-            new_args.extend(additional_args);
-            
-            // Put prompt back at the very end
-            if let Some(prompt) = extracted_prompt {
-                new_args.push(prompt);
-            }
-            
-            final_args = new_args;
-        } else {
-            // Other agents: Append CLI args after existing args
-            log::info!("Standard mode: appending CLI args after existing args");
-            final_args.extend(additional_args);
-        }
-    }
-    
-    // Create terminal with initial size if provided
-    if let (Some(c), Some(r)) = (cols, rows) {
-        use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
-        terminal_manager.create_terminal_with_app_and_size(
-            CreateTerminalWithAppAndSizeParams {
-                id: terminal_id.clone(),
-                cwd,
-                command: agent_name.clone(),
-                args: final_args,
-                env: env_vars,
-                cols: c,
-                rows: r,
-            }
-        ).await?;
-    } else {
-        terminal_manager.create_terminal_with_app(
-            terminal_id.clone(),
-            cwd,
-            agent_name.clone(),
-            final_args,
-            env_vars,
-        ).await?;
-    }
-    
-    // For OpenCode and other TUI applications, the frontend will handle
-    // proper sizing based on the actual terminal container dimensions.
-    // No hardcoded resize is needed anymore as we now support dynamic sizing.
-    
-    log::info!("Successfully started Claude in terminal: {terminal_id}");
-    Ok(command)
+    let result = agent_launcher::launch_in_terminal(
+        terminal_id.clone(),
+        command.clone(),
+        &core.db,
+        &core.repo_path,
+        cols,
+        rows,
+    ).await?;
+    Ok(result)
 }
 
 #[tauri::command]
@@ -1534,9 +1127,7 @@ pub async fn schaltwerk_core_mark_session_ready(app: tauri::AppHandle, name: Str
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after marking session ready");
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     Ok(result)
@@ -1571,9 +1162,7 @@ pub async fn schaltwerk_core_unmark_session_ready(app: tauri::AppHandle, name: S
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after unmarking session ready");
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     Ok(())
@@ -1611,9 +1200,7 @@ pub async fn schaltwerk_core_create_spec_session(
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after creating spec session");
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     // Drop the lock before spawning async task
@@ -1751,9 +1338,7 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
     // Emit event with actual sessions list
     if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after creating and starting spec session");
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     // Drop the lock
@@ -1788,16 +1373,12 @@ pub async fn schaltwerk_core_start_spec_session(
         .map_err(|e| format!("Failed to start spec session: {e}"))?;
     
     // Emit selection event for consistent focus on the started session
-    #[derive(serde::Serialize, Clone)]
-    struct SelectionPayload { kind: &'static str, payload: String, session_state: &'static str }
-    let _ = emit_event(&app, SchaltEvent::Selection, &SelectionPayload { kind: "session", payload: name.clone(), session_state: "running" });
+    events::emit_selection_running(&app, &name);
 
     // Invalidate cache before emitting refreshed event
         if let Ok(sessions) = manager.list_enriched_sessions() {
         log::info!("Emitting sessions-refreshed event after starting spec session");
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     // Check if AI renaming should be triggered for spec-derived sessions
@@ -2011,9 +1592,7 @@ pub async fn schaltwerk_core_rename_draft_session(app: tauri::AppHandle, old_nam
     
     // Emit sessions-refreshed event to update UI
     if let Ok(sessions) = manager.list_enriched_sessions() {
-        if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-            log::warn!("Could not emit sessions refreshed: {e}");
-        }
+        events::emit_sessions_refreshed(&app, &sessions);
     }
     
     Ok(())
@@ -2112,80 +1691,16 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(terminal_id: String) -> Re
     
     log::info!("Fresh Claude command for orchestrator: {command}");
     
-    let (cwd, agent_name, agent_args) = parse_agent_command(&command)?;
-    
-    // Check if we have permission to access the working directory
-    log::info!("Checking permissions for orchestrator working directory: {cwd}");
-    match std::fs::read_dir(&cwd) {
-        Ok(_) => {
-            log::info!("Permissions verified for orchestrator directory: {cwd}");
-        }
-        Err(e) => {
-            log::error!("Permission denied for orchestrator directory {cwd}: {e}");
-            return Err(format!("Permission required for folder: {cwd}. Please grant folder access to continue."));
-        }
-    }
-    
-    let terminal_manager = get_terminal_manager().await?;
-    
-    let agent_type = if agent_name == "claude" || agent_name.ends_with("/claude") {
-        "claude"
-    } else if agent_name == "cursor-agent" || agent_name.ends_with("/cursor-agent") {
-        "cursor"
-    } else if agent_name.contains("opencode") {
-        "opencode"
-    } else if agent_name.contains("gemini") {
-        "gemini"
-    } else if agent_name == "codex" {
-        "codex"
-    } else {
-        "claude"
-    };
-    
-    let (mut env_vars, cli_args) = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
-        let manager = settings_manager.lock().await;
-        let env_vars = manager.get_agent_env_vars(agent_type)
-            .into_iter()
-            .collect::<Vec<(String, String)>>();
-        let cli_args = manager.get_agent_cli_args(agent_type);
-        (env_vars, cli_args)
-    } else {
-        (vec![], String::new())
-    };
-    
-    // Add project-specific environment variables
-    if let Ok(project_env_vars) = core.db.get_project_environment_variables(&core.repo_path) {
-        let count = project_env_vars.len();
-        if count > 0 {
-            log::info!("Adding {count} project-specific environment variables to fresh orchestrator");
-            for (key, value) in project_env_vars {
-                env_vars.push((key, value));
-            }
-        }
-    }
-    
-    let mut final_args = agent_args;
-    if !cli_args.is_empty() {
-        log::info!("Adding CLI args for {agent_type}: {cli_args}");
-        final_args.extend(cli_args.split_whitespace().map(|s| s.to_string()));
-    }
-    
-    let _is_opencode = agent_name.contains("opencode");
-    
-    terminal_manager.create_terminal_with_app(
+    // Delegate to shared launcher (no initial size for fresh)
+    let result = agent_launcher::launch_in_terminal(
         terminal_id.clone(),
-        cwd,
-        agent_name,
-        final_args,
-        env_vars,
+        command.clone(),
+        &core.db,
+        &core.repo_path,
+        None,
+        None,
     ).await?;
-    
-    // For OpenCode and other TUI applications, the frontend will handle
-    // proper sizing based on the actual terminal container dimensions.
-    // No hardcoded resize is needed anymore as we now support dynamic sizing.
-    
-    log::info!("Successfully started fresh Claude in orchestrator terminal: {terminal_id}");
-    Ok(command)
+    Ok(result)
 }
 
 
@@ -2194,261 +1709,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_is_version_suffix() {
-        // Valid version suffixes
-        assert!(is_version_suffix("v1"));
-        assert!(is_version_suffix("v2"));
-        assert!(is_version_suffix("v10"));
-        assert!(is_version_suffix("v123"));
-        
-        // Invalid version suffixes
-        assert!(!is_version_suffix("v"));
-        assert!(!is_version_suffix("v1a"));
-        assert!(!is_version_suffix("1"));
-        assert!(!is_version_suffix("version1"));
-        assert!(!is_version_suffix("v_1"));
-    }
-
-    #[test]
-    fn test_is_versioned_session_name() {
-        // Valid versioned names
-        assert!(is_versioned_session_name("peaceful_robinson_v1"));
-        assert!(is_versioned_session_name("happy_tesla_v2"));
-        assert!(is_versioned_session_name("angry_einstein_v10"));
-        
-        // Invalid versioned names
-        assert!(!is_versioned_session_name("peaceful_robinson"));
-        assert!(!is_versioned_session_name("single"));
-        assert!(!is_versioned_session_name("peaceful_robinson_version1"));
-        assert!(!is_versioned_session_name("too_many_parts_v1"));
-    }
-
-    #[test]
-    fn test_matches_version_pattern() {
-        // Valid matches
-        assert!(matches_version_pattern("peaceful_robinson_v1", "peaceful_robinson"));
-        assert!(matches_version_pattern("peaceful_robinson_v2", "peaceful_robinson"));
-        assert!(matches_version_pattern("happy_tesla_v10", "happy_tesla"));
-        
-        // Invalid matches
-        assert!(!matches_version_pattern("peaceful_robinson", "peaceful_robinson"));
-        assert!(!matches_version_pattern("peaceful_robinson_v1", "happy_tesla"));
-        assert!(!matches_version_pattern("peaceful_robinson_version1", "peaceful_robinson"));
-        assert!(!matches_version_pattern("peaceful_robinson_v1a", "peaceful_robinson"));
-    }
-
-    #[test]
-    fn test_fix_codex_single_dash_long_flags() {
-        // Test basic model and profile flags
-        let mut args = vec!["-model=gpt-4o".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--model=gpt-4o");
-
-        let mut args = vec!["-profile=dev".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--profile=dev");
-
-        // Test flags without values
-        let mut args = vec!["-model".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--model");
-
-        // Test short flags should remain unchanged
-        let mut args = vec!["-m".to_string(), "-p".to_string(), "-v".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args, vec!["-m", "-p", "-v"]);
-
-        // Test already correct double-dash flags
-        let mut args = vec!["--model=gpt-4".to_string(), "--profile=work".to_string()];
-        let original = args.clone();
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args, original);
-
-        // Test unknown long flags should remain unchanged
-        let mut args = vec!["-verbose".to_string(), "-output".to_string()];
-        let original = args.clone();
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args, original);
-
-        // Test mixed scenarios
-        let mut args = vec![
-            "-model=gpt-4".to_string(),
-            "-m".to_string(),
-            "sonnet".to_string(),
-            "--profile=prod".to_string(),
-            "-profile".to_string(),
-            "dev".to_string(),
-            "-p".to_string(),
-            "-verbose".to_string(),
-        ];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--model=gpt-4");
-        assert_eq!(args[1], "-m");
-        assert_eq!(args[2], "sonnet");
-        assert_eq!(args[3], "--profile=prod");
-        assert_eq!(args[4], "--profile");
-        assert_eq!(args[5], "dev");
-        assert_eq!(args[6], "-p");
-        assert_eq!(args[7], "-verbose");
-    }
-
-    #[test]
-    fn test_fix_codex_single_dash_long_flags_edge_cases() {
-        // Empty vector
-        let mut args: Vec<String> = vec![];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert!(args.is_empty());
-
-        // Single hyphen alone
-        let mut args = vec!["-".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "-");
-
-        // Double hyphen alone
-        let mut args = vec!["--".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--");
-
-        // Flags with special characters
-        let mut args = vec!["-model=gpt-4-turbo".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--model=gpt-4-turbo");
-
-        // Flags with multiple equals
-        let mut args = vec!["-model=key=value".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--model=key=value");
-
-        // Accidental single-dash long option for search should upgrade to --search
-        let mut args = vec!["-search".to_string()];
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--search");
-
-        // Unicode em-dash before search should normalize to single '-' by normalize_cli_text,
-        // then upgraded here to proper "--search"
-        let unicode_dash = "—search"; // EM DASH U+2014
-        let mut args = vec![normalize_cli_text(unicode_dash)];
-        // After normalize_cli_text, this will be "-search"
-        assert_eq!(args[0], "-search");
-        fix_codex_single_dash_long_flags(&mut args);
-        assert_eq!(args[0], "--search");
-    }
-
-    #[test]
-    fn test_reorder_codex_model_after_profile() {
-        // Basic reordering
-        let mut args = vec![
-            "--model".to_string(),
-            "gpt-4".to_string(),
-            "--profile".to_string(),
-            "work".to_string(),
-        ];
-        reorder_codex_model_after_profile(&mut args);
-        assert_eq!(args, vec!["--profile", "work", "--model", "gpt-4"]);
-
-        // Multiple model flags
-        let mut args = vec![
-            "--model".to_string(),
-            "gpt-4".to_string(),
-            "-m".to_string(),
-            "claude".to_string(),
-            "--profile".to_string(),
-            "dev".to_string(),
-            "--model=sonnet".to_string(),
-        ];
-        reorder_codex_model_after_profile(&mut args);
-        
-        // Profile should come first
-        assert_eq!(args[0], "--profile");
-        assert_eq!(args[1], "dev");
-        
-        // All model flags should be at the end
-        let model_start = 2;
-        assert!(args[model_start..].contains(&"--model".to_string()));
-        assert!(args[model_start..].contains(&"-m".to_string()));
-        assert!(args[model_start..].contains(&"--model=sonnet".to_string()));
-
-        // No profile present - models move to end
-        let mut args = vec![
-            "--model".to_string(),
-            "gpt-4".to_string(),
-            "--verbose".to_string(),
-            "-m".to_string(),
-            "claude".to_string(),
-        ];
-        reorder_codex_model_after_profile(&mut args);
-        assert_eq!(args[0], "--verbose");
-        assert_eq!(args[1], "--model");
-        assert_eq!(args[2], "gpt-4");
-        assert_eq!(args[3], "-m");
-        assert_eq!(args[4], "claude");
-    }
-
-    #[test]
-    fn test_reorder_codex_model_after_profile_edge_cases() {
-        // Empty vector
-        let mut args: Vec<String> = vec![];
-        reorder_codex_model_after_profile(&mut args);
-        assert!(args.is_empty());
-
-        // Only model flags
-        let mut args = vec![
-            "--model".to_string(),
-            "gpt-4".to_string(),
-            "-m".to_string(),
-            "claude".to_string(),
-        ];
-        let original = args.clone();
-        reorder_codex_model_after_profile(&mut args);
-        assert_eq!(args, original);
-
-        // Only profile flag
-        let mut args = vec!["--profile".to_string(), "work".to_string()];
-        let original = args.clone();
-        reorder_codex_model_after_profile(&mut args);
-        assert_eq!(args, original);
-
-        // Model flag without value at end
-        let mut args = vec![
-            "--profile".to_string(),
-            "work".to_string(),
-            "--model".to_string(),
-        ];
-        reorder_codex_model_after_profile(&mut args);
-        assert_eq!(args, vec!["--profile", "work", "--model"]);
-
-        // Complex mixed scenario
-        let mut args = vec![
-            "--model=gpt-4".to_string(),
-            "--other".to_string(),
-            "value".to_string(),
-            "-m".to_string(),
-            "claude".to_string(),
-            "--profile".to_string(),
-            "prod".to_string(),
-            "--model".to_string(),
-            "sonnet".to_string(),
-            "--verbose".to_string(),
-            "-m=turbo".to_string(),
-        ];
-        reorder_codex_model_after_profile(&mut args);
-        
-        let profile_idx = args.iter().position(|x| x == "--profile").unwrap();
-        let first_model_idx = args.iter().position(|x| x.contains("model") || x == "-m").unwrap();
-        
-        assert!(profile_idx < first_model_idx);
-        assert_eq!(args[profile_idx], "--profile");
-        assert_eq!(args[profile_idx + 1], "prod");
-    }
-
-    #[test]
     fn test_codex_flag_normalization_integration() {
         // Test the full pipeline as used in actual code
         let cli_args = "-model gpt-4 -p work -m claude";
         let mut args = shell_words::split(cli_args).unwrap();
         
-        fix_codex_single_dash_long_flags(&mut args);
-        reorder_codex_model_after_profile(&mut args);
+        crate::commands::schaltwerk_core::schaltwerk_core_cli::fix_codex_single_dash_long_flags(&mut args);
+        crate::commands::schaltwerk_core::schaltwerk_core_cli::reorder_codex_model_after_profile(&mut args);
         
         // After normalization:
         // 1. -model should become --model

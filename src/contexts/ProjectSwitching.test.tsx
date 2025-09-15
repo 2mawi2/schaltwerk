@@ -33,6 +33,7 @@ describe('Project Switching Selection Behavior', () => {
         vi.clearAllMocks()
         
         // Setup default mocks
+        let savedSelection: { kind: 'session'|'orchestrator', payload: string|null } | null = null
         mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
             const typedArgs = args as { name?: string; id?: string } | undefined
             switch (command) {
@@ -50,10 +51,14 @@ describe('Project Switching Selection Behavior', () => {
                         name: typedArgs?.name || 'test-session'
                     })
                 case TauriCommands.GetProjectSelection:
-                    // Database returns null initially
-                    return Promise.resolve(null)
+                    // Return last saved selection (simulating DB)
+                    return Promise.resolve(savedSelection)
                 case TauriCommands.SetProjectSelection:
-                    // Database saves selection
+                    // Persist selection locally for test run
+                    {
+                        const sel = args as { kind: 'session'|'orchestrator'; payload: string|null }
+                        savedSelection = { kind: sel.kind, payload: sel.payload }
+                    }
                     return Promise.resolve()
                 case TauriCommands.SchaltwerkCoreListEnrichedSessions:
                     return Promise.resolve([])
@@ -85,12 +90,17 @@ describe('Project Switching Selection Behavior', () => {
         it('should allow setting a session selection', async () => {
             const { result } = renderHook(() => useSelection(), { wrapper: TestWrapper })
 
+            // Wait for initial auto-restore to complete to avoid races
+            await waitFor(() => {
+                expect(result.current.isReady).toBe(true)
+            })
+
             await act(async () => {
                 await result.current.setSelection({
                     kind: 'session',
                     payload: 'test-session',
                     worktreePath: '/test/path'
-                })
+                }, false, true)
             })
 
             await waitFor(() => {
@@ -113,13 +123,19 @@ describe('Project Switching Selection Behavior', () => {
 
             const project = '/same/project'
 
-            // Batch initial setup operations
-            act(() => {
+            // Set project and wait for initialization
+            await act(async () => {
                 result.current.project.setProjectPath(project)
-                result.current.selection.setSelection({ kind: 'session', payload: 'my-session' })
+            })
+            await waitFor(() => {
+                expect(result.current.selection.isReady).toBe(true)
             })
 
-            // Wait for both operations to complete
+            // Now intentionally select a session
+            await act(async () => {
+                await result.current.selection.setSelection({ kind: 'session', payload: 'my-session' }, false, true)
+            })
+
             await waitFor(() => {
                 expect(result.current.selection.selection).toEqual({ kind: 'session', payload: 'my-session' })
             })

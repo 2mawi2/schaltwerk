@@ -9,7 +9,7 @@ pub struct CodexConfig {
 pub fn find_codex_session_fast(path: &Path) -> Option<String> {
     log::debug!("🔍 Codex session detection starting for path: {}", path.display());
     
-    // Prefer explicit HOME for testability, fall back to dirs::home_dir()
+    // Prefer runtime HOME to support tests that set it mid-process; fall back to OS home.
     let home = std::env::var("HOME").ok().map(PathBuf::from)
         .or_else(dirs::home_dir);
     
@@ -77,7 +77,7 @@ pub fn find_codex_session(path: &Path) -> Option<String> {
 
 /// Returns the newest matching Codex session JSONL path for this worktree, if any.
 pub fn find_codex_resume_path(path: &Path) -> Option<PathBuf> {
-    // Prefer explicit HOME for testability, fall back to dirs::home_dir()
+    // Prefer runtime HOME to support tests that set it mid-process; fall back to OS home.
     let home = std::env::var("HOME").ok().map(PathBuf::from)
         .or_else(dirs::home_dir)?;
     let sessions_dir = home.join(".codex").join("sessions");

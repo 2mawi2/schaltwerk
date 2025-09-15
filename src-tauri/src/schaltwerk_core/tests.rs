@@ -1149,6 +1149,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_codex_spec_start_respects_resume_gate() {
         use std::io::Write;
         use std::fs;
@@ -1183,6 +1184,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
 
         // Point HOME to our temp dir so Codex resume detection picks it up
+        let prev_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", home_dir.path());
 
         // First start should be a fresh start using the prompt (resume gate is false)
@@ -1198,9 +1200,13 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         // Should prefer resuming (either via explicit resume path, --resume or --continue)
         let resumed = cmd2.contains("-c experimental_resume=") || cmd2.contains(" --resume") || cmd2.contains(" --continue");
         assert!(resumed, "expected a resume-capable command on second start: {}", cmd2);
+
+        // Restore HOME
+        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_orchestrator_codex_prefers_explicit_resume_path() {
         use std::io::Write;
         use std::fs;
@@ -1224,6 +1230,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
 
         // Point HOME to our temp dir so Codex resume detection picks it up
+        let prev_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", home_dir.path());
 
         // Build orchestrator command (resume enabled by default)
@@ -1232,4 +1239,7 @@ echo "BRANCH_NAME=$BRANCH_NAME" >> "$WORKTREE_PATH/env_test.txt"
         // Should prefer explicit resume path via experimental config override
         assert!(cmd.contains("-c experimental_resume="), "expected experimental resume path in orchestrator start: {}", cmd);
         assert!(!cmd.contains(" --resume"), "should not fall back to picker when explicit path available: {}", cmd);
+
+        // Restore HOME
+        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
     }

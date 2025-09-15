@@ -301,6 +301,9 @@ Respond with just the short kebab-case name:"#
             let mut extra = shell_words::split(cli).unwrap_or_else(|_| vec![cli.to_string()]);
             fix_codex_single_dash_long_flags(&mut extra);
             reorder_codex_model_after_profile(&mut extra);
+            // Codex `exec` subcommand does not accept the interactive-only `--search` flag.
+            // Filter it out to avoid exit code 2 during name generation.
+            extra.retain(|a| a != "--search" && a != "-search");
             args.extend(extra);
         }
         // Capture only the last assistant message to a temp file for reliable parsing
@@ -945,6 +948,22 @@ mod tests {
         // Values follow the short flags
         assert_eq!(args[p + 1], "maibornwolff");
         assert_eq!(args[m + 1], "gpt-5");
+    }
+
+    #[test]
+    fn test_codex_exec_filters_search_flag() {
+        // Simulate CLI args that include an interactive-only flag
+        let cli_args = "--search --model gpt-4";
+        let mut args: Vec<String> = vec!["exec".into(), "--sandbox".into(), "workspace-write".into(), "--json".into()];
+        let mut extra = shell_words::split(cli_args).unwrap();
+        fix_codex_single_dash_long_flags(&mut extra);
+        reorder_codex_model_after_profile(&mut extra);
+        extra.retain(|a| a != "--search" && a != "-search");
+        args.extend(extra);
+        // Ensure --search was filtered out for exec
+        assert!(args.iter().all(|a| a != "--search" && a != "-search"));
+        // Model should still be present
+        assert!(args.contains(&"--model".to_string()) || args.iter().any(|a| a.starts_with("--model=")));
     }
 
     #[tokio::test]

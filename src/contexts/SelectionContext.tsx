@@ -60,6 +60,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const projectEpochRef = useRef(0)
     const lastUserSelectionEpochRef = useRef(-1)
     const userSelectionInFlightRef = useRef(false)
+    // Track metadata without attaching fields to the function reference
+    const lastTokenWasAutoRef = useRef(false)
+    const lastUserTokenRef = useRef(0)
     const { isAnyModalOpen, openModals } = useModal()
     const pendingSelectionRef = useRef<Selection | null>(null)
     
@@ -347,13 +350,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         document.body.classList.add('session-switching')
         // Treat any non-restoration call as a user selection within current project epoch
         const isAuto = isRestoringRef.current === true
-        ;(setSelection as any).lastTokenWasAutoRef = (setSelection as any).lastTokenWasAutoRef || { current: false }
-        ;(setSelection as any).lastTokenWasAutoRef.current = isAuto
+        lastTokenWasAutoRef.current = isAuto
         if (!isAuto) {
             lastUserSelectionEpochRef.current = projectEpochRef.current
             // Track most recent user token to prioritize over auto-restores
-            ;(setSelection as any).lastUserTokenRef = (setSelection as any).lastUserTokenRef || { current: 0 }
-            ;(setSelection as any).lastUserTokenRef.current = callToken
+            lastUserTokenRef.current = callToken
             userSelectionInFlightRef.current = true
         }
         
@@ -447,7 +448,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // If terminal already exists, update state immediately for instant switch
             if (terminalAlreadyExists && !forceRecreate) {
                 // If this is an auto-restore and a newer user selection occurred, skip applying
-                const lastUserToken = ((setSelection as any).lastUserTokenRef?.current ?? 0) as number
+                const lastUserToken = lastUserTokenRef.current ?? 0
                 if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                     return
                 }
@@ -508,14 +509,14 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             const terminalIds = await ensureTerminals(newSelection)
             // If another selection superseded this call, abandon applying its result
             if (callToken !== selectionTokenRef.current) {
-                const lastWasAuto = ((setSelection as any).lastTokenWasAutoRef?.current ?? false) as boolean
+                const lastWasAuto = lastTokenWasAutoRef.current ?? false
                 // Allow user selection to continue even if an auto selection bumped the token
                 if (!( !isAuto && lastWasAuto )) {
                     return
                 }
             }
             // If this is an auto-restore and a newer user selection occurred while creating, skip applying
-            const lastUserToken = ((setSelection as any).lastUserTokenRef?.current ?? 0) as number
+            const lastUserToken = lastUserTokenRef.current ?? 0
             if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                 return
             }
