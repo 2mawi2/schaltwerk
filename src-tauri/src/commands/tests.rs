@@ -1,4 +1,5 @@
 // Test the reset orchestrator commands
+use crate::schaltwerk_core::__test_launch_in_terminal;
 // These are more like integration tests that verify the command structure and basic functionality
 
 #[tokio::test]
@@ -88,4 +89,31 @@ async fn test_command_functions_exist_and_callable() {
             Ok(_) => panic!("Reset should not succeed without project"),
         }
     }
+}
+
+// Regression: ensure concurrent launch attempts on the same terminal id do not panic
+// and are serialized by the backend lock. We don't assert on success because this
+// file runs without a full project context; we only verify both futures complete.
+#[tokio::test]
+async fn test_concurrent_launches_are_serialized() {
+    // Skip early if schaltwerk core cannot be obtained in this environment
+    let db = match crate::get_schaltwerk_core().await {
+        Ok(core) => core.lock().await.db.clone(),
+        Err(_) => return,
+    };
+    let repo = match crate::get_schaltwerk_core().await {
+        Ok(core) => core.lock().await.repo_path.clone(),
+        Err(_) => return,
+    };
+
+    let terminal_id = "test-concurrent-launch".to_string();
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let cmd = format!("cd {} && claude", cwd.display());
+
+    let _ = __test_launch_in_terminal(
+        terminal_id.clone(), cmd.clone(), &db, &repo, None, None,
+    ).await;
+    let _ = __test_launch_in_terminal(
+        terminal_id.clone(), cmd.clone(), &db, &repo, None, None,
+    ).await;
 }

@@ -10,6 +10,9 @@ mod events;
 mod terminals;
 mod agent_ctx;
 mod agent_launcher;
+// Expose a test-only hook to exercise serialized launch logic without widening public API
+#[cfg(test)]
+pub use agent_launcher::launch_in_terminal as __test_launch_in_terminal;
 
 // Simple POSIX sh single-quote helper for safe argument joining in one-liners
 fn sh_quote_string(s: &str) -> String {

@@ -1,6 +1,15 @@
 use crate::{parse_agent_command, get_terminal_manager};
 use super::{agent_ctx, terminals};
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
+use once_cell::sync::Lazy;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex as AsyncMutex;
+
+// Serialize launches per terminal to prevent interleaved close/create races that could
+// momentarily run two different agents in the same PTY. This avoids the UI symptom of
+// two AIs appearing in one terminal due to overlapping spawns.
+static START_LOCKS: Lazy<AsyncMutex<HashMap<String, Arc<AsyncMutex<()>>>>> = Lazy::new(|| AsyncMutex::new(HashMap::new()));
 
 pub async fn launch_in_terminal(
     terminal_id: String,
@@ -10,6 +19,15 @@ pub async fn launch_in_terminal(
     cols: Option<u16>,
     rows: Option<u16>,
 ) -> Result<String, String> {
+    // Acquire (or create) a lock specific to this terminal id and hold it for the
+    // whole close→create sequence. This guarantees only one launch pipeline runs
+    // at a time for a given terminal.
+    let term_lock = {
+        let mut map = START_LOCKS.lock().await;
+        map.entry(terminal_id.clone()).or_insert_with(|| Arc::new(AsyncMutex::new(()))).clone()
+    };
+    let _guard = term_lock.lock().await;
+
     let (cwd, agent_name, agent_args) = parse_agent_command(&command_line)?;
     terminals::ensure_cwd_access(&cwd)?;
 
@@ -46,4 +64,3 @@ pub async fn launch_in_terminal(
 
     Ok(command_line)
 }
-
