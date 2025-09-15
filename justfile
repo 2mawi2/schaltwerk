@@ -130,9 +130,13 @@ install:
     if [ -d "mcp-server" ]; then
         echo "📦 Building MCP server..."
         cd mcp-server
+        # Ensure clean, reproducible deps before building (dev deps required for tsc)
+        echo "📦 Installing MCP server dependencies (ci)..."
+        npm ci
+        # Build TypeScript sources
         npm run build
-        # Install production dependencies for embedding
-        npm ci --production --prefix .
+        # Re-install with production-only deps for embedding inside the app bundle
+        npm ci --omit=dev
         cd ..
         echo "✅ MCP server built"
     fi
