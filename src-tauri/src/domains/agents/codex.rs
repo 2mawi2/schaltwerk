@@ -9,8 +9,9 @@ pub struct CodexConfig {
 pub fn find_codex_session_fast(path: &Path) -> Option<String> {
     log::debug!("🔍 Codex session detection starting for path: {}", path.display());
     
-    let home = dirs::home_dir()
-        .or_else(|| std::env::var("HOME").ok().map(PathBuf::from));
+    // Prefer explicit HOME for testability, fall back to dirs::home_dir()
+    let home = std::env::var("HOME").ok().map(PathBuf::from)
+        .or_else(dirs::home_dir);
     
     if home.is_none() {
         log::warn!("❌ Codex session detection: Could not determine home directory");
@@ -76,8 +77,9 @@ pub fn find_codex_session(path: &Path) -> Option<String> {
 
 /// Returns the newest matching Codex session JSONL path for this worktree, if any.
 pub fn find_codex_resume_path(path: &Path) -> Option<PathBuf> {
-    let home = dirs::home_dir()
-        .or_else(|| std::env::var("HOME").ok().map(PathBuf::from))?;
+    // Prefer explicit HOME for testability, fall back to dirs::home_dir()
+    let home = std::env::var("HOME").ok().map(PathBuf::from)
+        .or_else(dirs::home_dir)?;
     let sessions_dir = home.join(".codex").join("sessions");
     if !sessions_dir.exists() { return None; }
     let target_path = path.to_string_lossy().to_string();

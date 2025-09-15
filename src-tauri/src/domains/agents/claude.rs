@@ -14,9 +14,9 @@ pub struct ClaudeConfig {
 /// Returns a special marker "__continue__" if sessions exist, which tells Claude to use --continue flag
 /// This avoids expensive file reading and parsing operations
 pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
-    // Prefer dirs::home_dir() and fall back to HOME env var
-    let home = dirs::home_dir()
-        .or_else(|| std::env::var("HOME").ok().map(PathBuf::from))?;
+    // Prefer explicit HOME (tests set this), then dirs::home_dir()
+    let home = std::env::var("HOME").ok().map(PathBuf::from)
+        .or_else(dirs::home_dir)?;
     let claude_dir = home.join(".claude");
     let projects_dir = claude_dir.join("projects");
 
