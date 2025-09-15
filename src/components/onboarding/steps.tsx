@@ -1,4 +1,5 @@
 import React from 'react'
+import { BranchingDiagram, LifecycleDiagram } from './Diagrams'
 
 export interface OnboardingStep {
     title: string
@@ -83,11 +84,11 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         action: 'highlight'
     },
     {
-        title: "The Orchestrator - Your Control Center",
+        title: "Orchestrator Basics (MCP)",
         content: (
             <div>
                 <p className="mb-4">
-                    The <strong>Orchestrator</strong> is your project's control center. When connected to Schaltwerk's MCP server, it becomes a powerful natural language interface for managing all agents.
+                    The <strong>Orchestrator</strong> is your repo’s control center. With MCP enabled, use natural language or one‑click actions to integrate sessions. Sessions are git branches + worktrees, so you can merge, PR, or rebase per your strategy.
                 </p>
                 <div className="bg-purple-900/30 border border-purple-700/50 rounded p-3 mb-4">
                     <div className="flex items-start gap-2">
@@ -95,35 +96,70 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                         <div>
-                            <p className="text-purple-200 text-body font-medium mb-2">
-                                MCP-Powered Workflow Control
-                            </p>
-                            <p className="text-purple-300/80 text-body mb-2">
-                                Connect the MCP server to enable natural language commands:
-                            </p>
-                            <ul className="text-caption text-purple-300/70 space-y-1 list-disc list-inside">
-                                <li>"Which of my specs are most important to continue?"</li>
-                                <li>"Review agents X, Y, Z and mark them as reviewed"</li>
-                                <li>"Squash merge all reviewed agents into main"</li>
-                                <li>"Split this feature into parallel agents and start them"</li>
-                                <li>"Send follow-up message to session Y about the test failures"</li>
-                                <li>"Resolve merge conflicts between sessions A and B"</li>
+                            <p className="text-purple-200 text-body font-medium mb-1">What you can do</p>
+                            <ul className="text-caption text-purple-300/80 space-y-1 list-disc list-inside">
+                                <li>Configure an <strong>Action Button</strong> for one‑click routines.</li>
+                                <li>Prompt the orchestrator manually in natural language.</li>
+                                <li>Or manage branches directly — <code>schaltwerk/{'{'}session{'}'}</code> + <code>.schaltwerk/worktrees/{'{'}session{'}'}</code>.</li>
                             </ul>
                         </div>
                     </div>
                 </div>
-                <div className="text-body text-slate-400">
-                    <p className="mb-2">
-                        <strong>Ideal workflow:</strong> Create specs → Start agents → Review (manually or via orchestrator) → Merge & integrate
-                    </p>
-                    <p>
-                        Access with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘1</kbd> • Connect MCP in Settings
-                    </p>
+
+                <div className="grid grid-cols-1 gap-3">
+                    <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
+                        <h4 className="text-blue-400 font-medium mb-2">Lifecycle at a Glance</h4>
+                        <LifecycleDiagram />
+                    </div>
+                    <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
+                        <h4 className="text-emerald-400 font-medium mb-2">Branching Examples</h4>
+                        <BranchingDiagram />
+                    </div>
                 </div>
             </div>
         ),
         highlight: '.font-medium.text-slate-100',
         action: 'highlight'
+    },
+    {
+        title: "Orchestrator Actions (MCP)",
+        content: (
+            <div>
+                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                    <p className="text-blue-200 text-body font-medium mb-2">Action Button Presets</p>
+                    <ul className="text-caption text-blue-300/80 space-y-2 list-disc list-inside">
+                        <li><strong>Merge Reviewed to Main:</strong> Find Reviewed → run <code>npm run test</code> (or <code>just test</code>) → squash‑merge into <code>main</code> → push → ask to cancel sessions.</li>
+                        <li><strong>PR All Running to Feature:</strong> Push each <code>schaltwerk/{'{'}session{'}'}</code> → open PRs into your chosen <code>feature/x</code> → leave sessions running.</li>
+                        <li><strong>Review Queue:</strong> List sessions + diffs → per session choose Merge, PR, or Skip.</li>
+                    </ul>
+                    <p className="text-caption text-blue-300/70 mt-2">Configure in Settings → Action Buttons. Trigger via F1–F6 or click in the terminal header.</p>
+                </div>
+
+                <div className="bg-amber-900/30 border border-amber-700/50 rounded p-3 mb-4">
+                    <p className="text-amber-200 text-body font-medium mb-2">Manual Orchestrator Prompts</p>
+                    <ul className="text-caption text-amber-300/80 space-y-1 list-disc list-inside">
+                        <li>“Find all reviewed sessions, run tests, squash‑merge into main, then cancel each after success. Confirm per session.”</li>
+                        <li>“For running sessions based on feature/payments, push to origin as schaltwerk/{'{'}session{'}'}, open PRs into feature/payments. Don’t cancel.”</li>
+                        <li>“Group sessions by base branch and let me choose: merge reviewed now or create PRs for running.”</li>
+                    </ul>
+                </div>
+
+                <div className="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
+                    <h4 className="text-slate-200 font-medium mb-1">DIY (No Orchestrator Needed)</h4>
+                    <p className="text-body text-slate-300 mb-2">Use git directly — sessions are normal branches + worktrees.</p>
+                    <ol className="text-caption text-slate-400 list-decimal list-inside space-y-1">
+                        <li>Checkout target branch (<code>main</code> or <code>feature/x</code>).</li>
+                        <li>Review <code>schaltwerk/{'{'}session{'}'}</code> → <code>git merge --squash</code> or open a PR.</li>
+                        <li>After integration, cancel the session in Schaltwerk to remove its worktree.</li>
+                    </ol>
+                    <p className="text-caption text-slate-500 mt-2">Worktrees live in <code>.schaltwerk/worktrees/{'{'}session{'}'}</code>.</p>
+                </div>
+
+                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
+                    <p className="text-blue-200 text-body"><strong>Tip:</strong> Start sessions off the branch you plan to integrate back into. Example: start from <code>feature/payments</code> → merge/PR back to <code>feature/payments</code>; or start from <code>main</code> → merge back to <code>main</code>.</p>
+                </div>
+            </div>
+        )
     },
     {
         title: "MCP Integration (Optional)",
