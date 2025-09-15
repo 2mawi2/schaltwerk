@@ -10,9 +10,6 @@ mod events;
 mod terminals;
 mod agent_ctx;
 mod agent_launcher;
-// Expose a test-only hook to exercise serialized launch logic without widening public API
-#[cfg(test)]
-pub use agent_launcher::launch_in_terminal as __test_launch_in_terminal;
 
 // Simple POSIX sh single-quote helper for safe argument joining in one-liners
 fn sh_quote_string(s: &str) -> String {
@@ -1748,8 +1745,8 @@ mod tests {
     }
 }
 
-#[tauri::command]
-pub async fn schaltwerk_core_reset_session_worktree(app: tauri::AppHandle, session_name: String) -> Result<(), String> {
+// Internal implementation used by both the Tauri command and unit tests
+pub async fn reset_session_worktree_impl(app: Option<tauri::AppHandle>, session_name: String) -> Result<(), String> {
     log::info!("Resetting session worktree to base for: {session_name}");
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
@@ -1760,11 +1757,18 @@ pub async fn schaltwerk_core_reset_session_worktree(app: tauri::AppHandle, sessi
         .reset_session_worktree(&session_name)
         .map_err(|e| format!("Failed to reset worktree: {e}"))?;
 
-    // Emit sessions refreshed so UI updates its diffs/state
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        events::emit_sessions_refreshed(&app, &sessions);
+    // Emit sessions refreshed so UI updates its diffs/state when AppHandle is available
+    if let Some(app_handle) = app {
+        if let Ok(sessions) = manager.list_enriched_sessions() {
+            events::emit_sessions_refreshed(&app_handle, &sessions);
+        }
     }
     Ok(())
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_reset_session_worktree(app: tauri::AppHandle, session_name: String) -> Result<(), String> {
+    reset_session_worktree_impl(Some(app), session_name).await
 }
 
 #[cfg(test)]
@@ -1774,7 +1778,7 @@ mod reset_tests {
     #[tokio::test]
     async fn test_reset_session_worktree_requires_project() {
         // Without a project initialized, expect a readable error
-        let result = schaltwerk_core_reset_session_worktree("nope".to_string()).await;
+        let result = reset_session_worktree_impl(None, "nope".to_string()).await;
         assert!(result.is_err());
         let msg = result.err().unwrap();
         assert!(msg.contains("No active project") || msg.contains("Failed to get schaltwerk core") || msg.contains("No project is currently open"));
