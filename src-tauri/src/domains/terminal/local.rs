@@ -336,7 +336,6 @@ impl LocalPtyAdapter {
                                         CoalescingParams {
                                             terminal_id: &id_clone,
                                             data: &data,
-                                            delay_ms: 2, // Small delay for agent terminals to handle streaming output
                                         },
                                     ).await;
                                 } else {
@@ -606,15 +605,6 @@ impl TerminalBackend for LocalPtyAdapter {
                 .flush()
                 .map_err(|e| format!("Immediate flush failed: {e}"))?;
 
-            // Emit output immediately without coalescing delay for critical input
-            if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
-                let event_name = format!("terminal-output-{id}");
-                let payload = String::from_utf8_lossy(data).to_string();
-                if let Err(e) = handle.emit(&event_name, payload) {
-                    warn!("Failed to emit immediate terminal output: {e}");
-                }
-            }
-
             let elapsed = start.elapsed();
             if elapsed.as_millis() > 10 {
                 warn!("Terminal {id} slow immediate write: {}ms", elapsed.as_millis());
@@ -649,27 +639,29 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn close(&self, id: &str) -> Result<(), String> {
         info!("Closing terminal: {id}");
         
-        // Force kill the child process with timeout for robustness
+        // Try to terminate the child process and wait deterministically without polling
         if let Some(mut child) = self.pty_children.lock().await.remove(id) {
-            // Try graceful termination first
             if let Err(e) = child.kill() {
                 warn!("Failed to kill terminal process {id}: {e}");
-            } else {
-                // Wait briefly for process to exit gracefully
-                let timeout = tokio::time::Duration::from_millis(100);
-                match tokio::time::timeout(timeout, async {
-                    loop {
-                        match child.try_wait() {
-                            Ok(Some(_)) => break, // Process exited
-                            Ok(None) => {
-                                tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-                            }
-                            Err(_) => break, // Process is gone or error
-                        }
-                    }
-                }).await {
-                    Ok(()) => debug!("Terminal {id} process exited gracefully"),
-                    Err(_) => debug!("Terminal {id} process didn't exit within timeout, continuing cleanup"),
+            }
+            // Use blocking wait inside a timeout without inner sleeps
+            let wait_res = {
+                use tokio::time::{timeout, Duration};
+                timeout(Duration::from_millis(500), tokio::task::spawn_blocking(move || child.wait()))
+                    .await
+            };
+            match wait_res {
+                Ok(Ok(Ok(_status))) => {
+                    debug!("Terminal {id} process exited within timeout");
+                }
+                Ok(Ok(Err(e))) => {
+                    debug!("Terminal {id} wait returned error: {e}");
+                }
+                Ok(Err(join_err)) => {
+                    debug!("Terminal {id} spawn_blocking join error: {join_err}");
+                }
+                Err(_) => {
+                    debug!("Terminal {id} process didn't exit within timeout; proceeding with cleanup");
                 }
             }
         }
@@ -686,6 +678,11 @@ impl TerminalBackend for LocalPtyAdapter {
         // Clear coalescing buffers
         self.coalescing_state.clear_for(id).await;
         
+        // Emit terminal closed event
+        if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
+            let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id}));
+        }
+
         info!("Terminal {id} closed");
         Ok(())
     }

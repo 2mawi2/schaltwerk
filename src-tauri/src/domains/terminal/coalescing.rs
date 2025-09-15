@@ -31,7 +31,6 @@ impl CoalescingState {
 pub struct CoalescingParams<'a> {
     pub terminal_id: &'a str,
     pub data: &'a [u8],
-    pub delay_ms: u64,
 }
 
 /// Handle coalesced output with ANSI-aware buffering
@@ -65,111 +64,54 @@ pub async fn handle_coalesced_output(
         buf_ref.extend_from_slice(params.data);
     }
 
-    // Skip normalized buffer processing - it causes extra newlines and corrupts terminal output
-    // The normalized output events are never consumed by the frontend anyway
-
-    // Schedule emission with ANSI awareness
-    let mut should_schedule = false;
-    {
-        let mut scheduled = coalescing_state.emit_scheduled.write().await;
-        let entry = scheduled.entry(params.terminal_id.to_string()).or_insert(false);
-        if !*entry {
-            *entry = true;
-            should_schedule = true;
+    // Deterministic, read-driven emission without timers
+    const THRESHOLD: usize = 8 * 1024;
+    // Take a snapshot of the buffer and compute safe split
+    let (emit_bytes, remainder) = {
+        let mut buffers = coalescing_state.emit_buffers.write().await;
+        if let Some(buffer) = buffers.get_mut(params.terminal_id) {
+            let safe = ansi::find_safe_split_point(buffer);
+            if safe == 0 {
+                // Nothing safe to emit yet
+                if buffer.len() < THRESHOLD {
+                    return;
+                } else {
+                    // Over threshold but still unsafe; avoid emitting to prevent ANSI corruption
+                    return;
+                }
+            }
+            let remaining = buffer.split_off(safe);
+            let to_emit = std::mem::take(buffer);
+            (Some(to_emit), Some(remaining))
+        } else {
+            (None, None)
         }
+    };
+
+    if let Some(rem) = remainder {
+        coalescing_state
+            .emit_buffers
+            .write()
+            .await
+            .insert(params.terminal_id.to_string(), rem);
     }
 
-    if should_schedule {
-        let app_for_emit = Arc::clone(&coalescing_state.app_handle);
-        let emit_buffers_for_task = Arc::clone(&coalescing_state.emit_buffers);
-        let emit_scheduled_for_task = Arc::clone(&coalescing_state.emit_scheduled);
-        let id_for_task = params.terminal_id.to_string();
-        let delay_ms = params.delay_ms;
-
-        tokio::spawn(async move {
-            use tokio::time::{sleep, Duration};
-            if delay_ms > 0 {
-                sleep(Duration::from_millis(delay_ms)).await;
+    if let Some(bytes) = emit_bytes {
+        if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
+            let event_name = format!("terminal-output-{}", params.terminal_id);
+            let payload = String::from_utf8_lossy(&bytes).to_string();
+            if let Err(e) = handle.emit(&event_name, payload) {
+                warn!("Failed to emit terminal output: {e}");
             }
-
-            // Take buffer and check for incomplete ANSI sequences
-            let data_to_emit: Option<Vec<u8>> = {
-                let mut buffers = emit_buffers_for_task.write().await;
-                if let Some(mut buffer) = buffers.remove(&id_for_task) {
-                    // Check if buffer ends with incomplete ANSI sequence
-                    if ansi::has_incomplete_ansi_sequence(&buffer) {
-                        // Find safe split point
-                        let safe_point = ansi::find_safe_split_point(&buffer);
-                        if safe_point > 0 && safe_point < buffer.len() {
-                            // Split at safe point, keeping incomplete sequence for next emit
-                            let remaining = buffer.split_off(safe_point);
-                            buffers.insert(id_for_task.clone(), remaining);
-                            Some(buffer)
-                        } else if safe_point == 0 {
-                            // Entire buffer is an incomplete sequence, wait for more data
-                            buffers.insert(id_for_task.clone(), buffer);
-                            None
-                        } else {
-                            // Buffer is safe to emit entirely
-                            Some(buffer)
-                        }
-                    } else {
-                        Some(buffer)
-                    }
-                } else {
-                    None
-                }
-            };
-
-            // Mark unscheduled
-            {
-                let mut scheduled = emit_scheduled_for_task.write().await;
-                if let Some(flag) = scheduled.get_mut(&id_for_task) {
-                    *flag = false;
-                }
-            }
-
-            // Emit the data
-            if let Some(bytes) = data_to_emit {
-                if let Some(handle) = app_for_emit.lock().await.as_ref() {
-                    let event_name = format!("terminal-output-{id_for_task}");
-                    let payload = String::from_utf8_lossy(&bytes).to_string();
-                    if let Err(e) = handle.emit(&event_name, payload) {
-                        warn!("Failed to emit terminal output: {e}");
-                    }
-                }
-            }
-
-            // If there's remaining data (incomplete sequence), reschedule
-            {
-                let buffers = emit_buffers_for_task.read().await;
-                if buffers.contains_key(&id_for_task) {
-                    // There's still data, schedule another emission
-                    drop(buffers);
-                    let mut scheduled = emit_scheduled_for_task.write().await;
-                    if let Some(flag) = scheduled.get_mut(&id_for_task) {
-                        if !*flag {
-                            *flag = true;
-                            // Schedule another emission after a short delay
-                            let _app_for_emit = Arc::clone(&app_for_emit);
-                            let _emit_buffers_for_next = Arc::clone(&emit_buffers_for_task);
-                            let emit_scheduled_for_next = Arc::clone(&emit_scheduled_for_task);
-                            let id_for_next = id_for_task.clone();
-                            
-                            tokio::spawn(async move {
-                                sleep(Duration::from_millis(5)).await; // Slightly longer delay for incomplete sequences
-                                
-                                // Mark it as ready to be processed again on next data
-                                let mut scheduled = emit_scheduled_for_next.write().await;
-                                if let Some(flag) = scheduled.get_mut(&id_for_next) {
-                                    *flag = false; // Allow it to be scheduled again on next data
-                                }
-                            });
-                        }
-                    }
-                }
-            }
-        });
+        } else {
+            // No app handle available (tests or early startup): restore bytes back to buffer
+            let mut buffers = coalescing_state.emit_buffers.write().await;
+            let entry = buffers.entry(params.terminal_id.to_string()).or_default();
+            // Prepend emitted bytes back to the front to preserve ordering
+            let mut restored = bytes;
+            restored.extend_from_slice(entry);
+            *entry = restored;
+        }
     }
 }
 
@@ -195,15 +137,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_coalescing_params() {
-        let params = CoalescingParams {
-            terminal_id: "test-terminal",
-            data: b"hello world",
-            delay_ms: 100,
-        };
+        let params = CoalescingParams { terminal_id: "test-terminal", data: b"hello world" };
         
         assert_eq!(params.terminal_id, "test-terminal");
         assert_eq!(params.data, b"hello world");
-        assert_eq!(params.delay_ms, 100);
     }
 
     #[tokio::test]
@@ -216,11 +153,7 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        let params = CoalescingParams {
-            terminal_id: "test-term",
-            data: b"test output",
-            delay_ms: 0,
-        };
+        let params = CoalescingParams { terminal_id: "test-term", data: b"test output" };
 
         handle_coalesced_output(&state, params).await;
 
@@ -241,18 +174,10 @@ mod tests {
         };
 
         // First call
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"hello ",
-            delay_ms: 0,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"hello " }).await;
 
         // Second call 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"world",
-            delay_ms: 0,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"world" }).await;
 
         // Wait a bit for async processing
         sleep(Duration::from_millis(10)).await;
@@ -267,7 +192,7 @@ mod tests {
     // Normalized buffer tests removed - normalized processing is no longer active
 
     #[tokio::test]
-    async fn test_scheduling_flag_prevents_double_scheduling() {
+    async fn test_buffers_accumulate_without_app_handle() {
         let state = CoalescingState {
             app_handle: Arc::new(Mutex::new(None)),
             emit_buffers: Arc::new(RwLock::new(HashMap::new())),
@@ -276,26 +201,9 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        // First call should schedule
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"data1",
-            delay_ms: 100, // Use delay to keep it scheduled
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"data1" }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"data2" }).await;
 
-        {
-            let scheduled = state.emit_scheduled.read().await;
-            assert_eq!(*scheduled.get("test-term").unwrap(), true);
-        }
-
-        // Second call should not re-schedule while first is pending
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"data2",
-            delay_ms: 100,
-        }).await;
-
-        // Buffer should contain both
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
         assert_eq!(buffer, b"data1data2");
@@ -311,20 +219,11 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"immediate",
-            delay_ms: 0,
-        }).await;
-
-        // With zero delay, processing should start immediately
-        // Give it minimal time to process
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"immediate" }).await;
+        // Without an app handle, bytes remain buffered
         sleep(Duration::from_millis(5)).await;
-
-        // Buffer should be consumed (emission attempted)
-        let scheduled = state.emit_scheduled.read().await;
-        // After processing, the flag should be reset to false
-        assert_eq!(*scheduled.get("test-term").unwrap_or(&false), false);
+        let buffers = state.emit_buffers.read().await;
+        assert_eq!(buffers.get("test-term").map(|v| v.as_slice()), Some(b"immediate".as_ref()));
     }
 
     #[tokio::test]
@@ -338,18 +237,10 @@ mod tests {
         };
 
         // Add data for terminal 1
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "term1",
-            data: b"data1",
-            delay_ms: 0,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term1", data: b"data1" }).await;
 
         // Add data for terminal 2
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "term2",
-            data: b"data2",
-            delay_ms: 0,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term2", data: b"data2" }).await;
 
         let buffers = state.emit_buffers.read().await;
         
@@ -373,15 +264,10 @@ mod tests {
         let terminal_id = "test-terminal-cleanup";
 
         // Add data to all maps
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id,
-            data: b"test data",
-            delay_ms: 100, // Use delay to keep data in buffers
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id, data: b"test data" }).await;
 
         // Verify data is in buffers
         assert!(state.emit_buffers.read().await.contains_key(terminal_id));
-        assert!(state.emit_scheduled.read().await.contains_key(terminal_id));
         // Normalized buffers no longer populated during processing
 
         // Clear buffers for this terminal
@@ -406,23 +292,11 @@ mod tests {
         };
 
         // Add data for multiple terminals
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "term1",
-            data: b"data1",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term1", data: b"data1" }).await;
 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "term2",
-            data: b"data2",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term2", data: b"data2" }).await;
 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "term3",
-            data: b"data3",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term3", data: b"data3" }).await;
 
         // Clear only term2
         state.clear_for("term2").await;
@@ -467,18 +341,10 @@ mod tests {
         };
 
         // Add initial content
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"Line 1\nLine 2 initial",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"Line 1\nLine 2 initial" }).await;
 
         // Send carriage return with new content (should overwrite "Line 2 initial")
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"\rLine 2 replaced",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\rLine 2 replaced" }).await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
@@ -497,23 +363,11 @@ mod tests {
         };
 
         // Simulating rapid updates like a progress spinner
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"Previous line\nLoading.",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"Previous line\nLoading." }).await;
 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"\rLoading..",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\rLoading.." }).await;
 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"\rLoading...",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\rLoading..." }).await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
@@ -532,17 +386,9 @@ mod tests {
         };
 
         // CRLF sequences should be preserved as they are actual line endings
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"Line 1\r\nLine 2",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"Line 1\r\nLine 2" }).await;
 
-        handle_coalesced_output(&state, CoalescingParams {
-            terminal_id: "test-term",
-            data: b"\r\nLine 3",
-            delay_ms: 100,
-        }).await;
+        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\r\nLine 3" }).await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
