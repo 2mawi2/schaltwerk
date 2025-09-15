@@ -77,12 +77,36 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const listenerAgentRef = useRef<string | undefined>(agentType);
     const rendererReadyRef = useRef<boolean>(false); // Canvas renderer readiness flag
     const [resolvedFontFamily, setResolvedFontFamily] = useState<string | null>(null);
+    // Drag-selection suppression for run terminals
+    const suppressNextClickRef = useRef<boolean>(false);
+    const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
 
     // Write queue helpers shared across effects (agent terminals get larger buffers)
     const queueCfg = useMemo(() => (
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
     const MAX_WRITE_CHUNK = queueCfg.maxWriteChunk;
+
+    // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
+    const isUserSelectingInTerminal = useCallback((): boolean => {
+        try {
+            const sel = typeof window !== 'undefined' ? window.getSelection() : null;
+            if (!sel || sel.isCollapsed) return false;
+            const anchor = sel.anchorNode;
+            const focus = sel.focusNode;
+            const el = termRef.current;
+            if (!el) return false;
+            return (!!anchor && el.contains(anchor)) || (!!focus && el.contains(focus));
+        } catch {
+            return false;
+        }
+    }, []);
+
+    const shouldAutoScroll = useCallback((wasAtBottom: boolean) => {
+        if (!wasAtBottom) return false;
+        if (agentType === 'run' && isUserSelectingInTerminal()) return false;
+        return true;
+    }, [agentType, isUserSelectingInTerminal]);
 
     const enqueueWrite = useCallback((data: string) => {
         const next = applyEnqueuePolicy(
@@ -673,7 +697,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                     terminal.current.write(chunk, () => {
                         try {
-                            if (wasAtBottom) {
+                            if (shouldAutoScroll(wasAtBottom)) {
                                 terminal.current!.scrollToBottom();
                             }
                         } catch (error) {
@@ -714,7 +738,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 if (termDebug()) logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
                 terminal.current.write(chunk, () => {
                     try {
-                        if (wasAtBottom) {
+                        if (shouldAutoScroll(wasAtBottom)) {
                             terminal.current!.scrollToBottom();
                         }
                     } catch (error) {
@@ -777,7 +801,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             ? buffer.viewportY === buffer.baseY
                             : false;
                         terminal.current!.write(chunk, () => {
-                            try { if (wasAtBottom) terminal.current!.scrollToBottom(); } catch { /* ignore */ }
+                            try { if (shouldAutoScroll(wasAtBottom)) terminal.current!.scrollToBottom(); } catch { /* ignore */ }
                             // Continue draining until truly empty; use microtask to avoid deep callback chains
                             queueMicrotask(step);
                         });
@@ -882,7 +906,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                   requestAnimationFrame(() => {
                       if (terminal.current) {
                           try {
-                              terminal.current.scrollToBottom();
+                              if (agentType !== 'run' || !isUserSelectingInTerminal()) {
+                                  terminal.current.scrollToBottom();
+                              }
                               if (agentType === 'codex') {
                                   const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
                                   const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
@@ -919,7 +945,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     requestAnimationFrame(() => {
                         if (terminal.current) {
                             try {
-                                terminal.current.scrollToBottom();
+                                if (agentType !== 'run' || !isUserSelectingInTerminal()) {
+                                    terminal.current.scrollToBottom();
+                                }
                             } catch (error) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
                             }
@@ -980,7 +1008,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
                     // Only scroll to bottom on font size change if user was at bottom AND we're not during session switching
                     const isUILayoutChange = document.body.classList.contains('session-switching');
-                    if (wasAtBottom && !isUILayoutChange) {
+                    if (wasAtBottom && !isUILayoutChange && (agentType !== 'run' || !isUserSelectingInTerminal())) {
                         requestAnimationFrame(() => {
                             try {
                                 if (!terminal.current) return
@@ -1052,7 +1080,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // Only scroll to bottom on resize if user was at bottom AND we're not during a UI layout change
             // Skip auto-scroll during session switches to prevent interference with scrolling
             const isUILayoutChange = document.body.classList.contains('session-switching');
-            if (wasAtBottom && !isUILayoutChange) {
+            if (wasAtBottom && !isUILayoutChange && (agentType !== 'run' || !isUserSelectingInTerminal())) {
                 requestAnimationFrame(() => {
                     try {
                         terminal.current?.scrollToBottom();
@@ -1242,7 +1270,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     try {
                         const buffer = terminal.current!.buffer.active;
                         const atBottom = buffer.viewportY === buffer.baseY;
-                        if (atBottom) terminal.current!.scrollToBottom();
+                        if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
                         if (writeQueueRef.current.length > 0) {
                             flushQueuedWritesLight();
                         }
@@ -1470,6 +1498,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
 
     const handleTerminalClick = () => {
+        // If user is selecting text inside the run terminal, do not steal focus (prevents jump-to-bottom)
+        if (agentType === 'run' && (isUserSelectingInTerminal() || suppressNextClickRef.current)) {
+            // Reset suppression after consuming it
+            suppressNextClickRef.current = false;
+            return;
+        }
         // Focus the terminal when clicked (modal-safe)
         safeTerminalFocusImmediate(() => {
             terminal.current?.focus()
@@ -1480,8 +1514,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         }
     }
 
+    const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
+        suppressNextClickRef.current = false;
+    };
+    const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+        if (!mouseDownPosRef.current) return;
+        const dx = Math.abs(e.clientX - mouseDownPosRef.current.x);
+        const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
+        if (dx + dy > 3) {
+            suppressNextClickRef.current = true;
+        }
+    };
+    const onMouseUp = () => {
+        // Keep suppressNextClickRef until click handler runs; then it resets there
+        mouseDownPosRef.current = null;
+    };
+
     return (
-        <div className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick} data-smartdash-exempt="true">
+        <div className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} data-smartdash-exempt="true">
             <div ref={termRef} className="h-full w-full overflow-hidden" />
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
