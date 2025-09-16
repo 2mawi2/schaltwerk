@@ -1,10 +1,9 @@
-use std::path::{Path, PathBuf};
 use std::collections::{HashMap, HashSet};
-use std::sync::{OnceLock, Mutex as StdMutex, Arc};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 
 static PROMPTED_SESSIONS: OnceLock<StdMutex<HashSet<PathBuf>>> = OnceLock::new();
 static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = OnceLock::new();
-
 
 static REPO_LOCKS: OnceLock<StdMutex<HashMap<PathBuf, Arc<StdMutex<()>>>>> = OnceLock::new();
 
@@ -17,7 +16,6 @@ impl SessionCacheManager {
     pub fn new(repo_path: PathBuf) -> Self {
         Self { repo_path }
     }
-
 
     #[cfg(test)]
     pub fn mark_session_prompted(&self, worktree_path: &Path) {
@@ -32,7 +30,6 @@ impl SessionCacheManager {
         let mut prompted = set.lock().unwrap();
         prompted.insert(worktree_path.to_path_buf());
     }
-
 
     pub fn is_reserved(&self, name: &str) -> bool {
         let map_mutex = RESERVED_NAMES.get_or_init(|| StdMutex::new(HashMap::new()));
@@ -59,7 +56,6 @@ impl SessionCacheManager {
         }
     }
 
-
     pub fn get_repo_lock(&self) -> Arc<StdMutex<()>> {
         let map_mutex = REPO_LOCKS.get_or_init(|| StdMutex::new(HashMap::new()));
         let mut map = map_mutex.lock().unwrap();
@@ -77,19 +73,18 @@ impl SessionCacheManager {
             let mut prompted = prompted.lock().unwrap();
             prompted.clear();
         }
-        
+
         if let Some(reserved) = RESERVED_NAMES.get() {
             let mut reserved = reserved.lock().unwrap();
             reserved.clear();
         }
-        
+
         if let Some(repo_locks) = REPO_LOCKS.get() {
             let mut locks = repo_locks.lock().unwrap();
             locks.clear();
         }
     }
 }
-
 
 pub fn clear_session_prompted_non_test(worktree_path: &Path) {
     let set = PROMPTED_SESSIONS.get_or_init(|| StdMutex::new(HashSet::new()));

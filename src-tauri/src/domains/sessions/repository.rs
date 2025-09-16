@@ -1,15 +1,15 @@
-use std::path::PathBuf;
-use anyhow::{Result, anyhow};
-use chrono::Utc;
 use crate::{
-    schaltwerk_core::database::Database,
-    domains::sessions::db_sessions::SessionMethods,
     domains::git::db_git_stats::GitStatsMethods,
+    domains::git::service as git,
+    domains::sessions::db_sessions::SessionMethods,
+    domains::sessions::entity::{GitStats, Session, SessionState, SessionStatus},
+    schaltwerk_core::database::Database,
     schaltwerk_core::db_app_config::AppConfigMethods,
     schaltwerk_core::db_project_config::ProjectConfigMethods,
-    domains::git::service as git,
-    domains::sessions::entity::{Session, SessionStatus, SessionState, GitStats},
 };
+use anyhow::{anyhow, Result};
+use chrono::Utc;
+use std::path::PathBuf;
 
 #[derive(Clone)]
 pub struct SessionDbManager {
@@ -23,139 +23,179 @@ impl SessionDbManager {
     }
 
     pub fn create_session(&self, session: &Session) -> Result<()> {
-        self.db.create_session(session)
+        self.db
+            .create_session(session)
             .map_err(|e| anyhow!("Failed to create session in database: {}", e))
     }
 
     pub fn get_session_by_name(&self, name: &str) -> Result<Session> {
-        self.db.get_session_by_name(&self.repo_path, name)
+        self.db
+            .get_session_by_name(&self.repo_path, name)
             .map_err(|e| anyhow!("Failed to get session '{}': {}", name, e))
     }
 
     pub fn get_session_by_id(&self, id: &str) -> Result<Session> {
-        self.db.get_session_by_id(id)
+        self.db
+            .get_session_by_id(id)
             .map_err(|e| anyhow!("Failed to get session with id '{}': {}", id, e))
     }
 
     pub fn list_sessions(&self) -> Result<Vec<Session>> {
         let sessions = self.db.list_sessions(&self.repo_path)?;
-        Ok(sessions.into_iter()
+        Ok(sessions
+            .into_iter()
             .filter(|session| session.status != SessionStatus::Cancelled)
             .collect())
     }
 
     pub fn list_sessions_by_state(&self, state: SessionState) -> Result<Vec<Session>> {
         let sessions = self.db.list_sessions_by_state(&self.repo_path, state)?;
-        Ok(sessions.into_iter()
+        Ok(sessions
+            .into_iter()
             .filter(|session| session.status != SessionStatus::Cancelled)
             .collect())
     }
 
     pub fn update_session_status(&self, session_id: &str, status: SessionStatus) -> Result<()> {
-        self.db.update_session_status(session_id, status)
+        self.db
+            .update_session_status(session_id, status)
             .map_err(|e| anyhow!("Failed to update session status: {}", e))
     }
 
     pub fn update_session_state(&self, session_id: &str, state: SessionState) -> Result<()> {
-        self.db.update_session_state(session_id, state)
+        self.db
+            .update_session_state(session_id, state)
             .map_err(|e| anyhow!("Failed to update session state: {}", e))
     }
 
     pub fn update_session_ready_to_merge(&self, session_id: &str, ready: bool) -> Result<()> {
-        self.db.update_session_ready_to_merge(session_id, ready)
+        self.db
+            .update_session_ready_to_merge(session_id, ready)
             .map_err(|e| anyhow!("Failed to update session ready_to_merge: {}", e))
     }
 
     pub fn update_session_initial_prompt(&self, session_id: &str, prompt: &str) -> Result<()> {
-        self.db.update_session_initial_prompt(session_id, prompt)
+        self.db
+            .update_session_initial_prompt(session_id, prompt)
             .map_err(|e| anyhow!("Failed to update session initial prompt: {}", e))
     }
 
     pub fn update_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
-        self.db.update_spec_content(session_id, content)
+        self.db
+            .update_spec_content(session_id, content)
             .map_err(|e| anyhow!("Failed to update spec content: {}", e))
     }
 
     pub fn append_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
-        self.db.append_spec_content(session_id, content)
+        self.db
+            .append_spec_content(session_id, content)
             .map_err(|e| anyhow!("Failed to append spec content: {}", e))
     }
 
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
-        self.db.get_session_task_content(&self.repo_path, name)
+        self.db
+            .get_session_task_content(&self.repo_path, name)
             .map_err(|e| anyhow!("Failed to get session agent content: {}", e))
     }
 
-    pub fn set_session_original_settings(&self, session_id: &str, agent_type: &str, skip_permissions: bool) -> Result<()> {
-        self.db.set_session_original_settings(session_id, agent_type, skip_permissions)
+    pub fn set_session_original_settings(
+        &self,
+        session_id: &str,
+        agent_type: &str,
+        skip_permissions: bool,
+    ) -> Result<()> {
+        self.db
+            .set_session_original_settings(session_id, agent_type, skip_permissions)
             .map_err(|e| anyhow!("Failed to set session original settings: {}", e))
     }
 
-    pub fn set_session_activity(&self, session_id: &str, activity_time: chrono::DateTime<Utc>) -> Result<()> {
-        self.db.set_session_activity(session_id, activity_time)
+    pub fn set_session_activity(
+        &self,
+        session_id: &str,
+        activity_time: chrono::DateTime<Utc>,
+    ) -> Result<()> {
+        self.db
+            .set_session_activity(session_id, activity_time)
             .map_err(|e| anyhow!("Failed to set session activity: {}", e))
     }
 
-    pub fn set_session_version_info(&self, session_id: &str, group_id: Option<&str>, version_number: Option<i32>) -> Result<()> {
-        self.db.set_session_version_info(session_id, group_id, version_number)
+    pub fn set_session_version_info(
+        &self,
+        session_id: &str,
+        group_id: Option<&str>,
+        version_number: Option<i32>,
+    ) -> Result<()> {
+        self.db
+            .set_session_version_info(session_id, group_id, version_number)
             .map_err(|e| anyhow!("Failed to set session version info: {}", e))
     }
 
     pub fn clear_session_run_state(&self, session_id: &str) -> Result<()> {
-        self.db.clear_session_run_state(session_id)
+        self.db
+            .clear_session_run_state(session_id)
             .map_err(|e| anyhow!("Failed to clear session run state: {}", e))
     }
 
     pub fn set_session_resume_allowed(&self, session_id: &str, allowed: bool) -> Result<()> {
-        self.db.set_session_resume_allowed(session_id, allowed)
+        self.db
+            .set_session_resume_allowed(session_id, allowed)
             .map_err(|e| anyhow!("Failed to set resume_allowed: {}", e))
     }
 
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
-        self.db.rename_draft_session(&self.repo_path, old_name, new_name)
+        self.db
+            .rename_draft_session(&self.repo_path, old_name, new_name)
             .map_err(|e| anyhow!("Failed to rename spec session: {}", e))
     }
 
     pub fn save_git_stats(&self, stats: &GitStats) -> Result<()> {
-        self.db.save_git_stats(stats)
+        self.db
+            .save_git_stats(stats)
             .map_err(|e| anyhow!("Failed to save git stats: {}", e))
     }
 
     pub fn get_git_stats(&self, session_id: &str) -> Result<Option<GitStats>> {
-        self.db.get_git_stats(session_id)
+        self.db
+            .get_git_stats(session_id)
             .map_err(|e| anyhow!("Failed to get git stats: {}", e))
     }
 
     pub fn update_git_stats(&self, session_id: &str) -> Result<()> {
         let session = self.get_session_by_id(session_id)?;
-        let mut stats = git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)?;
+        let mut stats =
+            git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)?;
         stats.session_id = session_id.to_string();
         self.save_git_stats(&stats)?;
         Ok(())
     }
 
     pub fn get_project_setup_script(&self) -> Result<Option<String>> {
-        self.db.get_project_setup_script(&self.repo_path)
+        self.db
+            .get_project_setup_script(&self.repo_path)
             .map_err(|e| anyhow!("Failed to get project setup script: {}", e))
     }
 
     pub fn get_agent_type(&self) -> Result<String> {
-        self.db.get_agent_type()
+        self.db
+            .get_agent_type()
             .map_err(|e| anyhow!("Failed to get agent type: {}", e))
     }
 
     pub fn get_skip_permissions(&self) -> Result<bool> {
-        self.db.get_skip_permissions()
+        self.db
+            .get_skip_permissions()
             .map_err(|e| anyhow!("Failed to get skip permissions: {}", e))
     }
 
     pub fn set_skip_permissions(&self, skip: bool) -> Result<()> {
-        self.db.set_skip_permissions(skip)
+        self.db
+            .set_skip_permissions(skip)
             .map_err(|e| anyhow!("Failed to set skip permissions: {}", e))
     }
 
     pub fn set_agent_type(&self, agent_type: &str) -> Result<()> {
-        self.db.set_agent_type(agent_type)
+        self.db
+            .set_agent_type(agent_type)
             .map_err(|e| anyhow!("Failed to set agent type: {}", e))
     }
 
@@ -164,7 +204,11 @@ impl SessionDbManager {
             Some(existing) => {
                 let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp() > 60;
                 if is_stale {
-                    let mut updated = git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch).ok();
+                    let mut updated = git::calculate_git_stats_fast(
+                        &session.worktree_path,
+                        &session.parent_branch,
+                    )
+                    .ok();
                     if let Some(ref mut s) = updated {
                         s.session_id = session.id.clone();
                         let _ = self.save_git_stats(s);
@@ -175,7 +219,9 @@ impl SessionDbManager {
                 }
             }
             None => {
-                let mut computed = git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch).ok();
+                let mut computed =
+                    git::calculate_git_stats_fast(&session.worktree_path, &session.parent_branch)
+                        .ok();
                 if let Some(ref mut s) = computed {
                     s.session_id = session.id.clone();
                     let _ = self.save_git_stats(s);

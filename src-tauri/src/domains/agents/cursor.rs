@@ -1,26 +1,23 @@
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
 pub struct CursorConfig {
     pub binary_path: Option<String>,
 }
 
-
 pub fn find_cursor_session(path: &Path) -> Option<String> {
     let session_file = path.join(".cursor-session");
-    
+
     if session_file.exists() {
-        fs::read_to_string(&session_file)
-            .ok()
-            .and_then(|content| {
-                let trimmed = content.trim();
-                if !trimmed.is_empty() {
-                    Some(trimmed.to_string())
-                } else {
-                    None
-                }
-            })
+        fs::read_to_string(&session_file).ok().and_then(|content| {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        })
     } else {
         None
     }
@@ -49,23 +46,22 @@ pub fn build_cursor_command_with_config(
         "cursor-agent"
     };
     let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
-    
+
     if let Some(id) = session_id {
         cmd.push_str(&format!(r#" --resume "{id}""#));
     } else {
         if force_flag {
             cmd.push_str(" -f");
         }
-        
+
         if let Some(prompt) = initial_prompt {
             let escaped = prompt.replace('"', r#"\""#);
             cmd.push_str(&format!(r#" "{escaped}""#));
         }
     }
-    
+
     cmd
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -84,7 +80,10 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent -f "implement feature X""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && cursor-agent -f "implement feature X""#
+        );
     }
 
     #[test]
@@ -99,7 +98,10 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent --resume "eed07399-7097-4087-b7dc-bb3a26ca2948""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && cursor-agent --resume "eed07399-7097-4087-b7dc-bb3a26ca2948""#
+        );
     }
 
     #[test]
@@ -129,7 +131,10 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent --resume "session-123""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && cursor-agent --resume "session-123""#
+        );
     }
 
     #[test]
@@ -144,6 +149,9 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && cursor-agent "implement \"feature\" with quotes""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && cursor-agent "implement \"feature\" with quotes""#
+        );
     }
 }

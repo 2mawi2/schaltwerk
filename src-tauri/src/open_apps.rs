@@ -1,5 +1,5 @@
-use std::process::Command;
 use crate::schaltwerk_core::db_app_config::AppConfigMethods;
+use std::process::Command;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct OpenApp {
@@ -8,24 +8,41 @@ pub struct OpenApp {
     pub kind: String, // "editor" | "terminal" | "system"
 }
 
-
 fn detect_available_apps() -> Vec<OpenApp> {
     // Show all common macOS apps and let error handling deal with missing ones
     // This avoids sandbox permission issues with app detection
     vec![
-        OpenApp { id: "finder".into(), name: "Finder".into(), kind: "system".into() },
-        OpenApp { id: "cursor".into(), name: "Cursor".into(), kind: "editor".into() },
-        OpenApp { id: "vscode".into(), name: "VS Code".into(), kind: "editor".into() },
-        OpenApp { id: "warp".into(), name: "Warp".into(), kind: "terminal".into() },
-        OpenApp { id: "terminal".into(), name: "Terminal".into(), kind: "terminal".into() },
+        OpenApp {
+            id: "finder".into(),
+            name: "Finder".into(),
+            kind: "system".into(),
+        },
+        OpenApp {
+            id: "cursor".into(),
+            name: "Cursor".into(),
+            kind: "editor".into(),
+        },
+        OpenApp {
+            id: "vscode".into(),
+            name: "VS Code".into(),
+            kind: "editor".into(),
+        },
+        OpenApp {
+            id: "warp".into(),
+            name: "Warp".into(),
+            kind: "terminal".into(),
+        },
+        OpenApp {
+            id: "terminal".into(),
+            name: "Terminal".into(),
+            kind: "terminal".into(),
+        },
     ]
 }
 
 fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
     let result = match app_id {
-        "finder" => {
-            Command::new("open").arg(path).status()
-        }
+        "finder" => Command::new("open").arg(path).status(),
         "cursor" => {
             // Try CLI first, fall back to open -a
             if which::which("cursor").is_ok() {
@@ -39,7 +56,9 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
             if which::which("code").is_ok() {
                 Command::new("code").arg(path).status()
             } else {
-                Command::new("open").args(["-a", "Visual Studio Code", path]).status()
+                Command::new("open")
+                    .args(["-a", "Visual Studio Code", path])
+                    .status()
             }
         }
         "warp" => {
@@ -50,9 +69,7 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                 Command::new("open").args(["-a", "Warp", path]).status()
             }
         }
-        "terminal" => {
-            Command::new("open").args(["-a", "Terminal", path]).status()
-        }
+        "terminal" => Command::new("open").args(["-a", "Terminal", path]).status(),
         other => return Err(format!("Unsupported app id: {other}")),
     };
 
@@ -107,22 +124,25 @@ pub async fn list_available_open_apps() -> Result<Vec<OpenApp>, String> {
 pub async fn get_default_open_app() -> Result<String, String> {
     let core = crate::schaltwerk_core::SchaltwerkCore::new(None)
         .map_err(|e| format!("Failed to init core: {e}"))?;
-    Ok(core.db.get_default_open_app().unwrap_or_else(|_| "finder".to_string()))
+    Ok(core
+        .db
+        .get_default_open_app()
+        .unwrap_or_else(|_| "finder".to_string()))
 }
 
 #[tauri::command]
 pub async fn set_default_open_app(app_id: String) -> Result<(), String> {
     let core = crate::schaltwerk_core::SchaltwerkCore::new(None)
         .map_err(|e| format!("Failed to init core: {e}"))?;
-    core.db.set_default_open_app(&app_id).map_err(|e| e.to_string())
+    core.db
+        .set_default_open_app(&app_id)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
 pub async fn open_in_app(app_id: String, worktree_path: String) -> Result<(), String> {
     // Run in a blocking task to avoid UI freezing
-    tokio::task::spawn_blocking(move || {
-        open_path_in(&app_id, &worktree_path)
-    })
-    .await
-    .map_err(|e| format!("Failed to spawn task: {e}"))?
+    tokio::task::spawn_blocking(move || open_path_in(&app_id, &worktree_path))
+        .await
+        .map_err(|e| format!("Failed to spawn task: {e}"))?
 }

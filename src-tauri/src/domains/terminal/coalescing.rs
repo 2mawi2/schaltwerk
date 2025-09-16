@@ -41,13 +41,16 @@ pub async fn handle_coalesced_output(
     // Add data to coalescing buffer with carriage return optimization
     {
         let mut buffers = coalescing_state.emit_buffers.write().await;
-        let buf_ref = buffers.entry(params.terminal_id.to_string()).or_insert_with(Vec::new);
-        
+        let buf_ref = buffers
+            .entry(params.terminal_id.to_string())
+            .or_insert_with(Vec::new);
+
         // Check if new data contains a carriage return that would overwrite buffered content
         if let Some(last_cr_pos) = params.data.iter().rposition(|&b| b == b'\r') {
             // Check if the CR is followed by a newline (CRLF should be preserved)
-            let is_crlf = last_cr_pos + 1 < params.data.len() && params.data[last_cr_pos + 1] == b'\n';
-            
+            let is_crlf =
+                last_cr_pos + 1 < params.data.len() && params.data[last_cr_pos + 1] == b'\n';
+
             if !is_crlf {
                 // This is a standalone CR that will overwrite the current line
                 // Find the last newline in the existing buffer
@@ -60,7 +63,7 @@ pub async fn handle_coalesced_output(
                 }
             }
         }
-        
+
         buf_ref.extend_from_slice(params.data);
     }
 
@@ -130,15 +133,18 @@ mod tests {
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
-        
+
         let buffers = state.emit_buffers.read().await;
         assert!(buffers.is_empty());
     }
 
     #[tokio::test]
     async fn test_coalescing_params() {
-        let params = CoalescingParams { terminal_id: "test-terminal", data: b"hello world" };
-        
+        let params = CoalescingParams {
+            terminal_id: "test-terminal",
+            data: b"hello world",
+        };
+
         assert_eq!(params.terminal_id, "test-terminal");
         assert_eq!(params.data, b"hello world");
     }
@@ -153,7 +159,10 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        let params = CoalescingParams { terminal_id: "test-term", data: b"test output" };
+        let params = CoalescingParams {
+            terminal_id: "test-term",
+            data: b"test output",
+        };
 
         handle_coalesced_output(&state, params).await;
 
@@ -174,10 +183,24 @@ mod tests {
         };
 
         // First call
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"hello " }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"hello ",
+            },
+        )
+        .await;
 
-        // Second call 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"world" }).await;
+        // Second call
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"world",
+            },
+        )
+        .await;
 
         // Wait a bit for async processing
         sleep(Duration::from_millis(10)).await;
@@ -201,8 +224,22 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"data1" }).await;
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"data2" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"data1",
+            },
+        )
+        .await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"data2",
+            },
+        )
+        .await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
@@ -219,11 +256,21 @@ mod tests {
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
         };
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"immediate" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"immediate",
+            },
+        )
+        .await;
         // Without an app handle, bytes remain buffered
         sleep(Duration::from_millis(5)).await;
         let buffers = state.emit_buffers.read().await;
-        assert_eq!(buffers.get("test-term").map(|v| v.as_slice()), Some(b"immediate".as_ref()));
+        assert_eq!(
+            buffers.get("test-term").map(|v| v.as_slice()),
+            Some(b"immediate".as_ref())
+        );
     }
 
     #[tokio::test]
@@ -237,17 +284,31 @@ mod tests {
         };
 
         // Add data for terminal 1
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term1", data: b"data1" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "term1",
+                data: b"data1",
+            },
+        )
+        .await;
 
         // Add data for terminal 2
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term2", data: b"data2" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "term2",
+                data: b"data2",
+            },
+        )
+        .await;
 
         let buffers = state.emit_buffers.read().await;
-        
+
         // Both terminals should have independent buffers
         assert!(buffers.contains_key("term1") || buffers.is_empty()); // May be processed already
         assert!(buffers.contains_key("term2") || buffers.is_empty());
-        
+
         // Normalized buffers no longer actively used
     }
 
@@ -264,7 +325,14 @@ mod tests {
         let terminal_id = "test-terminal-cleanup";
 
         // Add data to all maps
-        handle_coalesced_output(&state, CoalescingParams { terminal_id, data: b"test data" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id,
+                data: b"test data",
+            },
+        )
+        .await;
 
         // Verify data is in buffers
         assert!(state.emit_buffers.read().await.contains_key(terminal_id));
@@ -277,7 +345,11 @@ mod tests {
         assert!(!state.emit_buffers.read().await.contains_key(terminal_id));
         assert!(!state.emit_scheduled.read().await.contains_key(terminal_id));
         // The clear_for method still clears normalized buffers for compatibility
-        assert!(!state.emit_buffers_norm.read().await.contains_key(terminal_id));
+        assert!(!state
+            .emit_buffers_norm
+            .read()
+            .await
+            .contains_key(terminal_id));
         assert!(!state.norm_last_cr.read().await.contains_key(terminal_id));
     }
 
@@ -292,11 +364,32 @@ mod tests {
         };
 
         // Add data for multiple terminals
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term1", data: b"data1" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "term1",
+                data: b"data1",
+            },
+        )
+        .await;
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term2", data: b"data2" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "term2",
+                data: b"data2",
+            },
+        )
+        .await;
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "term3", data: b"data3" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "term3",
+                data: b"data3",
+            },
+        )
+        .await;
 
         // Clear only term2
         state.clear_for("term2").await;
@@ -341,10 +434,24 @@ mod tests {
         };
 
         // Add initial content
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"Line 1\nLine 2 initial" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"Line 1\nLine 2 initial",
+            },
+        )
+        .await;
 
         // Send carriage return with new content (should overwrite "Line 2 initial")
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\rLine 2 replaced" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"\rLine 2 replaced",
+            },
+        )
+        .await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
@@ -363,11 +470,32 @@ mod tests {
         };
 
         // Simulating rapid updates like a progress spinner
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"Previous line\nLoading." }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"Previous line\nLoading.",
+            },
+        )
+        .await;
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\rLoading.." }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"\rLoading..",
+            },
+        )
+        .await;
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\rLoading..." }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"\rLoading...",
+            },
+        )
+        .await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
@@ -386,9 +514,23 @@ mod tests {
         };
 
         // CRLF sequences should be preserved as they are actual line endings
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"Line 1\r\nLine 2" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"Line 1\r\nLine 2",
+            },
+        )
+        .await;
 
-        handle_coalesced_output(&state, CoalescingParams { terminal_id: "test-term", data: b"\r\nLine 3" }).await;
+        handle_coalesced_output(
+            &state,
+            CoalescingParams {
+                terminal_id: "test-term",
+                data: b"\r\nLine 3",
+            },
+        )
+        .await;
 
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();

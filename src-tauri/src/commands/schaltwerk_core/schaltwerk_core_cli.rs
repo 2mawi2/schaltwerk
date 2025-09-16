@@ -1,4 +1,3 @@
-
 // Normalize user-provided CLI text copied from rich sources:
 // - Replace Unicode dash-like characters with ASCII '-'
 // - Replace various Unicode spaces (including NBSP) with ASCII ' '
@@ -35,16 +34,25 @@ const SANDBOX_FLAGS: [&str; 1] = ["--sandbox"]; // value required
 
 #[inline]
 fn is_flag_with_value(s: &str) -> bool {
-    MODEL_FLAGS.contains(&s) || PROFILE_FLAGS.contains(&s) || CONFIG_FLAGS.contains(&s) || SANDBOX_FLAGS.contains(&s)
+    MODEL_FLAGS.contains(&s)
+        || PROFILE_FLAGS.contains(&s)
+        || CONFIG_FLAGS.contains(&s)
+        || SANDBOX_FLAGS.contains(&s)
 }
 
 #[inline]
-fn is_model_flag_token(s: &str) -> bool { s == "--model" || s == "-m" }
+fn is_model_flag_token(s: &str) -> bool {
+    s == "--model" || s == "-m"
+}
 #[inline]
-fn is_model_eq_token(s: &str) -> bool { s.starts_with("--model=") || s.starts_with("-m=") }
+fn is_model_eq_token(s: &str) -> bool {
+    s.starts_with("--model=") || s.starts_with("-m=")
+}
 
 pub fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String> {
-    if args.is_empty() { return None; }
+    if args.is_empty() {
+        return None;
+    }
     // If last token is a flag itself, it's not a prompt
     if args.last().map(|s| s.starts_with('-')).unwrap_or(false) {
         return None;
@@ -53,7 +61,9 @@ pub fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String>
     // not a prompt. Keep this list minimal but sufficient for our usage.
     if args.len() >= 2 {
         let prev = args[args.len() - 2].as_str();
-        if is_flag_with_value(prev) { return None; }
+        if is_flag_with_value(prev) {
+            return None;
+        }
     }
     args.pop()
 }
@@ -62,10 +72,14 @@ pub fn extract_codex_prompt_if_present(args: &mut Vec<String>) -> Option<String>
 // Only affects known long flags: model, profile, search. Keeps true short flags intact.
 pub fn fix_codex_single_dash_long_flags(args: &mut [String]) {
     for a in args.iter_mut() {
-        if a.starts_with("--") { continue; }
+        if a.starts_with("--") {
+            continue;
+        }
         if let Some(stripped) = a.strip_prefix('-') {
             // Keep short flags like -m, -p, -v
-            if stripped.len() == 1 { continue; }
+            if stripped.len() == 1 {
+                continue;
+            }
             // Check name part (before optional '=')
             let (name, value_opt) = match stripped.split_once('=') {
                 Some((n, v)) => (n, Some(v)),
@@ -126,7 +140,11 @@ mod tests {
 
     #[test]
     fn codex_extracts_prompt_when_present() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "do things".to_string()];
+        let mut args = vec![
+            "--sandbox".to_string(),
+            "workspace-write".to_string(),
+            "do things".to_string(),
+        ];
         let extracted = extract_codex_prompt_if_present(&mut args);
         assert_eq!(extracted.as_deref(), Some("do things"));
         assert_eq!(args, vec!["--sandbox", "workspace-write"]);
@@ -134,7 +152,12 @@ mod tests {
 
     #[test]
     fn codex_does_not_consume_model_value_as_prompt() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "--model".to_string(), "o3".to_string()];
+        let mut args = vec![
+            "--sandbox".to_string(),
+            "workspace-write".to_string(),
+            "--model".to_string(),
+            "o3".to_string(),
+        ];
         let extracted = extract_codex_prompt_if_present(&mut args);
         assert!(extracted.is_none());
         assert_eq!(args, vec!["--sandbox", "workspace-write", "--model", "o3"]);
@@ -142,7 +165,12 @@ mod tests {
 
     #[test]
     fn codex_does_not_consume_profile_value_as_prompt() {
-        let mut args = vec!["--sandbox".to_string(), "workspace-write".to_string(), "-p".to_string(), "dev".to_string()];
+        let mut args = vec![
+            "--sandbox".to_string(),
+            "workspace-write".to_string(),
+            "-p".to_string(),
+            "dev".to_string(),
+        ];
         let extracted = extract_codex_prompt_if_present(&mut args);
         assert!(extracted.is_none());
         assert_eq!(args, vec!["--sandbox", "workspace-write", "-p", "dev"]);
@@ -158,7 +186,10 @@ mod tests {
         ];
         let extracted = extract_codex_prompt_if_present(&mut args);
         assert!(extracted.is_none());
-        assert_eq!(args, vec!["--sandbox", "workspace-write", "-c", "search=true"]);
+        assert_eq!(
+            args,
+            vec!["--sandbox", "workspace-write", "-c", "search=true"]
+        );
 
         let mut args2 = vec![
             "--sandbox".to_string(),
@@ -168,7 +199,10 @@ mod tests {
         ];
         let extracted2 = extract_codex_prompt_if_present(&mut args2);
         assert!(extracted2.is_none());
-        assert_eq!(args2, vec!["--sandbox", "workspace-write", "--config", "model=\"o3\""]);
+        assert_eq!(
+            args2,
+            vec!["--sandbox", "workspace-write", "--config", "model=\"o3\""]
+        );
     }
 
     #[test]
@@ -225,15 +259,29 @@ mod tests {
 
     #[test]
     fn test_reorder_codex_model_after_profile() {
-        let mut args = vec!["--model".to_string(), "gpt-4".to_string(), "--profile".to_string(), "work".to_string()];
+        let mut args = vec![
+            "--model".to_string(),
+            "gpt-4".to_string(),
+            "--profile".to_string(),
+            "work".to_string(),
+        ];
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["--profile", "work", "--model", "gpt-4"]);
 
-        let mut args = vec!["--model=gpt-4".to_string(), "--profile".to_string(), "work".to_string()];
+        let mut args = vec![
+            "--model=gpt-4".to_string(),
+            "--profile".to_string(),
+            "work".to_string(),
+        ];
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["--profile", "work", "--model=gpt-4"]);
 
-        let mut args = vec!["-m".to_string(), "o3".to_string(), "-p".to_string(), "dev".to_string()];
+        let mut args = vec![
+            "-m".to_string(),
+            "o3".to_string(),
+            "-p".to_string(),
+            "dev".to_string(),
+        ];
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["-p", "dev", "-m", "o3"]);
     }
@@ -256,7 +304,11 @@ mod tests {
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["-m"]);
 
-        let mut args = vec!["--profile".to_string(), "work".to_string(), "--model".to_string()];
+        let mut args = vec![
+            "--profile".to_string(),
+            "work".to_string(),
+            "--model".to_string(),
+        ];
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["--profile", "work", "--model"]);
 
@@ -264,10 +316,20 @@ mod tests {
         reorder_codex_model_after_profile(&mut args);
         assert_eq!(args, vec!["-p", "dev", "-m"]);
 
-        let mut args = vec!["--profile".to_string(), "work".to_string(), "-m".to_string(), "o3".to_string(), "--model".to_string(), "gpt-4".to_string()];
+        let mut args = vec![
+            "--profile".to_string(),
+            "work".to_string(),
+            "-m".to_string(),
+            "o3".to_string(),
+            "--model".to_string(),
+            "gpt-4".to_string(),
+        ];
         // Also normalize single-dash long flags before reordering in real flows
         fix_codex_single_dash_long_flags(&mut args);
         reorder_codex_model_after_profile(&mut args);
-        assert_eq!(args, vec!["--profile", "work", "-m", "o3", "--model", "gpt-4"]);
+        assert_eq!(
+            args,
+            vec!["--profile", "work", "-m", "o3", "--model", "gpt-4"]
+        );
     }
 }

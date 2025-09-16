@@ -9,22 +9,22 @@ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
 // Binary-only modules (not part of lib)
 mod cleanup;
-mod macos_prefs;
+mod cli;
+mod commands;
 mod diff_commands;
 mod diff_engine;
 mod file_utils;
-mod projects;
-mod project_manager;
+mod macos_prefs;
 mod mcp_api;
-mod commands;
 mod permissions;
-mod cli;
+mod project_manager;
+mod projects;
 
-use std::sync::Arc;
 use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
-use tokio::sync::OnceCell;
+use std::sync::Arc;
 use tokio::sync::Mutex;
+use tokio::sync::OnceCell;
 
 // Import all commands
 use commands::*;
@@ -34,12 +34,17 @@ fn get_development_info() -> Result<serde_json::Value, String> {
     // Only return development info in debug builds
     if cfg!(debug_assertions) {
         // Get current git branch
-        let branch_result = std::fs::canonicalize(std::env::current_dir().unwrap_or_default()).ok()
+        let branch_result = std::fs::canonicalize(std::env::current_dir().unwrap_or_default())
+            .ok()
             .and_then(|cwd| git2::Repository::discover(cwd).ok())
-            .and_then(|repo| repo.head().ok().and_then(|h| h.shorthand().map(|s| s.to_string())));
-        
+            .and_then(|repo| {
+                repo.head()
+                    .ok()
+                    .and_then(|h| h.shorthand().map(|s| s.to_string()))
+            });
+
         let branch = branch_result.unwrap_or_default();
-        
+
         Ok(serde_json::json!({
             "isDevelopment": true,
             "branch": branch
@@ -54,8 +59,8 @@ fn get_development_info() -> Result<serde_json::Value, String> {
 
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
 pub static SETTINGS_MANAGER: OnceCell<Arc<Mutex<SettingsManager>>> = OnceCell::const_new();
-pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::FileWatcherManager>> = OnceCell::const_new();
-
+pub static FILE_WATCHER_MANAGER: OnceCell<Arc<schaltwerk::domains::workspace::FileWatcherManager>> =
+    OnceCell::const_new();
 
 pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>), String> {
     // Command format: "cd /path/to/worktree && {claude|cursor-agent|<path>/opencode|opencode|gemini} [args]"
@@ -64,14 +69,14 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     if parts.len() != 2 {
         return Err(format!("Invalid command format: {command}"));
     }
-    
+
     // Extract working directory from cd command
     let cd_part = parts[0];
     if !cd_part.starts_with("cd ") {
         return Err(format!("Command doesn't start with 'cd': {command}"));
     }
     let cwd = cd_part[3..].to_string();
-    
+
     // Parse agent command and arguments
     let agent_part = parts[1];
     // Extract the agent token (first whitespace-delimited token)
@@ -86,8 +91,14 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
     let is_qwen = agent_token == "qwen" || agent_token.ends_with("/qwen");
     let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
-    
-    let agent_name = if is_claude || is_cursor_agent || is_opencode || is_gemini || is_qwen || is_codex {
+
+    let agent_name = if is_claude
+        || is_cursor_agent
+        || is_opencode
+        || is_gemini
+        || is_qwen
+        || is_codex
+    {
         agent_token
     } else {
         return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', or 'codex': {command}"));
@@ -98,7 +109,7 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     let mut current_arg = String::new();
     let mut in_quotes = false;
     let mut chars = rest.chars().peekable();
-    
+
     while let Some(ch) = chars.next() {
         match ch {
             '"' => {
@@ -130,38 +141,44 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
             }
         }
     }
-    
+
     // Add any remaining argument
     if !current_arg.is_empty() {
         args.push(current_arg);
     }
-    
+
     Ok((cwd, agent_name.to_string(), args))
 }
 
 pub async fn get_project_manager() -> Arc<ProjectManager> {
-    PROJECT_MANAGER.get_or_init(|| async {
-        Arc::new(ProjectManager::new())
-    }).await.clone()
+    PROJECT_MANAGER
+        .get_or_init(|| async { Arc::new(ProjectManager::new()) })
+        .await
+        .clone()
 }
 
-pub async fn get_terminal_manager() -> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
+pub async fn get_terminal_manager(
+) -> Result<Arc<schaltwerk::domains::terminal::TerminalManager>, String> {
     let manager = get_project_manager().await;
-    manager.current_terminal_manager().await
+    manager
+        .current_terminal_manager()
+        .await
         .map_err(|e| format!("Failed to get terminal manager: {e}"))
 }
 
-pub async fn get_schaltwerk_core() -> Result<Arc<tokio::sync::Mutex<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
+pub async fn get_schaltwerk_core(
+) -> Result<Arc<tokio::sync::Mutex<schaltwerk::schaltwerk_core::SchaltwerkCore>>, String> {
     let manager = get_project_manager().await;
-    manager.current_schaltwerk_core().await
-        .map_err(|e| {
-            log::error!("Failed to get para core: {e}");
-            format!("Failed to get para core: {e}")
-        })
+    manager.current_schaltwerk_core().await.map_err(|e| {
+        log::error!("Failed to get para core: {e}");
+        format!("Failed to get para core: {e}")
+    })
 }
 
-pub async fn get_file_watcher_manager() -> Result<Arc<schaltwerk::domains::workspace::FileWatcherManager>, String> {
-    FILE_WATCHER_MANAGER.get()
+pub async fn get_file_watcher_manager(
+) -> Result<Arc<schaltwerk::domains::workspace::FileWatcherManager>, String> {
+    FILE_WATCHER_MANAGER
+        .get()
         .ok_or_else(|| "File watcher manager not initialized".to_string())
         .cloned()
 }
@@ -171,21 +188,25 @@ async fn start_file_watcher(session_name: String) -> Result<(), String> {
     let schaltwerk_core = get_schaltwerk_core().await?;
     let core = schaltwerk_core.lock().await;
     let session_manager = core.session_manager();
-    
-    let sessions = session_manager.list_enriched_sessions()
+
+    let sessions = session_manager
+        .list_enriched_sessions()
         .map_err(|e| format!("Failed to get sessions: {e}"))?;
-    
-    let session = sessions.into_iter()
+
+    let session = sessions
+        .into_iter()
         .find(|s| s.info.session_id == session_name)
         .ok_or_else(|| format!("Session '{session_name}' not found"))?;
 
     let watcher_manager = get_file_watcher_manager().await?;
-    
-    watcher_manager.start_watching_session(
-        session_name,
-        std::path::PathBuf::from(session.info.worktree_path),
-        session.info.base_branch,
-    ).await
+
+    watcher_manager
+        .start_watching_session(
+            session_name,
+            std::path::PathBuf::from(session.info.worktree_path),
+            session.info.base_branch,
+        )
+        .await
 }
 
 #[tauri::command]
@@ -207,30 +228,30 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
 }
 
 async fn start_terminal_monitoring(app: tauri::AppHandle) {
-    use tokio::time::{interval, Duration};
     use serde::Serialize;
     use std::collections::HashSet;
-    
+    use tokio::time::{interval, Duration};
+
     #[derive(Serialize, Clone)]
     struct TerminalStuckNotification {
         terminal_id: String,
         session_id: Option<String>,
         elapsed_seconds: u64,
     }
-    
+
     #[derive(Serialize, Clone)]
     struct TerminalUnstuckNotification {
         terminal_id: String,
         session_id: Option<String>,
     }
-    
+
     tokio::spawn(async move {
         let mut interval = interval(Duration::from_secs(5)); // Check more frequently for better responsiveness
         let mut previously_stuck = HashSet::new();
-        
+
         loop {
             interval.tick().await;
-            
+
             let manager = match get_terminal_manager().await {
                 Ok(m) => m,
                 Err(_) => {
@@ -240,11 +261,11 @@ async fn start_terminal_monitoring(app: tauri::AppHandle) {
             };
             let stuck_terminals = manager.get_all_terminal_activity().await;
             let mut currently_stuck = HashSet::new();
-            
+
             for (terminal_id, is_stuck, elapsed) in stuck_terminals {
                 if is_stuck {
                     currently_stuck.insert(terminal_id.clone());
-                    
+
                     // Only notify if this terminal wasn't previously stuck
                     if !previously_stuck.contains(&terminal_id) {
                         let session_id = if terminal_id.starts_with("session-") {
@@ -252,16 +273,17 @@ async fn start_terminal_monitoring(app: tauri::AppHandle) {
                         } else {
                             None
                         };
-                        
+
                         let notification = TerminalStuckNotification {
                             terminal_id: terminal_id.clone(),
                             session_id,
                             elapsed_seconds: elapsed,
                         };
-                        
+
                         log::info!("Terminal {terminal_id} became idle after {elapsed} seconds");
-                        
-                        if let Err(e) = emit_event(&app, SchaltEvent::TerminalStuck, &notification) {
+
+                        if let Err(e) = emit_event(&app, SchaltEvent::TerminalStuck, &notification)
+                        {
                             log::error!("Failed to emit terminal stuck notification: {e}");
                         }
                     }
@@ -273,33 +295,35 @@ async fn start_terminal_monitoring(app: tauri::AppHandle) {
                         } else {
                             None
                         };
-                        
+
                         let notification = TerminalUnstuckNotification {
                             terminal_id: terminal_id.clone(),
                             session_id,
                         };
-                        
+
                         log::info!("Terminal {terminal_id} became active again");
-                        
-                        if let Err(e) = emit_event(&app, SchaltEvent::TerminalUnstuck, &notification) {
+
+                        if let Err(e) =
+                            emit_event(&app, SchaltEvent::TerminalUnstuck, &notification)
+                        {
                             log::error!("Failed to emit terminal unstuck notification: {e}");
                         }
                     }
                 }
             }
-            
+
             // Update the set of previously stuck terminals for next iteration
             previously_stuck = currently_stuck;
         }
     });
 }
 
+use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{body::Incoming as IncomingBody, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use tokio::net::TcpListener;
-use http_body_util::BodyExt;
 
 async fn find_available_port(base_port: u16) -> u16 {
     // Try the base port first
@@ -329,11 +353,11 @@ async fn find_available_port(base_port: u16) -> u16 {
 }
 
 fn calculate_project_port(project_path: &str) -> u16 {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
     hasher.update(project_path.as_bytes());
     let hash = hasher.finalize();
-    
+
     // Use first 2 bytes of hash to generate a port in range 8547-8647
     let port_offset = ((hash[0] as u16) << 8 | hash[1] as u16) % 100;
     8547 + port_offset
@@ -346,21 +370,23 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
     ) -> Result<Response<String>, hyper::Error> {
         let method = req.method();
         let path = req.uri().path();
-        
+
         log::debug!("Webhook request: {method} {path}");
-        
+
         match (method, path) {
             (&hyper::Method::POST, "/webhook/session-added") => {
                 // Parse the JSON body
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
-                
+
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received session-added webhook: {payload}");
-                        
+
                         // Extract session information and emit the event
-                        if let Some(session_name) = payload.get("session_name").and_then(|v| v.as_str()) {
+                        if let Some(session_name) =
+                            payload.get("session_name").and_then(|v| v.as_str())
+                        {
                             #[derive(serde::Serialize, Clone)]
                             struct SessionAddedPayload {
                                 session_name: String,
@@ -368,69 +394,91 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 worktree_path: String,
                                 parent_branch: String,
                             }
-                            
+
                             let session_payload = SessionAddedPayload {
                                 session_name: session_name.to_string(),
-                                branch: payload.get("branch").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                worktree_path: payload.get("worktree_path").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                                parent_branch: payload.get("parent_branch").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                                branch: payload
+                                    .get("branch")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
+                                worktree_path: payload
+                                    .get("worktree_path")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
+                                parent_branch: payload
+                                    .get("parent_branch")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("")
+                                    .to_string(),
                             };
-                            
-                            if let Err(e) = emit_event(&app, SchaltEvent::SessionAdded, &session_payload) {
+
+                            if let Err(e) =
+                                emit_event(&app, SchaltEvent::SessionAdded, &session_payload)
+                            {
                                 log::error!("Failed to emit session-added event: {e}");
                             }
                         }
                     }
                 }
-                
+
                 Ok(Response::new("OK".to_string()))
             }
             (&hyper::Method::POST, "/webhook/session-removed") => {
                 // Parse the JSON body for session removal
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
-                
+
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received session-removed webhook: {payload}");
-                        
-                        if let Some(session_name) = payload.get("session_name").and_then(|v| v.as_str()) {
+
+                        if let Some(session_name) =
+                            payload.get("session_name").and_then(|v| v.as_str())
+                        {
                             #[derive(serde::Serialize, Clone)]
                             struct SessionRemovedPayload {
                                 session_name: String,
                             }
-                            
+
                             let session_payload = SessionRemovedPayload {
                                 session_name: session_name.to_string(),
                             };
-                            
-                            if let Err(e) = emit_event(&app, SchaltEvent::SessionRemoved, &session_payload) {
+
+                            if let Err(e) =
+                                emit_event(&app, SchaltEvent::SessionRemoved, &session_payload)
+                            {
                                 log::error!("Failed to emit session-removed event: {e}");
                             }
                         }
                     }
                 }
-                
+
                 Ok(Response::new("OK".to_string()))
             }
             (&hyper::Method::POST, "/webhook/follow-up-message") => {
                 // Parse the JSON body for follow-up message
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
-                
+
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received follow-up-message webhook: {payload}");
-                        
+
                         if let (Some(session_name), Some(message)) = (
                             payload.get("session_name").and_then(|v| v.as_str()),
-                            payload.get("message").and_then(|v| v.as_str())
+                            payload.get("message").and_then(|v| v.as_str()),
                         ) {
-                            let timestamp = payload.get("timestamp")
+                            let timestamp = payload
+                                .get("timestamp")
                                 .and_then(|v| v.as_u64())
-                                .unwrap_or_else(|| std::time::SystemTime::now()
-                                    .duration_since(std::time::UNIX_EPOCH)
-                                    .unwrap().as_millis() as u64);
+                                .unwrap_or_else(|| {
+                                    std::time::SystemTime::now()
+                                        .duration_since(std::time::UNIX_EPOCH)
+                                        .unwrap()
+                                        .as_millis() as u64
+                                });
 
                             // Move reviewed sessions back to running upon follow-up (only if reviewed)
                             if let Ok(core) = get_schaltwerk_core().await {
@@ -440,7 +488,11 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                     Ok(true) => {
                                         log::info!("Follow-up unmarked review state for '{session_name}', emitting SessionsRefreshed");
                                         if let Ok(sessions) = manager.list_enriched_sessions() {
-                                            if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
+                                            if let Err(e) = emit_event(
+                                                &app,
+                                                SchaltEvent::SessionsRefreshed,
+                                                &sessions,
+                                            ) {
                                                 log::warn!("Failed to emit sessions-refreshed after follow-up: {e}");
                                             }
                                         }
@@ -455,29 +507,37 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                             } else {
                                 log::warn!("Could not access SchaltwerkCore to update session state on follow-up");
                             }
-                            
+
                             let terminal_id = format!("session-{session_name}-top");
-                            
+
                             if let Ok(manager) = get_terminal_manager().await {
                                 match manager.terminal_exists(&terminal_id).await {
                                     Ok(true) => {
-                                        if let Err(e) = manager.paste_and_submit_terminal(terminal_id.clone(), message.as_bytes().to_vec()).await {
+                                        if let Err(e) = manager
+                                            .paste_and_submit_terminal(
+                                                terminal_id.clone(),
+                                                message.as_bytes().to_vec(),
+                                            )
+                                            .await
+                                        {
                                             log::warn!("Failed to paste follow-up message to terminal {terminal_id}: {e}");
                                         } else {
                                             log::info!("Successfully pasted follow-up message to terminal {terminal_id}");
                                         }
-                                    },
+                                    }
                                     Ok(false) => {
                                         log::warn!("Terminal {terminal_id} doesn't exist - cannot deliver message");
-                                    },
+                                    }
                                     Err(e) => {
-                                        log::warn!("Failed to check if terminal {terminal_id} exists: {e}");
+                                        log::warn!(
+                                            "Failed to check if terminal {terminal_id} exists: {e}"
+                                        );
                                     }
                                 }
                             } else {
                                 log::warn!("Could not get terminal manager for follow-up message");
                             }
-                            
+
                             #[derive(serde::Serialize, Clone)]
                             struct FollowUpMessagePayload {
                                 session_name: String,
@@ -485,43 +545,51 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 timestamp: u64,
                                 terminal_id: String,
                             }
-                            
+
                             let message_payload = FollowUpMessagePayload {
                                 session_name: session_name.to_string(),
                                 message: message.to_string(),
                                 timestamp,
                                 terminal_id,
                             };
-                            
-                            if let Err(e) = emit_event(&app, SchaltEvent::FollowUpMessage, &message_payload) {
+
+                            if let Err(e) =
+                                emit_event(&app, SchaltEvent::FollowUpMessage, &message_payload)
+                            {
                                 log::error!("Failed to emit follow-up-message event: {e}");
                             }
                         }
                     }
                 }
-                
+
                 Ok(Response::new("OK".to_string()))
             }
             (&hyper::Method::POST, "/webhook/spec-created") => {
                 // Parse the JSON body for spec creation notification
                 let body = req.into_body();
                 let body_bytes = body.collect().await?.to_bytes();
-                
+
                 if let Ok(body_str) = String::from_utf8(body_bytes.to_vec()) {
                     if let Ok(payload) = serde_json::from_str::<serde_json::Value>(&body_str) {
                         log::info!("Received spec-created webhook: {payload}");
-                        
-                        if let Some(draft_name) = payload.get("session_name").and_then(|v| v.as_str()) {
+
+                        if let Some(draft_name) =
+                            payload.get("session_name").and_then(|v| v.as_str())
+                        {
                             log::info!("Spec created via MCP: {draft_name}");
-                            
+
                             // Emit sessions-refreshed event to trigger UI updates
                             // We emit with empty array since UI components will fetch what they need
                             // (specs via list_sessions_by_state, sessions via list_enriched_sessions)
                             log::info!("Emitting sessions-refreshed event after MCP spec creation");
-                            if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &Vec::<schaltwerk::schaltwerk_core::EnrichedSession>::new()) {
+                            if let Err(e) = emit_event(
+                                &app,
+                                SchaltEvent::SessionsRefreshed,
+                                &Vec::<schaltwerk::schaltwerk_core::EnrichedSession>::new(),
+                            ) {
                                 log::error!("Failed to emit sessions-refreshed event: {e}");
                             }
-                            
+
                             // Don't emit Selection event - let the user stay focused on their current session
                             // The spec will appear in the sidebar but won't steal focus
                             log::info!("Spec created via MCP: {draft_name} - preserving current user focus");
@@ -534,13 +602,11 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 } else {
                     log::warn!("Failed to convert spec-created webhook body to UTF-8");
                 }
-                
+
                 Ok(Response::new("OK".to_string()))
             }
             // Delegate all MCP API endpoints to the api module
-            (_, path) if path.starts_with("/api/") => {
-                mcp_api::handle_mcp_request(req, app).await
-            }
+            (_, path) if path.starts_with("/api/") => mcp_api::handle_mcp_request(req, app).await,
             _ => {
                 let mut response = Response::new("Not Found".to_string());
                 *response.status_mut() = StatusCode::NOT_FOUND;
@@ -548,7 +614,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
             }
         }
     }
-    
+
     // Calculate project-specific port
     let project_manager = get_project_manager().await;
     let base_port = if let Some(active_project) = project_manager.current_project_path().await {
@@ -560,11 +626,11 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
         log::info!("No active project, using default base port 8547");
         8547
     };
-    
+
     // Find an available port starting from the base port
     let port = find_available_port(base_port).await;
     let addr = ("127.0.0.1", port);
-    
+
     let listener = match TcpListener::bind(&addr).await {
         Ok(l) => l,
         Err(e) => {
@@ -572,9 +638,9 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
             return false;
         }
     };
-    
+
     log::info!("Webhook server listening on http://{}:{}", addr.0, addr.1);
-    
+
     loop {
         let (stream, _) = match listener.accept().await {
             Ok(conn) => conn,
@@ -583,13 +649,16 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                 continue;
             }
         };
-        
+
         let io = TokioIo::new(stream);
         let app_clone = app.clone();
-        
+
         tokio::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(io, service_fn(move |req| handle_webhook(app_clone.clone(), req)))
+                .serve_connection(
+                    io,
+                    service_fn(move |req| handle_webhook(app_clone.clone(), req)),
+                )
                 .await
             {
                 log::error!("Error serving webhook connection: {err:?}");
@@ -598,8 +667,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
     }
 }
 
-use tauri::Manager;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
+use tauri::Manager;
 
 fn main() {
     // Initialize logging
@@ -609,7 +678,7 @@ fn main() {
     // macOS: disable smart quotes/dashes/text substitutions app-wide
     macos_prefs::disable_smart_substitutions();
     // macOS smart substitutions: handled in frontend for now
-    
+
     // Parse command line arguments using Clap (positional DIR)
     use clap::Parser;
     let cli = crate::cli::Cli::parse();
@@ -631,7 +700,7 @@ fn main() {
                     }
                 }
             }
-        },
+        }
     };
     log::info!("Startup directory: {}", dir_path.display());
 
@@ -641,10 +710,13 @@ fn main() {
     let initial_directory: Option<(String, Option<bool>)> = if dir_path.is_dir() {
         Some((dir_str.clone(), None)) // None means git status unknown, will be determined in background
     } else {
-        log::warn!("❌ Invalid directory path: {}, opening at home", dir_path.display());
+        log::warn!(
+            "❌ Invalid directory path: {}, opening at home",
+            dir_path.display()
+        );
         None
     };
-    
+
     // Create cleanup guard that will run on exit
     let _cleanup_guard = cleanup::TerminalCleanupGuard;
 
@@ -1077,14 +1149,20 @@ mod tests {
         // This test demonstrates the bug: prompts containing " && " break the parser
         let cmd = r#"cd /tmp/work && opencode --prompt "Scripts Configured && run mode active""#;
         let result = parse_agent_command(cmd);
-        
+
         // This should succeed but currently fails with "Invalid command format"
-        assert!(result.is_ok(), "Command with && in prompt should parse successfully");
-        
+        assert!(
+            result.is_ok(),
+            "Command with && in prompt should parse successfully"
+        );
+
         let (cwd, agent, args) = result.unwrap();
         assert_eq!(cwd, "/tmp/work");
         assert_eq!(agent, "opencode");
-        assert_eq!(args, vec!["--prompt", "Scripts Configured && run mode active"]);
+        assert_eq!(
+            args,
+            vec!["--prompt", "Scripts Configured && run mode active"]
+        );
     }
 
     #[test]
@@ -1092,9 +1170,12 @@ mod tests {
         // Another test case with claude agent
         let cmd = r#"cd /path/to/project && claude -d "Check A && B && C conditions""#;
         let result = parse_agent_command(cmd);
-        
-        assert!(result.is_ok(), "Command with multiple && in prompt should parse successfully");
-        
+
+        assert!(
+            result.is_ok(),
+            "Command with multiple && in prompt should parse successfully"
+        );
+
         let (cwd, agent, args) = result.unwrap();
         assert_eq!(cwd, "/path/to/project");
         assert_eq!(agent, "claude");

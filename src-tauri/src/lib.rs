@@ -1,13 +1,12 @@
 #![deny(dead_code)]
 
+pub mod api;
 pub mod domains;
 pub mod infrastructure;
-pub mod api;
 pub mod shared;
 
-pub mod schaltwerk_core;
-pub mod open_apps;
-pub mod utils;
-pub mod binary_detector;
 pub mod binary_detection;
-
+pub mod binary_detector;
+pub mod open_apps;
+pub mod schaltwerk_core;
+pub mod utils;

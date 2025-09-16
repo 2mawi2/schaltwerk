@@ -1,12 +1,10 @@
-use std::path::Path;
 use std::fs;
+use std::path::Path;
 
 #[derive(Debug, Clone, Default)]
 pub struct QwenConfig {
     pub binary_path: Option<String>,
 }
-
-
 
 // Simple function to return binary name for external callers
 pub fn resolve_qwen_binary() -> String {
@@ -15,18 +13,16 @@ pub fn resolve_qwen_binary() -> String {
 
 pub fn find_qwen_session(path: &Path) -> Option<String> {
     let session_file = path.join(".qwen-session");
-    
+
     if session_file.exists() {
-        fs::read_to_string(&session_file)
-            .ok()
-            .and_then(|content| {
-                let trimmed = content.trim();
-                if !trimmed.is_empty() {
-                    Some(trimmed.to_string())
-                } else {
-                    None
-                }
-            })
+        fs::read_to_string(&session_file).ok().and_then(|content| {
+            let trimmed = content.trim();
+            if !trimmed.is_empty() {
+                Some(trimmed.to_string())
+            } else {
+                None
+            }
+        })
     } else {
         None
     }
@@ -55,11 +51,11 @@ pub fn build_qwen_command_with_config(
         "qwen"
     };
     let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
-    
+
     if skip_permissions {
         cmd.push_str(" --yolo");
     }
-    
+
     // Prefer using real CLI interactive prompt flag when available.
     // Fallback: launch TUI and inject prompt via terminal manager.
     if let Some(prompt) = _initial_prompt {
@@ -68,11 +64,9 @@ pub fn build_qwen_command_with_config(
             cmd.push_str(&format!(r#" --prompt-interactive "{escaped}""#));
         }
     }
-    
+
     cmd
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -91,7 +85,10 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && qwen --yolo --prompt-interactive "implement feature X""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && qwen --yolo --prompt-interactive "implement feature X""#
+        );
     }
 
     #[test]
@@ -137,6 +134,9 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && qwen --prompt-interactive "implement \"feature\" with quotes""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && qwen --prompt-interactive "implement \"feature\" with quotes""#
+        );
     }
 }

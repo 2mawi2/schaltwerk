@@ -1,9 +1,8 @@
-use anyhow::{anyhow, Result};
 use crate::{
+    domains::git, domains::sessions::db_sessions::SessionMethods,
     schaltwerk_core::database::Database,
-    domains::sessions::db_sessions::SessionMethods,
-    domains::git,
 };
+use anyhow::{anyhow, Result};
 use std::path::Path;
 use tokio::process::Command;
 
@@ -73,7 +72,9 @@ fn ansi_strip(input: &str) -> String {
     out
 }
 
-pub async fn generate_display_name_and_rename_branch(ctx: SessionRenameContext<'_>) -> Result<Option<String>> {
+pub async fn generate_display_name_and_rename_branch(
+    ctx: SessionRenameContext<'_>,
+) -> Result<Option<String>> {
     let result = generate_display_name(
         ctx.db,
         ctx.session_id,
@@ -82,47 +83,62 @@ pub async fn generate_display_name_and_rename_branch(ctx: SessionRenameContext<'
         ctx.initial_prompt,
         ctx.cli_args,
         ctx.env_vars,
-    ).await?;
-    
+    )
+    .await?;
+
     if let Some(ref new_name) = result {
         // Generate new branch name based on the display name
         let new_branch = format!("schaltwerk/{new_name}");
-        
+
         // Only rename if the branch name would actually change
         if ctx.current_branch != new_branch {
-            log::info!("Renaming branch from '{}' to '{new_branch}'", ctx.current_branch);
-            
+            log::info!(
+                "Renaming branch from '{}' to '{new_branch}'",
+                ctx.current_branch
+            );
+
             // Rename the branch
             match git::rename_branch(ctx.repo_path, ctx.current_branch, &new_branch) {
                 Ok(()) => {
                     log::info!("Successfully renamed branch to '{new_branch}'");
-                    
+
                     // Update the worktree to use the new branch
                     match git::update_worktree_branch(ctx.worktree_path, &new_branch) {
                         Ok(()) => {
-                            log::info!("Successfully updated worktree to use branch '{new_branch}'");
-                            
+                            log::info!(
+                                "Successfully updated worktree to use branch '{new_branch}'"
+                            );
+
                             // Update the branch name in the database
-                            if let Err(e) = ctx.db.update_session_branch(ctx.session_id, &new_branch) {
+                            if let Err(e) =
+                                ctx.db.update_session_branch(ctx.session_id, &new_branch)
+                            {
                                 log::error!("Failed to update branch name in database: {e}");
                             }
                         }
                         Err(e) => {
-                            log::error!("Failed to update worktree to new branch '{new_branch}': {e}");
+                            log::error!(
+                                "Failed to update worktree to new branch '{new_branch}': {e}"
+                            );
                             // Try to revert the branch rename
-                            if let Err(revert_err) = git::rename_branch(ctx.repo_path, &new_branch, ctx.current_branch) {
+                            if let Err(revert_err) =
+                                git::rename_branch(ctx.repo_path, &new_branch, ctx.current_branch)
+                            {
                                 log::error!("Failed to revert branch rename: {revert_err}");
                             }
                         }
                     }
                 }
                 Err(e) => {
-                    log::warn!("Could not rename branch from '{}' to '{new_branch}': {e}", ctx.current_branch);
+                    log::warn!(
+                        "Could not rename branch from '{}' to '{new_branch}': {e}",
+                        ctx.current_branch
+                    );
                 }
             }
         }
     }
-    
+
     Ok(result)
 }
 
@@ -135,9 +151,13 @@ pub async fn generate_display_name(
     cli_args: Option<&str>,
     env_vars: &[(String, String)],
 ) -> Result<Option<String>> {
-    log::info!("generate_display_name called: session_id={}, agent_type={}, prompt={:?}", 
-        session_id, agent_type, initial_prompt.map(truncate_prompt));
-    
+    log::info!(
+        "generate_display_name called: session_id={}, agent_type={}, prompt={:?}",
+        session_id,
+        agent_type,
+        initial_prompt.map(truncate_prompt)
+    );
+
     // Check if there's any meaningful content for name generation
     if let Some(prompt) = initial_prompt {
         if prompt.trim().is_empty() {
@@ -148,7 +168,7 @@ pub async fn generate_display_name(
         log::info!("Skipping name generation for session '{session_id}' - no prompt provided");
         return Ok(None);
     }
-    
+
     let base_prompt = initial_prompt.unwrap(); // Safe to unwrap after the check above
     let truncated = truncate_prompt(base_prompt);
     log::debug!("Truncated prompt for name generation: {truncated}");
@@ -178,16 +198,16 @@ Agent: {truncated}
 
 Respond with just the short kebab-case name:"#
     );
-    
+
     // Always use a temporary directory for agent execution to avoid interference with active sessions
     let temp_base = std::env::temp_dir();
     let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{session_id}"));
-    
+
     // Create the temp directory if it doesn't exist
     if let Err(e) = std::fs::create_dir_all(&unique_temp_dir) {
         log::warn!("Failed to create temp directory for name generation: {e}");
     }
-    
+
     // For OpenCode specifically, initialize as a minimal git repo to avoid errors
     if agent_type == "opencode" {
         // Initialize a minimal git repo structure
@@ -198,17 +218,21 @@ Respond with just the short kebab-case name:"#
         {
             log::debug!("Failed to init git in temp dir (non-fatal): {e}");
         }
-        
+
         // Create a minimal file so the directory isn't empty
         let readme_path = unique_temp_dir.join("README.md");
-        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation\n") {
+        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation\n")
+        {
             log::debug!("Failed to create README in temp dir (non-fatal): {e}");
         }
     }
-    
+
     let run_dir = unique_temp_dir.clone();
-    log::info!("Using temp directory for name generation: {}", run_dir.display());
-    
+    log::info!(
+        "Using temp directory for name generation: {}",
+        run_dir.display()
+    );
+
     // Use the appropriate agent based on user's selection
     if agent_type == "cursor" {
         log::info!("Attempting to generate name with cursor-agent");
@@ -224,24 +248,26 @@ Respond with just the short kebab-case name:"#
             .stdin(std::process::Stdio::null())
             .output()
             .await;
-        
+
         let output = match output {
             Ok(output) => {
                 log::debug!("cursor-agent executed successfully");
                 Some(output)
-            },
+            }
             Err(e) => {
                 log::warn!("Failed to execute cursor-agent: {e}");
                 return Err(anyhow!("cursor-agent not available: {e}"));
-            },
+            }
         };
-        
+
         if let Some(output) = output {
             if output.status.success() {
                 let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
                 log::debug!("cursor-agent stdout: {stdout}");
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                if !stderr.trim().is_empty() { log::debug!("cursor-agent stderr: {}", stderr.trim()); }
+                if !stderr.trim().is_empty() {
+                    log::debug!("cursor-agent stderr: {}", stderr.trim());
+                }
 
                 // Try JSON first
                 let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
@@ -256,7 +282,11 @@ Respond with just the short kebab-case name:"#
                 // Fallback to raw plain text if JSON failed or missing fields
                 .or_else(|| {
                     let raw = stdout.trim();
-                    if !raw.is_empty() { Some(raw.to_string()) } else { None }
+                    if !raw.is_empty() {
+                        Some(raw.to_string())
+                    } else {
+                        None
+                    }
                 });
 
                 if let Some(result) = candidate {
@@ -277,10 +307,13 @@ Respond with just the short kebab-case name:"#
             } else {
                 let code = output.status.code().unwrap_or(-1);
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!("cursor-agent returned non-zero exit status: code={code}, stderr='{}'", stderr.trim());
+                log::warn!(
+                    "cursor-agent returned non-zero exit status: code={code}, stderr='{}'",
+                    stderr.trim()
+                );
             }
         }
-        
+
         // If we get here with cursor, we couldn't generate a name
         log::warn!("cursor-agent could not generate a name for session_id '{session_id}'");
         // Clean up temp directory
@@ -293,7 +326,8 @@ Respond with just the short kebab-case name:"#
         log::info!("Attempting to generate name with codex");
         let mut args: Vec<String> = vec![
             "exec".into(),
-            "--sandbox".into(), "workspace-write".into(),
+            "--sandbox".into(),
+            "workspace-write".into(),
             "--skip-git-repo-check".into(),
             "--json".into(),
         ];
@@ -346,14 +380,22 @@ Respond with just the short kebab-case name:"#
                     stdout
                         .lines()
                         .map(|l| l.trim())
-                        .find(|line| !line.is_empty()
-                            && !line.contains(' ')
-                            && line.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
-                            && line.len() <= 30)
+                        .find(|line| {
+                            !line.is_empty()
+                                && !line.contains(' ')
+                                && line.chars().all(|c| {
+                                    c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()
+                                })
+                                && line.len() <= 30
+                        })
                         .map(|s| s.to_string())
                         .or_else(|| {
                             let raw = stdout.trim();
-                            if !raw.is_empty() { Some(raw.to_string()) } else { None }
+                            if !raw.is_empty() {
+                                Some(raw.to_string())
+                            } else {
+                                None
+                            }
                         })
                 });
 
@@ -363,7 +405,9 @@ Respond with just the short kebab-case name:"#
                 log::info!("Sanitized name: {name}");
                 if !name.is_empty() {
                     db.update_session_display_name(session_id, &name)?;
-                    log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                    log::info!(
+                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                    );
                     return Ok(Some(name));
                 }
             } else {
@@ -373,7 +417,11 @@ Respond with just the short kebab-case name:"#
             let code = output.status.code().unwrap_or(-1);
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            log::warn!("codex returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
+            log::warn!(
+                "codex returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
+                stderr.trim(),
+                stdout.trim()
+            );
         }
         // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
@@ -383,11 +431,16 @@ Respond with just the short kebab-case name:"#
     // Handle OpenCode name generation
     if agent_type == "opencode" {
         log::info!("Attempting to generate name with opencode");
-        
+
         // OpenCode uses the `run` command with a specific model and prompt
         let binary = super::opencode::resolve_opencode_binary();
         let output = Command::new(&binary)
-            .args(["run", "--model", "openrouter/openai/gpt-4o-mini", &prompt_plain])
+            .args([
+                "run",
+                "--model",
+                "openrouter/openai/gpt-4o-mini",
+                &prompt_plain,
+            ])
             .current_dir(&run_dir)
             .env("NO_COLOR", "1")
             .env("CLICOLOR", "0")
@@ -398,22 +451,22 @@ Respond with just the short kebab-case name:"#
             .stdin(std::process::Stdio::null())
             .output()
             .await;
-        
+
         let output = match output {
             Ok(output) => {
                 log::debug!("opencode executed successfully");
                 output
-            },
+            }
             Err(e) => {
                 log::warn!("Failed to execute opencode: {e}");
                 return Ok(None);
-            },
+            }
         };
-        
+
         if output.status.success() {
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
             log::debug!("opencode stdout: {stdout}");
-            
+
             // OpenCode returns plain text, so we look for a kebab-case name in the output
             // Split by newlines and find the first line that looks like a kebab-case name
             let candidate = stdout
@@ -421,19 +474,24 @@ Respond with just the short kebab-case name:"#
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
                 .filter(|line| !line.contains(' ')) // No spaces
-                .filter(|line| line.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()))
+                .filter(|line| {
+                    line.chars()
+                        .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+                })
                 .filter(|line| line.len() <= 30) // Reasonable length
                 .find(|_| true) // Get first match
                 .map(|s| s.to_string());
-            
+
             if let Some(result) = candidate {
                 log::info!("opencode returned name candidate: {result}");
                 let name = sanitize_name(&result);
                 log::info!("Sanitized name: {name}");
-                
+
                 if !name.is_empty() {
                     db.update_session_display_name(session_id, &name)?;
-                    log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                    log::info!(
+                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                    );
                     return Ok(Some(name));
                 }
             } else {
@@ -443,18 +501,22 @@ Respond with just the short kebab-case name:"#
             let code = output.status.code().unwrap_or(-1);
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            log::warn!("opencode returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
+            log::warn!(
+                "opencode returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
+                stderr.trim(),
+                stdout.trim()
+            );
         }
-        
+
         // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
-    
+
     // Handle Gemini name generation
     if agent_type == "gemini" {
         log::info!("Attempting to generate name with gemini");
-        
+
         let binary = super::gemini::resolve_gemini_binary();
         let output = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
@@ -467,42 +529,47 @@ Respond with just the short kebab-case name:"#
             .stdin(std::process::Stdio::null())
             .output()
             .await;
-        
+
         let output = match output {
             Ok(output) => {
                 log::debug!("gemini executed successfully");
                 output
-            },
+            }
             Err(e) => {
                 log::warn!("Failed to execute gemini: {e}");
                 return Ok(None);
-            },
+            }
         };
-        
+
         if output.status.success() {
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
             log::debug!("gemini stdout: {stdout}");
-            
+
             // Gemini returns plain text, so we look for a kebab-case name in the output
             // Split by newlines and find the first line that looks like a kebab-case name
             let candidate = stdout
                 .lines()
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
-                .filter(|line| line.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()))
+                .filter(|line| {
+                    line.chars()
+                        .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+                })
                 .filter(|line| line.contains('-') || line.len() <= 10) // Has hyphens or very short
                 .filter(|line| line.len() <= 30) // Reasonable length
                 .find(|_| true) // Get first match
                 .map(|s| s.to_string());
-            
+
             if let Some(result) = candidate {
                 log::info!("gemini returned name candidate: {result}");
                 let name = sanitize_name(&result);
                 log::info!("Sanitized name: {name}");
-                
+
                 if !name.is_empty() {
                     db.update_session_display_name(session_id, &name)?;
-                    log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                    log::info!(
+                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                    );
                     return Ok(Some(name));
                 }
             } else {
@@ -512,18 +579,22 @@ Respond with just the short kebab-case name:"#
             let code = output.status.code().unwrap_or(-1);
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            log::warn!("gemini returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
+            log::warn!(
+                "gemini returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
+                stderr.trim(),
+                stdout.trim()
+            );
         }
-        
+
         // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
-    
+
     // Handle Qwen name generation
     if agent_type == "qwen" {
         log::info!("Attempting to generate name with qwen");
-        
+
         let binary = super::qwen::resolve_qwen_binary();
         let output = Command::new(&binary)
             .args(["--prompt", prompt_plain.as_str()])
@@ -536,42 +607,47 @@ Respond with just the short kebab-case name:"#
             .stdin(std::process::Stdio::null())
             .output()
             .await;
-        
+
         let output = match output {
             Ok(output) => {
                 log::debug!("qwen executed successfully");
                 output
-            },
+            }
             Err(e) => {
                 log::warn!("Failed to execute qwen: {e}");
                 return Ok(None);
-            },
+            }
         };
-        
+
         if output.status.success() {
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
             log::debug!("qwen stdout: {stdout}");
-            
+
             // Qwen returns plain text, so we look for a kebab-case name in the output
             // Split by newlines and find the first line that looks like a kebab-case name
             let candidate = stdout
                 .lines()
                 .map(|line| line.trim())
                 .filter(|line| !line.is_empty())
-                .filter(|line| line.chars().all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit()))
+                .filter(|line| {
+                    line.chars()
+                        .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+                })
                 .filter(|line| line.contains('-') || line.len() <= 10) // Has hyphens or very short
                 .filter(|line| line.len() <= 30) // Reasonable length
                 .find(|_| true) // Get first match
                 .map(|s| s.to_string());
-            
+
             if let Some(result) = candidate {
                 log::info!("qwen returned name candidate: {result}");
                 let name = sanitize_name(&result);
                 log::info!("Sanitized name: {name}");
-                
+
                 if !name.is_empty() {
                     db.update_session_display_name(session_id, &name)?;
-                    log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                    log::info!(
+                        "Updated database with display_name '{name}' for session_id '{session_id}'"
+                    );
                     return Ok(Some(name));
                 }
             } else {
@@ -581,14 +657,18 @@ Respond with just the short kebab-case name:"#
             let code = output.status.code().unwrap_or(-1);
             let stderr = String::from_utf8_lossy(&output.stderr);
             let stdout = String::from_utf8_lossy(&output.stdout);
-            log::warn!("qwen returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
+            log::warn!(
+                "qwen returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
+                stderr.trim(),
+                stdout.trim()
+            );
         }
-        
+
         // Clean up temp directory
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
-    
+
     // Use Claude only if claude was selected (not as a fallback)
     if agent_type != "claude" {
         log::info!("Agent type is '{agent_type}', not generating name with claude");
@@ -596,10 +676,17 @@ Respond with just the short kebab-case name:"#
         let _ = std::fs::remove_dir_all(&unique_temp_dir);
         return Ok(None);
     }
-    
+
     log::info!("Attempting to generate name with claude");
     let output = Command::new("claude")
-        .args(["--print", prompt_plain.as_str(), "--output-format", "json", "--model", "sonnet"])
+        .args([
+            "--print",
+            prompt_plain.as_str(),
+            "--output-format",
+            "json",
+            "--model",
+            "sonnet",
+        ])
         .current_dir(&run_dir)
         .env("NO_COLOR", "1")
         .env("CLICOLOR", "0")
@@ -609,18 +696,18 @@ Respond with just the short kebab-case name:"#
         .stdin(std::process::Stdio::null())
         .output()
         .await;
-    
+
     let output = match output {
         Ok(output) => {
             log::debug!("claude executed successfully");
             output
-        },
+        }
         Err(e) => {
             log::error!("Failed to execute claude: {e}");
-            return Err(anyhow!("Failed to execute claude: {e}"))
-        },
+            return Err(anyhow!("Failed to execute claude: {e}"));
+        }
     };
-    
+
     if output.status.success() {
         let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
         log::debug!("claude stdout: {stdout}");
@@ -631,10 +718,16 @@ Respond with just the short kebab-case name:"#
             v.as_str()
                 .or_else(|| v.get("result").and_then(|x| x.as_str()))
                 .map(|s| s.to_string())
-        } else { None }
+        } else {
+            None
+        }
         .or_else(|| {
             let raw = stdout.trim();
-            if !raw.is_empty() { Some(raw.to_string()) } else { None }
+            if !raw.is_empty() {
+                Some(raw.to_string())
+            } else {
+                None
+            }
         });
 
         if let Some(result) = candidate {
@@ -644,7 +737,9 @@ Respond with just the short kebab-case name:"#
 
             if !name.is_empty() {
                 db.update_session_display_name(session_id, &name)?;
-                log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
+                log::info!(
+                    "Updated database with display_name '{name}' for session_id '{session_id}'"
+                );
                 // Clean up temp directory
                 let _ = std::fs::remove_dir_all(&unique_temp_dir);
                 return Ok(Some(name));
@@ -658,7 +753,11 @@ Respond with just the short kebab-case name:"#
         let code = output.status.code().unwrap_or(-1);
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
-        log::warn!("claude returned non-zero exit status: code={code}, stderr='{}', stdout='{}'", stderr.trim(), stdout.trim());
+        log::warn!(
+            "claude returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
+            stderr.trim(),
+            stdout.trim()
+        );
     }
 
     log::warn!("No name could be generated for session_id '{session_id}'");
@@ -686,9 +785,13 @@ fn cursor_namegen_args(prompt_plain: &str) -> Vec<String> {
 // Any changes to these functions should be synchronized with the versions in schaltwerk_core.rs
 fn fix_codex_single_dash_long_flags(args: &mut [String]) {
     for a in args.iter_mut() {
-        if a.starts_with("--") { continue; }
+        if a.starts_with("--") {
+            continue;
+        }
         if let Some(stripped) = a.strip_prefix('-') {
-            if stripped.len() == 1 { continue; }
+            if stripped.len() == 1 {
+                continue;
+            }
             let (name, value_opt) = match stripped.split_once('=') {
                 Some((n, v)) => (n, Some(v)),
                 None => (stripped, None),
@@ -756,7 +859,7 @@ mod tests {
         assert_eq!(sanitize_name("build-todo-app"), "build-todo-app");
         assert_eq!(sanitize_name("API Docs & Tests"), "api-docs-tests");
         assert_eq!(sanitize_name("--multiple--hyphens--"), "multiple-hyphens");
-        
+
         // Test length limit
         let long_name = "this-is-a-very-long-name-that-exceeds-thirty-characters";
         assert!(sanitize_name(long_name).len() <= 30);
@@ -779,7 +882,7 @@ mod tests {
     fn test_truncate_prompt() {
         let short_prompt = "Short agent";
         assert_eq!(truncate_prompt(short_prompt), "Short agent");
-        
+
         let long_prompt = "This is a very long prompt that contains multiple lines\nSecond line here\nThird line\nFourth line\nFifth line should be truncated";
         let result = truncate_prompt(long_prompt);
         assert!(result.lines().count() <= 4);
@@ -790,16 +893,16 @@ mod tests {
     fn test_truncate_prompt_edge_cases() {
         // Empty prompt
         assert_eq!(truncate_prompt(""), "");
-        
+
         // Single very long line
         let long_line = "a".repeat(500);
         let result = truncate_prompt(&long_line);
         assert_eq!(result.len(), 400);
-        
+
         // Exactly 4 lines
         let four_lines = "Line 1\nLine 2\nLine 3\nLine 4";
         assert_eq!(truncate_prompt(four_lines), four_lines);
-        
+
         // More than 4 lines
         let many_lines = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6";
         let result = truncate_prompt(many_lines);
@@ -811,19 +914,32 @@ mod tests {
         // Test ANSI escape sequences removal
         assert_eq!(ansi_strip("\x1b[31mRed Text\x1b[0m"), "Red Text");
         assert_eq!(ansi_strip("\x1b[1;32mBold Green\x1b[0m"), "Bold Green");
-        assert_eq!(ansi_strip("Normal \x1b[33mYellow\x1b[0m Text"), "Normal Yellow Text");
+        assert_eq!(
+            ansi_strip("Normal \x1b[33mYellow\x1b[0m Text"),
+            "Normal Yellow Text"
+        );
         assert_eq!(ansi_strip("\x1b[2J\x1b[H"), ""); // Clear screen codes
         assert_eq!(ansi_strip("No ANSI codes"), "No ANSI codes");
         assert_eq!(ansi_strip(""), "");
-        
+
         // Complex sequences
-        assert_eq!(ansi_strip("\x1b[38;5;196mExtended Color\x1b[0m"), "Extended Color");
-        assert_eq!(ansi_strip("\x1b[48;2;255;0;0mRGB Background\x1b[0m"), "RGB Background");
+        assert_eq!(
+            ansi_strip("\x1b[38;5;196mExtended Color\x1b[0m"),
+            "Extended Color"
+        );
+        assert_eq!(
+            ansi_strip("\x1b[48;2;255;0;0mRGB Background\x1b[0m"),
+            "RGB Background"
+        );
     }
 
     #[test]
     fn test_fix_codex_single_dash_long_flags() {
-        let mut v = vec!["-model=gpt-4o".to_string(), "-p".to_string(), "-profile=dev".to_string()];
+        let mut v = vec![
+            "-model=gpt-4o".to_string(),
+            "-p".to_string(),
+            "-profile=dev".to_string(),
+        ];
         fix_codex_single_dash_long_flags(&mut v);
         assert!(v.contains(&"--model=gpt-4o".to_string()));
         assert!(v.contains(&"-p".to_string()));
@@ -836,19 +952,19 @@ mod tests {
         let mut args = vec![
             "-model".to_string(),
             "gpt-4".to_string(),
-            "-m".to_string(),       // Should remain as short flag
+            "-m".to_string(), // Should remain as short flag
             "sonnet".to_string(),
             "--model=claude".to_string(), // Already correct
             "-profile".to_string(),
             "work".to_string(),
-            "-p".to_string(),       // Should remain as short flag  
+            "-p".to_string(), // Should remain as short flag
             "dev".to_string(),
             "-v".to_string(),       // Other short flag
             "-verbose".to_string(), // Not a known long flag, should remain
         ];
-        
+
         fix_codex_single_dash_long_flags(&mut args);
-        
+
         assert_eq!(args[0], "--model");
         assert_eq!(args[1], "gpt-4");
         assert_eq!(args[2], "-m");
@@ -864,7 +980,12 @@ mod tests {
 
     #[test]
     fn test_reorder_codex_model_after_profile() {
-        let mut v = vec!["--model".to_string(), "gpt".to_string(), "--profile".to_string(), "work".to_string()];
+        let mut v = vec![
+            "--model".to_string(),
+            "gpt".to_string(),
+            "--profile".to_string(),
+            "work".to_string(),
+        ];
         reorder_codex_model_after_profile(&mut v);
         // profile should come before model in final vector
         let pos_profile = v.iter().position(|x| x == "--profile").unwrap();
@@ -886,20 +1007,20 @@ mod tests {
             "--model=sonnet".to_string(),
             "--verbose".to_string(),
         ];
-        
+
         reorder_codex_model_after_profile(&mut args);
-        
+
         // Find positions
         let profile_pos = args.iter().position(|x| x == "--profile").unwrap();
         let first_model = args.iter().position(|x| x == "--model").unwrap();
         let short_model = args.iter().position(|x| x == "-m").unwrap();
         let equals_model = args.iter().position(|x| x.starts_with("--model=")).unwrap();
-        
+
         // All model flags should come after profile
         assert!(profile_pos < first_model);
         assert!(profile_pos < short_model);
         assert!(profile_pos < equals_model);
-        
+
         // Other flags should maintain relative order
         assert!(args.iter().position(|x| x == "--other").unwrap() < profile_pos);
         assert!(args.iter().position(|x| x == "--verbose").unwrap() < first_model);
@@ -915,10 +1036,10 @@ mod tests {
             "-m".to_string(),
             "claude".to_string(),
         ];
-        
+
         let _original = args.clone();
         reorder_codex_model_after_profile(&mut args);
-        
+
         // Model flags should be moved to the end
         assert_eq!(args[0], "--verbose");
         assert_eq!(args[1], "--model");
@@ -941,8 +1062,14 @@ mod tests {
         // Expect sandbox first, then profile before model, then prompt
         assert_eq!(args[0], "--sandbox");
         assert_eq!(args[1], "workspace-write");
-        let p = args.iter().position(|a| a == "-p" || a == "--profile").unwrap();
-        let m = args.iter().position(|a| a == "-m" || a.starts_with("--model")).unwrap();
+        let p = args
+            .iter()
+            .position(|a| a == "-p" || a == "--profile")
+            .unwrap();
+        let m = args
+            .iter()
+            .position(|a| a == "-m" || a.starts_with("--model"))
+            .unwrap();
         assert!(p < m);
         assert_eq!(args.last().unwrap(), "name this agent");
         // Values follow the short flags
@@ -954,7 +1081,12 @@ mod tests {
     fn test_codex_exec_filters_search_flag() {
         // Simulate CLI args that include an interactive-only flag
         let cli_args = "--search --model gpt-4";
-        let mut args: Vec<String> = vec!["exec".into(), "--sandbox".into(), "workspace-write".into(), "--json".into()];
+        let mut args: Vec<String> = vec![
+            "exec".into(),
+            "--sandbox".into(),
+            "workspace-write".into(),
+            "--json".into(),
+        ];
         let mut extra = shell_words::split(cli_args).unwrap();
         fix_codex_single_dash_long_flags(&mut extra);
         reorder_codex_model_after_profile(&mut extra);
@@ -963,18 +1095,20 @@ mod tests {
         // Ensure --search was filtered out for exec
         assert!(args.iter().all(|a| a != "--search" && a != "-search"));
         // Model should still be present
-        assert!(args.contains(&"--model".to_string()) || args.iter().any(|a| a.starts_with("--model=")));
+        assert!(
+            args.contains(&"--model".to_string()) || args.iter().any(|a| a.starts_with("--model="))
+        );
     }
 
     #[tokio::test]
     async fn test_generate_display_name_skips_empty_prompt() {
-        use tempfile::TempDir;
         use crate::schaltwerk_core::database::Database;
-        
+        use tempfile::TempDir;
+
         let temp_dir = TempDir::new().unwrap();
         let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
         let worktree_path = temp_dir.path().join("worktree");
-        
+
         // Test with None prompt
         let result = generate_display_name(
             &db,
@@ -984,11 +1118,12 @@ mod tests {
             None,
             None,
             &[],
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
-        
+
         // Test with empty prompt
         let result = generate_display_name(
             &db,
@@ -998,11 +1133,12 @@ mod tests {
             Some(""),
             None,
             &[],
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
-        
+
         // Test with whitespace-only prompt
         let result = generate_display_name(
             &db,
@@ -1012,21 +1148,22 @@ mod tests {
             Some("   \n\t  "),
             None,
             &[],
-        ).await;
-        
+        )
+        .await;
+
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
     }
 
     #[tokio::test]
     async fn test_generate_display_name_timeout_simulation() {
-        use tempfile::TempDir;
         use crate::schaltwerk_core::database::Database;
-        
+        use tempfile::TempDir;
+
         let temp_dir = TempDir::new().unwrap();
         let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
         let worktree_path = temp_dir.path().join("worktree");
-        
+
         // Simulate timeout by using a non-existent agent
         let result = timeout(
             Duration::from_millis(100),
@@ -1038,27 +1175,28 @@ mod tests {
                 Some("Test prompt for timeout"),
                 None,
                 &[],
-            )
-        ).await;
-        
+            ),
+        )
+        .await;
+
         // Should either timeout or return None (agent not found)
         match result {
-            Ok(Ok(None)) => {}, // Agent not found
+            Ok(Ok(None)) => {} // Agent not found
             Ok(Ok(Some(_))) => panic!("Should not generate name for non-existent agent"),
-            Ok(Err(_)) => {}, // Agent execution error
-            Err(_) => {}, // Timeout
+            Ok(Err(_)) => {} // Agent execution error
+            Err(_) => {}     // Timeout
         }
     }
 
     #[tokio::test]
     async fn test_generate_display_name_handles_invalid_agent_output() {
-        use tempfile::TempDir;
         use crate::schaltwerk_core::database::Database;
-        
+        use tempfile::TempDir;
+
         let temp_dir = TempDir::new().unwrap();
         let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
         let worktree_path = temp_dir.path().join("worktree");
-        
+
         // Test with unsupported agent type
         let result = generate_display_name(
             &db,
@@ -1068,8 +1206,9 @@ mod tests {
             Some("Test prompt"),
             None,
             &[],
-        ).await;
-        
+        )
+        .await;
+
         // Should return None for unsupported agent types
         assert!(result.is_ok());
         assert!(result.unwrap().is_none());
@@ -1077,14 +1216,14 @@ mod tests {
 
     #[test]
     fn test_session_rename_context_creation() {
-        use tempfile::TempDir;
         use crate::schaltwerk_core::database::Database;
-        
+        use tempfile::TempDir;
+
         let temp_dir = TempDir::new().unwrap();
         let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
         let worktree_path = temp_dir.path().join("worktree");
         let repo_path = temp_dir.path().join("repo");
-        
+
         let ctx = SessionRenameContext {
             db: &db,
             session_id: "test-session",
@@ -1096,7 +1235,7 @@ mod tests {
             cli_args: Some("--model sonnet"),
             env_vars: &[("KEY".to_string(), "VALUE".to_string())],
         };
-        
+
         // Verify context fields are accessible
         assert_eq!(ctx.session_id, "test-session");
         assert_eq!(ctx.agent_type, "claude");
@@ -1110,7 +1249,7 @@ mod tests {
         // Test that cursor args are properly formatted for name generation
         let prompt = "Build a todo app with React";
         let args = cursor_namegen_args(prompt);
-        
+
         // Verify the exact structure expected by cursor-agent
         assert_eq!(args.len(), 6);
         assert_eq!(args[0], "--print");

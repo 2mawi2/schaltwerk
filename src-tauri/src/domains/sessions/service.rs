@@ -1,8 +1,8 @@
-use std::path::PathBuf;
-use std::collections::HashMap;
-use anyhow::{Result, anyhow};
-use chrono::{Utc, TimeZone};
+use anyhow::{anyhow, Result};
+use chrono::{TimeZone, Utc};
 use log::{info, warn};
+use std::collections::HashMap;
+use std::path::PathBuf;
 
 pub struct SessionCreationParams<'a> {
     pub name: &'a str,
@@ -17,33 +17,36 @@ pub struct SessionCreationParams<'a> {
 
 const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
 use crate::{
-    schaltwerk_core::database::Database,
     domains::git::service as git,
-    domains::sessions::entity::{Session, SessionStatus, SessionState, SessionInfo, SessionStatusType, SessionType, EnrichedSession, DiffStats, SortMode, FilterMode},
-    domains::sessions::repository::SessionDbManager,
-    domains::sessions::cache::{SessionCacheManager, clear_session_prompted_non_test},
-    domains::sessions::utils::SessionUtils,
+    domains::sessions::cache::{clear_session_prompted_non_test, SessionCacheManager},
     domains::sessions::entity::ArchivedSpec,
+    domains::sessions::entity::{
+        DiffStats, EnrichedSession, FilterMode, Session, SessionInfo, SessionState, SessionStatus,
+        SessionStatusType, SessionType, SortMode,
+    },
+    domains::sessions::repository::SessionDbManager,
+    domains::sessions::utils::SessionUtils,
     infrastructure::database::db_archived_specs::ArchivedSpecMethods as _,
+    schaltwerk_core::database::Database,
 };
 use uuid::Uuid;
 
 #[cfg(test)]
 mod service_unified_tests {
     use super::*;
+    use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
     use crate::schaltwerk_core::database::Database;
-    use crate::domains::sessions::entity::{Session, SessionStatus, SessionState};
+    use chrono::Utc;
     use std::collections::HashMap;
     use tempfile::TempDir;
     use uuid::Uuid;
-    use chrono::Utc;
 
     fn create_test_session_manager() -> (SessionManager, TempDir) {
         let temp_dir = TempDir::new().unwrap();
         let db = Database::new(Some(temp_dir.path().join("test.db"))).unwrap();
         let repo_path = temp_dir.path().join("repo");
         std::fs::create_dir_all(&repo_path).unwrap();
-        
+
         let manager = SessionManager::new(db, repo_path);
         (manager, temp_dir)
     }
@@ -53,7 +56,7 @@ mod service_unified_tests {
         let session_name = format!("test-session-{}-{}", agent_type, session_suffix);
         let worktree_path = temp_dir.path().join("worktrees").join(&session_name);
         std::fs::create_dir_all(&worktree_path).unwrap();
-        
+
         Session {
             id: Uuid::new_v4().to_string(),
             name: session_name.clone(),
@@ -91,17 +94,41 @@ mod service_unified_tests {
         std::env::set_var("HOME", home_dir.path());
 
         // Make the repo a valid git repo with an initial commit
-        std::process::Command::new("git").args(["init"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
-        std::process::Command::new("git").args(["config","user.email","test@example.com"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
-        std::process::Command::new("git").args(["config","user.name","Test User"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(temp_dir.path().join("repo"))
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(temp_dir.path().join("repo"))
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(temp_dir.path().join("repo"))
+            .output()
+            .unwrap();
         std::fs::write(temp_dir.path().join("repo").join("README.md"), "Initial").unwrap();
-        std::process::Command::new("git").args(["add","."]).current_dir(temp_dir.path().join("repo")).output().unwrap();
-        std::process::Command::new("git").args(["commit","-m","init"]).current_dir(temp_dir.path().join("repo")).output().unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(temp_dir.path().join("repo"))
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(temp_dir.path().join("repo"))
+            .output()
+            .unwrap();
 
         // Create a spec session, then start it (Spec -> Running; gates resume)
         let spec_name = "spec-gating";
-        manager.create_spec_session(spec_name, "Build feature A").unwrap();
-        manager.start_spec_session(spec_name, None, None, None).unwrap();
+        manager
+            .create_spec_session(spec_name, "Build feature A")
+            .unwrap();
+        manager
+            .start_spec_session(spec_name, None, None, None)
+            .unwrap();
 
         // Simulate Claude session files existing for this worktree so resume would normally happen
         let session = manager.db_manager.get_session_by_name(spec_name).unwrap();
@@ -110,54 +137,71 @@ mod service_unified_tests {
         let sanitized = {
             // reconstruct sanitized by calling finder on the path and inferring the dir it checks
             // Since sanitize_path_for_claude is private, mimic behavior: replace '/', '.', '_' with '-'
-            session.worktree_path.to_string_lossy().replace(['/', '.', '_'], "-")
+            session
+                .worktree_path
+                .to_string_lossy()
+                .replace(['/', '.', '_'], "-")
         };
         let projects = projects_root.join(sanitized);
         std::fs::create_dir_all(&projects).unwrap();
         std::fs::write(projects.join("history.jsonl"), b"dummy").unwrap();
 
         // First start should be FRESH (no --continue / no -r)
-        let cmd1 = manager.start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new()).unwrap();
+        let cmd1 = manager
+            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
+            .unwrap();
         assert!(cmd1.contains(" claude"));
         assert!(!cmd1.contains("--continue"));
         assert!(!cmd1.contains(" -r "));
 
         // Second start should allow resume now (resume_allowed flipped true)
-        let cmd2 = manager.start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new()).unwrap();
-        assert!(cmd2.contains("--continue"), "Expected resume via --continue on second start");
+        let cmd2 = manager
+            .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
+            .unwrap();
+        assert!(
+            cmd2.contains("--continue"),
+            "Expected resume via --continue on second start"
+        );
 
         // Cleanup HOME
-        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
+        if let Some(h) = prev_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     #[test]
     fn test_unified_registry_produces_same_commands_as_old_match() {
         let (manager, temp_dir) = create_test_session_manager();
         let registry = crate::domains::agents::unified::AgentRegistry::new();
-        
+
         // Test each supported agent type
-        for (i, agent_type) in ["claude", "cursor", "codex", "qwen", "gemini", "opencode"].iter().enumerate() {
+        for (i, agent_type) in ["claude", "cursor", "codex", "qwen", "gemini", "opencode"]
+            .iter()
+            .enumerate()
+        {
             let session = create_test_session(&temp_dir, agent_type, &i.to_string());
-            
+
             // Create session in database
             manager.db_manager.create_session(&session).unwrap();
-            
+
             // Get the unified command using the new registry approach
             let binary_paths = HashMap::new();
             let result = manager.start_claude_in_session_with_restart_and_binary(
-                &session.name, 
-                false, 
-                &binary_paths
+                &session.name,
+                false,
+                &binary_paths,
             );
-            
+
             // Should succeed for all supported agents
             assert!(result.is_ok(), "Agent {} should be supported", agent_type);
-            
+
             let command = result.unwrap();
-            
+
             // Verify command contains expected elements
             assert!(command.contains(&format!("cd {}", session.worktree_path.display())));
-            
+
             // Get the agent from registry and verify it matches
             if let Some(agent) = registry.get(agent_type) {
                 let _registry_command = agent.build_command(
@@ -167,11 +211,15 @@ mod service_unified_tests {
                     session.original_skip_permissions.unwrap_or(false),
                     None,
                 );
-                
+
                 // The service command should match what the registry produces
                 // (accounting for potential binary path differences)
-                assert!(command.contains(agent.binary_name()) || command.contains(agent.default_binary()),
-                       "Command for {} should contain correct binary name", agent_type);
+                assert!(
+                    command.contains(agent.binary_name())
+                        || command.contains(agent.default_binary()),
+                    "Command for {} should contain correct binary name",
+                    agent_type
+                );
             }
         }
     }
@@ -179,35 +227,35 @@ mod service_unified_tests {
     #[test]
     fn test_codex_sandbox_mode_handling_preserved() {
         let (manager, temp_dir) = create_test_session_manager();
-        
+
         // Test with skip_permissions = true
         let mut session = create_test_session(&temp_dir, "codex", "danger");
         session.original_skip_permissions = Some(true);
         manager.db_manager.create_session(&session).unwrap();
-        
+
         let binary_paths = HashMap::new();
         let result = manager.start_claude_in_session_with_restart_and_binary(
-            &session.name, 
+            &session.name,
             false,
-            &binary_paths
+            &binary_paths,
         );
-        
+
         assert!(result.is_ok());
         let command = result.unwrap();
         assert!(command.contains("--sandbox danger-full-access"));
-        
+
         // Test with skip_permissions = false
         session.id = Uuid::new_v4().to_string();
         session.name = "test-session-safe".to_string();
         session.original_skip_permissions = Some(false);
         manager.db_manager.create_session(&session).unwrap();
-        
+
         let result = manager.start_claude_in_session_with_restart_and_binary(
-            &session.name, 
+            &session.name,
             false,
-            &binary_paths
+            &binary_paths,
         );
-        
+
         assert!(result.is_ok());
         let command = result.unwrap();
         assert!(command.contains("--sandbox workspace-write"));
@@ -221,19 +269,40 @@ mod service_unified_tests {
 
         // Initialize a git repo with an initial commit so default branch detection works
         let repo = temp_dir.path().join("repo");
-        Command::new("git").args(["init"]).current_dir(&repo).output().unwrap();
-        Command::new("git").args(["config","user.email","test@example.com"]).current_dir(&repo).output().unwrap();
-        Command::new("git").args(["config","user.name","Test User"]).current_dir(&repo).output().unwrap();
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
         std::fs::write(repo.join("README.md"), "Initial").unwrap();
-        Command::new("git").args(["add","."]).current_dir(&repo).output().unwrap();
-        Command::new("git").args(["commit","-m","init"]).current_dir(&repo).output().unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
 
         // Create a spec first (previously created draft)
         let spec_name = "codex_spec_config";
         let spec_content = "Implement feature Z with Codex";
-        manager.create_spec_session(spec_name, spec_content).unwrap();
+        manager
+            .create_spec_session(spec_name, spec_content)
+            .unwrap();
 
-        
         manager
             .start_spec_session_with_config(spec_name, None, Some("codex"), Some(true))
             .unwrap();
@@ -247,11 +316,22 @@ mod service_unified_tests {
             .expect("expected start command");
 
         // Verify Codex is used with the correct sandbox and prompt, and no resume flags on first start
-        assert!(cmd.contains(" codex ") || cmd.ends_with(" codex"), "expected Codex binary in command: {cmd}");
-        assert!(cmd.contains("--sandbox danger-full-access"), "expected danger sandbox when skip_permissions=true: {cmd}");
-        assert!(cmd.contains(spec_content), "expected spec content to be used as initial prompt: {cmd}");
-        assert!(!cmd.contains(" --resume"), "should not resume on first start after spec: {cmd}");
-        assert!(!cmd.contains(" --continue"), "should not continue on first start after spec: {cmd}");
+        assert!(
+            cmd.contains(" codex ") || cmd.ends_with(" codex"),
+            "expected Codex binary in command: {cmd}"
+        );
+        assert!(
+            cmd.contains("--sandbox danger-full-access"),
+            "expected danger sandbox when skip_permissions=true: {cmd}"
+        );
+        assert!(
+            cmd.contains(spec_content),
+            "expected spec content to be used as initial prompt: {cmd}"
+        );
+        assert!(
+            !(cmd.contains(" codex --sandbox ") && cmd.contains(" resume")),
+            "should not resume on first start after spec: {cmd}"
+        );
 
         // Prepare a fake Codex sessions directory so resume detection finds a matching session
         let home_dir = tempfile::TempDir::new().unwrap();
@@ -273,33 +353,40 @@ mod service_unified_tests {
         )
         .unwrap();
         writeln!(f, "{{\"record_type\":\"state\"}}").unwrap();
-        
+
         let prev_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", home_dir.path());
 
         // Second start should allow resume now (gate flips after fresh start and session file exists)
         let cmd2 = manager.start_claude_in_session(&running.name).unwrap();
-        let resumed = cmd2.contains("-c experimental_resume=") || cmd2.contains(" --resume") || cmd2.contains(" --continue");
-        assert!(resumed, "expected resume-capable command on second start: {cmd2}");
+        let resumed = cmd2.contains(" codex --sandbox ") && cmd2.contains(" resume");
+        assert!(
+            resumed,
+            "expected resume-capable command on second start: {cmd2}"
+        );
 
         // Restore HOME
-        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
+        if let Some(h) = prev_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     #[test]
     fn test_unsupported_agent_error_handling() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "unsupported-agent", "0");
-        
+
         manager.db_manager.create_session(&session).unwrap();
-        
+
         let binary_paths = HashMap::new();
         let result = manager.start_claude_in_session_with_restart_and_binary(
-            &session.name, 
+            &session.name,
             false,
-            &binary_paths
+            &binary_paths,
         );
-        
+
         // Should return an error with supported agent types listed
         assert!(result.is_err());
         let error = result.unwrap_err().to_string();
@@ -319,13 +406,16 @@ pub struct SessionManager {
 
 impl SessionManager {
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
-        log::debug!("Creating SessionManager with repo path: {}", repo_path.display());
-        
+        log::debug!(
+            "Creating SessionManager with repo path: {}",
+            repo_path.display()
+        );
+
         let db_manager = SessionDbManager::new(db.clone(), repo_path.clone());
         let cache_manager = SessionCacheManager::new(repo_path.clone());
         let utils = SessionUtils::new(repo_path.clone(), cache_manager.clone(), db_manager.clone());
-        
-        Self { 
+
+        Self {
             db_manager,
             cache_manager,
             utils,
@@ -334,7 +424,12 @@ impl SessionManager {
     }
 
     #[cfg(test)]
-    pub fn create_session(&self, name: &str, prompt: Option<&str>, base_branch: Option<&str>) -> Result<Session> {
+    pub fn create_session(
+        &self,
+        name: &str,
+        prompt: Option<&str>,
+        base_branch: Option<&str>,
+    ) -> Result<Session> {
         self.create_session_with_auto_flag(name, prompt, base_branch, false, None, None)
     }
 
@@ -359,21 +454,28 @@ impl SessionManager {
         };
         self.create_session_with_agent(params)
     }
-    
+
     pub fn create_session_with_agent(&self, params: SessionCreationParams) -> Result<Session> {
-        log::info!("Creating session '{}' in repository: {}", params.name, self.repo_path.display());
-        
+        log::info!(
+            "Creating session '{}' in repository: {}",
+            params.name,
+            self.repo_path.display()
+        );
+
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
-        
+
         if !git::is_valid_session_name(params.name) {
-            return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
+            return Err(anyhow!(
+                "Invalid session name: use only letters, numbers, hyphens, and underscores"
+            ));
         }
-        
-        let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(params.name)?;
+
+        let (unique_name, branch, worktree_path) =
+            self.utils.find_unique_session_paths(params.name)?;
         let session_id = SessionUtils::generate_session_id();
         self.utils.cleanup_existing_worktree(&worktree_path)?;
-        
+
         let parent_branch = if let Some(base) = params.base_branch {
             base.to_string()
         } else {
@@ -389,10 +491,10 @@ impl SessionManager {
                 }
             }
         };
-        
+
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
-        
+
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
@@ -418,58 +520,71 @@ impl SessionManager {
             session_state: SessionState::Running,
             resume_allowed: true,
         };
-        
+
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
         if repo_was_empty {
-            log::info!("Repository has no commits, creating initial commit: '{}'", git::INITIAL_COMMIT_MESSAGE);
-            git::create_initial_commit(&self.repo_path)
-                .map_err(|e| {
-                    self.cache_manager.unreserve_name(&unique_name);
-                    anyhow!("Failed to create initial commit: {}", e)
-                })?;
+            log::info!(
+                "Repository has no commits, creating initial commit: '{}'",
+                git::INITIAL_COMMIT_MESSAGE
+            );
+            git::create_initial_commit(&self.repo_path).map_err(|e| {
+                self.cache_manager.unreserve_name(&unique_name);
+                anyhow!("Failed to create initial commit: {}", e)
+            })?;
         }
-        
+
         let create_result = git::create_worktree_from_base(
-            &self.repo_path, 
-            &branch, 
-            &worktree_path, 
-            &parent_branch
+            &self.repo_path,
+            &branch,
+            &worktree_path,
+            &parent_branch,
         );
-        
+
         if let Err(e) = create_result {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
-        
+
         // Verify the worktree was created successfully and is valid
         if !worktree_path.exists() {
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Worktree directory was not created: {}", worktree_path.display()));
+            return Err(anyhow!(
+                "Worktree directory was not created: {}",
+                worktree_path.display()
+            ));
         }
-        
+
         let git_dir = worktree_path.join(".git");
         if !git_dir.exists() {
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Worktree git directory is missing: {}", git_dir.display()));
+            return Err(anyhow!(
+                "Worktree git directory is missing: {}",
+                git_dir.display()
+            ));
         }
-        
+
         log::info!("Worktree verified and ready: {}", worktree_path.display());
-        
+
         // IMPORTANT: Do not execute project setup script here.
         // We stream the setup script output directly in the session's top terminal
         // right before the agent starts (see schaltwerk_core_start_claude). This
         // keeps session creation fast and provides visible progress to the user.
-        
+
         if let Err(e) = self.db_manager.create_session(&session) {
             let _ = git::remove_worktree(&self.repo_path, &worktree_path);
             let _ = git::delete_branch(&self.repo_path, &branch);
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save session to database: {}", e));
         }
-        let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
+        let global_agent = self
+            .db_manager
+            .get_agent_type()
+            .unwrap_or_else(|_| "claude".to_string());
         let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ = self.db_manager.set_session_original_settings(&session.id, &global_agent, global_skip);
-        
+        let _ =
+            self.db_manager
+                .set_session_original_settings(&session.id, &global_agent, global_skip);
+
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
@@ -478,7 +593,7 @@ impl SessionManager {
                 let _ = self.db_manager.set_session_activity(&session_id, dt);
             }
         }
-        
+
         self.cache_manager.unreserve_name(&unique_name);
         log::info!("Successfully created session '{unique_name}'");
         Ok(session)
@@ -487,17 +602,17 @@ impl SessionManager {
     pub fn cancel_session(&self, name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(name)?;
         log::debug!("Cancel {name}: Retrieved session");
-        
+
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
         } else {
             false
         };
-        
+
         if has_uncommitted {
             log::warn!("Canceling session '{name}' with uncommitted changes");
         }
-        
+
         if session.worktree_path.exists() {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
                 return Err(anyhow!("Failed to remove worktree: {}", e));
@@ -509,12 +624,16 @@ impl SessionManager {
                 session.worktree_path.display()
             );
         }
-        
+
         if git::branch_exists(&self.repo_path, &session.branch)? {
             match git::archive_branch(&self.repo_path, &session.branch, &session.name) {
                 Ok(archived_name) => {
-                    log::info!("Archived branch '{}' to '{}'", session.branch, archived_name);
-                },
+                    log::info!(
+                        "Archived branch '{}' to '{}'",
+                        session.branch,
+                        archived_name
+                    );
+                }
                 Err(e) => {
                     log::warn!("Failed to archive branch '{}': {}", session.branch, e);
                 }
@@ -522,32 +641,35 @@ impl SessionManager {
         } else {
             log::debug!("Cancel {name}: Branch doesn't exist, skipping archive");
         }
-        
-        self.db_manager.update_session_status(&session.id, SessionStatus::Cancelled)?;
+
+        self.db_manager
+            .update_session_status(&session.id, SessionStatus::Cancelled)?;
         // Gate resume until the next fresh start
-        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
+        let _ = self
+            .db_manager
+            .set_session_resume_allowed(&session.id, false);
         log::info!("Cancel {name}: Session cancelled successfully");
         Ok(())
     }
-    
+
     /// Fast asynchronous session cancellation with parallel operations
     pub async fn fast_cancel_session(&self, name: &str) -> Result<()> {
-        use git2::{Repository, BranchType, WorktreePruneOptions};
-        
+        use git2::{BranchType, Repository, WorktreePruneOptions};
+
         let session = self.db_manager.get_session_by_name(name)?;
         log::info!("Fast cancel {name}: Starting optimized cancellation");
-        
+
         // Check uncommitted changes early (non-blocking)
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
         } else {
             false
         };
-        
+
         if has_uncommitted {
             log::warn!("Fast canceling session '{name}' with uncommitted changes");
         }
-        
+
         // Start parallel operations
         let worktree_future = if session.worktree_path.exists() {
             let repo_path = self.repo_path.clone();
@@ -570,13 +692,18 @@ impl SessionManager {
                         let _ = std::fs::remove_dir_all(&worktree_path);
                     }
                     Ok::<(), anyhow::Error>(())
-                }).await;
-                match res { Ok(Ok(())) => Ok(()), Ok(Err(e)) => Err(e), Err(e) => Err(anyhow::anyhow!("Task join error: {}", e)) }
+                })
+                .await;
+                match res {
+                    Ok(Ok(())) => Ok(()),
+                    Ok(Err(e)) => Err(e),
+                    Err(e) => Err(anyhow::anyhow!("Task join error: {}", e)),
+                }
             }))
         } else {
             None
         };
-        
+
         let branch_future = if git::branch_exists(&self.repo_path, &session.branch)? {
             let repo_path = self.repo_path.clone();
             let branch = session.branch.clone();
@@ -590,93 +717,111 @@ impl SessionManager {
                     // Create lightweight tag pointing to branch tip if branch exists
                     if let Ok(mut br) = repo.find_branch(&branch, BranchType::Local) {
                         if let Some(target) = br.get().target() {
-                            let _ = repo.tag_lightweight(&archive_name, &repo.find_object(target, None)?, false);
+                            let _ = repo.tag_lightweight(
+                                &archive_name,
+                                &repo.find_object(target, None)?,
+                                false,
+                            );
                             // Delete the branch
                             br.delete().ok();
                             log::info!("Archived branch '{branch}' to '{archive_name}'");
                         }
                     }
                     Ok::<(), anyhow::Error>(())
-                }).await;
+                })
+                .await;
                 match res {
                     Ok(Ok(())) => Ok::<(), anyhow::Error>(()),
-                    Ok(Err(e)) => { log::warn!("Branch operation error: {e}"); Ok::<(), anyhow::Error>(()) },
-                    Err(e) => { log::warn!("Task join error: {e}"); Ok::<(), anyhow::Error>(()) }
+                    Ok(Err(e)) => {
+                        log::warn!("Branch operation error: {e}");
+                        Ok::<(), anyhow::Error>(())
+                    }
+                    Err(e) => {
+                        log::warn!("Task join error: {e}");
+                        Ok::<(), anyhow::Error>(())
+                    }
                 }
             }))
         } else {
             log::debug!("Fast cancel {name}: Branch doesn't exist, skipping archive");
             None
         };
-        
+
         // Wait for parallel operations
         if let Some(worktree_handle) = worktree_future {
             if let Err(e) = worktree_handle.await {
                 log::warn!("Fast cancel {name}: Worktree task error: {e}");
             }
         }
-        
+
         if let Some(branch_handle) = branch_future {
             if let Err(e) = branch_handle.await {
                 log::warn!("Fast cancel {name}: Branch task error: {e}");
             }
         }
-        
+
         // Update database status
-        self.db_manager.update_session_status(&session.id, SessionStatus::Cancelled)?;
+        self.db_manager
+            .update_session_status(&session.id, SessionStatus::Cancelled)?;
         // Gate resume until the next fresh start
-        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
+        let _ = self
+            .db_manager
+            .set_session_resume_allowed(&session.id, false);
         log::info!("Fast cancel {name}: Successfully completed");
-        
+
         Ok(())
     }
 
-
     pub fn convert_session_to_draft(&self, name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(name)?;
-        
+
         if session.session_state != SessionState::Running {
             return Err(anyhow!("Session '{}' is not in running state", name));
         }
-        
+
         log::info!("Converting session '{name}' from running to spec");
-        
+
         let has_uncommitted = if session.worktree_path.exists() {
             git::has_uncommitted_changes(&session.worktree_path).unwrap_or(false)
         } else {
             false
         };
-        
+
         if has_uncommitted {
             log::warn!("Converting session '{name}' to spec with uncommitted changes");
         }
-        
+
         if session.worktree_path.exists() {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
                 log::warn!("Failed to remove worktree when converting to spec (will continue anyway): {e}. This may be due to active processes or file locks in the worktree directory.");
                 // Continue with conversion even if worktree removal fails - the important part
-                // is updating the session state in the database. The orphaned directory 
+                // is updating the session state in the database. The orphaned directory
                 // can be cleaned up later via cleanup_orphaned_worktrees()
             }
         }
-        
+
         if git::branch_exists(&self.repo_path, &session.branch)? {
             if let Err(e) = git::delete_branch(&self.repo_path, &session.branch) {
                 log::warn!("Failed to delete branch '{}': {}", session.branch, e);
             }
         }
-        
-        self.db_manager.update_session_status(&session.id, SessionStatus::Spec)?;
-        self.db_manager.update_session_state(&session.id, SessionState::Spec)?;
+
+        self.db_manager
+            .update_session_status(&session.id, SessionStatus::Spec)?;
+        self.db_manager
+            .update_session_state(&session.id, SessionState::Spec)?;
         // Gate resume until first start after conversion
-        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
-        
+        let _ = self
+            .db_manager
+            .set_session_resume_allowed(&session.id, false);
+
         // Reset run state fields when converting to spec
-        self.db_manager.update_session_ready_to_merge(&session.id, false)?;
+        self.db_manager
+            .update_session_ready_to_merge(&session.id, false)?;
         self.db_manager.clear_session_run_state(&session.id)?;
-        
+
         clear_session_prompted_non_test(&session.worktree_path);
-        
+
         Ok(())
     }
 
@@ -704,30 +849,38 @@ impl SessionManager {
         let start_time = std::time::Instant::now();
         let sessions = self.db_manager.list_sessions()?;
         let db_time = start_time.elapsed();
-        log::info!("list_enriched_sessions: Found {} total sessions in database ({}ms)", sessions.len(), db_time.as_millis());
-        
+        log::info!(
+            "list_enriched_sessions: Found {} total sessions in database ({}ms)",
+            sessions.len(),
+            db_time.as_millis()
+        );
+
         let mut enriched = Vec::new();
         let mut git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
         let mut session_count = 0;
-        
+
         for session in sessions {
             if session.status == SessionStatus::Cancelled {
                 continue;
             }
-            
+
             session_count += 1;
             let session_start = std::time::Instant::now();
-            
-            log::debug!("Processing session '{}': status={:?}, session_state={:?}", 
-                       session.name, session.status, session.session_state);
-            
+
+            log::debug!(
+                "Processing session '{}': status={:?}, session_state={:?}",
+                session.name,
+                session.status,
+                session.session_state
+            );
+
             // Check if worktree exists for non-spec sessions
             let worktree_check_start = std::time::Instant::now();
             let worktree_exists = session.worktree_path.exists();
             worktree_check_time += worktree_check_start.elapsed();
             let is_spec_session = session.session_state == SessionState::Spec;
-            
+
             // For spec sessions, we don't need worktrees to exist
             // For running sessions, skip if worktree is missing (unless in test mode)
             if !is_spec_session && !worktree_exists && !cfg!(test) {
@@ -738,28 +891,35 @@ impl SessionManager {
                 );
                 continue;
             }
-            
+
             let git_stats_start = std::time::Instant::now();
             let git_stats = self.db_manager.get_enriched_git_stats(&session)?;
             let git_stats_elapsed = git_stats_start.elapsed();
             git_stats_total_time += git_stats_elapsed;
-            
+
             if git_stats_elapsed.as_millis() > 100 {
-                log::warn!("Slow git stats for session '{}': {}ms", session.name, git_stats_elapsed.as_millis());
+                log::warn!(
+                    "Slow git stats for session '{}': {}ms",
+                    session.name,
+                    git_stats_elapsed.as_millis()
+                );
             }
             let has_uncommitted = if worktree_exists {
-                git_stats.as_ref().map(|s| s.has_uncommitted).unwrap_or(false)
+                git_stats
+                    .as_ref()
+                    .map(|s| s.has_uncommitted)
+                    .unwrap_or(false)
             } else {
                 false
             };
-            
+
             let diff_stats = git_stats.as_ref().map(|stats| DiffStats {
                 files_changed: stats.files_changed as usize,
                 additions: stats.lines_added as usize,
                 deletions: stats.lines_removed as usize,
                 insertions: stats.lines_added as usize,
             });
-            
+
             let status_type = if !worktree_exists && !is_spec_session {
                 SessionStatusType::Missing
             } else {
@@ -770,12 +930,12 @@ impl SessionManager {
                         } else {
                             SessionStatusType::Active
                         }
-                    },
+                    }
                     SessionStatus::Cancelled => SessionStatusType::Archived,
                     SessionStatus::Spec => SessionStatusType::Spec,
                 }
             };
-            
+
             let original_agent_type = session
                 .original_agent_type
                 .clone()
@@ -808,19 +968,23 @@ impl SessionManager {
                 format!("session-{}-top", session.name),
                 format!("session-{}-bottom", session.name),
             ];
-            
+
             enriched.push(EnrichedSession {
                 info,
                 status: None,
                 terminals,
             });
-            
+
             let session_elapsed = session_start.elapsed();
             if session_elapsed.as_millis() > 50 {
-                log::debug!("Session '{}' processing took {}ms", session.name, session_elapsed.as_millis());
+                log::debug!(
+                    "Session '{}' processing took {}ms",
+                    session.name,
+                    session_elapsed.as_millis()
+                );
             }
         }
-        
+
         let total_elapsed = start_time.elapsed();
         log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)", 
             enriched.len(), 
@@ -830,64 +994,114 @@ impl SessionManager {
             worktree_check_time.as_millis(),
             if session_count > 0 { total_elapsed.as_millis() / session_count as u128 } else { 0 }
         );
-        
+
         if total_elapsed.as_millis() > 500 {
-            log::warn!("PERFORMANCE WARNING: list_enriched_sessions took {}ms - consider optimizing", total_elapsed.as_millis());
+            log::warn!(
+                "PERFORMANCE WARNING: list_enriched_sessions took {}ms - consider optimizing",
+                total_elapsed.as_millis()
+            );
         }
-        
+
         Ok(enriched)
     }
 
-    pub fn list_enriched_sessions_sorted(&self, sort_mode: SortMode, filter_mode: FilterMode) -> Result<Vec<EnrichedSession>> {
+    pub fn list_enriched_sessions_sorted(
+        &self,
+        sort_mode: SortMode,
+        filter_mode: FilterMode,
+    ) -> Result<Vec<EnrichedSession>> {
         log::debug!("Computing sorted sessions: {sort_mode:?}/{filter_mode:?}");
         let all_sessions = self.list_enriched_sessions()?;
-        
+
         let filtered_sessions = self.utils.apply_session_filter(all_sessions, &filter_mode);
         let sorted_sessions = self.utils.apply_session_sort(filtered_sessions, &sort_mode);
-        
+
         Ok(sorted_sessions)
     }
 
     pub fn start_claude_in_session(&self, session_name: &str) -> Result<String> {
         self.start_claude_in_session_with_restart(session_name, false)
     }
-    
-    pub fn start_claude_in_session_with_restart(&self, session_name: &str, force_restart: bool) -> Result<String> {
-        self.start_claude_in_session_with_restart_and_binary(session_name, force_restart, &HashMap::new())
+
+    pub fn start_claude_in_session_with_restart(
+        &self,
+        session_name: &str,
+        force_restart: bool,
+    ) -> Result<String> {
+        self.start_claude_in_session_with_restart_and_binary(
+            session_name,
+            force_restart,
+            &HashMap::new(),
+        )
     }
-    
-    pub fn start_claude_in_session_with_binary(&self, session_name: &str, binary_paths: &HashMap<String, String>) -> Result<String> {
+
+    pub fn start_claude_in_session_with_binary(
+        &self,
+        session_name: &str,
+        binary_paths: &HashMap<String, String>,
+    ) -> Result<String> {
         self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
-    
-    pub fn start_claude_in_session_with_args(&self, session_name: &str, _cli_args: Option<&str>) -> Result<String> {
+
+    pub fn start_claude_in_session_with_args(
+        &self,
+        session_name: &str,
+        _cli_args: Option<&str>,
+    ) -> Result<String> {
         self.start_claude_in_session_with_args_and_binary(session_name, _cli_args, &HashMap::new())
     }
-    
-    pub fn start_claude_in_session_with_args_and_binary(&self, session_name: &str, _cli_args: Option<&str>, binary_paths: &HashMap<String, String>) -> Result<String> {
+
+    pub fn start_claude_in_session_with_args_and_binary(
+        &self,
+        session_name: &str,
+        _cli_args: Option<&str>,
+        binary_paths: &HashMap<String, String>,
+    ) -> Result<String> {
         self.start_claude_in_session_with_restart_and_binary(session_name, false, binary_paths)
     }
-    
-    pub fn start_claude_in_session_with_restart_and_binary(&self, session_name: &str, force_restart: bool, binary_paths: &HashMap<String, String>) -> Result<String> {
+
+    pub fn start_claude_in_session_with_restart_and_binary(
+        &self,
+        session_name: &str,
+        force_restart: bool,
+        binary_paths: &HashMap<String, String>,
+    ) -> Result<String> {
         let session = self.db_manager.get_session_by_name(session_name)?;
-        let skip_permissions = session.original_skip_permissions.unwrap_or(self.db_manager.get_skip_permissions()?);
-        let agent_type = session.original_agent_type.clone().unwrap_or(self.db_manager.get_agent_type()?);
-        
+        let skip_permissions = session
+            .original_skip_permissions
+            .unwrap_or(self.db_manager.get_skip_permissions()?);
+        let agent_type = session
+            .original_agent_type
+            .clone()
+            .unwrap_or(self.db_manager.get_agent_type()?);
+
         let registry = crate::domains::agents::unified::AgentRegistry::new();
-        
+
         // Special handling for Claude's session resumption logic
         if agent_type == "claude" {
-            log::info!("Session manager: Starting Claude agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
-            log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
-            
+            log::info!(
+                "Session manager: Starting Claude agent for session '{}' in worktree: {}",
+                session_name,
+                session.worktree_path.display()
+            );
+            log::info!(
+                "Session manager: force_restart={}, session.initial_prompt={:?}",
+                force_restart,
+                session.initial_prompt
+            );
+
             // Check DB gating first: if resume not allowed, we must start fresh regardless of disk state
             let resume_allowed = session.resume_allowed;
             // Check for existing Claude session files (fast-path) only if resume is allowed
             let resumable_session_id = if resume_allowed {
-                crate::domains::agents::claude::find_resumable_claude_session_fast(&session.worktree_path)
-            } else { None };
+                crate::domains::agents::claude::find_resumable_claude_session_fast(
+                    &session.worktree_path,
+                )
+            } else {
+                None
+            };
             log::info!("Session manager: find_resumable_claude_session_fast returned: {resumable_session_id:?}");
-            
+
             // Determine session_id and prompt based on force_restart and existing session
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 // Explicit restart - always use initial prompt, no session resumption
@@ -899,24 +1113,34 @@ impl SessionManager {
                 (Some(session_id), None, false)
             } else {
                 // No resumable session - use initial prompt for first start or empty sessions
-                log::info!("Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                log::info!(
+                    "Session manager: Starting fresh Claude session '{}' with initial_prompt={:?}",
+                    session_name,
+                    session.initial_prompt
+                );
                 (None, session.initial_prompt.as_deref(), true)
             };
-            
+
             log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
-            
+
             // Only mark session as prompted if we're actually using the prompt
             if prompt_to_use.is_some() {
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                self.cache_manager
+                    .mark_session_prompted(&session.worktree_path);
             }
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
             if did_start_fresh && !resume_allowed {
-                let _ = self.db_manager.set_session_resume_allowed(&session.id, true);
+                let _ = self
+                    .db_manager
+                    .set_session_resume_allowed(&session.id, true);
             }
-            
+
             if let Some(agent) = registry.get("claude") {
-                let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
+                let binary_path = self.utils.get_effective_binary_path_with_override(
+                    "claude",
+                    binary_paths.get("claude").map(|s| s.as_str()),
+                );
                 return Ok(agent.build_command(
                     &session.worktree_path,
                     session_id_to_use.as_deref(),
@@ -926,58 +1150,109 @@ impl SessionManager {
                 ));
             }
         }
-        
+
         // Special handling for Codex's session resumption logic
         if agent_type == "codex" {
-            log::info!("Session manager: Starting Codex agent for session '{}' in worktree: {}", session_name, session.worktree_path.display());
-            log::info!("Session manager: force_restart={}, session.initial_prompt={:?}", force_restart, session.initial_prompt);
-            
+            log::info!(
+                "Session manager: Starting Codex agent for session '{}' in worktree: {}",
+                session_name,
+                session.worktree_path.display()
+            );
+            log::info!(
+                "Session manager: force_restart={}, session.initial_prompt={:?}",
+                force_restart,
+                session.initial_prompt
+            );
+
             // Gate resume after Spec/Convert-to-spec until the first fresh start completes
             let resume_allowed = session.resume_allowed;
             // Check for existing Codex session to determine if we should resume or start fresh
             let resume_path = if resume_allowed {
                 crate::domains::agents::codex::find_codex_resume_path(&session.worktree_path)
-            } else { None };
+            } else {
+                None
+            };
             let resumable_session_id = if resume_allowed {
                 crate::domains::agents::codex::find_codex_session_fast(&session.worktree_path)
-            } else { None };
+            } else {
+                None
+            };
             log::info!("Session manager: resume_allowed={resume_allowed}, find_codex_resume_path returned: {:?}", resume_path.as_ref().map(|p| p.display().to_string()));
-            log::info!("Session manager: find_codex_session_fast returned: {resumable_session_id:?}");
-            
+            log::info!(
+                "Session manager: find_codex_session_fast returned: {resumable_session_id:?}"
+            );
+
             // Determine session_id and prompt based on force_restart and existing session
+            let resume_session_id_from_path = resume_path
+                .as_ref()
+                .and_then(|p| crate::domains::agents::codex::extract_session_id_from_path(p));
+
             let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
                 // Explicit restart - always use initial prompt, no session resumption
-                log::info!("Session manager: Force restarting Codex session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                log::info!(
+                    "Session manager: Force restarting Codex session '{}' with initial_prompt={:?}",
+                    session_name,
+                    session.initial_prompt
+                );
                 (None, session.initial_prompt.as_deref(), true)
-            } else if let Some(path) = resume_path {
-                // Prefer precise resume via experimental_resume config override (non-interactive)
-                let encoded = format!("file://{}", path.display());
-                log::info!("Session manager: Resuming Codex session via explicit path: {}", path.display());
-                (Some(encoded), None, false)
+            } else if let (Some(path), Some(session_id)) = (
+                resume_path.as_ref(),
+                resume_session_id_from_path.clone(),
+            ) {
+                log::info!(
+                    "Session manager: Resuming Codex session via session id '{session_id}' (source path: {path_display})",
+                    path_display = path.display()
+                );
+                (Some(session_id), None, false)
+            } else if let Some(path) = resume_path.as_ref() {
+                log::warn!(
+                    "Session manager: Failed to extract session id from Codex log: {path_display}",
+                    path_display = path.display()
+                );
+                if let Some(session_id) = resumable_session_id.clone() {
+                    log::info!(
+                        "Session manager: Falling back to sentinel resume strategy: {session_id}"
+                    );
+                    (Some(session_id), None, false)
+                } else {
+                    (None, session.initial_prompt.as_deref(), true)
+                }
             } else if let Some(session_id) = resumable_session_id {
                 // Fallback: Session sentinel exists - either --continue or --resume picker
-                log::info!("Session manager: Resuming existing Codex session '{}' with sentinel='{}' in worktree: {}", session_name, session_id, session.worktree_path.display());
+                log::info!(
+                    "Session manager: Resuming existing Codex session '{session_name}' with sentinel='{session_id}' in worktree: {worktree_path}",
+                    worktree_path = session.worktree_path.display()
+                );
                 (Some(session_id), None, false)
             } else {
                 // No resumable session - use initial prompt for first start
-                log::info!("Session manager: Starting fresh Codex session '{}' with initial_prompt={:?}", session_name, session.initial_prompt);
+                log::info!(
+                    "Session manager: Starting fresh Codex session '{session_name}' with initial_prompt={initial_prompt:?}",
+                    initial_prompt = session.initial_prompt
+                );
                 (None, session.initial_prompt.as_deref(), true)
             };
-            
+
             log::info!("Session manager: Final decision - session_id_to_use={session_id_to_use:?}, prompt_to_use={prompt_to_use:?}");
-            
+
             // Only mark session as prompted if we're actually using the prompt
             if prompt_to_use.is_some() {
-                self.cache_manager.mark_session_prompted(&session.worktree_path);
+                self.cache_manager
+                    .mark_session_prompted(&session.worktree_path);
             }
 
             // If we started fresh and resume had been disallowed, flip resume_allowed back to true for future resumes
             if did_start_fresh && !resume_allowed {
-                let _ = self.db_manager.set_session_resume_allowed(&session.id, true);
+                let _ = self
+                    .db_manager
+                    .set_session_resume_allowed(&session.id, true);
             }
-            
+
             if let Some(agent) = registry.get("codex") {
-                let binary_path = self.utils.get_effective_binary_path_with_override("codex", binary_paths.get("codex").map(|s| s.as_str()));
+                let binary_path = self.utils.get_effective_binary_path_with_override(
+                    "codex",
+                    binary_paths.get("codex").map(|s| s.as_str()),
+                );
                 return Ok(agent.build_command(
                     &session.worktree_path,
                     session_id_to_use.as_deref(),
@@ -987,16 +1262,24 @@ impl SessionManager {
                 ));
             }
         }
-        
+
         // For all other agents, use the registry directly
         if let Some(agent) = registry.get(&agent_type) {
             // Always start fresh - no session discovery for new sessions
-            self.cache_manager.mark_session_prompted(&session.worktree_path);
+            self.cache_manager
+                .mark_session_prompted(&session.worktree_path);
             let prompt_to_use = session.initial_prompt.as_deref();
-            
-            let binary_key = if agent_type == "cursor" { "cursor-agent" } else { &agent_type };
-            let binary_path = self.utils.get_effective_binary_path_with_override(binary_key, binary_paths.get(binary_key).map(|s| s.as_str()));
-            
+
+            let binary_key = if agent_type == "cursor" {
+                "cursor-agent"
+            } else {
+                &agent_type
+            };
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                binary_key,
+                binary_paths.get(binary_key).map(|s| s.as_str()),
+            );
+
             Ok(agent.build_command(
                 &session.worktree_path,
                 None, // No session ID - always start fresh
@@ -1007,78 +1290,127 @@ impl SessionManager {
         } else {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
             let supported = registry.supported_agents().join(", ");
-            Err(anyhow!("Unsupported agent type: {}. Supported types are: {}", agent_type, supported))
+            Err(anyhow!(
+                "Unsupported agent type: {}. Supported types are: {}",
+                agent_type,
+                supported
+            ))
         }
     }
 
     pub fn start_claude_in_orchestrator(&self) -> Result<String> {
         self.start_claude_in_orchestrator_with_args(None)
     }
-    
+
     pub fn start_claude_in_orchestrator_fresh(&self) -> Result<String> {
         self.start_claude_in_orchestrator_fresh_with_binary(&HashMap::new())
     }
-    
-    pub fn start_claude_in_orchestrator_fresh_with_binary(&self, binary_paths: &HashMap<String, String>) -> Result<String> {
-        log::info!("Building FRESH orchestrator command (no session resume) for repo: {}", self.repo_path.display());
-        
+
+    pub fn start_claude_in_orchestrator_fresh_with_binary(
+        &self,
+        binary_paths: &HashMap<String, String>,
+    ) -> Result<String> {
+        log::info!(
+            "Building FRESH orchestrator command (no session resume) for repo: {}",
+            self.repo_path.display()
+        );
+
         if !self.repo_path.exists() {
-            log::error!("Repository path does not exist: {}", self.repo_path.display());
-            return Err(anyhow!("Repository path does not exist: {}. Please open a valid project folder.", self.repo_path.display()));
+            log::error!(
+                "Repository path does not exist: {}",
+                self.repo_path.display()
+            );
+            return Err(anyhow!(
+                "Repository path does not exist: {}. Please open a valid project folder.",
+                self.repo_path.display()
+            ));
         }
-        
+
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
             return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
         }
-        
+
         let skip_permissions = self.db_manager.get_skip_permissions()?;
         let agent_type = self.db_manager.get_agent_type()?;
-        
-        log::info!("Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
-        
+
+        log::info!(
+            "Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}"
+        );
+
         self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, false)
     }
 
-    pub fn start_claude_in_orchestrator_with_binary(&self, binary_paths: &HashMap<String, String>) -> Result<String> {
+    pub fn start_claude_in_orchestrator_with_binary(
+        &self,
+        binary_paths: &HashMap<String, String>,
+    ) -> Result<String> {
         self.start_claude_in_orchestrator_with_args_and_binary(None, binary_paths)
     }
-    
-    pub fn start_claude_in_orchestrator_with_args(&self, _cli_args: Option<&str>) -> Result<String> {
+
+    pub fn start_claude_in_orchestrator_with_args(
+        &self,
+        _cli_args: Option<&str>,
+    ) -> Result<String> {
         self.start_claude_in_orchestrator_with_args_and_binary(_cli_args, &HashMap::new())
     }
-    
-    pub fn start_claude_in_orchestrator_with_args_and_binary(&self, _cli_args: Option<&str>, binary_paths: &HashMap<String, String>) -> Result<String> {
-        log::info!("Building orchestrator command for repo: {}", self.repo_path.display());
-        
+
+    pub fn start_claude_in_orchestrator_with_args_and_binary(
+        &self,
+        _cli_args: Option<&str>,
+        binary_paths: &HashMap<String, String>,
+    ) -> Result<String> {
+        log::info!(
+            "Building orchestrator command for repo: {}",
+            self.repo_path.display()
+        );
+
         if !self.repo_path.exists() {
-            return Err(anyhow!("Repository path does not exist: {}", self.repo_path.display()));
+            return Err(anyhow!(
+                "Repository path does not exist: {}",
+                self.repo_path.display()
+            ));
         }
-        
+
         if !self.repo_path.join(".git").exists() {
-            return Err(anyhow!("Not a git repository: {}", self.repo_path.display()));
+            return Err(anyhow!(
+                "Not a git repository: {}",
+                self.repo_path.display()
+            ));
         }
-        
+
         let skip_permissions = self.db_manager.get_skip_permissions()?;
         let agent_type = self.db_manager.get_agent_type()?;
-        
+
         log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
-        
+
         self.build_orchestrator_command(&agent_type, skip_permissions, binary_paths, true)
     }
 
-    fn build_orchestrator_command(&self, agent_type: &str, skip_permissions: bool, binary_paths: &HashMap<String, String>, resume_session: bool) -> Result<String> {
+    fn build_orchestrator_command(
+        &self,
+        agent_type: &str,
+        skip_permissions: bool,
+        binary_paths: &HashMap<String, String>,
+        resume_session: bool,
+    ) -> Result<String> {
         let registry = crate::domains::agents::unified::AgentRegistry::new();
-        
+
         // Special handling for Claude's --continue flag in orchestrator mode
         if agent_type == "claude" {
-            let binary_path = self.utils.get_effective_binary_path_with_override("claude", binary_paths.get("claude").map(|s| s.as_str()));
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                "claude",
+                binary_paths.get("claude").map(|s| s.as_str()),
+            );
             if let Some(agent) = registry.get("claude") {
                 // Check if we have any existing orchestrator sessions to resume
                 // The orchestrator runs in the main repo path, so we check for sessions there
                 let session_id_to_use = if resume_session {
                     // Check for existing Claude sessions in the main repository (orchestrator sessions)
-                    let has_orchestrator_sessions = crate::domains::agents::claude::find_resumable_claude_session_fast(&self.repo_path);
+                    let has_orchestrator_sessions =
+                        crate::domains::agents::claude::find_resumable_claude_session_fast(
+                            &self.repo_path,
+                        );
                     if has_orchestrator_sessions.is_some() {
                         log::info!("Orchestrator: Found existing Claude orchestrator sessions in main repo, using --continue flag");
                         Some("__continue__") // Special value to trigger --continue flag
@@ -1089,7 +1421,7 @@ impl SessionManager {
                 } else {
                     None
                 };
-                
+
                 return Ok(agent.build_command(
                     &self.repo_path,
                     session_id_to_use,
@@ -1099,18 +1431,25 @@ impl SessionManager {
                 ));
             }
         }
-        
+
         // For all other agents, use the registry
         if let Some(agent) = registry.get(agent_type) {
-            let binary_key = if agent_type == "cursor" { "cursor-agent" } else { agent_type };
-            let binary_path = self.utils.get_effective_binary_path_with_override(binary_key, binary_paths.get(binary_key).map(|s| s.as_str()));
-            
+            let binary_key = if agent_type == "cursor" {
+                "cursor-agent"
+            } else {
+                agent_type
+            };
+            let binary_path = self.utils.get_effective_binary_path_with_override(
+                binary_key,
+                binary_paths.get(binary_key).map(|s| s.as_str()),
+            );
+
             let session_id = if resume_session {
                 agent.find_session(&self.repo_path)
             } else {
                 None
             };
-            
+
             Ok(agent.build_command(
                 &self.repo_path,
                 session_id.as_deref(),
@@ -1121,10 +1460,13 @@ impl SessionManager {
         } else {
             log::error!("Unknown agent type '{agent_type}' for orchestrator");
             let supported = registry.supported_agents().join(", ");
-            Err(anyhow!("Unsupported agent type: {}. Supported types are: {}", agent_type, supported))
+            Err(anyhow!(
+                "Unsupported agent type: {}. Supported types are: {}",
+                agent_type,
+                supported
+            ))
         }
     }
-    
 
     pub fn mark_session_as_reviewed(&self, session_name: &str) -> Result<()> {
         // Get session and validate state
@@ -1136,7 +1478,10 @@ impl SessionManager {
         }
 
         if session.ready_to_merge {
-            return Err(anyhow!("Session '{}' is already marked as reviewed", session_name));
+            return Err(anyhow!(
+                "Session '{}' is already marked as reviewed",
+                session_name
+            ));
         }
 
         // Use existing mark_session_ready logic (with auto_commit=false)
@@ -1158,7 +1503,13 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn start_spec_session_with_config(&self, session_name: &str, base_branch: Option<&str>, agent_type: Option<&str>, skip_permissions: Option<bool>) -> Result<()> {
+    pub fn start_spec_session_with_config(
+        &self,
+        session_name: &str,
+        base_branch: Option<&str>,
+        agent_type: Option<&str>,
+        skip_permissions: Option<bool>,
+    ) -> Result<()> {
         // Set global agent type if provided
         if let Some(agent_type) = agent_type {
             if let Err(e) = self.set_global_agent_type(agent_type) {
@@ -1184,18 +1535,19 @@ impl SessionManager {
 
     pub fn mark_session_ready(&self, session_name: &str, auto_commit: bool) -> Result<bool> {
         let session = self.db_manager.get_session_by_name(session_name)?;
-        
+
         let has_uncommitted = git::has_uncommitted_changes(&session.worktree_path)?;
-        
+
         if has_uncommitted && auto_commit {
             git::commit_all_changes(
                 &session.worktree_path,
-                &SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name)
+                &SESSION_READY_COMMIT_MESSAGE.replace("{}", session_name),
             )?;
         }
-        
+
         // Mark as ready to merge in DB
-        self.db_manager.update_session_ready_to_merge(&session.id, true)?;
+        self.db_manager
+            .update_session_ready_to_merge(&session.id, true)?;
 
         // Always refresh git stats immediately so UI reflects the latest state.
         // This avoids relying on the 60s cache window in get_enriched_git_stats()
@@ -1204,17 +1556,16 @@ impl SessionManager {
         // Note: Safe to run whether or not auto-commit happened above.
         if let Err(e) = self.db_manager.update_git_stats(&session.id) {
             // Do not fail the overall action if stats update fails; log and continue
-            log::warn!(
-                "mark_session_ready: failed to refresh git stats for '{session_name}': {e}"
-            );
+            log::warn!("mark_session_ready: failed to refresh git stats for '{session_name}': {e}");
         }
-        
+
         Ok(!has_uncommitted || auto_commit)
     }
-    
+
     pub fn unmark_session_ready(&self, session_name: &str) -> Result<()> {
         let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager.update_session_ready_to_merge(&session.id, false)?;
+        self.db_manager
+            .update_session_ready_to_merge(&session.id, false)?;
         Ok(())
     }
 
@@ -1231,11 +1582,15 @@ impl SessionManager {
 
         if session.ready_to_merge {
             // Clear review flag and ensure state is Running for UI consistency
-            self.db_manager.update_session_ready_to_merge(&session.id, false)?;
-            self.db_manager.update_session_state(&session.id, SessionState::Running)?;
+            self.db_manager
+                .update_session_ready_to_merge(&session.id, false)?;
+            self.db_manager
+                .update_session_state(&session.id, SessionState::Running)?;
 
             // Touch last_activity to surface recency deterministically
-            let _ = self.db_manager.set_session_activity(&session.id, chrono::Utc::now());
+            let _ = self
+                .db_manager
+                .set_session_activity(&session.id, chrono::Utc::now());
             return Ok(true);
         }
 
@@ -1245,30 +1600,43 @@ impl SessionManager {
     pub fn create_spec_session(&self, name: &str, spec_content: &str) -> Result<Session> {
         self.create_spec_session_with_agent(name, spec_content, None, None)
     }
-    
-    pub fn create_spec_session_with_agent(&self, name: &str, spec_content: &str, agent_type: Option<&str>, skip_permissions: Option<bool>) -> Result<Session> {
-        log::info!("Creating spec session '{}' with agent_type={:?} in repository: {}", name, agent_type, self.repo_path.display());
-        
+
+    pub fn create_spec_session_with_agent(
+        &self,
+        name: &str,
+        spec_content: &str,
+        agent_type: Option<&str>,
+        skip_permissions: Option<bool>,
+    ) -> Result<Session> {
+        log::info!(
+            "Creating spec session '{}' with agent_type={:?} in repository: {}",
+            name,
+            agent_type,
+            self.repo_path.display()
+        );
+
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
-        
+
         if !git::is_valid_session_name(name) {
-            return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
+            return Err(anyhow!(
+                "Invalid session name: use only letters, numbers, hyphens, and underscores"
+            ));
         }
-        
+
         let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
-        
+
         let session_id = SessionUtils::generate_session_id();
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
-        
+
         // Set pending_name_generation flag if we have agent type and content
         let pending_name_generation = agent_type.is_some() && !spec_content.trim().is_empty();
-        
+
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
-            display_name: None,  // Will be generated later when the spec is started
+            display_name: None, // Will be generated later when the spec is started
             version_group_id: None,
             version_number: None,
             repository_path: self.repo_path.clone(),
@@ -1280,7 +1648,7 @@ impl SessionManager {
             created_at: now,
             updated_at: now,
             last_activity: None,
-            initial_prompt: None,  // Spec sessions don't use initial_prompt
+            initial_prompt: None, // Spec sessions don't use initial_prompt
             ready_to_merge: false,
             original_agent_type: agent_type.map(|s| s.to_string()),
             original_skip_permissions: skip_permissions,
@@ -1290,9 +1658,9 @@ impl SessionManager {
             session_state: SessionState::Spec,
             resume_allowed: true,
         };
-        
+
         self.db_manager.create_session(&session)?;
-        
+
         Ok(session)
     }
 
@@ -1304,21 +1672,27 @@ impl SessionManager {
         version_group_id: Option<&str>,
         version_number: Option<i32>,
     ) -> Result<()> {
-        log::info!("Creating and starting spec session '{}' in repository: {}", name, self.repo_path.display());
-        
+        log::info!(
+            "Creating and starting spec session '{}' in repository: {}",
+            name,
+            self.repo_path.display()
+        );
+
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
-        
+
         if !git::is_valid_session_name(name) {
-            return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
+            return Err(anyhow!(
+                "Invalid session name: use only letters, numbers, hyphens, and underscores"
+            ));
         }
-        
+
         let (unique_name, branch, worktree_path) = self.utils.find_unique_session_paths(name)?;
-        
+
         let session_id = SessionUtils::generate_session_id();
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
-        
+
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
@@ -1344,14 +1718,14 @@ impl SessionManager {
             session_state: SessionState::Spec,
             resume_allowed: true,
         };
-        
+
         if let Err(e) = self.db_manager.create_session(&session) {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save spec session to database: {}", e));
         }
-        
+
         self.cache_manager.unreserve_name(&unique_name);
-        
+
         // Now start the session immediately using the session we just created
         let parent_branch = if let Some(base) = base_branch {
             base.to_string()
@@ -1368,50 +1742,73 @@ impl SessionManager {
                 }
             }
         };
-        
+
         self.utils.cleanup_existing_worktree(&worktree_path)?;
-        
+
         let create_result = git::create_worktree_from_base(
-            &self.repo_path, 
-            &branch, 
-            &worktree_path, 
-            &parent_branch
+            &self.repo_path,
+            &branch,
+            &worktree_path,
+            &parent_branch,
         );
-        
+
         if let Err(e) = create_result {
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
-        
+
         // Verify the worktree was created successfully and is valid
         if !worktree_path.exists() {
-            return Err(anyhow!("Worktree directory was not created: {}", worktree_path.display()));
+            return Err(anyhow!(
+                "Worktree directory was not created: {}",
+                worktree_path.display()
+            ));
         }
-        
+
         let git_dir = worktree_path.join(".git");
         if !git_dir.exists() {
-            return Err(anyhow!("Worktree git directory is missing: {}", git_dir.display()));
+            return Err(anyhow!(
+                "Worktree git directory is missing: {}",
+                git_dir.display()
+            ));
         }
-        
+
         log::info!("Worktree verified and ready: {}", worktree_path.display());
-        
+
         if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
             if !setup_script.trim().is_empty() {
-                self.utils.execute_setup_script(&setup_script, &unique_name, &branch, &worktree_path)?;
+                self.utils.execute_setup_script(
+                    &setup_script,
+                    &unique_name,
+                    &branch,
+                    &worktree_path,
+                )?;
             }
         }
-        
-        self.db_manager.update_session_status(&session_id, SessionStatus::Active)?;
-        self.db_manager.update_session_state(&session_id, SessionState::Running)?;
-        
-        log::info!("Copying spec content to initial_prompt for session '{unique_name}': '{spec_content}'");
-        self.db_manager.update_session_initial_prompt(&session_id, spec_content)?;
+
+        self.db_manager
+            .update_session_status(&session_id, SessionStatus::Active)?;
+        self.db_manager
+            .update_session_state(&session_id, SessionState::Running)?;
+
+        log::info!(
+            "Copying spec content to initial_prompt for session '{unique_name}': '{spec_content}'"
+        );
+        self.db_manager
+            .update_session_initial_prompt(&session_id, spec_content)?;
         clear_session_prompted_non_test(&worktree_path);
-        log::info!("Cleared prompt state for session '{unique_name}' to ensure spec content is used");
-        
-        let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
+        log::info!(
+            "Cleared prompt state for session '{unique_name}' to ensure spec content is used"
+        );
+
+        let global_agent = self
+            .db_manager
+            .get_agent_type()
+            .unwrap_or_else(|_| "claude".to_string());
         let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ = self.db_manager.set_session_original_settings(&session_id, &global_agent, global_skip);
-        
+        let _ =
+            self.db_manager
+                .set_session_original_settings(&session_id, &global_agent, global_skip);
+
         let mut git_stats = git::calculate_git_stats_fast(&worktree_path, &parent_branch)?;
         git_stats.session_id = session_id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
@@ -1420,7 +1817,7 @@ impl SessionManager {
                 let _ = self.db_manager.set_session_activity(&session_id, dt);
             }
         }
-        
+
         Ok(())
     }
 
@@ -1447,12 +1844,16 @@ impl SessionManager {
         // Override original settings if provided, otherwise keep globals already stored
         if agent_type.is_some() || skip_permissions.is_some() {
             let session = self.db_manager.get_session_by_name(name)?;
-            let agent = agent_type
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string()));
+            let agent = agent_type.map(|s| s.to_string()).unwrap_or_else(|| {
+                self.db_manager
+                    .get_agent_type()
+                    .unwrap_or_else(|_| "claude".to_string())
+            });
             let skip = skip_permissions
                 .unwrap_or_else(|| self.db_manager.get_skip_permissions().unwrap_or(false));
-            let _ = self.db_manager.set_session_original_settings(&session.id, &agent, skip);
+            let _ = self
+                .db_manager
+                .set_session_original_settings(&session.id, &agent, skip);
             log::info!(
                 "create_and_start_spec_session_with_config: set original settings for '{name}' to agent='{agent}', skip_permissions={skip}"
             );
@@ -1461,22 +1862,36 @@ impl SessionManager {
         Ok(())
     }
 
-    pub fn start_spec_session(&self, session_name: &str, base_branch: Option<&str>, version_group_id: Option<&str>, version_number: Option<i32>) -> Result<()> {
-        log::info!("Starting spec session '{}' in repository: {}", session_name, self.repo_path.display());
-        
+    pub fn start_spec_session(
+        &self,
+        session_name: &str,
+        base_branch: Option<&str>,
+        version_group_id: Option<&str>,
+        version_number: Option<i32>,
+    ) -> Result<()> {
+        log::info!(
+            "Starting spec session '{}' in repository: {}",
+            session_name,
+            self.repo_path.display()
+        );
+
         let repo_lock = self.cache_manager.get_repo_lock();
         let _guard = repo_lock.lock().unwrap();
-        
+
         let session = self.db_manager.get_session_by_name(session_name)?;
         // If version grouping info provided, set it on this spec before starting
         if version_group_id.is_some() || version_number.is_some() {
-            let _ = self.db_manager.set_session_version_info(&session.id, version_group_id, version_number);
+            let _ = self.db_manager.set_session_version_info(
+                &session.id,
+                version_group_id,
+                version_number,
+            );
         }
-        
+
         if session.session_state != SessionState::Spec {
             return Err(anyhow!("Session '{}' is not in spec state", session_name));
         }
-        
+
         let parent_branch = if let Some(base) = base_branch {
             base.to_string()
         } else {
@@ -1492,56 +1907,83 @@ impl SessionManager {
                 }
             }
         };
-        
-        self.utils.cleanup_existing_worktree(&session.worktree_path)?;
-        
+
+        self.utils
+            .cleanup_existing_worktree(&session.worktree_path)?;
+
         let create_result = git::create_worktree_from_base(
-            &self.repo_path, 
-            &session.branch, 
-            &session.worktree_path, 
-            &parent_branch
+            &self.repo_path,
+            &session.branch,
+            &session.worktree_path,
+            &parent_branch,
         );
-        
+
         if let Err(e) = create_result {
             return Err(anyhow!("Failed to create worktree: {}", e));
         }
-        
+
         // Verify the worktree was created successfully and is valid
         if !session.worktree_path.exists() {
-            return Err(anyhow!("Worktree directory was not created: {}", session.worktree_path.display()));
+            return Err(anyhow!(
+                "Worktree directory was not created: {}",
+                session.worktree_path.display()
+            ));
         }
-        
+
         let git_dir = session.worktree_path.join(".git");
         if !git_dir.exists() {
-            return Err(anyhow!("Worktree git directory is missing: {}", git_dir.display()));
+            return Err(anyhow!(
+                "Worktree git directory is missing: {}",
+                git_dir.display()
+            ));
         }
-        
-        log::info!("Worktree verified and ready: {}", session.worktree_path.display());
-        
+
+        log::info!(
+            "Worktree verified and ready: {}",
+            session.worktree_path.display()
+        );
+
         if let Ok(Some(setup_script)) = self.db_manager.get_project_setup_script() {
             if !setup_script.trim().is_empty() {
-                self.utils.execute_setup_script(&setup_script, &session.name, &session.branch, &session.worktree_path)?;
+                self.utils.execute_setup_script(
+                    &setup_script,
+                    &session.name,
+                    &session.branch,
+                    &session.worktree_path,
+                )?;
             }
         }
-        
-        self.db_manager.update_session_status(&session.id, SessionStatus::Active)?;
-        self.db_manager.update_session_state(&session.id, SessionState::Running)?;
+
+        self.db_manager
+            .update_session_status(&session.id, SessionStatus::Active)?;
+        self.db_manager
+            .update_session_state(&session.id, SessionState::Running)?;
         // Ensure we gate resume on first agent start after spec start
-        let _ = self.db_manager.set_session_resume_allowed(&session.id, false);
-        
+        let _ = self
+            .db_manager
+            .set_session_resume_allowed(&session.id, false);
+
         if let Some(spec_content) = session.spec_content {
             log::info!("Copying spec content to initial_prompt for session '{session_name}': '{spec_content}'");
-            self.db_manager.update_session_initial_prompt(&session.id, &spec_content)?;
+            self.db_manager
+                .update_session_initial_prompt(&session.id, &spec_content)?;
             clear_session_prompted_non_test(&session.worktree_path);
-            log::info!("Cleared prompt state for session '{session_name}' to ensure spec content is used");
+            log::info!(
+                "Cleared prompt state for session '{session_name}' to ensure spec content is used"
+            );
         } else {
             log::warn!("No spec_content found for session '{session_name}' - initial_prompt will not be set");
         }
-        
-        let global_agent = self.db_manager.get_agent_type().unwrap_or_else(|_| "claude".to_string());
+
+        let global_agent = self
+            .db_manager
+            .get_agent_type()
+            .unwrap_or_else(|_| "claude".to_string());
         let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
-        let _ = self.db_manager.set_session_original_settings(&session.id, &global_agent, global_skip);
-        
+        let _ =
+            self.db_manager
+                .set_session_original_settings(&session.id, &global_agent, global_skip);
+
         let mut git_stats = git::calculate_git_stats_fast(&session.worktree_path, &parent_branch)?;
         git_stats.session_id = session.id.clone();
         self.db_manager.save_git_stats(&git_stats)?;
@@ -1550,7 +1992,7 @@ impl SessionManager {
                 let _ = self.db_manager.set_session_activity(&session.id, dt);
             }
         }
-        
+
         Ok(())
     }
 
@@ -1568,13 +2010,18 @@ impl SessionManager {
         self.db_manager.set_skip_permissions(skip)
     }
 
-
-
     pub fn update_spec_content(&self, session_name: &str, content: &str) -> Result<()> {
-        info!("SessionCore: Updating spec content for session '{}', content length: {}", session_name, content.len());
+        info!(
+            "SessionCore: Updating spec content for session '{}', content length: {}",
+            session_name,
+            content.len()
+        );
         let session = self.db_manager.get_session_by_name(session_name)?;
-        info!("SessionCore: Found session with id: {}, state: {:?}", session.id, session.session_state);
-        
+        info!(
+            "SessionCore: Found session with id: {}, state: {:?}",
+            session.id, session.session_state
+        );
+
         // Only allow updating content for sessions in Spec state
         if session.session_state != SessionState::Spec {
             return Err(anyhow::anyhow!(
@@ -1583,16 +2030,20 @@ impl SessionManager {
                 session.session_state
             ));
         }
-        
+
         self.db_manager.update_spec_content(&session.id, content)?;
         info!("SessionCore: Successfully updated spec content in database for session '{session_name}'");
         Ok(())
     }
 
     pub fn append_spec_content(&self, session_name: &str, content: &str) -> Result<()> {
-        info!("SessionCore: Appending spec content for session '{}', additional content length: {}", session_name, content.len());
+        info!(
+            "SessionCore: Appending spec content for session '{}', additional content length: {}",
+            session_name,
+            content.len()
+        );
         let session = self.db_manager.get_session_by_name(session_name)?;
-        
+
         // Only allow appending content for sessions in Spec state
         if session.session_state != SessionState::Spec {
             return Err(anyhow::anyhow!(
@@ -1601,7 +2052,7 @@ impl SessionManager {
                 session.session_state
             ));
         }
-        
+
         self.db_manager.append_spec_content(&session.id, content)?;
         info!("SessionCore: Successfully appended spec content in database for session '{session_name}'");
         Ok(())
@@ -1613,13 +2064,14 @@ impl SessionManager {
 
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
         if !git::is_valid_session_name(new_name) {
-            return Err(anyhow!("Invalid session name: use only letters, numbers, hyphens, and underscores"));
+            return Err(anyhow!(
+                "Invalid session name: use only letters, numbers, hyphens, and underscores"
+            ));
         }
-        
+
         self.db_manager.rename_draft_session(old_name, new_name)?;
         Ok(())
     }
-
 
     pub fn archive_spec_session(&self, name: &str) -> Result<()> {
         // Only archive Spec sessions
@@ -1663,11 +2115,17 @@ impl SessionManager {
         self.db_manager.db.list_archived_specs(&self.repo_path)
     }
 
-    pub fn restore_archived_spec(&self, archived_id: &str, new_name: Option<&str>) -> Result<Session> {
+    pub fn restore_archived_spec(
+        &self,
+        archived_id: &str,
+        new_name: Option<&str>,
+    ) -> Result<Session> {
         // Load archived entry
         let archived = {
             let specs = self.db_manager.db.list_archived_specs(&self.repo_path)?;
-            specs.into_iter().find(|s| s.id == archived_id)
+            specs
+                .into_iter()
+                .find(|s| s.id == archived_id)
                 .ok_or_else(|| anyhow!("Archived spec not found"))?
         };
 
@@ -1744,7 +2202,9 @@ impl SessionManager {
         }
 
         // Confirm HEAD matches the session branch to avoid resetting the wrong branch
-        let head = repo.head().map_err(|e| anyhow!("Failed to read HEAD: {e}"))?;
+        let head = repo
+            .head()
+            .map_err(|e| anyhow!("Failed to read HEAD: {e}"))?;
         let expected_ref = format!("refs/heads/{}", session.branch);
         if head.name() != Some(expected_ref.as_str()) {
             return Err(anyhow!(
@@ -1755,7 +2215,10 @@ impl SessionManager {
         }
 
         // Delegate to git domain code (already constrained to this repo)
-        crate::domains::git::worktrees::reset_worktree_to_base(&session.worktree_path, &session.parent_branch)
+        crate::domains::git::worktrees::reset_worktree_to_base(
+            &session.worktree_path,
+            &session.parent_branch,
+        )
     }
 
     /// Discard changes for a single file in a session's worktree (defensive checks included).

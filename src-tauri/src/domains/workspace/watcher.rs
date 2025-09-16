@@ -1,16 +1,16 @@
 use std::collections::HashMap;
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
-use notify::{RecommendedWatcher, RecursiveMode};
-use serde::{Serialize, Deserialize};
-use tauri::AppHandle;
-use crate::infrastructure::events::{emit_event, SchaltEvent};
 use crate::domains::sessions::activity::SessionGitStatsUpdated;
-use tokio::sync::{Mutex, mpsc};
-use log::{debug, info, warn, error};
+use crate::infrastructure::events::{emit_event, SchaltEvent};
+use log::{debug, error, info, warn};
+use notify::{RecommendedWatcher, RecursiveMode};
+use notify_debouncer_mini::{new_debouncer, DebounceEventResult, Debouncer};
+use serde::{Deserialize, Serialize};
+use tauri::AppHandle;
+use tokio::sync::{mpsc, Mutex};
 
 use crate::domains::git::service as git;
 use crate::domains::sessions::entity::ChangedFile;
@@ -56,15 +56,16 @@ impl FileWatcher {
         app_handle: AppHandle,
     ) -> Result<Self, String> {
         let (tx, mut rx) = mpsc::channel(100);
-        
+
         let debouncer = new_debouncer(
             Duration::from_millis(500),
             move |result: DebounceEventResult| {
                 if let Err(e) = tx.blocking_send(result) {
                     error!("Failed to send file watch event: {e}");
                 }
-            }
-        ).map_err(|e| format!("Failed to create debouncer: {e}"))?;
+            },
+        )
+        .map_err(|e| format!("Failed to create debouncer: {e}"))?;
 
         let session_name_clone = session_name.clone();
         let worktree_path_clone = worktree_path.clone();
@@ -75,16 +76,21 @@ impl FileWatcher {
             while let Some(result) = rx.recv().await {
                 match result {
                     Ok(events) => {
-                        debug!("File watcher received {} events for session {}", 
-                               events.len(), session_name_clone);
-                        
+                        debug!(
+                            "File watcher received {} events for session {}",
+                            events.len(),
+                            session_name_clone
+                        );
+
                         if let Err(e) = Self::handle_file_changes(
                             &session_name_clone,
                             &worktree_path_clone,
                             &base_branch_clone,
                             &app_handle_clone,
                             events,
-                        ).await {
+                        )
+                        .await
+                        {
                             warn!("Failed to handle file changes for session {session_name_clone}: {e}");
                         }
                     }
@@ -111,23 +117,40 @@ impl FileWatcher {
 
     fn start_watching(&mut self) -> Result<(), String> {
         let watcher = self._debouncer.watcher();
-        
+
         watcher
             .watch(&self._worktree_path, RecursiveMode::Recursive)
-            .map_err(|e| format!("Failed to start watching {}: {e}", self._worktree_path.display()))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to start watching {}: {e}",
+                    self._worktree_path.display()
+                )
+            })?;
 
         // Also watch the worktree's gitdir/index to catch commit events (for linked worktrees)
         if let Some(ref idx) = self._gitdir_index {
             if let Some(parent) = idx.parent() {
                 watcher
                     .watch(parent, RecursiveMode::NonRecursive)
-                    .map_err(|e| format!("Failed to watch gitdir index parent {}: {e}", parent.display()))?;
-                info!("Started watching gitdir index for session {} at {}", self._session_name, idx.display());
+                    .map_err(|e| {
+                        format!(
+                            "Failed to watch gitdir index parent {}: {e}",
+                            parent.display()
+                        )
+                    })?;
+                info!(
+                    "Started watching gitdir index for session {} at {}",
+                    self._session_name,
+                    idx.display()
+                );
             }
         }
 
-        info!("Started file watching for session {} at path {}", 
-              self._session_name, self._worktree_path.display());
+        info!(
+            "Started file watching for session {} at path {}",
+            self._session_name,
+            self._worktree_path.display()
+        );
         Ok(())
     }
 
@@ -153,9 +176,9 @@ impl FileWatcher {
         app_handle: &AppHandle,
         events: Vec<notify_debouncer_mini::DebouncedEvent>,
     ) -> Result<(), String> {
-        let should_ignore_event = events.iter().all(|event| {
-            Self::should_ignore_path(&event.path)
-        });
+        let should_ignore_event = events
+            .iter()
+            .all(|event| Self::should_ignore_path(&event.path));
 
         if should_ignore_event {
             debug!("Ignoring file changes in system directories for session {session_name}");
@@ -169,12 +192,22 @@ impl FileWatcher {
         for ev in &events {
             if let Some(p) = ev.path.to_str() {
                 // Standard repo layout
-                if p.ends_with("/.git/index") { saw_index = true; }
-                if p.ends_with("/.git/HEAD") { saw_head = true; }
-                if p.contains("/.git/refs/heads/") { saw_refs = true; }
+                if p.ends_with("/.git/index") {
+                    saw_index = true;
+                }
+                if p.ends_with("/.git/HEAD") {
+                    saw_head = true;
+                }
+                if p.contains("/.git/refs/heads/") {
+                    saw_refs = true;
+                }
                 // Linked worktree gitdir lives under mainrepo/.git/worktrees/<name>/
-                if p.contains("/.git/worktrees/") && p.ends_with("/index") { saw_index = true; }
-                if p.contains("/.git/worktrees/") && p.ends_with("/HEAD") { saw_head = true; }
+                if p.contains("/.git/worktrees/") && p.ends_with("/index") {
+                    saw_index = true;
+                }
+                if p.contains("/.git/worktrees/") && p.ends_with("/HEAD") {
+                    saw_head = true;
+                }
             }
         }
         debug!(
@@ -184,14 +217,17 @@ impl FileWatcher {
 
         let changed_files = git::get_changed_files(worktree_path, base_branch)
             .map_err(|e| format!("Failed to get changed files: {e}"))?;
-        
-        info!("Session {} has {} changed files detected", session_name, changed_files.len());
 
-        let change_summary = Self::compute_change_summary(&changed_files, worktree_path, base_branch)
-            .await?;
+        info!(
+            "Session {} has {} changed files detected",
+            session_name,
+            changed_files.len()
+        );
 
-        let branch_info = Self::get_branch_info(worktree_path, base_branch)
-            .await?;
+        let change_summary =
+            Self::compute_change_summary(&changed_files, worktree_path, base_branch).await?;
+
+        let branch_info = Self::get_branch_info(worktree_path, base_branch).await?;
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -206,8 +242,11 @@ impl FileWatcher {
             timestamp,
         };
 
-        debug!("Emitting file change event for session {} with {} files", 
-               session_name, file_change_event.changed_files.len());
+        debug!(
+            "Emitting file change event for session {} with {} files",
+            session_name,
+            file_change_event.changed_files.len()
+        );
 
         emit_event(app_handle, SchaltEvent::FileChanges, &file_change_event)
             .map_err(|e| format!("Failed to emit file change event: {e}"))?;
@@ -216,7 +255,10 @@ impl FileWatcher {
         match git::calculate_git_stats_fast(worktree_path, base_branch) {
             Ok(stats) => {
                 // Collect a small sample of uncommitted paths to help frontend tooltips
-                let sample = match crate::domains::git::operations::uncommitted_sample_paths(worktree_path, 5) {
+                let sample = match crate::domains::git::operations::uncommitted_sample_paths(
+                    worktree_path,
+                    5,
+                ) {
                     Ok(v) if !v.is_empty() => Some(v),
                     _ => None,
                 };
@@ -232,7 +274,11 @@ impl FileWatcher {
                 let _ = emit_event(app_handle, SchaltEvent::SessionGitStats, &payload);
                 debug!(
                     "Watcher emitted SessionGitStats for {}: files={} +{} -{} has_uncommitted={}",
-                    session_name, payload.files_changed, payload.lines_added, payload.lines_removed, payload.has_uncommitted
+                    session_name,
+                    payload.files_changed,
+                    payload.lines_added,
+                    payload.lines_removed,
+                    payload.has_uncommitted
                 );
             }
             Err(e) => {
@@ -258,12 +304,12 @@ impl FileWatcher {
                 }
                 return true; // ignore other .git noise
             }
-            path_str.contains("/node_modules/") 
-                || path_str.contains("/target/") 
-                || path_str.contains("/.DS_Store") 
-                || path_str.contains("/.*~") 
-                || path_str.ends_with(".tmp") 
-                || path_str.ends_with(".swp") 
+            path_str.contains("/node_modules/")
+                || path_str.contains("/target/")
+                || path_str.contains("/.DS_Store")
+                || path_str.contains("/.*~")
+                || path_str.ends_with(".tmp")
+                || path_str.ends_with(".swp")
                 || path_str.contains("/.vscode/")
         } else {
             false
@@ -276,7 +322,7 @@ impl FileWatcher {
         _base_branch: &str,
     ) -> Result<ChangeSummary, String> {
         let files_changed = changed_files.len() as u32;
-        
+
         // Use libgit2 to determine staged/unstaged and line stats
         // If not a git repo, return graceful defaults
         let repo = match git2::Repository::open(worktree_path) {
@@ -293,16 +339,27 @@ impl FileWatcher {
         };
 
         // Parse status to detect staged/unstaged
-        let statuses = repo.statuses(None)
+        let statuses = repo
+            .statuses(None)
             .map_err(|e| format!("Failed to get repository status: {e}"))?;
         let mut has_staged = false;
         let mut has_unstaged = false;
         for entry in statuses.iter() {
             let st = entry.status();
-            if st.is_index_new() || st.is_index_modified() || st.is_index_deleted() || st.is_index_renamed() || st.is_index_typechange() {
+            if st.is_index_new()
+                || st.is_index_modified()
+                || st.is_index_deleted()
+                || st.is_index_renamed()
+                || st.is_index_typechange()
+            {
                 has_staged = true;
             }
-            if st.is_wt_new() || st.is_wt_modified() || st.is_wt_deleted() || st.is_wt_renamed() || st.is_wt_typechange() {
+            if st.is_wt_new()
+                || st.is_wt_modified()
+                || st.is_wt_deleted()
+                || st.is_wt_renamed()
+                || st.is_wt_typechange()
+            {
                 has_unstaged = true;
             }
         }
@@ -318,7 +375,11 @@ impl FileWatcher {
                     if let Ok(head_commit) = repo.find_commit(head_oid) {
                         if let Ok(head_tree) = head_commit.tree() {
                             let mut opts = git2::DiffOptions::new();
-                            if let Ok(diff_idx) = repo.diff_tree_to_index(Some(&head_tree), Some(&idx), Some(&mut opts)) {
+                            if let Ok(diff_idx) = repo.diff_tree_to_index(
+                                Some(&head_tree),
+                                Some(&idx),
+                                Some(&mut opts),
+                            ) {
                                 if let Ok(stats) = diff_idx.stats() {
                                     lines_added += stats.insertions() as u32;
                                     lines_removed += stats.deletions() as u32;
@@ -356,12 +417,30 @@ impl FileWatcher {
         base_branch: &str,
     ) -> Result<BranchInfo, String> {
         // Use libgit2 to get branch and commit info
-        let (current_branch, base_commit, head_commit) = match git2::Repository::open(worktree_path) {
+        let (current_branch, base_commit, head_commit) = match git2::Repository::open(worktree_path)
+        {
             Ok(repo) => {
-                let mut cur = repo.head().ok().and_then(|h| h.shorthand().map(|s| s.to_string())).unwrap_or_else(|| "HEAD".to_string());
-                if cur.is_empty() { cur = "HEAD".to_string(); }
-                let base = repo.revparse_single(base_branch).ok().map(|o| o.id().to_string()).map(|s| s.chars().take(7).collect()).unwrap_or_else(|| "".to_string());
-                let head = repo.head().ok().and_then(|h| h.target()).map(|oid| oid.to_string()).map(|s| s.chars().take(7).collect()).unwrap_or_else(|| "".to_string());
+                let mut cur = repo
+                    .head()
+                    .ok()
+                    .and_then(|h| h.shorthand().map(|s| s.to_string()))
+                    .unwrap_or_else(|| "HEAD".to_string());
+                if cur.is_empty() {
+                    cur = "HEAD".to_string();
+                }
+                let base = repo
+                    .revparse_single(base_branch)
+                    .ok()
+                    .map(|o| o.id().to_string())
+                    .map(|s| s.chars().take(7).collect())
+                    .unwrap_or_else(|| "".to_string());
+                let head = repo
+                    .head()
+                    .ok()
+                    .and_then(|h| h.target())
+                    .map(|oid| oid.to_string())
+                    .map(|s| s.chars().take(7).collect())
+                    .unwrap_or_else(|| "".to_string());
                 (cur, base, head)
             }
             Err(_) => ("HEAD".to_string(), "".to_string(), "".to_string()),
@@ -396,7 +475,7 @@ impl FileWatcherManager {
         base_branch: String,
     ) -> Result<(), String> {
         let mut watchers = self.watchers.lock().await;
-        
+
         if watchers.contains_key(&session_name) {
             debug!("Already watching session {session_name}");
             return Ok(());
@@ -416,13 +495,13 @@ impl FileWatcherManager {
 
     pub async fn stop_watching_session(&self, session_name: &str) -> Result<(), String> {
         let mut watchers = self.watchers.lock().await;
-        
+
         if let Some(_watcher) = watchers.remove(session_name) {
             info!("Stopped file watching for session {session_name}");
         } else {
             debug!("Session {session_name} was not being watched");
         }
-        
+
         Ok(())
     }
 
@@ -447,10 +526,9 @@ impl FileWatcherManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
     use std::fs;
     use std::process::Command;
-
+    use tempfile::TempDir;
 
     fn create_test_git_repo(temp_dir: &TempDir) -> PathBuf {
         let repo_path = temp_dir.path().to_path_buf();
@@ -494,7 +572,10 @@ mod tests {
             .expect("Failed to commit");
 
         if !commit_output.status.success() {
-            panic!("Failed to create initial commit: {}", String::from_utf8_lossy(&commit_output.stderr));
+            panic!(
+                "Failed to create initial commit: {}",
+                String::from_utf8_lossy(&commit_output.stderr)
+            );
         }
 
         let branch_check = Command::new("git")
@@ -503,7 +584,9 @@ mod tests {
             .output();
 
         if branch_check.is_ok() {
-            let current_branch = String::from_utf8_lossy(&branch_check.unwrap().stdout).trim().to_string();
+            let current_branch = String::from_utf8_lossy(&branch_check.unwrap().stdout)
+                .trim()
+                .to_string();
             if current_branch.is_empty() || current_branch != "main" {
                 Command::new("git")
                     .args(["checkout", "-b", "main"])
@@ -522,62 +605,120 @@ mod tests {
         repo_path
     }
 
-
-
-
-
     #[test]
     fn test_should_ignore_path_comprehensive() {
         // Test all ignore patterns
         // Commit signal files should NOT be ignored (we want immediate updates)
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/.git/index")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/.git/HEAD")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/config")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/.git/hooks/pre-commit")));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/.git/index"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/.git/HEAD"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.git/config"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/subdir/.git/hooks/pre-commit"
+        )));
 
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/node_modules/package.json")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/node_modules/subdir/file.js")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/node_modules/@scope/package/file.ts")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/node_modules/package.json"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/node_modules/subdir/file.js"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/node_modules/@scope/package/file.ts"
+        )));
 
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/target/debug/app")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/target/release/binary")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/target/wasm32-unknown-emscripten")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/target/debug/app"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/target/release/binary"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/target/wasm32-unknown-emscripten"
+        )));
 
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.DS_Store")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/.DS_Store")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.DS_Store.backup")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.DS_Store"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/subdir/.DS_Store"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.DS_Store.backup"
+        )));
 
         assert!(FileWatcher::should_ignore_path(Path::new("/path/file.tmp")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/file.tmp")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/file.temporary.tmp")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/subdir/file.tmp"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/file.temporary.tmp"
+        )));
 
         assert!(FileWatcher::should_ignore_path(Path::new("/path/file.swp")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.file.swp")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/file.txt.swp")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.file.swp"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/file.txt.swp"
+        )));
 
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.vscode/settings.json")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.vscode/extensions.json")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.vscode/launch.json")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.vscode/settings.json"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.vscode/extensions.json"
+        )));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/.vscode/launch.json"
+        )));
 
         // Test non-ignored paths
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/src/main.rs")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/README.md")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/package.json")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/Cargo.toml")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/src/components/App.tsx")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/tests/test_file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/src/main.rs"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/README.md"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/package.json"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/Cargo.toml"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/src/components/App.tsx"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/tests/test_file.rs"
+        )));
 
         // Test edge cases
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/gitfile.txt"))); // Contains "git" but not in .git/
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/node_modules_backup/file.js"))); // Contains "node_modules" but not exact match
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/target_file.txt"))); // Contains "target" but not in /target/
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/gitfile.txt"
+        ))); // Contains "git" but not in .git/
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/node_modules_backup/file.js"
+        ))); // Contains "node_modules" but not exact match
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/target_file.txt"
+        ))); // Contains "target" but not in /target/
 
         // Test with None path (should not panic)
         assert!(!FileWatcher::should_ignore_path(Path::new("")));
 
         // Test unicode paths
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/📁/.git/config")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/📁/main.rs")));
+        assert!(FileWatcher::should_ignore_path(Path::new(
+            "/path/📁/.git/config"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/📁/main.rs"
+        )));
     }
 
     #[test]
@@ -667,20 +808,36 @@ mod tests {
         let repo_path = create_test_git_repo(&temp_dir);
 
         let result = FileWatcher::get_branch_info(&repo_path, "main").await;
-        assert!(result.is_ok(), "Should extract branch info successfully: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should extract branch info successfully: {:?}",
+            result.err()
+        );
 
         let branch_info = result.unwrap();
         assert_eq!(branch_info.base_branch, "main");
 
         // Current branch should be either "main" or "HEAD" depending on git version
-        assert!(branch_info.current_branch == "main" || branch_info.current_branch == "HEAD" || !branch_info.current_branch.is_empty());
+        assert!(
+            branch_info.current_branch == "main"
+                || branch_info.current_branch == "HEAD"
+                || !branch_info.current_branch.is_empty()
+        );
 
-        assert!(!branch_info.base_commit.is_empty(), "Base commit should not be empty");
-        assert!(!branch_info.head_commit.is_empty(), "Head commit should not be empty");
+        assert!(
+            !branch_info.base_commit.is_empty(),
+            "Base commit should not be empty"
+        );
+        assert!(
+            !branch_info.head_commit.is_empty(),
+            "Head commit should not be empty"
+        );
 
         // Base and head commits should be the same for a new repo
-        assert_eq!(branch_info.base_commit, branch_info.head_commit,
-                  "In a new repo, base and head commits should be the same");
+        assert_eq!(
+            branch_info.base_commit, branch_info.head_commit,
+            "In a new repo, base and head commits should be the same"
+        );
     }
 
     #[tokio::test]
@@ -710,7 +867,10 @@ mod tests {
             .expect("Failed to commit feature");
 
         let result = FileWatcher::get_branch_info(&repo_path, "main").await;
-        assert!(result.is_ok(), "Should extract branch info from feature branch");
+        assert!(
+            result.is_ok(),
+            "Should extract branch info from feature branch"
+        );
 
         let branch_info = result.unwrap();
         assert_eq!(branch_info.current_branch, "feature-test");
@@ -719,8 +879,10 @@ mod tests {
         assert!(!branch_info.head_commit.is_empty());
 
         // Base and head commits should be different now
-        assert_ne!(branch_info.base_commit, branch_info.head_commit,
-                  "Base and head commits should differ when on feature branch with commits");
+        assert_ne!(
+            branch_info.base_commit, branch_info.head_commit,
+            "Base and head commits should differ when on feature branch with commits"
+        );
     }
 
     #[tokio::test]
@@ -733,7 +895,11 @@ mod tests {
         let result = FileWatcher::get_branch_info(&non_repo_path, "main").await;
         // The function might succeed even for non-git directories by using fallback values
         // What matters is that it doesn't panic and returns a valid result
-        assert!(result.is_ok(), "Should handle non-git directory gracefully: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should handle non-git directory gracefully: {:?}",
+            result.err()
+        );
         let branch_info = result.unwrap();
         // In a non-git directory, it should use fallback values
         assert_eq!(branch_info.base_branch, "main");
@@ -749,7 +915,11 @@ mod tests {
         let changed_files: Vec<ChangedFile> = vec![];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "main").await;
-        assert!(result.is_ok(), "Should compute summary with no changes: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should compute summary with no changes: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 0);
@@ -765,7 +935,11 @@ mod tests {
         let repo_path = create_test_git_repo(&temp_dir);
 
         // Create a new file and stage it
-        fs::write(repo_path.join("staged.txt"), "line 1\nline 2\nline 3\nline 4\nline 5").unwrap();
+        fs::write(
+            repo_path.join("staged.txt"),
+            "line 1\nline 2\nline 3\nline 4\nline 5",
+        )
+        .unwrap();
 
         Command::new("git")
             .args(["add", "staged.txt"])
@@ -773,21 +947,27 @@ mod tests {
             .output()
             .expect("Failed to stage file");
 
-        let changed_files = vec![
-            ChangedFile {
-                path: "staged.txt".to_string(),
-                change_type: "added".to_string(),
-            },
-        ];
+        let changed_files = vec![ChangedFile {
+            path: "staged.txt".to_string(),
+            change_type: "added".to_string(),
+        }];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "Should compute summary with staged changes: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should compute summary with staged changes: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 1);
         assert!(summary.has_staged);
         assert!(!summary.has_unstaged);
-        assert!(summary.lines_added > 0, "Should have added lines, got: {}", summary.lines_added);
+        assert!(
+            summary.lines_added > 0,
+            "Should have added lines, got: {}",
+            summary.lines_added
+        );
         assert_eq!(summary.lines_removed, 0);
     }
 
@@ -797,17 +977,23 @@ mod tests {
         let repo_path = create_test_git_repo(&temp_dir);
 
         // Modify existing file (creates unstaged changes)
-        fs::write(repo_path.join("initial.txt"), "modified content\nline 2\nline 3").unwrap();
+        fs::write(
+            repo_path.join("initial.txt"),
+            "modified content\nline 2\nline 3",
+        )
+        .unwrap();
 
-        let changed_files = vec![
-            ChangedFile {
-                path: "initial.txt".to_string(),
-                change_type: "modified".to_string(),
-            },
-        ];
+        let changed_files = vec![ChangedFile {
+            path: "initial.txt".to_string(),
+            change_type: "modified".to_string(),
+        }];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "Should compute summary with unstaged changes: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should compute summary with unstaged changes: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 1);
@@ -845,7 +1031,11 @@ mod tests {
         ];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "Should compute summary with mixed changes: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should compute summary with mixed changes: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 2);
@@ -859,17 +1049,20 @@ mod tests {
         let non_repo_path = temp_dir.path().join("not-a-repo");
         fs::create_dir(&non_repo_path).unwrap();
 
-        let changed_files = vec![
-            ChangedFile {
-                path: "test.txt".to_string(),
-                change_type: "modified".to_string(),
-            },
-        ];
+        let changed_files = vec![ChangedFile {
+            path: "test.txt".to_string(),
+            change_type: "modified".to_string(),
+        }];
 
-        let result = FileWatcher::compute_change_summary(&changed_files, &non_repo_path, "main").await;
+        let result =
+            FileWatcher::compute_change_summary(&changed_files, &non_repo_path, "main").await;
         // The function might succeed even for non-git directories, returning empty results
         // What matters is that it doesn't panic and returns a valid result
-        assert!(result.is_ok(), "Should handle non-git directory gracefully: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should handle non-git directory gracefully: {:?}",
+            result.err()
+        );
         let summary = result.unwrap();
         // In a non-git directory, we should get 0 changes
         assert_eq!(summary.files_changed, 1); // Still counts the input files
@@ -884,13 +1077,16 @@ mod tests {
 
         // Test the filtering logic separately with individual paths
         // .git/index should be allowed through (commit signal)
-        assert!(!FileWatcher::should_ignore_path(&repo_path.join(".git/index")));
-        assert!(FileWatcher::should_ignore_path(&repo_path.join("node_modules/package.json")));
-        assert!(!FileWatcher::should_ignore_path(&repo_path.join("src/main.rs")));
+        assert!(!FileWatcher::should_ignore_path(
+            &repo_path.join(".git/index")
+        ));
+        assert!(FileWatcher::should_ignore_path(
+            &repo_path.join("node_modules/package.json")
+        ));
+        assert!(!FileWatcher::should_ignore_path(
+            &repo_path.join("src/main.rs")
+        ));
     }
-
-
-
 
     // Note: FileWatcherManager tests require a real Tauri AppHandle and are better
     // suited for integration tests rather than unit tests. The manager functionality
@@ -920,15 +1116,20 @@ mod tests {
 
         // Serialize and check size is reasonable
         let json = serde_json::to_string(&event).unwrap();
-        assert!(json.len() < 1000, "Serialized event should be reasonably small");
+        assert!(
+            json.len() < 1000,
+            "Serialized event should be reasonably small"
+        );
 
         // Test with larger data
         let event_with_files = FileChangeEvent {
             session_name: "large-session".to_string(),
-            changed_files: (0..100).map(|i| ChangedFile {
-                path: format!("file{}.txt", i),
-                change_type: "modified".to_string(),
-            }).collect(),
+            changed_files: (0..100)
+                .map(|i| ChangedFile {
+                    path: format!("file{}.txt", i),
+                    change_type: "modified".to_string(),
+                })
+                .collect(),
             change_summary: ChangeSummary {
                 files_changed: 100,
                 lines_added: 1000,
@@ -947,7 +1148,10 @@ mod tests {
 
         let json_large = serde_json::to_string(&event_with_files).unwrap();
         // Should handle larger data structures without issues
-        assert!(json_large.len() > 1000, "Should handle larger data structures");
+        assert!(
+            json_large.len() > 1000,
+            "Should handle larger data structures"
+        );
     }
 
     #[test]
@@ -957,24 +1161,44 @@ mod tests {
         assert!(!FileWatcher::should_ignore_path(Path::new("")));
 
         // Paths with special characters
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with spaces/file.rs")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with-dashes/file.rs")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with_underscores/file.rs")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/with.dots/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/with spaces/file.rs"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/with-dashes/file.rs"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/with_underscores/file.rs"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/with.dots/file.rs"
+        )));
 
         // Paths that contain ignore keywords but aren't exact matches
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/gitignore.txt")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/node_modules_old/file.js")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/target_folder/file.txt")));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/gitignore.txt"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/node_modules_old/file.js"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/target_folder/file.txt"
+        )));
 
         // Very long paths
         let long_path = "/".repeat(200) + "/file.txt";
         assert!(!FileWatcher::should_ignore_path(Path::new(&long_path)));
 
         // Paths with unicode characters
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/🚀/file.rs")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/тест/file.rs")));
-        assert!(!FileWatcher::should_ignore_path(Path::new("/path/测试/file.rs")));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/🚀/file.rs"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/тест/file.rs"
+        )));
+        assert!(!FileWatcher::should_ignore_path(Path::new(
+            "/path/测试/file.rs"
+        )));
     }
 
     #[tokio::test]
@@ -991,15 +1215,17 @@ mod tests {
             .output()
             .expect("Failed to stage deletion");
 
-        let changed_files = vec![
-            ChangedFile {
-                path: "initial.txt".to_string(),
-                change_type: "deleted".to_string(),
-            },
-        ];
+        let changed_files = vec![ChangedFile {
+            path: "initial.txt".to_string(),
+            change_type: "deleted".to_string(),
+        }];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "Should handle deleted files: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should handle deleted files: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 1);
@@ -1033,7 +1259,11 @@ mod tests {
         ];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "Should handle renamed files: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should handle renamed files: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 2); // Both delete and add are counted
@@ -1071,10 +1301,16 @@ mod tests {
 
     #[test]
     fn test_file_change_event_with_many_files() {
-        let changed_files: Vec<ChangedFile> = (0..1000).map(|i| ChangedFile {
-            path: format!("file{}.rs", i),
-            change_type: if i % 2 == 0 { "modified".to_string() } else { "added".to_string() },
-        }).collect();
+        let changed_files: Vec<ChangedFile> = (0..1000)
+            .map(|i| ChangedFile {
+                path: format!("file{}.rs", i),
+                change_type: if i % 2 == 0 {
+                    "modified".to_string()
+                } else {
+                    "added".to_string()
+                },
+            })
+            .collect();
 
         let event = FileChangeEvent {
             session_name: "large-session".to_string(),
@@ -1102,8 +1338,16 @@ mod tests {
         assert_eq!(parsed.change_summary.files_changed, 1000);
 
         // Verify file types are preserved
-        let modified_count = parsed.changed_files.iter().filter(|f| f.change_type == "modified").count();
-        let added_count = parsed.changed_files.iter().filter(|f| f.change_type == "added").count();
+        let modified_count = parsed
+            .changed_files
+            .iter()
+            .filter(|f| f.change_type == "modified")
+            .count();
+        let added_count = parsed
+            .changed_files
+            .iter()
+            .filter(|f| f.change_type == "added")
+            .count();
         assert_eq!(modified_count, 500);
         assert_eq!(added_count, 500);
     }
@@ -1123,15 +1367,17 @@ mod tests {
             .output()
             .expect("Failed to stage binary file");
 
-        let changed_files = vec![
-            ChangedFile {
-                path: "binary.bin".to_string(),
-                change_type: "added".to_string(),
-            },
-        ];
+        let changed_files = vec![ChangedFile {
+            path: "binary.bin".to_string(),
+            change_type: "added".to_string(),
+        }];
 
         let result = FileWatcher::compute_change_summary(&changed_files, &repo_path, "HEAD").await;
-        assert!(result.is_ok(), "Should handle binary files: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "Should handle binary files: {:?}",
+            result.err()
+        );
 
         let summary = result.unwrap();
         assert_eq!(summary.files_changed, 1);
@@ -1161,9 +1407,18 @@ mod tests {
             .unwrap()
             .as_millis() as u64;
 
-        assert!(timestamp >= before, "Timestamp should be after 'before' time");
-        assert!(timestamp <= after, "Timestamp should be before 'after' time");
-        assert!(timestamp > 1609459200000, "Timestamp should be reasonable (after 2021)");
+        assert!(
+            timestamp >= before,
+            "Timestamp should be after 'before' time"
+        );
+        assert!(
+            timestamp <= after,
+            "Timestamp should be before 'after' time"
+        );
+        assert!(
+            timestamp > 1609459200000,
+            "Timestamp should be reasonable (after 2021)"
+        );
     }
 
     #[test]

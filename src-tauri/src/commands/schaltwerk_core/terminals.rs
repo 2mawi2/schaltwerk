@@ -1,7 +1,15 @@
 use std::path::Path;
 
 pub fn sanitize_session_name(name: &str) -> String {
-    name.chars().map(|c| if c.is_alphanumeric() || c=='_' || c=='-' { c } else { '_' }).collect()
+    name.chars()
+        .map(|c| {
+            if c.is_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
 }
 
 pub fn terminal_id_for_session_top(name: &str) -> String {
@@ -24,7 +32,10 @@ pub fn ensure_cwd_access<P: AsRef<Path>>(cwd: P) -> Result<(), String> {
 
 pub async fn close_session_terminals_if_any(session_name: &str) {
     if let Ok(manager) = crate::get_terminal_manager().await {
-        for id in [terminal_id_for_session_top(session_name), terminal_id_for_session_bottom(session_name)] {
+        for id in [
+            terminal_id_for_session_top(session_name),
+            terminal_id_for_session_bottom(session_name),
+        ] {
             if let Ok(true) = manager.terminal_exists(&id).await {
                 let _ = manager.close_terminal(id).await;
             }

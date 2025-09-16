@@ -7,7 +7,7 @@ pub fn has_incomplete_ansi_sequence(data: &[u8]) -> bool {
     if data.is_empty() {
         return false;
     }
-    
+
     // Find the last ESC character (0x1B)
     let mut esc_pos = None;
     for (i, &byte) in data.iter().enumerate().rev() {
@@ -20,12 +20,12 @@ pub fn has_incomplete_ansi_sequence(data: &[u8]) -> bool {
             break;
         }
     }
-    
+
     let esc_pos = match esc_pos {
         Some(pos) => pos,
         None => return false,
     };
-    
+
     // Check if we have a complete sequence after the ESC
     let sequence = &data[esc_pos..];
     is_incomplete_sequence(sequence)
@@ -36,7 +36,7 @@ fn is_incomplete_sequence(sequence: &[u8]) -> bool {
     if sequence.len() < 2 {
         return true; // Just ESC alone is incomplete
     }
-    
+
     match sequence[1] {
         // CSI sequences: ESC [ ... final_byte
         b'[' => {
@@ -72,7 +72,8 @@ fn is_incomplete_sequence(sequence: &[u8]) -> bool {
             true // No terminator found
         }
         // Single character sequences (like ESC c, ESC =, etc.)
-        b'=' | b'>' | b'c' | b'D' | b'E' | b'H' | b'M' | b'N' | b'O' | b'P' | b'Q' | b'R' | b'S' | b'T' | b'U' | b'V' | b'W' | b'X' | b'Y' | b'Z' | b'\\' => {
+        b'=' | b'>' | b'c' | b'D' | b'E' | b'H' | b'M' | b'N' | b'O' | b'P' | b'Q' | b'R'
+        | b'S' | b'T' | b'U' | b'V' | b'W' | b'X' | b'Y' | b'Z' | b'\\' => {
             false // These are complete single-character sequences
         }
         // Two character sequences starting with # or (
@@ -99,12 +100,12 @@ pub fn find_safe_split_point(data: &[u8]) -> usize {
     if data.is_empty() {
         return 0;
     }
-    
+
     // If there's no incomplete sequence at the end, we can emit the whole buffer
     if !has_incomplete_ansi_sequence(data) {
         return data.len();
     }
-    
+
     // Find the start of the incomplete sequence at the end
     for i in (0..data.len()).rev() {
         if data[i] == 0x1B {
@@ -119,7 +120,7 @@ pub fn find_safe_split_point(data: &[u8]) -> usize {
             }
         }
     }
-    
+
     // Fallback: if we can't find a good split point, don't split
     0
 }
@@ -133,10 +134,10 @@ mod tests {
         // Complete CSI sequence
         assert!(!has_incomplete_ansi_sequence(b"\x1b[31m"));
         assert!(!has_incomplete_ansi_sequence(b"Hello\x1b[0mWorld"));
-        
+
         // Complete OSC sequence with BEL
         assert!(!has_incomplete_ansi_sequence(b"\x1b]0;title\x07"));
-        
+
         // Complete OSC sequence with ST
         assert!(!has_incomplete_ansi_sequence(b"\x1b]0;title\x1b\\"));
     }
@@ -149,7 +150,7 @@ mod tests {
         assert!(has_incomplete_ansi_sequence(b"\x1b[3"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[31"));
         assert!(has_incomplete_ansi_sequence(b"Hello\x1b[3"));
-        
+
         // Incomplete OSC sequences
         assert!(has_incomplete_ansi_sequence(b"\x1b]"));
         assert!(has_incomplete_ansi_sequence(b"\x1b]0"));
@@ -161,7 +162,7 @@ mod tests {
         let data = b"Hello\x1b[31mRed\x1b[0mNormal\x1b[3";
         let split_point = find_safe_split_point(data);
         assert_eq!(split_point, 23); // Should split before the incomplete "\x1b[3"
-        
+
         let complete_data = b"Hello\x1b[31mRed\x1b[0m";
         assert_eq!(find_safe_split_point(complete_data), complete_data.len());
     }
@@ -173,7 +174,7 @@ mod tests {
         assert!(has_incomplete_ansi_sequence(b"\x1b[?1"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[?1000"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[?1;2"));
-        
+
         // Complete CSI with intermediates
         assert!(!has_incomplete_ansi_sequence(b"\x1b[?1h"));
         assert!(!has_incomplete_ansi_sequence(b"\x1b[?1000l"));
@@ -188,7 +189,7 @@ mod tests {
         assert!(has_incomplete_ansi_sequence(b"\x1b]0;"));
         assert!(!has_incomplete_ansi_sequence(b"\x1b]0;Window Title")); // Current impl stops at 'e' in Title"
         assert!(!has_incomplete_ansi_sequence(b"\x1b]52;c;")); // Current impl stops at 'c'
-        
+
         // Complete OSC sequences (terminated with BEL or ST)
         assert!(!has_incomplete_ansi_sequence(b"\x1b]0;Title\x07")); // BEL terminator
         assert!(!has_incomplete_ansi_sequence(b"\x1b]0;Title\x1b\\")); // ST terminator
@@ -201,7 +202,7 @@ mod tests {
         assert!(!has_incomplete_ansi_sequence(b"\x1bP0")); // Current impl stops at 'P'
         assert!(!has_incomplete_ansi_sequence(b"\x1bP0;1")); // Current impl stops at 'P'
         assert!(!has_incomplete_ansi_sequence(b"\x1bP0;1|17/ab")); // P is not recognized as DCS start
-        
+
         // Complete DCS sequence (terminated with ST)
         assert!(!has_incomplete_ansi_sequence(b"\x1bP0;1|17/ab\x1b\\"));
     }
@@ -211,7 +212,7 @@ mod tests {
         // Simple ESC sequences
         assert!(has_incomplete_ansi_sequence(b"\x1b"));
         assert!(has_incomplete_ansi_sequence(b"text\x1b")); // ESC at end
-        
+
         // Complete ESC sequences
         assert!(!has_incomplete_ansi_sequence(b"\x1b7")); // Save cursor
         assert!(!has_incomplete_ansi_sequence(b"\x1b8")); // Restore cursor
@@ -224,16 +225,16 @@ mod tests {
         // Test splitting at different positions in sequences
         let data = b"Text\x1b[31mRed\x1b[0mNormal";
         assert_eq!(find_safe_split_point(data), data.len()); // All complete
-        
+
         let data = b"Text\x1b[31mRed\x1b[0mNormal\x1b[";
         assert_eq!(find_safe_split_point(data), 22); // Before incomplete CSI
-        
+
         let data = b"Text\x1b[31mRed\x1b[";
         assert_eq!(find_safe_split_point(data), 12); // Before the incomplete "\x1b["
-        
+
         let data = b"\x1b[31mRed";
         assert_eq!(find_safe_split_point(data), data.len()); // Complete sequence
-        
+
         let data = b"\x1b[31"; // Incomplete from start
         assert_eq!(find_safe_split_point(data), 0); // Can't split, all incomplete
     }
@@ -244,7 +245,7 @@ mod tests {
         let data = b"Normal\x1b[1mBold\x1b[0mNormal\x1b]0;Title";
         let split = find_safe_split_point(data);
         assert_eq!(split, 33); // OSC without terminator still tracked as incomplete
-        
+
         let data = b"\x1b[31mRed\x1b[32mGreen\x1b[33";
         let split = find_safe_split_point(data);
         assert_eq!(split, 18); // After complete Green sequence
@@ -255,19 +256,19 @@ mod tests {
         // Empty data
         assert!(!has_incomplete_ansi_sequence(b""));
         assert_eq!(find_safe_split_point(b""), 0);
-        
+
         // Just ESC
         assert!(has_incomplete_ansi_sequence(b"\x1b"));
         assert_eq!(find_safe_split_point(b"\x1b"), 0);
-        
+
         // Multiple ESCs
         assert!(has_incomplete_ansi_sequence(b"\x1b\x1b"));
         assert!(has_incomplete_ansi_sequence(b"\x1b\x1b["));
-        
+
         // Very long parameter strings
         let long_params = b"\x1b[1;2;3;4;5;6;7;8;9;10;11;12;13;14;15";
         assert!(has_incomplete_ansi_sequence(long_params));
-        
+
         let long_complete = b"\x1b[1;2;3;4;5;6;7;8;9;10;11;12;13;14;15m";
         assert!(!has_incomplete_ansi_sequence(long_complete));
     }
@@ -279,7 +280,7 @@ mod tests {
         assert!(has_incomplete_ansi_sequence(b"\x1b[12"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[1;"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[1;1"));
-        
+
         // Complete cursor sequences
         assert!(!has_incomplete_ansi_sequence(b"\x1b[H")); // Home
         assert!(!has_incomplete_ansi_sequence(b"\x1b[2J")); // Clear screen
@@ -296,10 +297,10 @@ mod tests {
         assert!(has_incomplete_ansi_sequence(b"\x1b[38;5")); // 256 color incomplete
         assert!(has_incomplete_ansi_sequence(b"\x1b[38;5;"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[38;5;12"));
-        assert!(has_incomplete_ansi_sequence(b"\x1b[48;2;"));  // RGB incomplete
+        assert!(has_incomplete_ansi_sequence(b"\x1b[48;2;")); // RGB incomplete
         assert!(has_incomplete_ansi_sequence(b"\x1b[48;2;255;"));
         assert!(has_incomplete_ansi_sequence(b"\x1b[48;2;255;128;"));
-        
+
         // Complete SGR sequences
         assert!(!has_incomplete_ansi_sequence(b"\x1b[0m")); // Reset
         assert!(!has_incomplete_ansi_sequence(b"\x1b[1m")); // Bold
@@ -312,10 +313,10 @@ mod tests {
         // Buffer with multiple sequences
         let data = b"\x1b[31mRed\x1b[0m\x1b[32mGreen\x1b[0m\x1b[33mYellow\x1b[0m";
         assert!(!has_incomplete_ansi_sequence(data)); // All complete
-        
+
         let data = b"\x1b[31mRed\x1b[0m\x1b[32mGreen\x1b[0m\x1b[33mYellow\x1b[";
         assert!(has_incomplete_ansi_sequence(data)); // Last one incomplete
-        
+
         let split = find_safe_split_point(data);
         assert_eq!(split, data.len() - 2); // Before the incomplete sequence
     }
@@ -325,14 +326,14 @@ mod tests {
         // Simulate real terminal output patterns
         let prompt = b"\x1b[32muser@host\x1b[0m:\x1b[34m~/dir\x1b[0m$ ";
         assert!(!has_incomplete_ansi_sequence(prompt));
-        
+
         let partial_prompt = b"\x1b[32muser@host\x1b[0m:\x1b[34m~/dir\x1b[";
         assert!(has_incomplete_ansi_sequence(partial_prompt));
-        
+
         // Progress bar pattern
         let progress = b"\r\x1b[K[=====>    ] 50%";
         assert!(!has_incomplete_ansi_sequence(progress));
-        
+
         let partial_progress = b"\r\x1b[K[=====>    ] 50%\x1b[";
         assert!(has_incomplete_ansi_sequence(partial_progress));
     }
@@ -342,7 +343,7 @@ mod tests {
         // Ensure we handle UTF-8 correctly (though focusing on ANSI)
         let data = "Hello 世界\x1b[31mRed\x1b[0m".as_bytes();
         assert!(!has_incomplete_ansi_sequence(data));
-        
+
         let data = "Hello 世界\x1b[31mRed\x1b[".as_bytes();
         assert!(has_incomplete_ansi_sequence(data));
         let split = find_safe_split_point(data);

@@ -1,5 +1,5 @@
-use std::path::Path;
 use std::collections::HashMap;
+use std::path::Path;
 
 pub trait AgentCommand: Send + Sync {
     fn binary_name(&self) -> &str;
@@ -102,7 +102,9 @@ impl AgentCommand for CodexAgent {
         // Prefer precise resume via explicit session JSONL path if available,
         // falling back to sentinel-based resume/continue.
         if let Some(p) = super::codex::find_codex_resume_path(path) {
-            return Some(format!("file://{}", p.display()));
+            if let Some(id) = super::codex::extract_session_id_from_path(&p) {
+                return Some(id);
+            }
         }
         super::codex::find_codex_session(path)
     }
@@ -120,7 +122,7 @@ impl AgentCommand for CodexAgent {
         } else {
             "workspace-write"
         };
-        
+
         let config = super::codex::CodexConfig {
             binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
         };
@@ -218,8 +220,7 @@ impl AgentCommand for OpenCodeAgent {
     }
 
     fn find_session(&self, path: &Path) -> Option<String> {
-        super::opencode::find_opencode_session(path)
-            .map(|info| info.id)
+        super::opencode::find_opencode_session(path).map(|info| info.id)
     }
 
     fn build_command(
@@ -234,7 +235,7 @@ impl AgentCommand for OpenCodeAgent {
             id: id.to_string(),
             has_history: true,
         });
-        
+
         let config = super::opencode::OpenCodeConfig {
             binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
         };
@@ -255,21 +256,21 @@ pub struct AgentRegistry {
 impl AgentRegistry {
     pub fn new() -> Self {
         let mut agents: HashMap<&'static str, Box<dyn AgentCommand>> = HashMap::new();
-        
+
         agents.insert("claude", Box::new(ClaudeAgent));
         agents.insert("cursor", Box::new(CursorAgent));
         agents.insert("codex", Box::new(CodexAgent));
         agents.insert("qwen", Box::new(QwenAgent));
         agents.insert("gemini", Box::new(GeminiAgent));
         agents.insert("opencode", Box::new(OpenCodeAgent));
-        
+
         Self { agents }
     }
-    
+
     pub fn get(&self, agent_type: &str) -> Option<&dyn AgentCommand> {
         self.agents.get(agent_type).map(|b| b.as_ref())
     }
-    
+
     pub fn supported_agents(&self) -> Vec<&str> {
         let mut agents: Vec<_> = self.agents.keys().copied().collect();
         agents.sort();
@@ -326,15 +327,18 @@ mod tests {
         fn test_claude_command_matches_original() {
             let agent = ClaudeAgent;
             let path = Path::new("/test/path");
-            
+
             // Test basic command
-            let unified_cmd = agent.build_command(path, None, Some("test prompt"), true, Some("claude"));
+            let unified_cmd =
+                agent.build_command(path, None, Some("test prompt"), true, Some("claude"));
             let original_cmd = crate::domains::agents::claude::build_claude_command_with_config(
                 path,
                 None,
                 Some("test prompt"),
                 true,
-                Some(&crate::domains::agents::claude::ClaudeConfig { binary_path: Some("claude".to_string()) }),
+                Some(&crate::domains::agents::claude::ClaudeConfig {
+                    binary_path: Some("claude".to_string()),
+                }),
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -343,7 +347,7 @@ mod tests {
         fn test_claude_with_session_id() {
             let agent = ClaudeAgent;
             let path = Path::new("/test/path");
-            
+
             let unified_cmd = agent.build_command(path, Some("session123"), None, false, None);
             let original_cmd = crate::domains::agents::claude::build_claude_command_with_config(
                 path,
@@ -370,14 +374,17 @@ mod tests {
         fn test_cursor_command_matches_original() {
             let agent = CursorAgent;
             let path = Path::new("/test/path");
-            
-            let unified_cmd = agent.build_command(path, None, Some("test prompt"), true, Some("cursor-agent"));
+
+            let unified_cmd =
+                agent.build_command(path, None, Some("test prompt"), true, Some("cursor-agent"));
             let original_cmd = crate::domains::agents::cursor::build_cursor_command_with_config(
                 path,
                 None,
                 Some("test prompt"),
                 true,
-                Some(&crate::domains::agents::cursor::CursorConfig { binary_path: Some("cursor-agent".to_string()) }),
+                Some(&crate::domains::agents::cursor::CursorConfig {
+                    binary_path: Some("cursor-agent".to_string()),
+                }),
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -386,7 +393,7 @@ mod tests {
         fn test_cursor_with_session_resume() {
             let agent = CursorAgent;
             let path = Path::new("/test/path");
-            
+
             let unified_cmd = agent.build_command(path, Some("session-uuid"), None, false, None);
             let original_cmd = crate::domains::agents::cursor::build_cursor_command_with_config(
                 path,
@@ -413,7 +420,7 @@ mod tests {
         fn test_codex_sandbox_modes() {
             let agent = CodexAgent;
             let path = Path::new("/test/path");
-            
+
             // Test danger mode
             let unified_cmd = agent.build_command(path, None, Some("test"), true, Some("codex"));
             let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
@@ -421,10 +428,12 @@ mod tests {
                 None,
                 Some("test"),
                 "danger-full-access",
-                Some(&crate::domains::agents::codex::CodexConfig { binary_path: Some("codex".to_string()) }),
+                Some(&crate::domains::agents::codex::CodexConfig {
+                    binary_path: Some("codex".to_string()),
+                }),
             );
             assert_eq!(unified_cmd, original_cmd);
-            
+
             // Test safe mode
             let unified_cmd = agent.build_command(path, None, Some("test"), false, None);
             let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
@@ -441,7 +450,7 @@ mod tests {
         fn test_codex_session_handling() {
             let agent = CodexAgent;
             let path = Path::new("/test/path");
-            
+
             // Codex ignores session_id when provided
             let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
             let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
@@ -469,14 +478,17 @@ mod tests {
         fn test_qwen_command_matches_original() {
             let agent = QwenAgent;
             let path = Path::new("/test/path");
-            
-            let unified_cmd = agent.build_command(path, None, Some("test prompt"), true, Some("qwen"));
+
+            let unified_cmd =
+                agent.build_command(path, None, Some("test prompt"), true, Some("qwen"));
             let original_cmd = crate::domains::agents::qwen::build_qwen_command_with_config(
                 path,
                 None,
                 Some("test prompt"),
                 true,
-                Some(&crate::domains::agents::qwen::QwenConfig { binary_path: Some("qwen".to_string()) }),
+                Some(&crate::domains::agents::qwen::QwenConfig {
+                    binary_path: Some("qwen".to_string()),
+                }),
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -485,7 +497,7 @@ mod tests {
         fn test_qwen_ignores_session_id() {
             let agent = QwenAgent;
             let path = Path::new("/test/path");
-            
+
             // Qwen ignores session_id
             let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
             let original_cmd = crate::domains::agents::qwen::build_qwen_command_with_config(
@@ -513,14 +525,17 @@ mod tests {
         fn test_gemini_command_matches_original() {
             let agent = GeminiAgent;
             let path = Path::new("/test/path");
-            
-            let unified_cmd = agent.build_command(path, None, Some("test prompt"), true, Some("gemini"));
+
+            let unified_cmd =
+                agent.build_command(path, None, Some("test prompt"), true, Some("gemini"));
             let original_cmd = crate::domains::agents::gemini::build_gemini_command_with_config(
                 path,
                 None,
                 Some("test prompt"),
                 true,
-                Some(&crate::domains::agents::gemini::GeminiConfig { binary_path: Some("gemini".to_string()) }),
+                Some(&crate::domains::agents::gemini::GeminiConfig {
+                    binary_path: Some("gemini".to_string()),
+                }),
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -529,7 +544,7 @@ mod tests {
         fn test_gemini_ignores_session_id() {
             let agent = GeminiAgent;
             let path = Path::new("/test/path");
-            
+
             // Gemini ignores session_id
             let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
             let original_cmd = crate::domains::agents::gemini::build_gemini_command_with_config(
@@ -557,14 +572,17 @@ mod tests {
         fn test_opencode_command_matches_original() {
             let agent = OpenCodeAgent;
             let path = Path::new("/test/path");
-            
-            let unified_cmd = agent.build_command(path, None, Some("test prompt"), true, Some("opencode"));
+
+            let unified_cmd =
+                agent.build_command(path, None, Some("test prompt"), true, Some("opencode"));
             let original_cmd = crate::domains::agents::opencode::build_opencode_command_with_config(
                 path,
                 None,
                 Some("test prompt"),
                 true,
-                Some(&crate::domains::agents::opencode::OpenCodeConfig { binary_path: Some("opencode".to_string()) }),
+                Some(&crate::domains::agents::opencode::OpenCodeConfig {
+                    binary_path: Some("opencode".to_string()),
+                }),
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -573,7 +591,7 @@ mod tests {
         fn test_opencode_with_session_info() {
             let agent = OpenCodeAgent;
             let path = Path::new("/test/path");
-            
+
             let unified_cmd = agent.build_command(path, Some("test-session"), None, false, None);
             let session_info = crate::domains::agents::opencode::OpenCodeSessionInfo {
                 id: "test-session".to_string(),
@@ -602,11 +620,11 @@ mod tests {
     fn test_all_agents_handle_empty_prompt() {
         let registry = AgentRegistry::new();
         let path = Path::new("/test/path");
-        
+
         for agent_name in registry.supported_agents() {
             let agent = registry.get(agent_name).unwrap();
             let cmd = agent.build_command(path, None, None, false, None);
-            
+
             // All commands should contain the cd and binary name
             assert!(cmd.starts_with(&format!("cd {} && ", path.display())));
             assert!(cmd.contains(agent.binary_name()) || cmd.contains(agent.default_binary()));
@@ -618,11 +636,11 @@ mod tests {
         let registry = AgentRegistry::new();
         let path = Path::new("/test/path");
         let custom_binary = "/custom/path/to/binary";
-        
+
         for agent_name in registry.supported_agents() {
             let agent = registry.get(agent_name).unwrap();
             let cmd = agent.build_command(path, None, None, false, Some(custom_binary));
-            
+
             // Command should use the custom binary path
             assert!(cmd.contains(custom_binary));
         }
@@ -633,11 +651,11 @@ mod tests {
         let registry = AgentRegistry::new();
         let path = Path::new("/test/path");
         let prompt_with_quotes = r#"implement "feature" with quotes"#;
-        
+
         for agent_name in registry.supported_agents() {
             let agent = registry.get(agent_name).unwrap();
             let cmd = agent.build_command(path, None, Some(prompt_with_quotes), false, None);
-            
+
             // Quotes should be escaped
             assert!(cmd.contains(r#"\"feature\""#));
         }

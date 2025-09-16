@@ -1,21 +1,19 @@
-use std::path::{Path, PathBuf};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeConfig {
     pub binary_path: Option<String>,
 }
 
-
-
-
-
 /// Fast-path session detection: Only checks if ANY session files exist in the project directory
 /// Returns a special marker "__continue__" if sessions exist, which tells Claude to use --continue flag
 /// This avoids expensive file reading and parsing operations
 pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
     // Prefer explicit HOME (tests set this), then dirs::home_dir()
-    let home = std::env::var("HOME").ok().map(PathBuf::from)
+    let home = std::env::var("HOME")
+        .ok()
+        .map(PathBuf::from)
         .or_else(dirs::home_dir)?;
     let claude_dir = home.join(".claude");
     let projects_dir = claude_dir.join("projects");
@@ -24,14 +22,17 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
     let project_dir = projects_dir.join(&sanitized);
 
     // Also compute alternative based on canonical path (handles symlink differences)
-    let alt_sanitized = path.canonicalize()
+    let alt_sanitized = path
+        .canonicalize()
         .ok()
         .map(|c| sanitize_path_for_claude(&c));
     let alt_project_dir = alt_sanitized.as_ref().map(|s| projects_dir.join(s));
 
-    log::info!("Claude session detection (fast-path): Looking for any sessions in project dir: {}", 
-              project_dir.display());
-    
+    log::info!(
+        "Claude session detection (fast-path): Looking for any sessions in project dir: {}",
+        project_dir.display()
+    );
+
     // Try primary dir first, then alternate if different
     let mut candidates: Vec<PathBuf> = vec![project_dir.clone()];
     if let Some(a) = alt_project_dir {
@@ -46,7 +47,12 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
             Ok(entries) => {
                 // Return special marker as soon as we find ANY session file
                 for entry in entries.flatten() {
-                    if entry.path().extension().map(|ext| ext == "jsonl").unwrap_or(false) {
+                    if entry
+                        .path()
+                        .extension()
+                        .map(|ext| ext == "jsonl")
+                        .unwrap_or(false)
+                    {
                         log::info!("Claude session detection (fast-path): Found session files in {}, returning __continue__ marker", 
                                  candidate.display());
                         return Some("__continue__".to_string());
@@ -57,14 +63,15 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
         }
     }
 
-    log::info!("Claude session detection (fast-path): No session files found for path: {}", path.display());
+    log::info!(
+        "Claude session detection (fast-path): No session files found for path: {}",
+        path.display()
+    );
     None
 }
 
-
 fn sanitize_path_for_claude(path: &Path) -> String {
-    path.to_string_lossy()
-        .replace(['/', '.', '_'], "-")
+    path.to_string_lossy().replace(['/', '.', '_'], "-")
 }
 
 pub fn build_claude_command_with_config(
@@ -99,21 +106,29 @@ pub fn build_claude_command_with_config(
     if let Some(session) = session_id {
         if session == "__continue__" {
             // Special value to indicate using --continue flag for most recent conversation
-            log::info!("Claude command builder: Using --continue flag to resume most recent session");
+            log::info!(
+                "Claude command builder: Using --continue flag to resume most recent session"
+            );
             cmd.push_str(" --continue");
         } else {
             // Resume specific session with conversation history
-            log::info!("Claude command builder: Resuming specific session '{session}' using -r flag");
+            log::info!(
+                "Claude command builder: Resuming specific session '{session}' using -r flag"
+            );
             cmd.push_str(&format!(" -r {session}"));
         }
     } else if let Some(prompt) = initial_prompt {
         // Start fresh with initial prompt
-        log::info!("Claude command builder: Starting fresh session with initial prompt: '{prompt}'");
+        log::info!(
+            "Claude command builder: Starting fresh session with initial prompt: '{prompt}'"
+        );
         let escaped = prompt.replace('"', r#"\""#);
         cmd.push_str(&format!(r#" "{escaped}""#));
     } else {
         // Start fresh without prompt
-        log::info!("Claude command builder: Starting fresh session without prompt or session resumption");
+        log::info!(
+            "Claude command builder: Starting fresh session without prompt or session resumption"
+        );
         // Claude will start a new session by default with no additional flags
     }
 
@@ -121,13 +136,12 @@ pub fn build_claude_command_with_config(
     cmd
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
-    use std::io::Write as _;
     use std::fs::{self, File};
+    use std::io::Write as _;
+    use std::path::Path;
 
     #[test]
     fn test_new_session_with_prompt() {
@@ -141,7 +155,10 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions "implement feature X""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && claude --dangerously-skip-permissions "implement feature X""#
+        );
     }
 
     #[test]
@@ -159,7 +176,6 @@ mod tests {
         assert_eq!(cmd, r#"cd /path/to/worktree && claude -r session123"#);
     }
 
-
     #[test]
     fn test_sanitize_path_for_claude() {
         let path = Path::new("/Users/john.doe/my-project");
@@ -170,13 +186,18 @@ mod tests {
     #[test]
     fn test_sanitize_path_for_claude_schaltwerk_worktree_schaltwerk() {
         // Realistic path from our setup
-        let path = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla");
+        let path = Path::new(
+            "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla",
+        );
         let sanitized = sanitize_path_for_claude(path);
         // Expectations based on observed ~/.claude/projects entries:
         // - leading dash for absolute path
         // - components separated by single '-'
         // - hidden ".schaltwerk" becomes "--schaltwerk" due to '/' -> '-' and '.' -> '-'
-        assert_eq!(sanitized, "-Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-eager-tesla");
+        assert_eq!(
+            sanitized,
+            "-Users-marius-wichtner-Documents-git-schaltwerk--schaltwerk-worktrees-eager-tesla"
+        );
     }
 
     #[test]
@@ -189,7 +210,9 @@ mod tests {
         let prev_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", home_path);
 
-        let worktree = Path::new("/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla");
+        let worktree = Path::new(
+            "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla",
+        );
         let sanitized = sanitize_path_for_claude(worktree);
 
         let projects_root = home_path.join(".claude").join("projects");
@@ -211,16 +234,32 @@ mod tests {
         let jsonl_count = fs::read_dir(&projects)
             .unwrap()
             .filter_map(|e| e.ok())
-            .filter(|e| e.path().extension().map(|ext| ext == "jsonl").unwrap_or(false))
+            .filter(|e| {
+                e.path()
+                    .extension()
+                    .map(|ext| ext == "jsonl")
+                    .unwrap_or(false)
+            })
             .count();
-        assert_eq!(jsonl_count, 2, "should see 2 jsonl files in the project dir");
+        assert_eq!(
+            jsonl_count, 2,
+            "should see 2 jsonl files in the project dir"
+        );
 
         // Test the fast-path function - it should return "__continue__" when sessions exist
         let found = find_resumable_claude_session_fast(worktree);
-        assert_eq!(found, Some("__continue__".to_string()), "should find sessions and return __continue__ marker");
+        assert_eq!(
+            found,
+            Some("__continue__".to_string()),
+            "should find sessions and return __continue__ marker"
+        );
 
         // Restore HOME
-        if let Some(h) = prev_home { std::env::set_var("HOME", h); } else { std::env::remove_var("HOME"); }
+        if let Some(h) = prev_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
     }
 
     #[test]
@@ -250,7 +289,10 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && claude --dangerously-skip-permissions -r session123"#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && claude --dangerously-skip-permissions -r session123"#
+        );
     }
 
     #[test]
@@ -265,7 +307,10 @@ mod tests {
             false,
             Some(&config),
         );
-        assert_eq!(cmd, r#"cd /path/to/worktree && claude "implement \"feature\" with quotes""#);
+        assert_eq!(
+            cmd,
+            r#"cd /path/to/worktree && claude "implement \"feature\" with quotes""#
+        );
     }
 
     #[test]
@@ -315,6 +360,9 @@ mod tests {
             true,
             Some(&config),
         );
-        assert_eq!(cmd, "cd /path/to/worktree && claude --dangerously-skip-permissions --continue");
+        assert_eq!(
+            cmd,
+            "cd /path/to/worktree && claude --dangerously-skip-permissions --continue"
+        );
     }
 }

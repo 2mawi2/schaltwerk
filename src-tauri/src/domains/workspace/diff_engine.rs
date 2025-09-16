@@ -1,5 +1,5 @@
-use similar::{ChangeTag, TextDiff, Algorithm};
 use serde::{Deserialize, Serialize};
+use similar::{Algorithm, ChangeTag, TextDiff};
 
 const COLLAPSE_THRESHOLD: usize = 4;
 const CONTEXT_LINES: usize = 3;
@@ -88,7 +88,7 @@ pub fn compute_unified_diff(old_content: &str, new_content: &str) -> Vec<DiffLin
     let diff = TextDiff::configure()
         .algorithm(Algorithm::Myers)
         .diff_lines(&old_text, &new_text);
-    
+
     // Pre-allocate capacity based on rough estimate to avoid reallocations
     let estimated_lines = old_text.lines().count().max(new_text.lines().count());
     let mut lines = Vec::with_capacity(estimated_lines + (estimated_lines / 10));
@@ -223,7 +223,7 @@ pub fn compute_split_diff(old_content: &str, new_content: &str) -> SplitDiffResu
     let diff = TextDiff::configure()
         .algorithm(Algorithm::Myers)
         .diff_lines(&old_text, &new_text);
-    
+
     // Pre-allocate capacity based on estimated line counts
     let estimated_lines = old_text.lines().count().max(new_text.lines().count());
     let mut left_lines = Vec::with_capacity(estimated_lines + (estimated_lines / 10));
@@ -366,7 +366,7 @@ pub fn get_file_language(file_path: &str) -> Option<String> {
     }
 
     let ext = file_path.split('.').next_back()?.to_lowercase();
-    
+
     match ext.as_str() {
         "ts" | "tsx" => Some("typescript".to_string()),
         "js" | "jsx" => Some("javascript".to_string()),
@@ -392,7 +392,6 @@ pub fn get_file_language(file_path: &str) -> Option<String> {
         _ => None,
     }
 }
-
 
 fn ensure_trailing_newline(content: &str) -> String {
     if content.is_empty() {
@@ -483,11 +482,11 @@ mod tests {
         assert_eq!(result.len(), 7);
         // Check pattern: unchanged, removed, added, unchanged, removed, added, unchanged
         assert!(matches!(result[0].line_type, LineType::Unchanged)); // line 1
-        assert!(matches!(result[1].line_type, LineType::Removed));   // line 2
-        assert!(matches!(result[2].line_type, LineType::Added));     // line 2 modified
+        assert!(matches!(result[1].line_type, LineType::Removed)); // line 2
+        assert!(matches!(result[2].line_type, LineType::Added)); // line 2 modified
         assert!(matches!(result[3].line_type, LineType::Unchanged)); // line 3
-        assert!(matches!(result[4].line_type, LineType::Removed));   // line 4
-        assert!(matches!(result[5].line_type, LineType::Added));     // line 4 modified
+        assert!(matches!(result[4].line_type, LineType::Removed)); // line 4
+        assert!(matches!(result[5].line_type, LineType::Added)); // line 4 modified
         assert!(matches!(result[6].line_type, LineType::Unchanged)); // line 5
     }
 
@@ -558,7 +557,10 @@ mod tests {
         // The result should show the trailing newline as an addition
         assert!(result.len() >= 2);
         let last_line = &result[result.len() - 1];
-        assert!(matches!(last_line.line_type, LineType::Added) || matches!(last_line.line_type, LineType::Unchanged));
+        assert!(
+            matches!(last_line.line_type, LineType::Added)
+                || matches!(last_line.line_type, LineType::Unchanged)
+        );
     }
 
     #[test]
@@ -570,7 +572,10 @@ mod tests {
 
         assert!(result.len() >= 3);
         // Check that unicode characters are preserved
-        let added_lines: Vec<&DiffLine> = result.iter().filter(|l| matches!(l.line_type, LineType::Added)).collect();
+        let added_lines: Vec<&DiffLine> = result
+            .iter()
+            .filter(|l| matches!(l.line_type, LineType::Added))
+            .collect();
         assert!(added_lines.len() >= 1);
         assert!(added_lines[0].content.contains("🌍") || added_lines[0].content.contains("🚀"));
     }
@@ -590,8 +595,14 @@ mod tests {
         // Should have at least the original lines plus the insertion
         assert!(result.len() >= 1000);
         // Should have one deletion and two additions (modify = delete + insert)
-        let deletions: Vec<&DiffLine> = result.iter().filter(|l| matches!(l.line_type, LineType::Removed)).collect();
-        let additions: Vec<&DiffLine> = result.iter().filter(|l| matches!(l.line_type, LineType::Added)).collect();
+        let deletions: Vec<&DiffLine> = result
+            .iter()
+            .filter(|l| matches!(l.line_type, LineType::Removed))
+            .collect();
+        let additions: Vec<&DiffLine> = result
+            .iter()
+            .filter(|l| matches!(l.line_type, LineType::Added))
+            .collect();
         assert_eq!(deletions.len(), 1);
         assert_eq!(additions.len(), 2);
     }
@@ -625,7 +636,8 @@ mod tests {
         assert_eq!(result.len(), lines.len());
 
         // No collapsible sections should be created
-        let collapsible_count = result.iter()
+        let collapsible_count = result
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert_eq!(collapsible_count, 0);
@@ -651,13 +663,17 @@ mod tests {
         let result = add_collapsible_sections(lines);
 
         // Should have context lines + 1 collapsible + context lines
-        let collapsible_count = result.iter()
+        let collapsible_count = result
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert_eq!(collapsible_count, 1);
 
         // Find the collapsible line
-        let collapsible_line = result.iter().find(|line| line.is_collapsible.unwrap_or(false)).unwrap();
+        let collapsible_line = result
+            .iter()
+            .find(|line| line.is_collapsible.unwrap_or(false))
+            .unwrap();
         assert!(collapsible_line.collapsed_count.is_some());
         assert!(collapsible_line.collapsed_lines.is_some());
         assert!(collapsible_line.collapsed_count.unwrap() > 0);
@@ -685,8 +701,8 @@ mod tests {
                 lines.push(DiffLine {
                     content: format!("unchanged {}-{}", i, j),
                     line_type: LineType::Unchanged,
-                    old_line_number: Some((i-1) * 100 + j),
-                    new_line_number: Some((i-1) * 100 + j),
+                    old_line_number: Some((i - 1) * 100 + j),
+                    new_line_number: Some((i - 1) * 100 + j),
                     is_collapsible: None,
                     collapsed_count: None,
                     collapsed_lines: None,
@@ -696,7 +712,8 @@ mod tests {
 
         let result = add_collapsible_sections(lines);
 
-        let collapsible_count = result.iter()
+        let collapsible_count = result
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert_eq!(collapsible_count, 3); // One for each unchanged block
@@ -744,7 +761,8 @@ mod tests {
 
         let result = add_collapsible_sections(lines);
 
-        let collapsible_count = result.iter()
+        let collapsible_count = result
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert_eq!(collapsible_count, 1); // Only the large block should be collapsible
@@ -769,7 +787,8 @@ mod tests {
 
         let result = add_collapsible_sections(lines);
 
-        let collapsible_count = result.iter()
+        let collapsible_count = result
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert_eq!(collapsible_count, 1);
@@ -796,7 +815,8 @@ mod tests {
 
         // Should be identical to input
         assert_eq!(result.len(), lines.len());
-        let collapsible_count = result.iter()
+        let collapsible_count = result
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert_eq!(collapsible_count, 0);
@@ -820,8 +840,14 @@ mod tests {
         assert_eq!(result.right_lines.len(), 3);
 
         for i in 0..3 {
-            assert!(matches!(result.left_lines[i].line_type, LineType::Unchanged));
-            assert!(matches!(result.right_lines[i].line_type, LineType::Unchanged));
+            assert!(matches!(
+                result.left_lines[i].line_type,
+                LineType::Unchanged
+            ));
+            assert!(matches!(
+                result.right_lines[i].line_type,
+                LineType::Unchanged
+            ));
             assert_eq!(result.left_lines[i].content, format!("line {}", i + 1));
             assert_eq!(result.right_lines[i].content, format!("line {}", i + 1));
         }
@@ -838,26 +864,44 @@ mod tests {
         assert_eq!(result.right_lines.len(), 4);
 
         // Line 1: unchanged on both sides
-        assert!(matches!(result.left_lines[0].line_type, LineType::Unchanged));
-        assert!(matches!(result.right_lines[0].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[0].line_type,
+            LineType::Unchanged
+        ));
+        assert!(matches!(
+            result.right_lines[0].line_type,
+            LineType::Unchanged
+        ));
         assert_eq!(result.left_lines[0].content, "line 1");
         assert_eq!(result.right_lines[0].content, "line 1");
 
         // Line 2: removed on left, empty on right
         assert!(matches!(result.left_lines[1].line_type, LineType::Removed));
-        assert!(matches!(result.right_lines[1].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.right_lines[1].line_type,
+            LineType::Unchanged
+        ));
         assert_eq!(result.left_lines[1].content, "line 2");
         assert_eq!(result.right_lines[1].content, "");
 
         // Empty line on left, added on right
-        assert!(matches!(result.left_lines[2].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[2].line_type,
+            LineType::Unchanged
+        ));
         assert!(matches!(result.right_lines[2].line_type, LineType::Added));
         assert_eq!(result.left_lines[2].content, "");
         assert_eq!(result.right_lines[2].content, "line 2 modified");
 
         // Line 3: unchanged on both sides
-        assert!(matches!(result.left_lines[3].line_type, LineType::Unchanged));
-        assert!(matches!(result.right_lines[3].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[3].line_type,
+            LineType::Unchanged
+        ));
+        assert!(matches!(
+            result.right_lines[3].line_type,
+            LineType::Unchanged
+        ));
         assert_eq!(result.left_lines[3].content, "line 3");
         assert_eq!(result.right_lines[3].content, "line 3");
     }
@@ -873,15 +917,30 @@ mod tests {
         assert_eq!(result.right_lines.len(), 3);
 
         // Line 1: unchanged
-        assert!(matches!(result.left_lines[0].line_type, LineType::Unchanged));
-        assert!(matches!(result.right_lines[0].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[0].line_type,
+            LineType::Unchanged
+        ));
+        assert!(matches!(
+            result.right_lines[0].line_type,
+            LineType::Unchanged
+        ));
 
         // Line 2: unchanged
-        assert!(matches!(result.left_lines[1].line_type, LineType::Unchanged));
-        assert!(matches!(result.right_lines[1].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[1].line_type,
+            LineType::Unchanged
+        ));
+        assert!(matches!(
+            result.right_lines[1].line_type,
+            LineType::Unchanged
+        ));
 
         // Line 3: empty on left, added on right
-        assert!(matches!(result.left_lines[2].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[2].line_type,
+            LineType::Unchanged
+        ));
         assert!(matches!(result.right_lines[2].line_type, LineType::Added));
         assert_eq!(result.left_lines[2].content, "");
         assert_eq!(result.right_lines[2].content, "line 3");
@@ -898,16 +957,31 @@ mod tests {
         assert_eq!(result.right_lines.len(), 3);
 
         // Line 1: unchanged
-        assert!(matches!(result.left_lines[0].line_type, LineType::Unchanged));
-        assert!(matches!(result.right_lines[0].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[0].line_type,
+            LineType::Unchanged
+        ));
+        assert!(matches!(
+            result.right_lines[0].line_type,
+            LineType::Unchanged
+        ));
 
         // Line 2: unchanged
-        assert!(matches!(result.left_lines[1].line_type, LineType::Unchanged));
-        assert!(matches!(result.right_lines[1].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.left_lines[1].line_type,
+            LineType::Unchanged
+        ));
+        assert!(matches!(
+            result.right_lines[1].line_type,
+            LineType::Unchanged
+        ));
 
         // Line 3: removed on left, empty on right
         assert!(matches!(result.left_lines[2].line_type, LineType::Removed));
-        assert!(matches!(result.right_lines[2].line_type, LineType::Unchanged));
+        assert!(matches!(
+            result.right_lines[2].line_type,
+            LineType::Unchanged
+        ));
         assert_eq!(result.left_lines[2].content, "line 3");
         assert_eq!(result.right_lines[2].content, "");
     }
@@ -994,11 +1068,51 @@ mod tests {
     #[test]
     fn test_calculate_diff_stats_multiple_changes() {
         let lines = vec![
-            DiffLine { content: "added 1".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(1), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "added 2".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(2), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "removed 1".to_string(), line_type: LineType::Removed, old_line_number: Some(3), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "removed 2".to_string(), line_type: LineType::Removed, old_line_number: Some(4), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "removed 3".to_string(), line_type: LineType::Removed, old_line_number: Some(5), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
+            DiffLine {
+                content: "added 1".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
+                new_line_number: Some(1),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "added 2".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
+                new_line_number: Some(2),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "removed 1".to_string(),
+                line_type: LineType::Removed,
+                old_line_number: Some(3),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "removed 2".to_string(),
+                line_type: LineType::Removed,
+                old_line_number: Some(4),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "removed 3".to_string(),
+                line_type: LineType::Removed,
+                old_line_number: Some(5),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
         ];
 
         let stats = calculate_diff_stats(&lines);
@@ -1009,21 +1123,35 @@ mod tests {
     #[test]
     fn test_calculate_diff_stats_with_collapsible() {
         let collapsed_lines = vec![
-            DiffLine { content: "collapsed added".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(1), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "collapsed removed".to_string(), line_type: LineType::Removed, old_line_number: Some(2), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-        ];
-
-        let lines = vec![
             DiffLine {
-                content: "unchanged".to_string(),
-                line_type: LineType::Unchanged,
-                old_line_number: Some(1),
+                content: "collapsed added".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
                 new_line_number: Some(1),
-                is_collapsible: Some(true),
-                collapsed_count: Some(2),
-                collapsed_lines: Some(collapsed_lines),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "collapsed removed".to_string(),
+                line_type: LineType::Removed,
+                old_line_number: Some(2),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
             },
         ];
+
+        let lines = vec![DiffLine {
+            content: "unchanged".to_string(),
+            line_type: LineType::Unchanged,
+            old_line_number: Some(1),
+            new_line_number: Some(1),
+            is_collapsible: Some(true),
+            collapsed_count: Some(2),
+            collapsed_lines: Some(collapsed_lines),
+        }];
 
         let stats = calculate_diff_stats(&lines);
         assert_eq!(stats.additions, 1); // From collapsed lines
@@ -1033,8 +1161,24 @@ mod tests {
     #[test]
     fn test_calculate_diff_stats_only_unchanged() {
         let lines = vec![
-            DiffLine { content: "line 1".to_string(), line_type: LineType::Unchanged, old_line_number: Some(1), new_line_number: Some(1), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 2".to_string(), line_type: LineType::Unchanged, old_line_number: Some(2), new_line_number: Some(2), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
+            DiffLine {
+                content: "line 1".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: Some(1),
+                new_line_number: Some(1),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 2".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: Some(2),
+                new_line_number: Some(2),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
         ];
 
         let stats = calculate_diff_stats(&lines);
@@ -1058,15 +1202,63 @@ mod tests {
     #[test]
     fn test_calculate_split_diff_stats_basic() {
         let left_lines = vec![
-            DiffLine { content: "line 1".to_string(), line_type: LineType::Unchanged, old_line_number: Some(1), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 2".to_string(), line_type: LineType::Removed, old_line_number: Some(2), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "".to_string(), line_type: LineType::Unchanged, old_line_number: None, new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
+            DiffLine {
+                content: "line 1".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: Some(1),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 2".to_string(),
+                line_type: LineType::Removed,
+                old_line_number: Some(2),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: None,
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
         ];
 
         let right_lines = vec![
-            DiffLine { content: "line 1".to_string(), line_type: LineType::Unchanged, old_line_number: None, new_line_number: Some(1), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 2 modified".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(2), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 3".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(3), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
+            DiffLine {
+                content: "line 1".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: None,
+                new_line_number: Some(1),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 2 modified".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
+                new_line_number: Some(2),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 3".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
+                new_line_number: Some(3),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
         ];
 
         let split = SplitDiffResult {
@@ -1082,14 +1274,54 @@ mod tests {
     #[test]
     fn test_calculate_split_diff_stats_unequal_lengths() {
         let left_lines = vec![
-            DiffLine { content: "line 1".to_string(), line_type: LineType::Unchanged, old_line_number: Some(1), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 2".to_string(), line_type: LineType::Removed, old_line_number: Some(2), new_line_number: None, is_collapsible: None, collapsed_count: None, collapsed_lines: None },
+            DiffLine {
+                content: "line 1".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: Some(1),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 2".to_string(),
+                line_type: LineType::Removed,
+                old_line_number: Some(2),
+                new_line_number: None,
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
         ];
 
         let right_lines = vec![
-            DiffLine { content: "line 1".to_string(), line_type: LineType::Unchanged, old_line_number: None, new_line_number: Some(1), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 2 modified".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(2), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
-            DiffLine { content: "line 3".to_string(), line_type: LineType::Added, old_line_number: None, new_line_number: Some(3), is_collapsible: None, collapsed_count: None, collapsed_lines: None },
+            DiffLine {
+                content: "line 1".to_string(),
+                line_type: LineType::Unchanged,
+                old_line_number: None,
+                new_line_number: Some(1),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 2 modified".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
+                new_line_number: Some(2),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
+            DiffLine {
+                content: "line 3".to_string(),
+                line_type: LineType::Added,
+                old_line_number: None,
+                new_line_number: Some(3),
+                is_collapsible: None,
+                collapsed_count: None,
+                collapsed_lines: None,
+            },
         ];
 
         let split = SplitDiffResult {
@@ -1131,12 +1363,18 @@ mod tests {
     #[test]
     fn test_get_file_language_typescript() {
         assert_eq!(get_file_language("app.ts"), Some("typescript".to_string()));
-        assert_eq!(get_file_language("component.tsx"), Some("typescript".to_string()));
+        assert_eq!(
+            get_file_language("component.tsx"),
+            Some("typescript".to_string())
+        );
     }
 
     #[test]
     fn test_get_file_language_javascript() {
-        assert_eq!(get_file_language("script.js"), Some("javascript".to_string()));
+        assert_eq!(
+            get_file_language("script.js"),
+            Some("javascript".to_string())
+        );
         assert_eq!(get_file_language("app.jsx"), Some("javascript".to_string()));
     }
 
@@ -1166,7 +1404,10 @@ mod tests {
 
     #[test]
     fn test_get_file_language_swift() {
-        assert_eq!(get_file_language("ViewController.swift"), Some("swift".to_string()));
+        assert_eq!(
+            get_file_language("ViewController.swift"),
+            Some("swift".to_string())
+        );
         assert_eq!(get_file_language("App.swift"), Some("swift".to_string()));
     }
 
@@ -1238,14 +1479,23 @@ mod tests {
     #[test]
     fn test_get_file_language_case_insensitive() {
         assert_eq!(get_file_language("MAIN.RS"), Some("rust".to_string()));
-        assert_eq!(get_file_language("Script.JS"), Some("javascript".to_string()));
+        assert_eq!(
+            get_file_language("Script.JS"),
+            Some("javascript".to_string())
+        );
         assert_eq!(get_file_language("readme.MD"), Some("markdown".to_string()));
     }
 
     #[test]
     fn test_get_file_language_multiple_dots() {
-        assert_eq!(get_file_language("test.min.js"), Some("javascript".to_string()));
-        assert_eq!(get_file_language("component.d.ts"), Some("typescript".to_string()));
+        assert_eq!(
+            get_file_language("test.min.js"),
+            Some("javascript".to_string())
+        );
+        assert_eq!(
+            get_file_language("component.d.ts"),
+            Some("typescript".to_string())
+        );
         assert_eq!(get_file_language("archive.tar.gz"), None);
     }
 
@@ -1282,23 +1532,24 @@ mod tests {
 
     #[test]
     fn test_unified_diff_with_collapsible_integration() {
-        let old = "line 1\n".to_string() +
-                  &(2..=(COLLAPSE_THRESHOLD + 2 * CONTEXT_LINES + 10))
-                      .map(|i| format!("line {}\n", i))
-                      .collect::<String>() +
-                  "line final\n";
+        let old = "line 1\n".to_string()
+            + &(2..=(COLLAPSE_THRESHOLD + 2 * CONTEXT_LINES + 10))
+                .map(|i| format!("line {}\n", i))
+                .collect::<String>()
+            + "line final\n";
 
-        let new = "line 1\n".to_string() +
-                  &(2..=(COLLAPSE_THRESHOLD + 2 * CONTEXT_LINES + 10))
-                      .map(|i| format!("line {}\n", i))
-                      .collect::<String>() +
-                  "line final modified\n";
+        let new = "line 1\n".to_string()
+            + &(2..=(COLLAPSE_THRESHOLD + 2 * CONTEXT_LINES + 10))
+                .map(|i| format!("line {}\n", i))
+                .collect::<String>()
+            + "line final modified\n";
 
         let diff_lines = compute_unified_diff(&old, &new);
         let with_collapsible = add_collapsible_sections(diff_lines);
 
         // Should have collapsible sections in the middle unchanged block
-        let collapsible_count = with_collapsible.iter()
+        let collapsible_count = with_collapsible
+            .iter()
             .filter(|line| line.is_collapsible.unwrap_or(false))
             .count();
         assert!(collapsible_count > 0);
@@ -1363,8 +1614,16 @@ mod tests {
         );
 
         // Performance assertions - should be fast
-        assert!(diff_duration.as_millis() < 500, "Diff took too long: {}ms", diff_duration.as_millis());
-        assert!(collapse_duration.as_millis() < 100, "Collapse took too long: {}ms", collapse_duration.as_millis());
+        assert!(
+            diff_duration.as_millis() < 500,
+            "Diff took too long: {}ms",
+            diff_duration.as_millis()
+        );
+        assert!(
+            collapse_duration.as_millis() < 100,
+            "Collapse took too long: {}ms",
+            collapse_duration.as_millis()
+        );
     }
 
     #[test]
@@ -1378,7 +1637,11 @@ mod tests {
         let duration = start.elapsed();
 
         // Should complete quickly and not use excessive memory
-        assert!(duration.as_millis() < 1000, "Large diff took too long: {}ms", duration.as_millis());
+        assert!(
+            duration.as_millis() < 1000,
+            "Large diff took too long: {}ms",
+            duration.as_millis()
+        );
         assert!(result.len() > 0, "Should produce diff lines");
     }
 
@@ -1398,14 +1661,18 @@ mod tests {
         assert!(matches!(result[2].line_type, LineType::Added));
 
         // Test with many small changes
-        let old_many = (0..100).map(|i| format!("line {}\n", i)).collect::<String>();
-        let new_many = (0..100).map(|i| {
-            if i % 2 == 0 {
-                format!("line {} even\n", i)
-            } else {
-                format!("line {}\n", i)
-            }
-        }).collect::<String>();
+        let old_many = (0..100)
+            .map(|i| format!("line {}\n", i))
+            .collect::<String>();
+        let new_many = (0..100)
+            .map(|i| {
+                if i % 2 == 0 {
+                    format!("line {} even\n", i)
+                } else {
+                    format!("line {}\n", i)
+                }
+            })
+            .collect::<String>();
 
         let result_many = compute_unified_diff(&old_many, &new_many);
         // Should have 50 unchanged + 50 removed + 50 added = 150 lines

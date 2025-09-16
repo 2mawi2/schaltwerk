@@ -12,7 +12,8 @@ pub fn get_recent_projects() -> Result<Vec<projects::RecentProject>, String> {
 pub fn add_recent_project(path: String) -> Result<(), String> {
     let mut history = projects::ProjectHistory::load()
         .map_err(|e| format!("Failed to load project history: {e}"))?;
-    history.add_project(&path)
+    history
+        .add_project(&path)
         .map_err(|e| format!("Failed to add project: {e}"))?;
     Ok(())
 }
@@ -21,7 +22,8 @@ pub fn add_recent_project(path: String) -> Result<(), String> {
 pub fn update_recent_project_timestamp(path: String) -> Result<(), String> {
     let mut history = projects::ProjectHistory::load()
         .map_err(|e| format!("Failed to load project history: {e}"))?;
-    history.update_timestamp(&path)
+    history
+        .update_timestamp(&path)
         .map_err(|e| format!("Failed to update project: {e}"))?;
     Ok(())
 }
@@ -30,7 +32,8 @@ pub fn update_recent_project_timestamp(path: String) -> Result<(), String> {
 pub fn remove_recent_project(path: String) -> Result<(), String> {
     let mut history = projects::ProjectHistory::load()
         .map_err(|e| format!("Failed to load project history: {e}"))?;
-    history.remove_project(&path)
+    history
+        .remove_project(&path)
         .map_err(|e| format!("Failed to remove project: {e}"))?;
     Ok(())
 }
@@ -47,10 +50,11 @@ pub fn directory_exists(path: String) -> Result<bool, String> {
 
 #[tauri::command]
 pub fn create_new_project(name: String, parent_path: String) -> Result<String, String> {
-    let project_path = projects::create_new_project(&name, &parent_path)
-        .map_err(|e| format!("{e}"))?;
-    
-    Ok(project_path.to_str()
+    let project_path =
+        projects::create_new_project(&name, &parent_path).map_err(|e| format!("{e}"))?;
+
+    Ok(project_path
+        .to_str()
         .ok_or_else(|| "Invalid path encoding".to_string())?
         .to_string())
 }
@@ -58,9 +62,9 @@ pub fn create_new_project(name: String, parent_path: String) -> Result<String, S
 #[tauri::command]
 pub async fn initialize_project(path: String) -> Result<(), String> {
     log::info!("🔧 Initialize project command called with path: {path}");
-    
+
     let path = PathBuf::from(&path);
-    
+
     // Log detailed path information
     if path.exists() {
         log::info!("  Path exists: {}", path.display());
@@ -69,7 +73,7 @@ pub async fn initialize_project(path: String) -> Result<(), String> {
         } else {
             log::warn!("  Path is not a directory!");
         }
-        
+
         // Check if it's a git repository
         if path.join(".git").exists() {
             log::info!("  ✅ Git repository detected (.git folder exists)");
@@ -79,17 +83,15 @@ pub async fn initialize_project(path: String) -> Result<(), String> {
     } else {
         log::error!("  ❌ Path does not exist: {}", path.display());
     }
-    
+
     let manager = get_project_manager().await;
-    
+
     log::info!("Switching to project: {}", path.display());
-    manager.switch_to_project(path)
-        .await
-        .map_err(|e| {
-            log::error!("Failed to initialize project: {e}");
-            format!("Failed to initialize project: {e}")
-        })?;
-    
+    manager.switch_to_project(path).await.map_err(|e| {
+        log::error!("Failed to initialize project: {e}");
+        format!("Failed to initialize project: {e}")
+    })?;
+
     log::info!("✅ Project initialized successfully");
     Ok(())
 }
@@ -110,9 +112,12 @@ pub async fn close_project(path: String) -> Result<(), String> {
     // CRITICAL: Do NOT cancel sessions on project close - sessions should persist
     // Sessions represent user work that should only be cancelled by explicit user action
     // See CLAUDE.md for session lifecycle rules
-    
+
     // Close all terminals for the specified project (not the current one)
-    if let Err(e) = manager.cleanup_project_terminals(&std::path::PathBuf::from(&path)).await {
+    if let Err(e) = manager
+        .cleanup_project_terminals(&std::path::PathBuf::from(&path))
+        .await
+    {
         log::warn!("Failed to cleanup terminals for project {path}: {e}");
     }
 
@@ -130,8 +135,8 @@ pub async fn get_project_default_branch() -> Result<String, String> {
         schaltwerk::domains::git::get_default_branch(&project.path)
             .map_err(|e| format!("Failed to get default branch: {e}"))
     } else {
-        let current_dir = std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {e}"))?;
+        let current_dir =
+            std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
         schaltwerk::domains::git::get_default_branch(&current_dir)
             .map_err(|e| format!("Failed to get default branch: {e}"))
     }
@@ -144,8 +149,8 @@ pub async fn list_project_branches() -> Result<Vec<String>, String> {
         schaltwerk::domains::git::list_branches(&project.path)
             .map_err(|e| format!("Failed to list branches: {e}"))
     } else {
-        let current_dir = std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {e}"))?;
+        let current_dir =
+            std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?;
         schaltwerk::domains::git::list_branches(&current_dir)
             .map_err(|e| format!("Failed to list branches: {e}"))
     }
@@ -157,9 +162,8 @@ pub async fn repository_is_empty() -> Result<bool, String> {
     let repo_path = if let Ok(project) = manager.current_project().await {
         project.path.clone()
     } else {
-        std::env::current_dir()
-            .map_err(|e| format!("Failed to get current directory: {e}"))?
+        std::env::current_dir().map_err(|e| format!("Failed to get current directory: {e}"))?
     };
-    
+
     Ok(!schaltwerk::domains::git::repository_has_commits(&repo_path).unwrap_or(true))
 }

@@ -70,7 +70,13 @@ mod tests {
 
     #[test]
     fn test_event_names_for_new_variants() {
-        assert_eq!(SchaltEvent::TerminalCreated.as_str(), "schaltwerk:terminal-created");
-        assert_eq!(SchaltEvent::TerminalAgentStarted.as_str(), "schaltwerk:terminal-agent-started");
+        assert_eq!(
+            SchaltEvent::TerminalCreated.as_str(),
+            "schaltwerk:terminal-created"
+        );
+        assert_eq!(
+            SchaltEvent::TerminalAgentStarted.as_str(),
+            "schaltwerk:terminal-agent-started"
+        );
     }
 }

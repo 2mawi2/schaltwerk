@@ -1,8 +1,8 @@
-use std::path::Path;
-use std::fs;
-use std::process::Command;
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::Path;
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DetectedBinary {
@@ -23,18 +23,21 @@ pub enum InstallationMethod {
     System = 4,
 }
 
-pub fn check_binary(path: &Path, installation_method: InstallationMethod) -> Option<DetectedBinary> {
+pub fn check_binary(
+    path: &Path,
+    installation_method: InstallationMethod,
+) -> Option<DetectedBinary> {
     if !path.exists() {
         return None;
     }
-    
+
     let symlink_metadata = match fs::symlink_metadata(path) {
         Ok(m) => m,
         Err(_) => return None,
     };
-    
+
     let is_symlink = symlink_metadata.file_type().is_symlink();
-    
+
     let metadata = if is_symlink {
         match fs::metadata(path) {
             Ok(m) => m,
@@ -43,11 +46,11 @@ pub fn check_binary(path: &Path, installation_method: InstallationMethod) -> Opt
     } else {
         symlink_metadata
     };
-    
+
     if !metadata.is_file() {
         return None;
     }
-    
+
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -55,25 +58,29 @@ pub fn check_binary(path: &Path, installation_method: InstallationMethod) -> Opt
             return None;
         }
     }
-    
+
     let symlink_target = if is_symlink {
-        fs::read_link(path).ok().map(|p| p.to_string_lossy().to_string())
+        fs::read_link(path)
+            .ok()
+            .map(|p| p.to_string_lossy().to_string())
     } else {
         None
     };
-    
+
     if is_symlink && symlink_target.is_none() {
         debug!("Skipping broken symlink: {}", path.display());
         return None;
     }
-    
+
     let version = detect_version(path);
-    
-    info!("Found {} binary at: {} ({})", 
-          path.file_name()?.to_string_lossy(), 
-          path.display(),
-          if is_symlink { "symlink" } else { "binary" });
-    
+
+    info!(
+        "Found {} binary at: {} ({})",
+        path.file_name()?.to_string_lossy(),
+        path.display(),
+        if is_symlink { "symlink" } else { "binary" }
+    );
+
     Some(DetectedBinary {
         path: path.to_string_lossy().to_string(),
         version,
@@ -86,7 +93,7 @@ pub fn check_binary(path: &Path, installation_method: InstallationMethod) -> Opt
 
 fn detect_version(path: &Path) -> Option<String> {
     let version_flags = vec!["--version", "-v", "version"];
-    
+
     for flag in version_flags {
         if let Ok(output) = Command::new(path).arg(flag).output() {
             if output.status.success() {
@@ -101,7 +108,7 @@ fn detect_version(path: &Path) -> Option<String> {
             }
         }
     }
-    
+
     debug!("Could not detect version for: {}", path.display());
     None
 }

@@ -1,12 +1,11 @@
-use std::path::Path;
-use std::collections::{HashSet, HashMap};
+use crate::domains::sessions::entity::{ChangedFile, GitStats};
 use anyhow::Result;
 use chrono::Utc;
-use crate::domains::sessions::entity::{GitStats, ChangedFile};
+use git2::{DiffOptions, Oid, Repository, StatusOptions};
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use git2::{Repository, DiffOptions, StatusOptions, Oid};
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
-
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct StatsCacheKey {
@@ -47,7 +46,9 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let base_tree = match (base_commit.as_ref(), head_commit.as_ref()) {
         (Some(base_c), Some(head_c)) => {
             if let Ok(merge_base_oid) = repo.merge_base(base_c.id(), head_c.id()) {
-                repo.find_commit(merge_base_oid).ok().and_then(|c| c.tree().ok())
+                repo.find_commit(merge_base_oid)
+                    .ok()
+                    .and_then(|c| c.tree().ok())
             } else {
                 None
             }
@@ -56,12 +57,16 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     };
 
     let mut status_opts = StatusOptions::new();
-    status_opts.include_untracked(true).recurse_untracked_dirs(true);
+    status_opts
+        .include_untracked(true)
+        .recurse_untracked_dirs(true);
     let statuses = repo.statuses(Some(&mut status_opts))?;
     // Compute filtered has_uncommitted: ignore .schaltwerk internal files
     let has_uncommitted_filtered = statuses.iter().any(|entry| {
         if let Some(path) = entry.path() {
-            if is_internal_tooling_path(path) { return false; }
+            if is_internal_tooling_path(path) {
+                return false;
+            }
         }
         true
     }) && !statuses.is_empty();
@@ -69,47 +74,72 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let mut sample: Vec<String> = Vec::new();
     for entry in statuses.iter() {
         if let Some(path) = entry.path() {
-            if is_internal_tooling_path(path) { continue; }
+            if is_internal_tooling_path(path) {
+                continue;
+            }
             sample.push(path.to_string());
-            if sample.len() >= 5 { break; }
+            if sample.len() >= 5 {
+                break;
+            }
         }
     }
     log::debug!(
         "git_stats: begin path={} parent={} status_total={} has_uncommitted={} sample={:?}",
-        worktree_path.display(), parent_branch, statuses.len(), has_uncommitted_filtered, sample
+        worktree_path.display(),
+        parent_branch,
+        statuses.len(),
+        has_uncommitted_filtered,
+        sample
     );
     let mut status_sig: u64 = 1469598103934665603;
     for entry in statuses.iter() {
         let s = entry.status().bits() as u64;
         status_sig ^= s.wrapping_mul(1099511628211);
         if let Some(path) = entry.path() {
-            for b in path.as_bytes() { status_sig ^= (*b as u64).wrapping_mul(1099511628211); }
+            for b in path.as_bytes() {
+                status_sig ^= (*b as u64).wrapping_mul(1099511628211);
+            }
         }
     }
 
     let index_signature = repo.index().ok().map(|idx| {
         let mut sig: u64 = 1469598103934665603;
         for entry in idx.iter() {
-            for b in entry.path.iter() { sig ^= (*b as u64).wrapping_mul(1099511628211); }
+            for b in entry.path.iter() {
+                sig ^= (*b as u64).wrapping_mul(1099511628211);
+            }
             let id = entry.id;
-            for b in id.as_bytes() { sig ^= (*b as u64).wrapping_mul(1099511628211); }
+            for b in id.as_bytes() {
+                sig ^= (*b as u64).wrapping_mul(1099511628211);
+            }
         }
         sig
     });
 
-    let key = StatsCacheKey { head: head_oid, index_signature, status_signature: status_sig };
+    let key = StatsCacheKey {
+        head: head_oid,
+        index_signature,
+        status_signature: status_sig,
+    };
     let cache_key = (worktree_path.to_path_buf(), parent_branch.to_string());
     if let Some(m) = STATS_CACHE.get() {
         if let Some((k, v)) = m.lock().unwrap().get(&cache_key) {
             if *k == key {
                 let cache_hit_time = start_time.elapsed();
-                log::debug!("Git stats cache hit for {} ({}ms)", worktree_path.display(), cache_hit_time.as_millis());
+                log::debug!(
+                    "Git stats cache hit for {} ({}ms)",
+                    worktree_path.display(),
+                    cache_hit_time.as_millis()
+                );
                 // Fast-path: reuse cached counts, but recompute timestamp from git diff to avoid staleness
                 // (status signature doesn't change when only mtimes change)
                 // Latest committed change ahead of parent_branch
                 let mut last_diff_change_ts: Option<i64> = None;
-                if let (Some(base_commit), Some(head_commit)) = (base_commit.as_ref(), head_commit.as_ref()) {
-                    if let Ok(merge_base_oid) = repo.merge_base(base_commit.id(), head_commit.id()) {
+                if let (Some(base_commit), Some(head_commit)) =
+                    (base_commit.as_ref(), head_commit.as_ref())
+                {
+                    if let Ok(merge_base_oid) = repo.merge_base(base_commit.id(), head_commit.id())
+                    {
                         if repo.revparse(&format!("{merge_base_oid}..HEAD")).is_ok() {
                             if let Ok(mut revwalk) = repo.revwalk() {
                                 revwalk.push_head().ok();
@@ -119,7 +149,9 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                                     .filter_map(|oid| repo.find_commit(oid).ok())
                                     .map(|c| c.time().seconds())
                                     .max();
-                                if let Some(ts) = latest_commit_ts { last_diff_change_ts = Some(ts); }
+                                if let Some(ts) = latest_commit_ts {
+                                    last_diff_change_ts = Some(ts);
+                                }
                             }
                         }
                     }
@@ -131,10 +163,15 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                     if let Ok(idx) = repo.index() {
                         let mut staged_opts = DiffOptions::new();
                         // recurse_untracked_dirs is not relevant for tree->index; still keep options object
-                        if let Ok(diff_for_mtime) = repo.diff_tree_to_index(Some(ht), Some(&idx), Some(&mut staged_opts)) {
+                        if let Ok(diff_for_mtime) =
+                            repo.diff_tree_to_index(Some(ht), Some(&idx), Some(&mut staged_opts))
+                        {
                             for d in diff_for_mtime.deltas() {
-                                if let Some(p) = d.new_file().path().or_else(|| d.old_file().path()) {
-                                    if let Some(s) = p.to_str() { files_for_mtime.insert(s.to_string()); }
+                                if let Some(p) = d.new_file().path().or_else(|| d.old_file().path())
+                                {
+                                    if let Some(s) = p.to_str() {
+                                        files_for_mtime.insert(s.to_string());
+                                    }
                                 }
                             }
                         }
@@ -142,11 +179,17 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                 }
                 if let Ok(idx) = repo.index() {
                     let mut workdir_opts = DiffOptions::new();
-                    workdir_opts.include_untracked(true).recurse_untracked_dirs(true);
-                    if let Ok(diff_for_mtime) = repo.diff_index_to_workdir(Some(&idx), Some(&mut workdir_opts)) {
+                    workdir_opts
+                        .include_untracked(true)
+                        .recurse_untracked_dirs(true);
+                    if let Ok(diff_for_mtime) =
+                        repo.diff_index_to_workdir(Some(&idx), Some(&mut workdir_opts))
+                    {
                         for d in diff_for_mtime.deltas() {
                             if let Some(p) = d.new_file().path().or_else(|| d.old_file().path()) {
-                                if let Some(s) = p.to_str() { files_for_mtime.insert(s.to_string()); }
+                                if let Some(s) = p.to_str() {
+                                    files_for_mtime.insert(s.to_string());
+                                }
                             }
                         }
                     }
@@ -159,7 +202,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                         if let Ok(modified) = metadata.modified() {
                             if let Ok(secs) = modified.duration_since(std::time::UNIX_EPOCH) {
                                 let ts = secs.as_secs() as i64;
-                                latest_uncommitted_ts = Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
+                                latest_uncommitted_ts =
+                                    Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
                             }
                         }
                     } else {
@@ -168,7 +212,10 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                     }
                 }
                 if let Some(u_ts) = latest_uncommitted_ts {
-                    last_diff_change_ts = Some(match last_diff_change_ts { Some(c_ts) => c_ts.max(u_ts), None => u_ts });
+                    last_diff_change_ts = Some(match last_diff_change_ts {
+                        Some(c_ts) => c_ts.max(u_ts),
+                        None => u_ts,
+                    });
                 }
                 if last_diff_change_ts.is_none() && saw_schema_change_cache {
                     last_diff_change_ts = Some(Utc::now().timestamp());
@@ -176,11 +223,16 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
                 let total_cache_time = start_time.elapsed();
                 if total_cache_time.as_millis() > 50 {
-                    log::debug!("Git stats cache hit processing took {}ms for {}", total_cache_time.as_millis(), worktree_path.display());
+                    log::debug!(
+                        "Git stats cache hit processing took {}ms for {}",
+                        total_cache_time.as_millis(),
+                        worktree_path.display()
+                    );
                 }
                 log::debug!(
                     "git_stats: cache_hit path={} has_uncommitted={}",
-                    worktree_path.display(), has_uncommitted_filtered
+                    worktree_path.display(),
+                    has_uncommitted_filtered
                 );
                 return Ok(GitStats {
                     session_id: v.session_id.clone(),
@@ -214,15 +266,17 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                 insertions = stats.insertions() as u32;
                 deletions = stats.deletions() as u32;
             }
-            
+
             // Process deltas for file tracking and schema change detection
             for delta in diff.deltas() {
                 use git2::Delta;
                 match delta.status() {
-                    Delta::Deleted | Delta::Renamed | Delta::Typechange => { saw_schema_change = true; }
+                    Delta::Deleted | Delta::Renamed | Delta::Typechange => {
+                        saw_schema_change = true;
+                    }
                     _ => {}
                 }
-                
+
                 if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
                     if let Some(path_str) = path.to_str() {
                         files.insert(path_str.to_string());
@@ -249,7 +303,9 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                         .filter_map(|oid| repo.find_commit(oid).ok())
                         .map(|c| c.time().seconds())
                         .max();
-                    if let Some(ts) = latest_commit_ts { last_diff_change_ts = Some(ts); }
+                    if let Some(ts) = latest_commit_ts {
+                        last_diff_change_ts = Some(ts);
+                    }
                 }
             }
         }
@@ -263,13 +319,17 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
             if let Ok(modified) = metadata.modified() {
                 if let Ok(secs) = modified.duration_since(std::time::UNIX_EPOCH) {
                     let ts = secs.as_secs() as i64;
-                    latest_uncommitted_ts = Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
+                    latest_uncommitted_ts =
+                        Some(latest_uncommitted_ts.map_or(ts, |cur| cur.max(ts)));
                 }
             }
         }
     }
     if let Some(u_ts) = latest_uncommitted_ts {
-        last_diff_change_ts = Some(match last_diff_change_ts { Some(c_ts) => c_ts.max(u_ts), None => u_ts });
+        last_diff_change_ts = Some(match last_diff_change_ts {
+            Some(c_ts) => c_ts.max(u_ts),
+            None => u_ts,
+        });
     }
     // If we saw deletions/renames/type changes but couldn't get an mtime (e.g., deleted files), bump to now
     if last_diff_change_ts.is_none() && saw_schema_change {
@@ -299,18 +359,24 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
             deletions
         );
     } else if total_time.as_millis() > 50 {
-        log::debug!("Git stats calculation took {}ms for {}", total_time.as_millis(), worktree_path.display());
+        log::debug!(
+            "Git stats calculation took {}ms for {}",
+            total_time.as_millis(),
+            worktree_path.display()
+        );
     }
 
     log::debug!(
         "git_stats: end path={} files_changed={} +{} -{} has_uncommitted={} elapsed_ms={}",
         worktree_path.display(),
-        stats.files_changed, stats.lines_added, stats.lines_removed, stats.has_uncommitted,
+        stats.files_changed,
+        stats.lines_added,
+        stats.lines_removed,
+        stats.has_uncommitted,
         total_time.as_millis()
     );
     Ok(stats)
 }
-
 
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
     // Show all changes introduced by this worktree: committed + uncommitted
@@ -343,8 +409,7 @@ pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Ve
             .recurse_untracked_dirs(true)
             .ignore_submodules(true);
 
-        let diff = repo
-            .diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))?;
+        let diff = repo.diff_tree_to_workdir_with_index(Some(&base_tree), Some(&mut opts))?;
 
         for delta in diff.deltas() {
             if let Some(path) = delta
@@ -385,36 +450,72 @@ pub fn parse_numstat_line(line: &str) -> Option<(u32, u32, &str)> {
     if parts.len() != 3 {
         return None;
     }
-    
-    let additions = if parts[0] == "-" { 0 } else { parts[0].parse().ok()? };
-    let deletions = if parts[1] == "-" { 0 } else { parts[1].parse().ok()? };
+
+    let additions = if parts[0] == "-" {
+        0
+    } else {
+        parts[0].parse().ok()?
+    };
+    let deletions = if parts[1] == "-" {
+        0
+    } else {
+        parts[1].parse().ok()?
+    };
     let file_path = parts[2];
-    
+
     Some((additions, deletions, file_path))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tempfile::TempDir;
-    use std::process::Command as StdCommand;
     use std::fs;
+    use std::process::Command as StdCommand;
+    use tempfile::TempDir;
 
     fn init_repo() -> TempDir {
         clear_stats_cache();
         let temp = TempDir::new().unwrap();
         let p = temp.path();
-        StdCommand::new("git").args(["init"]).current_dir(p).output().unwrap();
-        StdCommand::new("git").args(["config","user.name","Test"]).current_dir(p).output().unwrap();
-        StdCommand::new("git").args(["config","user.email","t@example.com"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["init"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["config", "user.email", "t@example.com"])
+            .current_dir(p)
+            .output()
+            .unwrap();
         fs::write(p.join("README.md"), "root\n").unwrap();
-        StdCommand::new("git").args(["add","."]).current_dir(p).output().unwrap();
-        StdCommand::new("git").args(["commit","-m","init"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["add", "."])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(p)
+            .output()
+            .unwrap();
         // Rename default branch to main for consistency
-        let cur = StdCommand::new("git").args(["rev-parse","--abbrev-ref","HEAD"]).current_dir(p).output().unwrap();
+        let cur = StdCommand::new("git")
+            .args(["rev-parse", "--abbrev-ref", "HEAD"])
+            .current_dir(p)
+            .output()
+            .unwrap();
         let cur_name = String::from_utf8_lossy(&cur.stdout).trim().to_string();
         if cur_name != "main" && !cur_name.is_empty() {
-            StdCommand::new("git").args(["branch","-m",&cur_name,"main"]).current_dir(p).output().unwrap();
+            StdCommand::new("git")
+                .args(["branch", "-m", &cur_name, "main"])
+                .current_dir(p)
+                .output()
+                .unwrap();
         }
         temp
     }
@@ -425,12 +526,24 @@ mod tests {
         let p = repo.path();
 
         // Create feature branch
-        StdCommand::new("git").args(["checkout","-b","feature"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(p)
+            .output()
+            .unwrap();
 
         // Commit a file on feature
         fs::write(p.join("committed.txt"), "hello\n").unwrap();
-        StdCommand::new("git").args(["add","committed.txt"]).current_dir(p).output().unwrap();
-        StdCommand::new("git").args(["commit","-m","add committed"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["add", "committed.txt"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "add committed"])
+            .current_dir(p)
+            .output()
+            .unwrap();
 
         // Create uncommitted changes
         fs::write(p.join("untracked.txt"), "u\n").unwrap();
@@ -439,9 +552,18 @@ mod tests {
         let files = get_changed_files(p, "main").unwrap();
         let paths: std::collections::HashSet<_> = files.iter().map(|f| f.path.as_str()).collect();
 
-        assert!(paths.contains("committed.txt"), "should include committed change relative to main");
-        assert!(paths.contains("untracked.txt"), "should include untracked file");
-        assert!(paths.contains("README.md"), "should include modified working file");
+        assert!(
+            paths.contains("committed.txt"),
+            "should include committed change relative to main"
+        );
+        assert!(
+            paths.contains("untracked.txt"),
+            "should include untracked file"
+        );
+        assert!(
+            paths.contains("README.md"),
+            "should include modified working file"
+        );
     }
 
     #[test]
@@ -450,23 +572,54 @@ mod tests {
         let p = repo.path();
 
         // Branch and make a feature commit
-        StdCommand::new("git").args(["checkout","-b","feature"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["checkout", "-b", "feature"])
+            .current_dir(p)
+            .output()
+            .unwrap();
         fs::write(p.join("feat.txt"), "f\n").unwrap();
-        StdCommand::new("git").args(["add","feat.txt"]).current_dir(p).output().unwrap();
-        StdCommand::new("git").args(["commit","-m","feat"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["add", "feat.txt"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "feat"])
+            .current_dir(p)
+            .output()
+            .unwrap();
 
         // Simulate main moving ahead with an unrelated commit (not merged)
-        StdCommand::new("git").args(["checkout","main"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["checkout", "main"])
+            .current_dir(p)
+            .output()
+            .unwrap();
         fs::write(p.join("only_main.txt"), "m\n").unwrap();
-        StdCommand::new("git").args(["add","only_main.txt"]).current_dir(p).output().unwrap();
-        StdCommand::new("git").args(["commit","-m","main ahead"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["add", "only_main.txt"])
+            .current_dir(p)
+            .output()
+            .unwrap();
+        StdCommand::new("git")
+            .args(["commit", "-m", "main ahead"])
+            .current_dir(p)
+            .output()
+            .unwrap();
 
         // Back to feature, compute changes vs main using merge-base
-        StdCommand::new("git").args(["checkout","feature"]).current_dir(p).output().unwrap();
+        StdCommand::new("git")
+            .args(["checkout", "feature"])
+            .current_dir(p)
+            .output()
+            .unwrap();
         let files = get_changed_files(p, "main").unwrap();
         let paths: std::collections::HashSet<_> = files.iter().map(|f| f.path.as_str()).collect();
 
         assert!(paths.contains("feat.txt"));
-        assert!(!paths.contains("only_main.txt"), "should not include changes that exist only on parent branch");
+        assert!(
+            !paths.contains("only_main.txt"),
+            "should not include changes that exist only on parent branch"
+        );
     }
 }

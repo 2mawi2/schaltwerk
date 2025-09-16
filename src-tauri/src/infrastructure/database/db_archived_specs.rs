@@ -1,10 +1,10 @@
 use anyhow::Result;
-use chrono::{Utc, TimeZone};
+use chrono::{TimeZone, Utc};
 use rusqlite::params;
 use std::path::{Path, PathBuf};
 
-use crate::schaltwerk_core::database::Database;
 use crate::domains::sessions::entity::ArchivedSpec;
+use crate::schaltwerk_core::database::Database;
 
 pub trait ArchivedSpecMethods {
     fn insert_archived_spec(&self, spec: &ArchivedSpec) -> Result<()>;
@@ -38,7 +38,7 @@ impl ArchivedSpecMethods for Database {
             "SELECT id, session_name, repository_path, repository_name, content, archived_at \
              FROM archived_specs \
              WHERE repository_path = ?1 \
-             ORDER BY archived_at DESC"
+             ORDER BY archived_at DESC",
         )?;
         let rows = stmt.query_map(params![repo_path.to_string_lossy()], |row| {
             Ok(ArchivedSpec {
@@ -54,7 +54,9 @@ impl ArchivedSpecMethods for Database {
             })
         })?;
         let mut specs = Vec::new();
-        for s in rows { specs.push(s?); }
+        for s in rows {
+            specs.push(s?);
+        }
         Ok(specs)
     }
 

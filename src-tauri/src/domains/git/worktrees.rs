@@ -1,9 +1,11 @@
-use std::path::{Path, PathBuf};
-use anyhow::{Result, anyhow};
-use git2::{Repository, WorktreeAddOptions, BranchType, build::CheckoutBuilder, WorktreePruneOptions};
 use super::repository::get_commit_hash;
+use anyhow::{anyhow, Result};
 use git2::ResetType;
+use git2::{
+    build::CheckoutBuilder, BranchType, Repository, WorktreeAddOptions, WorktreePruneOptions,
+};
 use std::fs;
+use std::path::{Path, PathBuf};
 
 /// Discard changes for a single path inside a worktree.
 ///
@@ -84,10 +86,13 @@ pub fn discard_path_in_worktree(worktree_path: &Path, file_path: &Path) -> Resul
         let ts = chrono::Local::now().format("%Y%m%d_%H%M%S").to_string();
         let backup_root = abs_worktree.join(".schaltwerk").join("discarded").join(ts);
         let backup_path = backup_root.join(rel);
-        if let Some(parent) = backup_path.parent() { std::fs::create_dir_all(parent).ok(); }
+        if let Some(parent) = backup_path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
         // Best-effort move; if rename fails, try copy+remove
         if fs::rename(&abs_candidate, &backup_path).is_err()
-            && std::fs::copy(&abs_candidate, &backup_path).is_ok() {
+            && std::fs::copy(&abs_candidate, &backup_path).is_ok()
+        {
             let _ = fs::remove_file(&abs_candidate);
         }
     }
@@ -99,70 +104,82 @@ pub fn create_worktree_from_base(
     repo_path: &Path,
     branch_name: &str,
     worktree_path: &Path,
-    base_branch: &str
+    base_branch: &str,
 ) -> Result<()> {
-    let base_commit_hash = get_commit_hash(repo_path, base_branch)
-        .map_err(|e| anyhow!("Base branch '{}' does not exist in the repository: {}", base_branch, e))?;
-    
+    let base_commit_hash = get_commit_hash(repo_path, base_branch).map_err(|e| {
+        anyhow!(
+            "Base branch '{}' does not exist in the repository: {}",
+            base_branch,
+            e
+        )
+    })?;
+
     log::info!("Creating worktree from commit {base_commit_hash} ({base_branch})");
-    
+
     if let Some(parent) = worktree_path.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    
+
     let repo = Repository::open(repo_path)?;
-    
+
     // Check if branch already exists and delete it
     if let Ok(mut branch) = repo.find_branch(branch_name, BranchType::Local) {
         log::info!("Deleting existing branch: {branch_name}");
         branch.delete()?;
     }
-    
+
     // Parse the base commit
     let base_oid = git2::Oid::from_str(&base_commit_hash)?;
     let base_commit = repo.find_commit(base_oid)?;
-    
+
     // Create the new branch pointing to the base commit
     let new_branch = repo.branch(branch_name, &base_commit, false)?;
     let branch_ref = new_branch.into_reference();
-    
+
     // Create worktree options
     let mut opts = WorktreeAddOptions::new();
     opts.reference(Some(&branch_ref));
-    
+
     // Add the worktree
     let _worktree = repo.worktree(
-        worktree_path.file_name()
+        worktree_path
+            .file_name()
             .and_then(|n| n.to_str())
             .unwrap_or(branch_name),
         worktree_path,
-        Some(&opts)
+        Some(&opts),
     )?;
-    
-    log::info!("Successfully created worktree at: {}", worktree_path.display());
+
+    log::info!(
+        "Successfully created worktree at: {}",
+        worktree_path.display()
+    );
     Ok(())
 }
 
 pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
     let repo = Repository::open(repo_path)?;
-    
+
     // Find the worktree by path (handle path canonicalization for macOS)
-    let canonical_target_path = worktree_path.canonicalize().unwrap_or_else(|_| worktree_path.to_path_buf());
-    
+    let canonical_target_path = worktree_path
+        .canonicalize()
+        .unwrap_or_else(|_| worktree_path.to_path_buf());
+
     let worktrees = repo.worktrees()?;
     for wt_name in worktrees.iter().flatten() {
         if let Ok(wt) = repo.find_worktree(wt_name) {
             let wt_path = wt.path();
-            let canonical_wt_path = wt_path.canonicalize().unwrap_or_else(|_| wt_path.to_path_buf());
+            let canonical_wt_path = wt_path
+                .canonicalize()
+                .unwrap_or_else(|_| wt_path.to_path_buf());
             if canonical_wt_path == canonical_target_path || wt_path == worktree_path {
-                
                 // First remove the directory (this makes the worktree invalid)
                 if worktree_path.exists() {
                     if let Err(e) = std::fs::remove_dir_all(worktree_path) {
                         return Err(anyhow!("Failed to remove worktree directory: {}", e));
                     }
                 }
-                
+
                 // Now prune the worktree (should work since directory is gone)
                 if let Err(e) = wt.prune(Some(&mut WorktreePruneOptions::new())) {
                     log::warn!("Failed to prune worktree from git registry: {e}");
@@ -171,7 +188,7 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
             }
         }
     }
-    
+
     // If not found as a worktree, return an error unless directory exists
     if worktree_path.exists() {
         std::fs::remove_dir_all(worktree_path)?;
@@ -184,12 +201,12 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
 pub fn list_worktrees(repo_path: &Path) -> Result<Vec<PathBuf>> {
     let repo = Repository::open(repo_path)?;
     let mut worktree_paths = Vec::new();
-    
+
     // Add main working directory
     if let Some(workdir) = repo.workdir() {
         worktree_paths.push(workdir.to_path_buf());
     }
-    
+
     // Add all worktrees
     let worktrees = repo.worktrees()?;
     for wt_name in worktrees.iter().flatten() {
@@ -197,14 +214,14 @@ pub fn list_worktrees(repo_path: &Path) -> Result<Vec<PathBuf>> {
             worktree_paths.push(wt.path().to_path_buf());
         }
     }
-    
+
     Ok(worktree_paths)
 }
 
 pub fn prune_worktrees(repo_path: &Path) -> Result<()> {
     let repo = Repository::open(repo_path)?;
     let worktrees = repo.worktrees()?;
-    
+
     for wt_name in worktrees.iter().flatten() {
         if let Ok(wt) = repo.find_worktree(wt_name) {
             // Try to prune invalid worktrees
@@ -213,7 +230,7 @@ pub fn prune_worktrees(repo_path: &Path) -> Result<()> {
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -221,36 +238,40 @@ pub fn prune_worktrees(repo_path: &Path) -> Result<()> {
 pub fn is_worktree_registered(repo_path: &Path, worktree_path: &Path) -> Result<bool> {
     let repo = Repository::open(repo_path)?;
     let worktrees = repo.worktrees()?;
-    
+
     // Canonicalize the target path for comparison
-    let canonical_worktree_path = worktree_path.canonicalize().unwrap_or_else(|_| worktree_path.to_path_buf());
-    
+    let canonical_worktree_path = worktree_path
+        .canonicalize()
+        .unwrap_or_else(|_| worktree_path.to_path_buf());
+
     for wt_name in worktrees.iter().flatten() {
         if let Ok(wt) = repo.find_worktree(wt_name) {
             let wt_path = wt.path();
-            let canonical_wt_path = wt_path.canonicalize().unwrap_or_else(|_| wt_path.to_path_buf());
-            
+            let canonical_wt_path = wt_path
+                .canonicalize()
+                .unwrap_or_else(|_| wt_path.to_path_buf());
+
             if canonical_wt_path == canonical_worktree_path {
                 return Ok(true);
             }
         }
     }
-    
+
     Ok(false)
 }
 
 pub fn update_worktree_branch(worktree_path: &Path, new_branch: &str) -> Result<()> {
     let session_id = extract_session_name_from_path(worktree_path)?;
     let stash_message = format!("Auto-stash before branch rename [session:{session_id}]");
-    
+
     let mut repo = Repository::open(worktree_path)?;
-    
+
     // Check for uncommitted changes
     let has_changes = {
         let statuses = repo.statuses(None)?;
         !statuses.is_empty()
     };
-    
+
     let mut stash_oid = None;
     if has_changes {
         // Create a stash
@@ -265,31 +286,42 @@ pub fn update_worktree_branch(worktree_path: &Path, new_branch: &str) -> Result<
             }
         }
     }
-    
+
     // Find the new branch
-    let branch = repo.find_branch(new_branch, BranchType::Local)
-        .map_err(|e| anyhow!("Failed to update worktree: branch {} not found: {}", new_branch, e))?;
-    
+    let branch = repo
+        .find_branch(new_branch, BranchType::Local)
+        .map_err(|e| {
+            anyhow!(
+                "Failed to update worktree: branch {} not found: {}",
+                new_branch,
+                e
+            )
+        })?;
+
     // Get the reference to the branch
     let branch_ref = branch.into_reference();
-    let target = branch_ref.target()
+    let target = branch_ref
+        .target()
         .ok_or_else(|| anyhow!("Branch reference has no target"))?;
-    
+
     // Checkout the new branch
     let obj = repo.find_object(target, None)?;
     repo.checkout_tree(&obj, Some(CheckoutBuilder::new().force()))?;
-    
+
     // Update HEAD to point to the new branch
-    repo.set_head(branch_ref.name()
-        .ok_or_else(|| anyhow!("Branch reference has no name"))?)?;
-    
+    repo.set_head(
+        branch_ref
+            .name()
+            .ok_or_else(|| anyhow!("Branch reference has no name"))?,
+    )?;
+
     // Try to restore session-specific stash
     if stash_oid.is_some() {
         // Need to reopen repo to avoid borrow issues
         let stash_repo = Repository::open(worktree_path)?;
         restore_session_specific_stash_libgit2(stash_repo, &session_id)?;
     }
-    
+
     Ok(())
 }
 
@@ -303,7 +335,7 @@ fn extract_session_name_from_path(worktree_path: &Path) -> Result<String> {
 
 fn restore_session_specific_stash_libgit2(mut repo: Repository, session_id: &str) -> Result<()> {
     let target_pattern = format!("[session:{session_id}]");
-    
+
     // Iterate through stashes
     let mut found_index = None;
     repo.stash_foreach(|index, message, _oid| {
@@ -314,7 +346,7 @@ fn restore_session_specific_stash_libgit2(mut repo: Repository, session_id: &str
             true // Continue iterating
         }
     })?;
-    
+
     if let Some(index) = found_index {
         // Apply the stash
         match repo.stash_apply(index, None) {
@@ -328,7 +360,7 @@ fn restore_session_specific_stash_libgit2(mut repo: Repository, session_id: &str
             }
         }
     }
-    
+
     Ok(())
 }
 
@@ -362,10 +394,12 @@ pub fn reset_worktree_to_base(worktree_path: &Path, base_branch: &str) -> Result
         }
     }
 
-    let target_obj = target_obj.ok_or_else(|| anyhow!(
-        "Base reference not found: {} (tried local and origin)",
-        base_branch
-    ))?;
+    let target_obj = target_obj.ok_or_else(|| {
+        anyhow!(
+            "Base reference not found: {} (tried local and origin)",
+            base_branch
+        )
+    })?;
 
     // Hard reset the index and working tree to the base
     repo.reset(&target_obj, ResetType::Hard, None)?;
@@ -416,8 +450,8 @@ mod unit_logic_tests {
 #[cfg(test)]
 mod discard_path_tests {
     use super::*;
-    use tempfile::TempDir;
     use git2::Repository;
+    use tempfile::TempDir;
 
     fn init_repo(dir: &Path) -> Repository {
         let repo = Repository::init(dir).unwrap();
@@ -433,7 +467,8 @@ mod discard_path_tests {
             let tree_id = index.write_tree().unwrap();
             let tree = repo.find_tree(tree_id).unwrap();
             let sig = repo.signature().unwrap();
-            repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[]).unwrap();
+            repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[])
+                .unwrap();
         }
         repo
     }
@@ -451,7 +486,8 @@ mod discard_path_tests {
         let tree = repo.find_tree(tree_id).unwrap();
         let sig = repo.signature().unwrap();
         let head = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.commit(Some("HEAD"), &sig, &sig, "add a", &tree, &[&head]).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "add a", &tree, &[&head])
+            .unwrap();
 
         // modify to v2 (unstaged)
         std::fs::write(tmp.path().join("a.txt"), "v2").unwrap();
@@ -476,7 +512,10 @@ mod discard_path_tests {
             for entry in std::fs::read_dir(disc_dir).unwrap() {
                 let sub = entry.unwrap().path();
                 let candidate = sub.join("new.txt");
-                if candidate.exists() { found = true; break; }
+                if candidate.exists() {
+                    found = true;
+                    break;
+                }
             }
         }
         assert!(found, "backup copy not found under .schaltwerk/discarded");
@@ -494,7 +533,8 @@ mod discard_path_tests {
         let tree = repo.find_tree(tree_id).unwrap();
         let sig = repo.signature().unwrap();
         let head = repo.head().unwrap().peel_to_commit().unwrap();
-        repo.commit(Some("HEAD"), &sig, &sig, "add b", &tree, &[&head]).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "add b", &tree, &[&head])
+            .unwrap();
         // delete from workdir
         std::fs::remove_file(tmp.path().join("b.txt")).unwrap();
         discard_path_in_worktree(tmp.path(), Path::new("b.txt")).unwrap();
@@ -511,8 +551,7 @@ fn validate_branch_name(name: &str) -> Result<()> {
         return Err(anyhow!("Invalid branch name"));
     }
     // Basic character whitelist (matches common git rules without being overly strict)
-    let allowed = |c: char| c.is_ascii_alphanumeric() || 
-        matches!(c, '/' | '-' | '_' | '.');
+    let allowed = |c: char| c.is_ascii_alphanumeric() || matches!(c, '/' | '-' | '_' | '.');
     if !name.chars().all(allowed) {
         return Err(anyhow!("Branch name contains invalid characters"));
     }

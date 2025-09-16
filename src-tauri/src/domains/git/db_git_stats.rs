@@ -1,8 +1,8 @@
-use rusqlite::params;
-use anyhow::Result;
-use chrono::{Utc, TimeZone};
-use crate::schaltwerk_core::database::Database;
 use crate::domains::sessions::entity::GitStats;
+use crate::schaltwerk_core::database::Database;
+use anyhow::Result;
+use chrono::{TimeZone, Utc};
+use rusqlite::params;
 
 pub trait GitStatsMethods {
     fn save_git_stats(&self, stats: &GitStats) -> Result<()>;
@@ -13,7 +13,7 @@ pub trait GitStatsMethods {
 impl GitStatsMethods for Database {
     fn save_git_stats(&self, stats: &GitStats) -> Result<()> {
         let conn = self.conn.lock().unwrap();
-        
+
         conn.execute(
             "INSERT OR REPLACE INTO git_stats
              (session_id, files_changed, lines_added, lines_removed, has_uncommitted, calculated_at)
@@ -27,10 +27,10 @@ impl GitStatsMethods for Database {
                 stats.calculated_at.timestamp(),
             ],
         )?;
-        
+
         Ok(())
     }
-    
+
     fn get_git_stats(&self, session_id: &str) -> Result<Option<GitStats>> {
         let conn = self.conn.lock().unwrap();
         let mut stmt = conn.prepare(
@@ -54,16 +54,15 @@ impl GitStatsMethods for Database {
         }
     }
 
-    
     fn should_update_stats(&self, session_id: &str) -> Result<bool> {
         let conn = self.conn.lock().unwrap();
-        
+
         let result: rusqlite::Result<i64> = conn.query_row(
             "SELECT calculated_at FROM git_stats WHERE session_id = ?1",
             params![session_id],
             |row| row.get(0),
         );
-        
+
         match result {
             Ok(last_calculated) => {
                 let now = Utc::now().timestamp();

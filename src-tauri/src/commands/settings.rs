@@ -1,13 +1,13 @@
 use std::collections::HashMap;
 
-use crate::{
-    SETTINGS_MANAGER,
-    get_schaltwerk_core,
-    PROJECT_MANAGER,
+use crate::{get_schaltwerk_core, PROJECT_MANAGER, SETTINGS_MANAGER};
+use schaltwerk::domains::settings::{
+    DiffViewPreferences, SessionPreferences, TerminalSettings, TerminalUIPreferences,
 };
-use schaltwerk::domains::settings::{TerminalUIPreferences, TerminalSettings, DiffViewPreferences, SessionPreferences};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
-use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, HeaderActionConfig, RunScript};
+use schaltwerk::schaltwerk_core::db_project_config::{
+    HeaderActionConfig, ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, RunScript,
+};
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -21,10 +21,14 @@ fn normalize_and_sort_fonts(mut entries: Vec<InstalledFont>) -> Vec<InstalledFon
     let mut map: BTreeMap<String, (String, bool)> = BTreeMap::new();
     for e in entries.drain(..) {
         let family = e.family.trim().to_string();
-        if family.is_empty() { continue; }
+        if family.is_empty() {
+            continue;
+        }
         let key = family.to_lowercase();
         let mono = e.monospace;
-        map.entry(key).and_modify(|(_, m)| *m = *m || mono).or_insert((family, mono));
+        map.entry(key)
+            .and_modify(|(_, m)| *m = *m || mono)
+            .or_insert((family, mono));
     }
     let mut list: Vec<InstalledFont> = map
         .into_iter()
@@ -34,7 +38,9 @@ fn normalize_and_sort_fonts(mut entries: Vec<InstalledFont>) -> Vec<InstalledFon
         let ord = b.monospace.cmp(&a.monospace);
         if ord == std::cmp::Ordering::Equal {
             a.family.to_lowercase().cmp(&b.family.to_lowercase())
-        } else { ord }
+        } else {
+            ord
+        }
     });
     list
 }
@@ -54,7 +60,10 @@ pub async fn list_installed_fonts() -> Result<Vec<InstalledFont>, String> {
                 || name.to_lowercase().contains("code")
                 || name.to_lowercase().contains("console")
                 || name.to_lowercase().contains("monospace");
-            entries.push(InstalledFont { family: name, monospace: inferred });
+            entries.push(InstalledFont {
+                family: name,
+                monospace: inferred,
+            });
         }
     }
     Ok(normalize_and_sort_fonts(entries))
@@ -96,14 +105,12 @@ pub async fn get_agent_cli_args(agent_type: String) -> Result<String, String> {
 #[tauri::command]
 pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<(), String> {
     log::info!("Setting CLI args for agent '{agent_type}': '{cli_args}'");
-    
-    let settings_manager = SETTINGS_MANAGER
-        .get()
-        .ok_or_else(|| {
-            let error = "Settings manager not initialized".to_string();
-            log::error!("Failed to set CLI args: {error}");
-            error
-        })?;
+
+    let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
+        let error = "Settings manager not initialized".to_string();
+        log::error!("Failed to set CLI args: {error}");
+        error
+    })?;
 
     let mut manager = settings_manager.lock().await;
     match manager.set_agent_cli_args(&agent_type, cli_args.clone()) {
@@ -152,7 +159,8 @@ pub async fn set_terminal_divider_position(position: f64) -> Result<(), String> 
 pub async fn get_project_default_base_branch() -> Result<Option<String>, String> {
     let schaltwerk_core = get_schaltwerk_core().await?;
     let core = schaltwerk_core.lock().await;
-    core.db.get_default_base_branch()
+    core.db
+        .get_default_base_branch()
         .map_err(|e| format!("Failed to get default base branch: {e}"))
 }
 
@@ -160,7 +168,8 @@ pub async fn get_project_default_base_branch() -> Result<Option<String>, String>
 pub async fn set_project_default_base_branch(branch: Option<String>) -> Result<(), String> {
     let schaltwerk_core = get_schaltwerk_core().await?;
     let core = schaltwerk_core.lock().await;
-    core.db.set_default_base_branch(branch.as_deref())
+    core.db
+        .set_default_base_branch(branch.as_deref())
         .map_err(|e| format!("Failed to set default base branch: {e}"))
 }
 
@@ -238,7 +247,7 @@ pub async fn set_project_selection(kind: String, payload: Option<String>) -> Res
 
     let selection = ProjectSelection { kind, payload };
     db.set_project_selection(&project.path, &selection)
-        .map_err(|e | format!("Failed to set project selection: {e}"))
+        .map_err(|e| format!("Failed to set project selection: {e}"))
 }
 
 #[tauri::command]
@@ -258,7 +267,9 @@ pub async fn get_project_sessions_settings() -> Result<ProjectSessionsSettings, 
 }
 
 #[tauri::command]
-pub async fn set_project_sessions_settings(settings: ProjectSessionsSettings) -> Result<(), String> {
+pub async fn set_project_sessions_settings(
+    settings: ProjectSessionsSettings,
+) -> Result<(), String> {
     let project = PROJECT_MANAGER
         .get()
         .ok_or_else(|| "Project manager not initialized".to_string())?
@@ -267,7 +278,7 @@ pub async fn set_project_sessions_settings(settings: ProjectSessionsSettings) ->
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
     let core = project.schaltwerk_core.lock().await;
-    let db   = core.database();
+    let db = core.database();
 
     db.set_project_sessions_settings(&project.path, &settings)
         .map_err(|e| format!("Failed to set project sessions settings: {e}"))
@@ -283,7 +294,7 @@ pub async fn get_project_environment_variables() -> Result<HashMap<String, Strin
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
     let core = project.schaltwerk_core.lock().await;
-    let db   = core.database();
+    let db = core.database();
 
     db.get_project_environment_variables(&project.path)
         .map_err(|e| format!("Failed to get project environment variables: {e}"))
@@ -301,7 +312,7 @@ pub async fn set_project_environment_variables(
         .map_err(|e| format!("Failed to get current project: {e}"))?;
 
     let core = project.schaltwerk_core.lock().await;
-    let db   = core.database();
+    let db = core.database();
 
     db.set_project_environment_variables(&project.path, &env_vars)
         .map_err(|e| format!("Failed to set project environment variables: {e}"))
@@ -312,7 +323,7 @@ pub async fn get_terminal_settings() -> Result<TerminalSettings, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_terminal_settings())
 }
@@ -322,17 +333,16 @@ pub async fn set_terminal_settings(terminal: TerminalSettings) -> Result<(), Str
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     // Persist first
-    manager.set_terminal_settings(terminal.clone())
-        .map(|_| {
-            // Propagate new shell to terminal domain for immediate effect
-            let shell = terminal.shell.unwrap_or_else(|| {
-                std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
-            });
-            schaltwerk::domains::terminal::put_terminal_shell_override(shell, terminal.shell_args);
-        })
+    manager.set_terminal_settings(terminal.clone()).map(|_| {
+        // Propagate new shell to terminal domain for immediate effect
+        let shell = terminal
+            .shell
+            .unwrap_or_else(|| std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string()));
+        schaltwerk::domains::terminal::put_terminal_shell_override(shell, terminal.shell_args);
+    })
 }
 
 #[tauri::command]
@@ -340,7 +350,7 @@ pub async fn get_diff_view_preferences() -> Result<DiffViewPreferences, String> 
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_diff_view_preferences())
 }
@@ -350,7 +360,7 @@ pub async fn set_diff_view_preferences(preferences: DiffViewPreferences) -> Resu
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_diff_view_preferences(preferences)
 }
@@ -360,7 +370,7 @@ pub async fn get_session_preferences() -> Result<SessionPreferences, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_session_preferences())
 }
@@ -370,7 +380,7 @@ pub async fn set_session_preferences(preferences: SessionPreferences) -> Result<
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_session_preferences(preferences)
 }
@@ -380,7 +390,7 @@ pub async fn get_auto_commit_on_review() -> Result<bool, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let manager = settings_manager.lock().await;
     Ok(manager.get_auto_commit_on_review())
 }
@@ -390,7 +400,7 @@ pub async fn set_auto_commit_on_review(auto_commit: bool) -> Result<(), String> 
     let settings_manager = SETTINGS_MANAGER
         .get()
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
-    
+
     let mut manager = settings_manager.lock().await;
     manager.set_auto_commit_on_review(auto_commit)
 }
@@ -407,7 +417,8 @@ pub async fn get_project_action_buttons() -> Result<Vec<HeaderActionConfig>, Str
     let core = project.schaltwerk_core.lock().await;
     let db = core.database();
 
-    let res = db.get_project_action_buttons(&project.path)
+    let res = db
+        .get_project_action_buttons(&project.path)
         .map_err(|e| format!("Failed to get project action buttons: {e}"));
     if let Ok(ref actions) = res {
         log::info!(
@@ -426,7 +437,7 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
     if actions.len() > 6 {
         return Err("Maximum of 6 action buttons allowed".to_string());
     }
-    
+
     let project = PROJECT_MANAGER
         .get()
         .ok_or_else(|| "Project manager not initialized".to_string())?
@@ -452,7 +463,8 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
 pub async fn get_tutorial_completed() -> Result<bool, String> {
     let schaltwerk_core = get_schaltwerk_core().await?;
     let core = schaltwerk_core.lock().await;
-    core.db.get_tutorial_completed()
+    core.db
+        .get_tutorial_completed()
         .map_err(|e| format!("Failed to get tutorial completion status: {e}"))
 }
 
@@ -460,7 +472,8 @@ pub async fn get_tutorial_completed() -> Result<bool, String> {
 pub async fn set_tutorial_completed(completed: bool) -> Result<(), String> {
     let schaltwerk_core = get_schaltwerk_core().await?;
     let core = schaltwerk_core.lock().await;
-    core.db.set_tutorial_completed(completed)
+    core.db
+        .set_tutorial_completed(completed)
         .map_err(|e| format!("Failed to set tutorial completion status: {e}"))
 }
 
@@ -508,8 +521,14 @@ mod tests {
         };
 
         let json = serde_json::to_string(&settings).unwrap();
-        assert!(json.contains("setupScript"), "Should use camelCase field name");
-        assert!(!json.contains("setup_script"), "Should not use snake_case field name");
+        assert!(
+            json.contains("setupScript"),
+            "Should use camelCase field name"
+        );
+        assert!(
+            !json.contains("setup_script"),
+            "Should not use snake_case field name"
+        );
 
         let json_input = r#"{"setupScript":"echo hello"}"#;
         let deserialized: ProjectSettings = serde_json::from_str(json_input).unwrap();
@@ -562,7 +581,9 @@ mod tests {
     async fn test_settings_manager_not_initialized() {
         let result = get_agent_env_vars("claude".to_string()).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
@@ -571,9 +592,9 @@ mod tests {
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
         assert!(
-            error_msg.contains("Project manager not initialized") || 
-            error_msg.contains("Failed to get current project"),
-            "Unexpected error message: {}", 
+            error_msg.contains("Project manager not initialized")
+                || error_msg.contains("Failed to get current project"),
+            "Unexpected error message: {}",
             error_msg
         );
     }
@@ -627,7 +648,9 @@ mod tests {
 
         let result = set_project_action_buttons(actions).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Maximum of 6 action buttons allowed"));
+        assert!(result
+            .unwrap_err()
+            .contains("Maximum of 6 action buttons allowed"));
     }
 
     #[tokio::test]
@@ -651,7 +674,10 @@ mod tests {
         let result = set_project_action_buttons(actions).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -708,14 +734,19 @@ mod tests {
         let result = set_project_action_buttons(actions).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_get_agent_env_vars_uninitialized_manager() {
         let result = get_agent_env_vars("claude".to_string()).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
@@ -723,49 +754,63 @@ mod tests {
         let env_vars = HashMap::new();
         let result = set_agent_env_vars("claude".to_string(), env_vars).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_get_agent_cli_args_uninitialized_manager() {
         let result = get_agent_cli_args("claude".to_string()).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_set_agent_cli_args_uninitialized_manager() {
         let result = set_agent_cli_args("claude".to_string(), "--test".to_string()).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_get_terminal_ui_preferences_uninitialized_manager() {
         let result = get_terminal_ui_preferences().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_set_terminal_collapsed_uninitialized_manager() {
         let result = set_terminal_collapsed(true).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_set_terminal_divider_position_uninitialized_manager() {
         let result = set_terminal_divider_position(0.5).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_get_terminal_settings_uninitialized_manager() {
         let result = get_terminal_settings().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
@@ -773,14 +818,18 @@ mod tests {
         let settings = crate::settings::TerminalSettings::default();
         let result = set_terminal_settings(settings).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
     async fn test_get_diff_view_preferences_uninitialized_manager() {
         let result = get_diff_view_preferences().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
@@ -788,7 +837,9 @@ mod tests {
         let preferences = crate::settings::DiffViewPreferences::default();
         let result = set_diff_view_preferences(preferences).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Settings manager not initialized"));
+        assert!(result
+            .unwrap_err()
+            .contains("Settings manager not initialized"));
     }
 
     #[tokio::test]
@@ -810,8 +861,14 @@ mod tests {
         let result = get_project_settings().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        println!("Actual error message for get_project_settings: {}", error_msg);
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        println!(
+            "Actual error message for get_project_settings: {}",
+            error_msg
+        );
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -822,7 +879,10 @@ mod tests {
         let result = set_project_settings(settings).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -830,7 +890,10 @@ mod tests {
         let result = get_project_selection().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -838,8 +901,14 @@ mod tests {
         let result = get_project_environment_variables().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        println!("Actual error message for get_project_environment_variables: {}", error_msg);
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        println!(
+            "Actual error message for get_project_environment_variables: {}",
+            error_msg
+        );
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -847,7 +916,10 @@ mod tests {
         let result = get_project_sessions_settings().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -859,10 +931,11 @@ mod tests {
         let result = set_project_sessions_settings(settings).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
-
-
 
     #[tokio::test]
     async fn test_set_project_environment_variables_uninitialized_manager() {
@@ -870,7 +943,10 @@ mod tests {
         let result = set_project_environment_variables(env_vars).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -878,7 +954,10 @@ mod tests {
         let result = get_project_action_buttons().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -892,7 +971,10 @@ mod tests {
         let result = set_project_action_buttons(actions).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
-        assert!(error_msg.contains("Failed to get current project") || error_msg.contains("Project manager not initialized"));
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
     }
 
     #[tokio::test]
@@ -952,7 +1034,8 @@ mod tests {
     #[test]
     fn test_project_settings_json_roundtrip() {
         let original = ProjectSettings {
-            setup_script: "#!/bin/bash\necho 'test script'\nexport PATH=/usr/local/bin:$PATH".to_string(),
+            setup_script: "#!/bin/bash\necho 'test script'\nexport PATH=/usr/local/bin:$PATH"
+                .to_string(),
         };
 
         let json = serde_json::to_string(&original).unwrap();
@@ -966,7 +1049,9 @@ mod tests {
         let original = HeaderActionConfig {
             id: "complex-action".to_string(),
             label: "Complex Action".to_string(),
-            prompt: "This is a complex action with multiple lines\nand special characters: @#$%^&*()".to_string(),
+            prompt:
+                "This is a complex action with multiple lines\nand special characters: @#$%^&*()"
+                    .to_string(),
             color: Some("#123456".to_string()),
         };
 
@@ -1082,12 +1167,30 @@ mod tests {
     #[test]
     fn test_normalize_and_sort_fonts() {
         let input = vec![
-            InstalledFont { family: "Fira Code".into(), monospace: true },
-            InstalledFont { family: "Fira Code".into(), monospace: false },
-            InstalledFont { family: "Arial".into(), monospace: false },
-            InstalledFont { family: "  ".into(), monospace: true },
-            InstalledFont { family: "JetBrains Mono".into(), monospace: true },
-            InstalledFont { family: "arial".into(), monospace: false },
+            InstalledFont {
+                family: "Fira Code".into(),
+                monospace: true,
+            },
+            InstalledFont {
+                family: "Fira Code".into(),
+                monospace: false,
+            },
+            InstalledFont {
+                family: "Arial".into(),
+                monospace: false,
+            },
+            InstalledFont {
+                family: "  ".into(),
+                monospace: true,
+            },
+            InstalledFont {
+                family: "JetBrains Mono".into(),
+                monospace: true,
+            },
+            InstalledFont {
+                family: "arial".into(),
+                monospace: false,
+            },
         ];
         let out = normalize_and_sort_fonts(input);
         assert!(out.len() >= 3);
@@ -1095,6 +1198,8 @@ mod tests {
         assert!(out.iter().any(|f| f.family == "Fira Code" && f.monospace));
         assert!(out.iter().any(|f| f.family == "Arial"));
         let mut seen = std::collections::HashSet::new();
-        for f in &out { assert!(seen.insert(f.family.to_lowercase())); }
+        for f in &out {
+            assert!(seen.insert(f.family.to_lowercase()));
+        }
     }
 }

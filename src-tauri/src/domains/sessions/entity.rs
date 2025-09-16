@@ -1,7 +1,7 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::str::FromStr;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum SortMode {
@@ -12,7 +12,7 @@ pub enum SortMode {
 
 impl FromStr for SortMode {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "name" => Ok(SortMode::Name),
@@ -33,7 +33,7 @@ pub enum FilterMode {
 
 impl FromStr for FilterMode {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "all" => Ok(FilterMode::All),
@@ -115,7 +115,7 @@ impl SessionStatus {
 
 impl FromStr for SessionStatus {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "active" => Ok(SessionStatus::Active),
@@ -130,7 +130,7 @@ impl SessionState {
     pub fn as_str(&self) -> &str {
         match self {
             SessionState::Spec => "spec",
-            SessionState::Running => "running", 
+            SessionState::Running => "running",
             SessionState::Reviewed => "reviewed",
         }
     }
@@ -138,7 +138,7 @@ impl SessionState {
 
 impl FromStr for SessionState {
     type Err = String;
-    
+
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "spec" => Ok(SessionState::Spec),
@@ -172,7 +172,6 @@ pub struct CreateSessionParams {
 pub struct CancelSessionParams {
     pub name: String,
 }
-
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GetSessionStatusParams {

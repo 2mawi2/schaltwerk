@@ -5,9 +5,9 @@
 pub fn disable_smart_substitutions() {
     use core_foundation::base::TCFType;
     use core_foundation::boolean::CFBoolean;
+    use core_foundation::bundle::{CFBundleGetIdentifier, CFBundleGetMainBundle};
     use core_foundation::string::CFString;
-    use core_foundation::bundle::{CFBundleGetMainBundle, CFBundleGetIdentifier};
-    use core_foundation_sys::preferences::{CFPreferencesSetAppValue, CFPreferencesAppSynchronize};
+    use core_foundation_sys::preferences::{CFPreferencesAppSynchronize, CFPreferencesSetAppValue};
 
     // Get the bundle identifier at runtime (e.g., "com.schaltwerk.app")
     let bundle_id_cf = unsafe {
@@ -15,7 +15,9 @@ pub fn disable_smart_substitutions() {
         let ident = CFBundleGetIdentifier(bundle);
         // If missing (shouldn't be in a proper app), bail out quietly
         if ident.is_null() {
-            log::warn!("[macOS] Could not get bundle identifier for smart substitution preferences");
+            log::warn!(
+                "[macOS] Could not get bundle identifier for smart substitution preferences"
+            );
             return;
         }
         // Wrap in safe CFString
