@@ -124,7 +124,7 @@ export function TopBar({
         
         {/* Open in IDE button - only show when a tab is active */}
         {activeTabPath && (
-          <div className="mr-2">
+          <div className="mr-2" data-testid="topbar-open-button">
             <OpenInSplitButton 
               resolvePath={resolveOpenPath ?? (async () => activeTabPath)}
             />

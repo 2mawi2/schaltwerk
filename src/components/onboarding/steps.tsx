@@ -57,6 +57,25 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         )
     },
     {
+        title: "Open Your Worktree",
+        content: (
+            <div>
+                <p className="mb-4">
+                    When you're ready to work in your editor or terminal, use the <strong>Open</strong> button in the top bar.
+                </p>
+                <ol className="list-decimal list-inside space-y-2 mb-4 text-body text-slate-300">
+                    <li>Select the session whose files you want to edit — specs, running agents, or the orchestrator.</li>
+                    <li>Click <strong>Open</strong> to launch that session's worktree or the global project in your default tool.</li>
+                </ol>
+                <p className="text-body text-slate-400">
+                    Need a different app? Use the arrow beside <strong>Open</strong> to choose Finder, Cursor, VS Code, or another configured tool.
+                </p>
+            </div>
+        ),
+        highlight: '[data-testid="topbar-open-button"]',
+        action: 'highlight'
+    },
+    {
         title: "Creating Sessions",
         content: (
             <div>
