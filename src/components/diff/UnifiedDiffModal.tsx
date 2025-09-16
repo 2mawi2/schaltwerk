@@ -12,7 +12,7 @@ import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
 import { DiffViewer } from './DiffViewer'
 import { 
-  VscClose, VscSend, VscListFlat, VscListSelection, VscDiscard
+  VscClose, VscSend, VscListFlat, VscListSelection, VscDiscard, VscCheck
 } from 'react-icons/vsc'
 import hljs from 'highlight.js'
 import { SearchBox } from '../common/SearchBox'
@@ -21,6 +21,9 @@ import { logger } from '../../utils/logger'
 // AnimatedText imported elsewhere in this file; remove unused import here
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
+import { useSessions } from '../../contexts/SessionsContext'
+import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
+import { mapSessionUiState } from '../../utils/sessionFilters'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -38,6 +41,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const terminalTop = terminals.top
   const { currentReview, startReview, addComment, getCommentsForFile, clearReview, removeComment } = useReview()
   const { setFocusForSession, setCurrentFocus } = useFocus()
+  const { sessions, reloadSessions } = useSessions()
   const lineSelection = useLineSelection()
   const lineSelectionRef = useRef(lineSelection)
   lineSelectionRef.current = lineSelection
@@ -75,6 +79,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [confirmResetOpen, setConfirmResetOpen] = useState(false)
   const [isDiscarding, setIsDiscarding] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
+  const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
+  const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
+    open: false,
+    sessionName: '',
+    hasUncommitted: false
+  })
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
@@ -106,9 +116,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   //   return total
   // }, [files, allFileDiffs, viewMode])
 
-  
-   const isCommanderView = useCallback(() => selection.kind === 'orchestrator', [selection.kind])
+  const isCommanderView = useCallback(() => selection.kind === 'orchestrator', [selection.kind])
   const sessionName: string | null = selection.kind === 'session' ? (selection.payload as string) : null
+  const targetSession = useMemo(() => {
+    if (selection.kind !== 'session' || !sessionName) return null
+    return sessions.find(s => s.info.session_id === sessionName) ?? null
+  }, [selection.kind, sessionName, sessions])
+  const canMarkReviewed = useMemo(() => {
+    if (!targetSession) return false
+    return mapSessionUiState(targetSession.info) === 'running'
+  }, [targetSession])
   
   // Helper to check if a line has comments
   const getCommentForLine = useCallback((lineNum: number | undefined, side: 'old' | 'new') => {
@@ -253,6 +270,50 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       setConfirmResetOpen(false)
     }
   }, [sessionName, loadChangedFiles, onClose])
+
+  const openMarkReadyModal = useCallback(() => {
+    if (!sessionName || !targetSession) return
+    setMarkReadyModal({
+      open: true,
+      sessionName,
+      hasUncommitted: targetSession.info.has_uncommitted_changes ?? false
+    })
+  }, [sessionName, targetSession])
+
+  const handleMarkReviewedClick = useCallback(async () => {
+    if (!targetSession || !sessionName || isMarkingReviewed) return
+
+    setIsMarkingReviewed(true)
+    try {
+      const autoCommit = await invoke<boolean>(TauriCommands.GetAutoCommitOnReview)
+      if (autoCommit) {
+        try {
+          const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
+            name: sessionName,
+            autoCommit: true
+          })
+
+          if (success) {
+            await reloadSessions()
+            onClose()
+          } else {
+            alert('Failed to mark session as reviewed automatically.')
+          }
+        } catch (error) {
+          logger.error('[UnifiedDiffModal] Failed to auto-mark session as reviewed:', error)
+          alert(`Failed to mark session as reviewed: ${error}`)
+        }
+        return
+      }
+
+      openMarkReadyModal()
+    } catch (error) {
+      logger.error('[UnifiedDiffModal] Failed to load auto-commit setting for mark reviewed:', error)
+      openMarkReadyModal()
+    } finally {
+      setIsMarkingReviewed(false)
+    }
+  }, [targetSession, sessionName, isMarkingReviewed, reloadSessions, onClose, openMarkReadyModal])
 
   const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
@@ -994,15 +1055,28 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
             </div>
             <div className="flex items-center gap-2">
               {selection.kind === 'session' && (
-                <button
-                  onClick={() => setConfirmResetOpen(true)}
-                  className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
-                  title="Discard all changes and reset this session"
-                  disabled={isResetting}
-                >
-                  <VscDiscard className="text-lg" />
-                  Reset Session
-                </button>
+                <>
+                  <button
+                    onClick={() => setConfirmResetOpen(true)}
+                    className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
+                    title="Discard all changes and reset this session"
+                    disabled={isResetting}
+                  >
+                    <VscDiscard className="text-lg" />
+                    Reset Session
+                  </button>
+                  {canMarkReviewed && (
+                    <button
+                      onClick={handleMarkReviewedClick}
+                      className="px-2 py-1 bg-green-600/80 hover:bg-green-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                      title="Mark this session as reviewed"
+                      disabled={isMarkingReviewed}
+                    >
+                      <VscCheck className="text-lg" />
+                      Mark as Reviewed
+                    </button>
+                  )}
+                </>
               )}
               <button
                 onClick={toggleContinuousScroll}
@@ -1104,6 +1178,16 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 }}
               />
 
+              <MarkReadyConfirmation
+                open={markReadyModal.open}
+                sessionName={markReadyModal.sessionName}
+                hasUncommittedChanges={markReadyModal.hasUncommitted}
+                onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
+                onSuccess={async () => {
+                  await reloadSessions()
+                  onClose()
+                }}
+              />
               <ConfirmResetDialog
                 open={confirmResetOpen && selection.kind === 'session'}
                 onCancel={() => setConfirmResetOpen(false)}
