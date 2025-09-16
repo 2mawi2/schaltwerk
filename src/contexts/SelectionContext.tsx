@@ -76,6 +76,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Tracks user-intent selections to avoid auto-restore overriding explicit user actions
     const lastIntentionalRef = useRef(0)
     const suppressAutoRestoreRef = useRef(false)
+    // Track active file watcher session to switch watchers on selection change
+    const lastWatchedSessionRef = useRef<string | null>(null)
 
     // Helper: finalize a selection change by removing the switching class and notifying listeners
     const finalizeSelectionChange = useCallback((sel: Selection) => {
@@ -556,6 +558,51 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             if (!isAuto) userSelectionInFlightRef.current = false
         }
     }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange])
+
+    // Start a lightweight backend watcher for the currently selected running session
+    useEffect(() => {
+        const startOrSwitchWatcher = async () => {
+            try {
+                if (selection.kind === 'session' && selection.payload && !isSpec) {
+                    const current = selection.payload
+                    // Stop previous watcher if switched sessions
+                    const prev = lastWatchedSessionRef.current
+                    if (prev && prev !== current) {
+                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: prev }) }
+                        catch (e) { logger.warn('[SelectionContext] Failed to stop previous file watcher', e) }
+                    }
+                    await invoke(TauriCommands.StartFileWatcher, { sessionName: current })
+                    lastWatchedSessionRef.current = current
+                } else {
+                    // Not a running session → stop previous watcher if any
+                    const prev = lastWatchedSessionRef.current
+                    if (prev) {
+                        try { await invoke(TauriCommands.StopFileWatcher, { sessionName: prev }) }
+                        catch (e) { logger.warn('[SelectionContext] Failed to stop file watcher on deselect', e) }
+                    }
+                    lastWatchedSessionRef.current = null
+                }
+            } catch (e) {
+                logger.warn('[SelectionContext] File watcher setup failed; session indicators may update slower:', e)
+            }
+        }
+        startOrSwitchWatcher()
+        // Stop watcher on unmount
+        return () => {
+            const prev = lastWatchedSessionRef.current
+            if (prev) {
+                try {
+                    const stopResult = invoke(TauriCommands.StopFileWatcher, { sessionName: prev })
+                    Promise.resolve(stopResult).catch((e) => {
+                        logger.warn('[SelectionContext] Failed to stop watcher on unmount', e)
+                    })
+                } catch (e) {
+                    logger.warn('[SelectionContext] Failed to stop watcher on unmount', e)
+                }
+            }
+            lastWatchedSessionRef.current = null
+        }
+    }, [selection, isSpec])
 
     // React to backend session refreshes (e.g., spec -> running)
     useEffect(() => {

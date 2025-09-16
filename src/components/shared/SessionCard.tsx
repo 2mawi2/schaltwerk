@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
+import { UncommittedIndicator } from '../common/UncommittedIndicator'
 
 export interface SessionCardProps {
     session: {
@@ -161,13 +162,20 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
             )}
             
             <div className="mt-2 flex items-center justify-between text-[11px] text-slate-400">
-                <div>
+                <div className="flex items-center gap-2">
                     {sessionState !== 'spec' && (
-                        <>
+                        <span>
                             {filesChanged > 0 && <span>{filesChanged} files, </span>}
                             <span className="text-green-400">+{additions}</span>{' '}
                             <span className="text-red-400">-{deletions}</span>
-                        </>
+                        </span>
+                    )}
+                    {s.has_uncommitted_changes && !isReadyToMerge && (
+                        <UncommittedIndicator
+                            sessionName={sessionName}
+                            samplePaths={s.top_uncommitted_paths}
+                            className="ml-1"
+                        />
                     )}
                 </div>
                 <div className="flex items-center gap-2">

@@ -30,6 +30,7 @@ export interface SessionInfo {
     spec_content?: string
     original_agent_type?: AgentType
     diff_stats?: DiffStats
+    top_uncommitted_paths?: string[]
 }
 
 export interface DiffStats {

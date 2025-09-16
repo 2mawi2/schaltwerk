@@ -8,6 +8,7 @@ use notify::{RecommendedWatcher, RecursiveMode};
 use serde::{Serialize, Deserialize};
 use tauri::AppHandle;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
+use crate::domains::sessions::activity::SessionGitStatsUpdated;
 use tokio::sync::{Mutex, mpsc};
 use log::{debug, info, warn, error};
 
@@ -44,6 +45,7 @@ pub struct FileWatcher {
     _session_name: String,
     _worktree_path: PathBuf,
     _debouncer: Debouncer<RecommendedWatcher>,
+    _gitdir_index: Option<PathBuf>,
 }
 
 impl FileWatcher {
@@ -93,10 +95,14 @@ impl FileWatcher {
             }
         });
 
+        // Attempt to resolve the external gitdir index for this worktree
+        let gitdir_index = Self::resolve_gitdir_index(&worktree_path);
+
         let mut watcher = Self {
             _session_name: session_name,
             _worktree_path: worktree_path.clone(),
             _debouncer: debouncer,
+            _gitdir_index: gitdir_index,
         };
 
         watcher.start_watching()?;
@@ -110,9 +116,34 @@ impl FileWatcher {
             .watch(&self._worktree_path, RecursiveMode::Recursive)
             .map_err(|e| format!("Failed to start watching {}: {e}", self._worktree_path.display()))?;
 
+        // Also watch the worktree's gitdir/index to catch commit events (for linked worktrees)
+        if let Some(ref idx) = self._gitdir_index {
+            if let Some(parent) = idx.parent() {
+                watcher
+                    .watch(parent, RecursiveMode::NonRecursive)
+                    .map_err(|e| format!("Failed to watch gitdir index parent {}: {e}", parent.display()))?;
+                info!("Started watching gitdir index for session {} at {}", self._session_name, idx.display());
+            }
+        }
+
         info!("Started file watching for session {} at path {}", 
               self._session_name, self._worktree_path.display());
         Ok(())
+    }
+
+    fn resolve_gitdir_index(worktree_path: &Path) -> Option<PathBuf> {
+        let dot_git = worktree_path.join(".git");
+        if dot_git.is_file() {
+            if let Ok(s) = std::fs::read_to_string(&dot_git) {
+                if let Some(rest) = s.strip_prefix("gitdir: ") {
+                    let gitdir = PathBuf::from(rest.trim());
+                    return Some(gitdir.join("index"));
+                }
+            }
+        } else if dot_git.is_dir() {
+            return Some(dot_git.join("index"));
+        }
+        None
     }
 
     async fn handle_file_changes(
@@ -131,7 +162,25 @@ impl FileWatcher {
             return Ok(());
         }
 
-        debug!("Processing file changes for session {}: {} events", session_name, events.len());
+        // Identify commit signals so we can correlate immediate updates after commit
+        let mut saw_index = false;
+        let mut saw_head = false;
+        let mut saw_refs = false;
+        for ev in &events {
+            if let Some(p) = ev.path.to_str() {
+                // Standard repo layout
+                if p.ends_with("/.git/index") { saw_index = true; }
+                if p.ends_with("/.git/HEAD") { saw_head = true; }
+                if p.contains("/.git/refs/heads/") { saw_refs = true; }
+                // Linked worktree gitdir lives under mainrepo/.git/worktrees/<name>/
+                if p.contains("/.git/worktrees/") && p.ends_with("/index") { saw_index = true; }
+                if p.contains("/.git/worktrees/") && p.ends_with("/HEAD") { saw_head = true; }
+            }
+        }
+        debug!(
+            "Processing file changes for session {}: {} events (commit_signals index:{} head:{} refs:{})",
+            session_name, events.len(), saw_index, saw_head, saw_refs
+        );
 
         let changed_files = git::get_changed_files(worktree_path, base_branch)
             .map_err(|e| format!("Failed to get changed files: {e}"))?;
@@ -163,13 +212,53 @@ impl FileWatcher {
         emit_event(app_handle, SchaltEvent::FileChanges, &file_change_event)
             .map_err(|e| format!("Failed to emit file change event: {e}"))?;
 
+        // Also emit fresh git stats immediately so the session list updates without waiting for polling
+        match git::calculate_git_stats_fast(worktree_path, base_branch) {
+            Ok(stats) => {
+                // Collect a small sample of uncommitted paths to help frontend tooltips
+                let sample = match crate::domains::git::operations::uncommitted_sample_paths(worktree_path, 5) {
+                    Ok(v) if !v.is_empty() => Some(v),
+                    _ => None,
+                };
+                let payload = SessionGitStatsUpdated {
+                    session_id: session_name.to_string(), // UI uses session_name; keep id same for payload
+                    session_name: session_name.to_string(),
+                    files_changed: stats.files_changed,
+                    lines_added: stats.lines_added,
+                    lines_removed: stats.lines_removed,
+                    has_uncommitted: stats.has_uncommitted,
+                    top_uncommitted_paths: sample,
+                };
+                let _ = emit_event(app_handle, SchaltEvent::SessionGitStats, &payload);
+                debug!(
+                    "Watcher emitted SessionGitStats for {}: files={} +{} -{} has_uncommitted={}",
+                    session_name, payload.files_changed, payload.lines_added, payload.lines_removed, payload.has_uncommitted
+                );
+            }
+            Err(e) => {
+                log::debug!("Watcher git stats fast failed for {session_name}: {e}");
+            }
+        }
+
         Ok(())
     }
 
     fn should_ignore_path(path: &Path) -> bool {
         if let Some(path_str) = path.to_str() {
-            path_str.contains("/.git/") 
-                || path_str.contains("/node_modules/") 
+            // Treat critical .git files as signalers of commits/branch moves
+            if path_str.contains("/.git/") {
+                let is_index = path_str.ends_with("/.git/index")
+                    || (path_str.contains("/.git/worktrees/") && path_str.ends_with("/index"));
+                let is_head = path_str.ends_with("/.git/HEAD")
+                    || (path_str.contains("/.git/worktrees/") && path_str.ends_with("/HEAD"));
+                let is_ref_head = path_str.contains("/.git/refs/heads/")
+                    || path_str.contains("/.git/worktrees/") && path_str.contains("/refs/heads/");
+                if is_index || is_head || is_ref_head {
+                    return false; // do not ignore -> we want immediate updates on commit
+                }
+                return true; // ignore other .git noise
+            }
+            path_str.contains("/node_modules/") 
                 || path_str.contains("/target/") 
                 || path_str.contains("/.DS_Store") 
                 || path_str.contains("/.*~") 
@@ -440,8 +529,9 @@ mod tests {
     #[test]
     fn test_should_ignore_path_comprehensive() {
         // Test all ignore patterns
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/index")));
-        assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/HEAD")));
+        // Commit signal files should NOT be ignored (we want immediate updates)
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/.git/index")));
+        assert!(!FileWatcher::should_ignore_path(Path::new("/path/.git/HEAD")));
         assert!(FileWatcher::should_ignore_path(Path::new("/path/.git/config")));
         assert!(FileWatcher::should_ignore_path(Path::new("/path/subdir/.git/hooks/pre-commit")));
 
@@ -793,7 +883,8 @@ mod tests {
         let repo_path = create_test_git_repo(&temp_dir);
 
         // Test the filtering logic separately with individual paths
-        assert!(FileWatcher::should_ignore_path(&repo_path.join(".git/index")));
+        // .git/index should be allowed through (commit signal)
+        assert!(!FileWatcher::should_ignore_path(&repo_path.join(".git/index")));
         assert!(FileWatcher::should_ignore_path(&repo_path.join("node_modules/package.json")));
         assert!(!FileWatcher::should_ignore_path(&repo_path.join("src/main.rs")));
     }

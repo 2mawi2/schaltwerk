@@ -30,7 +30,7 @@ impl EventEmitter for AppHandle {
         emit_event(self, SchaltEvent::SessionActivity, &payload)
             .map_err(|e| anyhow::anyhow!("Failed to emit session activity: {e}"))
     }
-    
+
     fn emit_session_git_stats(&self, payload: SessionGitStatsUpdated) -> Result<()> {
         emit_event(self, SchaltEvent::SessionGitStats, &payload)
             .map_err(|e| anyhow::anyhow!("Failed to emit git stats: {e}"))
@@ -91,6 +91,7 @@ impl<E: EventEmitter> ActivityTracker<E> {
                                 lines_added: stats.lines_added,
                                 lines_removed: stats.lines_removed,
                                 has_uncommitted: stats.has_uncommitted,
+                                top_uncommitted_paths: None,
                             };
                             let _ = self.emitter.emit_session_git_stats(payload);
                         }
@@ -188,6 +189,8 @@ pub struct SessionGitStatsUpdated {
     pub lines_added: u32,
     pub lines_removed: u32,
     pub has_uncommitted: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub top_uncommitted_paths: Option<Vec<String>>,
 }
 
 pub fn start_activity_tracking_with_app(db: Arc<Database>, app: AppHandle) {
@@ -265,7 +268,6 @@ mod tests {
         assert_eq!(payload.todo_percentage, Some(50.0));
         assert_eq!(payload.is_blocked, Some(true));
     }
-    
     #[test]
     fn test_event_emitter_trait_methods() {
         let mock_emitter = MockEmitter::new();
@@ -286,6 +288,7 @@ mod tests {
             lines_added: 100,
             lines_removed: 20,
             has_uncommitted: true,
+            top_uncommitted_paths: None,
         };
         
         mock_emitter.emit_session_activity(activity_payload.clone()).unwrap();
@@ -310,6 +313,7 @@ mod tests {
             lines_added: 45,
             lines_removed: 12,
             has_uncommitted: false,
+            top_uncommitted_paths: None,
         };
         
         assert_eq!(payload.session_id, "session-456");

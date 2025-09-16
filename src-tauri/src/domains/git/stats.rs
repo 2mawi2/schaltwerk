@@ -25,9 +25,16 @@ pub fn clear_stats_cache() {
     }
 }
 
+#[inline]
+fn is_internal_tooling_path(path: &str) -> bool {
+    path == ".schaltwerk" || path.starts_with(".schaltwerk/")
+}
+
 pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Result<GitStats> {
     let start_time = std::time::Instant::now();
-    let repo = Repository::discover(worktree_path)?;
+    // IMPORTANT: Open the worktree repo directly. Using `discover` may return
+    // the parent repository and yield incorrect status for worktrees.
+    let repo = Repository::open(worktree_path)?;
     let repo_discover_time = start_time.elapsed();
 
     let head_oid = repo.head().ok().and_then(|h| h.target());
@@ -51,6 +58,26 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let mut status_opts = StatusOptions::new();
     status_opts.include_untracked(true).recurse_untracked_dirs(true);
     let statuses = repo.statuses(Some(&mut status_opts))?;
+    // Compute filtered has_uncommitted: ignore .schaltwerk internal files
+    let has_uncommitted_filtered = statuses.iter().any(|entry| {
+        if let Some(path) = entry.path() {
+            if is_internal_tooling_path(path) { return false; }
+        }
+        true
+    }) && !statuses.is_empty();
+    // Sample a few offending paths for diagnostics
+    let mut sample: Vec<String> = Vec::new();
+    for entry in statuses.iter() {
+        if let Some(path) = entry.path() {
+            if is_internal_tooling_path(path) { continue; }
+            sample.push(path.to_string());
+            if sample.len() >= 5 { break; }
+        }
+    }
+    log::debug!(
+        "git_stats: begin path={} parent={} status_total={} has_uncommitted={} sample={:?}",
+        worktree_path.display(), parent_branch, statuses.len(), has_uncommitted_filtered, sample
+    );
     let mut status_sig: u64 = 1469598103934665603;
     for entry in statuses.iter() {
         let s = entry.status().bits() as u64;
@@ -151,12 +178,17 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                 if total_cache_time.as_millis() > 50 {
                     log::debug!("Git stats cache hit processing took {}ms for {}", total_cache_time.as_millis(), worktree_path.display());
                 }
+                log::debug!(
+                    "git_stats: cache_hit path={} has_uncommitted={}",
+                    worktree_path.display(), has_uncommitted_filtered
+                );
                 return Ok(GitStats {
                     session_id: v.session_id.clone(),
                     files_changed: v.files_changed,
                     lines_added: v.lines_added,
                     lines_removed: v.lines_removed,
-                    has_uncommitted: v.has_uncommitted,
+                    // Re-evaluate has_uncommitted on cache hit using current filtered statuses
+                    has_uncommitted: has_uncommitted_filtered,
                     calculated_at: Utc::now(),
                     last_diff_change_ts,
                 });
@@ -249,7 +281,7 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
         files_changed: files.len() as u32,
         lines_added: insertions,
         lines_removed: deletions,
-        has_uncommitted: !statuses.is_empty(),
+        has_uncommitted: has_uncommitted_filtered,
         calculated_at: Utc::now(),
         last_diff_change_ts,
     };
@@ -270,6 +302,12 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
         log::debug!("Git stats calculation took {}ms for {}", total_time.as_millis(), worktree_path.display());
     }
 
+    log::debug!(
+        "git_stats: end path={} files_changed={} +{} -{} has_uncommitted={} elapsed_ms={}",
+        worktree_path.display(),
+        stats.files_changed, stats.lines_added, stats.lines_removed, stats.has_uncommitted,
+        total_time.as_millis()
+    );
     Ok(stats)
 }
 
@@ -277,7 +315,8 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 pub fn get_changed_files(worktree_path: &Path, parent_branch: &str) -> Result<Vec<ChangedFile>> {
     // Show all changes introduced by this worktree: committed + uncommitted
     // Baseline = merge-base(HEAD, parent_branch); Target = workdir with index
-    let repo = Repository::discover(worktree_path)?;
+    // Use `open` to ensure we operate on the specific worktree, not the parent repo.
+    let repo = Repository::open(worktree_path)?;
 
     // Resolve HEAD and parent_branch commits
     let head_oid = repo.head().ok().and_then(|h| h.target());

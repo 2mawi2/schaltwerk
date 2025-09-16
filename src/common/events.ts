@@ -39,6 +39,7 @@ export interface SessionGitStatsUpdated {
   lines_added: number
   lines_removed: number
   has_uncommitted: boolean
+  top_uncommitted_paths?: string[]
 }
 
 export interface FollowUpMessagePayload {

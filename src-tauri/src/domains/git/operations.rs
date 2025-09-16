@@ -1,14 +1,56 @@
 use std::path::Path;
 use anyhow::{Result, anyhow};
-use git2::{Repository, IndexAddOption};
+use git2::{Repository, IndexAddOption, StatusOptions};
+
+#[inline]
+fn is_internal_tooling_path(path: &str) -> bool {
+    path == ".schaltwerk" || path.starts_with(".schaltwerk/")
+}
 
 pub fn has_uncommitted_changes(worktree_path: &Path) -> Result<bool> {
     let repo = Repository::open(worktree_path)?;
-    
-    // Check for any status changes
-    let statuses = repo.statuses(None)?;
-    
-    Ok(!statuses.is_empty())
+
+    // Include untracked files; recurse into untracked dirs
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true).recurse_untracked_dirs(true);
+    let statuses = repo.statuses(Some(&mut opts))?;
+
+    // Filter out schaltwerk internal artifacts within the worktree
+    const MAX_SAMPLE: usize = 3;
+    let mut offending: Vec<String> = Vec::new();
+    for entry in statuses.iter() {
+        if let Some(path) = entry.path() {
+            if is_internal_tooling_path(path) { continue; }
+            offending.push(path.to_string());
+        } else {
+            offending.push("<unknown>".to_string());
+        }
+        if offending.len() >= MAX_SAMPLE { break; }
+    }
+    let any = !offending.is_empty();
+    log::debug!(
+        "has_uncommitted_changes: path={} total_status_entries={} offending_sample={:?}",
+        worktree_path.display(),
+        statuses.len(),
+        offending
+    );
+    Ok(any)
+}
+
+pub fn uncommitted_sample_paths(worktree_path: &Path, limit: usize) -> Result<Vec<String>> {
+    let repo = Repository::open(worktree_path)?;
+    let mut opts = StatusOptions::new();
+    opts.include_untracked(true).recurse_untracked_dirs(true);
+    let statuses = repo.statuses(Some(&mut opts))?;
+    let mut out = Vec::new();
+    for entry in statuses.iter() {
+        if let Some(path) = entry.path() {
+            if is_internal_tooling_path(path) { continue; }
+            out.push(path.to_string());
+            if out.len() >= limit { break; }
+        }
+    }
+    Ok(out)
 }
 
 pub fn commit_all_changes(worktree_path: &Path, message: &str) -> Result<()> {
@@ -83,6 +125,7 @@ mod tests {
     use tempfile::TempDir;
     use git2::{Repository, Signature};
     use std::fs;
+    use std::io::Write;
     
     #[test]
     fn test_is_valid_session_name() {
@@ -152,6 +195,25 @@ mod tests {
         // Test - should have changes
         let result = has_uncommitted_changes(temp_dir.path()).expect("Should check status");
         assert!(result, "Should detect untracked files as uncommitted changes");
+    }
+
+    #[test]
+    fn test_has_uncommitted_changes_ignores_schaltwerk_internal() {
+        let temp_dir = TempDir::new().expect("Failed to create temp dir");
+        let repo = Repository::init(temp_dir.path()).expect("Failed to init repo");
+        let sig = Signature::now("Test User", "test@example.com").unwrap();
+        let tree_id = { let mut index = repo.index().unwrap(); index.write_tree().unwrap() };
+        let tree = repo.find_tree(tree_id).unwrap();
+        repo.commit(Some("HEAD"), &sig, &sig, "init", &tree, &[]).unwrap();
+
+        // Create internal file only
+        std::fs::create_dir_all(temp_dir.path().join(".schaltwerk")).unwrap();
+        let mut f = std::fs::File::create(temp_dir.path().join(".schaltwerk/temp.txt")).unwrap();
+        writeln!(f, "internal").unwrap();
+
+        // Should be considered clean (internal-only changes ignored)
+        let result = has_uncommitted_changes(temp_dir.path()).unwrap();
+        assert!(!result, "Internal .schaltwerk changes must be ignored");
     }
     
     #[test]

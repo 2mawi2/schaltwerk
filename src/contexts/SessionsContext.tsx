@@ -218,6 +218,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
     }, [projectPath])
 
+    // Ensure a backend watcher is active for each running session so git stats update instantly
+    // Note: file watchers are managed per active selection in SelectionContext to
+    // avoid global watcher churn from the UI layer.
+
     const updateSessionStatus = useCallback(async (sessionId: string, newStatus: string) => {
         try {
             // First, we need to get the current session state
@@ -418,7 +422,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             // Git stats updates
             addListener(listenEvent(SchaltEvent.SessionGitStats, (event) => {
-                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted } = event
+                logger.debug('[SessionsContext] SessionGitStats event', event)
+                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted, top_uncommitted_paths } = event
                 setAllSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     const diff = {
@@ -427,12 +432,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         deletions: lines_removed || 0,
                         insertions: lines_added || 0,
                     }
+                    logger.debug('[SessionsContext] Applying git stats', { session: session_name, diff, has_uncommitted })
                     return {
                         ...s,
                         info: {
                             ...s.info,
                             diff_stats: diff,
                             has_uncommitted_changes: has_uncommitted,
+                            top_uncommitted_paths: top_uncommitted_paths && top_uncommitted_paths.length ? top_uncommitted_paths : undefined,
                         }
                     }
                 }))

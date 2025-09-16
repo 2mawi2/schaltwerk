@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
+import { UncommittedIndicator } from '../common/UncommittedIndicator'
 
 interface SessionButtonProps {
     session: {
@@ -170,6 +171,14 @@ export const SessionButton = memo<SessionButtonProps>(({
                                     idle
                                 </div>
                             </span>
+                        )}
+                        {/* Uncommitted changes indicator (to the right of idle) */}
+                        {s.has_uncommitted_changes && !isReadyToMerge && (
+                            <UncommittedIndicator
+                                className="ml-2"
+                                sessionName={sessionName}
+                                samplePaths={s.top_uncommitted_paths}
+                            />
                         )}
                         {hasFollowUpMessage && !isReadyToMerge && (
                             <span className="ml-2 inline-flex items-center gap-1" title="New follow-up message received">
