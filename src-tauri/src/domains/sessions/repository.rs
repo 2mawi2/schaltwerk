@@ -9,6 +9,7 @@ use crate::{
 };
 use anyhow::{anyhow, Result};
 use chrono::Utc;
+use log::warn;
 use std::path::PathBuf;
 
 #[derive(Clone)]
@@ -22,6 +23,20 @@ impl SessionDbManager {
         Self { db, repo_path }
     }
 
+    fn normalize_spec_state(&self, session: &mut Session) -> Result<()> {
+        if session.status == SessionStatus::Spec && session.session_state != SessionState::Spec {
+            warn!(
+                "Correcting inconsistent session_state for spec session '{}': {:?} -> Spec",
+                session.name,
+                session.session_state
+            );
+            self.db.update_session_state(&session.id, SessionState::Spec)?;
+            session.session_state = SessionState::Spec;
+        }
+
+        Ok(())
+    }
+
     pub fn create_session(&self, session: &Session) -> Result<()> {
         self.db
             .create_session(session)
@@ -29,19 +44,31 @@ impl SessionDbManager {
     }
 
     pub fn get_session_by_name(&self, name: &str) -> Result<Session> {
-        self.db
+        let mut session = self
+            .db
             .get_session_by_name(&self.repo_path, name)
-            .map_err(|e| anyhow!("Failed to get session '{}': {}", name, e))
+            .map_err(|e| anyhow!("Failed to get session '{}': {}", name, e))?;
+
+        self.normalize_spec_state(&mut session)?;
+        Ok(session)
     }
 
     pub fn get_session_by_id(&self, id: &str) -> Result<Session> {
-        self.db
+        let mut session = self
+            .db
             .get_session_by_id(id)
-            .map_err(|e| anyhow!("Failed to get session with id '{}': {}", id, e))
+            .map_err(|e| anyhow!("Failed to get session with id '{}': {}", id, e))?;
+
+        self.normalize_spec_state(&mut session)?;
+        Ok(session)
     }
 
     pub fn list_sessions(&self) -> Result<Vec<Session>> {
-        let sessions = self.db.list_sessions(&self.repo_path)?;
+        let mut sessions = self.db.list_sessions(&self.repo_path)?;
+        for session in sessions.iter_mut() {
+            self.normalize_spec_state(session)?;
+        }
+
         Ok(sessions
             .into_iter()
             .filter(|session| session.status != SessionStatus::Cancelled)
@@ -49,10 +76,18 @@ impl SessionDbManager {
     }
 
     pub fn list_sessions_by_state(&self, state: SessionState) -> Result<Vec<Session>> {
-        let sessions = self.db.list_sessions_by_state(&self.repo_path, state)?;
+        let mut sessions = self
+            .db
+            .list_sessions_by_state(&self.repo_path, state.clone())?;
+        for session in sessions.iter_mut() {
+            self.normalize_spec_state(session)?;
+        }
+
         Ok(sessions
             .into_iter()
-            .filter(|session| session.status != SessionStatus::Cancelled)
+            .filter(|session| {
+                session.status != SessionStatus::Cancelled && session.session_state == state
+            })
             .collect())
     }
 
