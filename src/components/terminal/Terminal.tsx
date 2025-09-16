@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
-import { Terminal as XTerm } from 'xterm';
+import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core';
@@ -85,6 +85,34 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
     const MAX_WRITE_CHUNK = queueCfg.maxWriteChunk;
+
+    const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
+        const MIN_DIMENSION = 2;
+        if (!terminal.current) return false;
+        if (cols < MIN_DIMENSION || rows < MIN_DIMENSION) {
+            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize due to tiny dimensions ${cols}x${rows}`);
+            const prevCols = lastSize.current.cols;
+            const prevRows = lastSize.current.rows;
+            if (prevCols >= MIN_DIMENSION && prevRows >= MIN_DIMENSION) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.resize(prevCols, prevRows);
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to restore previous size after tiny resize`, error);
+                    }
+                });
+            }
+            return false;
+        }
+
+        if (!force && cols === lastSize.current.cols && rows === lastSize.current.rows) {
+            return false;
+        }
+
+        lastSize.current = { cols, rows };
+        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+        return true;
+    }, [terminalId]);
 
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
@@ -285,8 +313,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     fitAddon.current!.fit();
                     const { cols, rows } = terminal.current!;
                     // Always notify PTY to nudge the TUI even if equal (OpenCode can need explicit resize)
-                    lastSize.current = { cols, rows };
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                    applySizeUpdate(cols, rows, 'opencode-search', true);
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] OpenCode search-resize failed:`, e);
                 }
@@ -305,7 +332,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         window.addEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
         return () => window.removeEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
-    }, [agentType, isBackground, terminalId, sessionName, isCommander]);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
     // Deterministic refit on session switch specifically for OpenCode
     useEffect(() => {
@@ -325,8 +352,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current!.fit();
                     const { cols, rows } = terminal.current!;
-                    lastSize.current = { cols, rows };
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                    applySizeUpdate(cols, rows, 'opencode-selection', true);
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -340,7 +366,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
         window.addEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
         return () => window.removeEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
-    }, [agentType, isBackground, terminalId, sessionName, isCommander]);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -436,25 +462,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    // Only send resize if dimensions actually changed
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'initial-fit');
                     logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
                 }
-            } else {
+            } else if (!isBackground) {
                 // In tests or when container isn't ready, use default dimensions
                 logger.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
                 try {
                     // Set reasonable default dimensions for tests and edge cases
                     terminal.current.resize(80, 24);
-                    lastSize.current = { cols: 80, rows: 24 };
+                    applySizeUpdate(80, 24, 'default-initial');
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
                 }
+            } else {
+                logger.debug(`[Terminal ${terminalId}] Background terminal skipping default resize while container is ${containerWidth}x${containerHeight}`);
             }
         };
         
@@ -483,19 +507,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 rendererInitialized = true;
                 try {
                     // Ensure terminal is properly fitted
-                    if (fitAddon.current && terminal.current) {
-                        fitAddon.current.fit();
-                        // Immediately propagate initial size once measurable
-                        try {
-                            const { cols, rows } = terminal.current;
-                            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                                lastSize.current = { cols, rows };
-                                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                        if (fitAddon.current && terminal.current) {
+                            fitAddon.current.fit();
+                            // Immediately propagate initial size once measurable
+                            try {
+                                const { cols, rows } = terminal.current;
+                                applySizeUpdate(cols, rows, 'renderer-init');
+                            } catch (e) {
+                                logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                             }
-                        } catch (e) {
-                            logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
-                    }
                     
                     // Mark renderer as ready immediately (Canvas renderer is always ready)
                     rendererReadyRef.current = true;
@@ -506,10 +527,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             try {
                                 fitAddon.current.fit();
                                 const { cols, rows } = terminal.current;
-                                if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                                    lastSize.current = { cols, rows };
-                                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                                }
+                                applySizeUpdate(cols, rows, 'post-init');
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
                             }
@@ -576,10 +594,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'visibility');
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
@@ -652,10 +667,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'initial-raf');
                 } catch {
                     // ignore single-shot fit error; RO will retry
                 }
@@ -838,10 +850,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       try {
                           fitAddon.current.fit();
                           const { cols, rows } = terminal.current;
-                          if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                              lastSize.current = { cols, rows };
-                              invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                          }
+                          applySizeUpdate(cols, rows, 'hydration');
                       } catch (e) {
                           // Non-fatal; ResizeObserver and later events will correct
                           logger.warn(`[Terminal ${terminalId}] Hydration fit failed:`, e);
@@ -988,11 +997,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         });
                     }
 
-                    // Only send resize if dimensions actually changed
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'font-size-change');
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
@@ -1050,12 +1055,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 });
             }
 
-            // Only send resize if dimensions actually changed
-            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                lastSize.current = { cols, rows };
-                // Send resize command immediately to update PTY size
-                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-            }
+            applySizeUpdate(cols, rows, 'resize-observer');
         };
 
         // Use ResizeObserver with more stable debouncing to prevent jitter
@@ -1111,10 +1111,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     logger.debug('Failed to scroll to bottom after drag', error);
                                 }
                             });
-                        }
+                       }
 
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                        applySizeUpdate(cols, rows, 'split-final');
                     });
                 }
             } catch (error) {
@@ -1166,7 +1165,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1382,12 +1381,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 terminal.current.options.fontFamily = resolvedFontFamily
                 if (fitAddon.current) {
                     fitAddon.current.fit()
+                    const { cols, rows } = terminal.current
+                    applySizeUpdate(cols, rows, 'font-family');
                 }
             }
         } catch (e) {
             logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
         }
-    }, [resolvedFontFamily, terminalId])
+    }, [resolvedFontFamily, terminalId, applySizeUpdate])
 
     // Force scroll to bottom when switching sessions
     useEffect(() => {

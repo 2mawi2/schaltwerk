@@ -674,10 +674,6 @@ export function TerminalGrid() {
         : sizes
 
     // Get all running sessions for background terminals
-    const runningSessionsList = sessions.filter(s => s.info.session_state === 'running')
-    const currentSessionId = selection.kind === 'session' ? selection.payload : null
-    const backgroundSessions = runningSessionsList.filter(s => s.info.session_id !== currentSessionId)
-
     const dispatchOpencodeFinalResize = () => {
         try {
             const detail = selection.kind === 'session'
@@ -704,40 +700,6 @@ export function TerminalGrid() {
                     <AnimatedText text="loading" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
                 </div>
             )}
-            {/* Background terminals for all non-active running sessions */}
-            {shouldRenderTerminals && backgroundSessions.map(session => {
-                const sessionName = session.info.session_id
-                const sanitizedSessionName = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
-                const topTerminalId = `session-${sanitizedSessionName}-top`
-                // Bottom terminals are managed as tabbed terminals; use first tab id (-bottom-0)
-                const bottomTerminalId = `session-${sanitizedSessionName}-bottom-0`
-                
-                return (
-                    <div key={`background-${sessionName}`} style={{ display: 'none' }}>
-                        <TerminalErrorBoundary terminalId={topTerminalId}>
-                            <Terminal
-                                terminalId={topTerminalId}
-                                className="h-full w-full"
-                                sessionName={sessionName}
-                                isCommander={false}
-                                agentType={session.info.original_agent_type || 'claude'}
-                                isBackground={true}
-                            />
-                        </TerminalErrorBoundary>
-                        <TerminalErrorBoundary terminalId={bottomTerminalId}>
-                            <Terminal
-                                terminalId={bottomTerminalId}
-                                className="h-full w-full"
-                                sessionName={sessionName}
-                                isCommander={false}
-                                agentType={session.info.original_agent_type || 'claude'}
-                                isBackground={true}
-                            />
-                        </TerminalErrorBoundary>
-                    </div>
-                )
-            })}
-            
             <Split 
                 className="h-full flex flex-col overflow-hidden" 
                 direction="vertical" 
