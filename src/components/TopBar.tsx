@@ -1,4 +1,4 @@
-import { VscHome, VscSettingsGear, VscListFlat, VscSplitHorizontal, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
+import { VscHome, VscSettingsGear, VscListFlat, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
 import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
@@ -14,9 +14,6 @@ interface TopBarProps {
   onCloseTab: (path: string) => void
   onOpenSettings: () => void
   onOpenKanban?: () => void
-  isOrchestratorActive?: boolean
-  isSpecModeActive?: boolean
-  onToggleSpecMode?: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void
   // Optional custom resolver for Open button path (e.g., active session worktree)
@@ -31,9 +28,6 @@ export function TopBar({
   onCloseTab,
   onOpenSettings,
   onOpenKanban,
-  isOrchestratorActive = false,
-  isSpecModeActive = false,
-  onToggleSpecMode,
   isRightPanelCollapsed = false,
   onToggleRightPanel,
   resolveOpenPath
@@ -136,23 +130,7 @@ export function TopBar({
             />
           </div>
         )}
-        
-         {/* Spec Mode button - only show in orchestrator */}
-         {isOrchestratorActive && onToggleSpecMode && (
-           <button
-             onClick={onToggleSpecMode}
-             className={`h-6 px-2 inline-flex items-center justify-center rounded transition-colors mr-2 text-xs gap-1 ${
-               isSpecModeActive
-                 ? 'bg-amber-600/20 text-amber-300 hover:bg-amber-600/30'
-                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-             }`}
-             title="Spec Mode (⌘⇧S)"
-             aria-label="Spec Mode"
-           >
-             <VscSplitHorizontal className="text-[14px]" />
-             <span>Spec Mode</span>
-           </button>
-         )}
+
         
         {/* Agent Board button - only show when a project is open */}
         {activeTabPath && onOpenKanban && (

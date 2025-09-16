@@ -24,9 +24,6 @@ import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
-import { useSpecMode } from './hooks/useSpecMode'
-import { useSessions } from './contexts/SessionsContext'
-import { SpecModeLayout } from './components/plans/SpecModeLayout'
 import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
@@ -65,20 +62,11 @@ export function validatePanelPercentage(value: string | null, defaultValue: numb
 }
 
 export default function App() {
-  const { selection, setSelection, clearTerminalTracking } = useSelection()
+  const { selection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
-  const { sessions, allSessions, setFilterMode, filterMode } = useSessions()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
-  const { 
-    commanderSpecModeSession, 
-    setCommanderSpecModeSession, 
-    handleExitSpecMode, 
-    handleSpecConverted, 
-    toggleSpecMode,
-    specModeState
-  } = useSpecMode({ projectPath, selection, sessions: allSessions, setFilterMode, setSelection, currentFilterMode: filterMode })
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -406,7 +394,7 @@ export default function App() {
                                document.activeElement?.getAttribute('contenteditable') === 'true'
         if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
           e.preventDefault()
-          logger.info('[App] Cmd+Shift+N triggered - opening new session modal (spec mode)')
+          logger.info('[App] Cmd+Shift+N triggered - opening new session modal (spec creation)')
           // Store current focus before opening modal
           previousFocusRef.current = document.activeElement
           setOpenAsSpec(true)
@@ -484,10 +472,10 @@ export default function App() {
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
-  // Open NewSessionModal directly in spec mode when requested
+  // Open NewSessionModal in spec creation mode when requested
   useEffect(() => {
     const handler = () => {
-      logger.info('[App] schaltwerk:new-spec event received - opening modal in spec mode')
+      logger.info('[App] schaltwerk:new-spec event received - opening modal for spec creation')
       previousFocusRef.current = document.activeElement
                        setOpenAsSpec(true)
       setNewSessionOpen(true)
@@ -497,37 +485,7 @@ export default function App() {
   }, [])
   
   
-  // Load spec mode state when project changes
-  useEffect(() => {
-    if (!projectPath) return
-    const projectId = getBasename(projectPath)
-    const savedSpecMode = sessionStorage.getItem(`schaltwerk:spec-mode:${projectId}`)
-    if (savedSpecMode && savedSpecMode !== commanderSpecModeSession) {
-      // Validate that the saved spec still exists
-      const specExists = sessions.find(session => 
-        session.info.session_id === savedSpecMode && 
-        (session.info.status === 'spec' || session.info.session_state === 'spec')
-      )
-      if (specExists) {
-        setCommanderSpecModeSession(savedSpecMode)
-      } else {
-        // Saved spec no longer exists, clear from storage
-        sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
-      }
-    }
-  }, [projectPath, sessions, commanderSpecModeSession, setCommanderSpecModeSession])
-  
-  // Save spec mode state to sessionStorage when it changes
-  useEffect(() => {
-    if (!projectPath) return
-    const projectId = getBasename(projectPath)
-    if (commanderSpecModeSession) {
-      sessionStorage.setItem(`schaltwerk:spec-mode:${projectId}`, commanderSpecModeSession)
-    } else {
-      sessionStorage.removeItem(`schaltwerk:spec-mode:${projectId}`)
-    }
-  }, [commanderSpecModeSession, projectPath])
-  
+
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
     const handler = () => {
@@ -641,9 +599,7 @@ export default function App() {
       
        // If starting from an existing spec via the modal, convert that spec to active
        if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
-         // If the spec being converted is the current spec mode session, exit spec mode
-         handleSpecConverted(data.name)
-         
+                  
          // Ensure the spec content reflects latest prompt before starting
          const contentToUse = data.prompt || ''
          if (contentToUse.trim().length > 0) {
@@ -1087,15 +1043,12 @@ export default function App() {
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenKanban={() => setIsKanbanOpen(true)}
-        isOrchestratorActive={selection.kind === 'orchestrator' && !showHome}
-        isSpecModeActive={!!commanderSpecModeSession}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
           activeTabPath,
           projectPath,
           invoke
         })}
-        onToggleSpecMode={!showHome ? toggleSpecMode : undefined}
         isRightPanelCollapsed={isRightCollapsed}
         onToggleRightPanel={toggleRightPanelCollapsed}
       />
@@ -1122,12 +1075,6 @@ export default function App() {
                     openTabs={openTabs}
                     onSelectPrevProject={handleSelectPrevProject}
                     onSelectNextProject={handleSelectNextProject}
-                    specModeState={specModeState}
-                    onSpecSelect={(specName: string) => {
-                      if (selection.kind === 'orchestrator') {
-                        setCommanderSpecModeSession(specName)
-                      }
-                    }}
                   />
                   </SessionErrorBoundary>
                 </div>
@@ -1177,49 +1124,39 @@ export default function App() {
             </div>
 
             <div className="relative h-full">
-              {/* Show Spec Mode Layout when active in orchestrator */}
-               {selection.kind === 'orchestrator' && commanderSpecModeSession ? (
-                 <SpecModeLayout
-                   sessionName={commanderSpecModeSession}
-                   onExit={handleExitSpecMode}
-                 />
-               ) : (
-                <>
-                  {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
-                  <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
-                  {isRightCollapsed ? (
-                    // When collapsed, render only the terminal grid at full width
-                    <main className="h-full w-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
-                      <ErrorBoundary name="TerminalGrid">
-                        <TerminalGrid />
-                      </ErrorBoundary>
-                    </main>
-                  ) : (
-                    // When expanded, render the split view
-                    <Split 
-                      className="h-full w-full flex" 
-                      sizes={rightSizes} 
-                      minSize={[400, 280]} 
-                      gutterSize={8}
-                      onDragStart={handleRightSplitDragStart}
-                      onDragEnd={handleRightSplitDragEnd}
-                    >
-                      <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
-                        <ErrorBoundary name="TerminalGrid">
-                          <TerminalGrid />
-                        </ErrorBoundary>
-                      </main>
-                      <section className={`overflow-hidden ${isDraggingRightSplit ? '' : 'transition-all duration-200'}`}>
-                        <ErrorBoundary name="RightPanel">
-                          <RightPanelTabs 
-                            onFileSelect={handleFileSelect}
-                            isDragging={isDraggingRightSplit}
-                          />
-                        </ErrorBoundary>
-                      </section>
-                    </Split>
-                  )}
-                </>
+              {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
+              <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
+              {isRightCollapsed ? (
+                // When collapsed, render only the terminal grid at full width
+                <main className="h-full w-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                  <ErrorBoundary name="TerminalGrid">
+                    <TerminalGrid />
+                  </ErrorBoundary>
+                </main>
+              ) : (
+                // When expanded, render the split view
+                <Split 
+                  className="h-full w-full flex" 
+                  sizes={rightSizes} 
+                  minSize={[400, 280]} 
+                  gutterSize={8}
+                  onDragStart={handleRightSplitDragStart}
+                  onDragEnd={handleRightSplitDragEnd}
+                >
+                  <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                    <ErrorBoundary name="TerminalGrid">
+                      <TerminalGrid />
+                    </ErrorBoundary>
+                  </main>
+                  <section className={`overflow-hidden ${isDraggingRightSplit ? '' : 'transition-all duration-200'}`}>
+                    <ErrorBoundary name="RightPanel">
+                      <RightPanelTabs 
+                        onFileSelect={handleFileSelect}
+                        isDragging={isDraggingRightSplit}
+                      />
+                    </ErrorBoundary>
+                  </section>
+                </Split>
               )}
             </div>
           </Split>
