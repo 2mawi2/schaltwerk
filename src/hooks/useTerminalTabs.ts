@@ -85,10 +85,16 @@ export function useTerminalTabs({
       return
     }
 
+    const sanitizedCwd = workingDirectory.trim()
+    if (!sanitizedCwd) {
+      logger.debug(`[useTerminalTabs] Deferring creation of ${terminalId} until working directory is ready`)
+      return
+    }
+
     try {
       const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
       if (!exists) {
-        await invoke(TauriCommands.CreateTerminal, { id: terminalId, cwd: workingDirectory })
+        await invoke(TauriCommands.CreateTerminal, { id: terminalId, cwd: sanitizedCwd })
       }
       globalTerminalCreated.add(terminalId)
     } catch (error) {

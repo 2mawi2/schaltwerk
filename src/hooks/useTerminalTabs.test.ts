@@ -287,6 +287,50 @@ describe('useTerminalTabs', () => {
 
       consoleSpy.mockRestore()
     })
+
+    it('defers terminal creation until working directory is available', async () => {
+      mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
+        if (command === TauriCommands.TerminalExists) {
+          return Promise.resolve(false)
+        }
+        if (command === TauriCommands.CreateTerminal) {
+          expect(args).toEqual({
+            id: 'test-defer-0',
+            cwd: '/ready/path'
+          })
+          return Promise.resolve()
+        }
+        return Promise.resolve()
+      })
+
+      const { rerender } = renderHook(
+        (props: { baseTerminalId: string; workingDirectory: string }) => useTerminalTabs(props),
+        {
+          initialProps: {
+            baseTerminalId: 'test-defer',
+            workingDirectory: ''
+          }
+        }
+      )
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(mockInvoke).not.toHaveBeenCalled()
+
+      rerender({ baseTerminalId: 'test-defer', workingDirectory: '/ready/path' })
+
+      await act(async () => {
+        await Promise.resolve()
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-defer-0' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
+        id: 'test-defer-0',
+        cwd: '/ready/path'
+      })
+    })
   })
 
   describe('addTab', () => {
