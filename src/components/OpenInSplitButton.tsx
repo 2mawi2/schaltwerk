@@ -5,7 +5,7 @@ import { VscFolder, VscChevronDown, VscCheck, VscChevronRight, VscCode, VscTermi
 import { logger } from '../utils/logger'
 
 export type OpenApp = {
-  id: 'finder' | 'cursor' | 'vscode' | 'ghostty' | 'warp' | 'terminal'
+  id: 'finder' | 'cursor' | 'vscode' | 'ghostty' | 'warp' | 'terminal' | 'intellij'
   name: string
   kind: 'editor' | 'terminal' | 'system'
 }
@@ -31,7 +31,7 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
         ])
         if (!mounted) return
         setApps(available)
-        if (def && ['finder','cursor','vscode','ghostty','warp','terminal'].includes(def)) {
+        if (def && ['finder','cursor','vscode','ghostty','warp','terminal','intellij'].includes(def)) {
           setDefaultApp(def as OpenApp['id'])
         }
       } catch (e) {
@@ -108,6 +108,7 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
   const iconFor = (id: OpenApp['id']) => {
     if (id === 'vscode') return <VscCode className="text-[14px]" />
     if (id === 'cursor') return <VscCode className="text-[14px]" />
+    if (id === 'intellij') return <VscCode className="text-[14px]" />
     if (id === 'finder') return <VscFolder className="text-[14px]" />
     return <VscTerminal className="text-[14px]" />
   }
