@@ -27,6 +27,7 @@ import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
 import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
+import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
 import { TauriCommands } from './common/tauriCommands'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
@@ -518,58 +519,49 @@ export default function App() {
          let firstSessionName = data.name
          
          // Create array of session names and process them
-         const sessionNames = Array.from({ length: count }, (_, i) => 
-           i === 0 ? data.name : `${data.name}_v${i + 1}`
-         )
-          
-         // Generate a stable group id for these versions
-         const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID() : `${data.name}-${Date.now()}`
-         for (const [index, sessionName] of sessionNames.entries()) {
-           if (index === 0) {
-             // Start the original spec session (transitions spec -> active and creates worktree)
-            await invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
-              name: sessionName,
-              baseBranch: data.baseBranch || null,
-              versionGroupId,
-              versionNumber: 1,
-              agentType: data.agentType || null,
-              skipPermissions: data.skipPermissions ?? null,
-            })
+        const sessionNames = Array.from({ length: count }, (_, i) =>
+          i === 0 ? data.name : `${data.name}_v${i + 1}`
+        )
+
+        // Generate a stable group id for these versions
+        const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto)
+          ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID()
+          : `${data.name}-${Date.now()}`
+
+        for (const [index, sessionName] of sessionNames.entries()) {
+          if (index === 0) {
+            await waitForSessionsRefreshed(() =>
+              invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
+                name: sessionName,
+                baseBranch: data.baseBranch || null,
+                versionGroupId,
+                versionNumber: 1,
+                agentType: data.agentType || null,
+                skipPermissions: data.skipPermissions ?? null,
+              })
+            )
           } else {
-            // For additional versions, create and start in one atomic operation to avoid race conditions
-            await invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
-              name: sessionName,
-              specContent: contentToUse,
-              baseBranch: data.baseBranch || null,
-              versionGroupId,
-              versionNumber: index + 1,
-              agentType: data.agentType || null,
-              skipPermissions: data.skipPermissions ?? null,
-            })
+            await waitForSessionsRefreshed(() =>
+              invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
+                name: sessionName,
+                specContent: contentToUse,
+                baseBranch: data.baseBranch || null,
+                versionGroupId,
+                versionNumber: index + 1,
+                agentType: data.agentType || null,
+                skipPermissions: data.skipPermissions ?? null,
+              })
+            )
           }
         }
 
-         setNewSessionOpen(false)
-         setStartFromSpecName(null)
+        setNewSessionOpen(false)
+        setStartFromSpecName(null)
 
         // Dispatch event for other components to know a session was created from spec
         window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
           detail: { name: firstSessionName }
         }))
-
-        // Wait deterministically for SessionsRefreshed before starting agents
-        await new Promise<void>((resolve) => {
-          let done = false
-          let unlistenRef: (() => void) | null = null
-          listenEvent(SchaltEvent.SessionsRefreshed, () => {
-            done = true
-            if (unlistenRef) unlistenRef()
-            resolve()
-          }).then((unlisten) => {
-            unlistenRef = unlisten
-            if (done && unlistenRef) unlistenRef()
-          })
-        })
 
         // Start agents for all spec-derived sessions (this creates terminals with agents)
         // This ensures all versions start working immediately, not just the focused one
