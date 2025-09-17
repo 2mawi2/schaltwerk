@@ -13,6 +13,11 @@ function createTerminalOutputNormalizedEvent(terminalId: string): string {
 // Re-export SchaltEvent for convenience
 export { SchaltEvent } from './events'
 
+export interface TerminalOutputEventPayload {
+  seq: number
+  data: string
+}
+
 // Type-safe event listening - only accepts SchaltEvent enum values
 export async function listenEvent<T extends SchaltEvent>(
   event: T,
@@ -24,10 +29,10 @@ export async function listenEvent<T extends SchaltEvent>(
 
 export async function listenTerminalOutput(
   terminalId: string,
-  handler: (payload: string) => void | Promise<void>
+  handler: (payload: TerminalOutputEventPayload | string) => void | Promise<void>
 ): Promise<UnlistenFn> {
   const eventName = createTerminalOutputEvent(terminalId)
-  return await tauriListen(eventName, (event) => handler(event.payload as string))
+  return await tauriListen(eventName, (event) => handler(event.payload as TerminalOutputEventPayload | string))
 }
 
 export async function listenTerminalOutputNormalized(
@@ -48,7 +53,7 @@ export async function emitEvent<T extends SchaltEvent>(
 
 export async function emitTerminalOutput(
   terminalId: string,
-  payload: string
+  payload: TerminalOutputEventPayload | string
 ): Promise<void> {
   const eventName = createTerminalOutputEvent(terminalId)
   return await tauriEmit(eventName, payload)

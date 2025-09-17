@@ -44,6 +44,11 @@ export interface TerminalHandle {
     scrollToBottom: () => void;
 }
 
+type TerminalOutputChunk = {
+    data: string;
+    seq: number | null;
+};
+
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
@@ -57,11 +62,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const [hydrated, setHydrated] = useState(false);
     const [agentLoading, setAgentLoading] = useState(false);
     const hydratedRef = useRef<boolean>(false);
-    const pendingOutput = useRef<string[]>([]);
+    const pendingOutput = useRef<TerminalOutputChunk[]>([]);
+    const lastSeqRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const seqRef = useRef<number>(0);
-    const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
+    const termDebug = useCallback(() => (
+        typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1'
+    ), []);
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
     const resumeUnlistenRef = useRef<UnlistenFn | null>(null);
@@ -149,7 +157,44 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const { queueLength } = getQueueStats();
             logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
         }
-    }, [enqueueQueue, getQueueStats, terminalId]);
+    }, [enqueueQueue, getQueueStats, terminalId, termDebug]);
+
+    const applyChunk = useCallback((chunk: TerminalOutputChunk, schedule?: () => void) => {
+        if (!chunk.data) {
+            if (chunk.seq != null) {
+                lastSeqRef.current = Math.max(lastSeqRef.current ?? chunk.seq, chunk.seq);
+            }
+            return false;
+        }
+        if (chunk.seq != null && lastSeqRef.current != null && chunk.seq <= lastSeqRef.current) {
+            if (termDebug()) logger.debug(`[Terminal ${terminalId}] skip chunk seq=${chunk.seq} last=${lastSeqRef.current}`);
+            return false;
+        }
+        enqueueWrite(chunk.data);
+        if (chunk.seq != null) {
+            lastSeqRef.current = lastSeqRef.current == null ? chunk.seq : Math.max(lastSeqRef.current, chunk.seq);
+        }
+        if (schedule) schedule();
+        return true;
+    }, [enqueueWrite, termDebug, terminalId]);
+
+    const normalizeOutputPayload = useCallback((payload: unknown): TerminalOutputChunk | null => {
+        if (typeof payload === 'string') {
+            return { data: payload, seq: null };
+        }
+        if (payload && typeof payload === 'object') {
+            const maybeData = (payload as { data?: unknown }).data;
+            const maybeSeq = (payload as { seq?: unknown }).seq;
+            if (typeof maybeData === 'string') {
+                return {
+                    data: maybeData,
+                    seq: typeof maybeSeq === 'number' ? maybeSeq : null,
+                };
+            }
+        }
+        logger.warn(`[Terminal ${terminalId}] Ignoring malformed terminal payload`, payload);
+        return null;
+    }, [terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -367,6 +412,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         setHydrated(false);
         hydratedRef.current = false;
         pendingOutput.current = [];
+        lastSeqRef.current = null;
         resetQueue();
 
         // Revert: Always show a visible terminal cursor.
@@ -759,7 +805,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
             // 2) Move any pendingOutput into the write queue first
             if (pendingOutput.current.length > 0) {
-                for (const output of pendingOutput.current) enqueueWrite(output);
+                for (const chunk of pendingOutput.current) {
+                    applyChunk(chunk);
+                }
                 pendingOutput.current = [];
             }
 
@@ -771,7 +819,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (getQueueStats().queueLength === 0) {
                         // Double-check no new pending arrived mid-drain; if so, loop again
                         if (pendingOutput.current.length > 0) {
-                            for (const output of pendingOutput.current) enqueueWrite(output);
+                            for (const chunk of pendingOutput.current) {
+                                applyChunk(chunk);
+                            }
                             pendingOutput.current = [];
                             // Continue draining
                         } else {
@@ -824,17 +874,24 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
         const attachListener = async () => {
-            unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+            unlistenRef.current = await listenTerminalOutput(terminalId, (payload) => {
+                const chunk = normalizeOutputPayload(payload);
+                if (!chunk) return;
                 if (termDebug()) {
                     const n = ++seqRef.current;
                     const { queueLength } = getQueueStats();
-                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`)
+                    logger.debug(`[Terminal ${terminalId}] recv #${n} seq=${chunk.seq ?? -1} +${chunk.data.length}B qlen=${queueLength}`);
                 }
                 if (cancelled) return;
+                if (chunk.seq != null && lastSeqRef.current != null && chunk.seq <= lastSeqRef.current) {
+                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] drop stale seq=${chunk.seq} last=${lastSeqRef.current}`);
+                    return;
+                }
                 if (!hydratedRef.current) {
-                    pendingOutput.current.push(output);
+                    pendingOutput.current.push(chunk);
                 } else {
-                    enqueueWrite(output);
+                    enqueueWrite(chunk.data);
+                    if (chunk.seq != null) lastSeqRef.current = chunk.seq;
                     scheduleFlush();
                 }
             });
@@ -852,18 +909,33 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
                 }
-                const snapshot = await invoke<string>(TauriCommands.GetTerminalBuffer, { id: terminalId });
-                
-                if (snapshot) {
-                    enqueueWrite(snapshot);
+                const snapshotResponse = await invoke<unknown>(TauriCommands.GetTerminalBuffer, { id: terminalId });
+                let snapshotData = '';
+                let snapshotSeq: number | null = null;
+
+                if (typeof snapshotResponse === 'string') {
+                    snapshotData = snapshotResponse;
+                } else if (snapshotResponse && typeof snapshotResponse === 'object') {
+                    const maybe = snapshotResponse as { data?: unknown; seq?: unknown };
+                    if (typeof maybe.data === 'string') snapshotData = maybe.data;
+                    if (typeof maybe.seq === 'number') snapshotSeq = maybe.seq;
                 }
-                // Queue any pending output that arrived during hydration
+
+                if (snapshotSeq != null) {
+                    lastSeqRef.current = snapshotSeq;
+                }
+
+                if (snapshotData) {
+                    enqueueWrite(snapshotData);
+                }
+
                 if (pendingOutput.current.length > 0) {
-                    for (const output of pendingOutput.current) {
-                        enqueueWrite(output);
-                    }
+                    const pending = pendingOutput.current.slice();
                     pendingOutput.current = [];
-                 }
+                    for (const chunk of pending) {
+                        applyChunk(chunk, scheduleFlush);
+                    }
+                }
                  // Drain all queued content before we reveal the terminal to avoid "partial paint" perception
                  await flushAllNowAsync();
                  // Mark as hydrated only after flushing the entire snapshot + pending output
@@ -939,11 +1011,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 setHydrated(true);
                 hydratedRef.current = true;
                 if (pendingOutput.current.length > 0) {
-                    for (const output of pendingOutput.current) {
-                        enqueueWrite(output);
-                    }
+                    const pending = pendingOutput.current.slice();
                     pendingOutput.current = [];
-                    // Flush immediately; subsequent events will be batched
+                    for (const chunk of pending) {
+                        applyChunk(chunk);
+                    }
                     flushNow();
                     
                     // Scroll to bottom even on hydration failure
@@ -966,6 +1038,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             try {
                 pendingOutput.current = []
                 resetQueue()
+                lastSeqRef.current = null
                 if (terminal.current) {
                     try {
                         terminal.current.reset()
@@ -1234,7 +1307,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, normalizeOutputPayload, applyChunk, termDebug]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1287,13 +1360,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         let mounted = true;
         const attach = async () => {
             try {
-                unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+                unlistenRef.current = await listenTerminalOutput(terminalId, (payload) => {
                     if (!mounted) return;
+                    const chunk = normalizeOutputPayload(payload);
+                    if (!chunk) return;
+                    if (chunk.seq != null && lastSeqRef.current != null && chunk.seq <= lastSeqRef.current) {
+                        return;
+                    }
                     if (!hydratedRef.current) {
-                        pendingOutput.current.push(output);
+                        pendingOutput.current.push(chunk);
                     } else {
-                        enqueueWrite(output);
-                        flushQueuedWritesLight();
+                        applyChunk(chunk, flushQueuedWritesLight);
                     }
                 });
                 listenerAgentRef.current = agentType;
@@ -1307,7 +1384,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll]);
+    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll, normalizeOutputPayload, applyChunk]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready

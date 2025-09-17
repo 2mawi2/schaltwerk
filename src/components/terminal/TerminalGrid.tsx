@@ -56,6 +56,7 @@ export function TerminalGrid() {
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
     
     const [terminalKey, setTerminalKey] = useState(0)
+    const [topRemountKey, setTopRemountKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
     
@@ -73,6 +74,7 @@ export function TerminalGrid() {
     const terminalTabsStateRef = useRef<TerminalTabsUiState>(terminalTabsState)
     const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
     const previousTerminalKeyRef = useRef<number>(terminalKey)
+    const previousTopIdRef = useRef<string | null>(terminals.top)
     const currentTabsOwnerRef = useRef<string | null>(terminals.bottomBase)
     const applyTabsState = useCallback(
         (updater: (prev: TerminalTabsUiState) => TerminalTabsUiState) => {
@@ -274,6 +276,15 @@ export function TerminalGrid() {
             })
         }
     }, [selection, sessions, getAgentType])
+
+    useEffect(() => {
+        const currentTop = terminals.top || null
+        if (previousTopIdRef.current && currentTop && previousTopIdRef.current !== currentTop) {
+            setTopRemountKey(prev => prev + 1)
+        }
+        previousTopIdRef.current = currentTop
+    }, [terminals.top])
+
 
     // Load run script availability and manage run mode state
     useEffect(() => {
@@ -873,7 +884,7 @@ export function TerminalGrid() {
                         {shouldRenderTerminals && (
                         <TerminalErrorBoundary terminalId={terminals.top}>
                             <Terminal 
-                            key={`top-terminal-${terminalKey}`}
+                            key={`top-terminal-${terminalKey}-${topRemountKey}`}
                             ref={claudeTerminalRef}
                             terminalId={terminals.top} 
                             className="h-full w-full" 
@@ -1059,7 +1070,7 @@ export function TerminalGrid() {
                         >
                             <TerminalErrorBoundary terminalId={terminals.bottomBase}>
                                 <TerminalTabs
-                                    key={`terminal-tabs-${terminalKey}`}
+                                    key={`terminal-tabs-${terminalKey}-${terminals.bottomBase ?? 'unknown'}`}
                                     ref={terminalTabsRef}
                                     baseTerminalId={terminals.bottomBase}
                                     workingDirectory={terminals.workingDirectory}

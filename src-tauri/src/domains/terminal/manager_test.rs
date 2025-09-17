@@ -42,7 +42,7 @@ mod tests {
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
         assert!(
-            buffer.contains("echo"),
+            buffer.data.contains("echo"),
             "Buffer should contain the echoed command"
         );
 
@@ -69,7 +69,7 @@ mod tests {
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
         assert!(
-            buffer.contains("multi"),
+            buffer.data.contains("multi"),
             "Should contain multi-line content"
         );
 
@@ -188,7 +188,7 @@ mod tests {
         assert!(manager.terminal_exists(&id).await.unwrap());
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        assert!(buffer.contains("echo"));
+        assert!(buffer.data.contains("echo"));
 
         safe_close(&manager, &id).await;
     }
@@ -215,7 +215,7 @@ mod tests {
         sleep(Duration::from_millis(200)).await;
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        assert!(buffer.contains("test_value") || buffer.contains("CUSTOM_VAR"));
+        assert!(buffer.data.contains("test_value") || buffer.data.contains("CUSTOM_VAR"));
 
         safe_close(&manager, &id).await;
     }
@@ -242,7 +242,7 @@ mod tests {
             sleep(Duration::from_millis(200)).await;
 
             let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-            assert!(!buffer.is_empty(), "Terminal {} should have output", id);
+            assert!(!buffer.data.is_empty(), "Terminal {} should have output", id);
 
             safe_close(&manager, &id).await;
         }
@@ -372,9 +372,9 @@ mod tests {
             .get_terminal_buffer(timing_id.clone())
             .await
             .unwrap();
-        assert!(buffer.contains("first"));
-        assert!(buffer.contains("second"));
-        assert!(buffer.contains("third"));
+        assert!(buffer.data.contains("first"));
+        assert!(buffer.data.contains("second"));
+        assert!(buffer.data.contains("third"));
 
         safe_close(&manager, &timing_id).await;
     }
@@ -520,7 +520,7 @@ mod tests {
         sleep(Duration::from_millis(200)).await;
 
         let buffer = manager.get_terminal_buffer(path_id.clone()).await.unwrap();
-        assert!(buffer.contains("bin") || buffer.contains("PATH"));
+        assert!(buffer.data.contains("bin") || buffer.data.contains("PATH"));
 
         safe_close(&manager, &path_id).await;
     }
@@ -554,7 +554,7 @@ mod tests {
             .get_terminal_buffer(escape_id.clone())
             .await
             .unwrap();
-        assert!(!buffer.is_empty());
+        assert!(!buffer.data.is_empty());
 
         safe_close(&manager, &escape_id).await;
     }
@@ -621,7 +621,7 @@ mod tests {
             .get_terminal_buffer(multiline_id.clone())
             .await
             .unwrap();
-        assert!(buffer.contains("bash") || buffer.contains("echo"));
+        assert!(buffer.data.contains("bash") || buffer.data.contains("echo"));
 
         safe_close(&manager, &multiline_id).await;
     }
@@ -815,9 +815,9 @@ mod tests {
         sleep(Duration::from_millis(800)).await;
 
         let buf = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        println!("agent buffer length: {}", buf.len());
+        println!("agent buffer length: {}", buf.data.len());
         // Buffer should be larger than the previous 2MB default when using agent top terminals
-        assert!(buf.len() > 2 * 1024 * 1024);
+        assert!(buf.data.len() > 2 * 1024 * 1024);
 
         safe_close(&manager, &id).await;
     }

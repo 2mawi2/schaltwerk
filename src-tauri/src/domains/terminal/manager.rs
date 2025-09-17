@@ -1,6 +1,7 @@
 use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_effective_shell};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
+use serde::Serialize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 use tauri::AppHandle;
@@ -32,6 +33,12 @@ impl SessionKey {
 #[derive(Clone, Debug)]
 struct TerminalMetadata {
     session: SessionKey,
+}
+
+#[derive(Clone, Serialize, Debug, PartialEq)]
+pub struct TerminalBufferSnapshot {
+    pub seq: u64,
+    pub data: String,
 }
 
 pub struct TerminalManager {
@@ -359,11 +366,11 @@ impl TerminalManager {
         self.backend.exists(id).await
     }
     
-    pub async fn get_terminal_buffer(&self, id: String) -> Result<String, String> {
+    pub async fn get_terminal_buffer(&self, id: String) -> Result<TerminalBufferSnapshot, String> {
         let start_time = std::time::Instant::now();
-        let (_, data) = self.backend.snapshot(&id, None).await?;
+        let (seq, data) = self.backend.snapshot(&id, None).await?;
         let snapshot_duration = start_time.elapsed();
-        
+
         let string_start = std::time::Instant::now();
         let result = String::from_utf8_lossy(&data).to_string();
         let string_duration = string_start.elapsed();
@@ -378,7 +385,7 @@ impl TerminalManager {
             start_time.elapsed().as_secs_f64() * 1000.0
         );
         
-        Ok(result)
+        Ok(TerminalBufferSnapshot { seq, data: result })
     }
     
     pub async fn close_all(&self) -> Result<(), String> {
@@ -504,7 +511,7 @@ mod tests {
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
         let buf = manager.get_terminal_buffer("buf-term".into()).await.unwrap();
-        assert!(!buf.is_empty());
+        assert!(!buf.data.is_empty());
 
         manager.close_terminal("buf-term".into()).await.unwrap();
     }

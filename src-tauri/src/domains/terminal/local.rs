@@ -1,5 +1,5 @@
 use super::{CreateParams, TerminalBackend};
-use super::coalescing::{CoalescingState, CoalescingParams, handle_coalesced_output};
+use super::coalescing::{CoalescingState, CoalescingParams, TerminalOutputPayload, handle_coalesced_output};
 use log::{debug, error, info, warn};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
@@ -334,6 +334,7 @@ impl LocalPtyAdapter {
 
                                 // Increment sequence and update last output time
                                 state.seq += 1;
+                                let current_seq = state.seq;
                                 state.last_output = SystemTime::now();
                                 
                                 // Handle output emission - different strategies for agent vs standard terminals
@@ -349,7 +350,8 @@ impl LocalPtyAdapter {
                                         &coalescing_state_clone,
                                         CoalescingParams {
                                             terminal_id: &id_clone,
-                                            data: &data,
+                                           data: &data,
+                                            seq: current_seq,
                                         },
                                     ).await;
                                 } else {
@@ -360,7 +362,10 @@ impl LocalPtyAdapter {
                                         
                                         // Apply minimal carriage return processing for fish compatibility
                                         let processed_data = Self::process_carriage_returns_minimal(&data);
-                                        let payload = String::from_utf8_lossy(&processed_data).to_string();
+                                        let payload = TerminalOutputPayload {
+                                            seq: current_seq,
+                                            data: String::from_utf8_lossy(&processed_data).to_string(),
+                                        };
                                         
                                         if let Err(e) = handle.emit(&event_name, payload) {
                                             warn!("Failed to emit direct terminal output: {e}");

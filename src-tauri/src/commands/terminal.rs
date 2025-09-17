@@ -1,4 +1,5 @@
 use crate::{get_terminal_manager, PROJECT_MANAGER};
+use schaltwerk::domains::terminal::manager::TerminalBufferSnapshot;
 use serde::Deserialize;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
@@ -184,7 +185,7 @@ pub async fn terminals_exist_bulk(ids: Vec<String>) -> Result<Vec<(String, bool)
 }
 
 #[tauri::command]
-pub async fn get_terminal_buffer(id: String) -> Result<String, String> {
+pub async fn get_terminal_buffer(id: String) -> Result<TerminalBufferSnapshot, String> {
     let manager = get_terminal_manager().await?;
     manager.get_terminal_buffer(id).await
 }
