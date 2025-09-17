@@ -376,9 +376,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             
                             // Add new sessions at the end
                             for (const newSession of event) {
-                                if (!seenIds.has(newSession.info.session_id)) {
-                                    updated.push(newSession)
+                                const sessionId = newSession.info.session_id
+                                if (seenIds.has(sessionId)) {
+                                    continue
                                 }
+                                seenIds.add(sessionId)
+                                updated.push(newSession)
                             }
                             
                             // Only update if something actually changed

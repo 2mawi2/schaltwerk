@@ -257,6 +257,60 @@ describe('SessionsContext', () => {
         expect(result.current.sessions).toEqual(expectedSessions)
     })
 
+    it('deduplicates sessions when refresh payload contains duplicates', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper })
+
+        await waitFor(() => {
+            expect(listeners['schaltwerk:sessions-refreshed']).toBeTruthy()
+        })
+
+        const duplicateSession = {
+            info: {
+                session_id: 'dupe-session',
+                display_name: 'Duplicate Session',
+                branch: 'feature/dupe',
+                worktree_path: '/path/to/dupe',
+                base_branch: 'main',
+                status: 'active',
+                session_state: 'running',
+                is_current: false,
+                session_type: 'worktree',
+                ready_to_merge: false
+            },
+            terminals: []
+        }
+
+        act(() => {
+            const emit = listeners['schaltwerk:sessions-refreshed']
+            if (emit) {
+                emit({
+                    event: 'schaltwerk:sessions-refreshed',
+                    id: 42,
+                    payload: [...mockSessions, duplicateSession, { ...duplicateSession }]
+                })
+            }
+        })
+
+        const occurrences = result.current.sessions.filter(s => s.info.session_id === 'dupe-session')
+        expect(occurrences).toHaveLength(1)
+    })
+
     it('should handle session removal events', async () => {
         const { listen } = await import('@tauri-apps/api/event')
         const listeners: Record<string, (event: Event<unknown>) => void> = {}
