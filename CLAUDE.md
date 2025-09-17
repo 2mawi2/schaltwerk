@@ -28,7 +28,7 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 - Backend emits `SessionsRefreshed` event → UI updates automatically
 - Optional `Selection` event → UI switches to new session
 
-**Session State Transitions (Kanban):**
+**Session State Transitions:**
 - Spec → Running: `start_spec_session()` creates worktree + terminals
 - Running → Reviewed: `mark_session_reviewed()` flags for merge
 - Running → Spec: `convert_to_spec()` removes worktree, keeps content
@@ -38,7 +38,6 @@ Tauri-based desktop app for managing AI coding sessions using git worktrees. Eac
 **Frontend Entry Points:**
 - `App.tsx`: Main orchestration, session management, agent startup
 - `SelectionContext.tsx`: Controls which session/terminals are active
-- `KanbanView.tsx`: Visual session lifecycle management
 
 **Backend Core:**
 - `main.rs`: Tauri commands entry point

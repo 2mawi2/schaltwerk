@@ -176,7 +176,7 @@ export function SessionConfigurationPanel({
                 {agentType !== 'opencode' && (
                     <div className="flex items-center gap-1.5">
                         <input 
-                            id="kanban-skip-perms" 
+                            id="session-skip-perms" 
                             type="checkbox" 
                             checked={skipPermissions} 
                             onChange={e => handleSkipPermissionsChange(e.target.checked)}
@@ -184,7 +184,7 @@ export function SessionConfigurationPanel({
                             className="text-blue-600"
                         />
                         <label 
-                            htmlFor="kanban-skip-perms" 
+                            htmlFor="session-skip-perms" 
                             className="text-xs"
                             style={{ color: theme.colors.text.secondary }}
                         >

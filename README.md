@@ -38,7 +38,6 @@ It's an orchestration tool for agentic coding. In this IDE you do not edit code 
 - Background terminals mean no waiting when you switch
 
 ### Review Workflow
-- **Kanban board**: See all sessions organized by state
 - **Interactive diffs**: Review changes like on GitHub - add comments and send feedback directly back to the agent
 - **Git branches**: Every session is a real git branch
 - **Local testing**: Run your test suite before merging
@@ -186,7 +185,7 @@ See [full keyboard shortcuts](./docs/keyboard-shortcuts.md) for complete referen
 ### vs. Terminal Multiplexers (tmux, screen)
 - **Agent session management** - Not just generic terminals
 - **Automatic git worktrees** - No manual branch setup
-- **Visual session tracking** - Kanban board for workflow management
+- **Visual session tracking** - Lifecycle views for specs, running sessions, and reviews
 
 ## Architecture
 

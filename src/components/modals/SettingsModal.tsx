@@ -1299,10 +1299,6 @@ fi`}
                                      <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + G</kbd>
                                  </li>
                                 <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Open Agent Board (Kanban)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + K</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
                                     <span className="text-slate-300">Enter Spec Mode (Orchestrator)</span>
                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + S</kbd>
                                 </li>

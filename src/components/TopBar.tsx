@@ -1,4 +1,4 @@
-import { VscHome, VscSettingsGear, VscListFlat, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
+import { VscHome, VscSettingsGear, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
 import { TabBar, ProjectTab } from './TabBar'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
@@ -13,7 +13,6 @@ interface TopBarProps {
   onSelectTab: (path: string) => void
   onCloseTab: (path: string) => void
   onOpenSettings: () => void
-  onOpenKanban?: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void
   // Optional custom resolver for Open button path (e.g., active session worktree)
@@ -27,7 +26,6 @@ export function TopBar({
   onSelectTab,
   onCloseTab,
   onOpenSettings,
-  onOpenKanban,
   isRightPanelCollapsed = false,
   onToggleRightPanel,
   resolveOpenPath
@@ -131,19 +129,6 @@ export function TopBar({
           </div>
         )}
 
-        
-        {/* Agent Board button - only show when a project is open */}
-        {activeTabPath && onOpenKanban && (
-          <button
-            onClick={onOpenKanban}
-            className="h-6 px-2 inline-flex items-center justify-center rounded text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors mr-2 text-xs gap-1"
-            title="Agent Board (⌘⇧K)"
-            aria-label="Agent Board"
-          >
-            <VscListFlat className="text-[14px]" />
-            <span>Board</span>
-          </button>
-        )}
         
         {/* Right panel collapse button - only show when a tab is active */}
         {activeTabPath && onToggleRightPanel && (

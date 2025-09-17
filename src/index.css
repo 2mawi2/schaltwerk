@@ -209,7 +209,7 @@ body.is-split-dragging [class*="transition-"] {
   background: transparent !important;
 }
 
-/* Custom scrollbar styles for Kanban columns */
+/* Shared thin scrollbar styles for scrollable panels */
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
 }

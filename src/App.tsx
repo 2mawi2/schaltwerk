@@ -20,7 +20,6 @@ import { HomeScreen } from './components/home/HomeScreen'
 import { ProjectTab } from './components/TabBar'
 import { TopBar } from './components/TopBar'
 import { PermissionPrompt } from './components/PermissionPrompt'
-import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
@@ -77,12 +76,10 @@ export default function App() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsSpec] = useState(false)
-  const [isKanbanOpen, setIsKanbanOpen] = useState(false)
   const projectSwitchInProgressRef = useRef(false)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
-  const isKanbanOpenRef = useRef(false)
   const previousFocusRef = useRef<Element | null>(null)
-  
+
   const rightPanelStorageKey = selection
     ? selection.kind === 'orchestrator'
       ? 'orchestrator'
@@ -97,12 +94,6 @@ export default function App() {
     setCollapsedExplicit: setRightPanelCollapsedExplicit
   } = useRightPanelPersistence({ storageKey: rightPanelStorageKey })
   
-  // Keep ref in sync with state
-  useEffect(() => {
-    isKanbanOpenRef.current = isKanbanOpen
-  }, [isKanbanOpen])
-  
-
   // Right panel drag state for performance optimization
   const [isDraggingRightSplit, setIsDraggingRightSplit] = useState(false)
 
@@ -320,17 +311,6 @@ export default function App() {
         e.preventDefault()
         resetFontSizes()
       }
-      
-      // Kanban board shortcut: Cmd+Shift+K only
-      if (modifierKey && e.shiftKey && (e.key === 'k' || e.key === 'K')) {
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' || 
-                               document.activeElement?.tagName === 'TEXTAREA' ||
-                               document.activeElement?.getAttribute('contenteditable') === 'true'
-        if (!isInputFocused && !isKanbanOpenRef.current) {
-          e.preventDefault()
-          setIsKanbanOpen(true)
-        }
-      }
     }
 
     const handleGlobalNewSession = () => {
@@ -341,13 +321,6 @@ export default function App() {
         previousFocusRef.current = document.activeElement
          setOpenAsSpec(false) // Explicitly set to false for global shortcut
         setNewSessionOpen(true)
-      }
-    }
-
-    const handleGlobalKanban = () => {
-      // Handle ⌘⇧K from terminal (custom event)
-      if (!isKanbanOpenRef.current) {
-        setIsKanbanOpen(true)
       }
     }
 
@@ -364,16 +337,14 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     window.addEventListener('global-new-session-shortcut', handleGlobalNewSession)
-    window.addEventListener('global-kanban-shortcut', handleGlobalKanban)
     window.addEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
     window.addEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
       window.removeEventListener('global-new-session-shortcut', handleGlobalNewSession)
-      window.removeEventListener('global-kanban-shortcut', handleGlobalKanban)
-    window.removeEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
-    window.removeEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
+      window.removeEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
+      window.removeEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
 
@@ -938,7 +909,6 @@ export default function App() {
         onSelectTab={handleSelectTab}
         onCloseTab={handleCloseTab}
         onOpenSettings={() => setSettingsOpen(true)}
-        onOpenKanban={() => setIsKanbanOpen(true)}
         resolveOpenPath={async () => resolveOpenPathForOpenButton({
           selection,
           activeTabPath,
@@ -1109,11 +1079,6 @@ export default function App() {
             />
           )}
           
-          {/* Kanban Modal - render only when open */}
-          <KanbanModal 
-            isOpen={isKanbanOpen}
-            onClose={() => setIsKanbanOpen(false)}
-          />
 
           {/* Settings Modal */}
           <SettingsModal
