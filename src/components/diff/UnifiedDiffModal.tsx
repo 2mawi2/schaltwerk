@@ -11,19 +11,17 @@ import { loadFileDiff, type FileDiffData } from './loadDiffs'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
 import { DiffViewer } from './DiffViewer'
-import { 
-  VscClose, VscSend, VscListFlat, VscListSelection, VscDiscard, VscCheck
+import {
+  VscClose, VscSend, VscListFlat, VscListSelection
 } from 'react-icons/vsc'
 import hljs from 'highlight.js'
 import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
 import { logger } from '../../utils/logger'
 // AnimatedText imported elsewhere in this file; remove unused import here
-import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
-import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { useSessions } from '../../contexts/SessionsContext'
-import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { mapSessionUiState } from '../../utils/sessionFilters'
+import { DiffSessionActions } from './DiffSessionActions'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -75,16 +73,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [continuousScroll, setContinuousScroll] = useState(false)
   const [isSearchVisible, setIsSearchVisible] = useState(false)
-  const [isResetting, setIsResetting] = useState(false)
-  const [confirmResetOpen, setConfirmResetOpen] = useState(false)
-  const [isDiscarding, setIsDiscarding] = useState(false)
-  const [discardOpen, setDiscardOpen] = useState(false)
-  const [isMarkingReviewed, setIsMarkingReviewed] = useState(false)
-  const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
-    open: false,
-    sessionName: '',
-    hasUncommitted: false
-  })
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
@@ -254,67 +242,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
      }
   }, [sessionName, filePath, getChangedFilesForContext, setFiles, setSelectedFile, setSelectedFileIndex, setAllFileDiffs, setFileError, setBranchInfo])
 
-  const handleConfirmReset = useCallback(async () => {
-    if (!sessionName) return
-    try {
-      setIsResetting(true)
-      await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
-      await loadChangedFiles()
-      window.dispatchEvent(new CustomEvent('schaltwerk:reset-terminals'))
-      // Close the diff viewer after a successful reset to avoid showing stale diffs
-      onClose()
-    } catch (err) {
-      logger.error('Failed to reset session worktree:', err)
-    } finally {
-      setIsResetting(false)
-      setConfirmResetOpen(false)
-    }
-  }, [sessionName, loadChangedFiles, onClose])
-
-  const openMarkReadyModal = useCallback(() => {
-    if (!sessionName || !targetSession) return
-    setMarkReadyModal({
-      open: true,
-      sessionName,
-      hasUncommitted: targetSession.info.has_uncommitted_changes ?? false
-    })
-  }, [sessionName, targetSession])
-
-  const handleMarkReviewedClick = useCallback(async () => {
-    if (!targetSession || !sessionName || isMarkingReviewed) return
-
-    setIsMarkingReviewed(true)
-    try {
-      const autoCommit = await invoke<boolean>(TauriCommands.GetAutoCommitOnReview)
-      if (autoCommit) {
-        try {
-          const success = await invoke<boolean>(TauriCommands.SchaltwerkCoreMarkSessionReady, {
-            name: sessionName,
-            autoCommit: true
-          })
-
-          if (success) {
-            await reloadSessions()
-            onClose()
-          } else {
-            alert('Failed to mark session as reviewed automatically.')
-          }
-        } catch (error) {
-          logger.error('[UnifiedDiffModal] Failed to auto-mark session as reviewed:', error)
-          alert(`Failed to mark session as reviewed: ${error}`)
-        }
-        return
-      }
-
-      openMarkReadyModal()
-    } catch (error) {
-      logger.error('[UnifiedDiffModal] Failed to load auto-commit setting for mark reviewed:', error)
-      openMarkReadyModal()
-    } finally {
-      setIsMarkingReviewed(false)
-    }
-  }, [targetSession, sessionName, isMarkingReviewed, reloadSessions, onClose, openMarkReadyModal])
-
   const scrollToFile = useCallback(async (path: string, index?: number) => {
     // Temporarily suppress auto-selection while we programmatically scroll
     suppressAutoSelectRef.current = true
@@ -370,26 +297,6 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       suppressAutoSelectRef.current = false
     }, 250)
   }, [isLargeDiffMode, files, sessionName, allFileDiffs])
-
-  const discardCurrentFile = useCallback(async () => {
-    const target = selectedFile
-    if (!target) return
-    try {
-      setIsDiscarding(true)
-      const confirmMsg = `Discard changes for:\n${target}\n\nThis only affects your current changes (index + working tree).`
-      if (!window.confirm(confirmMsg)) return
-      if (isCommanderView() && !sessionName) {
-        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInOrchestrator, { filePath: target })
-      } else if (sessionName) {
-        await invoke(TauriCommands.SchaltwerkCoreDiscardFileInSession, { sessionName, filePath: target })
-      }
-      await loadChangedFiles()
-    } catch (e) {
-      logger.error('Failed to discard file in modal:', e)
-    } finally {
-      setIsDiscarding(false)
-    }
-  }, [selectedFile, sessionName, loadChangedFiles, isCommanderView])
 
   // Set up Intersection Observer for virtual scrolling in continuous mode
   useEffect(() => {
@@ -1028,174 +935,119 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition])
 
 
+  const commanderView = isCommanderView()
+
   if (!isOpen) return null
 
   return (
-    <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fadeIn"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div 
-          className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800 animate-slideUp"
-          data-testid="diff-modal"
-          data-selected-file={selectedFile || ''}
-        >
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
-            <div className="flex items-center gap-4">
-              <h2 className="text-lg font-semibold">Git Diff Viewer</h2>
-              {selectedFile && (
-                <div className="text-sm text-slate-400 font-mono">{selectedFile}</div>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {selection.kind === 'session' && (
-                <>
-                  <button
-                    onClick={() => setConfirmResetOpen(true)}
-                    className="px-2 py-1 bg-red-600/80 hover:bg-red-600 rounded-md text-sm font-medium flex items-center gap-2"
-                    title="Discard all changes and reset this session"
-                    disabled={isResetting}
-                  >
-                    <VscDiscard className="text-lg" />
-                    Reset Session
-                  </button>
-                  {canMarkReviewed && (
-                    <button
-                      onClick={handleMarkReviewedClick}
-                      className="px-2 py-1 bg-green-600/80 hover:bg-green-600 rounded-md text-sm font-medium flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Mark this session as reviewed"
-                      disabled={isMarkingReviewed}
-                    >
-                      <VscCheck className="text-lg" />
-                      Mark as Reviewed
-                    </button>
+    <DiffSessionActions
+      isSessionSelection={selection.kind === 'session'}
+      isCommanderView={commanderView}
+      sessionName={sessionName}
+      targetSession={targetSession}
+      selectedFile={selectedFile}
+      canMarkReviewed={canMarkReviewed}
+      onClose={onClose}
+      onReloadSessions={reloadSessions}
+      onLoadChangedFiles={loadChangedFiles}
+    >
+      {({ headerActions, fileAction, dialogs }) => (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fadeIn"
+            onClick={onClose}
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div
+              className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800 animate-slideUp"
+              data-testid="diff-modal"
+              data-selected-file={selectedFile || ''}
+            >
+              {/* Header */}
+              <div className="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-slate-900/50">
+                <div className="flex items-center gap-4">
+                  <h2 className="text-lg font-semibold">Git Diff Viewer</h2>
+                  {selectedFile && (
+                    <div className="text-sm text-slate-400 font-mono">{selectedFile}</div>
                   )}
-                </>
-              )}
-              <button
-                onClick={toggleContinuousScroll}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
-                title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
-              >
-                {continuousScroll ? (
-                  <VscListFlat className="text-xl" />
-                ) : (
-                  <VscListSelection className="text-xl" />
-                )}
-              </button>
-              <button
-                onClick={onClose}
-                className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
-              >
-                <VscClose className="text-xl" />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-1 overflow-hidden">
-            {/* File list sidebar */}
-            <DiffFileExplorer 
-              files={files}
-              selectedFile={selectedFile}
-              visibleFilePath={visibleFilePath}
-              onFileSelect={scrollToFile}
-              getCommentsForFile={getCommentsForFile}
-              currentReview={currentReview}
-              onFinishReview={handleFinishReview}
-              onCancelReview={clearReview}
-              removeComment={removeComment}
-              getConfirmationMessage={getConfirmationMessage}
-            />
-
-            {/* Diff viewer */}
-            <div className="flex-1 flex flex-col overflow-hidden relative animate-fadeIn">
-              {/* Per-file discard button in modal header area (top-right overlay) */}
-              {selectedFile && (
-                <div className="absolute right-3 top-2 z-20">
+                </div>
+                <div className="flex items-center gap-2">
+                  {headerActions}
                   <button
-                    onClick={() => setDiscardOpen(true)}
-                    className="px-2 py-1 rounded bg-slate-800/70 hover:bg-slate-800 text-slate-200 text-xs flex items-center gap-1"
-                    title="Discard changes for this file"
-                    disabled={isDiscarding}
+                    onClick={toggleContinuousScroll}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+                    title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
                   >
-                    {isDiscarding ? (
-                      <span className="opacity-80">Discarding…</span>
+                    {continuousScroll ? (
+                      <VscListFlat className="text-xl" />
                     ) : (
-                      <>
-                        <VscDiscard />
-                        <span>Discard File</span>
-                      </>
+                      <VscListSelection className="text-xl" />
                     )}
                   </button>
+                  <button
+                    onClick={onClose}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+                  >
+                    <VscClose className="text-xl" />
+                  </button>
                 </div>
-              )}
-              <DiffViewer
-                files={files}
-                selectedFile={selectedFile}
-                allFileDiffs={allFileDiffs}
-                fileError={fileError}
-                branchInfo={branchInfo}
-                expandedSections={expandedSections as Set<string>}
-                isLargeDiffMode={isLargeDiffMode}
-                visibleFileSet={visibleFileSet}
-                loadingFiles={loadingFiles}
-                observerRef={observerRef}
-                scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
-                fileRefs={fileRefs}
-                getCommentsForFile={getCommentsForFile}
-                getCommentForLine={getCommentForLine}
-                highlightCode={highlightCode}
-                toggleCollapsed={toggleCollapsed}
-                handleLineMouseDown={handleLineMouseDown}
-                handleLineMouseEnter={handleLineMouseEnter}
-                handleLineMouseLeave={handleLineMouseLeave}
-                handleLineMouseUp={handleLineMouseUp}
-                lineSelection={lineSelection}
-              />
-              
-              {/* Search functionality */}
-              <SearchBox
-                targetRef={scrollContainerRef}
-                isVisible={isSearchVisible}
-                onClose={() => setIsSearchVisible(false)}
-              />
+              </div>
 
-              {/* Confirm discard modal */}
-              <ConfirmDiscardDialog
-                open={discardOpen}
-                isBusy={isDiscarding}
-                filePath={selectedFile}
-                onCancel={() => setDiscardOpen(false)}
-                onConfirm={async () => {
-                  setDiscardOpen(false)
-                  await discardCurrentFile()
-                }}
-              />
+              <div className="flex flex-1 overflow-hidden">
+                {/* File list sidebar */}
+                <DiffFileExplorer
+                  files={files}
+                  selectedFile={selectedFile}
+                  visibleFilePath={visibleFilePath}
+                  onFileSelect={scrollToFile}
+                  getCommentsForFile={getCommentsForFile}
+                  currentReview={currentReview}
+                  onFinishReview={handleFinishReview}
+                  onCancelReview={clearReview}
+                  removeComment={removeComment}
+                  getConfirmationMessage={getConfirmationMessage}
+                />
 
-              <MarkReadyConfirmation
-                open={markReadyModal.open}
-                sessionName={markReadyModal.sessionName}
-                hasUncommittedChanges={markReadyModal.hasUncommitted}
-                onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
-                onSuccess={async () => {
-                  await reloadSessions()
-                  onClose()
-                }}
-              />
-              <ConfirmResetDialog
-                open={confirmResetOpen && selection.kind === 'session'}
-                onCancel={() => setConfirmResetOpen(false)}
-                onConfirm={handleConfirmReset}
-                isBusy={isResetting}
-              />
-              
-              {/* Comment form appears near the selected line */}
+                {/* Diff viewer */}
+                <div className="flex-1 flex flex-col overflow-hidden relative animate-fadeIn">
+                  {fileAction}
+                  <DiffViewer
+                    files={files}
+                    selectedFile={selectedFile}
+                    allFileDiffs={allFileDiffs}
+                    fileError={fileError}
+                    branchInfo={branchInfo}
+                    expandedSections={expandedSections as Set<string>}
+                    isLargeDiffMode={isLargeDiffMode}
+                    visibleFileSet={visibleFileSet}
+                    loadingFiles={loadingFiles}
+                    observerRef={observerRef}
+                    scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
+                    fileRefs={fileRefs}
+                    getCommentsForFile={getCommentsForFile}
+                    getCommentForLine={getCommentForLine}
+                    highlightCode={highlightCode}
+                    toggleCollapsed={toggleCollapsed}
+                    handleLineMouseDown={handleLineMouseDown}
+                    handleLineMouseEnter={handleLineMouseEnter}
+                    handleLineMouseLeave={handleLineMouseLeave}
+                    handleLineMouseUp={handleLineMouseUp}
+                    lineSelection={lineSelection}
+                  />
+
+                  {/* Search functionality */}
+                  <SearchBox
+                    targetRef={scrollContainerRef}
+                    isVisible={isSearchVisible}
+                    onClose={() => setIsSearchVisible(false)}
+                  />
+
+                  {dialogs}
+
+                  {/* Comment form appears near the selected line */}
                   
                   {/* Comment form fixed on the right side */}
                   {showCommentForm && lineSelection.selection && (
@@ -1238,11 +1090,13 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                       </div>
                     </>
                   )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      </div>
-    </>
+        </>
+      )}
+    </DiffSessionActions>
   )
 }
 
