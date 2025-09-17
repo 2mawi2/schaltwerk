@@ -1,6 +1,6 @@
 pub mod claude;
-pub mod command_parser;
 pub mod codex;
+pub mod command_parser;
 pub mod cursor;
 pub mod gemini;
 pub mod naming;

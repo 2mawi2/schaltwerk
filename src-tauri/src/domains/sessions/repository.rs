@@ -27,10 +27,10 @@ impl SessionDbManager {
         if session.status == SessionStatus::Spec && session.session_state != SessionState::Spec {
             warn!(
                 "Correcting inconsistent session_state for spec session '{}': {:?} -> Spec",
-                session.name,
-                session.session_state
+                session.name, session.session_state
             );
-            self.db.update_session_state(&session.id, SessionState::Spec)?;
+            self.db
+                .update_session_state(&session.id, SessionState::Spec)?;
             session.session_state = SessionState::Spec;
         }
 

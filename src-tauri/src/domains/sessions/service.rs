@@ -413,7 +413,11 @@ mod service_unified_tests {
             .unwrap();
 
         assert_eq!(SessionStatus::Spec, fetched.status);
-        assert_eq!(SessionState::Spec, fetched.session_state, "Spec sessions must not remain in running state");
+        assert_eq!(
+            SessionState::Spec,
+            fetched.session_state,
+            "Spec sessions must not remain in running state"
+        );
 
         let running_sessions = manager
             .db_manager
@@ -1224,10 +1228,9 @@ impl SessionManager {
                     session.initial_prompt
                 );
                 (None, session.initial_prompt.as_deref(), true)
-            } else if let (Some(path), Some(session_id)) = (
-                resume_path.as_ref(),
-                resume_session_id_from_path.clone(),
-            ) {
+            } else if let (Some(path), Some(session_id)) =
+                (resume_path.as_ref(), resume_session_id_from_path.clone())
+            {
                 log::info!(
                     "Session manager: Resuming Codex session via session id '{session_id}' (source path: {path_display})",
                     path_display = path.display()
