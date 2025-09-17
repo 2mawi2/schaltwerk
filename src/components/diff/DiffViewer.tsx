@@ -167,8 +167,9 @@ export function DiffViewer({
                     <AnimatedText text="loading" colorClassName="text-slate-500" size="sm" />
                   </div>
                 ) : (
-                <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                  <tbody>
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-max">
+                      <tbody>
                     {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                       const globalIdx = `${file.path}-${idx}`
                       const isExpanded = expandedSections.has(globalIdx)
@@ -239,8 +240,9 @@ export function DiffViewer({
                         />
                       )
                     })}
-                  </tbody>
-                </table>
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             )
@@ -312,8 +314,9 @@ export function DiffViewer({
                   )}
                 </div>
               ) : (
-              <table className="w-full" style={{ tableLayout: 'fixed' }}>
-                <tbody>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-max">
+                    <tbody>
                   {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                     const globalIdx = `${file.path}-${idx}`
                     const isExpanded = expandedSections.has(globalIdx)
@@ -384,8 +387,9 @@ export function DiffViewer({
                       />
                     )
                   })}
-                </tbody>
-              </table>
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )

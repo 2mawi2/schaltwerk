@@ -185,8 +185,21 @@ describe('DiffViewer', () => {
   it('applies syntax highlighting when provided', () => {
     const highlightCode = vi.fn((code) => `<span class="highlighted">${code}</span>`)
     render(<DiffViewer {...mockProps as DiffViewerProps} highlightCode={highlightCode} />)
-    
+
     // Should call highlight function for visible content
     expect(highlightCode).toHaveBeenCalled()
+  })
+
+  it('applies horizontal scrolling at the file level instead of per line', () => {
+    render(<DiffViewer {...mockProps as DiffViewerProps} />)
+
+    const codeElement = screen.getByText('unchanged line 1')
+    const codeCell = codeElement.closest('td')
+    expect(codeCell).not.toBeNull()
+    expect(codeCell?.className).not.toContain('overflow-x-auto')
+
+    const tableWrapper = codeCell?.closest('table')?.parentElement
+    expect(tableWrapper).not.toBeNull()
+    expect(tableWrapper?.className).toContain('overflow-x-auto')
   })
 })

@@ -130,7 +130,7 @@ function DiffLineRowComponent({
       </td>
       
       {/* Code content */}
-      <td className="px-2 py-0.5 font-mono text-sm relative whitespace-pre overflow-x-auto">
+      <td className="px-2 py-0.5 font-mono text-sm relative whitespace-pre">
         {line.type === 'added' && (
           <div className="absolute left-0 top-0 w-1 h-full bg-green-400" />
         )}
