@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { useKeyboardShortcuts } from './useKeyboardShortcuts'
+import { defaultShortcutConfig, KeyboardShortcutAction, KeyboardShortcutConfig } from '../keyboardShortcuts/config'
 
 function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = false } = {}) {
   const event = new KeyboardEvent('keydown', { key, metaKey, ctrlKey, shiftKey, bubbles: true, cancelable: true })
@@ -69,6 +70,28 @@ describe('useKeyboardShortcuts', () => {
     pressKey('d', { metaKey: true })
 
     expect(onOpenDiffViewer).toHaveBeenCalled()
+    expect(onCancelSelectedSession).toHaveBeenCalledWith(false)
+  })
+
+  it('respects custom keybindings when provided in config', () => {
+    const onSelectOrchestrator = vi.fn()
+    const onSelectSession = vi.fn()
+    const onCancelSelectedSession = vi.fn()
+
+    const customConfig: KeyboardShortcutConfig = {
+      ...defaultShortcutConfig,
+      [KeyboardShortcutAction.CancelSession]: ['Mod+X'],
+    }
+
+    renderHook(() => useKeyboardShortcuts(
+      { onSelectOrchestrator, onSelectSession, onCancelSelectedSession, sessionCount: 2 },
+      { shortcutConfig: customConfig },
+    ))
+
+    pressKey('d', { metaKey: true })
+    expect(onCancelSelectedSession).not.toHaveBeenCalled()
+
+    pressKey('x', { metaKey: true })
     expect(onCancelSelectedSession).toHaveBeenCalledWith(false)
   })
 

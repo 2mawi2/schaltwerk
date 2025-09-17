@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense, useMemo } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { useCallback } from 'react'
 import { SchaltEvent, listenEvent } from '../../common/eventSystem'
@@ -8,6 +8,9 @@ import { AnimatedText } from '../common/AnimatedText'
 import { EnrichedSession } from '../../types/session'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
+import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -31,6 +34,8 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const contentRef = useRef<string>('')
   const hasLocalChangesRef = useRef<boolean>(false)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
+  const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
+  const platform = useMemo(() => detectPlatformSafe(), [])
 
   // Load initial content and session info
   useEffect(() => {
@@ -247,15 +252,11 @@ export function SpecEditor({ sessionName, onStart }: Props) {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && !starting) {
+      if (!starting && isShortcutForAction(e, KeyboardShortcutAction.RunSpecAgent, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         handleRun()
-      } else if ((e.metaKey || e.ctrlKey) && (e.key === 't' || e.key === 'T')) {
-        // Focus the spec editor
+      } else if (isShortcutForAction(e, KeyboardShortcutAction.FocusClaude, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
-        // Removed stopPropagation() to allow cmd+e to work
-        
-        // Focus the markdown editor and move cursor to end
         if (markdownEditorRef.current) {
           markdownEditorRef.current.focusEnd()
           logger.info('[SpecEditor] Focused spec content via Cmd+T and moved cursor to end')
@@ -265,7 +266,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
 
     window.addEventListener('keydown', handleKeyDown) // Use bubble phase to not interfere with cmd+e
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleRun, starting])
+  }, [handleRun, starting, keyboardShortcutConfig, platform])
 
   if (loading) {
     return (

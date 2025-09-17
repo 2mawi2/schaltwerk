@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, ReactElement } from 'react'
+import { useState, useEffect, useCallback, useMemo, ReactElement } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
@@ -13,6 +13,27 @@ import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
+import {
+    KeyboardShortcutAction,
+    KeyboardShortcutConfig,
+    defaultShortcutConfig,
+    mergeShortcutConfig,
+} from '../../keyboardShortcuts/config'
+import { KEYBOARD_SHORTCUT_SECTIONS } from '../../keyboardShortcuts/metadata'
+import { shortcutFromEvent, normalizeShortcut } from '../../keyboardShortcuts/matcher'
+import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from '../../keyboardShortcuts/helpers'
+import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
+
+const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
+    if (a.length !== b.length) return false
+    return a.every((value, index) => value === b[index])
+}
+
+const shortcutConfigsEqual = (a: KeyboardShortcutConfig, b: KeyboardShortcutConfig) => {
+    return Object.values(KeyboardShortcutAction).every(action =>
+        shortcutArraysEqual(a[action], b[action])
+    )
+}
 
 interface Props {
     open: boolean
@@ -160,6 +181,7 @@ interface SessionPreferences {
 
 export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const { terminalFontSize, uiFontSize, setTerminalFontSize, setUiFontSize } = useFontSize()
+    const { applyOverrides: applyShortcutOverrides } = useKeyboardShortcutsConfig()
     const [activeCategory, setActiveCategory] = useState<SettingsCategory>('appearance')
     const [activeAgentTab, setActiveAgentTab] = useState<AgentType>('claude')
     const [projectPath, setProjectPath] = useState<string>('')
@@ -176,6 +198,43 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         auto_commit_on_review: false,
         skip_confirmation_modals: false
     })
+    const platform = useMemo(() => detectPlatformSafe(), [])
+
+    const [keyboardShortcutsState, setKeyboardShortcutsState] = useState<KeyboardShortcutConfig>(() => mergeShortcutConfig(defaultShortcutConfig))
+    const [editableKeyboardShortcuts, setEditableKeyboardShortcuts] = useState<KeyboardShortcutConfig>(() => mergeShortcutConfig(defaultShortcutConfig))
+    const [shortcutRecording, setShortcutRecording] = useState<KeyboardShortcutAction | null>(null)
+    const [shortcutsDirty, setShortcutsDirty] = useState(false)
+    const recordingLabel = useMemo(() => {
+        if (!shortcutRecording) return ''
+        for (const section of KEYBOARD_SHORTCUT_SECTIONS) {
+            const match = section.items.find(item => item.action === shortcutRecording)
+            if (match) return match.label
+        }
+        return ''
+    }, [shortcutRecording])
+
+    const renderShortcutTokens = (binding: string) => {
+        if (!binding) {
+            return <span className="text-caption text-slate-500">Not set</span>
+        }
+
+        const segments = splitShortcutBinding(binding)
+        return (
+            <span className="flex flex-wrap items-center gap-1">
+                {segments.map((segment, index) => {
+                    const label = getDisplayLabelForSegment(segment, platform)
+                    return (
+                        <kbd
+                            key={`${segment}-${index}`}
+                            className="px-2 py-1 bg-slate-800/70 border border-slate-700/60 rounded text-caption text-slate-200"
+                        >
+                            {label}
+                        </kbd>
+                    )
+                })}
+            </span>
+        )
+    }
     const [showFontPicker, setShowFontPicker] = useState(false)
     const [runScript, setRunScript] = useState<RunScript>({
         command: '',
@@ -224,6 +283,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         loadProjectSettings,
         loadTerminalSettings,
         loadSessionPreferences,
+        loadKeyboardShortcuts,
+        saveKeyboardShortcuts,
         loadInstalledFonts
     } = useSettings()
     
@@ -328,10 +389,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     
     const loadAllSettings = useCallback(async () => {
         // Load application-level settings (always available)
-        const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences] = await Promise.all([
+        const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences, loadedShortcuts] = await Promise.all([
             loadEnvVars(),
             loadCliArgs(),
-            loadSessionPreferences()
+            loadSessionPreferences(),
+            loadKeyboardShortcuts(),
         ])
         
         // Load project-specific settings (may fail if no project is open)
@@ -366,9 +428,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         setTerminalSettings(loadedTerminalSettings)
         setSessionPreferences(loadedSessionPreferences)
         setRunScript(loadedRunScript)
+        const normalizedShortcuts = mergeShortcutConfig(loadedShortcuts)
+        setKeyboardShortcutsState(normalizedShortcuts)
+        setEditableKeyboardShortcuts(normalizedShortcuts)
+        setShortcutsDirty(false)
+        applyShortcutOverrides(normalizedShortcuts)
         
         loadBinaryConfigs()
-    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadProjectSettings, loadTerminalSettings, loadRunScript, loadBinaryConfigs])
+    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadBinaryConfigs, applyShortcutOverrides])
 
     useEffect(() => {
         if (open) {
@@ -379,6 +446,85 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             })
         }
     }, [open, loadAllSettings])
+
+    useEffect(() => {
+        if (!shortcutRecording) return
+        const action = shortcutRecording
+
+        const handleKeyCapture = (event: KeyboardEvent) => {
+            event.preventDefault()
+            event.stopPropagation()
+
+            if (event.key === 'Escape') {
+                setShortcutRecording(null)
+                return
+            }
+
+            const rawBinding = shortcutFromEvent(event, { platform })
+            const normalized = normalizeShortcut(rawBinding)
+            if (!normalized) {
+                return
+            }
+
+            const segments = normalized.split('+')
+            const hasNonModifier = segments.some(seg => !['Mod', 'Meta', 'Ctrl', 'Alt', 'Shift'].includes(seg))
+
+            if (!hasNonModifier) {
+                return
+            }
+
+            setEditableKeyboardShortcuts(prev => {
+                const next = { ...prev, [action]: [normalized] }
+                setShortcutsDirty(!shortcutConfigsEqual(next, keyboardShortcutsState))
+                return next
+            })
+            setShortcutRecording(null)
+        }
+
+        window.addEventListener('keydown', handleKeyCapture, true)
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyCapture, true)
+        }
+    }, [shortcutRecording, keyboardShortcutsState, platform])
+
+    const setShortcutBindings = useCallback((action: KeyboardShortcutAction, bindings: string[]) => {
+        const sanitized = bindings
+            .map(binding => normalizeShortcut(binding))
+            .filter(Boolean)
+
+        setEditableKeyboardShortcuts(prev => {
+            const next = { ...prev, [action]: sanitized }
+            setShortcutsDirty(!shortcutConfigsEqual(next, keyboardShortcutsState))
+            return next
+        })
+    }, [keyboardShortcutsState])
+
+    const handleShortcutReset = useCallback((action: KeyboardShortcutAction) => {
+        setShortcutBindings(action, defaultShortcutConfig[action])
+    }, [setShortcutBindings])
+
+    const handleShortcutClear = useCallback((action: KeyboardShortcutAction) => {
+        setShortcutBindings(action, [])
+    }, [setShortcutBindings])
+
+    const handleShortcutInputChange = useCallback((action: KeyboardShortcutAction, value: string) => {
+        if (!value.trim()) {
+            setShortcutBindings(action, [])
+            return
+        }
+        setShortcutBindings(action, [value])
+    }, [setShortcutBindings])
+
+    const handleShortcutRecord = useCallback((action: KeyboardShortcutAction) => {
+        setShortcutRecording(current => current === action ? null : action)
+    }, [])
+
+    const handleResetAllShortcuts = useCallback(() => {
+        const reset = mergeShortcutConfig(defaultShortcutConfig)
+        setEditableKeyboardShortcuts(reset)
+        setShortcutsDirty(!shortcutConfigsEqual(reset, keyboardShortcutsState))
+    }, [keyboardShortcutsState])
 
     const handleBinaryPathChange = async (agent: AgentType, path: string | null) => {
         try {
@@ -475,6 +621,21 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                 } catch (e) {
                     logger.warn('Failed to reload action buttons after save', e)
                 }
+            }
+        }
+
+        if (shortcutsDirty) {
+            try {
+                const normalizedShortcuts = mergeShortcutConfig(editableKeyboardShortcuts)
+                await saveKeyboardShortcuts(normalizedShortcuts)
+                setKeyboardShortcutsState(normalizedShortcuts)
+                setEditableKeyboardShortcuts(normalizedShortcuts)
+                applyShortcutOverrides(normalizedShortcuts)
+                setShortcutsDirty(false)
+                result.savedSettings.push('keyboard shortcuts')
+            } catch (error) {
+                logger.error('Failed to save keyboard shortcuts:', error)
+                result.failedSettings.push('keyboard shortcuts')
             }
         }
         
@@ -1214,135 +1375,91 @@ fi`}
         </div>
     )
 
+    
     const renderKeyboardShortcuts = () => (
         <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-6">
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Navigation</h3>
-                        <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                            <ul className="space-y-2 text-body">
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Switch to Orchestrator</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + 1</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Switch to Session 1-8</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + 2-9</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Previous Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + ↑</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Next Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + ↓</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Switch to Previous Project</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + ←</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Switch to Next Project</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + →</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Focus Claude Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + T</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Focus Terminal</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + /</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">New Line in Terminal (when terminal focused)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Enter</kbd>
-                                </li>
-                            </ul>
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {shortcutRecording && (
+                    <div className="px-4 py-3 rounded border border-amber-500/60 bg-amber-500/10 text-amber-100 text-body">
+                        Press the new shortcut for <span className="font-semibold">{recordingLabel}</span> or press Escape to cancel.
+                    </div>
+                )}
+                {KEYBOARD_SHORTCUT_SECTIONS.map(section => (
+                    <div key={section.id} className="space-y-3">
+                        <div className="flex items-center justify-between">
+                            <h3 className="text-body font-medium text-slate-200">{section.title}</h3>
+                        </div>
+                        <div className="bg-slate-900/60 border border-slate-800 rounded-xl divide-y divide-slate-800/70">
+                            {section.items.map(item => {
+                                const currentValue = editableKeyboardShortcuts[item.action]?.[0] ?? ''
+                                const isRecording = shortcutRecording === item.action
+
+                                return (
+                                    <div key={item.action} className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between px-5 py-4">
+                                        <div>
+                                            <div className="text-body text-slate-300">{item.label}</div>
+                                            {item.description && (
+                                                <div className="text-caption text-slate-500">{item.description}</div>
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col items-start gap-2 md:flex-row md:items-center md:gap-3">
+                                            <div className="flex items-center gap-2 rounded-lg bg-slate-900/50 border border-slate-800 px-3 py-2">
+                                                {renderShortcutTokens(currentValue)}
+                                            </div>
+                                            <input
+                                                type="text"
+                                                value={currentValue}
+                                                onChange={(e) => handleShortcutInputChange(item.action, e.target.value)}
+                                                placeholder="Type shortcut (e.g. Mod+Shift+S)"
+                                                className="w-48 bg-slate-900/40 text-slate-100 border border-slate-700/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:border-blue-500/80 disabled:opacity-60"
+                                                disabled={isRecording}
+                                            />
+                                            <button
+                                                onClick={() => handleShortcutRecord(item.action)}
+                                                className={`px-2.5 py-1.5 text-caption rounded-lg border transition-colors ${
+                                                    isRecording
+                                                        ? 'border-blue-400 text-blue-200 bg-blue-500/15'
+                                                        : 'border-slate-600/70 text-slate-200 hover:border-slate-500 hover:bg-slate-800/50'
+                                                }`}
+                                            >
+                                                {isRecording ? 'Listening…' : 'Record'}
+                                            </button>
+                                            <button
+                                                onClick={() => handleShortcutReset(item.action)}
+                                                className="px-2.5 py-1.5 text-caption text-slate-300 border border-slate-600/70 rounded-lg hover:border-slate-500 hover:bg-slate-800/50"
+                                            >
+                                                Reset
+                                            </button>
+                                            <button
+                                                onClick={() => handleShortcutClear(item.action)}
+                                                className="px-2.5 py-1.5 text-caption text-slate-400 border border-slate-600/70 rounded-lg hover:border-slate-500 hover:bg-slate-800/50"
+                                            >
+                                                Clear
+                                            </button>
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
-                    
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Session Management</h3>
-                        <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                            <ul className="space-y-2 text-body">
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">New Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + N</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">New Spec</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + N</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Cancel Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + D</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Force Cancel Session</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + D</kbd>
-                                </li>
-                                 <li className="flex justify-between items-center">
-                                     <span className="text-slate-300">Mark Ready for Review</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + R</kbd>
-                                 </li>
-                                 <li className="flex justify-between items-center">
-                                     <span className="text-slate-300">Promote Best Version (in group)</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + B</kbd>
-                                 </li>
-                                 <li className="flex justify-between items-center">
-                                     <span className="text-slate-300">Convert Session to Spec</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + S</kbd>
-                                 </li>
-                                 <li className="flex justify-between items-center">
-                                     <span className="text-slate-300">Open Diff Viewer (Session/Orchestrator)</span>
-                                     <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + G</kbd>
-                                 </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Enter Spec Mode (Orchestrator)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Shift + S</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Finish Review (in diff viewer)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Enter</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Add Comment (hover over diff line)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Enter</kbd>
-                                </li>
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Run Spec Agent (when focused)</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">Cmd/Ctrl + Enter</kbd>
-                                </li>
-                            </ul>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-4">Action Buttons</h3>
-                        <div className="bg-slate-800/50 border border-slate-700 rounded p-4">
-                            <p className="text-body text-slate-300 mb-3">
-                                Action buttons appear in the terminal header and provide quick access to common AI prompts.
-                            </p>
-                            <ul className="space-y-2 text-body">
-                                <li className="flex justify-between items-center">
-                                    <span className="text-slate-300">Action Button 1-6</span>
-                                    <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">F1-F6</kbd>
-                                </li>
-                            </ul>
-                            <div className="mt-3 pt-3 border-t border-slate-600 text-caption text-slate-400">
-                                <p className="mb-2">💡 Tip: Configure your action buttons in the "Action Buttons" settings tab.</p>
-                                <p>You can customize up to 6 buttons with different colors and AI prompts that will be pasted into Claude.</p>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div className="p-4 bg-slate-800/30 border border-slate-700 rounded">
-                        <div className="text-caption text-slate-400">
-                            <p className="mb-2">Note: Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd</kbd> on Windows/Linux systems.</p>
-                            <p>Keyboard shortcuts work globally throughout the application and can be used to efficiently navigate between agents and manage your workflow.</p>
-                        </div>
-                    </div>
+                ))}
+                <div className="p-4 bg-slate-800/30 border border-slate-700 rounded text-caption text-slate-400">
+                    Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Ctrl</kbd> instead of <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">Cmd</kbd> on Windows/Linux systems. Keyboard shortcuts apply globally throughout the application.
+                </div>
+            </div>
+            <div className="border-t border-slate-800 p-4 bg-slate-900/50 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={handleResetAllShortcuts}
+                        className="px-3 py-1.5 text-caption rounded-lg border border-slate-700 text-slate-300 hover:border-slate-500 hover:bg-slate-800/50"
+                    >
+                        Reset All
+                    </button>
+                    {shortcutsDirty ? (
+                        <span className="text-caption text-amber-300">Unsaved shortcut changes</span>
+                    ) : (
+                        <span className="text-caption text-slate-500">All shortcuts saved</span>
+                    )}
                 </div>
             </div>
         </div>
@@ -1578,6 +1695,7 @@ fi`}
         </div>
     )
     
+
     const renderSessionSettings = () => (
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">

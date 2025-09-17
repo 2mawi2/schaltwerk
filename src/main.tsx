@@ -13,6 +13,7 @@ import { SessionsProvider } from './contexts/SessionsContext'
 import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
 import { ModalProvider } from './contexts/ModalContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -34,25 +35,27 @@ const AppLoader: React.FC = () => {
     <EntryAnimation isLoading={isLoading}>
       <ErrorBoundary name="Root">
         <FontSizeProvider>
-          <ProjectProvider>
-            <SessionsProvider>
-              <ActionButtonsProvider>
-                <ModalProvider>
-                  <SelectionProvider>
-                    <FocusProvider>
-                      <ReviewProvider>
-                        <RunProvider>
-                          <div className="h-screen w-screen">
-                            <App />
-                          </div>
-                        </RunProvider>
-                      </ReviewProvider>
-                    </FocusProvider>
-                  </SelectionProvider>
-                </ModalProvider>
-              </ActionButtonsProvider>
-            </SessionsProvider>
-          </ProjectProvider>
+          <KeyboardShortcutsProvider>
+            <ProjectProvider>
+              <SessionsProvider>
+                <ActionButtonsProvider>
+                  <ModalProvider>
+                    <SelectionProvider>
+                      <FocusProvider>
+                        <ReviewProvider>
+                          <RunProvider>
+                            <div className="h-screen w-screen">
+                              <App />
+                            </div>
+                          </RunProvider>
+                        </ReviewProvider>
+                      </FocusProvider>
+                    </SelectionProvider>
+                  </ModalProvider>
+                </ActionButtonsProvider>
+              </SessionsProvider>
+            </ProjectProvider>
+          </KeyboardShortcutsProvider>
         </FontSizeProvider>
       </ErrorBoundary>
     </EntryAnimation>

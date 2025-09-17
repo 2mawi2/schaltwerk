@@ -3,6 +3,7 @@ import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act } from '@testing-library/react'
 import { useSettings, AgentType } from './useSettings'
 import { invoke, InvokeArgs } from '@tauri-apps/api/core'
+import { KeyboardShortcutAction, KeyboardShortcutConfig, defaultShortcutConfig } from '../keyboardShortcuts/config'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -549,6 +550,36 @@ describe('useSettings', () => {
         shellArgs: [],
         fontFamily: null,
       })
+    })
+  })
+
+  describe('keyboard shortcut settings', () => {
+    it('saves keyboard shortcut config via tauri command', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      const shortcuts: KeyboardShortcutConfig = {
+        ...defaultShortcutConfig,
+        [KeyboardShortcutAction.CancelSession]: ['Mod+X'],
+      }
+
+      await act(async () => {
+        await result.current.saveKeyboardShortcuts(shortcuts)
+      })
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetKeyboardShortcuts, {
+        shortcuts,
+      })
+    })
+
+    it('loads keyboard shortcuts and falls back to defaults when backend returns null', async () => {
+      const { result } = renderHook(() => useSettings())
+
+      mockInvoke.mockResolvedValueOnce(null)
+
+      const shortcuts = await result.current.loadKeyboardShortcuts()
+
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.GetKeyboardShortcuts)
+      expect(shortcuts[KeyboardShortcutAction.CancelSession]).toEqual(['Mod+D'])
     })
   })
 })

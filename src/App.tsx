@@ -30,6 +30,9 @@ import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
 import { TauriCommands } from './common/tauriCommands'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
+import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
+import { KeyboardShortcutAction } from './keyboardShortcuts/config'
+import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -79,6 +82,8 @@ export default function App() {
   const projectSwitchInProgressRef = useRef(false)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const previousFocusRef = useRef<Element | null>(null)
+  const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
+  const platform = useMemo(() => detectPlatformSafe(), [])
 
   const rightPanelStorageKey = selection
     ? selection.kind === 'orchestrator'
@@ -264,52 +269,44 @@ export default function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Check if we're on macOS using userAgent (platform is deprecated)
-      const isMac = navigator.userAgent.toUpperCase().includes('MAC')
-      const modifierKey = isMac ? e.metaKey : e.ctrlKey
+      const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
+        document.activeElement?.tagName === 'TEXTAREA' ||
+        document.activeElement?.getAttribute('contenteditable') === 'true'
 
-      if (modifierKey && e.key === 'n') {
-        // Don't interfere if a modal is already open or if we're typing in an input
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-                               document.activeElement?.tagName === 'TEXTAREA' ||
-                               document.activeElement?.getAttribute('contenteditable') === 'true'
-
-        if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
-          e.preventDefault()
-          logger.info('[App] Cmd+N triggered - opening new session modal (agent mode)')
-          // Store current focus before opening modal
-          previousFocusRef.current = document.activeElement
-           setOpenAsSpec(false) // Explicitly set to false for Cmd+N
-          setNewSessionOpen(true)
-        }
-      }
-      // New Spec shortcut: Cmd+Shift+N (deterministic open-as-spec)
-      if (modifierKey && e.shiftKey && (e.key === 'n' || e.key === 'N')) {
-        const isInputFocused = document.activeElement?.tagName === 'INPUT' ||
-                               document.activeElement?.tagName === 'TEXTAREA' ||
-                               document.activeElement?.getAttribute('contenteditable') === 'true'
-        if (!newSessionOpen && !cancelModalOpen && !isInputFocused) {
-          e.preventDefault()
-          logger.info('[App] Cmd+Shift+N triggered - opening new session modal (spec creation)')
-          // Store current focus before opening modal
-          previousFocusRef.current = document.activeElement
-          setOpenAsSpec(true)
-          setNewSessionOpen(true)
-        }
+      if (!newSessionOpen && !cancelModalOpen && !isInputFocused && isShortcutForAction(e, KeyboardShortcutAction.NewSession, keyboardShortcutConfig, { platform })) {
+        e.preventDefault()
+        logger.info('[App] New session shortcut triggered - opening new session modal (agent mode)')
+        previousFocusRef.current = document.activeElement
+        setOpenAsSpec(false)
+        setNewSessionOpen(true)
+        return
       }
 
-      // Font size shortcuts
-      if (modifierKey && (e.key === '+' || e.key === '=')) {
+      if (!newSessionOpen && !cancelModalOpen && !isInputFocused && isShortcutForAction(e, KeyboardShortcutAction.NewSpec, keyboardShortcutConfig, { platform })) {
+        e.preventDefault()
+        logger.info('[App] New spec shortcut triggered - opening new session modal (spec creation)')
+        previousFocusRef.current = document.activeElement
+        setOpenAsSpec(true)
+        setNewSessionOpen(true)
+        return
+      }
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.IncreaseFontSize, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         increaseFontSizes()
+        return
       }
-      if (modifierKey && e.key === '-') {
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.DecreaseFontSize, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         decreaseFontSizes()
+        return
       }
-      if (modifierKey && e.key === '0') {
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.ResetFontSize, keyboardShortcutConfig, { platform })) {
         e.preventDefault()
         resetFontSizes()
+        return
       }
     }
 
@@ -346,7 +343,7 @@ export default function App() {
       window.removeEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
       window.removeEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
     }
-  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes])
+  }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform])
 
   // Open NewSessionModal in spec creation mode when requested
   useEffect(() => {

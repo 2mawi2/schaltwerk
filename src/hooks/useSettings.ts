@@ -2,6 +2,13 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
+import {
+    KeyboardShortcutConfig,
+    defaultShortcutConfig,
+    mergeShortcutConfig,
+    normalizeShortcutConfig,
+    PartialKeyboardShortcutConfig,
+} from '../keyboardShortcuts/config'
 
 export type AgentType = 'claude' | 'cursor-agent' | 'opencode' | 'gemini' | 'qwen' | 'codex'
 type EnvVars = Record<string, string>
@@ -221,6 +228,21 @@ export const useSettings = () => {
         }
     }, [])
 
+    const saveKeyboardShortcuts = useCallback(async (shortcuts: KeyboardShortcutConfig): Promise<void> => {
+        const normalized = normalizeShortcutConfig(shortcuts)
+        await invoke(TauriCommands.SetKeyboardShortcuts, { shortcuts: normalized })
+    }, [])
+
+    const loadKeyboardShortcuts = useCallback(async (): Promise<KeyboardShortcutConfig> => {
+        try {
+            const stored = await invoke<PartialKeyboardShortcutConfig | null>(TauriCommands.GetKeyboardShortcuts)
+            return mergeShortcutConfig(stored ?? undefined)
+        } catch (error) {
+            logger.error('Failed to load keyboard shortcuts:', error)
+            return defaultShortcutConfig
+        }
+    }, [])
+
     return {
         loading,
         saving,
@@ -229,11 +251,13 @@ export const useSettings = () => {
         saveProjectSettings,
         saveTerminalSettings,
         saveSessionPreferences,
+        saveKeyboardShortcuts,
         loadEnvVars,
         loadCliArgs,
         loadProjectSettings,
         loadTerminalSettings,
         loadSessionPreferences,
+        loadKeyboardShortcuts,
         loadInstalledFonts,
     }
 }

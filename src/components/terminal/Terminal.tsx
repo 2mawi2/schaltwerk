@@ -18,6 +18,9 @@ import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
 import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
+import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
+import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -89,6 +92,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const queueCfg = useMemo(() => (
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
+
+    const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig();
+    const platform = useMemo(() => detectPlatformSafe(), []);
 
     const {
         enqueue: enqueueQueue,
@@ -642,39 +648,34 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-            const isMac = navigator.userAgent.includes('Mac')
-            const modifierKey = isMac ? event.metaKey : event.ctrlKey
-            
-            // Cmd+Enter for new line (like Claude Code)
-            if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
-                // Send a newline character without submitting the command
-                // This allows multiline input in shells that support it
+            const isKeydown = !event.type || event.type === 'keydown'
+
+            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.InsertTerminalNewLine, keyboardShortcutConfig, { platform })) {
                 invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
-                return false; // Prevent default Enter behavior
+                return false
             }
-            // Prefer Shift+Cmd/Ctrl+N as "New spec"
-            if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
+
+            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.NewSpec, keyboardShortcutConfig, { platform })) {
                 window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
                 return false
             }
-            // Plain Cmd/Ctrl+N opens the regular new session modal
-            if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
-                // Dispatch a custom event to trigger the global new session handler
+
+            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.NewSession, keyboardShortcutConfig, { platform })) {
                 window.dispatchEvent(new CustomEvent('global-new-session-shortcut'))
-                return false // Prevent xterm.js from processing this event
+                return false
             }
-            if (modifierKey && (event.key === 'r' || event.key === 'R')) {
-                // Dispatch a custom event to trigger the global mark reviewed handler
+
+            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.MarkSessionReady, keyboardShortcutConfig, { platform })) {
                 window.dispatchEvent(new CustomEvent('global-mark-ready-shortcut'))
                 return false
             }
-            if (modifierKey && (event.key === 'f' || event.key === 'F')) {
-                // Show search UI
-                setIsSearchVisible(true);
-                return false; // Prevent xterm.js from processing this event
+
+            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.OpenTerminalSearch, keyboardShortcutConfig, { platform })) {
+                setIsSearchVisible(true)
+                return false
             }
-            
-            return true // Allow xterm.js to process other events
+
+            return true
         })
         
         // Helper to ensure element is laid out before fitting
@@ -1307,7 +1308,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, normalizeOutputPayload, applyChunk, termDebug]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, normalizeOutputPayload, applyChunk, termDebug, keyboardShortcutConfig, platform]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {

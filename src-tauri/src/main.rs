@@ -757,6 +757,8 @@ fn main() {
             set_diff_view_preferences,
             get_session_preferences,
             set_session_preferences,
+            get_keyboard_shortcuts,
+            set_keyboard_shortcuts,
             get_auto_commit_on_review,
             set_auto_commit_on_review,
             get_project_settings,

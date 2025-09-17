@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { Selection } from '../contexts/SelectionContext'
 import { EnrichedSession } from '../types/session'
 import { isSpec } from '../utils/sessionFilters'
 import { FilterMode } from '../types/sessionFilters'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { logger } from '../utils/logger'
+import { useKeyboardShortcutsConfig } from '../contexts/KeyboardShortcutsContext'
+import { KeyboardShortcutAction } from '../keyboardShortcuts/config'
+import { detectPlatformSafe, isShortcutForAction } from '../keyboardShortcuts/helpers'
 
 function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
@@ -43,6 +46,8 @@ export function getSpecToSelect(specSessions: EnrichedSession[], lastSelectedSpe
 }
 
 export function useSpecMode({ projectPath, selection, sessions, setFilterMode, setSelection, currentFilterMode }: UseSpecModeProps) {
+  const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
+  const platform = useMemo(() => detectPlatformSafe(), [])
   // Initialize spec mode state from sessionStorage
   const [commanderSpecModeSession, setCommanderSpecModeSessionInternal] = useState<string | null>(() => {
     const key = 'default' // Will be updated when projectPath is available
@@ -250,36 +255,36 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
   // Handle keyboard shortcut for spec mode (Cmd+Shift+S from anywhere)
   useEffect(() => {
     const handleKeyDown = async (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'S' || e.key === 's')) {
-        e.preventDefault()
-        
-        // If already in spec mode and in orchestrator, exit spec mode
-        if (commanderSpecModeSession && selection.kind === 'orchestrator') {
-          await handleExitSpecMode()
-        } else {
-          // Find specs from ALL sessions, not just currently filtered ones
-          // This allows entering spec mode even when specs are filtered out
-          const specSessions = sessions.filter(session => isSpec(session.info))
-          const specToSelect = getSpecToSelect(specSessions, lastSelectedSpec)
-          if (specToSelect) {
-            await enterSpecMode(specToSelect, currentFilterMode)
-          } else {
-            logger.info('[useSpecMode] No specs found, creating new spec')
-            // Switch to orchestrator first before creating spec
-            if (selection.kind !== 'orchestrator') {
-              await setSelection({ kind: 'orchestrator' })
-              window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
-            } else {
-              window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
-            }
-          }
-        }
+      if (!isShortcutForAction(e, KeyboardShortcutAction.EnterSpecMode, keyboardShortcutConfig, { platform })) {
+        return
+      }
+
+      e.preventDefault()
+
+      if (commanderSpecModeSession && selection.kind === 'orchestrator') {
+        await handleExitSpecMode()
+        return
+      }
+
+      const specSessions = sessions.filter(session => isSpec(session.info))
+      const specToSelect = getSpecToSelect(specSessions, lastSelectedSpec)
+      if (specToSelect) {
+        await enterSpecMode(specToSelect, currentFilterMode)
+        return
+      }
+
+      logger.info('[useSpecMode] No specs found, creating new spec')
+      if (selection.kind !== 'orchestrator') {
+        await setSelection({ kind: 'orchestrator' })
+        window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
+      } else {
+        window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [selection, commanderSpecModeSession, sessions, enterSpecMode, setSelection, handleExitSpecMode, lastSelectedSpec, currentFilterMode])
+  }, [selection, commanderSpecModeSession, sessions, enterSpecMode, setSelection, handleExitSpecMode, lastSelectedSpec, currentFilterMode, keyboardShortcutConfig, platform])
 
   // Helper function to handle spec deletion
   const handleSpecDeleted = useCallback((sessionName: string) => {

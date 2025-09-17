@@ -1,129 +1,199 @@
-import { useEffect } from 'react'
+import { useContext, useEffect } from 'react'
+import {
+  KeyboardShortcutAction,
+  KeyboardShortcutConfig,
+  defaultShortcutConfig,
+} from '../keyboardShortcuts/config'
+import { KeyboardShortcutContext } from '../contexts/KeyboardShortcutsContext'
+import { detectPlatformSafe, isShortcutForAction } from '../keyboardShortcuts/helpers'
+import type { Platform } from '../keyboardShortcuts/matcher'
 
 interface KeyboardShortcutsProps {
-    onSelectOrchestrator: () => void
-    onSelectSession: (index: number) => void
-    onCancelSelectedSession?: (immediate: boolean) => void
-    onMarkSelectedSessionReady?: () => void
-    onSpecSession?: () => void
-    onPromoteSelectedVersion?: () => void
-    sessionCount: number
-    onSelectPrevSession?: () => void
-    onSelectNextSession?: () => void
-    onFocusSidebar?: () => void
-    onFocusClaude?: () => void
-    onOpenDiffViewer?: () => void
-    onFocusTerminal?: () => void
-    onSelectPrevProject?: () => void
-    onSelectNextProject?: () => void
-    onNavigateToPrevFilter?: () => void
-    onNavigateToNextFilter?: () => void
-    isDiffViewerOpen?: boolean
+  onSelectOrchestrator: () => void
+  onSelectSession: (index: number) => void
+  onCancelSelectedSession?: (immediate: boolean) => void
+  onMarkSelectedSessionReady?: () => void
+  onSpecSession?: () => void
+  onPromoteSelectedVersion?: () => void
+  sessionCount: number
+  onSelectPrevSession?: () => void
+  onSelectNextSession?: () => void
+  onFocusSidebar?: () => void
+  onFocusClaude?: () => void
+  onOpenDiffViewer?: () => void
+  onFocusTerminal?: () => void
+  onSelectPrevProject?: () => void
+  onSelectNextProject?: () => void
+  onNavigateToPrevFilter?: () => void
+  onNavigateToNextFilter?: () => void
+  isDiffViewerOpen?: boolean
 }
 
-export function useKeyboardShortcuts({ onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onPromoteSelectedVersion, sessionCount, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen }: KeyboardShortcutsProps) {
-    useEffect(() => {
-        const handleKeyDown = (event: KeyboardEvent) => {
-            const modifierKey = navigator.userAgent.includes('Mac') ? event.metaKey : event.ctrlKey
-            
-            if (!modifierKey) return
-            
-            const key = event.key
-            
-            if (key === '1') {
-                event.preventDefault()
-                onSelectOrchestrator()
-            } else if (key >= '2' && key <= '9') {
-                event.preventDefault()
-                const sessionIndex = parseInt(key) - 2
-                if (sessionIndex < sessionCount) {
-                    onSelectSession(sessionIndex)
-                }
-            } else if (key === 'ArrowUp') {
-                if (onSelectPrevSession && !isDiffViewerOpen) {
-                    event.preventDefault()
-                    onSelectPrevSession()
-                }
-            } else if (key === 'ArrowDown') {
-                if (onSelectNextSession && !isDiffViewerOpen) {
-                    event.preventDefault()
-                    onSelectNextSession()
-                }
-            } else if (key === 'ArrowLeft') {
-                if (!isDiffViewerOpen) {
-                    if (event.shiftKey) {
-                        // Cmd+Shift+Left: Switch to previous project
-                        if (onSelectPrevProject) {
-                            event.preventDefault()
-                            onSelectPrevProject()
-                        }
-                    } else {
-                        // Cmd+Left: Navigate to previous filter
-                        if (onNavigateToPrevFilter) {
-                            event.preventDefault()
-                            onNavigateToPrevFilter()
-                        }
-                    }
-                }
-            } else if (key === 'ArrowRight') {
-                if (!isDiffViewerOpen) {
-                    if (event.shiftKey) {
-                        // Cmd+Shift+Right: Switch to next project
-                        if (onSelectNextProject) {
-                            event.preventDefault()
-                            onSelectNextProject()
-                        }
-                    } else {
-                        // Cmd+Right: Navigate to next filter
-                        if (onNavigateToNextFilter) {
-                            event.preventDefault()
-                            onNavigateToNextFilter()
-                        }
-                    }
-                }
-            } else if (key === 'd' || key === 'D') {
-                if (onCancelSelectedSession) {
-                    event.preventDefault()
-                    const immediate = event.shiftKey === true
-                    onCancelSelectedSession(immediate)
-                }
-            } else if (key === 'g' || key === 'G') {
-                if (onOpenDiffViewer) {
-                    event.preventDefault()
-                    onOpenDiffViewer()
-                }
-             } else if (key === 'r' || key === 'R') {
-                 if (onMarkSelectedSessionReady) {
-                     event.preventDefault()
-                     onMarkSelectedSessionReady()
-                 }
-             } else if (key === 's' || key === 'S') {
-                 if (onSpecSession && !event.shiftKey) {
-                     event.preventDefault()
-                     onSpecSession()
-                 }
-             } else if (key === 'b' || key === 'B') {
-                 if (onPromoteSelectedVersion) {
-                     event.preventDefault()
-                     onPromoteSelectedVersion()
-                 }
-             } else if (key === 't' || key === 'T') {
-                if (onFocusClaude) {
-                    event.preventDefault()
-                    onFocusClaude()
-                }
-            } else if (key === '/') {
-                if (onFocusTerminal) {
-                    event.preventDefault()
-                    onFocusTerminal()
-                }
-            }
+interface KeyboardShortcutOptions {
+  shortcutConfig?: KeyboardShortcutConfig
+  platform?: Platform
+}
+
+export function useKeyboardShortcuts(
+  {
+    onSelectOrchestrator,
+    onSelectSession,
+    onCancelSelectedSession,
+    onMarkSelectedSessionReady,
+    onSpecSession,
+    onPromoteSelectedVersion,
+    sessionCount,
+    onSelectPrevSession,
+    onSelectNextSession,
+    onFocusClaude,
+    onOpenDiffViewer,
+    onFocusTerminal,
+    onSelectPrevProject,
+    onSelectNextProject,
+    onNavigateToPrevFilter,
+    onNavigateToNextFilter,
+    isDiffViewerOpen,
+  }: KeyboardShortcutsProps,
+  options: KeyboardShortcutOptions = {},
+) {
+  const context = useContext(KeyboardShortcutContext)
+  const shortcutConfig = options.shortcutConfig ?? context?.config ?? defaultShortcutConfig
+  const platform = options.platform ?? detectPlatformSafe()
+
+  useEffect(() => {
+    const sessionActions: KeyboardShortcutAction[] = [
+      KeyboardShortcutAction.SwitchToSession1,
+      KeyboardShortcutAction.SwitchToSession2,
+      KeyboardShortcutAction.SwitchToSession3,
+      KeyboardShortcutAction.SwitchToSession4,
+      KeyboardShortcutAction.SwitchToSession5,
+      KeyboardShortcutAction.SwitchToSession6,
+      KeyboardShortcutAction.SwitchToSession7,
+      KeyboardShortcutAction.SwitchToSession8,
+    ]
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (isShortcutForAction(event, KeyboardShortcutAction.SwitchToOrchestrator, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onSelectOrchestrator()
+        return
+      }
+
+      for (let index = 0; index < sessionActions.length; index++) {
+        if (index >= sessionCount) break
+        if (isShortcutForAction(event, sessionActions[index], shortcutConfig, { platform })) {
+          event.preventDefault()
+          onSelectSession(index)
+          return
         }
-        
-        window.addEventListener('keydown', handleKeyDown) // Use bubble phase to not interfere with child components
-        
-        return () => {
-            window.removeEventListener('keydown', handleKeyDown)
-        }
-    }, [sessionCount, onSelectOrchestrator, onSelectSession, onCancelSelectedSession, onMarkSelectedSessionReady, onSpecSession, onSelectPrevSession, onSelectNextSession, onFocusSidebar, onFocusClaude, onOpenDiffViewer, onFocusTerminal, onSelectPrevProject, onSelectNextProject, onNavigateToPrevFilter, onNavigateToNextFilter, isDiffViewerOpen, onPromoteSelectedVersion])
+      }
+
+      if (!isDiffViewerOpen && onSelectPrevSession && isShortcutForAction(event, KeyboardShortcutAction.SelectPrevSession, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onSelectPrevSession()
+        return
+      }
+
+      if (!isDiffViewerOpen && onSelectNextSession && isShortcutForAction(event, KeyboardShortcutAction.SelectNextSession, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onSelectNextSession()
+        return
+      }
+
+      if (!isDiffViewerOpen && onSelectPrevProject && isShortcutForAction(event, KeyboardShortcutAction.SelectPrevProject, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onSelectPrevProject()
+        return
+      }
+
+      if (!isDiffViewerOpen && onSelectNextProject && isShortcutForAction(event, KeyboardShortcutAction.SelectNextProject, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onSelectNextProject()
+        return
+      }
+
+      if (!isDiffViewerOpen && onNavigateToPrevFilter && isShortcutForAction(event, KeyboardShortcutAction.NavigatePrevFilter, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onNavigateToPrevFilter()
+        return
+      }
+
+      if (!isDiffViewerOpen && onNavigateToNextFilter && isShortcutForAction(event, KeyboardShortcutAction.NavigateNextFilter, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onNavigateToNextFilter()
+        return
+      }
+
+      if (onCancelSelectedSession && isShortcutForAction(event, KeyboardShortcutAction.ForceCancelSession, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onCancelSelectedSession(true)
+        return
+      }
+
+      if (onCancelSelectedSession && isShortcutForAction(event, KeyboardShortcutAction.CancelSession, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onCancelSelectedSession(false)
+        return
+      }
+
+      if (onOpenDiffViewer && isShortcutForAction(event, KeyboardShortcutAction.OpenDiffViewer, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onOpenDiffViewer()
+        return
+      }
+
+      if (onMarkSelectedSessionReady && isShortcutForAction(event, KeyboardShortcutAction.MarkSessionReady, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onMarkSelectedSessionReady()
+        return
+      }
+
+      if (onSpecSession && isShortcutForAction(event, KeyboardShortcutAction.ConvertSessionToSpec, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onSpecSession()
+        return
+      }
+
+      if (onPromoteSelectedVersion && isShortcutForAction(event, KeyboardShortcutAction.PromoteSessionVersion, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onPromoteSelectedVersion()
+        return
+      }
+
+      if (onFocusClaude && isShortcutForAction(event, KeyboardShortcutAction.FocusClaude, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onFocusClaude()
+        return
+      }
+
+      if (onFocusTerminal && isShortcutForAction(event, KeyboardShortcutAction.FocusTerminal, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onFocusTerminal()
+        return
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    onSelectOrchestrator,
+    onSelectSession,
+    sessionCount,
+    onSelectPrevSession,
+    onSelectNextSession,
+    onSelectPrevProject,
+    onSelectNextProject,
+    onNavigateToPrevFilter,
+    onNavigateToNextFilter,
+    onCancelSelectedSession,
+    onOpenDiffViewer,
+    onMarkSelectedSessionReady,
+    onSpecSession,
+    onPromoteSelectedVersion,
+    onFocusClaude,
+    onFocusTerminal,
+    isDiffViewerOpen,
+    shortcutConfig,
+    platform,
+  ])
 }

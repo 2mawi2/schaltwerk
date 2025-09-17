@@ -189,6 +189,18 @@ impl SettingsService {
         self.save()
     }
 
+    pub fn get_keyboard_shortcuts(&self) -> HashMap<String, Vec<String>> {
+        self.settings.keyboard_shortcuts.clone()
+    }
+
+    pub fn set_keyboard_shortcuts(
+        &mut self,
+        shortcuts: HashMap<String, Vec<String>>,
+    ) -> Result<(), SettingsServiceError> {
+        self.settings.keyboard_shortcuts = shortcuts;
+        self.save()
+    }
+
     pub fn get_auto_commit_on_review(&self) -> bool {
         self.settings.session.auto_commit_on_review
     }

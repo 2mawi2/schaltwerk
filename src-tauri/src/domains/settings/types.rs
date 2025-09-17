@@ -76,4 +76,6 @@ pub struct Settings {
     pub agent_binaries: AgentBinaryConfigs,
     pub diff_view: DiffViewPreferences,
     pub session: SessionPreferences,
+    #[serde(default)]
+    pub keyboard_shortcuts: HashMap<String, Vec<String>>,
 }

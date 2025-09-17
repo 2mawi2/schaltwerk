@@ -158,6 +158,19 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_keyboard_shortcuts(&self) -> std::collections::HashMap<String, Vec<String>> {
+        self.service.get_keyboard_shortcuts()
+    }
+
+    pub fn set_keyboard_shortcuts(
+        &mut self,
+        shortcuts: std::collections::HashMap<String, Vec<String>>,
+    ) -> Result<(), String> {
+        self.service
+            .set_keyboard_shortcuts(shortcuts)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_auto_commit_on_review(&self) -> bool {
         self.service.get_auto_commit_on_review()
     }

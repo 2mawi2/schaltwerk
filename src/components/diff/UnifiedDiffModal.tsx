@@ -22,6 +22,10 @@ import { logger } from '../../utils/logger'
 import { useSessions } from '../../contexts/SessionsContext'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { DiffSessionActions } from './DiffSessionActions'
+import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
+import { KeyboardShortcutAction, KeyboardShortcutConfig } from '../../keyboardShortcuts/config'
+import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
+import type { Platform } from '../../keyboardShortcuts/matcher'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -40,6 +44,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const { currentReview, startReview, addComment, getCommentsForFile, clearReview, removeComment } = useReview()
   const { setFocusForSession, setCurrentFocus } = useFocus()
   const { sessions, reloadSessions } = useSessions()
+  const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
+  const platform = useMemo(() => detectPlatformSafe(), [])
   const lineSelection = useLineSelection()
   const lineSelectionRef = useRef(lineSelection)
   lineSelectionRef.current = lineSelection
@@ -866,15 +872,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // Global keyboard shortcuts for the diff modal (placed after handleFinishReview definition)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isMac = navigator.userAgent.includes('Mac')
-      const modifierPressed = isMac ? e.metaKey : e.ctrlKey
-      
-      // Cmd/Ctrl+F to open search when modal is open
-      if (isOpen && modifierPressed && (e.key === 'f' || e.key === 'F')) {
+      if (!isOpen) return
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.OpenDiffSearch, keyboardShortcutConfig, { platform })) {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName?.toLowerCase()
         const isEditable = (target as HTMLElement)?.isContentEditable
-        // Only trigger search if not typing in inputs
         if (tag !== 'textarea' && tag !== 'input' && !isEditable) {
           e.preventDefault()
           e.stopPropagation()
@@ -882,13 +885,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
           return
         }
       }
-      
-      // Cmd/Ctrl+Enter to finish review when modal is open
-      if (isOpen && modifierPressed && e.key === 'Enter') {
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.FinishReview, keyboardShortcutConfig, { platform })) {
         const target = e.target as HTMLElement | null
         const tag = target?.tagName?.toLowerCase()
         const isEditable = (target as HTMLElement)?.isContentEditable
-        // Avoid triggering while typing in inputs or when comment form is open
         if (!showCommentForm && tag !== 'textarea' && tag !== 'input' && !isEditable) {
           e.preventDefault()
           e.stopPropagation()
@@ -932,7 +933,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
     window.addEventListener('keydown', handleKeyDown, true) // capture phase
     return () => window.removeEventListener('keydown', handleKeyDown, true)
-  }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition])
+  }, [isOpen, showCommentForm, isSearchVisible, onClose, lineSelection, selectedFileIndex, files, scrollToFile, handleFinishReview, setIsSearchVisible, setShowCommentForm, setCommentFormPosition, keyboardShortcutConfig, platform])
 
 
   const commanderView = isCommanderView()
@@ -1086,6 +1087,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                             setCommentFormPosition(null)
                             lineSelection.clearSelection()
                           }}
+                          keyboardShortcutConfig={keyboardShortcutConfig}
+                          platform={platform}
                         />
                       </div>
                     </>
@@ -1100,7 +1103,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   )
 }
 
-function CommentForm({ onSubmit, onCancel }: { onSubmit: (text: string) => void, onCancel: () => void }) {
+function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
+  onSubmit: (text: string) => void
+  onCancel: () => void
+  keyboardShortcutConfig: KeyboardShortcutConfig
+  platform: Platform
+}) {
   const [text, setText] = useState('')
   
   const handleSubmit = () => {
@@ -1120,7 +1128,8 @@ function CommentForm({ onSubmit, onCancel }: { onSubmit: (text: string) => void,
         rows={4}
         autoFocus
         onKeyDown={(e) => {
-          if (e.key === 'Enter' && e.metaKey) {
+          const nativeEvent = e.nativeEvent as KeyboardEvent
+          if (isShortcutForAction(nativeEvent, KeyboardShortcutAction.SubmitDiffComment, keyboardShortcutConfig, { platform })) {
             handleSubmit()
           } else if (e.key === 'Escape') {
             onCancel()
