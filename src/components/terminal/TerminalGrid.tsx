@@ -116,6 +116,7 @@ export function TerminalGrid() {
     
     const claudeTerminalRef = useRef<TerminalHandle>(null)
     const terminalTabsRef = useRef<TerminalTabsHandle>(null)
+    const suppressNextTerminalFocusRef = useRef(false)
     const runTerminalRefs = useRef<Map<string, RunTerminalHandle>>(new Map())
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
     const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -192,6 +193,24 @@ export function TerminalGrid() {
     }
     
     // Listen for terminal reset events and focus terminal events
+    const focusTerminalProgrammatically = useCallback((focusAction: () => void, focusType?: 'terminal' | 'claude') => {
+        suppressNextTerminalFocusRef.current = true
+        safeTerminalFocus(() => {
+            try {
+                focusAction()
+                if (focusType === 'terminal' || focusType === 'claude') {
+                    const sessionKey = getSessionKey()
+                    setFocusForSession(sessionKey, focusType)
+                    setLocalFocus(focusType)
+                }
+            } finally {
+                const release = () => { suppressNextTerminalFocusRef.current = false }
+                if (typeof queueMicrotask === 'function') queueMicrotask(release)
+                else void Promise.resolve().then(release)
+            }
+        }, isAnyModalOpen)
+    }, [getSessionKey, isAnyModalOpen, setFocusForSession])
+
     useEffect(() => {
         const handleTerminalReset = () => {
             setTerminalKey(prev => prev + 1)
@@ -216,14 +235,14 @@ export function TerminalGrid() {
             const targetId = detail?.terminalId || null
             if (targetId) {
                 lastRequestedTerminalId = targetId
-                safeTerminalFocus(() => {
+                focusTerminalProgrammatically(() => {
                     terminalTabsRef.current?.focusTerminal(targetId)
-                }, isAnyModalOpen)
+                }, detail?.focusType)
             } else {
                 // Fallback: focus the active tab
-                safeTerminalFocus(() => {
+                focusTerminalProgrammatically(() => {
                     terminalTabsRef.current?.focus()
-                }, isAnyModalOpen)
+                }, detail?.focusType)
             }
         }
 
@@ -234,9 +253,9 @@ export function TerminalGrid() {
             const detail = (e as CustomEvent<{ terminalId: string }>).detail
             if (!detail) return
             if (lastRequestedTerminalId && detail.terminalId === lastRequestedTerminalId) {
-                safeTerminalFocus(() => {
+                focusTerminalProgrammatically(() => {
                     terminalTabsRef.current?.focusTerminal(detail.terminalId)
-                }, isAnyModalOpen)
+                }, 'terminal')
                 // Clear to avoid repeated focusing
                 lastRequestedTerminalId = null
             }
@@ -250,7 +269,7 @@ export function TerminalGrid() {
             window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
             window.removeEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         }
-    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, isAnyModalOpen])
+    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, focusTerminalProgrammatically, isAnyModalOpen])
 
     // Fetch agent type based on selection
     useEffect(() => {
@@ -711,23 +730,32 @@ export function TerminalGrid() {
     const handleTerminalClick = (e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
         e?.stopPropagation()
-        
+
         const sessionKey = getSessionKey()
-        setFocusForSession(sessionKey, 'terminal')
-        setLocalFocus('terminal')
+        const wasSuppressed = suppressNextTerminalFocusRef.current
+        if (wasSuppressed) {
+            suppressNextTerminalFocusRef.current = false
+        } else {
+            setFocusForSession(sessionKey, 'terminal')
+            setLocalFocus('terminal')
+        }
         // If collapsed, uncollapse first
         if (isBottomCollapsed) {
             const expanded = lastExpandedBottomPercent || 28
             setSizes([100 - expanded, expanded])
             setIsBottomCollapsed(false)
+            if (!wasSuppressed) {
+                safeTerminalFocus(() => {
+                    terminalTabsRef.current?.focus()
+                }, isAnyModalOpen)
+            }
+            return
+        }
+        if (!wasSuppressed) {
             safeTerminalFocus(() => {
                 terminalTabsRef.current?.focus()
             }, isAnyModalOpen)
-            return
         }
-        safeTerminalFocus(() => {
-            terminalTabsRef.current?.focus()
-        }, isAnyModalOpen)
     }
 
     // No prompt UI here anymore; moved to right panel dock
