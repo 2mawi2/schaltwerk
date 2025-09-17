@@ -4,6 +4,7 @@ import { SessionConfigurationPanel, useSessionConfiguration } from './SessionCon
 import { invoke } from '@tauri-apps/api/core'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import type { MockedFunction } from 'vitest'
+import { useState } from 'react'
 
 // Mock Tauri
 vi.mock('@tauri-apps/api/core', () => ({
@@ -39,6 +40,7 @@ vi.mock('../inputs/BranchAutocomplete', () => ({
     }) => (
         <div data-testid="branch-autocomplete">
             <input
+                data-testid="branch-autocomplete-input"
                 value={value ?? ''}
                 onChange={(e) => onChange?.(e.target.value)}
                 disabled={disabled}
@@ -180,7 +182,7 @@ describe('SessionConfigurationPanel', () => {
             expect(screen.getByTestId('branch-autocomplete')).toBeInTheDocument()
         })
 
-        const input = screen.getByDisplayValue('main')
+        const input = await screen.findByDisplayValue('main')
         fireEvent.change(input, { target: { value: 'develop' } })
 
         expect(onBaseBranchChange).toHaveBeenCalledWith('develop')
@@ -231,6 +233,41 @@ describe('SessionConfigurationPanel', () => {
         expect(onSkipPermissionsChange).toHaveBeenCalledWith(true)
     })
 
+    test('does not refetch branches on every base branch change', async () => {
+        const Harness = () => {
+            const [baseBranch, setBaseBranch] = useState('')
+            return (
+                <SessionConfigurationPanel
+                    variant="modal"
+                    initialBaseBranch={baseBranch}
+                    onBaseBranchChange={setBaseBranch}
+                    onAgentTypeChange={vi.fn()}
+                    onSkipPermissionsChange={vi.fn()}
+                />
+            )
+        }
+
+        render(<Harness />)
+
+        await waitFor(() => {
+            expect(screen.getByTestId('branch-count')).toHaveTextContent('3')
+        })
+
+        const listBranchCalls = () =>
+            mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.ListProjectBranches).length
+
+        expect(listBranchCalls()).toBe(1)
+
+        const input = screen.getByTestId('branch-autocomplete-input') as HTMLInputElement
+        fireEvent.change(input, { target: { value: 'patch/fix' } })
+
+        await waitFor(() => {
+            expect(input).toHaveValue('patch/fix')
+        })
+
+        expect(listBranchCalls()).toBe(1)
+    })
+
     test('disables components when disabled prop is true', async () => {
         render(
             <SessionConfigurationPanel 
@@ -246,7 +283,7 @@ describe('SessionConfigurationPanel', () => {
             expect(screen.getByTestId('branch-autocomplete')).toBeInTheDocument()
         })
 
-        const input = screen.getByDisplayValue('main')
+        const input = await screen.findByDisplayValue('main')
         const checkbox = screen.getByRole('checkbox')
         
         expect(input).toBeDisabled()
@@ -310,7 +347,7 @@ describe('SessionConfigurationPanel', () => {
             expect(screen.getByTestId('branch-autocomplete')).toBeInTheDocument()
         })
 
-        const input = screen.getByDisplayValue('main')
+        const input = await screen.findByDisplayValue('main')
         fireEvent.change(input, { target: { value: 'develop' } })
 
         await waitFor(() => {

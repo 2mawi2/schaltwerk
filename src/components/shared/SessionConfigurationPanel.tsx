@@ -7,14 +7,15 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
+import { AgentType, AGENT_TYPES } from '../../types/session'
 
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
     onBaseBranchChange?: (branch: string) => void
-    onAgentTypeChange?: (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => void
+    onAgentTypeChange?: (agentType: AgentType) => void
     onSkipPermissionsChange?: (enabled: boolean) => void
     initialBaseBranch?: string
-    initialAgentType?: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
+    initialAgentType?: AgentType
     initialSkipPermissions?: boolean
     disabled?: boolean
     hideLabels?: boolean
@@ -22,7 +23,7 @@ interface SessionConfigurationPanelProps {
 
 export interface SessionConfiguration {
     baseBranch: string
-    agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
+    agentType: AgentType
     skipPermissions: boolean
     isValid: boolean
 }
@@ -42,64 +43,92 @@ export function SessionConfigurationPanel({
     const [branches, setBranches] = useState<string[]>([])
     const [loadingBranches, setLoadingBranches] = useState(false)
     const [isValidBranch, setIsValidBranch] = useState(true)
-    const [agentType, setAgentType] = useState(initialAgentType)
+    const [agentType, setAgentType] = useState<AgentType>(initialAgentType)
     const [skipPermissions, setSkipPermissions] = useState(initialSkipPermissions)
     const { getSkipPermissions, setSkipPermissions: saveSkipPermissions, getAgentType, setAgentType: saveAgentType } = useClaudeSession()
 
     const onBaseBranchChangeRef = useRef(onBaseBranchChange)
     const onAgentTypeChangeRef = useRef(onAgentTypeChange)
     const onSkipPermissionsChangeRef = useRef(onSkipPermissionsChange)
+    const baseBranchValueRef = useRef(initialBaseBranch)
+    const userEditedBranchRef = useRef(false)
+    const skipPermissionsTouchedRef = useRef(false)
+    const agentTypeTouchedRef = useRef(false)
+    const initialSkipPermissionsRef = useRef(initialSkipPermissions)
+    const initialAgentTypeRef = useRef(initialAgentType)
+    const getSkipPermissionsRef = useRef(getSkipPermissions)
+    const getAgentTypeRef = useRef(getAgentType)
+    const prevInitialBaseBranchRef = useRef(initialBaseBranch)
 
     useEffect(() => { onBaseBranchChangeRef.current = onBaseBranchChange }, [onBaseBranchChange])
     useEffect(() => { onAgentTypeChangeRef.current = onAgentTypeChange }, [onAgentTypeChange])
     useEffect(() => { onSkipPermissionsChangeRef.current = onSkipPermissionsChange }, [onSkipPermissionsChange])
+    useEffect(() => { getSkipPermissionsRef.current = getSkipPermissions }, [getSkipPermissions])
+    useEffect(() => { getAgentTypeRef.current = getAgentType }, [getAgentType])
 
     useEffect(() => {
-        const loadConfiguration = async () => {
-            setLoadingBranches(true)
-            try {
-                const [branchList, savedDefaultBranch, gitDefaultBranch, storedSkipPerms, storedAgentType] = await Promise.all([
-                    invoke<string[]>(TauriCommands.ListProjectBranches),
-                    invoke<string | null>(TauriCommands.GetProjectDefaultBaseBranch),
-                    invoke<string>(TauriCommands.GetProjectDefaultBranch),
-                    getSkipPermissions(),
-                    getAgentType()
-                ])
-                
-                setBranches(branchList)
-                
-                if (!initialBaseBranch) {
-                    const defaultBranch = savedDefaultBranch || gitDefaultBranch
+        baseBranchValueRef.current = baseBranch
+    }, [baseBranch])
+
+    const loadConfiguration = useCallback(async () => {
+        setLoadingBranches(true)
+        try {
+            const [branchList, savedDefaultBranch, gitDefaultBranch, storedSkipPerms, storedAgentType] = await Promise.all([
+                invoke<string[]>(TauriCommands.ListProjectBranches),
+                invoke<string | null>(TauriCommands.GetProjectDefaultBaseBranch),
+                invoke<string>(TauriCommands.GetProjectDefaultBranch),
+                getSkipPermissionsRef.current(),
+                getAgentTypeRef.current()
+            ])
+
+            setBranches(branchList)
+
+            const hasUserBranch = userEditedBranchRef.current || !!(baseBranchValueRef.current && baseBranchValueRef.current.trim() !== '')
+            if (!hasUserBranch) {
+                const defaultBranch = savedDefaultBranch || gitDefaultBranch
+                if (defaultBranch) {
+                    baseBranchValueRef.current = defaultBranch
                     setBaseBranch(defaultBranch)
                     onBaseBranchChangeRef.current?.(defaultBranch)
                 }
-                
-                if (!initialSkipPermissions) {
-                    setSkipPermissions(storedSkipPerms)
-                    onSkipPermissionsChangeRef.current?.(storedSkipPerms)
-                }
-                
-                if (initialAgentType === 'claude') {
-                    const storedType = storedAgentType as 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
-                    setAgentType(storedType)
-                    onAgentTypeChangeRef.current?.(storedType)
-                }
-            } catch (err) {
-                logger.warn('Failed to load configuration:', err)
-                setBranches([])
-                setBaseBranch('')
-            } finally {
-                setLoadingBranches(false)
             }
+
+            if (!skipPermissionsTouchedRef.current && !initialSkipPermissionsRef.current) {
+                setSkipPermissions(storedSkipPerms)
+                onSkipPermissionsChangeRef.current?.(storedSkipPerms)
+            }
+
+            if (!agentTypeTouchedRef.current && initialAgentTypeRef.current === 'claude') {
+                const normalizedType =
+                    typeof storedAgentType === 'string' && AGENT_TYPES.includes(storedAgentType as AgentType)
+                        ? (storedAgentType as AgentType)
+                        : 'claude'
+                setAgentType(normalizedType)
+                onAgentTypeChangeRef.current?.(normalizedType)
+            }
+        } catch (err) {
+            logger.warn('Failed to load configuration:', err)
+            setBranches([])
+            if (!userEditedBranchRef.current) {
+                baseBranchValueRef.current = ''
+                setBaseBranch('')
+            }
+        } finally {
+            setLoadingBranches(false)
         }
-        
+    }, [])
+
+    useEffect(() => {
         loadConfiguration()
-    }, [initialBaseBranch, initialSkipPermissions, initialAgentType, getSkipPermissions, getAgentType])
+    }, [loadConfiguration])
 
 
     const handleBaseBranchChange = useCallback(async (branch: string) => {
+        userEditedBranchRef.current = true
+        baseBranchValueRef.current = branch
+        prevInitialBaseBranchRef.current = branch
         setBaseBranch(branch)
-        onBaseBranchChange?.(branch)
+        onBaseBranchChangeRef.current?.(branch)
         
         if (branch && branches.includes(branch)) {
             try {
@@ -108,24 +137,56 @@ export function SessionConfigurationPanel({
                 logger.warn('Failed to save default branch:', err)
             }
         }
-    }, [branches, onBaseBranchChange])
+    }, [branches])
 
-    const handleAgentTypeChange = useCallback(async (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
+    const handleAgentTypeChange = useCallback(async (type: AgentType) => {
+        agentTypeTouchedRef.current = true
         setAgentType(type)
-        onAgentTypeChange?.(type)
+        onAgentTypeChangeRef.current?.(type)
         await saveAgentType(type)
-    }, [onAgentTypeChange, saveAgentType])
+    }, [saveAgentType])
 
     const handleSkipPermissionsChange = useCallback(async (enabled: boolean) => {
+        skipPermissionsTouchedRef.current = true
         setSkipPermissions(enabled)
-        onSkipPermissionsChange?.(enabled)
+        onSkipPermissionsChangeRef.current?.(enabled)
         await saveSkipPermissions(enabled)
-    }, [onSkipPermissionsChange, saveSkipPermissions])
+    }, [saveSkipPermissions])
 
     // Ensure isValidBranch is considered "used" by TypeScript
     React.useEffect(() => {
         // This effect ensures the validation state is properly tracked
     }, [isValidBranch])
+
+    useEffect(() => {
+        if (initialBaseBranch === prevInitialBaseBranchRef.current) {
+            return
+        }
+
+        prevInitialBaseBranchRef.current = initialBaseBranch
+
+        if (typeof initialBaseBranch === 'string') {
+            userEditedBranchRef.current = false
+            baseBranchValueRef.current = initialBaseBranch
+            setBaseBranch(initialBaseBranch)
+        }
+    }, [initialBaseBranch])
+
+    useEffect(() => {
+        if (initialSkipPermissions !== undefined && initialSkipPermissions !== skipPermissions) {
+            initialSkipPermissionsRef.current = initialSkipPermissions
+            skipPermissionsTouchedRef.current = false
+            setSkipPermissions(initialSkipPermissions)
+        }
+    }, [initialSkipPermissions, skipPermissions])
+
+    useEffect(() => {
+        if (initialAgentType && initialAgentType !== agentType) {
+            initialAgentTypeRef.current = initialAgentType
+            agentTypeTouchedRef.current = false
+            setAgentType(initialAgentType)
+        }
+    }, [initialAgentType, agentType])
 
     const isCompact = variant === 'compact'
 
@@ -298,14 +359,17 @@ export function useInitializedSessionConfiguration(): [SessionConfiguration, (co
                 ])
                 
                 const branch = defaultBranch || gitDefaultBranch || 'main'
-                const agentType = storedAgentType as 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'
+                const normalizedAgentType =
+                    typeof storedAgentType === 'string' && AGENT_TYPES.includes(storedAgentType as AgentType)
+                        ? (storedAgentType as AgentType)
+                        : 'claude'
                 
                 // Ensure we always have a valid branch
                 const finalBranch = branch && branch.trim() !== '' ? branch.trim() : 'main'
                 
                 logger.info('[useInitializedSessionConfiguration] Initialized with:', {
                     baseBranch: finalBranch,
-                    agentType,
+                    agentType: normalizedAgentType,
                     skipPermissions: storedSkipPerms,
                     defaultBranch,
                     gitDefaultBranch
@@ -313,7 +377,7 @@ export function useInitializedSessionConfiguration(): [SessionConfiguration, (co
                 
                 setConfig({
                     baseBranch: finalBranch,
-                    agentType,
+                    agentType: normalizedAgentType,
                     skipPermissions: storedSkipPerms,
                     isValid: true // Always valid since we ensure a branch
                 })

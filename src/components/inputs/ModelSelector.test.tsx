@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ModelSelector } from './ModelSelector'
+import { AgentType } from '../../types/session'
 
 // Mock the useAgentAvailability hook
 vi.mock('../../hooks/useAgentAvailability', () => ({
@@ -24,7 +25,7 @@ vi.mock('../../hooks/useAgentAvailability', () => ({
   }
 }))
 
-function setup(initial: 'claude' | 'cursor' | 'opencode' | 'gemini' = 'claude', disabled = false) {
+function setup(initial: AgentType = 'claude', disabled = false) {
   const onChange = vi.fn()
   render(<ModelSelector value={initial} onChange={onChange} disabled={disabled} />)
   return { onChange }
@@ -103,7 +104,7 @@ describe('ModelSelector', () => {
   test('falls back to default model when given invalid value', () => {
     const onChange = vi.fn()
     // Force an invalid value through casts to exercise fallback
-    render(<ModelSelector value={'invalid' as unknown as 'claude' | 'cursor' | 'opencode' | 'gemini'} onChange={onChange} />)
+    render(<ModelSelector value={'invalid' as unknown as AgentType} onChange={onChange} />)
     expect(screen.getByRole('button', { name: /Claude/i })).toBeInTheDocument()
   })
 

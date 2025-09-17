@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { ModelSelector } from '../inputs/ModelSelector'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
+import { AgentType, AGENT_TYPES } from '../../types/session'
 
 interface Props {
     open: boolean
     onClose: () => void
-    onSwitch: (agentType: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => void | Promise<void>
+    onSwitch: (agentType: AgentType) => void | Promise<void>
 }
 
 export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
-    const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'>('claude')
+    const [agentType, setAgentType] = useState<AgentType>('claude')
     const [switching, setSwitching] = useState(false)
     const { getAgentType } = useClaudeSession()
     const switchRef = useRef<() => void>(() => {})
@@ -31,7 +32,10 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     useEffect(() => {
         if (open) {
             setSwitching(false)
-            getAgentType().then(type => setAgentType(type as 'claude' | 'cursor' | 'opencode' | 'gemini' | 'codex'))
+            getAgentType().then(type => {
+                const normalized = AGENT_TYPES.includes(type as AgentType) ? (type as AgentType) : 'claude'
+                setAgentType(normalized)
+            })
         }
     }, [open, getAgentType])
     

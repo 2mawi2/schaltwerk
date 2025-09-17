@@ -1,7 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../common/tauriCommands'
-
-export type AgentType = 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
+import { AgentType, AGENT_TYPES } from '../types/session'
 
 export interface PersistedSessionDefaults {
   baseBranch: string
@@ -20,15 +19,15 @@ export async function getPersistedSessionDefaults(): Promise<PersistedSessionDef
 
     const defaultBranch = savedDefaultBranch || gitDefaultBranch || ''
     // Narrow agent type to known values; fallback to 'claude'
-    const at = (storedAgentType || 'claude').toLowerCase() as AgentType
+    const normalizedAgentType = (storedAgentType || 'claude').toLowerCase()
+    const agentType = AGENT_TYPES.includes(normalizedAgentType as AgentType) ? (normalizedAgentType as AgentType) : 'claude'
 
     return {
       baseBranch: defaultBranch,
-      agentType: (['claude','cursor','opencode','gemini','qwen','codex'].includes(at) ? at : 'claude') as AgentType,
+      agentType,
       skipPermissions: !!storedSkipPerms,
     }
   } catch (_e) {
     return { baseBranch: '', agentType: 'claude', skipPermissions: false }
   }
 }
-

@@ -19,6 +19,15 @@ vi.mock('../../hooks/useClaudeSession', () => ({
   })
 }))
 
+vi.mock('../../hooks/useAgentAvailability', () => ({
+  useAgentAvailability: () => ({
+    isAvailable: () => true,
+    getRecommendedPath: () => '/mock/path',
+    getInstallationMethod: () => 'mock',
+    loading: false,
+  }),
+}))
+
 vi.mock('../../utils/dockerNames', () => ({
   generateDockerStyleName: () => 'eager_cosmos'
 }))
@@ -64,9 +73,11 @@ describe('NewSessionModal', () => {
     expect(nameInput).toBeInTheDocument()
     expect(nameInput.value).toBe('eager_cosmos')
 
-    // wait until agent type fetched sets Cursor active and Force flag label shows
-    await waitFor(() => expect(screen.getByRole('button', { name: /Cursor/i })).toBeInTheDocument())
-    expect(screen.getByLabelText('Force flag')).toBeInTheDocument()
+    // Wait until the initial configuration has been applied (Claude by default)
+    const agentDropdown = await screen.findByRole('button', { name: /Claude/i })
+    expect(agentDropdown).toBeInTheDocument()
+    const skipCheckbox = await screen.findByLabelText('Skip permissions')
+    expect(skipCheckbox).toBeInTheDocument()
 
     // Create should submit with current name value
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
@@ -187,27 +198,20 @@ describe('NewSessionModal', () => {
     openModal()
     
     // Wait for SessionConfigurationPanel to load
-    await waitFor(() => {
-      const agentDropdown = screen.getByRole('button', { name: /Cursor/i })
-      expect(agentDropdown).toBeInTheDocument()
-    })
-    
-    // The skip permissions checkbox should be present and initially show "Force flag" for Cursor
-    await waitFor(() => {
-      const skipPermissionsCheckbox = screen.getByRole('checkbox', { name: /Force flag/i })
-      expect(skipPermissionsCheckbox).toBeInTheDocument()
-      
-      // Test checkbox functionality
-      fireEvent.click(skipPermissionsCheckbox)
-    })
-    
-    // The SessionConfigurationPanel should load and show the mocked agent type (Cursor)
-    // The test found the Cursor dropdown above, so this is working correctly
-    
-    // Verify that the checkbox shows "Force flag" for Cursor agent type
-    const forceCheckbox = screen.getByLabelText('Force flag') as HTMLInputElement
-    expect(forceCheckbox).toBeInTheDocument()
-    expect(forceCheckbox.checked).toBe(true) // Should be true from the mock
+    const agentDropdown = await screen.findByRole('button', { name: /Claude/i })
+    expect(agentDropdown).toBeInTheDocument()
+
+    fireEvent.click(agentDropdown)
+
+    const cursorOptionButtons = await screen.findAllByRole('button', { name: /Cursor/i })
+    const cursorOption = cursorOptionButtons[cursorOptionButtons.length - 1]
+    fireEvent.click(cursorOption)
+
+    const forceCheckbox = await screen.findByRole('checkbox', { name: /Force flag/i }) as HTMLInputElement
+    expect(forceCheckbox.checked).toBe(true)
+
+    fireEvent.click(forceCheckbox)
+    expect(forceCheckbox.checked).toBe(false)
   })
 
   it('handles keyboard shortcuts: Esc closes, Cmd+Enter creates', async () => {

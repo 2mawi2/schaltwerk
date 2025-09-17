@@ -8,6 +8,7 @@ import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
+import { AgentType } from '../../types/session'
 
 interface Props {
     open: boolean
@@ -21,7 +22,7 @@ interface Props {
         isSpec?: boolean
         draftContent?: string
         versionCount?: number
-        agentType?: string
+        agentType?: AgentType
         skipPermissions?: boolean
     }) => void | Promise<void>
 }
@@ -32,7 +33,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [, setWasEdited] = useState(false)
     const [taskContent, setTaskContent] = useState('')
     const [baseBranch, setBaseBranch] = useState('')
-    const [agentType, setAgentType] = useState<'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'>('claude')
+    const [agentType, setAgentType] = useState<AgentType>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [validationError, setValidationError] = useState('')
     const [creating, setCreating] = useState(false)
@@ -58,7 +59,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         }
     }
 
-    const handleAgentTypeChange = (type: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
+    const handleAgentTypeChange = (type: AgentType) => {
         setAgentType(type)
     }
 

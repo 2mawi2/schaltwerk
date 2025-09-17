@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAgentBinaryDetection, mapAgentToBinary } from './useAgentBinaryDetection'
+import { AgentType, AGENT_TYPES } from '../types/session'
 
 export interface AgentAvailability {
     agent: string
@@ -8,8 +9,7 @@ export interface AgentAvailability {
     loading: boolean
 }
 
-const SUPPORTED_AGENTS = ['claude', 'cursor', 'opencode', 'gemini', 'qwen', 'codex'] as const
-type SupportedAgent = typeof SUPPORTED_AGENTS[number]
+const SUPPORTED_AGENTS = AGENT_TYPES
 
 // Re-export types for backward compatibility
 export type { AgentBinaryConfig, DetectedBinary } from './useAgentBinaryDetection'
@@ -97,7 +97,7 @@ export function useAgentAvailability() {
     }, [refreshAgentBinaryDetection])
 
     const refreshSingleAgent = useCallback(async (agentName: string) => {
-        if (!SUPPORTED_AGENTS.includes(agentName as SupportedAgent)) {
+        if (!SUPPORTED_AGENTS.includes(agentName as AgentType)) {
             return
         }
         await refreshAgentBinaryDetection(agentName)

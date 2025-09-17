@@ -2,10 +2,20 @@ import { useState, useCallback, useMemo } from 'react'
 import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
+import { AgentType, AGENT_TYPES } from '../../types/session'
+
+const MODEL_METADATA: Record<AgentType, { label: string; color: string }> = {
+    claude: { label: 'Claude', color: 'blue' },
+    cursor: { label: 'Cursor', color: 'purple' },
+    opencode: { label: 'OpenCode', color: 'green' },
+    gemini: { label: 'Gemini', color: 'orange' },
+    qwen: { label: 'Qwen Code', color: 'cyan' },
+    codex: { label: 'Codex', color: 'red' }
+}
 
 interface ModelSelectorProps {
-    value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex'
-    onChange: (value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => void
+    value: AgentType
+    onChange: (value: AgentType) => void
     disabled?: boolean
 }
 
@@ -13,24 +23,17 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
     const [isOpen, setIsOpen] = useState(false)
     const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
 
-    const models: Array<{ value: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex', label: string, color: string }> = useMemo(() => [
-        { value: 'claude', label: 'Claude', color: 'blue' },
-        { value: 'cursor', label: 'Cursor', color: 'purple' },
-        { value: 'opencode', label: 'OpenCode', color: 'green' },
-        { value: 'gemini', label: 'Gemini', color: 'orange' },
-        { value: 'qwen', label: 'Qwen Code', color: 'cyan' },
-        { value: 'codex', label: 'Codex', color: 'red' }
-    ], [])
+    const models = useMemo(() => AGENT_TYPES.map(value => ({ value, ...MODEL_METADATA[value] })), [])
 
     const selectedModel = models.find(m => m.value === value) || models[0]
 
-    const handleSelect = useCallback((modelValue: 'claude' | 'cursor' | 'opencode' | 'gemini' | 'qwen' | 'codex') => {
+    const handleSelect = useCallback((modelValue: AgentType) => {
         if (!isAvailable(modelValue)) return
         onChange(modelValue)
         setIsOpen(false)
     }, [onChange, isAvailable])
 
-    const getTooltipText = useCallback((modelValue: string) => {
+    const getTooltipText = useCallback((modelValue: AgentType) => {
         if (loading) return 'Checking availability...'
         if (!isAvailable(modelValue)) return `${modelValue} is not installed on this system. Please install it to use this agent.`
         const path = getRecommendedPath(modelValue)
@@ -105,7 +108,7 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                         borderColor: theme.colors.border.default,
                         color: selectedDisabled && !loading ? theme.colors.text.muted : theme.colors.text.primary
                     }}
-                    title={getTooltipText(selectedModel.label)}
+            title={getTooltipText(selectedModel.value)}
                     aria-label={selectedModel.label}
                 >
                     <span>{selectedModel.label}</span>
@@ -117,4 +120,3 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
         </Dropdown>
     )
 }
-
