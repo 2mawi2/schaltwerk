@@ -25,6 +25,7 @@ import { logger } from '../../utils/logger'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
+import { useIdleSessions } from '../../hooks/useIdleSessions'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -69,7 +70,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { isResetting, resetSession, switchModel } = useSessionManagement()
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
-    const [idleByTime, setIdleByTime] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
@@ -103,6 +103,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
     const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
+
+    const { idleIds, recomputeIdle: recomputeIdleSessions } = useIdleSessions({
+        sessions: allSessions,
+        includeSpecs: false,
+        includeReviewed: false,
+        idleThresholdMs: IDLE_THRESHOLD_MS
+    })
+
+    const reloadSessionsAndRefreshIdle = useCallback(async () => {
+        await reloadSessions()
+        recomputeIdleSessions()
+    }, [reloadSessions, recomputeIdleSessions])
     
     // Auto-select first visible session when current selection disappears from view
     useEffect(() => {
@@ -138,27 +150,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             })
     }, [])
 
-    // Compute time-based idle sessions from last activity
     useEffect(() => {
-        const recomputeIdle = () => {
-            const now = Date.now()
-            const next = new Set<string>()
-            for (const s of allSessions) {
-                const ts: number | undefined = s.info.last_modified_ts
-                const spec = isSpec(s.info)
-                const reviewed = isReviewed(s.info)
-                if (typeof ts === 'number' && !spec && !reviewed && now - ts >= IDLE_THRESHOLD_MS) {
-                    next.add(s.info.session_id)
-                }
-            }
-            setIdleByTime(next)
-        }
-
-        // Run immediately and then every 30s
-        recomputeIdle()
-        const t = setInterval(recomputeIdle, 30_000)
-        return () => clearInterval(t)
-    }, [allSessions, IDLE_THRESHOLD_MS])
+        recomputeIdleSessions()
+    }, [loading, recomputeIdleSessions])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
@@ -299,7 +293,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     
                     if (success) {
                         // Reload sessions to reflect the change
-                        await reloadSessions()
+                        await reloadSessionsAndRefreshIdle()
                     } else {
                         alert('Failed to mark session as reviewed automatically.')
                     }
@@ -324,7 +318,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 hasUncommitted
             })
         }
-    }, [reloadSessions, setMarkReadyModal])
+    }, [reloadSessionsAndRefreshIdle, setMarkReadyModal])
 
     const handleMarkSelectedSessionReady = useCallback(() => {
         if (selection.kind === 'session') {
@@ -335,7 +329,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             if (selectedSession.info.ready_to_merge) {
                 invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: selectedSession.info.session_id })
                     .then(async () => {
-                        await reloadSessions()
+                        await reloadSessionsAndRefreshIdle()
                     })
                     .catch(err => {
                         logger.error('Failed to unmark reviewed session via keyboard:', err)
@@ -352,7 +346,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             // Running session → mark as reviewed flow
             handleMarkReady(selectedSession.info.session_id, selectedSession.info.has_uncommitted_changes || false)
         }
-    }, [selection, sessions, handleMarkReady, reloadSessions])
+    }, [selection, sessions, handleMarkReady, reloadSessionsAndRefreshIdle])
 
     const handleSpecSelectedSession = () => {
         if (selection.kind === 'session') {
@@ -397,7 +391,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     const executeVersionPromotion = async (targetGroup: SessionVersionGroupType, selectedSessionId: string) => {
         try {
-            await selectBestVersionAndCleanup(targetGroup, selectedSessionId, invoke, reloadSessions)
+            await selectBestVersionAndCleanup(targetGroup, selectedSessionId, invoke, reloadSessionsAndRefreshIdle)
         } catch (error) {
             logger.error('Failed to select best version:', error)
             alert(`Failed to select best version: ${error}`)
@@ -883,7 +877,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     group={group}
                                     selection={selection}
                                     startIndex={groupStartIndex}
-                                    hasStuckTerminals={(sessionId: string) => idleByTime.has(sessionId)}
+                                    hasStuckTerminals={(sessionId: string) => idleIds.has(sessionId)}
                                     hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
                                     onSelect={(index) => {
                                         void handleSelectSession(index)
@@ -899,7 +893,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                                 invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
                                                 invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
                                             ])
-                                            await reloadSessions()
+                                            await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to unmark reviewed session:', err)
                                         }
@@ -952,7 +946,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                                 invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions),
                                                 invoke<SessionInfo[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: 'spec' })
                                             ])
-                                            await reloadSessions()
+                                            await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to delete spec:', err)
                                         }
@@ -985,7 +979,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 onClose={() => setMarkReadyModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
                     // Reload both regular and spec sessions
-                    await reloadSessions()
+                    await reloadSessionsAndRefreshIdle()
                 }}
             />
             <ConvertToSpecConfirmation
@@ -995,7 +989,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 hasUncommittedChanges={convertToSpecModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
-                    await reloadSessions()
+                    await reloadSessionsAndRefreshIdle()
                 }}
             />
             <PromoteVersionConfirmation
@@ -1026,7 +1020,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     await switchModel(agentType, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking)
                     
                     // Reload sessions to show updated agent type
-                    await reloadSessions()
+                    await reloadSessionsAndRefreshIdle()
                     
                     setSwitchOrchestratorModal(false)
                     setSwitchModelSessionId(null)
