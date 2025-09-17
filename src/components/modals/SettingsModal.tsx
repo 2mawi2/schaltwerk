@@ -1741,7 +1741,7 @@ fi`}
 
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center py-8">
-                        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
+                        <AnimatedText text="loading" size="md" />
                     </div>
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
@@ -1809,7 +1809,7 @@ fi`}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
 {saving ? (
-                                    <AnimatedText text="loading" colorClassName="text-slate-500" size="xs" />
+                                    <AnimatedText text="loading" size="xs" />
                                 ) : (
                                     'Save'
                                 )}

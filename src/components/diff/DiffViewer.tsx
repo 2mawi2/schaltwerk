@@ -68,7 +68,7 @@ export function DiffViewer({
   if (!selectedFile && files.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
+        <AnimatedText text="loading" size="md" />
       </div>
     )
   }
@@ -164,7 +164,7 @@ export function DiffViewer({
                 {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
                   <div className="px-4 py-8 text-center text-slate-500">
-                    <AnimatedText text="loading" colorClassName="text-slate-500" size="sm" />
+                    <AnimatedText text="loading" size="sm" />
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
@@ -305,7 +305,7 @@ export function DiffViewer({
               {!fileDiff ? (
                 <div className="px-4 py-8 text-center text-slate-500">
                   {isLoading ? (
-                    <AnimatedText text="loading" colorClassName="text-slate-500" size="sm" />
+                    <AnimatedText text="loading" size="sm" />
                   ) : (
                     <div className="text-slate-600">
                       {/* Placeholder maintains scroll position */}

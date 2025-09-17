@@ -96,7 +96,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center">
-        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
+        <AnimatedText text="loading" size="md" />
       </div>
     )
   }
@@ -123,7 +123,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         </div>
         <Suspense fallback={
           <div className="flex-1 flex items-center justify-center">
-            <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
+            <AnimatedText text="loading" size="md" />
           </div>
         }>
           <MarkdownEditor
@@ -159,7 +159,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       <div className="flex-1 overflow-auto">
         <Suspense fallback={
           <div className="h-full flex items-center justify-center">
-            <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
+            <AnimatedText text="loading" size="md" />
           </div>
         }>
           <MarkdownEditor

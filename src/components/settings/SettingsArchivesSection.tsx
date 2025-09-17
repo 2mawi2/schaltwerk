@@ -121,7 +121,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
         if (archivesLoading) {
             return (
                 <div className="py-6">
-                    <AnimatedText text="loading" colorClassName="text-slate-500" size="sm" />
+                    <AnimatedText text="loading" size="sm" />
                 </div>
             )
         }

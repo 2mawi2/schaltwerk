@@ -777,7 +777,7 @@ export function TerminalGrid() {
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
             {showLoadingOverlay && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                    <AnimatedText text="loading" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
+                    <AnimatedText text="loading" size="md" speedMultiplier={3} />
                 </div>
             )}
             <Split 

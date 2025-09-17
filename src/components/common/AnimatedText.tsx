@@ -3,7 +3,6 @@ import { AsciiBuilderLogo } from '../home/AsciiBuilderLogo'
 
 interface AnimatedTextProps {
   text: string
-  colorClassName?: string
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl'
   paused?: boolean
   className?: string
@@ -11,6 +10,8 @@ interface AnimatedTextProps {
   centered?: boolean
   speedMultiplier?: number
 }
+
+const DEFAULT_COLOR_CLASS = 'text-text-muted'
 
 const textToAsciiMap: Record<string, string> = {
   'loading': `╦  ╔═╗╔═╗╔╦╗╦╔╗╔╔═╗
@@ -103,7 +104,6 @@ function stringToSimpleAscii(text: string): string {
 
 export const AnimatedText: React.FC<AnimatedTextProps> = ({
   text,
-  colorClassName = 'text-cyan-400',
   size = 'sm',
   paused = false,
   className = '',
@@ -143,7 +143,7 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
       <div className={sizeClasses[size]}>
         <AsciiBuilderLogo
           asciiArt={asciiArt}
-          colorClassName={colorClassName}
+          colorClassName={DEFAULT_COLOR_CLASS}
           paused={paused}
           idleMode={idleMode}
           groupOrder="center-out"

@@ -61,7 +61,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center p-6">
-        <AnimatedText text="loading" colorClassName="text-slate-500" size="md" />
+        <AnimatedText text="loading" size="md" />
       </div>
     )
   }

@@ -239,7 +239,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         return (
             <div className={`${className} flex items-center justify-center`} style={{ backgroundColor: theme.colors.background.primary }}>
                 <div className="text-center">
-                    <AnimatedText text="loading" size="md" colorClassName="text-slate-500" />
+                    <AnimatedText text="loading" size="md" />
                     <div className="text-xs text-slate-600 mt-2">Loading run script...</div>
                 </div>
             </div>
