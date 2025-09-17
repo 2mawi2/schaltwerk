@@ -80,6 +80,8 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{get_project_manager, get_schaltwerk_core};
+    use tokio::runtime::Runtime;
     use std::collections::HashMap;
     use std::fs;
     use std::process::Command as StdCommand;
@@ -176,6 +178,125 @@ mod tests {
         assert_eq!(changed_files.len(), 1);
         assert_eq!(changed_files[0].path, "normal_file.txt");
         assert_eq!(changed_files[0].change_type, "modified");
+    }
+
+    #[test]
+    fn test_session_diff_uses_original_branch_when_remote_head_defaults_to_main() {
+        let rt = Runtime::new().unwrap();
+        rt.block_on(async {
+            let temp_dir = TempDir::new().unwrap();
+            let repo_path = temp_dir.path();
+
+            let main_content = "# Main baseline\n";
+            let feature_content = "# Feature baseline\n";
+            let session_edit = "# Session change\n";
+
+            StdCommand::new("git")
+                .args(["init"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+            StdCommand::new("git")
+                .args(["config", "user.name", "Diff Tester"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+            StdCommand::new("git")
+                .args(["config", "user.email", "diff@tester.local"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+
+            fs::write(repo_path.join("README.md"), main_content).unwrap();
+            StdCommand::new("git")
+                .args(["add", "README.md"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+            StdCommand::new("git")
+                .args(["commit", "-m", "init on main"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+
+            // Simulate remote HEAD pointing to main
+            StdCommand::new("git")
+                .args(["remote", "add", "origin", "https://example.com/remote.git"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+            let main_commit = StdCommand::new("git")
+                .args(["rev-parse", "HEAD"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+            let main_commit = String::from_utf8(main_commit.stdout).unwrap();
+            let main_commit = main_commit.trim();
+            let remote_dir = repo_path
+                .join(".git")
+                .join("refs")
+                .join("remotes")
+                .join("origin");
+            std::fs::create_dir_all(&remote_dir).unwrap();
+            std::fs::write(remote_dir.join("main"), format!("{main_commit}\n")).unwrap();
+            std::fs::write(remote_dir.join("HEAD"), "ref: refs/remotes/origin/main\n").unwrap();
+
+            // Advance local HEAD to feature branch
+            StdCommand::new("git")
+                .args(["checkout", "-b", "feature/session-base"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+            fs::write(repo_path.join("README.md"), feature_content).unwrap();
+            StdCommand::new("git")
+                .args(["commit", "-am", "feature baseline"])
+                .current_dir(repo_path)
+                .output()
+                .unwrap();
+
+            let manager = get_project_manager().await;
+            manager
+                .switch_to_project_in_memory(repo_path.to_path_buf())
+                .await
+                .unwrap();
+
+            let (session_name, session_parent, worktree_path) = {
+                let core = get_schaltwerk_core().await.unwrap();
+                let core_guard = core.lock().await;
+                let session_manager = core_guard.session_manager();
+                let params = schaltwerk::domains::sessions::service::SessionCreationParams {
+                    name: "diff-non-main",
+                    prompt: None,
+                    base_branch: None,
+                    was_auto_generated: false,
+                    version_group_id: None,
+                    version_number: None,
+                    agent_type: None,
+                    skip_permissions: None,
+                };
+                let session = session_manager
+                    .create_session_with_agent(params)
+                    .unwrap();
+                (
+                    session.name.clone(),
+                    session.parent_branch.clone(),
+                    session.worktree_path.clone(),
+                )
+            };
+
+            fs::write(worktree_path.join("README.md"), session_edit).unwrap();
+
+            let (old_content, new_content) = get_file_diff_from_main(
+                Some(session_name.clone()),
+                "README.md".to_string(),
+            )
+            .await
+            .unwrap();
+
+            assert_eq!(old_content, feature_content.to_string());
+            assert_eq!(new_content, session_edit.to_string());
+            assert_eq!(session_parent, "feature/session-base".to_string());
+        });
     }
 
     #[test]

@@ -438,6 +438,30 @@ pub struct SessionManager {
 }
 
 impl SessionManager {
+    fn resolve_parent_branch(&self, requested: Option<&str>) -> Result<String> {
+        if let Some(branch) = requested {
+            log::info!("Using explicit base branch '{branch}' for session setup");
+            return Ok(branch.to_string());
+        }
+
+        match crate::domains::git::repository::get_current_branch(&self.repo_path) {
+            Ok(current) => {
+                log::info!("Detected current HEAD branch '{current}' for session setup");
+                Ok(current)
+            }
+            Err(head_err) => {
+                log::warn!(
+                    "Failed to detect current HEAD branch for session setup: {head_err}. Falling back to default branch detection."
+                );
+                crate::domains::git::get_default_branch(&self.repo_path).map_err(|default_err| {
+                    anyhow!(
+                        "Failed to determine base branch: could not detect HEAD ({head_err}) or default branch ({default_err})"
+                    )
+                })
+            }
+        }
+    }
+
     pub fn new(db: Database, repo_path: PathBuf) -> Self {
         log::debug!(
             "Creating SessionManager with repo path: {}",
@@ -509,19 +533,11 @@ impl SessionManager {
         let session_id = SessionUtils::generate_session_id();
         self.utils.cleanup_existing_worktree(&worktree_path)?;
 
-        let parent_branch = if let Some(base) = params.base_branch {
-            base.to_string()
-        } else {
-            log::info!("No base branch specified, detecting default branch for session creation");
-            match git::get_default_branch(&self.repo_path) {
-                Ok(default) => {
-                    log::info!("Using detected default branch: {default}");
-                    default
-                }
-                Err(e) => {
-                    log::error!("Failed to detect default branch: {e}");
-                    return Err(anyhow!("Failed to detect default branch: {}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')", e));
-                }
+        let parent_branch = match self.resolve_parent_branch(params.base_branch) {
+            Ok(branch) => branch,
+            Err(err) => {
+                self.cache_manager.unreserve_name(&unique_name);
+                return Err(err);
             }
         };
 
@@ -1665,6 +1681,14 @@ impl SessionManager {
         // Set pending_name_generation flag if we have agent type and content
         let pending_name_generation = agent_type.is_some() && !spec_content.trim().is_empty();
 
+        let parent_branch = match self.resolve_parent_branch(None) {
+            Ok(branch) => branch,
+            Err(err) => {
+                self.cache_manager.unreserve_name(&unique_name);
+                return Err(err);
+            }
+        };
+
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
@@ -1674,7 +1698,7 @@ impl SessionManager {
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: branch.clone(),
-            parent_branch: "main".to_string(),
+            parent_branch,
             worktree_path: worktree_path.clone(),
             status: SessionStatus::Spec,
             created_at: now,
@@ -1725,6 +1749,14 @@ impl SessionManager {
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
 
+        let parent_branch = match self.resolve_parent_branch(base_branch) {
+            Ok(branch) => branch,
+            Err(err) => {
+                self.cache_manager.unreserve_name(&unique_name);
+                return Err(err);
+            }
+        };
+
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
@@ -1734,7 +1766,7 @@ impl SessionManager {
             repository_path: self.repo_path.clone(),
             repository_name: repo_name,
             branch: branch.clone(),
-            parent_branch: "main".to_string(),
+            parent_branch: parent_branch.clone(),
             worktree_path: worktree_path.clone(),
             status: SessionStatus::Spec,
             created_at: now,
@@ -1757,23 +1789,6 @@ impl SessionManager {
         }
 
         self.cache_manager.unreserve_name(&unique_name);
-
-        // Now start the session immediately using the session we just created
-        let parent_branch = if let Some(base) = base_branch {
-            base.to_string()
-        } else {
-            log::info!("No base branch specified, detecting default branch for session startup");
-            match git::get_default_branch(&self.repo_path) {
-                Ok(default) => {
-                    log::info!("Using detected default branch: {default}");
-                    default
-                }
-                Err(e) => {
-                    log::error!("Failed to detect default branch: {e}");
-                    return Err(anyhow!("Failed to detect default branch: {}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')", e));
-                }
-            }
-        };
 
         self.utils.cleanup_existing_worktree(&worktree_path)?;
 

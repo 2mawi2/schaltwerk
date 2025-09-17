@@ -26,6 +26,7 @@ pub trait SessionMethods {
     ) -> Result<()>;
     fn update_session_display_name(&self, id: &str, display_name: &str) -> Result<()>;
     fn update_session_branch(&self, id: &str, new_branch: &str) -> Result<()>;
+    fn update_session_parent_branch(&self, id: &str, new_parent_branch: &str) -> Result<()>;
     fn update_session_ready_to_merge(&self, id: &str, ready: bool) -> Result<()>;
     fn update_session_state(&self, id: &str, state: SessionState) -> Result<()>;
     fn update_spec_content(&self, id: &str, content: &str) -> Result<()>;
@@ -373,6 +374,15 @@ impl SessionMethods for Database {
         conn.execute(
             "UPDATE sessions SET branch = ?1, updated_at = ?2 WHERE id = ?3",
             params![new_branch, Utc::now().timestamp(), id],
+        )?;
+        Ok(())
+    }
+
+    fn update_session_parent_branch(&self, id: &str, new_parent_branch: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        conn.execute(
+            "UPDATE sessions SET parent_branch = ?1, updated_at = ?2 WHERE id = ?3",
+            params![new_parent_branch, Utc::now().timestamp(), id],
         )?;
         Ok(())
     }
