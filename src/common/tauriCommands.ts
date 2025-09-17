@@ -118,6 +118,9 @@ export const TauriCommands = {
   StartFileWatcher: 'start_file_watcher',
   StopFileWatcher: 'stop_file_watcher',
   TerminalExists: 'terminal_exists',
+  RegisterSessionTerminals: 'register_session_terminals',
+  SuspendSessionTerminals: 'suspend_session_terminals',
+  ResumeSessionTerminals: 'resume_session_terminals',
   UpdateRecentProjectTimestamp: 'update_recent_project_timestamp',
   WriteTerminal: 'write_terminal',
 } as const

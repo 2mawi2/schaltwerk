@@ -295,6 +295,10 @@ beforeEach(() => {
         })
       case TauriCommands.GetProjectActionButtons:
         return Promise.resolve([])
+      case TauriCommands.RegisterSessionTerminals:
+      case TauriCommands.SuspendSessionTerminals:
+      case TauriCommands.ResumeSessionTerminals:
+        return Promise.resolve()
       default:
         return Promise.resolve(undefined)
     }
@@ -554,6 +558,99 @@ describe('TerminalGrid', () => {
         // This is a smoke test that the component renders without errors
         expect(true).toBe(true)
       }
+    })
+
+    it('preserves session-specific terminal tabs when switching between sessions', async () => {
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(bridge).toBeDefined()
+        expect(bridge?.isReady).toBe(true)
+      }, { timeout: 3000 })
+
+      if (!bridge) throw new Error('Bridge not initialized')
+
+      await act(async () => {
+        await bridge!.setSelection({
+          kind: 'session',
+          payload: 'alpha',
+          sessionState: 'running',
+          worktreePath: '/sessions/alpha'
+        })
+      })
+
+      await screen.findByText('Agent — alpha', {}, { timeout: 3000 })
+
+      const addButton = await screen.findByTitle('Add new terminal', {}, { timeout: 3000 })
+      fireEvent.click(addButton)
+
+      await screen.findByText('Terminal 2', {}, { timeout: 3000 })
+
+      await act(async () => {
+        await bridge!.setSelection({
+          kind: 'session',
+          payload: 'beta',
+          sessionState: 'running',
+          worktreePath: '/sessions/beta'
+        })
+      })
+
+      await screen.findByText('Agent — beta', {}, { timeout: 3000 })
+
+      await act(async () => {
+        await bridge!.setSelection({
+          kind: 'session',
+          payload: 'alpha',
+          sessionState: 'running',
+          worktreePath: '/sessions/alpha'
+        })
+      })
+
+      await screen.findByText('Agent — alpha', {}, { timeout: 3000 })
+      expect(await screen.findByText('Terminal 2', {}, { timeout: 3000 })).toBeInTheDocument()
+    })
+
+    it('does not leak additional terminal tabs into fresh sessions', async () => {
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(bridge).toBeDefined()
+        expect(bridge?.isReady).toBe(true)
+      }, { timeout: 3000 })
+
+      if (!bridge) throw new Error('Bridge not initialized')
+
+      await act(async () => {
+        await bridge!.setSelection({
+          kind: 'session',
+          payload: 'alpha',
+          sessionState: 'running',
+          worktreePath: '/sessions/alpha'
+        })
+      })
+
+      await screen.findByText('Agent — alpha', {}, { timeout: 3000 })
+
+      const addButton = await screen.findByTitle('Add new terminal', {}, { timeout: 3000 })
+      fireEvent.click(addButton)
+      await screen.findByText('Terminal 2', {}, { timeout: 3000 })
+
+      await act(async () => {
+        await bridge!.setSelection({
+          kind: 'session',
+          payload: 'beta',
+          sessionState: 'running',
+          worktreePath: '/sessions/beta'
+        })
+      })
+
+      await screen.findByText('Agent — beta', {}, { timeout: 3000 })
+
+      await waitFor(() => {
+        expect(screen.queryByText('Terminal 2')).not.toBeInTheDocument()
+      }, { timeout: 3000 })
     })
   })
 

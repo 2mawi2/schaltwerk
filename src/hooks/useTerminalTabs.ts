@@ -3,6 +3,7 @@ import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 import { TabInfo } from '../types/terminalTabs'
+import { useProject } from '../contexts/ProjectContext'
 
 interface SessionTabState {
   activeTab: number
@@ -14,6 +15,7 @@ interface UseTerminalTabsProps {
   baseTerminalId: string
   workingDirectory: string
   maxTabs?: number
+  sessionName?: string | null
 }
 
 const DEFAULT_MAX_TABS = 6
@@ -25,7 +27,8 @@ const globalTerminalCreated = new Set<string>()
 export function useTerminalTabs({ 
   baseTerminalId, 
   workingDirectory,
-  maxTabs = DEFAULT_MAX_TABS 
+  maxTabs = DEFAULT_MAX_TABS,
+  sessionName = null,
 }: UseTerminalTabsProps) {
   // Use baseTerminalId as session key to maintain separate state per session
   const sessionKey = baseTerminalId
@@ -34,6 +37,21 @@ export function useTerminalTabs({
   const triggerUpdate = useCallback(() => {
     forceUpdate(prev => prev + 1)
   }, [])
+
+  const { projectPath } = useProject()
+
+  const registerTerminalSession = useCallback(async (terminalId: string) => {
+    if (!projectPath) return
+    try {
+      await invoke(TauriCommands.RegisterSessionTerminals, {
+        projectId: projectPath,
+        sessionId: sessionName ?? null,
+        terminalIds: [terminalId],
+      })
+    } catch (error) {
+      logger.warn(`[useTerminalTabs] Failed to register terminal ${terminalId}`, error)
+    }
+  }, [projectPath, sessionName])
   
   // Initialize session state if it doesn't exist
   if (!globalTabState.has(sessionKey)) {
@@ -120,6 +138,7 @@ export function useTerminalTabs({
 
      try {
        await createTerminal(newTerminalId)
+       await registerTerminalSession(newTerminalId)
 
        const newTab: TabInfo = {
          index: newIndex,
@@ -146,7 +165,7 @@ export function useTerminalTabs({
      } catch (error) {
        logger.error('Failed to add new tab:', error)
      }
-   }, [sessionTabs, baseTerminalId, createTerminal, sessionKey, triggerUpdate])
+   }, [sessionTabs, baseTerminalId, createTerminal, registerTerminalSession, sessionKey, triggerUpdate])
 
   const closeTab = useCallback(async (tabIndex: number) => {
     if (sessionTabs.tabs.length <= 1) {
@@ -196,10 +215,17 @@ export function useTerminalTabs({
   // Create initial terminal when component mounts
   useEffect(() => {
     const initialTab = sessionTabs.tabs[0]
-    if (initialTab && !globalTerminalCreated.has(initialTab.terminalId)) {
-      createTerminal(initialTab.terminalId).catch(err => logger.error("Error:", err))
+    if (!initialTab) return
+    const ensureInitial = async () => {
+      try {
+        await createTerminal(initialTab.terminalId)
+        await registerTerminalSession(initialTab.terminalId)
+      } catch (err) {
+        logger.error('[useTerminalTabs] Failed to initialize initial terminal', err)
+      }
     }
-  }, [createTerminal, sessionTabs.tabs])
+    ensureInitial()
+  }, [createTerminal, registerTerminalSession, sessionTabs.tabs])
 
   return {
     tabs: sessionTabs.tabs,

@@ -30,6 +30,15 @@ pub trait TerminalBackend: Send + Sync {
     async fn close(&self, id: &str) -> Result<(), String>;
     async fn exists(&self, id: &str) -> Result<bool, String>;
     async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<(u64, Vec<u8>), String>;
+    async fn suspend(&self, _id: &str) -> Result<(), String> {
+        Ok(())
+    }
+    async fn resume(&self, _id: &str) -> Result<(), String> {
+        Ok(())
+    }
+    async fn is_suspended(&self, _id: &str) -> Result<bool, String> {
+        Ok(false)
+    }
 }
 
 pub mod ansi;

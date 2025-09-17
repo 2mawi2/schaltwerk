@@ -69,7 +69,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     // Track which terminals we've created to avoid duplicates
     const terminalsCreated = useRef(new Set<string>())
     const creationLock = useRef(new Map<string, Promise<void>>())
-    
+
     const isRestoringRef = useRef(false)
     // Monotonic token to ignore out-of-order async completions
     const selectionTokenRef = useRef(0)
@@ -136,7 +136,61 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
     }, [projectPath])
-    
+
+    const computeSessionParams = useCallback((sel: Selection) => {
+        if (!projectPath) return null
+        if (sel.kind === 'session') {
+            const sessionId = sel.payload ?? null
+            if (!sessionId) return null
+            return { projectId: projectPath, sessionId }
+        }
+        if (sel.kind === 'orchestrator') {
+            return { projectId: projectPath, sessionId: null }
+        }
+        return null
+    }, [projectPath])
+
+    const registerTerminalsForSelection = useCallback(async (terminalIds: string[], sel: Selection) => {
+        if (terminalIds.length === 0) return
+        const params = computeSessionParams(sel)
+        if (!params) return
+        try {
+            await invoke(TauriCommands.RegisterSessionTerminals, {
+                projectId: params.projectId,
+                sessionId: params.sessionId,
+                terminalIds,
+            })
+        } catch (error) {
+            logger.warn('[SelectionContext] Failed to register terminals for session', error)
+        }
+    }, [computeSessionParams])
+
+    const suspendTerminalsForSelection = useCallback(async (sel: Selection) => {
+        const params = computeSessionParams(sel)
+        if (!params) return
+        try {
+            await invoke(TauriCommands.SuspendSessionTerminals, {
+                projectId: params.projectId,
+                sessionId: params.sessionId,
+            })
+        } catch (error) {
+            logger.warn('[SelectionContext] Failed to suspend terminals for selection', error)
+        }
+    }, [computeSessionParams])
+
+    const resumeTerminalsForSelection = useCallback(async (sel: Selection) => {
+        const params = computeSessionParams(sel)
+        if (!params) return
+        try {
+            await invoke(TauriCommands.ResumeSessionTerminals, {
+                projectId: params.projectId,
+                sessionId: params.sessionId,
+            })
+        } catch (error) {
+            logger.warn('[SelectionContext] Failed to resume terminals for selection', error)
+        }
+    }, [computeSessionParams])
+
     // Create a single terminal with deduplication
     const createTerminal = useCallback(async (id: string, cwd: string) => {
         // If already created, skip
@@ -173,7 +227,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             creationLock.current.delete(id)
         }
     }, [])
-    
+
     // Ensure terminals exist for a selection
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
         const ids = getTerminalIds(sel)
@@ -183,6 +237,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             setIsSpec(false)
             const cwd = projectPath || await invoke<string>(TauriCommands.GetCurrentDirectory)
             await createTerminal(ids.top, cwd)
+            await registerTerminalsForSelection([ids.top], sel)
             return ids
         }
 
@@ -227,6 +282,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
 
             await createTerminal(ids.top, worktreePath)
+            await registerTerminalsForSelection([ids.top], sel)
             // Proactively close legacy base bottom terminals if they exist to avoid orphans
             try {
                 const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
@@ -250,7 +306,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 // Don't create terminals if we can't determine session state
                 return ids
             }
-    }, [getTerminalIds, createTerminal, projectPath])
+    }, [getTerminalIds, createTerminal, projectPath, registerTerminalsForSelection])
     
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
@@ -440,6 +496,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
         
+        const shouldSwitchSessions = forceRecreate || selection.kind !== newSelection.kind || selection.payload !== newSelection.payload
+        let previousSuspended = false
+        let resumedNew = false
+
         try {
             // If forcing recreate, clear terminal tracking and close old terminals first
             if (forceRecreate) {
@@ -475,7 +535,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     // Orchestrator is never a spec
                     setIsSpec(false)
                 }
-                
+
+                if (shouldSwitchSessions && !previousSuspended) {
+                    try {
+                        await suspendTerminalsForSelection(selection)
+                        previousSuspended = true
+                    } catch (error) {
+                        logger.warn('[SelectionContext] Failed to suspend previous session terminals', error)
+                    }
+                }
+
                 // Update selection and terminals immediately
                 if (callToken === selectionTokenRef.current) {
                     setSelectionState(newSelection)
@@ -501,7 +570,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 if (!isReady) {
                     setIsReady(true)
                 }
-                
+
+                if (shouldSwitchSessions && !resumedNew) {
+                    try {
+                        await resumeTerminalsForSelection(newSelection)
+                        resumedNew = true
+                    } catch (error) {
+                        logger.warn('[SelectionContext] Failed to resume new session terminals', error)
+                    }
+                }
+
                 // Finalize immediate switch
                 finalizeSelectionChange(newSelection)
                 return
@@ -522,7 +600,16 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                 return
             }
-            
+
+            if (shouldSwitchSessions && !previousSuspended) {
+                try {
+                    await suspendTerminalsForSelection(selection)
+                    previousSuspended = true
+                } catch (error) {
+                    logger.warn('[SelectionContext] Failed to suspend previous session terminals', error)
+                }
+            }
+
             // Now atomically update both selection and terminals (may overwrite optimistic values)
             setSelectionState(newSelection)
             setTerminals(terminalIds)
@@ -541,14 +628,31 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     logger.error('[SelectionContext] Failed to persist selection to database:', _e)
                 }
             }
-            
+
             // Mark as ready
             setIsReady(true)
+
+            if (shouldSwitchSessions && !resumedNew) {
+                try {
+                    await resumeTerminalsForSelection(newSelection)
+                    resumedNew = true
+                } catch (error) {
+                    logger.warn('[SelectionContext] Failed to resume new session terminals', error)
+                }
+            }
 
         } catch (_e) {
             logger.error('[SelectionContext] Failed to set selection:', _e)
             // Stay on current selection if we fail
             setIsReady(true)
+            // Attempt to roll back suspension if new session wasn't resumed
+            if (previousSuspended && !resumedNew) {
+                try {
+                    await resumeTerminalsForSelection(selection)
+                } catch (error) {
+                    logger.warn('[SelectionContext] Failed to re-resume previous session after error', error)
+                }
+            }
         } finally {
             // Always finalize selection changes and clear transient flags
             finalizeSelectionChange(newSelection)
@@ -557,7 +661,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
             if (!isAuto) userSelectionInFlightRef.current = false
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection])
 
     // Start a lightweight backend watcher for the currently selected running session
     useEffect(() => {

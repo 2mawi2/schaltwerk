@@ -24,6 +24,25 @@ import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
 
+type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
+type TerminalTabsUiState = {
+    tabs: TerminalTabDescriptor[]
+    activeTab: number
+    canAddTab: boolean
+}
+
+const createInitialTabsState = (baseTerminalId: string): TerminalTabsUiState => ({
+    tabs: [{ index: 0, terminalId: baseTerminalId, label: 'Terminal 1' }],
+    activeTab: 0,
+    canAddTab: true,
+})
+
+const cloneTabsState = (state: TerminalTabsUiState): TerminalTabsUiState => ({
+    tabs: state.tabs.map(tab => ({ ...tab })),
+    activeTab: state.activeTab,
+    canAddTab: state.canAddTab,
+})
+
 export function TerminalGrid() {
     const { selection, terminals, isReady, isSpec } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
@@ -47,15 +66,24 @@ export function TerminalGrid() {
     const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
     const activeTabKey = `schaltwerk:active-tab:${sessionKey}`
     
-    const [terminalTabsState, setTerminalTabsState] = useState<{
-        tabs: Array<{ index: number; terminalId: string; label: string }>
-        activeTab: number
-        canAddTab: boolean
-    }>({
-        tabs: [{ index: 0, terminalId: terminals.bottomBase, label: 'Terminal 1' }],
-        activeTab: 0,
-        canAddTab: true
-    })
+    const [terminalTabsState, setTerminalTabsState] = useState<TerminalTabsUiState>(() =>
+        createInitialTabsState(terminals.bottomBase)
+    )
+    const tabsStateStoreRef = useRef<Map<string, TerminalTabsUiState>>(new Map())
+    const terminalTabsStateRef = useRef<TerminalTabsUiState>(terminalTabsState)
+    const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
+    const previousTerminalKeyRef = useRef<number>(terminalKey)
+    const currentTabsOwnerRef = useRef<string | null>(terminals.bottomBase)
+    const applyTabsState = useCallback(
+        (updater: (prev: TerminalTabsUiState) => TerminalTabsUiState) => {
+            setTerminalTabsState(prev => {
+                const next = updater(prev)
+                currentTabsOwnerRef.current = terminals.bottomBase
+                return next
+            })
+        },
+        [terminals.bottomBase]
+    )
     const containerRef = useRef<HTMLDivElement>(null)
     const [collapsedPercent, setCollapsedPercent] = useState<number>(10) // fallback ~ header height in % with safety margin
     // Initialize persisted UI state synchronously to avoid extra re-renders that remount children in tests
@@ -259,12 +287,12 @@ export function TerminalGrid() {
             // Restore saved active tab if available
             if (config.savedActiveTab !== null) {
                 const savedTab = config.savedActiveTab
-                setTerminalTabsState(prev => ({ ...prev, activeTab: savedTab }))
+                applyTabsState(prev => ({ ...prev, activeTab: savedTab }))
             }
         }
         
         initializeRunMode()
-    }, [selection, getSessionKey])
+    }, [selection, getSessionKey, applyTabsState])
 
     // Focus appropriate terminal when selection changes
     useEffect(() => {
@@ -364,7 +392,7 @@ export function TerminalGrid() {
                         const runModeKey = `schaltwerk:run-mode:${sessionId}`
                         sessionStorage.setItem(runModeKey, 'true')
                         setRunModeActive(true)
-                        setTerminalTabsState(prev => {
+                        applyTabsState(prev => {
                             const next = { ...prev, activeTab: RUN_TAB_INDEX }
                             sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
                             return next
@@ -395,7 +423,7 @@ export function TerminalGrid() {
                 
                 if (isOnRunTab) {
                     // Switch from run tab to first terminal tab
-                    setTerminalTabsState(prev => {
+                    applyTabsState(prev => {
                         const next = { ...prev, activeTab: 0 }
                         sessionStorage.setItem(activeTabKey, String(0))
                         return next
@@ -449,7 +477,7 @@ export function TerminalGrid() {
         return () => {
             document.removeEventListener('keydown', handleKeyDown)
         }
-    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey])
+    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey, applyTabsState])
 
     // Handle pending run toggle after RunTerminal mounts with proper timing
     useEffect(() => {
@@ -603,14 +631,55 @@ export function TerminalGrid() {
         sessionStorage.setItem(`schaltwerk:terminal-grid:collapsed:${key}`, String(isBottomCollapsed))
     }, [isBottomCollapsed, selection, sessionKey, getStorageKey])
 
-    // Initialize terminal tabs state when terminals change
+    // Keep a mutable reference of the latest terminal tabs state for persistence between sessions
     useEffect(() => {
-        setTerminalTabsState({
-            tabs: [{ index: 0, terminalId: terminals.bottomBase, label: 'Terminal 1' }],
-            activeTab: 0,
-            canAddTab: true
-        })
-    }, [terminalKey, terminals.bottomBase])
+        terminalTabsStateRef.current = terminalTabsState
+    }, [terminalTabsState])
+
+    // Persist the latest state for the active session whenever tabs change
+    useEffect(() => {
+        const base = terminals.bottomBase
+        if (!base) return
+        if (currentTabsOwnerRef.current !== base) {
+            return
+        }
+        tabsStateStoreRef.current.set(base, cloneTabsState(terminalTabsState))
+    }, [terminalTabsState, terminals.bottomBase])
+
+    // Restore per-session tab state on selection changes and respect explicit reset signals
+    useEffect(() => {
+        const currentBase = terminals.bottomBase
+        const previousBase = previousTabsBaseRef.current
+        const previousKey = previousTerminalKeyRef.current
+
+        if (previousBase && previousBase !== currentBase) {
+            tabsStateStoreRef.current.set(previousBase, cloneTabsState(terminalTabsStateRef.current))
+        }
+
+        if (!currentBase) {
+            previousTabsBaseRef.current = currentBase
+            previousTerminalKeyRef.current = terminalKey
+            return
+        }
+
+        if (terminalKey !== previousKey) {
+            tabsStateStoreRef.current.delete(currentBase)
+        }
+
+        const stored = tabsStateStoreRef.current.get(currentBase)
+        if (stored) {
+            currentTabsOwnerRef.current = currentBase
+            setTerminalTabsState(cloneTabsState(stored))
+        } else {
+            const initialState = createInitialTabsState(currentBase)
+            tabsStateStoreRef.current.set(currentBase, initialState)
+            currentTabsOwnerRef.current = currentBase
+            setTerminalTabsState(initialState)
+        }
+
+        previousTabsBaseRef.current = currentBase
+        previousTerminalKeyRef.current = terminalKey
+    }, [terminals.bottomBase, terminalKey])
 
     const handleClaudeSessionClick = async (e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
@@ -829,7 +898,7 @@ export function TerminalGrid() {
                             if (showRunTab && index === 0) {
                                 // Run tab selected - just update state to show Run tab as active
                                 // The Run terminal component will be rendered instead
-                                setTerminalTabsState(prev => {
+                                applyTabsState(prev => {
                                     const next = { ...prev, activeTab: RUN_TAB_INDEX }
                                     sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
                                     return next
@@ -838,7 +907,7 @@ export function TerminalGrid() {
                                 // Terminal tab selected - adjust index if Run tab is present
                                 const terminalIndex = showRunTab ? index - 1 : index
                                 terminalTabsRef.current?.getTabFunctions().setActiveTab(terminalIndex)
-                                setTerminalTabsState(prev => {
+                                applyTabsState(prev => {
                                     const next = { ...prev, activeTab: terminalIndex }
                                     sessionStorage.setItem(activeTabKey, String(terminalIndex))
                                     return next
@@ -857,7 +926,7 @@ export function TerminalGrid() {
                             if (!(showRunTab && index === 0)) {
                                 terminalTabsRef.current?.getTabFunctions().closeTab(terminalIndex)
                                 // Update state to reflect the change
-                                setTerminalTabsState(prev => {
+                                applyTabsState(prev => {
                                     const newTabs = prev.tabs.filter(tab => tab.index !== terminalIndex)
                                     return {
                                         ...prev,
@@ -872,7 +941,7 @@ export function TerminalGrid() {
                             terminalTabsRef.current?.getTabFunctions().addTab()
                             const newIndex = terminalTabsState.tabs.length
                             const newTerminalId = `${terminals.bottomBase}-${newIndex}`
-                            setTerminalTabsState(prev => ({
+                            applyTabsState(prev => ({
                                 tabs: [...prev.tabs, { index: newIndex, terminalId: newTerminalId, label: `Terminal ${newIndex + 1}` }],
                                 activeTab: newIndex,
                                 canAddTab: prev.tabs.length + 1 < 6 // Limit to 6 terminal tabs (Run tab doesn't count)
@@ -896,7 +965,7 @@ export function TerminalGrid() {
                                     const runModeKey = `schaltwerk:run-mode:${sessionKey}`
                                     sessionStorage.setItem(runModeKey, 'true')
                                     setRunModeActive(true)
-                                    setTerminalTabsState(prev => ({ ...prev, activeTab: RUN_TAB_INDEX }))
+                                    applyTabsState(prev => ({ ...prev, activeTab: RUN_TAB_INDEX }))
                                     
                                     // Expand terminal if collapsed
                                     if (isBottomCollapsed) {

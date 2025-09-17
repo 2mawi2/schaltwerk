@@ -53,7 +53,8 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
     workingDirectory,
-    maxTabs
+    maxTabs,
+    sessionName: sessionName ?? null
   })
 
   const terminalRefs = useRef<Map<number, TerminalHandle>>(new Map())

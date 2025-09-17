@@ -69,6 +69,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
+    const resumeUnlistenRef = useRef<UnlistenFn | null>(null);
     const unlistenPromiseRef = useRef<Promise<UnlistenFn> | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
@@ -929,6 +930,41 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
 
+        const rehydrateAfterResume = async () => {
+            try {
+                pendingOutput.current = []
+                writeQueueRef.current = []
+                queueBytesRef.current = 0
+                droppedBytesRef.current = 0
+                overflowActiveRef.current = false
+                if (terminal.current) {
+                    try {
+                        terminal.current.reset()
+                    } catch (error) {
+                        logger.warn(`[Terminal ${terminalId}] Failed to reset terminal before resume:`, error)
+                    }
+                }
+                setHydrated(false)
+                hydratedRef.current = false
+                await hydrateTerminal()
+            } catch (error) {
+                logger.error(`[Terminal ${terminalId}] Failed to rehydrate after resume:`, error)
+            }
+        }
+
+        const attachResumeListener = async () => {
+            try {
+                const unlisten = await listenEvent(SchaltEvent.TerminalResumed, (payload) => {
+                    if (payload?.terminal_id !== terminalId) return
+                    rehydrateAfterResume().catch(err => logger.error(`[Terminal ${terminalId}] Resume hydration failed:`, err))
+                })
+                resumeUnlistenRef.current = unlisten
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to attach resume listener`, error)
+            }
+        }
+
+        attachResumeListener()
         hydrateTerminal();
 
         // Helper functions for scroll position management
@@ -1144,6 +1180,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         logger.error(`[Terminal ${terminalId}] Async event listener cleanup error:`, error);
                     }
                 });
+            }
+            if (resumeUnlistenRef.current) {
+                try { resumeUnlistenRef.current(); } catch (error) {
+                    logger.error(`[Terminal ${terminalId}] Resume listener cleanup error:`, error);
+                }
+                resumeUnlistenRef.current = null;
             }
             
             // Only disconnect if not already disconnected (it disconnects itself after initialization)
