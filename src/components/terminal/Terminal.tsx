@@ -16,7 +16,8 @@ import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
-import { applyEnqueuePolicy, makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
+import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
+import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -58,13 +59,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const pendingOutput = useRef<string[]>([]);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    // Batch terminal writes to reduce xterm parse/render overhead
-    const writeQueueRef = useRef<string[]>([]);
-    const queueBytesRef = useRef(0);
-    const droppedBytesRef = useRef(0);
-    const overflowActiveRef = useRef(false);
-    const rafIdRef = useRef<number | null>(null);
-    const pendingFlushRef = useRef<boolean>(false);
     const seqRef = useRef<number>(0);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
@@ -85,7 +79,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const queueCfg = useMemo(() => (
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
-    const MAX_WRITE_CHUNK = queueCfg.maxWriteChunk;
+
+    const {
+        enqueue: enqueueQueue,
+        flushPending: flushQueuePending,
+        reset: resetQueue,
+        stats: getQueueStats,
+    } = useTerminalWriteQueue({
+        queueConfig: queueCfg,
+        logger,
+        debugTag: terminalId,
+    });
 
     const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
         const MIN_DIMENSION = 2;
@@ -137,52 +141,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [agentType, isUserSelectingInTerminal]);
 
     const enqueueWrite = useCallback((data: string) => {
-        const next = applyEnqueuePolicy(
-            {
-                queue: writeQueueRef.current,
-                queuedBytes: queueBytesRef.current,
-                droppedBytes: droppedBytesRef.current,
-                overflowActive: overflowActiveRef.current,
-            },
-            data,
-            queueCfg
-        )
-
-        writeQueueRef.current = next.queue
-        queueBytesRef.current = next.queuedBytes
-        droppedBytesRef.current = next.droppedBytes
-
-        // Emit a single notice per overflow episode to avoid spam
-        if (!overflowActiveRef.current && next.overflowActive) {
-            const droppedKB = Math.max(1, Math.round(next.droppedBytes / 1024))
-            // Do NOT unshift; append so the message appears in order while catching up
-            const note = `\r\n[schaltwerk] high-volume output; ${droppedKB}KB skipped in UI to stay responsive. Full content preserved in transcript for agent terminals.\r\n`
-            writeQueueRef.current.push(note)
-            queueBytesRef.current += note.length
+        if (data.length === 0) return;
+        enqueueQueue(data);
+        if (termDebug()) {
+            const { queueLength } = getQueueStats();
+            logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
         }
-        overflowActiveRef.current = next.overflowActive
-    }, [queueCfg]);
-
-    const dequeueChunk = (limit: number) => {
-        let taken = 0;
-        const pieces: string[] = [];
-        while (writeQueueRef.current.length > 0 && taken < limit) {
-            const next = writeQueueRef.current[0];
-            const room = limit - taken;
-            if (next.length <= room) {
-                pieces.push(next);
-                writeQueueRef.current.shift();
-                queueBytesRef.current -= next.length;
-                taken += next.length;
-            } else {
-                pieces.push(next.slice(0, room));
-                writeQueueRef.current[0] = next.slice(room);
-                queueBytesRef.current -= room;
-                taken += room;
-            }
-        }
-        return pieces.join('');
-    };
+    }, [enqueueQueue, getQueueStats, terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -381,11 +346,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         setHydrated(false);
         hydratedRef.current = false;
         pendingOutput.current = [];
-        writeQueueRef.current = [];
-        queueBytesRef.current = 0;
-        droppedBytesRef.current = 0;
-        if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
-        pendingFlushRef.current = false;
+        resetQueue();
 
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
@@ -682,53 +643,87 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
 
         const scheduleFlush = () => {
-            if (pendingFlushRef.current) return;
-            pendingFlushRef.current = true;
-            queueMicrotask(() => {
-                pendingFlushRef.current = false;
-                if (!rendererReadyRef.current || !terminal.current || writeQueueRef.current.length === 0) return;
-                const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-                try {
-                    const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                    const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
-                        ? buffer.viewportY === buffer.baseY
-                        : false;
-                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
-                    terminal.current.write(chunk, () => {
-                        try { if (shouldAutoScroll(wasAtBottom)) terminal.current!.scrollToBottom(); } catch (error) { logger.debug('Scroll error during terminal output (cb)', error); }
-                        if (writeQueueRef.current.length > 0) scheduleFlush();
-                    });
-                } catch (e) {
-                    logger.debug('xterm write failed in scheduleFlush', e);
+            if (!rendererReadyRef.current || !terminal.current) return;
+            if (getQueueStats().queueLength === 0) return;
+
+            flushQueuePending((chunk) => {
+                if (!rendererReadyRef.current || !terminal.current) {
+                    return false;
                 }
+
+                const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
+                    ? buffer.viewportY === buffer.baseY
+                    : false;
+
+                if (termDebug()) {
+                    const { queueLength } = getQueueStats();
+                    logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom} qlen=${queueLength}`);
+                }
+
+                try {
+                    terminal.current.write(chunk, () => {
+                        try {
+                            if (shouldAutoScroll(wasAtBottom)) {
+                                terminal.current!.scrollToBottom();
+                            }
+                        } catch (error) {
+                            logger.debug('Scroll error during terminal output (cb)', error);
+                        }
+
+                        if (getQueueStats().queueLength > 0) {
+                            scheduleFlush();
+                        }
+                    });
+                } catch (error) {
+                    logger.debug('xterm write failed in scheduleFlush', error);
+                    return false;
+                }
+
+                return true;
             });
         };
 
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
-            if (!rendererReadyRef.current) return;
-            if (!terminal.current || writeQueueRef.current.length === 0) return;
-            const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-            try {
+            if (!rendererReadyRef.current || !terminal.current) return;
+            if (getQueueStats().queueLength === 0) return;
+
+            flushQueuePending((chunk) => {
+                if (!rendererReadyRef.current || !terminal.current) {
+                    return false;
+                }
+
                 const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
                 const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
                     ? buffer.viewportY === buffer.baseY
                     : false;
-                if (termDebug()) logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
-                terminal.current.write(chunk, () => {
-                    try {
-                        if (shouldAutoScroll(wasAtBottom)) {
-                            terminal.current!.scrollToBottom();
+
+                if (termDebug()) {
+                    logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
+                }
+
+                try {
+                    terminal.current.write(chunk, () => {
+                        try {
+                            if (shouldAutoScroll(wasAtBottom)) {
+                                terminal.current!.scrollToBottom();
+                            }
+                        } catch (error) {
+                            logger.debug('Scroll error during buffer flush (cb)', error);
+                        } finally {
+                            if (getQueueStats().queueLength > 0) {
+                                queueMicrotask(() => flushNow());
+                            }
                         }
-                    } catch (error) {
-                        logger.debug('Scroll error during buffer flush (cb)', error);
-                    } finally {
-                        if (writeQueueRef.current.length > 0) queueMicrotask(() => flushNow());
-                    }
-                });
-            } catch (e) {
-                logger.debug('xterm write failed in flushNow', e);
-            }
+                    });
+                } catch (error) {
+                    logger.debug('xterm write failed in flushNow', error);
+                    return false;
+                }
+
+                return true;
+            }, { immediate: true });
         };
 
         // Promise-based drain used only during initial hydration to guarantee "all content applied" before reveal
@@ -753,12 +748,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 pendingOutput.current = [];
             }
 
-            // 3) Drain writeQueueRef to empty using write callbacks
+            // 3) Drain queue to empty using write callbacks
             if (!terminal.current) return;
             await new Promise<void>((resolve) => {
                 const step = () => {
                     if (!mountedRef.current || !terminal.current) return resolve();
-                    if (writeQueueRef.current.length === 0) {
+                    if (getQueueStats().queueLength === 0) {
                         // Double-check no new pending arrived mid-drain; if so, loop again
                         if (pendingOutput.current.length > 0) {
                             for (const output of pendingOutput.current) enqueueWrite(output);
@@ -770,20 +765,41 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }
 
                     // Write one chunk synchronously and continue on its callback
-                    try {
-                        const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-                        const buffer = terminal.current!.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                    let chunkProcessed = false;
+                    flushQueuePending((chunk) => {
+                        chunkProcessed = chunk.length > 0;
+                        if (!terminal.current) {
+                            return false;
+                        }
+
+                        const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
                         const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
                             ? buffer.viewportY === buffer.baseY
                             : false;
-                        terminal.current!.write(chunk, () => {
-                            try { if (shouldAutoScroll(wasAtBottom)) terminal.current!.scrollToBottom(); } catch { /* ignore */ }
-                            // Continue draining until truly empty; use microtask to avoid deep callback chains
-                            queueMicrotask(step);
-                        });
-                    } catch {
-                        // If a write fails, bail out to avoid an infinite loop; normal streaming will recover
-                        resolve();
+
+                        try {
+                            terminal.current.write(chunk, () => {
+                                try {
+                                    if (shouldAutoScroll(wasAtBottom)) {
+                                        terminal.current!.scrollToBottom();
+                                    }
+                                } catch {
+                                    // ignore scroll failures during hydration drain
+                                }
+                                // Continue draining until truly empty; use microtask to avoid deep callback chains
+                                queueMicrotask(step);
+                            });
+                        } catch (error) {
+                            logger.debug('xterm write failed in flushAllNowAsync', error);
+                            return false;
+                        }
+
+                        return true;
+                    }, { immediate: true });
+
+                    if (!chunkProcessed) {
+                        // No chunk processed (e.g., queue emptied during callbacks). Re-evaluate on next tick.
+                        queueMicrotask(step);
                     }
                 };
                 step();
@@ -796,7 +812,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
                 if (termDebug()) {
                     const n = ++seqRef.current;
-                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${writeQueueRef.current.length}`)
+                    const { queueLength } = getQueueStats();
+                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`)
                 }
                 if (cancelled) return;
                 if (!hydratedRef.current) {
@@ -908,7 +925,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 hydratedRef.current = true;
                 if (pendingOutput.current.length > 0) {
                     for (const output of pendingOutput.current) {
-                        writeQueueRef.current.push(output);
+                        enqueueWrite(output);
                     }
                     pendingOutput.current = [];
                     // Flush immediately; subsequent events will be batched
@@ -933,10 +950,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const rehydrateAfterResume = async () => {
             try {
                 pendingOutput.current = []
-                writeQueueRef.current = []
-                queueBytesRef.current = 0
-                droppedBytesRef.current = 0
-                overflowActiveRef.current = false
+                resetQueue()
                 if (terminal.current) {
                     try {
                         terminal.current.reset()
@@ -1200,14 +1214,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             terminal.current = null;
             setHydrated(false);
             pendingOutput.current = [];
-            writeQueueRef.current = [];
-            if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
-            pendingFlushRef.current = false;
+            resetQueue();
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1216,19 +1228,33 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Helper: minimal flush to reuse existing buffering
         const flushQueuedWritesLight = () => {
-            if (!terminal.current || writeQueueRef.current.length === 0) return;
-            const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-            terminal.current.write(chunk);
-            requestAnimationFrame(() => {
-                try {
-                    const buffer = terminal.current!.buffer.active;
-                    const atBottom = buffer.viewportY === buffer.baseY;
-                    if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
-                    if (writeQueueRef.current.length > 0) flushQueuedWritesLight();
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+            if (!terminal.current || getQueueStats().queueLength === 0) return;
+
+            flushQueuePending((chunk) => {
+                if (!terminal.current) {
+                    return false;
                 }
-            });
+
+                try {
+                    terminal.current.write(chunk);
+                } catch (error) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to flush queued writes`, error);
+                    return false;
+                }
+
+                requestAnimationFrame(() => {
+                    try {
+                        const buffer = terminal.current!.buffer.active;
+                        const atBottom = buffer.viewportY === buffer.baseY;
+                        if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
+                        if (getQueueStats().queueLength > 0) flushQueuedWritesLight();
+                    } catch (e) {
+                        logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+                    }
+                });
+
+                return true;
+            }, { immediate: true });
         };
 
         // Detach previous listener
@@ -1266,7 +1292,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll]);
+    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready
