@@ -10,6 +10,7 @@ import { AnimatedText } from '../common/AnimatedText'
 // macOS-native smart dash/quote substitution is disabled at app startup.
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
+import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
 
@@ -212,18 +213,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     })
     const [appVersion, setAppVersion] = useState<string>('')
 
-    // Archived specs state
-    type ArchivedSpec = {
-        id: string
-        session_name: string
-        repository_path: string
-        repository_name: string
-        content: string
-        archived_at: number | string
-    }
-    const [archives, setArchives] = useState<ArchivedSpec[]>([])
-    const [archivesLoading, setArchivesLoading] = useState(false)
-    const [archiveMax, setArchiveMax] = useState<number>(50)
     const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
     
     const {
@@ -274,23 +263,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     
     // JS normalizers removed; native fix handles inputs globally.
 
-
-    // Load archives when the category is opened
-    useEffect(() => {
-        const load = async () => {
-            if (activeCategory !== 'archives') return
-            try {
-                setArchivesLoading(true)
-                const list = await invoke<ArchivedSpec[]>(TauriCommands.SchaltwerkCoreListArchivedSpecs)
-                const max = await invoke<number>(TauriCommands.SchaltwerkCoreGetArchiveMaxEntries)
-                setArchives(list)
-                setArchiveMax(max)
-            } finally {
-                setArchivesLoading(false)
-            }
-        }
-        load()
-    }, [activeCategory])
 
     // Load app version when the version category is opened
     useEffect(() => {
@@ -517,90 +489,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     }
 
     const renderArchivesSettings = () => (
-        <div className="flex flex-col h-full">
-            <div className="flex-1 overflow-y-auto p-6">
-                <div className="space-y-6">
-                    <div>
-                        <h3 className="text-body font-medium text-slate-200 mb-2">Archived Specs</h3>
-                        <div className="text-body text-slate-400 mb-4">Recover deleted prompts back to specs.</div>
-                        <div className="mb-4 flex items-center gap-3">
-                            <label className="text-body text-slate-300">Max entries</label>
-                            <input
-                                type="number"
-                                value={archiveMax}
-                                onChange={(e) => setArchiveMax(parseInt(e.target.value || '0') || 0)}
-                                className="w-24 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200"
-                            />
-                            <button onClick={async () => {
-                                try {
-                                    await invoke(TauriCommands.SchaltwerkCoreSetArchiveMaxEntries, { limit: archiveMax })
-                                    showNotification('Archive limit saved', 'success')
-                                } catch (e) {
-                                    logger.error('Failed to save archive limit', e)
-                                    showNotification('Failed to save archive limit', 'error')
-                                }
-                            }} className="px-3 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-slate-200 text-body">Save</button>
-                        </div>
-                        {archivesLoading ? (
-                            <div className="py-6"><AnimatedText text="loading" size="sm" /></div>
-                        ) : archives.length === 0 ? (
-                            <div className="text-slate-400 text-body">No archived specs.</div>
-                        ) : (
-                            <div className="space-y-3 w-full">
-                                {archives.map(item => (
-                                    <div key={item.id} className="w-full border border-slate-800 rounded p-3 bg-slate-900/40 flex items-start justify-between gap-3 min-w-0">
-                                        <div 
-                                            className="flex-1 min-w-0 overflow-hidden pr-2 cursor-pointer hover:opacity-80 transition-opacity" 
-                                            style={{maxWidth: 'calc(100% - 140px)'}}
-                                            onClick={() => setSelectedSpec({ name: item.session_name, content: item.content })}
-                                        >
-                                            <div className="text-slate-200 text-body truncate">{item.session_name}</div>
-                                             <div className="text-caption text-slate-500">{
-                                               (() => {
-                                                 const v = item.archived_at as string | number
-                                                 let ts: number
-                                                 if (typeof v === 'number') {
-                                                   ts = v > 1e12 ? v : v * 1000
-                                                 } else {
-                                                   const parsed = Date.parse(v)
-                                                   ts = isNaN(parsed) ? Date.now() : parsed
-                                                 }
-                                                 return new Date(ts).toLocaleString()
-                                               })()
-                                             }</div>
-                                            <div className="text-caption text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
-                                        </div>
-                                        <div className="flex items-center gap-2 flex-shrink-0">
-                                            <button onClick={async () => {
-                                                try {
-                                                    await invoke(TauriCommands.SchaltwerkCoreRestoreArchivedSpec, { id: item.id, newName: null })
-                                                    const list = await invoke<ArchivedSpec[]>(TauriCommands.SchaltwerkCoreListArchivedSpecs)
-                                                    setArchives(list)
-                                                    showNotification('Restored to specs', 'success')
-                                                } catch (e) {
-                                                    logger.error('Failed to restore archived spec', e)
-                                                    showNotification('Failed to restore', 'error')
-                                                }
-                                            }} className="px-2 py-1 border border-slate-700 rounded text-slate-200 text-caption bg-slate-800 hover:bg-slate-700">Restore</button>
-                                            <button onClick={async () => {
-                                                try {
-                                                    await invoke(TauriCommands.SchaltwerkCoreDeleteArchivedSpec, { id: item.id })
-                                                    const list = await invoke<ArchivedSpec[]>(TauriCommands.SchaltwerkCoreListArchivedSpecs)
-                                                    setArchives(list)
-                                                } catch (e) {
-                                                    logger.error('Failed to delete archived spec', e)
-                                                    showNotification('Failed to delete', 'error')
-                                                }
-                                            }} className="px-2 py-1 border border-red-700 rounded text-red-200 text-caption bg-red-900/30 hover:bg-red-900/50">Delete</button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </div>
+        <SettingsArchivesSection
+            onClose={onClose}
+            onOpenSpec={(spec) => setSelectedSpec(spec)}
+            onNotify={showNotification}
+        />
     )
 
     const handleAddEnvVar = (agent: AgentType) => {
