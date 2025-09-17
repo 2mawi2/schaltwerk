@@ -6,6 +6,32 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
+#[cfg(test)]
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+#[cfg(test)]
+static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();
+
+#[cfg(test)]
+fn increment_git_stats_call_count() {
+    GIT_STATS_CALL_COUNT
+        .get_or_init(|| AtomicUsize::new(0))
+        .fetch_add(1, Ordering::Relaxed);
+}
+
+#[cfg(test)]
+pub fn reset_git_stats_call_count() {
+    if let Some(counter) = GIT_STATS_CALL_COUNT.get() {
+        counter.store(0, Ordering::Relaxed);
+    }
+}
+
+#[cfg(test)]
+pub fn get_git_stats_call_count() -> usize {
+    GIT_STATS_CALL_COUNT
+        .get_or_init(|| AtomicUsize::new(0))
+        .load(Ordering::Relaxed)
+}
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 struct StatsCacheKey {
@@ -30,6 +56,9 @@ fn is_internal_tooling_path(path: &str) -> bool {
 }
 
 pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Result<GitStats> {
+    #[cfg(test)]
+    increment_git_stats_call_count();
+
     let start_time = std::time::Instant::now();
     // IMPORTANT: Open the worktree repo directly. Using `discover` may return
     // the parent repository and yield incorrect status for worktrees.

@@ -1,4 +1,6 @@
 #[cfg(test)]
+use crate::domains::git::stats::{get_git_stats_call_count, reset_git_stats_call_count};
+#[cfg(test)]
 use crate::domains::sessions::entity::SessionStatus;
 #[cfg(test)]
 use crate::{
@@ -391,6 +393,45 @@ fn test_list_enriched_sessions() {
     assert!(session1
         .terminals
         .contains(&"session-session-1-bottom".to_string()));
+}
+
+#[test]
+fn test_list_enriched_sessions_skips_spec_git_stats() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    reset_git_stats_call_count();
+
+    manager
+        .create_session("active-session", Some("active"), None)
+        .unwrap();
+    manager
+        .create_spec_session("spec-one", "Spec content one")
+        .unwrap();
+    manager
+        .create_spec_session("spec-two", "Spec content two")
+        .unwrap();
+
+    reset_git_stats_call_count();
+
+    let enriched = manager.list_enriched_sessions().unwrap();
+    assert_eq!(enriched.len(), 3);
+
+    let git_stats_calls = get_git_stats_call_count();
+    assert!(
+        git_stats_calls <= 1,
+        "expected git stats only for running sessions, but got {git_stats_calls} recalculations"
+    );
+
+    let spec_sessions: Vec<_> = enriched
+        .iter()
+        .filter(|session| session.info.session_state == SessionState::Spec)
+        .collect();
+    assert_eq!(spec_sessions.len(), 2);
+    for spec in spec_sessions {
+        assert_eq!(spec.info.has_uncommitted_changes, Some(false));
+        assert!(spec.info.diff_stats.is_none());
+    }
 }
 
 #[test]

@@ -942,7 +942,11 @@ impl SessionManager {
             }
 
             let git_stats_start = std::time::Instant::now();
-            let git_stats = self.db_manager.get_enriched_git_stats(&session)?;
+            let git_stats = if is_spec_session {
+                None
+            } else {
+                self.db_manager.get_enriched_git_stats(&session)?
+            };
             let git_stats_elapsed = git_stats_start.elapsed();
             git_stats_total_time += git_stats_elapsed;
 
