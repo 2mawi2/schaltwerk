@@ -24,6 +24,7 @@ import { KanbanModal } from './components/kanban/KanbanModal'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
 import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
+import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
 import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { TauriCommands } from './common/tauriCommands'
@@ -54,13 +55,6 @@ function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
 }
 
-// Helper function to validate percentage values for panel sizing
-export function validatePanelPercentage(value: string | null, defaultValue: number): number {
-  if (!value) return defaultValue
-  const numValue = Number(value)
-  return !Number.isNaN(numValue) && numValue > 0 && numValue < 100 ? numValue : defaultValue
-}
-
 export default function App() {
   const { selection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
@@ -88,115 +82,25 @@ export default function App() {
   const isKanbanOpenRef = useRef(false)
   const previousFocusRef = useRef<Element | null>(null)
   
-  // Right panel collapse state
-  const [isRightCollapsed, setIsRightCollapsed] = useState<boolean>(() => {
-    const key = 'default' // Will be updated when selection is available
-    return sessionStorage.getItem(`schaltwerk:right-panel:collapsed:${key}`) === 'true'
-  })
-  const [lastExpandedRightPercent, setLastExpandedRightPercent] = useState<number>(() => {
-    const key = 'default' // Will be updated when selection is available
-    const rawExpanded = sessionStorage.getItem(`schaltwerk:right-panel:lastExpanded:${key}`)
-    return validatePanelPercentage(rawExpanded, 30)
-  })
-  const [rightSizes, setRightSizes] = useState<number[]>(() => {
-    const key = 'default' // Will be updated when selection is available
-    const raw = sessionStorage.getItem(`schaltwerk:right-panel:sizes:${key}`)
-    let base: number[] = [70, 30]
-    if (raw) {
-      try { 
-        const parsed = JSON.parse(raw) as number[]
-        if (Array.isArray(parsed) && parsed.length === 2) base = parsed 
-      } catch (error) {
-        logger.warn('[App] Failed to parse right panel sizes from localStorage:', error, 'Raw value:', raw)
-      }
-    }
-    const initialIsCollapsed = sessionStorage.getItem(`schaltwerk:right-panel:collapsed:${key}`) === 'true'
-    if (initialIsCollapsed) {
-      return [100, 0] // Fully hidden for collapsed state
-    }
-    return base
-  })
+  const rightPanelStorageKey = selection
+    ? selection.kind === 'orchestrator'
+      ? 'orchestrator'
+      : selection.payload || 'unknown'
+    : 'default'
+
+  const {
+    sizes: rightSizes,
+    setSizes: setRightSizes,
+    isCollapsed: isRightCollapsed,
+    toggleCollapsed: toggleRightPanelCollapsed,
+    setCollapsedExplicit: setRightPanelCollapsedExplicit
+  } = useRightPanelPersistence({ storageKey: rightPanelStorageKey })
   
   // Keep ref in sync with state
   useEffect(() => {
     isKanbanOpenRef.current = isKanbanOpen
   }, [isKanbanOpen])
   
-  // Right panel collapse toggle function
-  const toggleRightPanelCollapsed = useCallback(() => {
-    const newCollapsed = !isRightCollapsed
-    setIsRightCollapsed(newCollapsed)
-    
-    if (newCollapsed) {
-      // When collapsing, save current size and set to collapsed size
-      const currentRight = rightSizes[1]
-      if (currentRight > 0) {
-        setLastExpandedRightPercent(currentRight)
-      }
-      setRightSizes([100, 0]) // 0% for collapsed state (fully hidden)
-    } else {
-      // When expanding, restore to last expanded size
-      const expandedSize = lastExpandedRightPercent || 30
-      setRightSizes([100 - expandedSize, expandedSize])
-    }
-  }, [isRightCollapsed, rightSizes, lastExpandedRightPercent])
-  
-  // Load right panel state when selection changes
-  useEffect(() => {
-    const key = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
-    const rawSizes = sessionStorage.getItem(`schaltwerk:right-panel:sizes:${key}`)
-    const rawCollapsed = sessionStorage.getItem(`schaltwerk:right-panel:collapsed:${key}`)
-    const rawExpanded = sessionStorage.getItem(`schaltwerk:right-panel:lastExpanded:${key}`)
-    
-    let nextSizes: number[] = [70, 30]
-    let expandedRight = 30
-    
-    if (rawSizes) {
-      try { 
-        const parsed = JSON.parse(rawSizes) as number[]
-        if (Array.isArray(parsed) && parsed.length === 2) nextSizes = parsed 
-      } catch (error) {
-        logger.warn('[App] Failed to parse stored right panel sizes for session:', key, error, 'Raw value:', rawSizes)
-      }
-    }
-    if (rawExpanded) {
-      expandedRight = validatePanelPercentage(rawExpanded, 30)
-    }
-    
-    // Only change collapsed state if there's an explicit localStorage value for this session
-    if (rawCollapsed !== null) {
-      const collapsed = rawCollapsed === 'true'
-      setIsRightCollapsed(collapsed)
-      if (collapsed) {
-        setRightSizes([100, 0]) // Fully hidden for collapsed state
-      } else {
-        setRightSizes(nextSizes)
-      }
-    } else {
-      // No localStorage entry - use default expanded sizes
-      setRightSizes(nextSizes)
-    }
-    
-    setLastExpandedRightPercent(expandedRight)
-  }, [selection])
-  
-  // Persist right panel state changes (immediate since we only update on dragEnd)
-  useEffect(() => {
-    if (!rightSizes || !selection) return
-    const key = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
-    sessionStorage.setItem(`schaltwerk:right-panel:sizes:${key}`, JSON.stringify(rightSizes))
-    if (!isRightCollapsed) {
-      setLastExpandedRightPercent(rightSizes[1])
-      sessionStorage.setItem(`schaltwerk:right-panel:lastExpanded:${key}`, String(rightSizes[1]))
-    }
-  }, [rightSizes, isRightCollapsed, selection])
-  
-  // Persist right panel collapsed state
-  useEffect(() => {
-    if (!selection) return
-    const key = selection.kind === 'orchestrator' ? 'orchestrator' : selection.payload || 'unknown'
-    sessionStorage.setItem(`schaltwerk:right-panel:collapsed:${key}`, String(isRightCollapsed))
-  }, [isRightCollapsed, selection])
 
   // Right panel drag state for performance optimization
   const [isDraggingRightSplit, setIsDraggingRightSplit] = useState(false)
@@ -208,12 +112,12 @@ export default function App() {
   }, [])
 
   const handleRightSplitDragEnd = useCallback((nextSizes: number[]) => {
-    setRightSizes(nextSizes)
-    setIsRightCollapsed(false)
+    setRightSizes((): [number, number] => [nextSizes[0], nextSizes[1]])
+    setRightPanelCollapsedExplicit(false)
     document.body.classList.remove('is-split-dragging')
     window.dispatchEvent(new Event('right-panel-split-drag-end'))
     setIsDraggingRightSplit(false)
-  }, [])
+  }, [setRightPanelCollapsedExplicit, setRightSizes])
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first

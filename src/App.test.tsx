@@ -2,7 +2,8 @@ import React from 'react'
 import { TauriCommands } from './common/tauriCommands'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { TestProviders } from './tests/test-utils'
-import App, { validatePanelPercentage } from './App'
+import App from './App'
+import { validatePanelPercentage } from './utils/panel'
 import { vi } from 'vitest'
 
 // ---- Mock: react-split (layout only) ----
