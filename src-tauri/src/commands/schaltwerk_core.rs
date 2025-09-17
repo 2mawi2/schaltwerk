@@ -1,5 +1,5 @@
-use crate::{get_schaltwerk_core, get_terminal_manager, parse_agent_command, SETTINGS_MANAGER};
-use schaltwerk::domains::agents::naming;
+use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER};
+use schaltwerk::domains::agents::{naming, parse_agent_command};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
     EnrichedSession, FilterMode, Session, SessionState, SortMode,

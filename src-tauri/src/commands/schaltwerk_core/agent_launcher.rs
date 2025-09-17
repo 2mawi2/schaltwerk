@@ -1,6 +1,7 @@
 use super::{agent_ctx, terminals};
-use crate::{get_terminal_manager, parse_agent_command};
+use crate::get_terminal_manager;
 use once_cell::sync::Lazy;
+use schaltwerk::domains::agents::parse_agent_command;
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 use std::collections::HashMap;
 use std::sync::Arc;
