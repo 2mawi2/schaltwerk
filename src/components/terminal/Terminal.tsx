@@ -48,6 +48,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
+    const containerRef = useRef<HTMLDivElement | null>(null);
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -74,6 +75,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+    const skipNextFocusCallbackRef = useRef<boolean>(false);
 
     // Write queue helpers shared across effects (agent terminals get larger buffers)
     const queueCfg = useMemo(() => (
@@ -169,6 +171,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     useEffect(() => {
         hydratedRef.current = hydrated;
     }, [hydrated]);
+
+    useEffect(() => {
+        if (!onTerminalClick) return;
+        const node = containerRef.current;
+        if (!node) return;
+
+        const handleFocusIn = () => {
+            if (skipNextFocusCallbackRef.current) {
+                skipNextFocusCallbackRef.current = false;
+                return;
+            }
+            onTerminalClick();
+        };
+
+        node.addEventListener('focusin', handleFocusIn);
+        return () => {
+            node.removeEventListener('focusin', handleFocusIn);
+        };
+    }, [onTerminalClick]);
 
     useEffect(() => {
         let mounted = true
@@ -1489,7 +1510,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         }, isAnyModalOpen)
         // Also notify parent about the click to update focus context
         if (onTerminalClick) {
+            skipNextFocusCallbackRef.current = true;
             onTerminalClick()
+            if (typeof window !== 'undefined') {
+                requestAnimationFrame(() => {
+                    skipNextFocusCallbackRef.current = false;
+                });
+            }
         }
     }
 
@@ -1511,7 +1538,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     };
 
     return (
-        <div className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} data-smartdash-exempt="true">
+        <div ref={containerRef} className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} data-smartdash-exempt="true">
             <div ref={termRef} className="h-full w-full overflow-hidden" />
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">

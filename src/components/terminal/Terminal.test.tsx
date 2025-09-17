@@ -1,4 +1,4 @@
-import { render, act } from '@testing-library/react'
+import { render, act, fireEvent } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -467,6 +467,20 @@ describe('Terminal component', () => {
     const focusSpy = vi.spyOn(xterm, 'focus')
     ref.current?.focus()
     expect(focusSpy).toHaveBeenCalled()
+  })
+
+  it('notifies onTerminalClick when the terminal DOM gains focus', async () => {
+    const onTerminalClick = vi.fn()
+    const { container } = renderTerminal({ terminalId: 'session-focus-events-top', sessionName: 'focus-events', onTerminalClick })
+    await flushAll()
+
+    const termDom = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    expect(termDom).toBeTruthy()
+
+    fireEvent.focusIn(termDom!)
+    await flushAll()
+
+    expect(onTerminalClick).toHaveBeenCalledTimes(1)
   })
 
   it('shows a visible, blinking block cursor regardless of agent type (bottom terminal)', async () => {
