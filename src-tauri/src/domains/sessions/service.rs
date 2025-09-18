@@ -1129,18 +1129,20 @@ impl SessionManager {
             session_count += 1;
             let session_start = std::time::Instant::now();
 
-            log::debug!(
-                "Processing session '{}': status={:?}, session_state={:?}",
-                session.name,
-                session.status,
-                session.session_state
-            );
+            let is_spec_session = session.session_state == SessionState::Spec;
+            if !is_spec_session {
+                log::debug!(
+                    "Processing session '{}': status={:?}, session_state={:?}",
+                    session.name,
+                    session.status,
+                    session.session_state
+                );
+            }
 
             // Check if worktree exists for non-spec sessions
             let worktree_check_start = std::time::Instant::now();
             let worktree_exists = session.worktree_path.exists();
             worktree_check_time += worktree_check_start.elapsed();
-            let is_spec_session = session.session_state == SessionState::Spec;
 
             // For spec sessions, we don't need worktrees to exist
             // For running sessions, skip if worktree is missing (unless in test mode)
