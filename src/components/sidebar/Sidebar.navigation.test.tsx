@@ -1,9 +1,53 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, waitFor } from '@testing-library/react'
+import { render, waitFor, screen, fireEvent, act } from '@testing-library/react'
 import type { Event } from '@tauri-apps/api/event'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
+import type { EnrichedSession } from '../../types/session'
+
+const mockResetSession = vi.fn()
+const mockSwitchModel = vi.fn()
+const mockGetAgentType = vi.fn().mockResolvedValue('claude')
+
+vi.mock('../../hooks/useSessionManagement', () => ({
+  useSessionManagement: () => ({
+    isResetting: false,
+    resetSession: mockResetSession,
+    switchModel: mockSwitchModel,
+  }),
+}))
+
+vi.mock('../../hooks/useClaudeSession', () => ({
+  useClaudeSession: () => ({
+    getAgentType: mockGetAgentType,
+    setAgentType: vi.fn(),
+    startClaude: vi.fn(),
+    getSkipPermissions: vi.fn(),
+    setSkipPermissions: vi.fn(),
+  }),
+}))
+
+vi.mock('../../hooks/useAgentAvailability', () => ({
+  useAgentAvailability: () => ({
+    isAvailable: vi.fn().mockReturnValue(true),
+    getRecommendedPath: vi.fn().mockReturnValue(null),
+    getInstallationMethod: vi.fn().mockReturnValue(null),
+    loading: false,
+    availability: {},
+    refreshAvailability: vi.fn(),
+    refreshSingleAgent: vi.fn(),
+    clearCache: vi.fn(),
+    forceRefresh: vi.fn(),
+  }),
+  InstallationMethod: {
+    Homebrew: 'Homebrew',
+    Npm: 'Npm',
+    Pip: 'Pip',
+    Manual: 'Manual',
+    System: 'System',
+  },
+}))
 
 // Do NOT mock useKeyboardShortcuts here; we want real keyboard behavior
 
@@ -37,22 +81,33 @@ const mockListen = vi.mocked(listen)
 const mockUnlisten = vi.fn()
 
 
-function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = false } = {}) {
-  const event = new KeyboardEvent('keydown', { key, metaKey, ctrlKey, shiftKey })
-  window.dispatchEvent(event)
+function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = false, altKey = false } = {}) {
+  const event = new KeyboardEvent('keydown', { key, metaKey, ctrlKey, shiftKey, altKey })
+  act(() => {
+    window.dispatchEvent(event)
+  })
+  return event
 }
+
+let sessionsFixture: EnrichedSession[]
 
 describe('Sidebar navigation with arrow keys including orchestrator', () => {
   let eventListeners: Map<string, (event: Event<unknown>) => void>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockResetSession.mockReset()
+    mockResetSession.mockResolvedValue(undefined)
+    mockSwitchModel.mockReset()
+    mockSwitchModel.mockResolvedValue(undefined)
+    mockGetAgentType.mockReset()
+    mockGetAgentType.mockResolvedValue('claude')
     eventListeners = new Map()
 
     // Simulate mac for meta key
     Object.defineProperty(navigator, 'userAgent', { value: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', configurable: true })
 
-    const sessions = [
+    sessionsFixture = [
       {
         info: {
           session_id: 's1',
@@ -62,6 +117,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
           status: 'active',
           is_current: false,
           session_type: 'worktree',
+          session_state: 'running',
         },
         status: undefined,
         terminals: []
@@ -75,6 +131,7 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
           status: 'active',
           is_current: false,
           session_type: 'worktree',
+          session_state: 'running',
         },
         status: undefined,
         terminals: []
@@ -84,9 +141,9 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     mockInvoke.mockImplementation((command: string) => {
       switch (command) {
         case TauriCommands.SchaltwerkCoreListEnrichedSessions:
-          return Promise.resolve(sessions)
+          return Promise.resolve(sessionsFixture)
         case TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted:
-          return Promise.resolve(sessions)
+          return Promise.resolve(sessionsFixture)
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
         case TauriCommands.GetCurrentDirectory:
@@ -97,6 +154,8 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
           return Promise.resolve(false)
         case TauriCommands.CreateTerminal:
           return Promise.resolve()
+        case TauriCommands.SchaltwerkCoreGetAgentType:
+          return Promise.resolve('claude')
         default:
           return Promise.resolve()
       }
@@ -159,5 +218,71 @@ describe('Sidebar navigation with arrow keys including orchestrator', () => {
     await waitFor(() => {
       expect(orchestratorBtn.className).toContain('session-ring-blue')
     })
+  })
+
+  it('Cmd+Y resets the orchestrator selection', async () => {
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => expect(mockResetSession).not.toHaveBeenCalled())
+
+    pressKey('y', { metaKey: true })
+
+    expect(mockResetSession).toHaveBeenCalledTimes(1)
+    const [selectionArg, terminalsArg] = mockResetSession.mock.calls[0]
+    expect(selectionArg).toMatchObject({ kind: 'orchestrator' })
+    expect(terminalsArg).toHaveProperty('top')
+  })
+
+  it('Cmd+Y resets a running session', async () => {
+    const { findAllByTitle } = render(<TestProviders><Sidebar /></TestProviders>)
+
+    await findAllByTitle(/Select session \(⌘/i)
+
+    pressKey('ArrowDown', { metaKey: true })
+
+    pressKey('y', { metaKey: true })
+
+    await waitFor(() => {
+      expect(mockResetSession).toHaveBeenCalled()
+    })
+
+    const [selectionArg] = mockResetSession.mock.calls[0]
+    expect(selectionArg).toMatchObject({ kind: 'session', payload: 's1' })
+  })
+
+  it('Cmd+P opens switch model modal for orchestrator', async () => {
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    pressKey('p', { metaKey: true })
+
+    await waitFor(() => {
+      expect(screen.getByText('Switch Orchestrator Agent')).toBeInTheDocument()
+    })
+  })
+
+  it('Cmd+P opens switch model modal for a session and confirms switch', async () => {
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => expect(mockSwitchModel).not.toHaveBeenCalled())
+
+    // Select first session (running)
+    pressKey('ArrowDown', { metaKey: true })
+    await new Promise(resolve => setTimeout(resolve, 25))
+
+    pressKey('p', { metaKey: true })
+
+    await waitFor(() => {
+      expect(screen.getByText('Switch Orchestrator Agent')).toBeInTheDocument()
+    })
+
+    const switchBtn = await screen.findByRole('button', { name: /switch agent/i })
+    fireEvent.click(switchBtn)
+
+    await waitFor(() => {
+      expect(mockSwitchModel).toHaveBeenCalled()
+    })
+
+    const [agentType] = mockSwitchModel.mock.calls[0]
+    expect(typeof agentType).toBe('string')
   })
 })

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
+import { TERMINAL_RESET_EVENT, TerminalResetDetail } from '../types/terminalEvents'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -71,8 +72,8 @@ export function useSessionManagement(): SessionManagementHookReturn {
         })
     }, [])
 
-    const notifyTerminalsReset = useCallback((): void => {
-        window.dispatchEvent(new Event('schaltwerk:reset-terminals'))
+    const notifyTerminalsReset = useCallback((detail: TerminalResetDetail): void => {
+        window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, { detail }))
     }, [])
 
     const waitForAgentStarted = useCallback(async (terminalId: string): Promise<void> => {
@@ -128,6 +129,8 @@ export function useSessionManagement(): SessionManagementHookReturn {
         try {
             setIsResetting(true)
             
+            let resetDetail: TerminalResetDetail = { kind: 'orchestrator' }
+
             if (selection.kind === 'orchestrator') {
                 const closedP = waitForTerminalClosed(terminals.top)
                 const startedP = waitForAgentStarted(terminals.top)
@@ -136,9 +139,10 @@ export function useSessionManagement(): SessionManagementHookReturn {
                 await startedP
             } else if (selection.kind === 'session' && selection.payload) {
                 await resetSessionTerminals(selection.payload, terminals.top)
+                resetDetail = { kind: 'session', sessionId: selection.payload }
             }
             
-            notifyTerminalsReset()
+            notifyTerminalsReset(resetDetail)
             
         } finally {
             setIsResetting(false)
@@ -221,7 +225,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
         }
         await restartWithNewModel(selection, claudeTerminalId)
         
-        notifyTerminalsReset()
+        const resetDetail: TerminalResetDetail = selection.kind === 'session' && selection.payload
+            ? { kind: 'session', sessionId: selection.payload }
+            : { kind: 'orchestrator' }
+
+        notifyTerminalsReset(resetDetail)
     }, [updateAgentType, clearTerminalState, restartWithNewModel, notifyTerminalsReset])
 
     return {

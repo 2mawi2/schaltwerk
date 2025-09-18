@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { MockTauriInvokeArgs } from '../../types/testing'
+import { TERMINAL_RESET_EVENT } from '../../types/terminalEvents'
 
 // Type definitions for proper typing
 interface MockSplitProps {
@@ -469,9 +470,22 @@ describe('TerminalGrid', () => {
       expect(initialBottomMounts).toBeGreaterThanOrEqual(1)
     }, { timeout: 3000 })
 
+    // Dispatch reset event for unrelated session -> should be ignored
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+        detail: { kind: 'session', sessionId: 'unrelated-session' },
+      }))
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(m.__getFocusSpy(topId)).toBe(initialTopFocusSpy)
+
     // Dispatch reset event -> key increments -> both terminals remount
     act(() => {
-      window.dispatchEvent(new Event('schaltwerk:reset-terminals'))
+      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+        detail: { kind: 'orchestrator' },
+      }))
     })
     await act(async () => {
       await Promise.resolve()
@@ -488,7 +502,9 @@ describe('TerminalGrid', () => {
     expect(m.__getFocusSpy(topId)).toBeUndefined()
     expect(m.__getFocusSpy(bottomId)).toBeUndefined()
     act(() => {
-      window.dispatchEvent(new Event('schaltwerk:reset-terminals'))
+      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+        detail: { kind: 'orchestrator' },
+      }))
     })
 
     // After the reset, terminals should have been remounted at least once

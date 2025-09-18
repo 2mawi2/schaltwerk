@@ -6,6 +6,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { MockTauriInvokeArgs } from '../types/testing'
 import { TestProviders } from '../tests/test-utils'
 import { ReactNode, createElement } from 'react'
+import { TERMINAL_RESET_EVENT } from '../types/terminalEvents'
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
@@ -107,7 +108,7 @@ describe('useTerminalTabs', () => {
       })
 
       expect(mockAddEventListener).toHaveBeenCalledWith(
-        'schaltwerk:reset-terminals',
+        TERMINAL_RESET_EVENT,
         expect.any(Function)
       )
     })
@@ -121,7 +122,7 @@ describe('useTerminalTabs', () => {
       unmount()
 
       expect(mockRemoveEventListener).toHaveBeenCalledWith(
-        'schaltwerk:reset-terminals',
+        TERMINAL_RESET_EVENT,
         expect.any(Function)
       )
     })
@@ -182,11 +183,13 @@ describe('useTerminalTabs', () => {
 
       // Trigger reset event
       const resetHandler = mockAddEventListener.mock.calls.find(
-        call => call[0] === 'schaltwerk:reset-terminals'
+        call => call[0] === TERMINAL_RESET_EVENT
       )?.[1]
 
       act(() => {
-        resetHandler?.()
+        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
+          detail: { kind: 'orchestrator' },
+        }))
       })
 
       expect(result.current.tabs).toHaveLength(1)
@@ -196,6 +199,47 @@ describe('useTerminalTabs', () => {
         label: 'Terminal 1'
       })
       expect(result.current.activeTab).toBe(0)
+    })
+
+    it('ignores reset events for other sessions', async () => {
+      const hookProps = {
+        baseTerminalId: 'session-foo-base',
+        workingDirectory: '/test/dir',
+        sessionName: 'session-foo',
+      }
+
+      const { result } = renderTabsHook(hookProps)
+
+      mockInvoke.mockResolvedValue(false)
+      await act(async () => {
+        await result.current.addTab()
+      })
+
+      expect(result.current.tabs).toHaveLength(2)
+
+      const resetHandler = mockAddEventListener.mock.calls.find(
+        call => call[0] === TERMINAL_RESET_EVENT
+      )?.[1]
+
+      act(() => {
+        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
+          detail: { kind: 'session', sessionId: 'other-session' },
+        }))
+      })
+
+      expect(result.current.tabs).toHaveLength(2)
+
+      act(() => {
+        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
+          detail: { kind: 'session', sessionId: 'session-foo' },
+        }))
+      })
+
+      expect(result.current.tabs).toHaveLength(1)
+      expect(result.current.tabs[0]).toMatchObject({
+        index: 0,
+        terminalId: 'session-foo-base-0',
+      })
     })
 
     it('cleans up terminal references on reset', async () => {
@@ -216,11 +260,13 @@ describe('useTerminalTabs', () => {
 
       // Trigger reset
       const resetHandler = mockAddEventListener.mock.calls.find(
-        call => call[0] === 'schaltwerk:reset-terminals'
+        call => call[0] === TERMINAL_RESET_EVENT
       )?.[1]
 
       act(() => {
-        resetHandler?.()
+        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
+          detail: { kind: 'orchestrator' },
+        }))
       })
 
       // Should be reset to initial state

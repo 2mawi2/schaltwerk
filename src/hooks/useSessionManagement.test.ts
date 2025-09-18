@@ -4,6 +4,7 @@ import { renderHook, act } from '@testing-library/react'
 import { useSessionManagement } from './useSessionManagement'
 import { invoke } from '@tauri-apps/api/core'
 import * as TauriEvent from '@tauri-apps/api/event'
+import { TERMINAL_RESET_EVENT } from '../types/terminalEvents'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
@@ -52,7 +53,10 @@ describe('useSessionManagement', () => {
                 terminalId: 'test-terminal-top'
             })
             expect(mockDispatchEvent).toHaveBeenCalledWith(
-                expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                expect.objectContaining({
+                    type: TERMINAL_RESET_EVENT,
+                    detail: { kind: 'orchestrator' },
+                })
             )
         })
 
@@ -92,7 +96,10 @@ describe('useSessionManagement', () => {
                 forceRestart: true
             })
             expect(mockDispatchEvent).toHaveBeenCalledWith(
-                expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                expect.objectContaining({
+                    type: TERMINAL_RESET_EVENT,
+                    detail: { kind: 'session', sessionId: 'test-session' },
+                })
             )
         })
 
@@ -304,7 +311,10 @@ describe('useSessionManagement', () => {
             })
 
             expect(mockDispatchEvent).toHaveBeenCalledWith(
-                expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                expect.objectContaining({
+                    type: TERMINAL_RESET_EVENT,
+                    detail: { kind: 'orchestrator' },
+                })
             )
         })
     })
@@ -367,7 +377,10 @@ describe('useSessionManagement', () => {
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(mockDispatchEvent).toHaveBeenCalledWith(
-                    expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                    expect.objectContaining({
+                        type: TERMINAL_RESET_EVENT,
+                        detail: { kind: 'orchestrator' },
+                    })
                 )
             })
 
@@ -389,7 +402,10 @@ describe('useSessionManagement', () => {
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(mockDispatchEvent).toHaveBeenCalledWith(
-                    expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                    expect.objectContaining({
+                        type: TERMINAL_RESET_EVENT,
+                        detail: { kind: 'orchestrator' },
+                    })
                 )
             })
 
@@ -411,7 +427,10 @@ describe('useSessionManagement', () => {
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
                 expect(mockDispatchEvent).toHaveBeenCalledWith(
-                    expect.objectContaining({ type: 'schaltwerk:reset-terminals' })
+                    expect.objectContaining({
+                        type: TERMINAL_RESET_EVENT,
+                        detail: { kind: 'orchestrator' },
+                    })
                 )
             })
         })

@@ -4,6 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 import { TabInfo } from '../types/terminalTabs'
 import { useProject } from '../contexts/ProjectContext'
+import { TERMINAL_RESET_EVENT, TerminalResetDetail } from '../types/terminalEvents'
 
 interface SessionTabState {
   activeTab: number
@@ -67,8 +68,18 @@ export function useTerminalTabs({
   }
 
   // Handle reset events by clearing global state for this session
+  const shouldHandleReset = useCallback((detail?: TerminalResetDetail) => {
+    if (!detail) return false
+    if (detail.kind === 'orchestrator') {
+      return sessionName === null
+    }
+    return sessionName === detail.sessionId
+  }, [sessionName])
+
   useEffect(() => {
-    const handleReset = () => {
+    const handleReset = (event: Event) => {
+      const detail = (event as CustomEvent<TerminalResetDetail>).detail
+      if (!shouldHandleReset(detail)) return
       // Clear all state for this session
       const currentState = globalTabState.get(sessionKey)
       if (currentState) {
@@ -92,9 +103,9 @@ export function useTerminalTabs({
       triggerUpdate()
     }
 
-    window.addEventListener('schaltwerk:reset-terminals', handleReset)
-    return () => window.removeEventListener('schaltwerk:reset-terminals', handleReset)
-  }, [sessionKey, baseTerminalId, maxTabs, triggerUpdate])
+    window.addEventListener(TERMINAL_RESET_EVENT, handleReset)
+    return () => window.removeEventListener(TERMINAL_RESET_EVENT, handleReset)
+  }, [sessionKey, baseTerminalId, maxTabs, triggerUpdate, shouldHandleReset])
 
   const sessionTabs = globalTabState.get(sessionKey)!
 

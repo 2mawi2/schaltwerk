@@ -493,6 +493,55 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }, 0) // Allow filter change to process first
     }
 
+    const findSessionById = useCallback((sessionId?: string | null) => {
+        if (!sessionId) return null
+        return sessions.find(s => s.info.session_id === sessionId)
+            || allSessions.find(s => s.info.session_id === sessionId)
+            || null
+    }, [sessions, allSessions])
+
+    const getSelectedSessionState = useCallback((): ('spec' | 'running' | 'reviewed') | null => {
+        if (selection.kind !== 'session') return null
+        if (selection.sessionState) return selection.sessionState
+        const session = findSessionById(selection.payload || null)
+        return session ? mapSessionUiState(session.info) : null
+    }, [selection, findSessionById])
+
+    const handleResetSelectionShortcut = useCallback(() => {
+        if (isResetting) return
+        if (isAnyModalOpen()) return
+
+        if (selection.kind === 'orchestrator') {
+            void resetSession({ kind: 'orchestrator' }, terminals)
+            return
+        }
+
+        if (selection.kind !== 'session' || !selection.payload) return
+
+        const state = getSelectedSessionState()
+        if (state !== 'running' && state !== 'reviewed') return
+
+        void resetSession({ kind: 'session', payload: selection.payload }, terminals)
+    }, [isResetting, isAnyModalOpen, selection, resetSession, terminals, getSelectedSessionState])
+
+    const handleOpenSwitchModelShortcut = useCallback(() => {
+        if (isAnyModalOpen()) return
+
+        if (selection.kind === 'orchestrator') {
+            setSwitchModelSessionId(null)
+            setSwitchOrchestratorModal(true)
+            return
+        }
+
+        if (selection.kind !== 'session' || !selection.payload) return
+
+        const state = getSelectedSessionState()
+        if (state !== 'running') return
+
+        setSwitchModelSessionId(selection.payload)
+        setSwitchOrchestratorModal(true)
+    }, [isAnyModalOpen, selection, getSelectedSessionState, setSwitchModelSessionId, setSwitchOrchestratorModal])
+
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
         onSelectSession: handleSelectSession,
@@ -541,6 +590,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onSelectNextProject: handleSelectNextProject,
         onNavigateToPrevFilter: handleNavigateToPrevFilter,
         onNavigateToNextFilter: handleNavigateToNextFilter,
+        onResetSelection: handleResetSelectionShortcut,
+        onOpenSwitchModel: handleOpenSwitchModelShortcut,
         isDiffViewerOpen
     })
 
@@ -709,7 +760,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         setSwitchOrchestratorModal(true)
                                     }}
                                     ariaLabel="Switch orchestrator model"
-                                    tooltip="Switch model"
+                                    tooltip="Switch model (⌘P)"
                                 />
                                 <IconButton
                                     icon={<VscRefresh />}
@@ -719,7 +770,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         }
                                     }}
                                     ariaLabel="Reset orchestrator"
-                                    tooltip="Reset orchestrator"
+                                    tooltip="Reset orchestrator (⌘Y)"
                                     disabled={isResetting}
                                 />
                             </div>

@@ -27,6 +27,8 @@ interface KeyboardShortcutsProps {
   onNavigateToPrevFilter?: () => void
   onNavigateToNextFilter?: () => void
   isDiffViewerOpen?: boolean
+  onResetSelection?: () => void
+  onOpenSwitchModel?: () => void
 }
 
 interface KeyboardShortcutOptions {
@@ -53,6 +55,8 @@ export function useKeyboardShortcuts(
     onNavigateToPrevFilter,
     onNavigateToNextFilter,
     isDiffViewerOpen,
+    onResetSelection,
+    onOpenSwitchModel,
   }: KeyboardShortcutsProps,
   options: KeyboardShortcutOptions = {},
 ) {
@@ -136,6 +140,12 @@ export function useKeyboardShortcuts(
         return
       }
 
+      if (onResetSelection && isShortcutForAction(event, KeyboardShortcutAction.ResetSessionOrOrchestrator, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onResetSelection()
+        return
+      }
+
       if (onOpenDiffViewer && isShortcutForAction(event, KeyboardShortcutAction.OpenDiffViewer, shortcutConfig, { platform })) {
         event.preventDefault()
         onOpenDiffViewer()
@@ -171,6 +181,12 @@ export function useKeyboardShortcuts(
         onFocusTerminal()
         return
       }
+
+      if (onOpenSwitchModel && isShortcutForAction(event, KeyboardShortcutAction.OpenSwitchModelModal, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onOpenSwitchModel()
+        return
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -192,6 +208,8 @@ export function useKeyboardShortcuts(
     onPromoteSelectedVersion,
     onFocusClaude,
     onFocusTerminal,
+    onResetSelection,
+    onOpenSwitchModel,
     isDiffViewerOpen,
     shortcutConfig,
     platform,

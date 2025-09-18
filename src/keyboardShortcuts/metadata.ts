@@ -56,6 +56,8 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.MarkSessionReady, label: 'Mark ready for review' },
       { action: KeyboardShortcutAction.PromoteSessionVersion, label: 'Promote best version' },
       { action: KeyboardShortcutAction.ConvertSessionToSpec, label: 'Convert session to spec' },
+      { action: KeyboardShortcutAction.ResetSessionOrOrchestrator, label: 'Reset session or orchestrator' },
+      { action: KeyboardShortcutAction.OpenSwitchModelModal, label: 'Open switch model dialog' },
       { action: KeyboardShortcutAction.OpenDiffViewer, label: 'Open diff viewer' },
     ],
   },

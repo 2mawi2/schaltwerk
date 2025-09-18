@@ -3,8 +3,8 @@ import { renderHook } from '@testing-library/react'
 import { useKeyboardShortcuts } from './useKeyboardShortcuts'
 import { defaultShortcutConfig, KeyboardShortcutAction, KeyboardShortcutConfig } from '../keyboardShortcuts/config'
 
-function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = false } = {}) {
-  const event = new KeyboardEvent('keydown', { key, metaKey, ctrlKey, shiftKey, bubbles: true, cancelable: true })
+function pressKey(key: string, { metaKey = false, ctrlKey = false, shiftKey = false, altKey = false } = {}) {
+  const event = new KeyboardEvent('keydown', { key, metaKey, ctrlKey, shiftKey, altKey, bubbles: true, cancelable: true })
   window.dispatchEvent(event)
   return event
 }
@@ -93,6 +93,42 @@ describe('useKeyboardShortcuts', () => {
 
     pressKey('x', { metaKey: true })
     expect(onCancelSelectedSession).toHaveBeenCalledWith(false)
+  })
+
+  it('invokes reset selection callback on mod+alt+r', () => {
+    const onSelectOrchestrator = vi.fn()
+    const onSelectSession = vi.fn()
+    const onResetSelection = vi.fn()
+
+    renderHook(() => useKeyboardShortcuts({
+      onSelectOrchestrator,
+      onSelectSession,
+      onResetSelection,
+      sessionCount: 1,
+    }))
+
+    const event = pressKey('y', { metaKey: true })
+
+    expect(onResetSelection).toHaveBeenCalledTimes(1)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('invokes switch model callback on mod+alt+m', () => {
+    const onSelectOrchestrator = vi.fn()
+    const onSelectSession = vi.fn()
+    const onOpenSwitchModel = vi.fn()
+
+    renderHook(() => useKeyboardShortcuts({
+      onSelectOrchestrator,
+      onSelectSession,
+      onOpenSwitchModel,
+      sessionCount: 1,
+    }))
+
+    const event = pressKey('p', { metaKey: true })
+
+    expect(onOpenSwitchModel).toHaveBeenCalledTimes(1)
+    expect(event.defaultPrevented).toBe(true)
   })
 
   it('does not navigate sessions with arrow keys when diff viewer is open', () => {

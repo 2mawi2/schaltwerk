@@ -101,7 +101,7 @@ export function SessionActions({
               icon={<VscCode />}
               onClick={() => onSwitchModel(sessionId)}
               ariaLabel="Switch model"
-              tooltip="Switch model"
+              tooltip="Switch model (⌘P)"
             />
           )}
           {onReset && (
@@ -109,7 +109,7 @@ export function SessionActions({
               icon={<VscRefresh />}
               onClick={() => onReset(sessionId)}
               ariaLabel="Reset session"
-              tooltip="Reset session"
+              tooltip="Reset session (⌘Y)"
               disabled={isResetting}
             />
           )}

@@ -20,6 +20,7 @@ import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { logger } from '../../utils/logger'
+import { TERMINAL_RESET_EVENT, TerminalResetDetail } from '../../types/terminalEvents'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
@@ -131,7 +132,9 @@ export function TerminalGrid() {
         try {
             setIsResetting(true)
             await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName: selection.payload })
-            window.dispatchEvent(new CustomEvent('schaltwerk:reset-terminals'))
+            window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+                detail: { kind: 'session', sessionId: selection.payload },
+            }))
             setConfirmResetOpen(false)
         } catch (err) {
             logger.error('[TerminalGrid] Failed to reset session worktree:', err)
@@ -216,8 +219,18 @@ export function TerminalGrid() {
         }, isAnyModalOpen)
     }, [getSessionKey, isAnyModalOpen, setFocusForSession])
 
+    const shouldHandleTerminalReset = useCallback((detail?: TerminalResetDetail) => {
+        if (!detail) return false
+        if (detail.kind === 'orchestrator') {
+            return selection.kind === 'orchestrator'
+        }
+        return selection.kind === 'session' && selection.payload === detail.sessionId
+    }, [selection])
+
     useEffect(() => {
-        const handleTerminalReset = () => {
+        const handleTerminalReset = (event: Event) => {
+            const detail = (event as CustomEvent<TerminalResetDetail>).detail
+            if (!shouldHandleTerminalReset(detail)) return
             setTerminalKey(prev => prev + 1)
         }
 
@@ -266,15 +279,15 @@ export function TerminalGrid() {
             }
         }
 
-        window.addEventListener('schaltwerk:reset-terminals', handleTerminalReset)
+        window.addEventListener(TERMINAL_RESET_EVENT, handleTerminalReset)
         window.addEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
         window.addEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         return () => {
-            window.removeEventListener('schaltwerk:reset-terminals', handleTerminalReset)
+            window.removeEventListener(TERMINAL_RESET_EVENT, handleTerminalReset)
             window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
             window.removeEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         }
-    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, focusTerminalProgrammatically, isAnyModalOpen])
+    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, focusTerminalProgrammatically, isAnyModalOpen, shouldHandleTerminalReset])
 
     // Fetch agent type based on selection
     useEffect(() => {
