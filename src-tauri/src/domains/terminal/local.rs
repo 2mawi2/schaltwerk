@@ -1,6 +1,7 @@
 use super::coalescing::{
     handle_coalesced_output, CoalescingParams, CoalescingState, TerminalOutputPayload,
 };
+use super::manager::PendingStats;
 use super::{CreateParams, TerminalBackend};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
@@ -43,6 +44,7 @@ pub struct LocalPtyAdapter {
     transcript_writers: Arc<Mutex<HashMap<String, std::io::BufWriter<std::fs::File>>>>,
     transcript_paths: Arc<Mutex<HashMap<String, PathBuf>>>,
     suspended: Arc<RwLock<HashSet<String>>>,
+    pending_stats: Arc<RwLock<HashMap<String, PendingStats>>>,
 }
 
 struct ReaderState {
@@ -53,6 +55,7 @@ struct ReaderState {
     coalescing_state: CoalescingState,
     transcript_writers: Arc<Mutex<HashMap<String, std::io::BufWriter<std::fs::File>>>>,
     suspended: Arc<RwLock<HashSet<String>>>,
+    pending_stats: Arc<RwLock<HashMap<String, PendingStats>>>,
 }
 
 #[derive(Clone)]
@@ -190,6 +193,29 @@ impl Default for LocalPtyAdapter {
 }
 
 impl LocalPtyAdapter {
+    pub fn with_pending_stats(pending_stats: Arc<RwLock<HashMap<String, PendingStats>>>) -> Self {
+        let app_handle = Arc::new(Mutex::new(None));
+        Self {
+            terminals: Arc::new(RwLock::new(HashMap::new())),
+            creating: Arc::new(Mutex::new(HashSet::new())),
+            pty_children: Arc::new(Mutex::new(HashMap::new())),
+            pty_masters: Arc::new(Mutex::new(HashMap::new())),
+            pty_writers: Arc::new(Mutex::new(HashMap::new())),
+            reader_handles: Arc::new(Mutex::new(HashMap::new())),
+            coalescing_state: CoalescingState {
+                app_handle,
+                emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+                emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+                emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+                norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            },
+            transcript_writers: Arc::new(Mutex::new(HashMap::new())),
+            transcript_paths: Arc::new(Mutex::new(HashMap::new())),
+            suspended: Arc::new(RwLock::new(HashSet::new())),
+            pending_stats,
+        }
+    }
+
     /// Detects a cursor position report (CPR) query request in output stream.
     /// Sequences to detect:
     /// - ESC [ 6 n (standard CPR request)
@@ -236,25 +262,7 @@ impl LocalPtyAdapter {
     }
 
     pub fn new() -> Self {
-        let app_handle = Arc::new(Mutex::new(None));
-        Self {
-            terminals: Arc::new(RwLock::new(HashMap::new())),
-            creating: Arc::new(Mutex::new(HashSet::new())),
-            pty_children: Arc::new(Mutex::new(HashMap::new())),
-            pty_masters: Arc::new(Mutex::new(HashMap::new())),
-            pty_writers: Arc::new(Mutex::new(HashMap::new())),
-            reader_handles: Arc::new(Mutex::new(HashMap::new())),
-            coalescing_state: CoalescingState {
-                app_handle,
-                emit_buffers: Arc::new(RwLock::new(HashMap::new())),
-                emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
-                emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
-                norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
-            },
-            transcript_writers: Arc::new(Mutex::new(HashMap::new())),
-            transcript_paths: Arc::new(Mutex::new(HashMap::new())),
-            suspended: Arc::new(RwLock::new(HashSet::new())),
-        }
+        Self::with_pending_stats(Arc::new(RwLock::new(HashMap::new())))
     }
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
@@ -336,6 +344,7 @@ impl LocalPtyAdapter {
         cmd.env("TERM", "xterm-256color");
         cmd.env("LINES", rows.to_string());
         cmd.env("COLUMNS", cols.to_string());
+
         let (shell, shell_args) = super::get_effective_shell();
         let login_env = fetch_login_shell_env(&shell, &shell_args);
 
@@ -478,6 +487,7 @@ impl LocalPtyAdapter {
                         let pty_children_clone = Arc::clone(&reader_state.pty_children);
                         let pty_masters_clone = Arc::clone(&reader_state.pty_masters);
                         let pty_writers_clone = Arc::clone(&reader_state.pty_writers);
+                        let pending_stats_clone = Arc::clone(&reader_state.pending_stats);
                         runtime.block_on(async move {
                             // Remove terminal state
                             terminals_clone2.write().await.remove(&id_clone_for_cleanup);
@@ -495,6 +505,10 @@ impl LocalPtyAdapter {
                             coalescing_state_clone
                                 .clear_for(&id_clone_for_cleanup)
                                 .await;
+                            pending_stats_clone
+                                .write()
+                                .await
+                                .remove(&id_clone_for_cleanup);
                             // Emit terminal closed event
                             if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
                                 let _ = emit_event(
@@ -508,6 +522,7 @@ impl LocalPtyAdapter {
                     }
                     Ok(n) => {
                         let data = buf[..n].to_vec();
+                        let bytes_read = data.len() as u64;
                         // If the child process is requesting a Cursor Position Report (ESC[6n),
                         // provide a deterministic fallback response so CLIs that depend on CPR
                         // (e.g., TUI frameworks) don't time out when the frontend terminal isn't ready.
@@ -517,6 +532,13 @@ impl LocalPtyAdapter {
                         Self::maybe_reply_cpr(&id, &data, &mut writers);
                         drop(writers);
                         let id_clone = id.clone();
+                        let stats_id = id.clone();
+                        let pending_stats_clone = Arc::clone(&reader_state.pending_stats);
+                        runtime.block_on(async move {
+                            let mut guard = pending_stats_clone.write().await;
+                            let entry = guard.entry(stats_id.clone()).or_default();
+                            entry.record_emitted(&stats_id, bytes_read);
+                        });
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
                         let transcript_writers_clone = Arc::clone(&reader_state.transcript_writers);
@@ -580,10 +602,12 @@ impl LocalPtyAdapter {
                                         let event_name = format!("terminal-output-{id_clone}");
 
                                         // Apply minimal carriage return processing for fish compatibility
-                                        let processed_data = Self::process_carriage_returns_minimal(&data);
+                                        let processed_data =
+                                            Self::process_carriage_returns_minimal(&data);
                                         let payload = TerminalOutputPayload {
                                             seq: current_seq,
-                                            data: String::from_utf8_lossy(&processed_data).to_string(),
+                                            data: String::from_utf8_lossy(&processed_data)
+                                                .to_string(),
                                         };
                                         if let Err(e) = handle.emit(&event_name, payload) {
                                             warn!("Failed to emit direct terminal output: {e}");
@@ -605,6 +629,7 @@ impl LocalPtyAdapter {
                             let pty_children_clone = Arc::clone(&reader_state.pty_children);
                             let pty_masters_clone = Arc::clone(&reader_state.pty_masters);
                             let pty_writers_clone = Arc::clone(&reader_state.pty_writers);
+                            let pending_stats_clone = Arc::clone(&reader_state.pending_stats);
                             runtime.block_on(async move {
                                 terminals_clone2.write().await.remove(&id_clone_for_cleanup);
                                 if let Some(mut child) = pty_children_clone
@@ -620,6 +645,10 @@ impl LocalPtyAdapter {
                                 coalescing_state_clone
                                     .clear_for(&id_clone_for_cleanup)
                                     .await;
+                                pending_stats_clone
+                                    .write()
+                                    .await
+                                    .remove(&id_clone_for_cleanup);
                                 if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
                                     let _ = emit_event(
                                         handle,
@@ -829,6 +858,7 @@ impl TerminalBackend for LocalPtyAdapter {
                 coalescing_state: self.coalescing_state.clone(),
                 transcript_writers: Arc::clone(&self.transcript_writers),
                 suspended: Arc::clone(&self.suspended),
+                pending_stats: Arc::clone(&self.pending_stats),
             },
         );
         self.reader_handles

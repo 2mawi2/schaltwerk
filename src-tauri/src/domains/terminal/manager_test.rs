@@ -23,6 +23,33 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_acknowledgement_tracking_saturates() {
+        let manager = TerminalManager::new();
+        let id = unique_id("ack-tracking");
+
+        manager.note_emitted_bytes(&id, 4096).await;
+        assert_eq!(manager.outstanding_bytes(&id).await, Some(4096));
+
+        manager
+            .acknowledge_output(&id, 1024)
+            .await
+            .expect("ack should succeed");
+        assert_eq!(manager.outstanding_bytes(&id).await, Some(3072));
+
+        manager
+            .acknowledge_output(&id, 10_000)
+            .await
+            .expect("ack should saturate");
+        assert_eq!(manager.outstanding_bytes(&id).await, Some(0));
+
+        manager
+            .acknowledge_output(&id, 1)
+            .await
+            .expect("extra ack should be ignored");
+        assert_eq!(manager.outstanding_bytes(&id).await, Some(0));
+    }
+
+    #[tokio::test]
     async fn test_paste_and_submit_terminal_executes() {
         let manager = TerminalManager::new();
         let id = unique_id("paste-timing");
@@ -242,7 +269,11 @@ mod tests {
             sleep(Duration::from_millis(200)).await;
 
             let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-            assert!(!buffer.data.is_empty(), "Terminal {} should have output", id);
+            assert!(
+                !buffer.data.is_empty(),
+                "Terminal {} should have output",
+                id
+            );
 
             safe_close(&manager, &id).await;
         }

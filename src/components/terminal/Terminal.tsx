@@ -70,6 +70,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const seqRef = useRef<number>(0);
+    const pendingAckBytesRef = useRef<number>(0);
+    const ackRafRef = useRef<number | null>(null);
     const termDebug = useCallback(() => (
         typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1'
     ), []);
@@ -101,6 +103,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         flushPending: flushQueuePending,
         reset: resetQueue,
         stats: getQueueStats,
+        drainReportedBytes: drainQueueReportedBytes,
     } = useTerminalWriteQueue({
         queueConfig: queueCfg,
         logger,
@@ -164,6 +167,45 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
         }
     }, [enqueueQueue, getQueueStats, terminalId, termDebug]);
+
+    const collectAckFromQueue = useCallback(() => {
+        const delta = drainQueueReportedBytes();
+        if (delta > 0) {
+            pendingAckBytesRef.current += delta;
+        }
+    }, [drainQueueReportedBytes]);
+
+    const flushAckToBackend = useCallback(() => {
+        collectAckFromQueue();
+        if (pendingAckBytesRef.current === 0) {
+            return;
+        }
+        if (readOnly || !hydratedRef.current) {
+            pendingAckBytesRef.current = 0;
+            return;
+        }
+        const ackBytes = pendingAckBytesRef.current;
+        pendingAckBytesRef.current = 0;
+        invoke(TauriCommands.SchaltwerkTerminalAcknowledgeOutput, { id: terminalId, ackBytes })
+            .catch(err => {
+                pendingAckBytesRef.current += ackBytes;
+                logger.debug(`[Terminal ${terminalId}] ack send ignored`, err);
+            });
+    }, [collectAckFromQueue, readOnly, terminalId]);
+
+    const scheduleAckFlush = useCallback(() => {
+        if (ackRafRef.current != null) {
+            return;
+        }
+        if (typeof window === 'undefined') {
+            flushAckToBackend();
+            return;
+        }
+        ackRafRef.current = window.requestAnimationFrame(() => {
+            ackRafRef.current = null;
+            flushAckToBackend();
+        });
+    }, [flushAckToBackend]);
 
     const applyChunk = useCallback((chunk: TerminalOutputChunk, schedule?: () => void) => {
         if (!chunk.data) {
@@ -241,6 +283,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             node.removeEventListener('focusin', handleFocusIn);
         };
     }, [onTerminalClick]);
+
+    useEffect(() => () => {
+        if (ackRafRef.current != null && typeof window !== 'undefined') {
+            window.cancelAnimationFrame(ackRafRef.current);
+            ackRafRef.current = null;
+        }
+    }, []);
 
     useEffect(() => {
         let mounted = true
@@ -420,6 +469,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         pendingOutput.current = [];
         lastSeqRef.current = null;
         resetQueue();
+        pendingAckBytesRef.current = 0;
+        drainQueueReportedBytes();
+        if (ackRafRef.current != null && typeof window !== 'undefined') {
+            window.cancelAnimationFrame(ackRafRef.current);
+            ackRafRef.current = null;
+        }
 
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
@@ -708,7 +763,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (!rendererReadyRef.current || !terminal.current) return;
             if (getQueueStats().queueLength === 0) return;
 
-            flushQueuePending((chunk) => {
+            flushQueuePending((chunk, report) => {
                 if (!rendererReadyRef.current || !terminal.current) {
                     return false;
                 }
@@ -733,8 +788,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             logger.debug('Scroll error during terminal output (cb)', error);
                         }
 
+                        report(chunk.length);
+                        collectAckFromQueue();
+
                         if (getQueueStats().queueLength > 0) {
                             scheduleFlush();
+                        } else {
+                            scheduleAckFlush();
                         }
                     });
                 } catch (error) {
@@ -751,7 +811,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (!rendererReadyRef.current || !terminal.current) return;
             if (getQueueStats().queueLength === 0) return;
 
-            flushQueuePending((chunk) => {
+            flushQueuePending((chunk, report) => {
                 if (!rendererReadyRef.current || !terminal.current) {
                     return false;
                 }
@@ -774,8 +834,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         } catch (error) {
                             logger.debug('Scroll error during buffer flush (cb)', error);
                         } finally {
+                            report(chunk.length);
+                            collectAckFromQueue();
                             if (getQueueStats().queueLength > 0) {
                                 queueMicrotask(() => flushNow());
+                            } else {
+                                scheduleAckFlush();
                             }
                         }
                     });
@@ -832,7 +896,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
                     // Write one chunk synchronously and continue on its callback
                     let chunkProcessed = false;
-                    flushQueuePending((chunk) => {
+                    flushQueuePending((chunk, report) => {
                         chunkProcessed = chunk.length > 0;
                         if (!terminal.current) {
                             return false;
@@ -852,6 +916,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 } catch {
                                     // ignore scroll failures during hydration drain
                                 }
+                                report(chunk.length);
+                                collectAckFromQueue();
                                 // Continue draining until truly empty; use microtask to avoid deep callback chains
                                 queueMicrotask(step);
                             });
@@ -938,9 +1004,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }
                 }
                  // Drain all queued content before we reveal the terminal to avoid "partial paint" perception
-                 await flushAllNowAsync();
-                 // Mark as hydrated only after flushing the entire snapshot + pending output
-                 setHydrated(true);
+                await flushAllNowAsync();
+                collectAckFromQueue();
+                scheduleAckFlush();
+                // Mark as hydrated only after flushing the entire snapshot + pending output
+                setHydrated(true);
                  hydratedRef.current = true;
                   
                   // Call onReady callback if provided
@@ -1308,7 +1376,32 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, normalizeOutputPayload, applyChunk, termDebug, keyboardShortcutConfig, platform]);
+    }, [
+        terminalId,
+        addEventListener,
+        addResizeObserver,
+        agentType,
+        isBackground,
+        terminalFontSize,
+        onReady,
+        resolvedFontFamily,
+        readOnly,
+        enqueueWrite,
+        shouldAutoScroll,
+        isUserSelectingInTerminal,
+        applySizeUpdate,
+        flushQueuePending,
+        getQueueStats,
+        resetQueue,
+        normalizeOutputPayload,
+        applyChunk,
+        termDebug,
+        collectAckFromQueue,
+        scheduleAckFlush,
+        drainQueueReportedBytes,
+        keyboardShortcutConfig,
+        platform,
+    ]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1319,13 +1412,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const flushQueuedWritesLight = () => {
             if (!terminal.current || getQueueStats().queueLength === 0) return;
 
-            flushQueuePending((chunk) => {
+            flushQueuePending((chunk, report) => {
                 if (!terminal.current) {
                     return false;
                 }
 
                 try {
-                    terminal.current.write(chunk);
+                    terminal.current.write(chunk, () => {
+                        report(chunk.length);
+                        collectAckFromQueue();
+                    });
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Failed to flush queued writes`, error);
                     return false;
@@ -1336,7 +1432,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         const buffer = terminal.current!.buffer.active;
                         const atBottom = buffer.viewportY === buffer.baseY;
                         if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
-                        if (getQueueStats().queueLength > 0) flushQueuedWritesLight();
+                        if (getQueueStats().queueLength > 0) {
+                            flushQueuedWritesLight();
+                        } else {
+                            scheduleAckFlush();
+                        }
                     } catch (e) {
                         logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
                     }
@@ -1385,7 +1485,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll, normalizeOutputPayload, applyChunk]);
+    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll, normalizeOutputPayload, applyChunk, collectAckFromQueue, scheduleAckFlush]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready

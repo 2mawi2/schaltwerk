@@ -44,12 +44,74 @@ pub struct TerminalBufferSnapshot {
     pub data: String,
 }
 
+#[derive(Clone, Debug, Default)]
+pub struct PendingStats {
+    pub(crate) emitted_bytes: u64,
+    pub(crate) acked_bytes: u64,
+    last_logged_meg: u64,
+}
+
+impl PendingStats {
+    fn outstanding(&self) -> u64 {
+        self.emitted_bytes.saturating_sub(self.acked_bytes)
+    }
+
+    pub(crate) fn record_emitted(&mut self, id: &str, delta: u64) {
+        if delta == 0 {
+            return;
+        }
+        self.emitted_bytes = self.emitted_bytes.saturating_add(delta);
+        Self::maybe_log(id, self);
+    }
+
+    pub(crate) fn record_ack(&mut self, id: &str, delta: u64) {
+        if delta == 0 {
+            Self::maybe_log(id, self);
+            return;
+        }
+        let new_acked = self.acked_bytes.saturating_add(delta);
+        if new_acked >= self.emitted_bytes {
+            self.acked_bytes = self.emitted_bytes;
+        } else {
+            self.acked_bytes = new_acked;
+        }
+        Self::maybe_log(id, self);
+    }
+
+    fn maybe_log(id: &str, stats: &mut PendingStats) {
+        const MEGABYTE: u64 = 1024 * 1024;
+        let outstanding = stats.outstanding();
+        if outstanding == 0 {
+            if stats.last_logged_meg != 0 {
+                debug!(
+                    "[Terminal {id}] outstanding backlog cleared (emitted={emitted} acked={acked})",
+                    emitted = stats.emitted_bytes,
+                    acked = stats.acked_bytes
+                );
+            }
+            stats.last_logged_meg = 0;
+            return;
+        }
+
+        let whole_megs = outstanding / MEGABYTE;
+        if whole_megs > 0 && whole_megs > stats.last_logged_meg {
+            debug!(
+                "[Terminal {id}] outstanding output backlog {outstanding} bytes (~{whole_megs} MiB)"
+            );
+            stats.last_logged_meg = whole_megs;
+        } else if whole_megs < stats.last_logged_meg {
+            stats.last_logged_meg = whole_megs;
+        }
+    }
+}
+
 pub struct TerminalManager {
     backend: Arc<LocalPtyAdapter>,
     active_ids: Arc<RwLock<HashSet<String>>>,
     metadata: Arc<RwLock<HashMap<String, TerminalMetadata>>>,
     session_index: Arc<RwLock<HashMap<SessionKey, HashSet<String>>>>,
     app_handle: Arc<RwLock<Option<AppHandle>>>,
+    pending_bytes: Arc<RwLock<HashMap<String, PendingStats>>>,
 }
 
 impl Default for TerminalManager {
@@ -64,14 +126,47 @@ impl TerminalManager {
     }
 
     pub fn new() -> Self {
-        let backend = Arc::new(LocalPtyAdapter::new());
+        let pending_bytes = Arc::new(RwLock::new(HashMap::new()));
+        let backend = Arc::new(LocalPtyAdapter::with_pending_stats(Arc::clone(
+            &pending_bytes,
+        )));
         Self {
             backend,
             active_ids: Arc::new(RwLock::new(HashSet::new())),
             metadata: Arc::new(RwLock::new(HashMap::new())),
             session_index: Arc::new(RwLock::new(HashMap::new())),
             app_handle: Arc::new(RwLock::new(None)),
+            pending_bytes,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) async fn note_emitted_bytes(&self, id: &str, emitted: u64) {
+        if emitted == 0 {
+            return;
+        }
+        let mut guard = self.pending_bytes.write().await;
+        let entry = guard.entry(id.to_string()).or_default();
+        entry.record_emitted(id, emitted);
+    }
+
+    pub async fn acknowledge_output(&self, id: &str, ack_bytes: u64) -> Result<(), String> {
+        let mut guard = self.pending_bytes.write().await;
+        let entry = guard.entry(id.to_string()).or_default();
+        entry.record_ack(id, ack_bytes);
+        Ok(())
+    }
+
+    pub async fn outstanding_bytes(&self, id: &str) -> Option<u64> {
+        let guard = self.pending_bytes.read().await;
+        guard.get(id).map(|stats| stats.outstanding())
+    }
+
+    pub async fn terminal_backlog_snapshot(&self, id: &str) -> Option<(u64, u64, u64)> {
+        let guard = self.pending_bytes.read().await;
+        guard
+            .get(id)
+            .map(|stats| (stats.emitted_bytes, stats.acked_bytes, stats.outstanding()))
     }
 
     async fn register_terminal_session(&self, id: &str, session: SessionKey) {
@@ -422,6 +517,7 @@ impl TerminalManager {
         info!("Closing terminal through manager: {id}");
         self.active_ids.write().await.remove(&id);
         self.unregister_terminal_session(&id).await;
+        self.pending_bytes.write().await.remove(&id);
         self.backend.close(&id).await
     }
 
@@ -568,7 +664,10 @@ mod tests {
             .unwrap();
         tokio::time::sleep(std::time::Duration::from_millis(150)).await;
 
-        let buf = manager.get_terminal_buffer("buf-term".into()).await.unwrap();
+        let buf = manager
+            .get_terminal_buffer("buf-term".into())
+            .await
+            .unwrap();
         assert!(!buf.data.is_empty());
 
         manager.close_terminal("buf-term".into()).await.unwrap();

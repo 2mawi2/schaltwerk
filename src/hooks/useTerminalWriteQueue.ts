@@ -11,7 +11,9 @@ type UseTerminalWriteQueueConfig = {
   debugTag?: string
 }
 
-type FlushCallback = (chunk: string) => boolean | void
+type FlushReport = (writtenBytes: number) => void
+
+type FlushCallback = (chunk: string, report: FlushReport) => boolean | void
 
 type FlushOptions = {
   immediate?: boolean
@@ -48,6 +50,7 @@ export function useTerminalWriteQueue({
   const droppedBytesRef = useRef(0)
   const overflowActiveRef = useRef(false)
   const pendingFlushRef = useRef(false)
+  const reportedBytesRef = useRef(0)
 
   const dequeueChunk = useCallback((limit: number) => {
     if (limit <= 0) return ''
@@ -114,9 +117,20 @@ export function useTerminalWriteQueue({
       if (chunk.length === 0) return
 
       let shouldRequeue = false
+      let allowReports = true
+      let reportedForChunk = 0
 
       try {
-        const result = callback(chunk)
+        const report: FlushReport = writtenBytes => {
+          if (!allowReports) return
+          if (!Number.isFinite(writtenBytes)) return
+          const bounded = Math.max(0, Math.min(chunk.length - reportedForChunk, Math.trunc(writtenBytes)))
+          if (bounded === 0) return
+          reportedForChunk += bounded
+          reportedBytesRef.current += bounded
+        }
+
+        const result = callback(chunk, report)
         if (result === false) {
           shouldRequeue = true
         }
@@ -129,6 +143,10 @@ export function useTerminalWriteQueue({
       }
 
       if (shouldRequeue) {
+        allowReports = false
+        if (reportedForChunk > 0) {
+          reportedBytesRef.current = Math.max(0, reportedBytesRef.current - reportedForChunk)
+        }
         queueRef.current.unshift(chunk)
         queuedBytesRef.current += chunk.length
       }
@@ -160,6 +178,7 @@ export function useTerminalWriteQueue({
     droppedBytesRef.current = 0
     overflowActiveRef.current = false
     pendingFlushRef.current = false
+    reportedBytesRef.current = 0
   }, [])
 
   const stats = useCallback((): UseTerminalWriteQueueStats => ({
@@ -169,14 +188,21 @@ export function useTerminalWriteQueue({
     queueLength: queueRef.current.length
   }), [])
 
+  const drainReportedBytes = useCallback(() => {
+    const total = reportedBytesRef.current
+    reportedBytesRef.current = 0
+    return total
+  }, [])
+
   return useMemo(
     () => ({
       enqueue,
       flushPending,
       reset,
-      stats
+      stats,
+      drainReportedBytes
     }),
-    [enqueue, flushPending, reset, stats]
+    [enqueue, flushPending, reset, stats, drainReportedBytes]
   )
 }
 

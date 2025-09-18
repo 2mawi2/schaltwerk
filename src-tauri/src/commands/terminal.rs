@@ -166,6 +166,25 @@ pub async fn write_terminal(id: String, data: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+pub async fn terminal_acknowledge_output(id: String, ack_bytes: u64) -> Result<(), String> {
+    let manager = get_terminal_manager().await?;
+    manager.acknowledge_output(&id, ack_bytes).await
+}
+
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub async fn get_terminal_backlog(id: String) -> Result<Option<(u64, u64, u64)>, String> {
+    let manager = get_terminal_manager().await?;
+    Ok(manager.terminal_backlog_snapshot(&id).await)
+}
+
+#[cfg(not(debug_assertions))]
+#[tauri::command]
+pub async fn get_terminal_backlog(_id: String) -> Result<Option<(u64, u64, u64)>, String> {
+    Err("get_terminal_backlog is only available in debug builds".to_string())
+}
+
+#[tauri::command]
 pub async fn paste_and_submit_terminal(id: String, data: String) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager

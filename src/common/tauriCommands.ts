@@ -44,6 +44,7 @@ export const TauriCommands = {
   GetRecentProjects: 'get_recent_projects',
   GetSessionPreferences: 'get_session_preferences',
   GetTerminalBuffer: 'get_terminal_buffer',
+  GetTerminalBacklog: 'get_terminal_backlog',
   GetTerminalSettings: 'get_terminal_settings',
   GetTerminalUiPreferences: 'get_terminal_ui_preferences',
   GetTutorialCompleted: 'get_tutorial_completed',
@@ -123,6 +124,7 @@ export const TauriCommands = {
   RegisterSessionTerminals: 'register_session_terminals',
   SuspendSessionTerminals: 'suspend_session_terminals',
   ResumeSessionTerminals: 'resume_session_terminals',
+  SchaltwerkTerminalAcknowledgeOutput: 'terminal_acknowledge_output',
   UpdateRecentProjectTimestamp: 'update_recent_project_timestamp',
   WriteTerminal: 'write_terminal',
 } as const

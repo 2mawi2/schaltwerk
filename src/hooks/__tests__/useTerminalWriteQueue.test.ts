@@ -46,8 +46,9 @@ describe('useTerminalWriteQueue', () => {
     })
 
     act(() => {
-      result.current.flushPending(chunk => {
+      result.current.flushPending((chunk, report) => {
         writes.push(chunk)
+        report(chunk.length)
       }, { immediate: true })
     })
 
@@ -55,8 +56,9 @@ describe('useTerminalWriteQueue', () => {
     expect(result.current.stats()).toMatchObject({ queuedBytes: 4, queueLength: 1 })
 
     act(() => {
-      result.current.flushPending(chunk => {
+      result.current.flushPending((chunk, report) => {
         writes.push(chunk)
+        report(chunk.length)
       }, { immediate: true })
     })
 
@@ -76,11 +78,13 @@ describe('useTerminalWriteQueue', () => {
 
     act(() => {
       result.current.enqueue('abcd')
-      result.current.flushPending(chunk => {
+      result.current.flushPending((chunk, report) => {
         writeSpy(chunk)
+        report(chunk.length)
       })
-      result.current.flushPending(chunk => {
+      result.current.flushPending((chunk, report) => {
         writeSpy(chunk)
+        report(chunk.length)
       })
     })
 
@@ -124,8 +128,9 @@ describe('useTerminalWriteQueue', () => {
 
     act(() => {
       while (result.current.stats().queueLength > 0) {
-        result.current.flushPending(chunk => {
+        result.current.flushPending((chunk, report) => {
           drained.push(chunk)
+          report(chunk.length)
         }, { immediate: true })
       }
     })
@@ -144,5 +149,47 @@ describe('useTerminalWriteQueue', () => {
       overflowActive: false,
       queueLength: 0
     })
+  })
+
+  it('tracks reported bytes across flushes and resets after draining', () => {
+    const { result } = renderHook(() =>
+      useTerminalWriteQueue({
+        queueConfig: baseQueueConfig,
+        logger
+      })
+    )
+
+    act(() => {
+      result.current.enqueue('abcdefgh')
+    })
+
+    act(() => {
+      result.current.flushPending((chunk, report) => {
+        report(chunk.length - 1)
+      }, { immediate: true })
+    })
+
+    act(() => {
+      result.current.flushPending((chunk, report) => {
+        report(chunk.length)
+      }, { immediate: true })
+    })
+
+    expect(result.current.drainReportedBytes()).toBe(7)
+    expect(result.current.drainReportedBytes()).toBe(0)
+
+    const observed: number[] = []
+
+    act(() => {
+      result.current.enqueue('zz')
+      result.current.flushPending((chunk, report) => {
+        observed.push(chunk.length)
+        report(chunk.length)
+      }, { immediate: true })
+    })
+
+    expect(observed).toEqual([2])
+
+    expect(result.current.drainReportedBytes()).toBe(2)
   })
 })
