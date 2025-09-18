@@ -57,7 +57,6 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.PromoteSessionVersion, label: 'Promote best version' },
       { action: KeyboardShortcutAction.ConvertSessionToSpec, label: 'Convert session to spec' },
       { action: KeyboardShortcutAction.OpenDiffViewer, label: 'Open diff viewer' },
-      { action: KeyboardShortcutAction.EnterSpecMode, label: 'Enter spec mode' },
     ],
   },
   {

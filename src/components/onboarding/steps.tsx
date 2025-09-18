@@ -256,7 +256,6 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘D</kbd> Cancel session</li>
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘R</kbd> Mark ready for review</li>
                             <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘S</kbd> Convert session to spec</li>
-                            <li><kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘⇧S</kbd> Enter spec mode (orchestrator)</li>
                         </ul>
                     </div>
                 </div>
