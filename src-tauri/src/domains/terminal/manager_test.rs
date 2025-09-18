@@ -1,6 +1,8 @@
 #[cfg(test)]
 mod tests {
+    use super::super::local::{FLOW_CONTROL_HIGH_WATER_BYTES, FLOW_CONTROL_LOW_WATER_BYTES};
     use super::super::*;
+    use crate::domains::terminal::manager::{FlowControlDecision, PendingStats};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::time::{sleep, timeout};
@@ -20,6 +22,58 @@ mod tests {
         if let Err(e) = manager.close_terminal(id.to_string()).await {
             eprintln!("Warning: Failed to close terminal {}: {}", id, e);
         }
+    }
+
+    #[test]
+    fn test_pending_stats_flow_control_thresholds() {
+        let mut stats = PendingStats::default();
+        let high = FLOW_CONTROL_HIGH_WATER_BYTES;
+        let low = FLOW_CONTROL_LOW_WATER_BYTES;
+
+        assert!(!stats.is_paused(), "Stats should start unpaused");
+
+        let first = stats.record_emitted("term", high - 1024, high);
+        assert!(matches!(first, FlowControlDecision::None));
+        assert!(!stats.is_paused(), "Below high water mark should not pause");
+
+        let second = stats.record_emitted("term", 2048, high);
+        match second {
+            FlowControlDecision::Pause { outstanding } => {
+                assert!(
+                    outstanding >= high,
+                    "Outstanding bytes should reflect high-water breach"
+                );
+            }
+            other => panic!("expected pause decision, got {other:?}"),
+        }
+        assert!(
+            stats.is_paused(),
+            "Pause decision should latch paused state"
+        );
+
+        let still_paused = stats.record_ack("term", 1024, low);
+        assert!(matches!(still_paused, FlowControlDecision::None));
+        assert!(
+            stats.is_paused(),
+            "Ack above low-water should keep terminal paused"
+        );
+
+        let outstanding = stats.outstanding();
+        let to_resume = outstanding.saturating_sub(low).saturating_add(1);
+        let resume = stats.record_ack("term", to_resume, low);
+        match resume {
+            FlowControlDecision::Resume { outstanding } => {
+                assert!(
+                    outstanding <= low,
+                    "Outstanding bytes should fall below low-water threshold"
+                );
+            }
+            other => panic!("expected resume decision, got {other:?}"),
+        }
+        assert!(
+            !stats.is_paused(),
+            "Resume decision should clear the paused flag"
+        );
     }
 
     #[tokio::test]

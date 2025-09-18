@@ -1,9 +1,11 @@
 use super::coalescing::{
     handle_coalesced_output, CoalescingParams, CoalescingState, TerminalOutputPayload,
 };
-use super::manager::PendingStats;
+use super::manager::{FlowControlDecision, PendingStats};
 use super::{CreateParams, TerminalBackend};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
+#[cfg(unix)]
+use libc;
 use log::{debug, error, info, warn};
 use once_cell::sync::Lazy;
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
@@ -21,6 +23,9 @@ use tokio::sync::{Mutex, RwLock};
 // Agent conversation terminals can produce very large transcripts; give them more room
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2MB for regular terminals
 const AGENT_MAX_BUFFER_SIZE: usize = 16 * 1024 * 1024; // 16MB for agent "top" terminals
+
+pub(crate) const FLOW_CONTROL_HIGH_WATER_BYTES: u64 = 3 * 1024 * 1024; // 3 MiB backlog pause threshold
+pub(crate) const FLOW_CONTROL_LOW_WATER_BYTES: u64 = FLOW_CONTROL_HIGH_WATER_BYTES / 2; // 1.5 MiB resume threshold
 
 // PTY state maps moved to instance level to avoid test interference
 
@@ -331,6 +336,81 @@ impl LocalPtyAdapter {
         Self::with_pending_stats(Arc::new(RwLock::new(HashMap::new())))
     }
 
+    #[cfg(unix)]
+    fn apply_flow_pause(master: &dyn MasterPty, id: &str) -> Result<(), String> {
+        if let Some(fd) = master.as_raw_fd() {
+            let rc = unsafe { libc::ioctl(fd, libc::TIOCSTOP as libc::c_ulong) };
+            if rc == -1 {
+                return Err(format!(
+                    "ioctl TIOCSTOP failed for terminal {id}: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+            Ok(())
+        } else {
+            Err(format!(
+                "Master PTY for terminal {id} does not expose a raw file descriptor"
+            ))
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn apply_flow_pause(master: &dyn MasterPty, id: &str) -> Result<(), String> {
+        let _ = (master, id);
+        Err("Flow control pause is unsupported on this platform".to_string())
+    }
+
+    #[cfg(unix)]
+    fn apply_flow_resume(master: &dyn MasterPty, id: &str) -> Result<(), String> {
+        if let Some(fd) = master.as_raw_fd() {
+            let rc = unsafe { libc::ioctl(fd, libc::TIOCSTART as libc::c_ulong) };
+            if rc == -1 {
+                return Err(format!(
+                    "ioctl TIOCSTART failed for terminal {id}: {}",
+                    std::io::Error::last_os_error()
+                ));
+            }
+            Ok(())
+        } else {
+            Err(format!(
+                "Master PTY for terminal {id} does not expose a raw file descriptor"
+            ))
+        }
+    }
+
+    #[cfg(not(unix))]
+    fn apply_flow_resume(master: &dyn MasterPty, id: &str) -> Result<(), String> {
+        let _ = (master, id);
+        Err("Flow control resume is unsupported on this platform".to_string())
+    }
+
+    pub async fn resume_terminal_if_paused(
+        &self,
+        id: &str,
+        outstanding: u64,
+    ) -> Result<(), String> {
+        let maybe_result = {
+            let masters = self.pty_masters.lock().await;
+            masters
+                .get(id)
+                .map(|master| Self::apply_flow_resume(master.as_ref(), id))
+        };
+
+        match maybe_result {
+            Some(Ok(())) => {
+                info!(
+                    "[Terminal {id}] resumed PTY after outstanding backlog dropped to {outstanding} bytes"
+                );
+                Ok(())
+            }
+            Some(Err(err)) => Err(err),
+            None => {
+                debug!("[Terminal {id}] resume requested but PTY master missing (likely closed)");
+                Ok(())
+            }
+        }
+    }
+
     pub async fn set_app_handle(&self, handle: AppHandle) {
         *self.coalescing_state.app_handle.lock().await = Some(handle);
     }
@@ -599,12 +679,59 @@ impl LocalPtyAdapter {
                         drop(writers);
                         let id_clone = id.clone();
                         let stats_id = id.clone();
-                        let pending_stats_clone = Arc::clone(&reader_state.pending_stats);
-                        runtime.block_on(async move {
-                            let mut guard = pending_stats_clone.write().await;
+                        let pending_stats_for_decision = Arc::clone(&reader_state.pending_stats);
+                        let decision = runtime.block_on(async move {
+                            let mut guard = pending_stats_for_decision.write().await;
                             let entry = guard.entry(stats_id.clone()).or_default();
-                            entry.record_emitted(&stats_id, bytes_read);
+                            entry.record_emitted(
+                                &stats_id,
+                                bytes_read,
+                                FLOW_CONTROL_HIGH_WATER_BYTES,
+                            )
                         });
+
+                        if let FlowControlDecision::Pause { outstanding } = decision {
+                            let pty_masters_clone = Arc::clone(&reader_state.pty_masters);
+                            let pending_stats_for_revert = Arc::clone(&reader_state.pending_stats);
+                            let id_for_log = id.clone();
+                            runtime.block_on(async move {
+                                let maybe_result = {
+                                    let masters = pty_masters_clone.lock().await;
+                                    masters
+                                        .get(&id_for_log)
+                                        .map(|master| LocalPtyAdapter::apply_flow_pause(
+                                            master.as_ref(),
+                                            &id_for_log,
+                                        ))
+                                };
+
+                                match maybe_result {
+                                    Some(Ok(())) => {
+                                        warn!(
+                                            "[Terminal {id_for_log}] paused PTY after outstanding backlog reached {outstanding} bytes"
+                                        );
+                                    }
+                                    Some(Err(err)) => {
+                                        warn!(
+                                            "[Terminal {id_for_log}] failed to pause PTY: {err}"
+                                        );
+                                        let mut guard = pending_stats_for_revert.write().await;
+                                        if let Some(entry) = guard.get_mut(&id_for_log) {
+                                            entry.mark_pause_failed();
+                                        }
+                                    }
+                                    None => {
+                                        debug!(
+                                            "[Terminal {id_for_log}] pause requested but PTY master missing"
+                                        );
+                                        let mut guard = pending_stats_for_revert.write().await;
+                                        if let Some(entry) = guard.get_mut(&id_for_log) {
+                                            entry.mark_pause_failed();
+                                        }
+                                    }
+                                }
+                            });
+                        }
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
                         let transcript_writers_clone = Arc::clone(&reader_state.transcript_writers);

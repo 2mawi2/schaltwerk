@@ -1,3 +1,4 @@
+use super::local::FLOW_CONTROL_LOW_WATER_BYTES;
 use super::{get_effective_shell, ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
@@ -49,33 +50,79 @@ pub struct PendingStats {
     pub(crate) emitted_bytes: u64,
     pub(crate) acked_bytes: u64,
     last_logged_meg: u64,
+    paused: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FlowControlDecision {
+    None,
+    Pause { outstanding: u64 },
+    Resume { outstanding: u64 },
 }
 
 impl PendingStats {
-    fn outstanding(&self) -> u64 {
+    pub(crate) fn outstanding(&self) -> u64 {
         self.emitted_bytes.saturating_sub(self.acked_bytes)
     }
 
-    pub(crate) fn record_emitted(&mut self, id: &str, delta: u64) {
+    #[cfg(test)]
+    pub(crate) fn is_paused(&self) -> bool {
+        self.paused
+    }
+
+    pub(crate) fn record_emitted(
+        &mut self,
+        id: &str,
+        delta: u64,
+        high_water: u64,
+    ) -> FlowControlDecision {
         if delta == 0 {
-            return;
+            Self::maybe_log(id, self);
+            return FlowControlDecision::None;
         }
         self.emitted_bytes = self.emitted_bytes.saturating_add(delta);
         Self::maybe_log(id, self);
+
+        let outstanding = self.outstanding();
+        if !self.paused && outstanding >= high_water {
+            self.paused = true;
+            FlowControlDecision::Pause { outstanding }
+        } else {
+            FlowControlDecision::None
+        }
     }
 
-    pub(crate) fn record_ack(&mut self, id: &str, delta: u64) {
-        if delta == 0 {
-            Self::maybe_log(id, self);
-            return;
-        }
-        let new_acked = self.acked_bytes.saturating_add(delta);
-        if new_acked >= self.emitted_bytes {
-            self.acked_bytes = self.emitted_bytes;
-        } else {
-            self.acked_bytes = new_acked;
+    pub(crate) fn record_ack(
+        &mut self,
+        id: &str,
+        delta: u64,
+        low_water: u64,
+    ) -> FlowControlDecision {
+        if delta != 0 {
+            let new_acked = self.acked_bytes.saturating_add(delta);
+            if new_acked >= self.emitted_bytes {
+                self.acked_bytes = self.emitted_bytes;
+            } else {
+                self.acked_bytes = new_acked;
+            }
         }
         Self::maybe_log(id, self);
+
+        let outstanding = self.outstanding();
+        if self.paused && outstanding <= low_water {
+            self.paused = false;
+            FlowControlDecision::Resume { outstanding }
+        } else {
+            FlowControlDecision::None
+        }
+    }
+
+    pub(crate) fn mark_pause_failed(&mut self) {
+        self.paused = false;
+    }
+
+    pub(crate) fn mark_resume_failed(&mut self) {
+        self.paused = true;
     }
 
     fn maybe_log(id: &str, stats: &mut PendingStats) {
@@ -147,13 +194,33 @@ impl TerminalManager {
         }
         let mut guard = self.pending_bytes.write().await;
         let entry = guard.entry(id.to_string()).or_default();
-        entry.record_emitted(id, emitted);
+        let _ = entry.record_emitted(
+            id,
+            emitted,
+            super::local::FLOW_CONTROL_HIGH_WATER_BYTES,
+        );
     }
 
     pub async fn acknowledge_output(&self, id: &str, ack_bytes: u64) -> Result<(), String> {
-        let mut guard = self.pending_bytes.write().await;
-        let entry = guard.entry(id.to_string()).or_default();
-        entry.record_ack(id, ack_bytes);
+        let decision = {
+            let mut guard = self.pending_bytes.write().await;
+            let entry = guard.entry(id.to_string()).or_default();
+            entry.record_ack(id, ack_bytes, FLOW_CONTROL_LOW_WATER_BYTES)
+        };
+
+        if let FlowControlDecision::Resume { outstanding } = decision {
+            if let Err(err) = self
+                .backend
+                .resume_terminal_if_paused(id, outstanding)
+                .await
+            {
+                warn!("[Terminal {id}] failed to resume PTY after acknowledgement: {err}");
+                let mut guard = self.pending_bytes.write().await;
+                if let Some(entry) = guard.get_mut(id) {
+                    entry.mark_resume_failed();
+                }
+            }
+        }
         Ok(())
     }
 
@@ -524,10 +591,7 @@ impl TerminalManager {
     pub async fn terminal_exists(&self, id: &str) -> Result<bool, String> {
         self.backend.exists(id).await
     }
-    pub async fn get_terminal_buffer(
-        &self,
-        id: String,
-    ) -> Result<TerminalBufferSnapshot, String> {
+    pub async fn get_terminal_buffer(&self, id: String) -> Result<TerminalBufferSnapshot, String> {
         let start_time = std::time::Instant::now();
         let (seq, data) = self.backend.snapshot(&id, None).await?;
         let snapshot_duration = start_time.elapsed();
@@ -545,10 +609,7 @@ impl TerminalManager {
             string_duration.as_secs_f64() * 1000.0,
             start_time.elapsed().as_secs_f64() * 1000.0
         );
-        Ok(TerminalBufferSnapshot {
-            seq,
-            data: result,
-        })
+        Ok(TerminalBufferSnapshot { seq, data: result })
     }
 
     pub async fn close_all(&self) -> Result<(), String> {
