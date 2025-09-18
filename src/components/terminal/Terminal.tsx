@@ -89,6 +89,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
+    const initialFallbackLoggedRef = useRef<boolean>(false);
 
     // Write queue helpers shared across effects (agent terminals get larger buffers)
     const queueCfg = useMemo(() => (
@@ -549,6 +550,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             
             // Only fit if container has proper dimensions
             if (containerWidth > 0 && containerHeight > 0) {
+                initialFallbackLoggedRef.current = false;
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
@@ -558,15 +560,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
                 }
             } else if (!isBackground) {
-                // In tests or when container isn't ready, use default dimensions
-                logger.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
-                try {
-                    // Set reasonable default dimensions for tests and edge cases
-                    terminal.current.resize(80, 24);
-                    applySizeUpdate(80, 24, 'default-initial');
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
+                if (!initialFallbackLoggedRef.current) {
+                    initialFallbackLoggedRef.current = true;
+                    logger.debug(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), deferring initial resize until measurable`);
+                } else if (termDebug()) {
+                    logger.debug(`[Terminal ${terminalId}] Container still not measurable (${containerWidth}x${containerHeight}); waiting`);
                 }
+                return;
             } else {
                 logger.debug(`[Terminal ${terminalId}] Background terminal skipping default resize while container is ${containerWidth}x${containerHeight}`);
             }

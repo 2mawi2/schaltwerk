@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
+import { logger } from '../../utils/logger'
 
 // Type definitions for mocks
 interface MockTauriCore {
@@ -361,6 +362,61 @@ describe('Terminal component', () => {
       .map((call: unknown[]) => call[0])
       .join('')
     expect(allWrites).toContain('A')
+  })
+
+  it('defers initial resize until container becomes measurable', async () => {
+    const warnSpy = vi.spyOn(logger, 'warn')
+    try {
+      const { container } = renderTerminal({ terminalId: 'session-defer-top', sessionName: 'defer' })
+      await flushAll()
+
+      const warnedInitially = warnSpy.mock.calls.some((call) => {
+        const [message] = call
+        return typeof message === 'string' && message.includes('Container dimensions not ready')
+      })
+      expect(warnedInitially).toBe(false)
+
+      const resizeCalls = (TauriCore as unknown as MockTauriCore & {
+        invoke: { mock: { calls: unknown[][] } }
+      }).invoke.mock.calls.filter((c: unknown[]) => c[0] === TauriCommands.ResizeTerminal)
+      expect(resizeCalls.length).toBe(0)
+
+      warnSpy.mockClear()
+
+      const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+      const termEl = outer?.querySelector('div') as HTMLDivElement | null
+      expect(termEl).not.toBeNull()
+
+      if (outer) {
+        Object.defineProperty(outer, 'clientWidth', { value: 800, configurable: true })
+        Object.defineProperty(outer, 'clientHeight', { value: 400, configurable: true })
+        Object.defineProperty(outer, 'isConnected', { value: true, configurable: true })
+      }
+
+      if (termEl) {
+        Object.defineProperty(termEl, 'clientWidth', { value: 800, configurable: true })
+        Object.defineProperty(termEl, 'clientHeight', { value: 400, configurable: true })
+        Object.defineProperty(termEl, 'isConnected', { value: true, configurable: true })
+      }
+
+      const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
+      ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
+      const xterm = getLastXtermInstance()
+      xterm.cols = 120
+      xterm.rows = 40
+
+      ro.trigger()
+      await advanceAndFlush(50)
+
+      const afterCalls = (TauriCore as unknown as MockTauriCore & {
+        invoke: { mock: { calls: unknown[][] } }
+      }).invoke.mock.calls.filter((c: unknown[]) => c[0] === TauriCommands.ResizeTerminal)
+      expect(afterCalls.length).toBe(1)
+      const lastCall = afterCalls[0]
+      expect(lastCall[1]).toMatchObject({ id: 'session-defer-top', cols: 120, rows: 40 })
+    } finally {
+      warnSpy.mockRestore()
+    }
   })
 
   // Test removed - Codex normalization confirmed working in production
