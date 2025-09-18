@@ -778,4 +778,53 @@ describe('Terminal component', () => {
       expect(afterCalls - initialCalls).toBeLessThanOrEqual(1)
     })
   })
+
+  it('ignores tiny container jitter for Claude (no resize ack for <2px delta)', async () => {
+    // Arrange: render Claude terminal
+    const core = (TauriCore as unknown as MockTauriCore)
+    core.__clearInvokeHandlers()
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    core.__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
+
+    const { container } = renderTerminal({ terminalId: 'session-jitter-top', sessionName: 'jitter', agentType: 'claude' })
+    await flushAll()
+
+    // Seed initial measurable size
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    expect(termEl).not.toBeNull()
+
+    const setDimensions = (w: number, h: number) => {
+      if (outer) {
+        Object.defineProperty(outer, 'clientWidth', { value: w, configurable: true })
+        Object.defineProperty(outer, 'clientHeight', { value: h, configurable: true })
+        Object.defineProperty(outer, 'isConnected', { value: true, configurable: true })
+      }
+
+      if (termEl) {
+        Object.defineProperty(termEl, 'clientWidth', { value: w, configurable: true })
+        Object.defineProperty(termEl, 'clientHeight', { value: h, configurable: true })
+        Object.defineProperty(termEl, 'isConnected', { value: true, configurable: true })
+      }
+    }
+    setDimensions(800, 600)
+
+    // Trigger initial ResizeObserver pass
+    const initialRO = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
+    initialRO?.trigger()
+    await advanceAndFlush(50)
+
+    // Now apply a sub-2px change and trigger observer
+    setDimensions(801, 601)
+    const jitterRO = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver | undefined
+    jitterRO?.trigger()
+    await advanceAndFlush(50)
+
+    // Expect no PTY resize call due to jitter suppression
+    expect(core.invoke).not.toHaveBeenCalledWith(TauriCommands.ResizeTerminal, expect.any(Object))
+
+    // Confirm no ResizeTerminal was invoked for sub-2px jitter
+    const jitterCalls = core.invoke.mock.calls.filter(c => c[0] === TauriCommands.ResizeTerminal)
+    expect(jitterCalls.length).toBe(0)
+  })
 })

@@ -62,6 +62,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
+    const lastContainerPx = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
     const [hydrated, setHydrated] = useState(false);
     const [agentLoading, setAgentLoading] = useState(false);
     const hydratedRef = useRef<boolean>(false);
@@ -1237,6 +1238,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
 
+            // Suppress tiny container jitter for Claude terminals to avoid CR-based blank lines
+            const SMALL_DELTA_PX = 2;
+            const cw = el.clientWidth;
+            const ch = el.clientHeight;
+            const prev = lastContainerPx.current;
+            if (
+                agentType === 'claude' &&
+                Math.abs(cw - prev.width) < SMALL_DELTA_PX &&
+                Math.abs(ch - prev.height) < SMALL_DELTA_PX
+            ) {
+                lastContainerPx.current = { width: cw, height: ch };
+                return;
+            }
+
             // Capture scroll position before resize
             const { wasAtBottom } = captureScrollPosition();
 
@@ -1248,6 +1263,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
             const { cols, rows } = terminal.current;
+            // Track last measured container px after successful fit
+            lastContainerPx.current = { width: cw, height: ch };
 
             // Only scroll to bottom on resize if user was at bottom AND we're not during a UI layout change
             // Skip auto-scroll during session switches to prevent interference with scrolling
@@ -1288,7 +1305,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             } catch (e) {
                 logger.debug('[Terminal] fonts.ready unavailable', e);
             } finally {
-                requestAnimationFrame(() => handleResize());
+                requestAnimationFrame(() => {
+                    if (termRef.current) {
+                        lastContainerPx.current = { width: termRef.current.clientWidth, height: termRef.current.clientHeight };
+                    }
+                    handleResize();
+                });
             }
         })();
 
