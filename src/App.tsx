@@ -33,6 +33,7 @@ import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction } from './keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
+import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 
 // Simple debounce utility
 function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
@@ -84,6 +85,7 @@ export default function App() {
   const previousFocusRef = useRef<Element | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
+  const preserveSelection = useSelectionPreserver()
 
   const rightPanelStorageKey = selection
     ? selection.kind === 'orchestrator'
@@ -469,201 +471,199 @@ export default function App() {
     skipPermissions?: boolean
   }) => {
     try {
-      
-       // If starting from an existing spec via the modal, convert that spec to active
-       if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
+      await preserveSelection(async () => {
+        // If starting from an existing spec via the modal, convert that spec to active
+        if (!data.isSpec && startFromDraftName && startFromDraftName === data.name) {
                   
-         // Ensure the spec content reflects latest prompt before starting
-         const contentToUse = data.prompt || ''
-         if (contentToUse.trim().length > 0) {
-           await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
-             name: data.name,
-             content: contentToUse,
-           })
-         }
-
-         // Handle multiple versions like new session creation
-         const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
-         let firstSessionName = data.name
-         
-         // Create array of session names and process them
-        const sessionNames = Array.from({ length: count }, (_, i) =>
-          i === 0 ? data.name : `${data.name}_v${i + 1}`
-        )
-
-        // Generate a stable group id for these versions
-        const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto)
-          ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID()
-          : `${data.name}-${Date.now()}`
-
-        for (const [index, sessionName] of sessionNames.entries()) {
-          if (index === 0) {
-            await waitForSessionsRefreshed(() =>
-              invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
-                name: sessionName,
-                baseBranch: data.baseBranch || null,
-                versionGroupId,
-                versionNumber: 1,
-                agentType: data.agentType || null,
-                skipPermissions: data.skipPermissions ?? null,
-              })
-            )
-          } else {
-            await waitForSessionsRefreshed(() =>
-              invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
-                name: sessionName,
-                specContent: contentToUse,
-                baseBranch: data.baseBranch || null,
-                versionGroupId,
-                versionNumber: index + 1,
-                agentType: data.agentType || null,
-                skipPermissions: data.skipPermissions ?? null,
-              })
-            )
-          }
-        }
-
-        setNewSessionOpen(false)
-        setStartFromSpecName(null)
-
-        // Dispatch event for other components to know a session was created from spec
-        window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
-          detail: { name: firstSessionName }
-        }))
-
-        // Start agents for all spec-derived sessions (this creates terminals with agents)
-        // This ensures all versions start working immediately, not just the focused one
-        for (const sessionName of sessionNames) {
-          try {
-            // Start the AI agent (this creates the top terminal with agent)
-            await invoke(TauriCommands.SchaltwerkCoreStartClaude, {
-              sessionName: sessionName,
-              // Provide a generous initial size to avoid first-frame wrapping before UI fit
-              cols: 220,
-              rows: 60
+          // Ensure the spec content reflects latest prompt before starting
+          const contentToUse = data.prompt || ''
+          if (contentToUse.trim().length > 0) {
+            await invoke(TauriCommands.SchaltwerkCoreUpdateSpecContent, {
+              name: data.name,
+              content: contentToUse,
             })
-            
-            // Bottom terminals are created on demand by TerminalTabs (-bottom-0). Nothing to do here.
-            logger.info(`[App] Started agent for session ${sessionName}`)
-          } catch (_e) {
-            logger.warn(`[App] Failed to start agent for session ${sessionName}:`, _e)
           }
+
+          // Handle multiple versions like new session creation
+          const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
+          let firstSessionName = data.name
+          
+          // Create array of session names and process them
+          const sessionNames = Array.from({ length: count }, (_, i) =>
+            i === 0 ? data.name : `${data.name}_v${i + 1}`
+          )
+
+          // Generate a stable group id for these versions
+          const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto)
+            ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID()
+            : `${data.name}-${Date.now()}`
+
+          for (const [index, sessionName] of sessionNames.entries()) {
+            if (index === 0) {
+              await waitForSessionsRefreshed(() =>
+                invoke(TauriCommands.SchaltwerkCoreStartSpecSession, {
+                  name: sessionName,
+                  baseBranch: data.baseBranch || null,
+                  versionGroupId,
+                  versionNumber: 1,
+                  agentType: data.agentType || null,
+                  skipPermissions: data.skipPermissions ?? null,
+                })
+              )
+            } else {
+              await waitForSessionsRefreshed(() =>
+                invoke(TauriCommands.SchaltwerkCoreCreateAndStartSpecSession, {
+                  name: sessionName,
+                  specContent: contentToUse,
+                  baseBranch: data.baseBranch || null,
+                  versionGroupId,
+                  versionNumber: index + 1,
+                  agentType: data.agentType || null,
+                  skipPermissions: data.skipPermissions ?? null,
+                })
+              )
+            }
+          }
+
+          setNewSessionOpen(false)
+          setStartFromSpecName(null)
+
+          // Dispatch event for other components to know a session was created from spec
+          window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
+            detail: { name: firstSessionName }
+          }))
+
+          // Start agents for all spec-derived sessions (this creates terminals with agents)
+          // This ensures all versions start working immediately, not just the focused one
+          for (const sessionName of sessionNames) {
+            try {
+              // Start the AI agent (this creates the top terminal with agent)
+              await invoke(TauriCommands.SchaltwerkCoreStartClaude, {
+                sessionName: sessionName,
+                // Provide a generous initial size to avoid first-frame wrapping before UI fit
+                cols: 220,
+                rows: 60
+              })
+              
+              // Bottom terminals are created on demand by TerminalTabs (-bottom-0). Nothing to do here.
+              logger.info(`[App] Started agent for session ${sessionName}`)
+            } catch (_e) {
+              logger.warn(`[App] Failed to start agent for session ${sessionName}:`, _e)
+            }
+          }
+
+          // Don't automatically switch focus when starting spec sessions
+          // The user should remain focused on their current session
+          return
         }
 
-        // Don't automatically switch focus when starting spec sessions
-        // The user should remain focused on their current session
-        return
-      }
-
-      if (data.isSpec) {
-         // Create spec session
-         await invoke(TauriCommands.SchaltwerkCoreCreateSpecSession, {
-           name: data.name,
-           specContent: data.draftContent || '',
-           agentType: data.agentType,
-           skipPermissions: data.skipPermissions,
-         })
-         setNewSessionOpen(false)
-
-        // Only select the new spec if it matches the current filter
-        // Specs are visible in 'all' and 'spec' filters
-        
-        // Dispatch event for other components to know a spec was created
-        window.dispatchEvent(new CustomEvent('schaltwerk:spec-created', {
-          detail: { name: data.name }
-        }))
-      } else {
-        // Create one or multiple sessions depending on versionCount
-        const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
-        
-        // When creating multiple versions, ensure consistent naming with _v1, _v2, etc.
-        const baseName = data.name
-        // Consider it auto-generated if the user didn't manually edit the name
-        const isAutoGenerated = !data.userEditedName
-        
-        // Create all versions first
-        const createdVersions: string[] = []
-        // Generate a stable group id for DB linkage
-        const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID() : `${baseName}-${Date.now()}`
-        for (let i = 1; i <= count; i++) {
-          // First version uses base name, additional versions get _v2, _v3, etc.
-          const versionName = i === 1 ? baseName : `${baseName}_v${i}`
-          
-          // For single sessions, use userEditedName flag as provided
-          // For multiple versions, don't mark as user-edited so they can be renamed as a group
-          await invoke(TauriCommands.SchaltwerkCoreCreateSession, {
-            name: versionName,
-            prompt: data.prompt || null,
-            baseBranch: data.baseBranch || null,
-            userEditedName: count > 1 ? false : (data.userEditedName ?? false),
-            versionGroupId,
-            versionNumber: i,
+        if (data.isSpec) {
+          // Create spec session
+          await invoke(TauriCommands.SchaltwerkCoreCreateSpecSession, {
+            name: data.name,
+            specContent: data.draftContent || '',
             agentType: data.agentType,
             skipPermissions: data.skipPermissions,
           })
+          setNewSessionOpen(false)
 
-          createdVersions.push(versionName)
-        }
-        
-        logger.info(`[App] Created ${count} sessions: ${createdVersions.join(', ')}`)
-        
-        // If we created multiple versions with an auto-generated base name, trigger group rename
-        // This needs to happen after a delay to ensure sessions are created
-        if (count > 1 && isAutoGenerated && data.prompt) {
-          setTimeout(async () => {
-            try {
-              logger.info(`[App] Attempting to rename version group with baseName: '${baseName}' and prompt: '${data.prompt}'`)
-              await invoke(TauriCommands.SchaltwerkCoreRenameVersionGroup, {
-                baseName,
-                prompt: data.prompt,
-                baseBranch: data.baseBranch || null,
-                versionGroupId,
-              })
-              logger.info(`[App] Successfully renamed version group: '${baseName}'`)
-            } catch (err) {
-              logger.error('Failed to rename version group:', err)
-            }
-          }, 1000)
-        }
-        
-        setNewSessionOpen(false)
-
-        // Don't automatically switch focus when creating new sessions
-        // The user should remain focused on their current session
-        
-        // Dispatch event for other components to know a session was created
-        window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
-          detail: { name: data.name }
-        }))
-        
-        // For regular (non-spec) sessions with multiple versions, proactively create terminals
-        // This addresses the lazy initialization issue where only the first selected session 
-        // gets terminals created, leaving other versions without terminals until manually switched
-        if (!data.isSpec && count > 1) {
-          // Wait for SessionsRefreshed to ensure sessions exist before creating terminals
-          await new Promise<void>((resolve) => {
-            let done = false
-            let unlistenRef: (() => void) | null = null
-            listenEvent(SchaltEvent.SessionsRefreshed, () => {
-              done = true
-              if (unlistenRef) unlistenRef()
-              resolve()
-            }).then((unlisten) => {
-              unlistenRef = unlisten
-              if (done && unlistenRef) unlistenRef()
+          // Dispatch event for other components to know a spec was created
+          window.dispatchEvent(new CustomEvent('schaltwerk:spec-created', {
+            detail: { name: data.name }
+          }))
+        } else {
+          // Create one or multiple sessions depending on versionCount
+          const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
+          
+          // When creating multiple versions, ensure consistent naming with _v1, _v2, etc.
+          const baseName = data.name
+          // Consider it auto-generated if the user didn't manually edit the name
+          const isAutoGenerated = !data.userEditedName
+          
+          // Create all versions first
+          const createdVersions: string[] = []
+          // Generate a stable group id for DB linkage
+          const versionGroupId = (globalThis.crypto && 'randomUUID' in globalThis.crypto) ? (globalThis.crypto as Crypto & { randomUUID(): string }).randomUUID() : `${baseName}-${Date.now()}`
+          for (let i = 1; i <= count; i++) {
+            // First version uses base name, additional versions get _v2, _v3, etc.
+            const versionName = i === 1 ? baseName : `${baseName}_v${i}`
+            
+            // For single sessions, use userEditedName flag as provided
+            // For multiple versions, don't mark as user-edited so they can be renamed as a group
+            await invoke(TauriCommands.SchaltwerkCoreCreateSession, {
+              name: versionName,
+              prompt: data.prompt || null,
+              baseBranch: data.baseBranch || null,
+              userEditedName: count > 1 ? false : (data.userEditedName ?? false),
+              versionGroupId,
+              versionNumber: i,
+              agentType: data.agentType,
+              skipPermissions: data.skipPermissions,
             })
-          })
+
+            createdVersions.push(versionName)
+          }
           
-          // Create terminals for all versions of the new session
-          const sessionNames = Array.from({ length: count }, (_, i) => 
-            i === 0 ? data.name : `${data.name}_v${i + 1}`
-          )
+          logger.info(`[App] Created ${count} sessions: ${createdVersions.join(', ')}`)
           
-          for (const name of sessionNames) {
-            await createTerminalsForSession(name)
+          // If we created multiple versions with an auto-generated base name, trigger group rename
+          // This needs to happen after a delay to ensure sessions are created
+          if (count > 1 && isAutoGenerated && data.prompt) {
+            setTimeout(async () => {
+              try {
+                logger.info(`[App] Attempting to rename version group with baseName: '${baseName}' and prompt: '${data.prompt}'`)
+                await invoke(TauriCommands.SchaltwerkCoreRenameVersionGroup, {
+                  baseName,
+                  prompt: data.prompt,
+                  baseBranch: data.baseBranch || null,
+                  versionGroupId,
+                })
+                logger.info(`[App] Successfully renamed version group: '${baseName}'`)
+              } catch (err) {
+                logger.error('Failed to rename version group:', err)
+              }
+            }, 1000)
+          }
+          
+          setNewSessionOpen(false)
+
+          // Don't automatically switch focus when creating new sessions
+          // The user should remain focused on their current session
+          
+          // Dispatch event for other components to know a session was created
+          window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
+            detail: { name: data.name }
+          }))
+          
+          // For regular (non-spec) sessions with multiple versions, proactively create terminals
+          // This addresses the lazy initialization issue where only the first selected session 
+          // gets terminals created, leaving other versions without terminals until manually switched
+          if (!data.isSpec && count > 1) {
+            // Wait for SessionsRefreshed to ensure sessions exist before creating terminals
+            await new Promise<void>((resolve) => {
+              let done = false
+              let unlistenRef: (() => void) | null = null
+              listenEvent(SchaltEvent.SessionsRefreshed, () => {
+                done = true
+                if (unlistenRef) unlistenRef()
+                resolve()
+              }).then((unlisten) => {
+                unlistenRef = unlisten
+                if (done && unlistenRef) unlistenRef()
+              })
+            })
+
+            // Create terminals for all versions of the new session
+            const sessionNames = Array.from({ length: count }, (_, i) =>
+              i === 0 ? data.name : `${data.name}_v${i + 1}`
+            )
+
+            for (const name of sessionNames) {
+              await createTerminalsForSession(name)
+            }
           }
         }
-      }
+      })
     } catch (error) {
       logger.error('Failed to create session:', error)
       alert(`Failed to create session: ${error}`)

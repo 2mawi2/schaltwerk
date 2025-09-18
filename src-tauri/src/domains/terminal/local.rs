@@ -10,9 +10,10 @@ use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, P
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex as StdMutex};
-use std::time::{Instant, SystemTime};
+use std::thread;
+use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, RwLock};
 
@@ -67,7 +68,18 @@ struct LoginEnvCache {
 
 static LOGIN_ENV_CACHE: Lazy<StdMutex<Option<LoginEnvCache>>> = Lazy::new(|| StdMutex::new(None));
 
+fn should_skip_login_env() -> bool {
+    match std::env::var("SCHALTWERK_SKIP_LOGIN_ENV") {
+        Ok(value) => matches!(value.as_str(), "1" | "true" | "TRUE" | "True"),
+        Err(_) => false,
+    }
+}
+
 fn fetch_login_shell_env(shell: &str, args: &[String]) -> Option<HashMap<String, String>> {
+    if should_skip_login_env() {
+        return None;
+    }
+
     {
         let cache_guard = LOGIN_ENV_CACHE.lock().unwrap();
         if let Some(cache) = cache_guard.as_ref() {
@@ -81,9 +93,11 @@ fn fetch_login_shell_env(shell: &str, args: &[String]) -> Option<HashMap<String,
         Ok(env) => env,
         Err(err) => {
             warn!("Failed to capture login shell environment with configured args: {err}");
-            if args.is_empty() {
+            let should_skip_fallback = args.is_empty() || err.contains("timed out");
+            if should_skip_fallback {
                 return None;
             }
+
             match capture_login_shell_env(shell, &[]) {
                 Ok(env) => env,
                 Err(fallback_err) => {
@@ -119,6 +133,16 @@ fn capture_login_shell_env(
     run_login_shell(shell, &[])
 }
 
+fn login_env_timeout() -> Duration {
+    const DEFAULT_TIMEOUT_MS: u64 = 5_000;
+    std::env::var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS")
+        .ok()
+        .and_then(|raw| raw.parse::<u64>().ok())
+        .map(|ms| ms.clamp(100, 60_000))
+        .map(Duration::from_millis)
+        .unwrap_or_else(|| Duration::from_millis(DEFAULT_TIMEOUT_MS))
+}
+
 fn run_login_shell(shell: &str, args: &[String]) -> Result<HashMap<String, String>, String> {
     if has_command_flag(args) {
         return Err(
@@ -138,22 +162,64 @@ fn run_login_shell(shell: &str, args: &[String]) -> Result<HashMap<String, Strin
     command.arg("-c");
     command.arg("env -0");
 
-    match command.output() {
-        Ok(output) => {
-            if !output.status.success() {
-                return Err(format!(
-                    "login shell exited with status {:?}",
-                    output.status.code()
-                ));
-            }
+    command.stdin(Stdio::null());
+    command.stdout(Stdio::piped());
+    command.stderr(Stdio::piped());
 
-            if output.stdout.is_empty() {
-                return Err("login shell produced empty environment".to_string());
-            }
+    let timeout = login_env_timeout();
 
-            Ok(parse_null_separated_env(&output.stdout))
+    let mut child = command
+        .spawn()
+        .map_err(|err| format!("failed to execute login shell '{shell}': {err}"))?;
+
+    let start = Instant::now();
+
+    loop {
+        if start.elapsed() > timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(format!(
+                "login shell timed out after {}ms",
+                timeout.as_millis()
+            ));
         }
-        Err(err) => Err(format!("failed to execute login shell '{shell}': {err}")),
+
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                let mut stdout_buf = Vec::new();
+                if let Some(mut handle) = child.stdout.take() {
+                    let _ = handle.read_to_end(&mut stdout_buf);
+                }
+
+                let mut stderr_buf = Vec::new();
+                if let Some(mut handle) = child.stderr.take() {
+                    let _ = handle.read_to_end(&mut stderr_buf);
+                }
+
+                if !status.success() {
+                    let stderr_str = String::from_utf8_lossy(&stderr_buf);
+                    return Err(format!(
+                        "login shell exited with status {:?}: {}",
+                        status.code(),
+                        stderr_str
+                    ));
+                }
+
+                if stdout_buf.is_empty() {
+                    return Err("login shell produced empty environment".to_string());
+                }
+
+                return Ok(parse_null_separated_env(&stdout_buf));
+            }
+            Ok(None) => {
+                thread::sleep(Duration::from_millis(25));
+            }
+            Err(err) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(format!("failed to check login shell status: {err}"));
+            }
+        }
     }
 }
 
@@ -2237,6 +2303,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_environment_variables_setup() {
+        let previous_skip = std::env::var("SCHALTWERK_SKIP_LOGIN_ENV").ok();
+        std::env::set_var("SCHALTWERK_SKIP_LOGIN_ENV", "1");
+        {
+            let mut cache = LOGIN_ENV_CACHE.lock().unwrap();
+            *cache = None;
+        }
+
         let adapter = LocalPtyAdapter::new();
         let id = unique_id("env-setup");
 
@@ -2277,6 +2350,49 @@ mod tests {
         );
 
         safe_close(&adapter, &id).await;
+
+        if let Some(value) = previous_skip {
+            std::env::set_var("SCHALTWERK_SKIP_LOGIN_ENV", value);
+        } else {
+            std::env::remove_var("SCHALTWERK_SKIP_LOGIN_ENV");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_login_shell_capture_times_out_quickly() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp_dir = tempfile::tempdir().unwrap();
+        let script_path = temp_dir.path().join("slow-shell.sh");
+        let script_contents = "#!/bin/sh\nif [ \"$1\" = \"-l\" ]; then\n  shift\nfi\nif [ \"$1\" = \"-c\" ]; then\n  shift\nfi\nsleep 2\nenv -0\n";
+        std::fs::write(&script_path, script_contents).unwrap();
+
+        let mut perms = std::fs::metadata(&script_path).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&script_path, perms).unwrap();
+
+        let previous_timeout = std::env::var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS").ok();
+        std::env::set_var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS", "100");
+
+        let start = Instant::now();
+        let result = super::run_login_shell(script_path.to_string_lossy().as_ref(), &[]);
+        let elapsed = start.elapsed();
+
+        assert!(result.is_err(), "expected timeout to yield an error");
+        let err = result.err().unwrap();
+        assert!(err.contains("timed out"), "unexpected error message: {err}");
+        assert!(
+            elapsed < Duration::from_millis(500),
+            "timeout did not fire promptly: {:?}",
+            elapsed
+        );
+
+        if let Some(timeout) = previous_timeout {
+            std::env::set_var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS", timeout);
+        } else {
+            std::env::remove_var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS");
+        }
     }
 
     #[tokio::test]
