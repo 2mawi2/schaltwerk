@@ -2,7 +2,8 @@ use anyhow::{anyhow, Result};
 use chrono::{TimeZone, Utc};
 use log::{info, warn};
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 pub struct SessionCreationParams<'a> {
     pub name: &'a str,
@@ -397,6 +398,143 @@ mod service_unified_tests {
     }
 
     #[test]
+    fn create_claude_session_copies_local_overrides() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo_root = temp_dir.path().join("repo");
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::fs::write(repo_root.join("README.md"), "Initial").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+
+        // Prepare local Claude overrides in the project root
+        std::fs::write(repo_root.join("CLAUDE.local.md"), "root-local-memory").unwrap();
+        let claude_dir = repo_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(claude_dir.join("settings.local.json"), "{\"key\":\"value\"}")
+            .unwrap();
+
+        let params = SessionCreationParams {
+            name: "copy-local",
+            prompt: None,
+            base_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: Some("claude"),
+            skip_permissions: Some(true),
+        };
+
+        let session = manager
+            .create_session_with_agent(params)
+            .expect("session creation should succeed");
+
+        let worktree = &session.worktree_path;
+        let root_local = worktree.join("CLAUDE.local.md");
+        assert!(root_local.exists(), "expected CLAUDE.local.md to be copied");
+        assert_eq!(
+            std::fs::read_to_string(&root_local).unwrap(),
+            "root-local-memory"
+        );
+
+        let copied_settings = worktree.join(".claude").join("settings.local.json");
+        assert!(
+            copied_settings.exists(),
+            "expected settings.local.json to be copied"
+        );
+        assert_eq!(
+            std::fs::read_to_string(copied_settings).unwrap(),
+            "{\"key\":\"value\"}"
+        );
+    }
+
+    #[test]
+    fn non_claude_session_does_not_copy_local_overrides() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let repo_root = temp_dir.path().join("repo");
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::fs::write(repo_root.join("README.md"), "Initial").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo_root)
+            .output()
+            .unwrap();
+
+        std::fs::write(repo_root.join("CLAUDE.local.md"), "should-not-copy").unwrap();
+        let claude_dir = repo_root.join(".claude");
+        std::fs::create_dir_all(&claude_dir).unwrap();
+        std::fs::write(claude_dir.join("settings.local.json"), "{\"copy\":false}")
+            .unwrap();
+
+        let params = SessionCreationParams {
+            name: "cursor-session",
+            prompt: None,
+            base_branch: None,
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: Some("cursor"),
+            skip_permissions: Some(false),
+        };
+
+        let session = manager
+            .create_session_with_agent(params)
+            .expect("session creation should succeed");
+
+        let worktree = &session.worktree_path;
+        assert!(
+            !worktree.join("CLAUDE.local.md").exists(),
+            "non-Claude sessions should not copy CLAUDE.local.md"
+        );
+        assert!(
+            !worktree.join(".claude").exists(),
+            "non-Claude sessions should not copy .claude overrides"
+        );
+    }
+
+    #[test]
     fn spec_sessions_reset_running_state_on_fetch() {
         let (manager, temp_dir) = create_test_session_manager();
         let session = create_test_session(&temp_dir, "claude", "normalize");
@@ -544,6 +682,15 @@ impl SessionManager {
         let repo_name = self.utils.get_repo_name()?;
         let now = Utc::now();
 
+        let default_agent_type = self
+            .db_manager
+            .get_agent_type()
+            .unwrap_or_else(|_| "claude".to_string());
+        let should_copy_claude_locals = params
+            .agent_type
+            .map(|agent| agent.eq_ignore_ascii_case("claude"))
+            .unwrap_or_else(|| default_agent_type.eq_ignore_ascii_case("claude"));
+
         let session = Session {
             id: session_id.clone(),
             name: unique_name.clone(),
@@ -614,6 +761,14 @@ impl SessionManager {
 
         log::info!("Worktree verified and ready: {}", worktree_path.display());
 
+        if should_copy_claude_locals {
+            if let Err(err) = self.copy_claude_local_files(&worktree_path) {
+                warn!(
+                    "Failed to copy Claude local overrides for session '{unique_name}': {err}"
+                );
+            }
+        }
+
         // IMPORTANT: Do not execute project setup script here.
         // We stream the setup script output directly in the session's top terminal
         // right before the agent starts (see schaltwerk_core_start_claude). This
@@ -625,10 +780,7 @@ impl SessionManager {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save session to database: {}", e));
         }
-        let global_agent = self
-            .db_manager
-            .get_agent_type()
-            .unwrap_or_else(|_| "claude".to_string());
+        let global_agent = default_agent_type;
         let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
         let _ =
             self.db_manager
@@ -646,6 +798,66 @@ impl SessionManager {
         self.cache_manager.unreserve_name(&unique_name);
         log::info!("Successfully created session '{unique_name}'");
         Ok(session)
+    }
+
+    fn copy_claude_local_files(&self, worktree_path: &Path) -> Result<()> {
+        let mut copy_plan: Vec<(PathBuf, PathBuf)> = Vec::new();
+
+        if let Ok(entries) = fs::read_dir(&self.repo_path) {
+            for entry in entries.filter_map(Result::ok) {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+
+                let name_lower = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                if name_lower.contains("claude.local") || name_lower.contains("local.claude") {
+                    let dest = worktree_path.join(entry.file_name());
+                    copy_plan.push((path, dest));
+                }
+            }
+        }
+
+        let claude_dir = self.repo_path.join(".claude");
+        if claude_dir.is_dir() {
+            if let Ok(entries) = fs::read_dir(&claude_dir) {
+                for entry in entries.filter_map(Result::ok) {
+                    let path = entry.path();
+                    if !path.is_file() {
+                        continue;
+                    }
+                    let name_lower = entry.file_name().to_string_lossy().to_ascii_lowercase();
+                    if !name_lower.contains(".local.") {
+                        continue;
+                    }
+                    let dest = worktree_path.join(".claude").join(entry.file_name());
+                    copy_plan.push((path, dest));
+                }
+            }
+        }
+
+        for (source, dest) in copy_plan {
+            if dest.exists() {
+                info!(
+                    "Skipping Claude local override copy; destination already exists: {}",
+                    dest.display()
+                );
+                continue;
+            }
+
+            if let Some(parent) = dest.parent() {
+                fs::create_dir_all(parent)?;
+            }
+
+            fs::copy(&source, &dest)?;
+            info!(
+                "Copied Claude local override from {} to {}",
+                source.display(),
+                dest.display()
+            );
+        }
+
+        Ok(())
     }
 
     pub fn cancel_session(&self, name: &str) -> Result<()> {
