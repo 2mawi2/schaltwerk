@@ -6,7 +6,6 @@ import { useFontSize } from '../../contexts/FontSizeContext'
 import { useSettings, AgentType } from '../../hooks/useSettings'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
-import { AnimatedText } from '../common/AnimatedText'
 // macOS-native smart dash/quote substitution is disabled at app startup.
 import { SpecContentModal } from '../SpecContentModal'
 import { MCPConfigPanel } from '../settings/MCPConfigPanel'
@@ -1859,7 +1858,7 @@ fi`}
 
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center py-8">
-                        <AnimatedText text="loading" size="md" />
+                        <span className="text-body text-slate-300">Loading settings...</span>
                     </div>
                 ) : (
                     <div className="flex-1 flex overflow-hidden">
@@ -1926,8 +1925,8 @@ fi`}
                                 disabled={saving}
                                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
-{saving ? (
-                                    <AnimatedText text="loading" size="xs" />
+                                {saving ? (
+                                    <span className="text-button text-white/80">Saving...</span>
                                 ) : (
                                     'Save'
                                 )}

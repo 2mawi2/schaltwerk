@@ -134,17 +134,6 @@ Common mappings:
 - `text-slate-100` → `theme.colors.text.primary`
 - `border-slate-700` → `theme.colors.border.subtle`
 
-### Loading States (MANDATORY)
-**NEVER use static text or spinner libraries.** Always use AnimatedText:
-```typescript
-import { AnimatedText } from '../common/AnimatedText'
-<AnimatedText text="loading" size="md" />
-```
-
-Predefined states: loading, starting, waiting, initializing, connecting, saving, deleting, creating, converting, marking
-
-Sizes: xs (12-14px), sm (16-18px), md (20-24px), lg (28-32px), xl (36-40px)
-
 ### Font Sizes (MANDATORY)
 **NEVER use hardcoded font sizes.** Use theme system:
 - Semantic: caption, body, bodyLarge, heading, headingLarge, headingXLarge, display
