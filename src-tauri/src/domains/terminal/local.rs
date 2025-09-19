@@ -1,31 +1,20 @@
-use super::coalescing::{
-    handle_coalesced_output, CoalescingParams, CoalescingState, TerminalOutputPayload,
-};
-use super::manager::{FlowControlDecision, PendingStats};
 use super::{CreateParams, TerminalBackend};
-use crate::infrastructure::events::{emit_event, SchaltEvent};
-#[cfg(unix)]
-use libc;
+use super::coalescing::{CoalescingState, CoalescingParams, handle_coalesced_output};
 use log::{debug, error, info, warn};
-use once_cell::sync::Lazy;
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex as StdMutex};
-use std::thread;
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tauri::{AppHandle, Emitter};
 use tokio::sync::{Mutex, RwLock};
+use crate::infrastructure::events::{emit_event, SchaltEvent};
 
 // Default in-memory buffer sizes for terminal output
 // Agent conversation terminals can produce very large transcripts; give them more room
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2MB for regular terminals
 const AGENT_MAX_BUFFER_SIZE: usize = 16 * 1024 * 1024; // 16MB for agent "top" terminals
-
-pub(crate) const FLOW_CONTROL_HIGH_WATER_BYTES: u64 = 3 * 1024 * 1024; // 3 MiB backlog pause threshold
-pub(crate) const FLOW_CONTROL_LOW_WATER_BYTES: u64 = FLOW_CONTROL_HIGH_WATER_BYTES / 2; // 1.5 MiB resume threshold
 
 // PTY state maps moved to instance level to avoid test interference
 
@@ -46,11 +35,7 @@ pub struct LocalPtyAdapter {
     reader_handles: Arc<Mutex<HashMap<String, tokio::task::JoinHandle<()>>>>,
     // Coalescing state for terminal output handling
     coalescing_state: CoalescingState,
-    // Persistent transcripts for agent terminals
-    transcript_writers: Arc<Mutex<HashMap<String, std::io::BufWriter<std::fs::File>>>>,
-    transcript_paths: Arc<Mutex<HashMap<String, PathBuf>>>,
     suspended: Arc<RwLock<HashSet<String>>>,
-    pending_stats: Arc<RwLock<HashMap<String, PendingStats>>>,
 }
 
 struct ReaderState {
@@ -59,202 +44,7 @@ struct ReaderState {
     pty_masters: Arc<Mutex<HashMap<String, Box<dyn MasterPty + Send>>>>,
     pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     coalescing_state: CoalescingState,
-    transcript_writers: Arc<Mutex<HashMap<String, std::io::BufWriter<std::fs::File>>>>,
     suspended: Arc<RwLock<HashSet<String>>>,
-    pending_stats: Arc<RwLock<HashMap<String, PendingStats>>>,
-}
-
-#[derive(Clone)]
-struct LoginEnvCache {
-    shell: String,
-    args: Vec<String>,
-    env: HashMap<String, String>,
-}
-
-static LOGIN_ENV_CACHE: Lazy<StdMutex<Option<LoginEnvCache>>> = Lazy::new(|| StdMutex::new(None));
-
-fn should_skip_login_env() -> bool {
-    match std::env::var("SCHALTWERK_SKIP_LOGIN_ENV") {
-        Ok(value) => matches!(value.as_str(), "1" | "true" | "TRUE" | "True"),
-        Err(_) => false,
-    }
-}
-
-fn fetch_login_shell_env(shell: &str, args: &[String]) -> Option<HashMap<String, String>> {
-    if should_skip_login_env() {
-        return None;
-    }
-
-    {
-        let cache_guard = LOGIN_ENV_CACHE.lock().unwrap();
-        if let Some(cache) = cache_guard.as_ref() {
-            if cache.shell == shell && cache.args == args {
-                return Some(cache.env.clone());
-            }
-        }
-    }
-
-    let env = match capture_login_shell_env(shell, args) {
-        Ok(env) => env,
-        Err(err) => {
-            warn!("Failed to capture login shell environment with configured args: {err}");
-            let should_skip_fallback = args.is_empty() || err.contains("timed out");
-            if should_skip_fallback {
-                return None;
-            }
-
-            match capture_login_shell_env(shell, &[]) {
-                Ok(env) => env,
-                Err(fallback_err) => {
-                    warn!("Failed to capture login shell environment without args: {fallback_err}");
-                    return None;
-                }
-            }
-        }
-    };
-
-    let mut cache_guard = LOGIN_ENV_CACHE.lock().unwrap();
-    *cache_guard = Some(LoginEnvCache {
-        shell: shell.to_string(),
-        args: args.to_vec(),
-        env: env.clone(),
-    });
-
-    Some(env)
-}
-
-fn capture_login_shell_env(
-    shell: &str,
-    args: &[String],
-) -> Result<HashMap<String, String>, String> {
-    if let Ok(env) = run_login_shell(shell, args) {
-        return Ok(env);
-    }
-
-    if args.is_empty() {
-        return Err("login shell invocation returned non-zero status".to_string());
-    }
-
-    run_login_shell(shell, &[])
-}
-
-fn login_env_timeout() -> Duration {
-    const DEFAULT_TIMEOUT_MS: u64 = 5_000;
-    std::env::var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS")
-        .ok()
-        .and_then(|raw| raw.parse::<u64>().ok())
-        .map(|ms| ms.clamp(100, 60_000))
-        .map(Duration::from_millis)
-        .unwrap_or_else(|| Duration::from_millis(DEFAULT_TIMEOUT_MS))
-}
-
-fn run_login_shell(shell: &str, args: &[String]) -> Result<HashMap<String, String>, String> {
-    if has_command_flag(args) {
-        return Err(
-            "configured shell args include '-c'; cannot safely append env command".to_string(),
-        );
-    }
-
-    let mut command = Command::new(shell);
-    for arg in args {
-        command.arg(arg);
-    }
-
-    if !has_login_flag(args) {
-        command.arg("-l");
-    }
-
-    command.arg("-c");
-    command.arg("env -0");
-
-    command.stdin(Stdio::null());
-    command.stdout(Stdio::piped());
-    command.stderr(Stdio::piped());
-
-    let timeout = login_env_timeout();
-
-    let mut child = command
-        .spawn()
-        .map_err(|err| format!("failed to execute login shell '{shell}': {err}"))?;
-
-    let start = Instant::now();
-
-    loop {
-        if start.elapsed() > timeout {
-            let _ = child.kill();
-            let _ = child.wait();
-            return Err(format!(
-                "login shell timed out after {}ms",
-                timeout.as_millis()
-            ));
-        }
-
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                let mut stdout_buf = Vec::new();
-                if let Some(mut handle) = child.stdout.take() {
-                    let _ = handle.read_to_end(&mut stdout_buf);
-                }
-
-                let mut stderr_buf = Vec::new();
-                if let Some(mut handle) = child.stderr.take() {
-                    let _ = handle.read_to_end(&mut stderr_buf);
-                }
-
-                if !status.success() {
-                    let stderr_str = String::from_utf8_lossy(&stderr_buf);
-                    return Err(format!(
-                        "login shell exited with status {:?}: {}",
-                        status.code(),
-                        stderr_str
-                    ));
-                }
-
-                if stdout_buf.is_empty() {
-                    return Err("login shell produced empty environment".to_string());
-                }
-
-                return Ok(parse_null_separated_env(&stdout_buf));
-            }
-            Ok(None) => {
-                thread::sleep(Duration::from_millis(25));
-            }
-            Err(err) => {
-                let _ = child.kill();
-                let _ = child.wait();
-                return Err(format!("failed to check login shell status: {err}"));
-            }
-        }
-    }
-}
-
-fn parse_null_separated_env(data: &[u8]) -> HashMap<String, String> {
-    let mut env_map = HashMap::new();
-
-    for entry in data.split(|byte| *byte == 0) {
-        if entry.is_empty() {
-            continue;
-        }
-
-        if let Some(eq_pos) = entry.iter().position(|b| *b == b'=') {
-            let key = String::from_utf8_lossy(&entry[..eq_pos]).to_string();
-            let value = String::from_utf8_lossy(&entry[eq_pos + 1..]).to_string();
-            env_map.insert(key, value);
-        } else {
-            let key = String::from_utf8_lossy(entry).to_string();
-            env_map.insert(key, String::new());
-        }
-    }
-
-    env_map
-}
-
-fn has_login_flag(args: &[String]) -> bool {
-    args.iter().any(|arg| arg == "-l" || arg == "--login")
-}
-
-fn has_command_flag(args: &[String]) -> bool {
-    args.iter().any(|arg| arg == "-c" || arg == "--command")
 }
 
 impl Default for LocalPtyAdapter {
@@ -264,38 +54,13 @@ impl Default for LocalPtyAdapter {
 }
 
 impl LocalPtyAdapter {
-    pub fn with_pending_stats(pending_stats: Arc<RwLock<HashMap<String, PendingStats>>>) -> Self {
-        let app_handle = Arc::new(Mutex::new(None));
-        Self {
-            terminals: Arc::new(RwLock::new(HashMap::new())),
-            creating: Arc::new(Mutex::new(HashSet::new())),
-            pty_children: Arc::new(Mutex::new(HashMap::new())),
-            pty_masters: Arc::new(Mutex::new(HashMap::new())),
-            pty_writers: Arc::new(Mutex::new(HashMap::new())),
-            reader_handles: Arc::new(Mutex::new(HashMap::new())),
-            coalescing_state: CoalescingState {
-                app_handle,
-                emit_buffers: Arc::new(RwLock::new(HashMap::new())),
-                emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
-                emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
-                norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
-            },
-            transcript_writers: Arc::new(Mutex::new(HashMap::new())),
-            transcript_paths: Arc::new(Mutex::new(HashMap::new())),
-            suspended: Arc::new(RwLock::new(HashSet::new())),
-            pending_stats,
-        }
-    }
-
     /// Detects a cursor position report (CPR) query request in output stream.
     /// Sequences to detect:
     /// - ESC [ 6 n (standard CPR request)
     /// - ESC [ ? 6 n (DEC private mode CPR request) – respond similarly
     fn contains_cpr_query(data: &[u8]) -> bool {
         // Fast path: look for ESC '[' first
-        if !data.contains(&0x1b) {
-            return false;
-        }
+        if !data.contains(&0x1b) { return false; }
         let mut i = 0;
         while i + 3 < data.len() {
             if data[i] == 0x1b && data[i + 1] == b'[' {
@@ -304,11 +69,7 @@ impl LocalPtyAdapter {
                     return true;
                 }
                 // DEC private: ESC [ ? 6 n
-                if i + 4 < data.len()
-                    && data[i + 2] == b'?'
-                    && data[i + 3] == b'6'
-                    && data[i + 4] == b'n'
-                {
+                if i + 4 < data.len() && data[i + 2] == b'?' && data[i + 3] == b'6' && data[i + 4] == b'n' {
                     return true;
                 }
             }
@@ -333,81 +94,22 @@ impl LocalPtyAdapter {
     }
 
     pub fn new() -> Self {
-        Self::with_pending_stats(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    #[cfg(unix)]
-    fn apply_flow_pause(master: &dyn MasterPty, id: &str) -> Result<(), String> {
-        if let Some(fd) = master.as_raw_fd() {
-            let rc = unsafe { libc::ioctl(fd, libc::TIOCSTOP as libc::c_ulong) };
-            if rc == -1 {
-                return Err(format!(
-                    "ioctl TIOCSTOP failed for terminal {id}: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-            Ok(())
-        } else {
-            Err(format!(
-                "Master PTY for terminal {id} does not expose a raw file descriptor"
-            ))
-        }
-    }
-
-    #[cfg(not(unix))]
-    fn apply_flow_pause(master: &dyn MasterPty, id: &str) -> Result<(), String> {
-        let _ = (master, id);
-        Err("Flow control pause is unsupported on this platform".to_string())
-    }
-
-    #[cfg(unix)]
-    fn apply_flow_resume(master: &dyn MasterPty, id: &str) -> Result<(), String> {
-        if let Some(fd) = master.as_raw_fd() {
-            let rc = unsafe { libc::ioctl(fd, libc::TIOCSTART as libc::c_ulong) };
-            if rc == -1 {
-                return Err(format!(
-                    "ioctl TIOCSTART failed for terminal {id}: {}",
-                    std::io::Error::last_os_error()
-                ));
-            }
-            Ok(())
-        } else {
-            Err(format!(
-                "Master PTY for terminal {id} does not expose a raw file descriptor"
-            ))
-        }
-    }
-
-    #[cfg(not(unix))]
-    fn apply_flow_resume(master: &dyn MasterPty, id: &str) -> Result<(), String> {
-        let _ = (master, id);
-        Err("Flow control resume is unsupported on this platform".to_string())
-    }
-
-    pub async fn resume_terminal_if_paused(
-        &self,
-        id: &str,
-        outstanding: u64,
-    ) -> Result<(), String> {
-        let maybe_result = {
-            let masters = self.pty_masters.lock().await;
-            masters
-                .get(id)
-                .map(|master| Self::apply_flow_resume(master.as_ref(), id))
-        };
-
-        match maybe_result {
-            Some(Ok(())) => {
-                info!(
-                    "[Terminal {id}] resumed PTY after outstanding backlog dropped to {outstanding} bytes"
-                );
-                Ok(())
-            }
-            Some(Err(err)) => Err(err),
-            None => {
-                debug!("[Terminal {id}] resume requested but PTY master missing (likely closed)");
-                Ok(())
-            }
+        let app_handle = Arc::new(Mutex::new(None));
+        Self {
+            terminals: Arc::new(RwLock::new(HashMap::new())),
+            creating: Arc::new(Mutex::new(HashSet::new())),
+            pty_children: Arc::new(Mutex::new(HashMap::new())),
+            pty_masters: Arc::new(Mutex::new(HashMap::new())),
+            pty_writers: Arc::new(Mutex::new(HashMap::new())),
+            reader_handles: Arc::new(Mutex::new(HashMap::new())),
+            coalescing_state: CoalescingState {
+                app_handle,
+                emit_buffers: Arc::new(RwLock::new(HashMap::new())),
+                emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
+                emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
+                norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            },
+            suspended: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 
@@ -418,7 +120,7 @@ impl LocalPtyAdapter {
     fn resolve_command(command: &str) -> String {
         resolve_command(command)
     }
-
+    
     async fn get_shell_command() -> CommandBuilder {
         let (shell, args) = get_shell_config().await;
         let mut cmd = CommandBuilder::new(shell.clone());
@@ -430,58 +132,14 @@ impl LocalPtyAdapter {
         cmd
     }
 
-    fn transcripts_dir() -> PathBuf {
-        dirs::data_local_dir()
-            .unwrap_or_else(|| PathBuf::from("."))
-            .join("schaltwerk")
-            .join("transcripts")
-    }
-
-    fn sanitize_id_for_path(id: &str) -> String {
-        id.chars()
-            .map(|c| {
-                if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                    c
-                } else {
-                    '_'
-                }
-            })
-            .collect()
-    }
-
-    fn make_transcript_path_for(id: &str) -> PathBuf {
-        let ts = chrono::Local::now().format("%Y%m%d-%H%M%S");
-        let name = format!("terminal_{}_{}.log", Self::sanitize_id_for_path(id), ts);
-        Self::transcripts_dir().join(name)
-    }
-
-    fn find_latest_transcript_path(id: &str) -> Option<PathBuf> {
-        let dir = Self::transcripts_dir();
-        let Ok(entries) = std::fs::read_dir(&dir) else {
-            return None;
-        };
-        let prefix = format!("terminal_{}_", Self::sanitize_id_for_path(id));
-        let mut candidates: Vec<PathBuf> = Vec::new();
-        for entry in entries.flatten() {
-            let p = entry.path();
-            if let Some(name) = p.file_name().and_then(|s| s.to_str()) {
-                if name.starts_with(&prefix) && name.ends_with(".log") {
-                    candidates.push(p);
-                }
-            }
-        }
-        candidates.sort();
-        candidates.pop()
-    }
-
     fn clear_command_environment(cmd: &mut CommandBuilder) {
         // Don't clear environment - we need to preserve Claude auth and other important variables
         // Just ensure we don't have conflicting terminal settings
         #[allow(unused_must_use)]
         {
             // Only remove specific problematic variables if needed, don't clear everything
-            cmd.env_remove("PROMPT_COMMAND"); // Can interfere with terminal
-            cmd.env_remove("PS1"); // Let shell set its own prompt
+            cmd.env_remove("PROMPT_COMMAND");  // Can interfere with terminal
+            cmd.env_remove("PS1");  // Let shell set its own prompt
         }
     }
 
@@ -490,126 +148,67 @@ impl LocalPtyAdapter {
         cmd.env("TERM", "xterm-256color");
         cmd.env("LINES", rows.to_string());
         cmd.env("COLUMNS", cols.to_string());
-
-        let (shell, shell_args) = super::get_effective_shell();
-        let login_env = fetch_login_shell_env(&shell, &shell_args);
-
-        let login_home = login_env.as_ref().and_then(|env| env.get("HOME").cloned());
-        let process_home = std::env::var("HOME").ok();
-        let home_value = login_home.or(process_home);
-
-        if let Some(ref home) = home_value {
-            cmd.env("HOME", home.as_str());
-        }
-
-        let mut path_components: Vec<String> = Vec::new();
-
-        if let Some(ref env_map) = login_env {
-            if let Some(login_path) = env_map.get("PATH") {
-                for component in login_path.split(':') {
-                    Self::push_path_component(&mut path_components, component);
+        
+        if let Ok(home) = std::env::var("HOME") {
+            cmd.env("HOME", home.clone());
+            
+            let mut path_components = vec![];
+            
+            // User-specific paths first (highest priority)
+            path_components.push(format!("{home}/.local/bin"));
+            path_components.push(format!("{home}/.cargo/bin"));
+            path_components.push(format!("{home}/.pyenv/shims"));
+            path_components.push(format!("{home}/bin"));
+            
+            // Common Node.js version manager paths
+            path_components.push(format!("{home}/.nvm/current/bin"));
+            path_components.push(format!("{home}/.volta/bin"));
+            path_components.push(format!("{home}/.fnm"));
+            
+            // System paths
+            path_components.push("/opt/homebrew/bin".to_string());
+            path_components.push("/usr/local/bin".to_string());
+            path_components.push("/usr/bin".to_string());
+            path_components.push("/bin".to_string());
+            path_components.push("/usr/sbin".to_string());
+            path_components.push("/sbin".to_string());
+            
+            // Also preserve existing PATH to catch any paths we might have missed
+            if let Ok(existing_path) = std::env::var("PATH") {
+                // Split existing PATH and add any components not already included
+                for component in existing_path.split(':') {
+                    let component = component.trim();
+                    if !component.is_empty() && !path_components.contains(&component.to_string()) {
+                        path_components.push(component.to_string());
+                    }
                 }
             }
-        }
-
-        if let Some(ref home) = home_value {
-            let user_paths = [
-                format!("{home}/.local/bin"),
-                format!("{home}/.cargo/bin"),
-                format!("{home}/.pyenv/shims"),
-                format!("{home}/bin"),
-                format!("{home}/.nvm/current/bin"),
-                format!("{home}/.volta/bin"),
-                format!("{home}/.fnm"),
-            ];
-
-            for path in user_paths {
-                Self::push_path_component(&mut path_components, &path);
-            }
-        }
-
-        for system_path in [
-            "/opt/homebrew/bin",
-            "/usr/local/bin",
-            "/usr/bin",
-            "/bin",
-            "/usr/sbin",
-            "/sbin",
-        ] {
-            Self::push_path_component(&mut path_components, system_path);
-        }
-
-        if let Ok(existing_path) = std::env::var("PATH") {
-            for component in existing_path.split(':') {
-                Self::push_path_component(&mut path_components, component);
-            }
-        }
-
-        if path_components.is_empty() {
-            path_components.extend([
-                "/opt/homebrew/bin".to_string(),
-                "/usr/local/bin".to_string(),
-                "/usr/bin".to_string(),
-                "/bin".to_string(),
-                "/usr/sbin".to_string(),
-                "/sbin".to_string(),
-            ]);
-        }
-
-        cmd.env("PATH", path_components.join(":"));
-
-        if let Some(ref env_map) = login_env {
-            if let Some(lang) = env_map.get("LANG") {
-                cmd.env("LANG", lang);
-            } else if let Ok(lang) = std::env::var("LANG") {
-                cmd.env("LANG", lang);
-            } else {
-                cmd.env("LANG", "en_US.UTF-8");
-            }
-
-            if let Some(lc_all) = env_map.get("LC_ALL") {
-                cmd.env("LC_ALL", lc_all);
-            } else if let Ok(lc_all) = std::env::var("LC_ALL") {
-                cmd.env("LC_ALL", lc_all);
-            }
+            
+            let path = path_components.join(":");
+            cmd.env("PATH", path);
         } else {
-            if let Ok(lang) = std::env::var("LANG") {
-                cmd.env("LANG", lang);
-            } else {
-                cmd.env("LANG", "en_US.UTF-8");
-            }
-
-            if let Ok(lc_all) = std::env::var("LC_ALL") {
-                cmd.env("LC_ALL", lc_all);
-            }
+            let path = std::env::var("PATH").unwrap_or_else(|_| {
+                "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
+            });
+            cmd.env("PATH", path);
         }
-
+        
+        // Preserve other important environment variables for colors
+        if let Ok(lang) = std::env::var("LANG") {
+            cmd.env("LANG", lang);
+        } else {
+            cmd.env("LANG", "en_US.UTF-8");
+        }
+        
+        if let Ok(lc_all) = std::env::var("LC_ALL") {
+            cmd.env("LC_ALL", lc_all);
+        }
+        
         // Ensure color support for common tools
         cmd.env("CLICOLOR", "1");
         cmd.env("CLICOLOR_FORCE", "1");
     }
 
-    fn push_path_component(path_components: &mut Vec<String>, component: &str) {
-        let trimmed = component.trim();
-        if trimmed.is_empty() {
-            return;
-        }
-
-        let normalized = if trimmed == "/" {
-            "/"
-        } else {
-            trimmed.trim_end_matches('/')
-        };
-
-        if path_components
-            .iter()
-            .any(|existing| existing == normalized)
-        {
-            return;
-        }
-
-        path_components.push(normalized.to_string());
-    }
 
     fn start_reader(
         id: String,
@@ -619,7 +218,7 @@ impl LocalPtyAdapter {
         tokio::task::spawn_blocking(move || {
             let runtime = tokio::runtime::Handle::current();
             let mut buf = [0u8; 8192];
-
+            
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => {
@@ -627,40 +226,25 @@ impl LocalPtyAdapter {
                         // Clean up terminal maps and notify UI about closure
                         let id_clone_for_cleanup = id.clone();
                         let terminals_clone2 = Arc::clone(&reader_state.terminals);
-                        let app_handle_clone2 =
-                            Arc::clone(&reader_state.coalescing_state.app_handle);
+                        let app_handle_clone2 = Arc::clone(&reader_state.coalescing_state.app_handle);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
                         let pty_children_clone = Arc::clone(&reader_state.pty_children);
                         let pty_masters_clone = Arc::clone(&reader_state.pty_masters);
                         let pty_writers_clone = Arc::clone(&reader_state.pty_writers);
-                        let pending_stats_clone = Arc::clone(&reader_state.pending_stats);
                         runtime.block_on(async move {
                             // Remove terminal state
                             terminals_clone2.write().await.remove(&id_clone_for_cleanup);
                             // Remove PTY resources
-                            if let Some(mut child) = pty_children_clone
-                                .lock()
-                                .await
-                                .remove(&id_clone_for_cleanup)
-                            {
+                            if let Some(mut child) = pty_children_clone.lock().await.remove(&id_clone_for_cleanup) {
                                 let _ = child.kill();
                             }
                             pty_masters_clone.lock().await.remove(&id_clone_for_cleanup);
                             pty_writers_clone.lock().await.remove(&id_clone_for_cleanup);
                             // Clear coalescing buffers
-                            coalescing_state_clone
-                                .clear_for(&id_clone_for_cleanup)
-                                .await;
-                            pending_stats_clone
-                                .write()
-                                .await
-                                .remove(&id_clone_for_cleanup);
+                            coalescing_state_clone.clear_for(&id_clone_for_cleanup).await;
                             // Emit terminal closed event
                             if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
-                                let _ = emit_event(
-                                    handle,
-                                    SchaltEvent::TerminalClosed,
-                                    &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
+                                let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
                                 );
                             }
                         });
@@ -668,7 +252,6 @@ impl LocalPtyAdapter {
                     }
                     Ok(n) => {
                         let data = buf[..n].to_vec();
-                        let bytes_read = data.len() as u64;
                         // If the child process is requesting a Cursor Position Report (ESC[6n),
                         // provide a deterministic fallback response so CLIs that depend on CPR
                         // (e.g., TUI frameworks) don't time out when the frontend terminal isn't ready.
@@ -678,63 +261,8 @@ impl LocalPtyAdapter {
                         Self::maybe_reply_cpr(&id, &data, &mut writers);
                         drop(writers);
                         let id_clone = id.clone();
-                        let stats_id = id.clone();
-                        let pending_stats_for_decision = Arc::clone(&reader_state.pending_stats);
-                        let decision = runtime.block_on(async move {
-                            let mut guard = pending_stats_for_decision.write().await;
-                            let entry = guard.entry(stats_id.clone()).or_default();
-                            entry.record_emitted(
-                                &stats_id,
-                                bytes_read,
-                                FLOW_CONTROL_HIGH_WATER_BYTES,
-                            )
-                        });
-
-                        if let FlowControlDecision::Pause { outstanding } = decision {
-                            let pty_masters_clone = Arc::clone(&reader_state.pty_masters);
-                            let pending_stats_for_revert = Arc::clone(&reader_state.pending_stats);
-                            let id_for_log = id.clone();
-                            runtime.block_on(async move {
-                                let maybe_result = {
-                                    let masters = pty_masters_clone.lock().await;
-                                    masters
-                                        .get(&id_for_log)
-                                        .map(|master| LocalPtyAdapter::apply_flow_pause(
-                                            master.as_ref(),
-                                            &id_for_log,
-                                        ))
-                                };
-
-                                match maybe_result {
-                                    Some(Ok(())) => {
-                                        warn!(
-                                            "[Terminal {id_for_log}] paused PTY after outstanding backlog reached {outstanding} bytes"
-                                        );
-                                    }
-                                    Some(Err(err)) => {
-                                        warn!(
-                                            "[Terminal {id_for_log}] failed to pause PTY: {err}"
-                                        );
-                                        let mut guard = pending_stats_for_revert.write().await;
-                                        if let Some(entry) = guard.get_mut(&id_for_log) {
-                                            entry.mark_pause_failed();
-                                        }
-                                    }
-                                    None => {
-                                        debug!(
-                                            "[Terminal {id_for_log}] pause requested but PTY master missing"
-                                        );
-                                        let mut guard = pending_stats_for_revert.write().await;
-                                        if let Some(entry) = guard.get_mut(&id_for_log) {
-                                            entry.mark_pause_failed();
-                                        }
-                                    }
-                                }
-                            });
-                        }
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
-                        let transcript_writers_clone = Arc::clone(&reader_state.transcript_writers);
                         let suspended_clone = Arc::clone(&reader_state.suspended);
 
                         runtime.block_on(async move {
@@ -752,29 +280,19 @@ impl LocalPtyAdapter {
                                     let excess = state.buffer.len() - max_size;
                                     state.buffer.drain(0..excess);
                                 }
-
+                                
                                 // Persist to transcript for agent terminals
-                                if Self::is_agent_terminal(&id_clone) {
-                                    if let Some(writer) =
-                                        transcript_writers_clone.lock().await.get_mut(&id_clone)
-                                    {
-                                        let _ = writer.write_all(&data);
-                                        let _ = writer.flush();
-                                    }
-                                }
-
                                 // Increment sequence and update last output time
                                 state.seq += 1;
-                                let current_seq = state.seq;
                                 state.last_output = SystemTime::now();
-
+                                
                                 // Handle output emission - different strategies for agent vs standard terminals
                                 drop(terminals); // release lock before awaits below
 
                                 if suspended_clone.read().await.contains(&id_clone) {
                                     return;
                                 }
-
+                                
                                 if Self::is_agent_terminal(&id_clone) {
                                     // Agent terminals need ANSI-aware buffering and carriage return optimization
                                     handle_coalesced_output(
@@ -782,26 +300,18 @@ impl LocalPtyAdapter {
                                         CoalescingParams {
                                             terminal_id: &id_clone,
                                             data: &data,
-                                            seq: current_seq,
                                         },
-                                    )
-                                    .await;
+                                    ).await;
                                 } else {
                                     // Standard terminals use direct output but with minimal ANSI processing
                                     // for fish shell compatibility while maintaining low latency
-                                    if let Some(handle) =
-                                        coalescing_state_clone.app_handle.lock().await.as_ref()
-                                    {
+                                    if let Some(handle) = coalescing_state_clone.app_handle.lock().await.as_ref() {
                                         let event_name = format!("terminal-output-{id_clone}");
-
+                                        
                                         // Apply minimal carriage return processing for fish compatibility
-                                        let processed_data =
-                                            Self::process_carriage_returns_minimal(&data);
-                                        let payload = TerminalOutputPayload {
-                                            seq: current_seq,
-                                            data: String::from_utf8_lossy(&processed_data)
-                                                .to_string(),
-                                        };
+                                        let processed_data = Self::process_carriage_returns_minimal(&data);
+                                        let payload = String::from_utf8_lossy(&processed_data).to_string();
+                                        
                                         if let Err(e) = handle.emit(&event_name, payload) {
                                             warn!("Failed to emit direct terminal output: {e}");
                                         }
@@ -816,37 +326,22 @@ impl LocalPtyAdapter {
                             // On read error, clean up and notify
                             let id_clone_for_cleanup = id.clone();
                             let terminals_clone2 = Arc::clone(&reader_state.terminals);
-                            let app_handle_clone2 =
-                                Arc::clone(&reader_state.coalescing_state.app_handle);
+                            let app_handle_clone2 = Arc::clone(&reader_state.coalescing_state.app_handle);
                             let coalescing_state_clone = reader_state.coalescing_state.clone();
                             let pty_children_clone = Arc::clone(&reader_state.pty_children);
                             let pty_masters_clone = Arc::clone(&reader_state.pty_masters);
                             let pty_writers_clone = Arc::clone(&reader_state.pty_writers);
-                            let pending_stats_clone = Arc::clone(&reader_state.pending_stats);
                             runtime.block_on(async move {
                                 terminals_clone2.write().await.remove(&id_clone_for_cleanup);
-                                if let Some(mut child) = pty_children_clone
-                                    .lock()
-                                    .await
-                                    .remove(&id_clone_for_cleanup)
-                                {
+                                if let Some(mut child) = pty_children_clone.lock().await.remove(&id_clone_for_cleanup) {
                                     let _ = child.kill();
                                 }
                                 pty_masters_clone.lock().await.remove(&id_clone_for_cleanup);
                                 pty_writers_clone.lock().await.remove(&id_clone_for_cleanup);
                                 // Clear coalescing buffers
-                                coalescing_state_clone
-                                    .clear_for(&id_clone_for_cleanup)
-                                    .await;
-                                pending_stats_clone
-                                    .write()
-                                    .await
-                                    .remove(&id_clone_for_cleanup);
+                                coalescing_state_clone.clear_for(&id_clone_for_cleanup).await;
                                 if let Some(handle) = app_handle_clone2.lock().await.as_ref() {
-                                    let _ = emit_event(
-                                        handle,
-                                        SchaltEvent::TerminalClosed,
-                                        &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
+                                    let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id_clone_for_cleanup}),
                                     );
                                 }
                             });
@@ -857,6 +352,47 @@ impl LocalPtyAdapter {
             }
         })
     }
+
+    async fn abort_reader(&self, id: &str) {
+        if let Some(handle) = self.reader_handles.lock().await.remove(id) {
+            handle.abort();
+            let _ = tokio::time::timeout(Duration::from_millis(500), handle).await;
+        }
+    }
+
+    async fn spawn_reader_for(&self, id: &str) -> Result<(), String> {
+        self.abort_reader(id).await;
+
+        let reader = {
+            let masters = self.pty_masters.lock().await;
+            let master = masters
+                .get(id)
+                .ok_or_else(|| format!("No PTY master available for terminal {id}"))?;
+            master
+                .try_clone_reader()
+                .map_err(|e| format!("Failed to clone reader for terminal {id}: {e}"))?
+        };
+
+        let reader_handle = Self::start_reader(
+            id.to_string(),
+            reader,
+            ReaderState {
+                terminals: Arc::clone(&self.terminals),
+                pty_children: Arc::clone(&self.pty_children),
+                pty_masters: Arc::clone(&self.pty_masters),
+                pty_writers: Arc::clone(&self.pty_writers),
+                coalescing_state: self.coalescing_state.clone(),
+                suspended: Arc::clone(&self.suspended),
+            },
+        );
+
+        self.reader_handles
+            .lock()
+            .await
+            .insert(id.to_string(), reader_handle);
+        Ok(())
+    }
+
 }
 
 #[async_trait::async_trait]
@@ -866,16 +402,11 @@ impl TerminalBackend for LocalPtyAdapter {
         // These are just fallback values for compatibility
         self.create_with_size(params, 80, 24).await
     }
-
-    async fn create_with_size(
-        &self,
-        params: CreateParams,
-        cols: u16,
-        rows: u16,
-    ) -> Result<(), String> {
+    
+    async fn create_with_size(&self, params: CreateParams, cols: u16, rows: u16) -> Result<(), String> {
         let id = params.id.clone();
         let start_time = Instant::now();
-
+        
         // Check if already creating
         {
             let mut creating = self.creating.lock().await;
@@ -885,22 +416,16 @@ impl TerminalBackend for LocalPtyAdapter {
             }
             creating.insert(id.clone());
         }
-
+        
         // Check if already exists
         if self.exists(&id).await? {
             self.creating.lock().await.remove(&id);
-            debug!(
-                "Terminal {id} already exists, skipping creation ({}ms)",
-                start_time.elapsed().as_millis()
-            );
+            debug!("Terminal {id} already exists, skipping creation ({}ms)", start_time.elapsed().as_millis());
             return Ok(());
         }
-
-        info!(
-            "Creating terminal: id={id}, cwd={}, size={}x{}",
-            params.cwd, cols, rows
-        );
-
+        
+        info!("Creating terminal: id={id}, cwd={}, size={}x{}", params.cwd, cols, rows);
+        
         let pty_system = NativePtySystem::default();
         // Use the provided size for initial PTY creation
         let pair = pty_system
@@ -911,19 +436,14 @@ impl TerminalBackend for LocalPtyAdapter {
                 pixel_height: 0,
             })
             .map_err(|e| format!("Failed to open PTY: {e}"))?;
-
+        
         let mut cmd = if let Some(app) = params.app {
             let resolved_command = Self::resolve_command(&app.command);
-            info!(
-                "Resolved command '{}' to '{}'",
-                app.command, resolved_command
-            );
-
+            info!("Resolved command '{}' to '{}'" , app.command, resolved_command);
+            
             // Log the exact command that will be executed
             // Show args with proper quoting so it's clear what's a single argument
-            let args_str = app
-                .args
-                .iter()
+            let args_str = app.args.iter()
                 .map(|arg| {
                     if arg.contains(' ') {
                         format!("'{arg}'")
@@ -934,11 +454,8 @@ impl TerminalBackend for LocalPtyAdapter {
                 .collect::<Vec<_>>()
                 .join(" ");
             info!("EXACT COMMAND EXECUTION: {resolved_command} {args_str}");
-            info!(
-                "Command args array (each element is a separate argument): {:?}",
-                app.args
-            );
-
+            info!("Command args array (each element is a separate argument): {:?}", app.args);
+            
             let mut cmd = CommandBuilder::new(resolved_command);
             Self::clear_command_environment(&mut cmd);
             for arg in app.args {
@@ -955,7 +472,8 @@ impl TerminalBackend for LocalPtyAdapter {
             Self::setup_environment(&mut cmd, cols, rows);
             cmd
         };
-
+        
+        
         // OPTIMIZATION 3: Skip working directory validation in release for faster startup
         // In debug/test mode, we still validate to catch issues early
         #[cfg(debug_assertions)]
@@ -965,60 +483,30 @@ impl TerminalBackend for LocalPtyAdapter {
                 return Err(format!("Working directory does not exist: {}", params.cwd));
             }
         }
-
+        
         cmd.cwd(params.cwd.clone());
-
+        
         info!("Spawning terminal {id} with cwd: {}", params.cwd);
-
-        let child = pair.slave.spawn_command(cmd).map_err(|e| {
-            error!("Failed to spawn command for terminal {id}: {e}");
-            format!("Failed to spawn command: {e}")
-        })?;
-
-        info!(
-            "Successfully spawned shell process for terminal {id} (spawn took {}ms)",
-            start_time.elapsed().as_millis()
-        );
-
+        
+        let child = pair
+            .slave
+            .spawn_command(cmd)
+            .map_err(|e| {
+                error!("Failed to spawn command for terminal {id}: {e}");
+                format!("Failed to spawn command: {e}")
+            })?;
+        
+        info!("Successfully spawned shell process for terminal {id} (spawn took {}ms)", start_time.elapsed().as_millis());
+        
         let writer = pair
             .master
             .take_writer()
             .map_err(|e| format!("Failed to get writer: {e}"))?;
-
-        let reader = pair
-            .master
-            .try_clone_reader()
-            .map_err(|e| format!("Failed to get reader: {e}"))?;
-
+        
         // Store the child and master in separate maps to avoid Sync issues
         self.pty_children.lock().await.insert(id.clone(), child);
-        self.pty_masters
-            .lock()
-            .await
-            .insert(id.clone(), pair.master);
+        self.pty_masters.lock().await.insert(id.clone(), pair.master);
         self.pty_writers.lock().await.insert(id.clone(), writer);
-
-        // Initialize transcript file for agent terminals
-        if Self::is_agent_terminal(&id) {
-            let path = Self::make_transcript_path_for(&id);
-            if let Some(parent) = path.parent() {
-                let _ = std::fs::create_dir_all(parent);
-            }
-            match std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&path)
-            {
-                Ok(file) => {
-                    let mut wmap = self.transcript_writers.lock().await;
-                    let mut pmap = self.transcript_paths.lock().await;
-                    let bw = std::io::BufWriter::new(file);
-                    wmap.insert(id.clone(), bw);
-                    pmap.insert(id.clone(), path);
-                }
-                Err(e) => warn!("Failed to create transcript for {id}: {e}"),
-            }
-        }
 
         // Start process monitoring AFTER PTY resources are stored
         Self::start_process_monitor(
@@ -1028,54 +516,30 @@ impl TerminalBackend for LocalPtyAdapter {
             Arc::clone(&self.pty_children),
             Arc::clone(&self.pty_masters),
             Arc::clone(&self.pty_writers),
-        )
-        .await;
-
+        ).await;
+        
         let state = TerminalState {
             buffer: Vec::new(),
             seq: 0,
             last_output: SystemTime::now(),
         };
-
+        
         self.terminals.write().await.insert(id.clone(), state);
-
+        
         // Start reader agent and record the handle so we can abort on close
-        let reader_handle = Self::start_reader(
-            id.clone(),
-            reader,
-            ReaderState {
-                terminals: Arc::clone(&self.terminals),
-                pty_children: Arc::clone(&self.pty_children),
-                pty_masters: Arc::clone(&self.pty_masters),
-                pty_writers: Arc::clone(&self.pty_writers),
-                coalescing_state: self.coalescing_state.clone(),
-                transcript_writers: Arc::clone(&self.transcript_writers),
-                suspended: Arc::clone(&self.suspended),
-                pending_stats: Arc::clone(&self.pending_stats),
-            },
-        );
-        self.reader_handles
-            .lock()
-            .await
-            .insert(id.clone(), reader_handle);
-
+        self.spawn_reader_for(&id).await?;
+        
         self.creating.lock().await.remove(&id);
-
+        
         let total_time = start_time.elapsed();
         if total_time.as_millis() > 100 {
-            warn!(
-                "Terminal {id} creation took {}ms (slow)",
-                total_time.as_millis()
-            );
+            warn!("Terminal {id} creation took {}ms (slow)", total_time.as_millis());
         } else {
-            info!(
-                "Terminal created successfully: id={id} (total {}ms)",
-                total_time.as_millis()
-            );
+            info!("Terminal created successfully: id={id} (total {}ms)", total_time.as_millis());
         }
         Ok(())
     }
-
+    
     async fn write(&self, id: &str, data: &[u8]) -> Result<(), String> {
         let start = Instant::now();
 
@@ -1086,7 +550,9 @@ impl TerminalBackend for LocalPtyAdapter {
 
             // Always flush immediately to ensure input appears without delay
             // This is critical for responsive terminal behavior, especially for pasted text
-            writer.flush().map_err(|e| format!("Flush failed: {e}"))?;
+            writer
+                .flush()
+                .map_err(|e| format!("Flush failed: {e}"))?;
 
             let elapsed = start.elapsed();
             if elapsed.as_millis() > 20 {
@@ -1115,10 +581,7 @@ impl TerminalBackend for LocalPtyAdapter {
 
             let elapsed = start.elapsed();
             if elapsed.as_millis() > 10 {
-                warn!(
-                    "Terminal {id} slow immediate write: {}ms",
-                    elapsed.as_millis()
-                );
+                warn!("Terminal {id} slow immediate write: {}ms", elapsed.as_millis());
             }
 
             Ok(())
@@ -1127,7 +590,7 @@ impl TerminalBackend for LocalPtyAdapter {
             Ok(())
         }
     }
-
+    
     async fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String> {
         if let Some(master) = self.pty_masters.lock().await.get(id) {
             master
@@ -1138,7 +601,7 @@ impl TerminalBackend for LocalPtyAdapter {
                     pixel_height: 0,
                 })
                 .map_err(|e| format!("Resize failed: {e}"))?;
-
+            
             debug!("Resized terminal {id}: {cols}x{rows}");
             Ok(())
         } else {
@@ -1146,14 +609,12 @@ impl TerminalBackend for LocalPtyAdapter {
             Ok(())
         }
     }
-
+    
     async fn close(&self, id: &str) -> Result<(), String> {
         info!("Closing terminal: {id}");
-
+        
         // Abort reader first to stop any further emission for this terminal id
-        if let Some(handle) = self.reader_handles.lock().await.remove(id) {
-            handle.abort();
-        }
+        self.abort_reader(id).await;
 
         // Try to terminate the child process and wait deterministically without polling
         if let Some(mut child) = self.pty_children.lock().await.remove(id) {
@@ -1163,11 +624,8 @@ impl TerminalBackend for LocalPtyAdapter {
             // Use blocking wait inside a timeout without inner sleeps
             let wait_res = {
                 use tokio::time::{timeout, Duration};
-                timeout(
-                    Duration::from_millis(500),
-                    tokio::task::spawn_blocking(move || child.wait()),
-                )
-                .await
+                timeout(Duration::from_millis(500), tokio::task::spawn_blocking(move || child.wait()))
+                    .await
             };
             match wait_res {
                 Ok(Ok(Ok(_status))) => {
@@ -1180,21 +638,15 @@ impl TerminalBackend for LocalPtyAdapter {
                     debug!("Terminal {id} spawn_blocking join error: {join_err}");
                 }
                 Err(_) => {
-                    debug!(
-                        "Terminal {id} process didn't exit within timeout; proceeding with cleanup"
-                    );
+                    debug!("Terminal {id} process didn't exit within timeout; proceeding with cleanup");
                 }
             }
         }
-
+        
         // Clean up all resources
         self.pty_masters.lock().await.remove(id);
         self.pty_writers.lock().await.remove(id);
         self.terminals.write().await.remove(id);
-        if let Some(mut bw) = self.transcript_writers.lock().await.remove(id) {
-            let _ = bw.flush();
-        }
-        self.transcript_paths.lock().await.remove(id);
         self.suspended.write().await.remove(id);
 
         // Clear coalescing buffers
@@ -1202,11 +654,7 @@ impl TerminalBackend for LocalPtyAdapter {
 
         // Emit terminal closed event
         if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
-            let _ = emit_event(
-                handle,
-                SchaltEvent::TerminalClosed,
-                &serde_json::json!({"terminal_id": id}),
-            );
+            let _ = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id}));
         }
 
         info!("Terminal {id} closed");
@@ -1216,62 +664,12 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn exists(&self, id: &str) -> Result<bool, String> {
         Ok(self.terminals.read().await.contains_key(id))
     }
-
+    
     async fn snapshot(&self, id: &str, _from_seq: Option<u64>) -> Result<(u64, Vec<u8>), String> {
         // Prefer persistent transcript for agent terminals when available
-        if Self::is_agent_terminal(id) {
-            let path = {
-                let guard = self.transcript_paths.lock().await;
-                guard.get(id).cloned()
-            }
-            .or_else(|| Self::find_latest_transcript_path(id));
-
-            if let Some(p) = path {
-                let start_time = std::time::Instant::now();
-                match tokio::fs::read(&p).await {
-                    Ok(mut bytes) => {
-                        let read_duration = start_time.elapsed();
-                        let size_mb = bytes.len() as f64 / (1024.0 * 1024.0);
-                        info!(
-                            "Read transcript for {id}: {:.2}MB in {:.1}ms",
-                            size_mb,
-                            read_duration.as_secs_f64() * 1000.0
-                        );
-
-                        // Backward-compat: remove any historical transcript header lines so UI doesn't render them
-                        // Pattern: lines starting with "==== TRANSCRIPT START"
-                        if let Some(pos) = memchr::memmem::find(&bytes, b"==== TRANSCRIPT START") {
-                            // Remove the full line containing the marker
-                            let line_start = bytes[..pos]
-                                .iter()
-                                .rposition(|&b| b == b'\n')
-                                .map(|i| i + 1)
-                                .unwrap_or(0);
-                            let line_end = bytes[pos..]
-                                .iter()
-                                .position(|&b| b == b'\n')
-                                .map(|i| pos + i + 1)
-                                .unwrap_or(bytes.len());
-                            bytes.drain(line_start..line_end);
-                        }
-                        let seq = self
-                            .terminals
-                            .read()
-                            .await
-                            .get(id)
-                            .map(|s| s.seq)
-                            .unwrap_or(0);
-                        return Ok((seq, bytes));
-                    }
-                    Err(e) => warn!("Failed to read transcript for {id}: {e}"),
-                }
-            }
-        }
-
         let terminals = self.terminals.read().await;
         if let Some(state) = terminals.get(id) {
-            let current_seq = state.seq;
-            Ok((current_seq, state.buffer.clone()))
+            Ok((state.seq, state.buffer.clone()))
         } else {
             Ok((0, Vec::new()))
         }
@@ -1280,10 +678,12 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn suspend(&self, id: &str) -> Result<(), String> {
         self.suspended.write().await.insert(id.to_string());
         self.coalescing_state.clear_for(id).await;
+        self.abort_reader(id).await;
         Ok(())
     }
 
     async fn resume(&self, id: &str) -> Result<(), String> {
+        self.spawn_reader_for(id).await?;
         self.suspended.write().await.remove(id);
         if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
             let payload = serde_json::json!({ "terminal_id": id });
@@ -1301,20 +701,22 @@ impl TerminalBackend for LocalPtyAdapter {
 impl LocalPtyAdapter {
     /// Checks if a terminal ID corresponds to an agent terminal (top terminals for sessions)
     fn is_agent_terminal(terminal_id: &str) -> bool {
-        terminal_id.contains("-top")
-            && (terminal_id.contains("session-") || terminal_id.contains("orchestrator-"))
+        terminal_id.contains("-top") && (
+            terminal_id.contains("session-") ||
+            terminal_id.contains("orchestrator-")
+        )
     }
-
+    
     /// Minimal carriage return processing for fish shell compatibility
     /// Only handles standalone CR sequences that would interfere with autosuggestions
     fn process_carriage_returns_minimal(data: &[u8]) -> Vec<u8> {
         if !data.contains(&b'\r') {
             return data.to_vec();
         }
-
+        
         let mut result = Vec::with_capacity(data.len());
         let mut i = 0;
-
+        
         while i < data.len() {
             if data[i] == b'\r' {
                 // Check if this is CRLF (should be preserved as-is)
@@ -1341,10 +743,10 @@ impl LocalPtyAdapter {
                 i += 1;
             }
         }
-
+        
         result
     }
-
+    
     /// Determines the agent type from terminal ID
     fn get_agent_type_from_terminal(terminal_id: &str) -> Option<&'static str> {
         if terminal_id.contains("codex") {
@@ -1361,26 +763,26 @@ impl LocalPtyAdapter {
             None
         }
     }
-
+    
     /// Logs detailed information about agent crashes
     async fn log_agent_crash_details(terminal_id: &str, exit_status: &portable_pty::ExitStatus) {
         let agent_type = Self::get_agent_type_from_terminal(terminal_id).unwrap_or("unknown");
-
+        
         error!("=== AGENT CRASH REPORT ===");
         error!("Terminal ID: {terminal_id}");
         error!("Agent Type: {agent_type}");
         error!("Exit Status: {exit_status:?}");
         error!("Exit Code: {:?}", exit_status.exit_code());
         error!("Success: {}", exit_status.success());
-
+        
         // Extract session name for context
         if let Some(session_name) = Self::extract_session_name(terminal_id) {
             error!("Session Name: {session_name}");
         }
-
+        
         error!("=== END CRASH REPORT ===");
     }
-
+    
     /// Extracts session name from terminal ID
     fn extract_session_name(terminal_id: &str) -> Option<String> {
         if terminal_id.starts_with("session-") && terminal_id.ends_with("-top") {
@@ -1395,7 +797,7 @@ impl LocalPtyAdapter {
             None
         }
     }
-
+    
     /// Checks agent health by monitoring activity patterns
     async fn check_agent_health(
         terminal_id: &str,
@@ -1404,43 +806,41 @@ impl LocalPtyAdapter {
     ) {
         let now = std::time::Instant::now();
         let since_last_check = now.duration_since(*last_activity_check);
-
+        
         // Check every 30 seconds for agent health
         if since_last_check < std::time::Duration::from_secs(30) {
             return;
         }
-
+        
         *last_activity_check = now;
-
+        
         let terminals_guard = terminals.read().await;
         if let Some(state) = terminals_guard.get(terminal_id) {
             if let Ok(elapsed) = std::time::SystemTime::now().duration_since(state.last_output) {
                 let elapsed_secs = elapsed.as_secs();
-
+                
                 // Different thresholds for different agents
-                let inactivity_threshold =
-                    if Self::get_agent_type_from_terminal(terminal_id) == Some("codex") {
-                        300 // 5 minutes for Codex - it might be thinking
-                    } else {
-                        600 // 10 minutes for other agents
-                    };
-
+                let inactivity_threshold = if Self::get_agent_type_from_terminal(terminal_id) == Some("codex") {
+                    300 // 5 minutes for Codex - it might be thinking
+                } else {
+                    600 // 10 minutes for other agents
+                };
+                
                 if elapsed_secs > inactivity_threshold {
                     warn!(
                         "AGENT HEALTH WARNING: Terminal {terminal_id} has been inactive for {elapsed_secs} seconds (threshold: {inactivity_threshold})"
                     );
-
+                    
                     // Log buffer state for debugging
                     debug!(
-                        "Agent terminal {terminal_id} buffer size: {} bytes, seq: {}",
-                        state.buffer.len(),
-                        state.seq
+                        "Agent terminal {terminal_id} buffer size: {} bytes, seq: {}", 
+                        state.buffer.len(), state.seq
                     );
                 }
             }
         }
     }
-
+    
     /// Handles agent crashes with detailed logging and recovery
     async fn handle_agent_crash(
         terminal_id: String,
@@ -1452,11 +852,11 @@ impl LocalPtyAdapter {
         pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     ) {
         error!("HANDLING AGENT CRASH for terminal: {terminal_id}");
-
+        
         // Extract crash context
         let agent_type = Self::get_agent_type_from_terminal(&terminal_id).unwrap_or("unknown");
         let session_name = Self::extract_session_name(&terminal_id);
-
+        
         // Get terminal state before cleanup for forensics
         let (buffer_size, last_seq) = {
             let terminals_guard = terminals.read().await;
@@ -1466,7 +866,7 @@ impl LocalPtyAdapter {
                 (0, 0)
             }
         };
-
+        
         error!(
             "AGENT CRASH DETAILS: agent={}, session={:?}, exit_code={:?}, buffer_size={}, last_seq={}",
             agent_type,
@@ -1475,7 +875,7 @@ impl LocalPtyAdapter {
             buffer_size,
             last_seq
         );
-
+        
         // Enhanced cleanup with crash reporting
         Self::cleanup_dead_terminal(
             terminal_id.clone(),
@@ -1484,9 +884,8 @@ impl LocalPtyAdapter {
             pty_children,
             pty_masters,
             pty_writers,
-        )
-        .await;
-
+        ).await;
+        
         // Emit crash event for frontend handling
         let handle_guard = app_handle.lock().await;
         if let Some(handle) = handle_guard.as_ref() {
@@ -1499,7 +898,7 @@ impl LocalPtyAdapter {
                 buffer_size: usize,
                 last_seq: u64,
             }
-
+            
             let payload = AgentCrashPayload {
                 terminal_id: terminal_id.clone(),
                 agent_type: agent_type.to_string(),
@@ -1508,14 +907,14 @@ impl LocalPtyAdapter {
                 buffer_size,
                 last_seq,
             };
-
+            
             if let Err(e) = emit_event(handle, SchaltEvent::AgentCrashed, &payload) {
                 warn!("Failed to emit agent-crashed event for {terminal_id}: {e}");
             } else {
                 info!("Emitted agent-crashed event for terminal: {terminal_id}");
             }
         }
-
+        
         info!("Agent crash handling completed for terminal: {terminal_id}");
     }
 
@@ -1532,11 +931,11 @@ impl LocalPtyAdapter {
             Err(format!("Terminal {id} not found"))
         }
     }
-
+    
     pub async fn get_all_terminal_activity(&self) -> Vec<(String, bool, u64)> {
         let terminals = self.terminals.read().await;
         let mut results = Vec::new();
-
+        
         for (id, state) in terminals.iter() {
             if let Ok(duration) = SystemTime::now().duration_since(state.last_output) {
                 let elapsed = duration.as_secs();
@@ -1544,10 +943,10 @@ impl LocalPtyAdapter {
                 results.push((id.clone(), is_stuck, elapsed));
             }
         }
-
+        
         results
     }
-
+    
     async fn start_process_monitor(
         id: String,
         terminals: Arc<RwLock<HashMap<String, TerminalState>>>,
@@ -1558,20 +957,20 @@ impl LocalPtyAdapter {
     ) {
         let monitor_id = id.clone();
         let is_agent_terminal = Self::is_agent_terminal(&monitor_id);
-
+        
         if is_agent_terminal {
             info!("Starting enhanced monitoring for agent terminal: {monitor_id}");
         }
-
+        
         // Use exponential backoff for better performance
         let mut check_interval = tokio::time::Duration::from_secs(1);
         let max_interval = tokio::time::Duration::from_secs(30);
         let mut last_activity_check = std::time::Instant::now();
-
+        
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(check_interval).await;
-
+                
                 // Check if child process is still alive - do this first to avoid races
                 let should_cleanup = {
                     let child_guard = pty_children.lock().await;
@@ -1581,24 +980,22 @@ impl LocalPtyAdapter {
                             false
                         }
                         None => {
-                            debug!(
-                                "Terminal {monitor_id} child process not found, stopping monitor"
-                            );
+                            debug!("Terminal {monitor_id} child process not found, stopping monitor");
                             true // Process gone, stop monitoring
                         }
                     }
                 };
-
+                
                 if should_cleanup {
                     break;
                 }
-
+                
                 // Check if terminal state still exists
                 if !terminals.read().await.contains_key(&monitor_id) {
                     debug!("Terminal {monitor_id} state removed, stopping process monitor");
                     break;
                 }
-
+                
                 // Check if process has exited (separate scope to avoid deadlocks)
                 let process_status = {
                     let mut child_guard = pty_children.lock().await;
@@ -1620,12 +1017,7 @@ impl LocalPtyAdapter {
                             Ok(None) => {
                                 // Process is still running, but check for agent-specific issues
                                 if is_agent_terminal {
-                                    Self::check_agent_health(
-                                        &monitor_id,
-                                        &terminals,
-                                        &mut last_activity_check,
-                                    )
-                                    .await;
+                                    Self::check_agent_health(&monitor_id, &terminals, &mut last_activity_check).await;
                                 }
                                 None
                             }
@@ -1633,9 +1025,7 @@ impl LocalPtyAdapter {
                                 if is_agent_terminal {
                                     error!("AGENT MONITORING ERROR: Failed to check terminal {monitor_id} process status: {e}");
                                 } else {
-                                    warn!(
-                                        "Failed to check terminal {monitor_id} process status: {e}"
-                                    );
+                                    warn!("Failed to check terminal {monitor_id} process status: {e}");
                                 }
                                 // Assume process is dead - create a dummy status
                                 Some(portable_pty::ExitStatus::with_exit_code(1))
@@ -1651,7 +1041,7 @@ impl LocalPtyAdapter {
                         break;
                     }
                 };
-
+                
                 // Handle process exit outside of locks
                 if let Some(status) = process_status {
                     if is_agent_terminal {
@@ -1663,8 +1053,7 @@ impl LocalPtyAdapter {
                             Arc::clone(&pty_children),
                             Arc::clone(&pty_masters),
                             Arc::clone(&pty_writers),
-                        )
-                        .await;
+                        ).await;
                     } else {
                         Self::cleanup_dead_terminal(
                             monitor_id.clone(),
@@ -1673,16 +1062,15 @@ impl LocalPtyAdapter {
                             Arc::clone(&pty_children),
                             Arc::clone(&pty_masters),
                             Arc::clone(&pty_writers),
-                        )
-                        .await;
+                        ).await;
                     }
                     break;
                 }
-
+                
                 // Increase interval for better performance (exponential backoff)
                 check_interval = std::cmp::min(check_interval * 2, max_interval);
             }
-
+            
             if is_agent_terminal {
                 info!("Agent monitor for terminal {monitor_id} terminated");
             } else {
@@ -1700,21 +1088,18 @@ impl LocalPtyAdapter {
         pty_writers: Arc<Mutex<HashMap<String, Box<dyn Write + Send>>>>,
     ) {
         info!("Cleaning up dead terminal: {id}");
-
+        
         // Remove from all maps
         pty_children.lock().await.remove(&id);
         pty_masters.lock().await.remove(&id);
         pty_writers.lock().await.remove(&id);
         terminals.write().await.remove(&id);
-
+        
         // Emit terminal closed event
         let handle_guard = app_handle.lock().await;
         match handle_guard.as_ref() {
             Some(handle) => {
-                if let Err(e) = emit_event(
-                    handle,
-                    SchaltEvent::TerminalClosed,
-                    &serde_json::json!({"terminal_id": id}),
+                if let Err(e) = emit_event(handle, SchaltEvent::TerminalClosed, &serde_json::json!({"terminal_id": id}),
                 ) {
                     warn!("Failed to emit terminal-closed event for {id}: {e}");
                 }
@@ -1723,7 +1108,7 @@ impl LocalPtyAdapter {
                 debug!("Skipping terminal-closed event during app shutdown for terminal {id}");
             }
         }
-
+        
         info!("Dead terminal {id} cleanup completed");
     }
 }
@@ -1731,13 +1116,8 @@ impl LocalPtyAdapter {
 async fn get_shell_config() -> (String, Vec<String>) {
     // Use shared effective shell resolution (respects settings when available)
     let (shell, args) = super::get_effective_shell();
-    info!(
-        "Using shell: {shell}{}",
-        if args.is_empty() {
-            " (no args)"
-        } else {
-            " (with args)"
-        }
+    info!("Using shell: {shell}{}",
+        if args.is_empty() { " (no args)" } else { " (with args)" }
     );
     (shell, args)
 }
@@ -1746,9 +1126,14 @@ fn resolve_command(command: &str) -> String {
     if command.contains('/') {
         return command.to_string();
     }
-
-    let common_paths = vec!["/usr/local/bin", "/opt/homebrew/bin", "/usr/bin", "/bin"];
-
+    
+    let common_paths = vec![
+        "/usr/local/bin",
+        "/opt/homebrew/bin",
+        "/usr/bin",
+        "/bin",
+    ];
+    
     if let Ok(home) = std::env::var("HOME") {
         let mut user_paths = vec![
             format!("{}/.local/bin", home),
@@ -1756,7 +1141,7 @@ fn resolve_command(command: &str) -> String {
             format!("{}/bin", home),
         ];
         user_paths.extend(common_paths.iter().map(|s| s.to_string()));
-
+        
         for path in user_paths {
             let full_path = PathBuf::from(&path).join(command);
             if full_path.exists() {
@@ -1773,8 +1158,11 @@ fn resolve_command(command: &str) -> String {
             }
         }
     }
-
-    if let Ok(output) = std::process::Command::new("which").arg(command).output() {
+    
+    if let Ok(output) = std::process::Command::new("which")
+        .arg(command)
+        .output()
+    {
         if output.status.success() {
             if let Ok(path) = String::from_utf8(output.stdout) {
                 let path = path.trim();
@@ -1785,31 +1173,26 @@ fn resolve_command(command: &str) -> String {
             }
         }
     }
-
+    
     warn!("Could not resolve path for '{command}', using as-is");
     command.to_string()
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::ApplicationSpec;
     use super::*;
-    use futures;
+    use super::super::ApplicationSpec;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
     use tokio::time::sleep;
+    use futures;
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     fn unique_id(prefix: &str) -> String {
-        format!(
-            "{}-{}-{}",
-            prefix,
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        )
+        format!("{}-{}-{}", prefix, std::process::id(), COUNTER.fetch_add(1, Ordering::Relaxed))
     }
 
     #[test]
@@ -1832,17 +1215,10 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct MemWriter {
-        pub buf: Vec<u8>,
-    }
+    struct MemWriter { pub buf: Vec<u8> }
     impl Write for MemWriter {
-        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
-            self.buf.extend_from_slice(data);
-            Ok(data.len())
-        }
-        fn flush(&mut self) -> std::io::Result<()> {
-            Ok(())
-        }
+        fn write(&mut self, data: &[u8]) -> std::io::Result<usize> { self.buf.extend_from_slice(data); Ok(data.len()) }
+        fn flush(&mut self) -> std::io::Result<()> { Ok(()) }
     }
 
     #[derive(Clone, Default)]
@@ -1862,56 +1238,6 @@ mod tests {
                 g.flush()
             })
         }
-    }
-
-    #[test]
-    fn setup_environment_includes_login_shell_path_entries() {
-        use portable_pty::CommandBuilder;
-
-        let store_guard = LOGIN_ENV_CACHE.lock().unwrap();
-        let previous_cache = store_guard.clone();
-        drop(store_guard);
-
-        let (shell, args) = super::super::get_effective_shell();
-        let temp_home = TempDir::new().expect("create temp home");
-        let sentinel_path = temp_home.path().join("Library/pnpm");
-        std::fs::create_dir_all(&sentinel_path).expect("create sentinel path");
-        let sentinel_str = sentinel_path.to_string_lossy().to_string();
-
-        {
-            let mut guard = LOGIN_ENV_CACHE.lock().unwrap();
-            *guard = Some(LoginEnvCache {
-                shell: shell.clone(),
-                args: args.clone(),
-                env: HashMap::from([
-                    (
-                        "PATH".to_string(),
-                        format!("{}:/opt/homebrew/bin:/usr/bin", sentinel_str.clone()),
-                    ),
-                    (
-                        "HOME".to_string(),
-                        temp_home.path().to_string_lossy().to_string(),
-                    ),
-                ]),
-            });
-        }
-
-        let mut builder = CommandBuilder::new("/bin/sh");
-        LocalPtyAdapter::setup_environment(&mut builder, 80, 24);
-
-        let path = builder
-            .get_env("PATH")
-            .expect("PATH configured")
-            .to_string_lossy()
-            .into_owned();
-        let segments: Vec<&str> = path.split(':').collect();
-        assert!(
-            segments.iter().any(|segment| *segment == sentinel_str),
-            "expected PATH to include sentinel login shell path, got {path}"
-        );
-
-        let mut guard = LOGIN_ENV_CACHE.lock().unwrap();
-        *guard = previous_cache;
     }
 
     #[test]
@@ -2001,6 +1327,7 @@ mod tests {
         safe_close(&adapter, &id).await;
         assert!(!adapter.exists(&id).await.unwrap());
     }
+
 
     #[tokio::test]
     async fn test_create_with_custom_app() {
@@ -2168,12 +1495,12 @@ mod tests {
 
         // Test various special characters and escape sequences
         let test_data = vec![
-            b"\n".as_slice(),            // newline
-            b"\r".as_slice(),            // carriage return
-            b"\x1b[A".as_slice(),        // arrow key escape sequence
-            b"\x1b[1;2H".as_slice(),     // cursor positioning
-            b"\t".as_slice(),            // tab
-            b"normal text\n".as_slice(), // normal text
+            b"\n".as_slice(),                    // newline
+            b"\r".as_slice(),                    // carriage return
+            b"\x1b[A".as_slice(),               // arrow key escape sequence
+            b"\x1b[1;2H".as_slice(),           // cursor positioning
+            b"\t".as_slice(),                   // tab
+            b"normal text\n".as_slice(),       // normal text
         ];
 
         for data in test_data {
@@ -2186,6 +1513,7 @@ mod tests {
 
         safe_close(&adapter, &id).await;
     }
+
 
     #[tokio::test]
     async fn test_write_immediate_flush() {
@@ -2203,9 +1531,9 @@ mod tests {
 
         // Test data that should trigger immediate flush
         let flush_triggers = vec![
-            b"echo test\n".as_slice(), // newline
-            b"ls\r".as_slice(),        // carriage return
-            b"\x1b[A".as_slice(),      // escape sequence
+            b"echo test\n".as_slice(),          // newline
+            b"ls\r".as_slice(),                 // carriage return
+            b"\x1b[A".as_slice(),              // escape sequence
         ];
 
         for data in flush_triggers {
@@ -2276,10 +1604,7 @@ mod tests {
         let id_clone = id.clone();
         let write_handle = tokio::spawn(async move {
             for i in 0..10 {
-                adapter_clone
-                    .write(&id_clone, format!("echo 'write {}'\n", i).as_bytes())
-                    .await
-                    .unwrap();
+                adapter_clone.write(&id_clone, format!("echo 'write {}'\n", i).as_bytes()).await.unwrap();
                 sleep(Duration::from_millis(10)).await;
             }
         });
@@ -2288,10 +1613,7 @@ mod tests {
         let id_clone2 = id.clone();
         let write_handle2 = tokio::spawn(async move {
             for i in 10..20 {
-                adapter_clone2
-                    .write(&id_clone2, format!("echo 'write {}'\n", i).as_bytes())
-                    .await
-                    .unwrap();
+                adapter_clone2.write(&id_clone2, format!("echo 'write {}'\n", i).as_bytes()).await.unwrap();
                 sleep(Duration::from_millis(10)).await;
             }
         });
@@ -2324,10 +1646,7 @@ mod tests {
         let id_clone = id.clone();
         let write_handle = tokio::spawn(async move {
             for i in 0..5 {
-                adapter_clone
-                    .write(&id_clone, format!("echo 'test {}'\n", i).as_bytes())
-                    .await
-                    .unwrap();
+                adapter_clone.write(&id_clone, format!("echo 'test {}'\n", i).as_bytes()).await.unwrap();
                 sleep(Duration::from_millis(50)).await;
             }
         });
@@ -2430,13 +1749,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_environment_variables_setup() {
-        let previous_skip = std::env::var("SCHALTWERK_SKIP_LOGIN_ENV").ok();
-        std::env::set_var("SCHALTWERK_SKIP_LOGIN_ENV", "1");
-        {
-            let mut cache = LOGIN_ENV_CACHE.lock().unwrap();
-            *cache = None;
-        }
-
         let adapter = LocalPtyAdapter::new();
         let id = unique_id("env-setup");
 
@@ -2450,76 +1762,18 @@ mod tests {
         sleep(Duration::from_millis(100)).await;
 
         // Send command to check environment variables
-        adapter
-            .write(&id, b"echo LINES=$LINES COLUMNS=$COLUMNS TERM=$TERM\n")
-            .await
-            .unwrap();
+        adapter.write(&id, b"echo LINES=$LINES COLUMNS=$COLUMNS TERM=$TERM\n").await.unwrap();
         sleep(Duration::from_millis(300)).await;
 
         let (_, data) = adapter.snapshot(&id, None).await.unwrap();
         let output = String::from_utf8_lossy(&data);
 
         // Check that environment variables were set correctly
-        assert!(
-            output.contains("LINES=50"),
-            "LINES not set correctly: {}",
-            output
-        );
-        assert!(
-            output.contains("COLUMNS=150"),
-            "COLUMNS not set correctly: {}",
-            output
-        );
-        assert!(
-            output.contains("TERM=xterm-256color"),
-            "TERM not set correctly: {}",
-            output
-        );
+        assert!(output.contains("LINES=50"), "LINES not set correctly: {}", output);
+        assert!(output.contains("COLUMNS=150"), "COLUMNS not set correctly: {}", output);
+        assert!(output.contains("TERM=xterm-256color"), "TERM not set correctly: {}", output);
 
         safe_close(&adapter, &id).await;
-
-        if let Some(value) = previous_skip {
-            std::env::set_var("SCHALTWERK_SKIP_LOGIN_ENV", value);
-        } else {
-            std::env::remove_var("SCHALTWERK_SKIP_LOGIN_ENV");
-        }
-    }
-
-    #[test]
-    #[serial_test::serial]
-    fn test_login_shell_capture_times_out_quickly() {
-        use std::os::unix::fs::PermissionsExt;
-
-        let temp_dir = tempfile::tempdir().unwrap();
-        let script_path = temp_dir.path().join("slow-shell.sh");
-        let script_contents = "#!/bin/sh\nif [ \"$1\" = \"-l\" ]; then\n  shift\nfi\nif [ \"$1\" = \"-c\" ]; then\n  shift\nfi\nsleep 2\nenv -0\n";
-        std::fs::write(&script_path, script_contents).unwrap();
-
-        let mut perms = std::fs::metadata(&script_path).unwrap().permissions();
-        perms.set_mode(0o755);
-        std::fs::set_permissions(&script_path, perms).unwrap();
-
-        let previous_timeout = std::env::var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS").ok();
-        std::env::set_var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS", "100");
-
-        let start = Instant::now();
-        let result = super::run_login_shell(script_path.to_string_lossy().as_ref(), &[]);
-        let elapsed = start.elapsed();
-
-        assert!(result.is_err(), "expected timeout to yield an error");
-        let err = result.err().unwrap();
-        assert!(err.contains("timed out"), "unexpected error message: {err}");
-        assert!(
-            elapsed < Duration::from_millis(500),
-            "timeout did not fire promptly: {:?}",
-            elapsed
-        );
-
-        if let Some(timeout) = previous_timeout {
-            std::env::set_var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS", timeout);
-        } else {
-            std::env::remove_var("SCHALTWERK_LOGIN_ENV_TIMEOUT_MS");
-        }
     }
 
     #[tokio::test]
@@ -2728,10 +1982,7 @@ mod tests {
 
         // Perform rapid sequence of operations
         for i in 0..10 {
-            adapter
-                .write(&id, format!("echo 'test {}'\n", i).as_bytes())
-                .await
-                .unwrap();
+            adapter.write(&id, format!("echo 'test {}'\n", i).as_bytes()).await.unwrap();
             adapter.resize(&id, 80 + i, 24 + i % 5).await.unwrap();
             let _ = adapter.snapshot(&id, None).await.unwrap();
         }
@@ -2779,10 +2030,7 @@ mod tests {
         adapter.resize(&id, 120, 40).await.unwrap();
 
         // 6. Send more commands
-        adapter
-            .write(&id, b"echo 'terminal test complete'\n")
-            .await
-            .unwrap();
+        adapter.write(&id, b"echo 'terminal test complete'\n").await.unwrap();
         sleep(Duration::from_millis(100)).await;
 
         // 7. Check activity
@@ -2840,42 +2088,19 @@ mod tests {
         };
 
         adapter.create(params).await.unwrap();
-
+        
         // Generate output to populate coalescing buffers
-        adapter
-            .write(&id, b"echo 'populate buffers'\n")
-            .await
-            .unwrap();
+        adapter.write(&id, b"echo 'populate buffers'\n").await.unwrap();
         sleep(Duration::from_millis(100)).await;
 
         // Close terminal
         adapter.close(&id).await.unwrap();
 
         // Verify all coalescing buffers are cleaned
-        assert!(!adapter
-            .coalescing_state
-            .emit_buffers
-            .read()
-            .await
-            .contains_key(&id));
-        assert!(!adapter
-            .coalescing_state
-            .emit_scheduled
-            .read()
-            .await
-            .contains_key(&id));
-        assert!(!adapter
-            .coalescing_state
-            .emit_buffers_norm
-            .read()
-            .await
-            .contains_key(&id));
-        assert!(!adapter
-            .coalescing_state
-            .norm_last_cr
-            .read()
-            .await
-            .contains_key(&id));
+        assert!(!adapter.coalescing_state.emit_buffers.read().await.contains_key(&id));
+        assert!(!adapter.coalescing_state.emit_scheduled.read().await.contains_key(&id));
+        assert!(!adapter.coalescing_state.emit_buffers_norm.read().await.contains_key(&id));
+        assert!(!adapter.coalescing_state.norm_last_cr.read().await.contains_key(&id));
     }
 
     #[tokio::test]

@@ -1,8 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use super::super::local::{FLOW_CONTROL_HIGH_WATER_BYTES, FLOW_CONTROL_LOW_WATER_BYTES};
     use super::super::*;
-    use crate::domains::terminal::manager::{FlowControlDecision, PendingStats};
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
     use tokio::time::{sleep, timeout};
@@ -22,85 +20,6 @@ mod tests {
         if let Err(e) = manager.close_terminal(id.to_string()).await {
             eprintln!("Warning: Failed to close terminal {}: {}", id, e);
         }
-    }
-
-    #[test]
-    fn test_pending_stats_flow_control_thresholds() {
-        let mut stats = PendingStats::default();
-        let high = FLOW_CONTROL_HIGH_WATER_BYTES;
-        let low = FLOW_CONTROL_LOW_WATER_BYTES;
-
-        assert!(!stats.is_paused(), "Stats should start unpaused");
-
-        let first = stats.record_emitted("term", high - 1024, high);
-        assert!(matches!(first, FlowControlDecision::None));
-        assert!(!stats.is_paused(), "Below high water mark should not pause");
-
-        let second = stats.record_emitted("term", 2048, high);
-        match second {
-            FlowControlDecision::Pause { outstanding } => {
-                assert!(
-                    outstanding >= high,
-                    "Outstanding bytes should reflect high-water breach"
-                );
-            }
-            other => panic!("expected pause decision, got {other:?}"),
-        }
-        assert!(
-            stats.is_paused(),
-            "Pause decision should latch paused state"
-        );
-
-        let still_paused = stats.record_ack("term", 1024, low);
-        assert!(matches!(still_paused, FlowControlDecision::None));
-        assert!(
-            stats.is_paused(),
-            "Ack above low-water should keep terminal paused"
-        );
-
-        let outstanding = stats.outstanding();
-        let to_resume = outstanding.saturating_sub(low).saturating_add(1);
-        let resume = stats.record_ack("term", to_resume, low);
-        match resume {
-            FlowControlDecision::Resume { outstanding } => {
-                assert!(
-                    outstanding <= low,
-                    "Outstanding bytes should fall below low-water threshold"
-                );
-            }
-            other => panic!("expected resume decision, got {other:?}"),
-        }
-        assert!(
-            !stats.is_paused(),
-            "Resume decision should clear the paused flag"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_acknowledgement_tracking_saturates() {
-        let manager = TerminalManager::new();
-        let id = unique_id("ack-tracking");
-
-        manager.note_emitted_bytes(&id, 4096).await;
-        assert_eq!(manager.outstanding_bytes(&id).await, Some(4096));
-
-        manager
-            .acknowledge_output(&id, 1024)
-            .await
-            .expect("ack should succeed");
-        assert_eq!(manager.outstanding_bytes(&id).await, Some(3072));
-
-        manager
-            .acknowledge_output(&id, 10_000)
-            .await
-            .expect("ack should saturate");
-        assert_eq!(manager.outstanding_bytes(&id).await, Some(0));
-
-        manager
-            .acknowledge_output(&id, 1)
-            .await
-            .expect("extra ack should be ignored");
-        assert_eq!(manager.outstanding_bytes(&id).await, Some(0));
     }
 
     #[tokio::test]
@@ -123,7 +42,7 @@ mod tests {
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
         assert!(
-            buffer.data.contains("echo"),
+            buffer.contains("echo"),
             "Buffer should contain the echoed command"
         );
 
@@ -150,7 +69,7 @@ mod tests {
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
         assert!(
-            buffer.data.contains("multi"),
+            buffer.contains("multi"),
             "Should contain multi-line content"
         );
 
@@ -269,7 +188,7 @@ mod tests {
         assert!(manager.terminal_exists(&id).await.unwrap());
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        assert!(buffer.data.contains("echo"));
+        assert!(buffer.contains("echo"));
 
         safe_close(&manager, &id).await;
     }
@@ -296,7 +215,7 @@ mod tests {
         sleep(Duration::from_millis(200)).await;
 
         let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        assert!(buffer.data.contains("test_value") || buffer.data.contains("CUSTOM_VAR"));
+        assert!(buffer.contains("test_value") || buffer.contains("CUSTOM_VAR"));
 
         safe_close(&manager, &id).await;
     }
@@ -323,11 +242,7 @@ mod tests {
             sleep(Duration::from_millis(200)).await;
 
             let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
-            assert!(
-                !buffer.data.is_empty(),
-                "Terminal {} should have output",
-                id
-            );
+            assert!(!buffer.is_empty(), "Terminal {} should have output", id);
 
             safe_close(&manager, &id).await;
         }
@@ -457,9 +372,9 @@ mod tests {
             .get_terminal_buffer(timing_id.clone())
             .await
             .unwrap();
-        assert!(buffer.data.contains("first"));
-        assert!(buffer.data.contains("second"));
-        assert!(buffer.data.contains("third"));
+        assert!(buffer.contains("first"));
+        assert!(buffer.contains("second"));
+        assert!(buffer.contains("third"));
 
         safe_close(&manager, &timing_id).await;
     }
@@ -605,7 +520,7 @@ mod tests {
         sleep(Duration::from_millis(200)).await;
 
         let buffer = manager.get_terminal_buffer(path_id.clone()).await.unwrap();
-        assert!(buffer.data.contains("bin") || buffer.data.contains("PATH"));
+        assert!(buffer.contains("bin") || buffer.contains("PATH"));
 
         safe_close(&manager, &path_id).await;
     }
@@ -639,7 +554,7 @@ mod tests {
             .get_terminal_buffer(escape_id.clone())
             .await
             .unwrap();
-        assert!(!buffer.data.is_empty());
+        assert!(!buffer.is_empty());
 
         safe_close(&manager, &escape_id).await;
     }
@@ -706,7 +621,7 @@ mod tests {
             .get_terminal_buffer(multiline_id.clone())
             .await
             .unwrap();
-        assert!(buffer.data.contains("bash") || buffer.data.contains("echo"));
+        assert!(buffer.contains("bash") || buffer.contains("echo"));
 
         safe_close(&manager, &multiline_id).await;
     }
@@ -900,9 +815,9 @@ mod tests {
         sleep(Duration::from_millis(800)).await;
 
         let buf = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        println!("agent buffer length: {}", buf.data.len());
+        println!("agent buffer length: {}", buf.len());
         // Buffer should be larger than the previous 2MB default when using agent top terminals
-        assert!(buf.data.len() > 2 * 1024 * 1024);
+        assert!(buf.len() > 2 * 1024 * 1024);
 
         safe_close(&manager, &id).await;
     }

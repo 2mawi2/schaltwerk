@@ -18,9 +18,6 @@ import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
 import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
-import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
-import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
-import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -47,11 +44,6 @@ export interface TerminalHandle {
     scrollToBottom: () => void;
 }
 
-type TerminalOutputChunk = {
-    data: string;
-    seq: number | null;
-};
-
 export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
@@ -62,20 +54,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const fitAddon = useRef<FitAddon | null>(null);
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
-    const lastContainerPx = useRef<{ width: number; height: number }>({ width: 0, height: 0 });
     const [hydrated, setHydrated] = useState(false);
     const [agentLoading, setAgentLoading] = useState(false);
     const hydratedRef = useRef<boolean>(false);
-    const pendingOutput = useRef<TerminalOutputChunk[]>([]);
-    const lastSeqRef = useRef<number | null>(null);
+    const pendingOutput = useRef<string[]>([]);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const seqRef = useRef<number>(0);
-    const pendingAckBytesRef = useRef<number>(0);
-    const ackRafRef = useRef<number | null>(null);
-    const termDebug = useCallback(() => (
-        typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1'
-    ), []);
+    const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
     const resumeUnlistenRef = useRef<UnlistenFn | null>(null);
@@ -90,22 +76,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
-    const initialFallbackLoggedRef = useRef<boolean>(false);
 
     // Write queue helpers shared across effects (agent terminals get larger buffers)
     const queueCfg = useMemo(() => (
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
 
-    const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig();
-    const platform = useMemo(() => detectPlatformSafe(), []);
-
     const {
         enqueue: enqueueQueue,
         flushPending: flushQueuePending,
         reset: resetQueue,
         stats: getQueueStats,
-        drainReportedBytes: drainQueueReportedBytes,
     } = useTerminalWriteQueue({
         queueConfig: queueCfg,
         logger,
@@ -168,83 +149,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const { queueLength } = getQueueStats();
             logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
         }
-    }, [enqueueQueue, getQueueStats, terminalId, termDebug]);
-
-    const collectAckFromQueue = useCallback(() => {
-        const delta = drainQueueReportedBytes();
-        if (delta > 0) {
-            pendingAckBytesRef.current += delta;
-        }
-    }, [drainQueueReportedBytes]);
-
-    const flushAckToBackend = useCallback(() => {
-        collectAckFromQueue();
-        if (pendingAckBytesRef.current === 0) {
-            return;
-        }
-        if (readOnly || !hydratedRef.current) {
-            pendingAckBytesRef.current = 0;
-            return;
-        }
-        const ackBytes = pendingAckBytesRef.current;
-        pendingAckBytesRef.current = 0;
-        invoke(TauriCommands.SchaltwerkTerminalAcknowledgeOutput, { id: terminalId, ackBytes })
-            .catch(err => {
-                pendingAckBytesRef.current += ackBytes;
-                logger.debug(`[Terminal ${terminalId}] ack send ignored`, err);
-            });
-    }, [collectAckFromQueue, readOnly, terminalId]);
-
-    const scheduleAckFlush = useCallback(() => {
-        if (ackRafRef.current != null) {
-            return;
-        }
-        if (typeof window === 'undefined') {
-            flushAckToBackend();
-            return;
-        }
-        ackRafRef.current = window.requestAnimationFrame(() => {
-            ackRafRef.current = null;
-            flushAckToBackend();
-        });
-    }, [flushAckToBackend]);
-
-    const applyChunk = useCallback((chunk: TerminalOutputChunk, schedule?: () => void) => {
-        if (!chunk.data) {
-            if (chunk.seq != null) {
-                lastSeqRef.current = Math.max(lastSeqRef.current ?? chunk.seq, chunk.seq);
-            }
-            return false;
-        }
-        if (chunk.seq != null && lastSeqRef.current != null && chunk.seq <= lastSeqRef.current) {
-            if (termDebug()) logger.debug(`[Terminal ${terminalId}] skip chunk seq=${chunk.seq} last=${lastSeqRef.current}`);
-            return false;
-        }
-        enqueueWrite(chunk.data);
-        if (chunk.seq != null) {
-            lastSeqRef.current = lastSeqRef.current == null ? chunk.seq : Math.max(lastSeqRef.current, chunk.seq);
-        }
-        if (schedule) schedule();
-        return true;
-    }, [enqueueWrite, termDebug, terminalId]);
-
-    const normalizeOutputPayload = useCallback((payload: unknown): TerminalOutputChunk | null => {
-        if (typeof payload === 'string') {
-            return { data: payload, seq: null };
-        }
-        if (payload && typeof payload === 'object') {
-            const maybeData = (payload as { data?: unknown }).data;
-            const maybeSeq = (payload as { seq?: unknown }).seq;
-            if (typeof maybeData === 'string') {
-                return {
-                    data: maybeData,
-                    seq: typeof maybeSeq === 'number' ? maybeSeq : null,
-                };
-            }
-        }
-        logger.warn(`[Terminal ${terminalId}] Ignoring malformed terminal payload`, payload);
-        return null;
-    }, [terminalId]);
+    }, [enqueueQueue, getQueueStats, terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -285,13 +190,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             node.removeEventListener('focusin', handleFocusIn);
         };
     }, [onTerminalClick]);
-
-    useEffect(() => () => {
-        if (ackRafRef.current != null && typeof window !== 'undefined') {
-            window.cancelAnimationFrame(ackRafRef.current);
-            ackRafRef.current = null;
-        }
-    }, []);
 
     useEffect(() => {
         let mounted = true
@@ -469,14 +367,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         setHydrated(false);
         hydratedRef.current = false;
         pendingOutput.current = [];
-        lastSeqRef.current = null;
         resetQueue();
-        pendingAckBytesRef.current = 0;
-        drainQueueReportedBytes();
-        if (ackRafRef.current != null && typeof window !== 'undefined') {
-            window.cancelAnimationFrame(ackRafRef.current);
-            ackRafRef.current = null;
-        }
 
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
@@ -545,31 +436,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
         const performInitialFit = () => {
             if (!fitAddon.current || !termRef.current || !terminal.current) return;
-            
+
             const containerWidth = termRef.current.clientWidth;
             const containerHeight = termRef.current.clientHeight;
-            
-            // Only fit if container has proper dimensions
-            if (containerWidth > 0 && containerHeight > 0) {
-                initialFallbackLoggedRef.current = false;
-                try {
-                    fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    applySizeUpdate(cols, rows, 'initial-fit');
-                    logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
-                }
-            } else if (!isBackground) {
-                if (!initialFallbackLoggedRef.current) {
-                    initialFallbackLoggedRef.current = true;
-                    logger.debug(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), deferring initial resize until measurable`);
-                } else if (termDebug()) {
-                    logger.debug(`[Terminal ${terminalId}] Container still not measurable (${containerWidth}x${containerHeight}); waiting`);
-                }
+
+            // Only fit if container has proper dimensions; otherwise defer and let observers retry
+            if (containerWidth <= 0 || containerHeight <= 0) {
+                logger.debug(`[Terminal ${terminalId}] Deferring initial fit until container is measurable (${containerWidth}x${containerHeight})`);
                 return;
-            } else {
-                logger.debug(`[Terminal ${terminalId}] Background terminal skipping default resize while container is ${containerWidth}x${containerHeight}`);
+            }
+
+            try {
+                fitAddon.current.fit();
+                const { cols, rows } = terminal.current;
+                applySizeUpdate(cols, rows, 'initial-fit');
+                logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
+            } catch (e) {
+                logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
             }
         };
         
@@ -704,34 +587,39 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Intercept global shortcuts before xterm.js processes them
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
-            const isKeydown = !event.type || event.type === 'keydown'
-
-            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.InsertTerminalNewLine, keyboardShortcutConfig, { platform })) {
+            const isMac = navigator.userAgent.includes('Mac')
+            const modifierKey = isMac ? event.metaKey : event.ctrlKey
+            
+            // Cmd+Enter for new line (like Claude Code)
+            if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
+                // Send a newline character without submitting the command
+                // This allows multiline input in shells that support it
                 invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
-                return false
+                return false; // Prevent default Enter behavior
             }
-
-            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.NewSpec, keyboardShortcutConfig, { platform })) {
+            // Prefer Shift+Cmd/Ctrl+N as "New spec"
+            if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
                 window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
                 return false
             }
-
-            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.NewSession, keyboardShortcutConfig, { platform })) {
+            // Plain Cmd/Ctrl+N opens the regular new session modal
+            if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
+                // Dispatch a custom event to trigger the global new session handler
                 window.dispatchEvent(new CustomEvent('global-new-session-shortcut'))
-                return false
+                return false // Prevent xterm.js from processing this event
             }
-
-            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.MarkSessionReady, keyboardShortcutConfig, { platform })) {
+            if (modifierKey && (event.key === 'r' || event.key === 'R')) {
+                // Dispatch a custom event to trigger the global mark reviewed handler
                 window.dispatchEvent(new CustomEvent('global-mark-ready-shortcut'))
                 return false
             }
-
-            if (isKeydown && isShortcutForAction(event, KeyboardShortcutAction.OpenTerminalSearch, keyboardShortcutConfig, { platform })) {
-                setIsSearchVisible(true)
-                return false
+            if (modifierKey && (event.key === 'f' || event.key === 'F')) {
+                // Show search UI
+                setIsSearchVisible(true);
+                return false; // Prevent xterm.js from processing this event
             }
-
-            return true
+            
+            return true // Allow xterm.js to process other events
         })
         
         // Helper to ensure element is laid out before fitting
@@ -764,7 +652,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (!rendererReadyRef.current || !terminal.current) return;
             if (getQueueStats().queueLength === 0) return;
 
-            flushQueuePending((chunk, report) => {
+            flushQueuePending((chunk) => {
                 if (!rendererReadyRef.current || !terminal.current) {
                     return false;
                 }
@@ -789,13 +677,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             logger.debug('Scroll error during terminal output (cb)', error);
                         }
 
-                        report(chunk.length);
-                        collectAckFromQueue();
-
                         if (getQueueStats().queueLength > 0) {
                             scheduleFlush();
-                        } else {
-                            scheduleAckFlush();
                         }
                     });
                 } catch (error) {
@@ -812,7 +695,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (!rendererReadyRef.current || !terminal.current) return;
             if (getQueueStats().queueLength === 0) return;
 
-            flushQueuePending((chunk, report) => {
+            flushQueuePending((chunk) => {
                 if (!rendererReadyRef.current || !terminal.current) {
                     return false;
                 }
@@ -835,12 +718,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         } catch (error) {
                             logger.debug('Scroll error during buffer flush (cb)', error);
                         } finally {
-                            report(chunk.length);
-                            collectAckFromQueue();
                             if (getQueueStats().queueLength > 0) {
                                 queueMicrotask(() => flushNow());
-                            } else {
-                                scheduleAckFlush();
                             }
                         }
                     });
@@ -871,9 +750,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
             // 2) Move any pendingOutput into the write queue first
             if (pendingOutput.current.length > 0) {
-                for (const chunk of pendingOutput.current) {
-                    applyChunk(chunk);
-                }
+                for (const output of pendingOutput.current) enqueueWrite(output);
                 pendingOutput.current = [];
             }
 
@@ -885,9 +762,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     if (getQueueStats().queueLength === 0) {
                         // Double-check no new pending arrived mid-drain; if so, loop again
                         if (pendingOutput.current.length > 0) {
-                            for (const chunk of pendingOutput.current) {
-                                applyChunk(chunk);
-                            }
+                            for (const output of pendingOutput.current) enqueueWrite(output);
                             pendingOutput.current = [];
                             // Continue draining
                         } else {
@@ -897,7 +772,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
                     // Write one chunk synchronously and continue on its callback
                     let chunkProcessed = false;
-                    flushQueuePending((chunk, report) => {
+                    flushQueuePending((chunk) => {
                         chunkProcessed = chunk.length > 0;
                         if (!terminal.current) {
                             return false;
@@ -917,8 +792,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 } catch {
                                     // ignore scroll failures during hydration drain
                                 }
-                                report(chunk.length);
-                                collectAckFromQueue();
                                 // Continue draining until truly empty; use microtask to avoid deep callback chains
                                 queueMicrotask(step);
                             });
@@ -942,24 +815,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
         const attachListener = async () => {
-            unlistenRef.current = await listenTerminalOutput(terminalId, (payload) => {
-                const chunk = normalizeOutputPayload(payload);
-                if (!chunk) return;
+            unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
                 if (termDebug()) {
                     const n = ++seqRef.current;
                     const { queueLength } = getQueueStats();
-                    logger.debug(`[Terminal ${terminalId}] recv #${n} seq=${chunk.seq ?? -1} +${chunk.data.length}B qlen=${queueLength}`);
+                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`)
                 }
                 if (cancelled) return;
-                if (chunk.seq != null && lastSeqRef.current != null && chunk.seq <= lastSeqRef.current) {
-                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] drop stale seq=${chunk.seq} last=${lastSeqRef.current}`);
-                    return;
-                }
                 if (!hydratedRef.current) {
-                    pendingOutput.current.push(chunk);
+                    pendingOutput.current.push(output);
                 } else {
-                    enqueueWrite(chunk.data);
-                    if (chunk.seq != null) lastSeqRef.current = chunk.seq;
+                    enqueueWrite(output);
                     scheduleFlush();
                 }
             });
@@ -977,39 +843,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
                 }
-                const snapshotResponse = await invoke<unknown>(TauriCommands.GetTerminalBuffer, { id: terminalId });
-                let snapshotData = '';
-                let snapshotSeq: number | null = null;
-
-                if (typeof snapshotResponse === 'string') {
-                    snapshotData = snapshotResponse;
-                } else if (snapshotResponse && typeof snapshotResponse === 'object') {
-                    const maybe = snapshotResponse as { data?: unknown; seq?: unknown };
-                    if (typeof maybe.data === 'string') snapshotData = maybe.data;
-                    if (typeof maybe.seq === 'number') snapshotSeq = maybe.seq;
+                const snapshot = await invoke<string>(TauriCommands.GetTerminalBuffer, { id: terminalId });
+                
+                if (snapshot) {
+                    enqueueWrite(snapshot);
                 }
-
-                if (snapshotSeq != null) {
-                    lastSeqRef.current = snapshotSeq;
-                }
-
-                if (snapshotData) {
-                    enqueueWrite(snapshotData);
-                }
-
+                // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
-                    const pending = pendingOutput.current.slice();
-                    pendingOutput.current = [];
-                    for (const chunk of pending) {
-                        applyChunk(chunk, scheduleFlush);
+                    for (const output of pendingOutput.current) {
+                        enqueueWrite(output);
                     }
-                }
+                    pendingOutput.current = [];
+                 }
                  // Drain all queued content before we reveal the terminal to avoid "partial paint" perception
-                await flushAllNowAsync();
-                collectAckFromQueue();
-                scheduleAckFlush();
-                // Mark as hydrated only after flushing the entire snapshot + pending output
-                setHydrated(true);
+                 await flushAllNowAsync();
+                 // Mark as hydrated only after flushing the entire snapshot + pending output
+                 setHydrated(true);
                  hydratedRef.current = true;
                   
                   // Call onReady callback if provided
@@ -1081,11 +930,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 setHydrated(true);
                 hydratedRef.current = true;
                 if (pendingOutput.current.length > 0) {
-                    const pending = pendingOutput.current.slice();
-                    pendingOutput.current = [];
-                    for (const chunk of pending) {
-                        applyChunk(chunk);
+                    for (const output of pendingOutput.current) {
+                        enqueueWrite(output);
                     }
+                    pendingOutput.current = [];
+                    // Flush immediately; subsequent events will be batched
                     flushNow();
                     
                     // Scroll to bottom even on hydration failure
@@ -1108,7 +957,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             try {
                 pendingOutput.current = []
                 resetQueue()
-                lastSeqRef.current = null
                 if (terminal.current) {
                     try {
                         terminal.current.reset()
@@ -1238,20 +1086,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
 
-            // Suppress tiny container jitter for Claude terminals to avoid CR-based blank lines
-            const SMALL_DELTA_PX = 2;
-            const cw = el.clientWidth;
-            const ch = el.clientHeight;
-            const prev = lastContainerPx.current;
-            if (
-                agentType === 'claude' &&
-                Math.abs(cw - prev.width) < SMALL_DELTA_PX &&
-                Math.abs(ch - prev.height) < SMALL_DELTA_PX
-            ) {
-                lastContainerPx.current = { width: cw, height: ch };
-                return;
-            }
-
             // Capture scroll position before resize
             const { wasAtBottom } = captureScrollPosition();
 
@@ -1263,8 +1097,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
             const { cols, rows } = terminal.current;
-            // Track last measured container px after successful fit
-            lastContainerPx.current = { width: cw, height: ch };
 
             // Only scroll to bottom on resize if user was at bottom AND we're not during a UI layout change
             // Skip auto-scroll during session switches to prevent interference with scrolling
@@ -1305,12 +1137,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             } catch (e) {
                 logger.debug('[Terminal] fonts.ready unavailable', e);
             } finally {
-                requestAnimationFrame(() => {
-                    if (termRef.current) {
-                        lastContainerPx.current = { width: termRef.current.clientWidth, height: termRef.current.clientHeight };
-                    }
-                    handleResize();
-                });
+                requestAnimationFrame(() => handleResize());
             }
         })();
 
@@ -1398,32 +1225,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [
-        terminalId,
-        addEventListener,
-        addResizeObserver,
-        agentType,
-        isBackground,
-        terminalFontSize,
-        onReady,
-        resolvedFontFamily,
-        readOnly,
-        enqueueWrite,
-        shouldAutoScroll,
-        isUserSelectingInTerminal,
-        applySizeUpdate,
-        flushQueuePending,
-        getQueueStats,
-        resetQueue,
-        normalizeOutputPayload,
-        applyChunk,
-        termDebug,
-        collectAckFromQueue,
-        scheduleAckFlush,
-        drainQueueReportedBytes,
-        keyboardShortcutConfig,
-        platform,
-    ]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1434,16 +1236,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const flushQueuedWritesLight = () => {
             if (!terminal.current || getQueueStats().queueLength === 0) return;
 
-            flushQueuePending((chunk, report) => {
+            flushQueuePending((chunk) => {
                 if (!terminal.current) {
                     return false;
                 }
 
                 try {
-                    terminal.current.write(chunk, () => {
-                        report(chunk.length);
-                        collectAckFromQueue();
-                    });
+                    terminal.current.write(chunk);
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Failed to flush queued writes`, error);
                     return false;
@@ -1454,11 +1253,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         const buffer = terminal.current!.buffer.active;
                         const atBottom = buffer.viewportY === buffer.baseY;
                         if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
-                        if (getQueueStats().queueLength > 0) {
-                            flushQueuedWritesLight();
-                        } else {
-                            scheduleAckFlush();
-                        }
+                        if (getQueueStats().queueLength > 0) flushQueuedWritesLight();
                     } catch (e) {
                         logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
                     }
@@ -1483,17 +1278,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         let mounted = true;
         const attach = async () => {
             try {
-                unlistenRef.current = await listenTerminalOutput(terminalId, (payload) => {
+                unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
                     if (!mounted) return;
-                    const chunk = normalizeOutputPayload(payload);
-                    if (!chunk) return;
-                    if (chunk.seq != null && lastSeqRef.current != null && chunk.seq <= lastSeqRef.current) {
-                        return;
-                    }
                     if (!hydratedRef.current) {
-                        pendingOutput.current.push(chunk);
+                        pendingOutput.current.push(output);
                     } else {
-                        applyChunk(chunk, flushQueuedWritesLight);
+                        enqueueWrite(output);
+                        flushQueuedWritesLight();
                     }
                 });
                 listenerAgentRef.current = agentType;
@@ -1507,7 +1298,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll, normalizeOutputPayload, applyChunk, collectAckFromQueue, scheduleAckFlush]);
+    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready
@@ -1738,7 +1529,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
                     <AnimatedText
                         text="loading"
-                       
+                        colorClassName="text-slate-500"
                         size="md"
                         speedMultiplier={3}
                     />

@@ -20,13 +20,10 @@ import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { logger } from '../../utils/logger'
-import { TERMINAL_RESET_EVENT, TerminalResetDetail } from '../../types/terminalEvents'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
-import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
-import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
-import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
+import { TERMINAL_RESET_EVENT, TerminalResetDetail, createTerminalResetEvent } from '../../types/terminalEvents'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -55,14 +52,11 @@ export function TerminalGrid() {
     const { actionButtons } = useActionButtons()
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
-    const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
-    const platform = useMemo(() => detectPlatformSafe(), [])
     
     // Show action buttons for both orchestrator and sessions
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
     
     const [terminalKey, setTerminalKey] = useState(0)
-    const [topRemountKey, setTopRemountKey] = useState(0)
     const [localFocus, setLocalFocus] = useState<'claude' | 'terminal' | null>(null)
     const [agentType, setAgentType] = useState<string>('claude')
     
@@ -80,7 +74,6 @@ export function TerminalGrid() {
     const terminalTabsStateRef = useRef<TerminalTabsUiState>(terminalTabsState)
     const previousTabsBaseRef = useRef<string | null>(terminals.bottomBase)
     const previousTerminalKeyRef = useRef<number>(terminalKey)
-    const previousTopIdRef = useRef<string | null>(terminals.top)
     const currentTabsOwnerRef = useRef<string | null>(terminals.bottomBase)
     const applyTabsState = useCallback(
         (updater: (prev: TerminalTabsUiState) => TerminalTabsUiState) => {
@@ -122,7 +115,6 @@ export function TerminalGrid() {
     
     const claudeTerminalRef = useRef<TerminalHandle>(null)
     const terminalTabsRef = useRef<TerminalTabsHandle>(null)
-    const suppressNextTerminalFocusRef = useRef(false)
     const runTerminalRefs = useRef<Map<string, RunTerminalHandle>>(new Map())
     const [isDraggingSplit, setIsDraggingSplit] = useState(false)
     const [confirmResetOpen, setConfirmResetOpen] = useState(false)
@@ -132,9 +124,7 @@ export function TerminalGrid() {
         try {
             setIsResetting(true)
             await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName: selection.payload })
-            window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-                detail: { kind: 'session', sessionId: selection.payload },
-            }))
+            window.dispatchEvent(createTerminalResetEvent({ kind: 'session', sessionId: selection.payload }))
             setConfirmResetOpen(false)
         } catch (err) {
             logger.error('[TerminalGrid] Failed to reset session worktree:', err)
@@ -201,36 +191,20 @@ export function TerminalGrid() {
     }
     
     // Listen for terminal reset events and focus terminal events
-    const focusTerminalProgrammatically = useCallback((focusAction: () => void, focusType?: 'terminal' | 'claude') => {
-        suppressNextTerminalFocusRef.current = true
-        safeTerminalFocus(() => {
-            try {
-                focusAction()
-                if (focusType === 'terminal' || focusType === 'claude') {
-                    const sessionKey = getSessionKey()
-                    setFocusForSession(sessionKey, focusType)
-                    setLocalFocus(focusType)
-                }
-            } finally {
-                const release = () => { suppressNextTerminalFocusRef.current = false }
-                if (typeof queueMicrotask === 'function') queueMicrotask(release)
-                else void Promise.resolve().then(release)
-            }
-        }, isAnyModalOpen)
-    }, [getSessionKey, isAnyModalOpen, setFocusForSession])
-
-    const shouldHandleTerminalReset = useCallback((detail?: TerminalResetDetail) => {
-        if (!detail) return false
-        if (detail.kind === 'orchestrator') {
-            return selection.kind === 'orchestrator'
-        }
-        return selection.kind === 'session' && selection.payload === detail.sessionId
-    }, [selection])
-
     useEffect(() => {
         const handleTerminalReset = (event: Event) => {
-            const detail = (event as CustomEvent<TerminalResetDetail>).detail
-            if (!shouldHandleTerminalReset(detail)) return
+            const detail = (event as CustomEvent<TerminalResetDetail | undefined>).detail
+            const shouldReset = !detail
+                || detail.kind === 'orchestrator'
+                || (detail.kind === 'session'
+                    && selection.kind === 'session'
+                    && !!selection.payload
+                    && selection.payload === detail.sessionId)
+
+            if (!shouldReset) {
+                return
+            }
+
             setTerminalKey(prev => prev + 1)
         }
 
@@ -253,14 +227,14 @@ export function TerminalGrid() {
             const targetId = detail?.terminalId || null
             if (targetId) {
                 lastRequestedTerminalId = targetId
-                focusTerminalProgrammatically(() => {
+                safeTerminalFocus(() => {
                     terminalTabsRef.current?.focusTerminal(targetId)
-                }, detail?.focusType)
+                }, isAnyModalOpen)
             } else {
                 // Fallback: focus the active tab
-                focusTerminalProgrammatically(() => {
+                safeTerminalFocus(() => {
                     terminalTabsRef.current?.focus()
-                }, detail?.focusType)
+                }, isAnyModalOpen)
             }
         }
 
@@ -271,23 +245,23 @@ export function TerminalGrid() {
             const detail = (e as CustomEvent<{ terminalId: string }>).detail
             if (!detail) return
             if (lastRequestedTerminalId && detail.terminalId === lastRequestedTerminalId) {
-                focusTerminalProgrammatically(() => {
+                safeTerminalFocus(() => {
                     terminalTabsRef.current?.focusTerminal(detail.terminalId)
-                }, 'terminal')
+                }, isAnyModalOpen)
                 // Clear to avoid repeated focusing
                 lastRequestedTerminalId = null
             }
         }
 
-        window.addEventListener(TERMINAL_RESET_EVENT, handleTerminalReset)
+        window.addEventListener(TERMINAL_RESET_EVENT, handleTerminalReset as EventListener)
         window.addEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
         window.addEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         return () => {
-            window.removeEventListener(TERMINAL_RESET_EVENT, handleTerminalReset)
+            window.removeEventListener(TERMINAL_RESET_EVENT, handleTerminalReset as EventListener)
             window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
             window.removeEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
         }
-    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, focusTerminalProgrammatically, isAnyModalOpen, shouldHandleTerminalReset])
+    }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, isAnyModalOpen, selection.kind, selection.payload])
 
     // Fetch agent type based on selection
     useEffect(() => {
@@ -313,15 +287,6 @@ export function TerminalGrid() {
             })
         }
     }, [selection, sessions, getAgentType])
-
-    useEffect(() => {
-        const currentTop = terminals.top || null
-        if (previousTopIdRef.current && currentTop && previousTopIdRef.current !== currentTop) {
-            setTopRemountKey(prev => prev + 1)
-        }
-        previousTopIdRef.current = currentTop
-    }, [terminals.top])
-
 
     // Load run script availability and manage run mode state
     useEffect(() => {
@@ -418,73 +383,105 @@ export function TerminalGrid() {
     // Keyboard shortcut handling for Run Mode (Cmd+E) and Terminal Focus (Cmd+/)
     useEffect(() => {
         const handleKeyDown = (event: KeyboardEvent) => {
+            // Don't handle shortcuts if any modal is open
             if (isAnyModalOpen()) {
                 return
             }
 
-            if (isShortcutForAction(event, KeyboardShortcutAction.ToggleRunMode, keyboardShortcutConfig, { platform })) {
-                if (!hasRunScripts) {
-                    return
-                }
-
-                event.preventDefault()
-
-                const sessionId = getSessionKey()
-                const runTerminalRef = runTerminalRefs.current.get(sessionId)
-
-                if (runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX) {
-                    runTerminalRef?.toggleRun()
-                } else {
-                    const runModeKey = `schaltwerk:run-mode:${sessionId}`
-                    sessionStorage.setItem(runModeKey, 'true')
-                    setRunModeActive(true)
-                    applyTabsState(prev => {
-                        const next = { ...prev, activeTab: RUN_TAB_INDEX }
-                        sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
-                        return next
-                    })
-
-                    if (isBottomCollapsed) {
-                        const expandedSize = lastExpandedBottomPercent || 28
-                        setSizes([100 - expandedSize, expandedSize])
-                        setIsBottomCollapsed(false)
+            // Cmd+E for Run Mode Toggle (Mac only)
+            if (event.metaKey && event.key === 'e') {
+                // Only handle if run scripts are available
+                if (hasRunScripts) {
+                    event.preventDefault()
+                    
+                    const sessionId = getSessionKey()
+                    const runTerminalRef = runTerminalRefs.current.get(sessionId)
+                    
+                    // If already on Run tab, just toggle
+                    if (runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX) {
+                        runTerminalRef?.toggleRun()
+                    } else {
+                        // Switch to Run tab and set pending toggle
+                        const runModeKey = `schaltwerk:run-mode:${sessionId}`
+                        sessionStorage.setItem(runModeKey, 'true')
+                        setRunModeActive(true)
+                        applyTabsState(prev => {
+                            const next = { ...prev, activeTab: RUN_TAB_INDEX }
+                            sessionStorage.setItem(activeTabKey, String(RUN_TAB_INDEX))
+                            return next
+                        })
+                        
+                        // Expand terminal panel if collapsed
+                        if (isBottomCollapsed) {
+                            const expandedSize = lastExpandedBottomPercent || 28
+                            setSizes([100 - expandedSize, expandedSize])
+                            setIsBottomCollapsed(false)
+                        }
+                        
+                        // Set flag to toggle run after RunTerminal mounts
+                        setPendingRunToggle(true)
                     }
-
-                    setPendingRunToggle(true)
                 }
-                return
             }
-
-            if (isShortcutForAction(event, KeyboardShortcutAction.FocusTerminal, keyboardShortcutConfig, { platform })) {
+            
+            // Cmd+/ for Terminal Focus (Mac only)
+            if (event.metaKey && event.key === '/') {
                 event.preventDefault()
-
+                
                 const sessionKey = getSessionKey()
                 const lastFocus = getFocusForSession(sessionKey)
+                
+                // Special handling: if we're on the run tab, switch to terminal tab
                 const isOnRunTab = runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX
-
+                
                 if (isOnRunTab) {
+                    // Switch from run tab to first terminal tab
                     applyTabsState(prev => {
                         const next = { ...prev, activeTab: 0 }
                         sessionStorage.setItem(activeTabKey, String(0))
                         return next
                     })
-
+                    
+                    // Always focus terminal when switching from run tab
                     setFocusForSession(sessionKey, 'terminal')
                     setLocalFocus('terminal')
-
+                    
+                    // Expand if collapsed
                     if (isBottomCollapsed) {
                         const expandedSize = lastExpandedBottomPercent || 28
                         setSizes([100 - expandedSize, expandedSize])
                         setIsBottomCollapsed(false)
                     }
-
+                    
+                    // Focus the terminal
                     requestAnimationFrame(() => {
                         terminalTabsRef.current?.focus()
                     })
                 } else {
-                    const requestedFocus: 'claude' | 'terminal' = lastFocus === 'claude' ? 'claude' : 'terminal'
-                    setFocusForSession(sessionKey, requestedFocus)
-                    setLocalFocus(requestedFocus)
+                    // Not on run tab - use normal focus logic
+                    // Focus the last focused terminal (claude or terminal)
+                    // Default to terminal if no previous focus or invalid focus
+                    const targetFocus = (lastFocus === 'claude' || lastFocus === 'terminal') ? lastFocus : 'terminal'
+                    
+                    // Set focus for session
+                    setFocusForSession(sessionKey, targetFocus)
+                    setLocalFocus(targetFocus)
+                    
+                    // Expand terminal panel if collapsed and focusing terminal
+                    if (targetFocus === 'terminal' && isBottomCollapsed) {
+                        const expandedSize = lastExpandedBottomPercent || 28
+                        setSizes([100 - expandedSize, expandedSize])
+                        setIsBottomCollapsed(false)
+                    }
+                    
+                    // Focus the appropriate terminal
+                    requestAnimationFrame(() => {
+                        if (targetFocus === 'claude' && claudeTerminalRef.current) {
+                            claudeTerminalRef.current.focus()
+                        } else if (targetFocus === 'terminal' && terminalTabsRef.current) {
+                            terminalTabsRef.current.focus()
+                        }
+                    })
                 }
             }
         }
@@ -493,7 +490,7 @@ export function TerminalGrid() {
         return () => {
             document.removeEventListener('keydown', handleKeyDown)
         }
-    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey, applyTabsState, keyboardShortcutConfig, platform])
+    }, [hasRunScripts, isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, sessionKey, getFocusForSession, setFocusForSession, isAnyModalOpen, activeTabKey, RUN_TAB_INDEX, getSessionKey, applyTabsState])
 
     // Handle pending run toggle after RunTerminal mounts with proper timing
     useEffect(() => {
@@ -716,32 +713,23 @@ export function TerminalGrid() {
     const handleTerminalClick = (e?: React.MouseEvent) => {
         // Prevent event from bubbling if called from child
         e?.stopPropagation()
-
+        
         const sessionKey = getSessionKey()
-        const wasSuppressed = suppressNextTerminalFocusRef.current
-        if (wasSuppressed) {
-            suppressNextTerminalFocusRef.current = false
-        } else {
-            setFocusForSession(sessionKey, 'terminal')
-            setLocalFocus('terminal')
-        }
+        setFocusForSession(sessionKey, 'terminal')
+        setLocalFocus('terminal')
         // If collapsed, uncollapse first
         if (isBottomCollapsed) {
             const expanded = lastExpandedBottomPercent || 28
             setSizes([100 - expanded, expanded])
             setIsBottomCollapsed(false)
-            if (!wasSuppressed) {
-                safeTerminalFocus(() => {
-                    terminalTabsRef.current?.focus()
-                }, isAnyModalOpen)
-            }
-            return
-        }
-        if (!wasSuppressed) {
             safeTerminalFocus(() => {
                 terminalTabsRef.current?.focus()
             }, isAnyModalOpen)
+            return
         }
+        safeTerminalFocus(() => {
+            terminalTabsRef.current?.focus()
+        }, isAnyModalOpen)
     }
 
     // No prompt UI here anymore; moved to right panel dock
@@ -791,7 +779,7 @@ export function TerminalGrid() {
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
             {showLoadingOverlay && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                    <AnimatedText text="loading" size="md" speedMultiplier={3} />
+                    <AnimatedText text="loading" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
                 </div>
             )}
             <Split 
@@ -898,7 +886,7 @@ export function TerminalGrid() {
                         {shouldRenderTerminals && (
                         <TerminalErrorBoundary terminalId={terminals.top}>
                             <Terminal 
-                            key={`top-terminal-${terminalKey}-${topRemountKey}`}
+                            key={`top-terminal-${terminalKey}`}
                             ref={claudeTerminalRef}
                             terminalId={terminals.top} 
                             className="h-full w-full" 
@@ -1084,7 +1072,7 @@ export function TerminalGrid() {
                         >
                             <TerminalErrorBoundary terminalId={terminals.bottomBase}>
                                 <TerminalTabs
-                                    key={`terminal-tabs-${terminalKey}-${terminals.bottomBase ?? 'unknown'}`}
+                                    key={`terminal-tabs-${terminalKey}`}
                                     ref={terminalTabsRef}
                                     baseTerminalId={terminals.bottomBase}
                                     workingDirectory={terminals.workingDirectory}

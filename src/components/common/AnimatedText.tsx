@@ -9,6 +9,7 @@ interface AnimatedTextProps {
   idleMode?: 'artifact' | 'artifact+pulse' | 'pulse' | 'wobble' | 'still'
   centered?: boolean
   speedMultiplier?: number
+  colorClassName?: string
 }
 
 const DEFAULT_COLOR_CLASS = 'text-text-muted'
@@ -109,7 +110,8 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
   className = '',
   idleMode = 'artifact',
   centered = true,
-  speedMultiplier = 1
+  speedMultiplier = 1,
+  colorClassName,
 }) => {
   const sizeClasses = {
     xs: 'text-[3px]',
@@ -143,7 +145,7 @@ export const AnimatedText: React.FC<AnimatedTextProps> = ({
       <div className={sizeClasses[size]}>
         <AsciiBuilderLogo
           asciiArt={asciiArt}
-          colorClassName={DEFAULT_COLOR_CLASS}
+          colorClassName={colorClassName ?? DEFAULT_COLOR_CLASS}
           paused={paused}
           idleMode={idleMode}
           groupOrder="center-out"

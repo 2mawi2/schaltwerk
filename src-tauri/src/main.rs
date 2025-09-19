@@ -19,49 +19,42 @@ mod mcp_api;
 mod permissions;
 mod project_manager;
 mod projects;
-mod dev_info;
 
 use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
-use dev_info::extract_worktree_session;
 
 // Import all commands
 use commands::*;
 
 #[tauri::command]
 fn get_development_info() -> Result<serde_json::Value, String> {
-    let current_dir = std::env::current_dir().unwrap_or_default();
-    let canonical_path = std::fs::canonicalize(&current_dir).ok();
+    // Only return development info in debug builds
+    if cfg!(debug_assertions) {
+        // Get current git branch
+        let branch_result = std::fs::canonicalize(std::env::current_dir().unwrap_or_default())
+            .ok()
+            .and_then(|cwd| git2::Repository::discover(cwd).ok())
+            .and_then(|repo| {
+                repo.head()
+                    .ok()
+                    .and_then(|h| h.shorthand().map(|s| s.to_string()))
+            });
 
-    let repo_root = canonical_path
-        .as_deref()
-        .unwrap_or(current_dir.as_path());
+        let branch = branch_result.unwrap_or_default();
 
-    let branch = git2::Repository::discover(repo_root)
-        .ok()
-        .and_then(|repo| {
-            repo.head()
-                .ok()
-                .and_then(|head| head.shorthand().map(|name| name.to_string()))
-        })
-        .filter(|name| !name.is_empty());
-
-    let session_name = canonical_path
-        .as_deref()
-        .and_then(extract_worktree_session)
-        .or_else(|| extract_worktree_session(current_dir.as_path()));
-
-    let is_worktree = session_name.is_some();
-
-    Ok(serde_json::json!({
-        "isDevelopment": cfg!(debug_assertions),
-        "isWorktree": is_worktree,
-        "branch": branch,
-        "sessionName": session_name,
-    }))
+        Ok(serde_json::json!({
+            "isDevelopment": true,
+            "branch": branch
+        }))
+    } else {
+        Ok(serde_json::json!({
+            "isDevelopment": false,
+            "branch": null
+        }))
+    }
 }
 
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
@@ -653,7 +646,6 @@ fn main() {
             create_terminal_with_size,
             create_run_terminal,
             write_terminal,
-            terminal_acknowledge_output,
             paste_and_submit_terminal,
             resize_terminal,
             close_terminal,
@@ -662,7 +654,6 @@ fn main() {
             get_terminal_buffer,
             get_terminal_activity_status,
             get_all_terminal_activity,
-            get_terminal_backlog,
             register_session_terminals,
             suspend_session_terminals,
             resume_session_terminals,
@@ -766,8 +757,6 @@ fn main() {
             set_diff_view_preferences,
             get_session_preferences,
             set_session_preferences,
-            get_keyboard_shortcuts,
-            set_keyboard_shortcuts,
             get_auto_commit_on_review,
             set_auto_commit_on_review,
             get_project_settings,
