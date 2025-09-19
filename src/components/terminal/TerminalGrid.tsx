@@ -19,6 +19,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
+import { mapSessionUiState } from '../../utils/sessionFilters'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
@@ -1000,50 +1001,51 @@ export function TerminalGrid() {
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 overflow-hidden ${isBottomCollapsed ? 'hidden' : ''}`}>
-                        {/* Render all run terminals but only show the active one */}
+                        {/* Render only the active RunTerminal; never mount for specs */}
                         {hasRunScripts && (
                             <>
                                 {/* Orchestrator run terminal */}
-                                <div style={{ display: runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && selection.kind === 'orchestrator' ? 'block' : 'none' }} className="h-full w-full">
-                                    <RunTerminal
-                                        ref={(ref) => {
-                                            if (ref) runTerminalRefs.current.set('orchestrator', ref)
-                                        }}
-                                        className="h-full w-full overflow-hidden"
-                                        sessionName={undefined}
-                                        isCommander={true}
-                                        onTerminalClick={handleTerminalClick}
-                                        workingDirectory={selection.kind === 'orchestrator' ? terminals.workingDirectory : ''}
-                                        onRunningStateChange={(isRunning) => {
-                                            if (isRunning) {
-                                                addRunningSession('orchestrator')
-                                                setActiveRunSessions(prev => new Set(prev).add('orchestrator'))
-                                            } else {
-                                                removeRunningSession('orchestrator')
-                                                setActiveRunSessions(prev => {
-                                                    const next = new Set(prev)
-                                                    next.delete('orchestrator')
-                                                    return next
-                                                })
-                                            }
-                                        }}
-                                    />
-                                </div>
-                                {/* Session run terminals */}
-                                {sessions.map(session => {
-                                    const sessionId = session.info.session_id
-                                    const isActiveRunTerminal = runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && selection.kind === 'session' && selection.payload === sessionId
+                                {runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && selection.kind === 'orchestrator' && (
+                                    <div className="h-full w-full">
+                                        <RunTerminal
+                                            ref={(ref) => { if (ref) runTerminalRefs.current.set('orchestrator', ref) }}
+                                            className="h-full w-full overflow-hidden"
+                                            sessionName={undefined}
+                                            isCommander={true}
+                                            onTerminalClick={handleTerminalClick}
+                                            workingDirectory={terminals.workingDirectory}
+                                            onRunningStateChange={(isRunning) => {
+                                                if (isRunning) {
+                                                    addRunningSession('orchestrator')
+                                                    setActiveRunSessions(prev => new Set(prev).add('orchestrator'))
+                                                } else {
+                                                    removeRunningSession('orchestrator')
+                                                    setActiveRunSessions(prev => {
+                                                        const next = new Set(prev)
+                                                        next.delete('orchestrator')
+                                                        return next
+                                                    })
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                )}
+
+                                {/* Active session run terminal (skip specs) */}
+                                {runModeActive && terminalTabsState.activeTab === RUN_TAB_INDEX && selection.kind === 'session' && (() => {
+                                    const active = sessions.find(s => s.info.session_id === selection.payload)
+                                    if (!active) return null
+                                    if (mapSessionUiState(active.info) === 'spec') return null
+                                    const sessionId = active.info.session_id
                                     return (
-                                        <div key={sessionId} style={{ display: isActiveRunTerminal ? 'block' : 'none' }} className="h-full w-full">
+                                        <div key={sessionId} className="h-full w-full">
                                             <RunTerminal
-                                                ref={(ref) => {
-                                                    if (ref) runTerminalRefs.current.set(sessionId, ref)
-                                                }}
+                                                ref={(ref) => { if (ref) runTerminalRefs.current.set(sessionId, ref) }}
                                                 className="h-full w-full overflow-hidden"
                                                 sessionName={sessionId}
                                                 isCommander={false}
                                                 onTerminalClick={handleTerminalClick}
-                                                workingDirectory={session.info.worktree_path}
+                                                workingDirectory={active.info.worktree_path}
                                                 onRunningStateChange={(isRunning) => {
                                                     if (isRunning) {
                                                         addRunningSession(sessionId)
@@ -1060,7 +1062,7 @@ export function TerminalGrid() {
                                             />
                                         </div>
                                     )
-                                })}
+                                })()}
                             </>
                         )}
                         {/* Regular terminal tabs - only show when not in run mode */}
