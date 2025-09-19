@@ -1,5 +1,8 @@
-use super::{ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend, get_effective_shell};
-use crate::infrastructure::events::{emit_event, SchaltEvent};
+use super::{get_effective_shell, ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend};
+use crate::{
+    domains::agents::codex_notify,
+    infrastructure::events::{emit_event, SchaltEvent},
+};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -92,6 +95,13 @@ impl TerminalManager {
             .get(session)
             .map(|ids| ids.iter().cloned().collect())
             .unwrap_or_default()
+    }
+
+    pub async fn session_name_for_terminal(&self, id: &str) -> Option<String> {
+        let metadata = self.metadata.read().await;
+        metadata
+            .get(id)
+            .and_then(|meta| meta.session.session_id.clone())
     }
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
@@ -350,8 +360,12 @@ impl TerminalManager {
     
     pub async fn close_terminal(&self, id: String) -> Result<(), String> {
         info!("Closing terminal through manager: {id}");
+        let session_for_cleanup = self.session_name_for_terminal(&id).await;
         self.active_ids.write().await.remove(&id);
         self.unregister_terminal_session(&id).await;
+        if let Some(session_name) = session_for_cleanup {
+            codex_notify::clear_session_token(&session_name);
+        }
         self.backend.close(&id).await
     }
     

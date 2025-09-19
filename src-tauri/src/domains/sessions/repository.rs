@@ -10,7 +10,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use chrono::Utc;
 use log::warn;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Clone)]
 pub struct SessionDbManager {
@@ -48,6 +48,22 @@ impl SessionDbManager {
             .db
             .get_session_by_name(&self.repo_path, name)
             .map_err(|e| anyhow!("Failed to get session '{}': {}", name, e))?;
+
+        self.normalize_spec_state(&mut session)?;
+        Ok(session)
+    }
+
+    pub fn get_session_by_worktree_path(&self, worktree_path: &Path) -> Result<Session> {
+        let mut session = self
+            .db
+            .get_session_by_worktree_path(worktree_path)
+            .map_err(|e| {
+                anyhow!(
+                    "Failed to get session for worktree '{}': {}",
+                    worktree_path.display(),
+                    e
+                )
+            })?;
 
         self.normalize_spec_state(&mut session)?;
         Ok(session)

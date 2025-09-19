@@ -1,9 +1,11 @@
 use super::{agent_ctx, terminals};
 use crate::get_terminal_manager;
 use once_cell::sync::Lazy;
-use schaltwerk::domains::agents::parse_agent_command;
+use schaltwerk::domains::agents::{codex_notify, parse_agent_command};
+use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::Mutex as AsyncMutex;
 
@@ -36,11 +38,52 @@ pub async fn launch_in_terminal(
     terminals::ensure_cwd_access(&cwd)?;
 
     let agent_kind = agent_ctx::infer_agent_kind(&agent_name);
-    let (env_vars, cli_text) =
+    let (mut env_vars, cli_text) =
         agent_ctx::collect_agent_env_and_cli(&agent_kind, repo_path, db).await;
-    let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text);
 
     let manager = get_terminal_manager().await?;
+    let existing_session_name = manager.session_name_for_terminal(&terminal_id).await;
+
+    if matches!(agent_kind, agent_ctx::AgentKind::Codex) {
+        let actual_session_name = existing_session_name.clone().or_else(|| {
+            db.get_session_by_worktree_path(Path::new(&cwd))
+                .ok()
+                .map(|s| s.name)
+        });
+
+        if let Some(session_name_for_env) = actual_session_name.clone() {
+            if let Some(port) = codex_notify::get_webhook_port() {
+                let token = codex_notify::generate_session_token(&session_name_for_env);
+                let mut upsert = |key: &str, value: String| {
+                    if let Some(entry) = env_vars.iter_mut().find(|(k, _)| k == key) {
+                        entry.1 = value;
+                    } else {
+                        env_vars.push((key.to_string(), value));
+                    }
+                };
+                upsert("SCHALTWERK_SESSION", session_name_for_env.clone());
+                if let Some(project) = repo_path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|s| s.to_string())
+                {
+                    upsert("SCHALTWERK_PROJECT", project);
+                }
+                upsert("SCHALTWERK_NOTIFY_PORT", port.to_string());
+                upsert("SCHALTWERK_NOTIFY_TOKEN", token);
+                upsert("SCHALTWERK_WORKTREE_PATH", cwd.clone());
+            } else {
+                log::warn!(
+                    "Codex notify hook enabled but webhook port is unavailable; turn-complete notifications will be skipped"
+                );
+            }
+        } else {
+            log::warn!(
+                "Codex notify hook enabled but session name could not be resolved for terminal {terminal_id}"
+            );
+        }
+    }
+    let final_args = agent_ctx::build_final_args(&agent_kind, agent_args, &cli_text);
     if manager.terminal_exists(&terminal_id).await? {
         manager.close_terminal(terminal_id.clone()).await?;
     }

@@ -5,9 +5,9 @@ use git2::{DiffOptions, Oid, Repository, StatusOptions};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]
 static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();
@@ -380,9 +380,9 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
     let total_time = start_time.elapsed();
     if total_time.as_millis() > 100 {
-        log::warn!("Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})", 
-            total_time.as_millis(), 
-            worktree_path.display(), 
+        log::warn!("Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})",
+            total_time.as_millis(),
+            worktree_path.display(),
             repo_discover_time.as_millis(),
             insertions,
             deletions

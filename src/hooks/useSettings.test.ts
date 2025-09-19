@@ -582,4 +582,34 @@ describe('useSettings', () => {
       expect(shortcuts[KeyboardShortcutAction.CancelSession]).toEqual(['Mod+D'])
     })
   })
+
+  describe('Codex notify features', () => {
+    it('loads codex features from backend', async () => {
+      mockInvoke.mockResolvedValueOnce({ notify_hook_enabled: true, helper_path: '/tmp/hook.sh' })
+      const { result } = renderHook(() => useSettings())
+
+      const features = await result.current.loadCodexFeatures()
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.GetCodexFeatures)
+      expect(features).toEqual({ notify_hook_enabled: true, helper_path: '/tmp/hook.sh' })
+    })
+
+    it('returns defaults when loading fails', async () => {
+      mockInvoke.mockRejectedValueOnce(new Error('failed'))
+      const { result } = renderHook(() => useSettings())
+
+      const features = await result.current.loadCodexFeatures()
+      expect(features).toEqual({ notify_hook_enabled: false, helper_path: null })
+    })
+
+    it('saves codex features via command', async () => {
+      mockInvoke.mockResolvedValueOnce({ notify_hook_enabled: true, helper_path: '/tmp/hook.sh' })
+      const { result } = renderHook(() => useSettings())
+
+      const features = await result.current.saveCodexFeatures({ notify_hook_enabled: true, helper_path: null })
+      expect(mockInvoke).toHaveBeenLastCalledWith(TauriCommands.SetCodexFeatures, {
+        features: { notify_hook_enabled: true, helper_path: null }
+      })
+      expect(features).toEqual({ notify_hook_enabled: true, helper_path: '/tmp/hook.sh' })
+    })
+  })
 })

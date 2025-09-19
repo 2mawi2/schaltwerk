@@ -1,13 +1,21 @@
 use std::collections::HashMap;
 
 use crate::{get_schaltwerk_core, PROJECT_MANAGER, SETTINGS_MANAGER};
-use schaltwerk::domains::settings::{
-    DiffViewPreferences, SessionPreferences, TerminalSettings, TerminalUIPreferences,
+use schaltwerk::domains::{
+    agents::codex_config::{self, NotifyConfigError},
+    settings::{
+        CodexFeaturesConfig, DiffViewPreferences, SessionPreferences, TerminalSettings,
+        TerminalUIPreferences,
+    },
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
     HeaderActionConfig, ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, RunScript,
 };
+use std::fs;
+use std::os::unix::fs::PermissionsExt;
+use std::path::{Path, PathBuf};
+use tauri::Manager;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -383,6 +391,141 @@ pub async fn set_session_preferences(preferences: SessionPreferences) -> Result<
 
     let mut manager = settings_manager.lock().await;
     manager.set_session_preferences(preferences)
+}
+
+fn helper_script_content() -> &'static str {
+    r#"#!/bin/sh
+
+payload="$1"
+session="${SCHALTWERK_SESSION:-}"
+project="${SCHALTWERK_PROJECT:-}"
+port="${SCHALTWERK_NOTIFY_PORT:-}"
+token="${SCHALTWERK_NOTIFY_TOKEN:-}"
+
+if [ -z "$payload" ] || [ -z "$session" ] || [ -z "$port" ] || [ -z "$token" ]; then
+  exit 0
+fi
+
+timestamp=$(date -u +%s)
+
+/usr/bin/env curl --silent --show-error --fail \
+  -X POST \
+  -H "Content-Type: application/json" \
+  -H "X-Schaltwerk-Session: $session" \
+  -H "X-Schaltwerk-Project: $project" \
+  -H "X-Schaltwerk-Token: $token" \
+  -H "X-Schaltwerk-Event-Ts: $timestamp" \
+  --data-binary "$payload" \
+  "http://127.0.0.1:$port/webhook/codex-notify" >/dev/null 2>&1 &
+
+exit 0
+"#
+}
+
+fn ensure_helper_script(path: &Path) -> Result<(), String> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("Failed to create helper directory: {e}"))?;
+    }
+
+    fs::write(path, helper_script_content())
+        .map_err(|e| format!("Failed to write helper script: {e}"))?;
+
+    let metadata =
+        fs::metadata(path).map_err(|e| format!("Failed to read helper permissions: {e}"))?;
+    let mut perms = metadata.permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(path, perms)
+        .map_err(|e| format!("Failed to set helper permissions: {e}"))?;
+
+    Ok(())
+}
+
+fn codex_config_path() -> Result<PathBuf, String> {
+    dirs::home_dir()
+        .map(|home| home.join(".codex").join("config.toml"))
+        .ok_or_else(|| "Failed to locate HOME for Codex config".to_string())
+}
+
+fn helper_command(helper_path: &Path) -> Result<Vec<String>, String> {
+    let helper_str = helper_path
+        .to_str()
+        .ok_or_else(|| "Helper path contains invalid UTF-8".to_string())?;
+    Ok(vec!["/bin/sh".to_string(), helper_str.to_string()])
+}
+
+#[tauri::command]
+pub async fn get_codex_features() -> Result<CodexFeaturesConfig, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_codex_features())
+}
+
+#[tauri::command]
+pub async fn set_codex_features(
+    app: tauri::AppHandle,
+    mut features: CodexFeaturesConfig,
+) -> Result<CodexFeaturesConfig, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+
+    let app_config_dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|e| format!("Failed to resolve app config dir: {e}"))?;
+    let helper_path = app_config_dir
+        .join("codex-hooks")
+        .join("codex-turn-notify.sh");
+    let command = helper_command(&helper_path)?;
+    let config_path = codex_config_path()?;
+
+    if features.notify_hook_enabled {
+        ensure_helper_script(&helper_path)?;
+        match codex_config::enable_notify(&config_path, &command) {
+            Ok(_) => {
+                features.helper_path = Some(helper_path.to_string_lossy().to_string());
+            }
+            Err(NotifyConfigError::Conflict) => {
+                return Err("Codex config already defines a different notify hook. Remove it manually before enabling Schaltwerk integration.".to_string());
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    } else {
+        let _ = codex_config::disable_notify(&config_path, &command).map_err(|e| e.to_string())?;
+        features.helper_path = None;
+    }
+
+    manager.set_codex_features(features.clone())?;
+    Ok(features)
+}
+
+#[tauri::command]
+pub async fn get_keyboard_shortcuts(
+) -> Result<std::collections::HashMap<String, Vec<String>>, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_keyboard_shortcuts())
+}
+
+#[tauri::command]
+pub async fn set_keyboard_shortcuts(
+    shortcuts: std::collections::HashMap<String, Vec<String>>,
+) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_keyboard_shortcuts(shortcuts)
 }
 
 #[tauri::command]
