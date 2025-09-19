@@ -18,7 +18,6 @@ pub enum SchaltEvent {
     TerminalClosed,
     TerminalResumed,
     TerminalForceScroll,
-    CodexTurnComplete,
     TerminalAgentStarted,
     AgentCrashed,
     ProjectReady,
@@ -47,7 +46,6 @@ impl SchaltEvent {
             SchaltEvent::TerminalClosed => "schaltwerk:terminal-closed",
             SchaltEvent::TerminalResumed => "schaltwerk:terminal-resumed",
             SchaltEvent::TerminalForceScroll => "schaltwerk:terminal-force-scroll",
-            SchaltEvent::CodexTurnComplete => "schaltwerk:codex-turn-complete",
             SchaltEvent::TerminalAgentStarted => "schaltwerk:terminal-agent-started",
             SchaltEvent::AgentCrashed => "schaltwerk:agent-crashed",
             SchaltEvent::ProjectReady => "schaltwerk:project-ready",
@@ -81,10 +79,6 @@ mod tests {
         assert_eq!(
             SchaltEvent::TerminalAgentStarted.as_str(),
             "schaltwerk:terminal-agent-started"
-        );
-        assert_eq!(
-            SchaltEvent::CodexTurnComplete.as_str(),
-            "schaltwerk:codex-turn-complete"
         );
     }
 }

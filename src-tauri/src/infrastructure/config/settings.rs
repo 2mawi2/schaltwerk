@@ -158,19 +158,6 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
-    pub fn get_codex_features(&self) -> crate::domains::settings::CodexFeaturesConfig {
-        self.service.get_codex_features()
-    }
-
-    pub fn set_codex_features(
-        &mut self,
-        features: crate::domains::settings::CodexFeaturesConfig,
-    ) -> Result<(), String> {
-        self.service
-            .set_codex_features(features)
-            .map_err(|e| e.to_string())
-    }
-
     pub fn get_keyboard_shortcuts(&self) -> std::collections::HashMap<String, Vec<String>> {
         self.service.get_keyboard_shortcuts()
     }

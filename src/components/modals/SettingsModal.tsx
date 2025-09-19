@@ -3,7 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
-import { useSettings, AgentType, CodexFeaturesConfig } from '../../hooks/useSettings'
+import { useSettings, AgentType } from '../../hooks/useSettings'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
 import { AnimatedText } from '../common/AnimatedText'
@@ -265,9 +265,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
         codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
     })
-    const [codexFeatures, setCodexFeatures] = useState<CodexFeaturesConfig>({ notify_hook_enabled: false, helper_path: null })
-    const [codexNotifySaving, setCodexNotifySaving] = useState(false)
-    const [codexNotifyError, setCodexNotifyError] = useState<string | null>(null)
     const [notification, setNotification] = useState<NotificationState>({
         message: '',
         type: 'info',
@@ -288,9 +285,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         loadSessionPreferences,
         loadKeyboardShortcuts,
         saveKeyboardShortcuts,
-        loadInstalledFonts,
-        loadCodexFeatures,
-        saveCodexFeatures
+        loadInstalledFonts
     } = useSettings()
     
     const {
@@ -308,23 +303,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         setNotification({ message, type, visible: true })
         scheduleHideNotification(3000)
     }
-
-    const handleToggleCodexNotify = useCallback(async (enabled: boolean) => {
-        setCodexNotifySaving(true)
-        setCodexNotifyError(null)
-        try {
-            const updated = await saveCodexFeatures({
-                notify_hook_enabled: enabled,
-                helper_path: codexFeatures.helper_path ?? null
-            })
-            setCodexFeatures(updated)
-        } catch (error) {
-            logger.error('Failed to update Codex notify hook', error)
-            setCodexNotifyError(typeof error === 'string' ? error : (error as Error).message)
-        } finally {
-            setCodexNotifySaving(false)
-        }
-    }, [saveCodexFeatures, codexFeatures.helper_path])
 
     // Normalize smart dashes some platforms insert automatically (Safari/macOS)
     // so CLI flags like "--model" are preserved as two ASCII hyphens.
@@ -411,12 +389,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     
     const loadAllSettings = useCallback(async () => {
         // Load application-level settings (always available)
-        const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences, loadedShortcuts, loadedCodexFeatures] = await Promise.all([
+        const [loadedEnvVars, loadedCliArgs, loadedSessionPreferences, loadedShortcuts] = await Promise.all([
             loadEnvVars(),
             loadCliArgs(),
             loadSessionPreferences(),
             loadKeyboardShortcuts(),
-            loadCodexFeatures(),
         ])
         
         // Load project-specific settings (may fail if no project is open)
@@ -456,11 +433,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         setEditableKeyboardShortcuts(normalizedShortcuts)
         setShortcutsDirty(false)
         applyShortcutOverrides(normalizedShortcuts)
-        setCodexFeatures(loadedCodexFeatures)
-        setCodexNotifyError(null)
-
+        
         loadBinaryConfigs()
-    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadCodexFeatures, loadBinaryConfigs, applyShortcutOverrides])
+    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadBinaryConfigs, applyShortcutOverrides])
 
     useEffect(() => {
         if (open) {
@@ -1080,62 +1055,22 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                     )}
 
                     {activeAgentTab === 'codex' && (
-                        <>
-                            <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className="text-body font-medium text-slate-200">Codex notify hook</h4>
-                                        <p className="text-xs text-slate-400 mt-1">
-                                            When enabled, Schaltwerk signals Codex turns immediately so idle state updates without waiting for terminal activity.
-                                        </p>
-                                    </div>
-                                    <label className="flex items-center gap-2">
-                                        <input
-                                            type="checkbox"
-                                            checked={codexFeatures.notify_hook_enabled}
-                                            onChange={event => {
-                                                handleToggleCodexNotify(event.target.checked)
-                                            }}
-                                            disabled={codexNotifySaving}
-                                            className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-                                        />
-                                        <span className="text-xs text-slate-400">Enable notify hook</span>
-                                    </label>
-                                </div>
-                                {codexNotifySaving && (
-                                    <div className="flex items-center text-xs text-slate-400">
-                                        <AnimatedText text="saving" size="xs" />
-                                    </div>
-                                )}
-                                {codexNotifyError && (
-                                    <div className="p-2 bg-red-900/20 border border-red-800 rounded text-xs text-red-400">
-                                        {codexNotifyError}
-                                    </div>
-                                )}
-                                {codexFeatures.helper_path && (
-                                    <div className="text-xs text-slate-500">
-                                        Helper script: <span className="font-mono text-slate-300 break-all">{codexFeatures.helper_path}</span>
-                                    </div>
-                                )}
+                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
+                            <div className="text-caption text-slate-400">
+                                <strong>Common Codex CLI arguments:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li><code>--sandbox workspace-write</code> - Workspace write access</li>
+                                    <li><code>--sandbox danger-full-access</code> - Full system access</li>
+                                    <li><code>--model o3</code> - Use specific model</li>
+                                </ul>
+                                <strong className="block mt-3">Common environment variables:</strong>
+                                <ul className="mt-2 space-y-1 list-disc list-inside">
+                                    <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
+                                    <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>
+                                    <li>CODEX_PROFILE - Configuration profile to use</li>
+                                </ul>
                             </div>
-
-                            <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                                <div className="text-caption text-slate-400">
-                                    <strong>Common Codex CLI arguments:</strong>
-                                    <ul className="mt-2 space-y-1 list-disc list-inside">
-                                        <li><code>--sandbox workspace-write</code> - Workspace write access</li>
-                                        <li><code>--sandbox danger-full-access</code> - Full system access</li>
-                                        <li><code>--model o3</code> - Use specific model</li>
-                                    </ul>
-                                    <strong className="block mt-3">Common environment variables:</strong>
-                                    <ul className="mt-2 space-y-1 list-disc list-inside">
-                                        <li>OPENAI_API_KEY - Your OpenAI API key (if using OpenAI models)</li>
-                                        <li>CODEX_MODEL - Model to use (e.g., o3, gpt-4)</li>
-                                        <li>CODEX_PROFILE - Configuration profile to use</li>
-                                    </ul>
-                                </div>
-                            </div>
-                        </>
+                        </div>
                     )}
                 </div>
             </div>

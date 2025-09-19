@@ -35,11 +35,6 @@ export interface SettingsSaveResult {
     failedSettings: string[]
 }
 
-export interface CodexFeaturesConfig {
-    notify_hook_enabled: boolean
-    helper_path?: string | null
-}
-
 export const useSettings = () => {
     const [loading, setLoading] = useState(false)
     const [saving, setSaving] = useState(false)
@@ -199,25 +194,6 @@ export const useSettings = () => {
         }
     }, [])
     
-    const saveCodexFeatures = useCallback(async (features: CodexFeaturesConfig): Promise<CodexFeaturesConfig> => {
-        return await invoke<CodexFeaturesConfig>(TauriCommands.SetCodexFeatures, { features })
-    }, [])
-
-    const loadCodexFeatures = useCallback(async (): Promise<CodexFeaturesConfig> => {
-        try {
-            const features = await invoke<CodexFeaturesConfig>(TauriCommands.GetCodexFeatures)
-            if (features) {
-                return {
-                    notify_hook_enabled: !!features.notify_hook_enabled,
-                    helper_path: features.helper_path ?? null
-                }
-            }
-        } catch (error) {
-            logger.warn('Failed to load Codex notify features; defaulting to disabled', error)
-        }
-        return { notify_hook_enabled: false, helper_path: null }
-    }, [])
-
     const loadTerminalSettings = useCallback(async (): Promise<TerminalSettings> => {
         try {
             const settings = await invoke<TerminalSettings>(TauriCommands.GetTerminalSettings)
@@ -276,7 +252,6 @@ export const useSettings = () => {
         saveTerminalSettings,
         saveSessionPreferences,
         saveKeyboardShortcuts,
-        saveCodexFeatures,
         loadEnvVars,
         loadCliArgs,
         loadProjectSettings,
@@ -284,6 +259,5 @@ export const useSettings = () => {
         loadSessionPreferences,
         loadKeyboardShortcuts,
         loadInstalledFonts,
-        loadCodexFeatures,
     }
 }

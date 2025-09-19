@@ -41,14 +41,6 @@ pub struct SessionPreferences {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct CodexFeaturesConfig {
-    #[serde(default)]
-    pub notify_hook_enabled: bool,
-    #[serde(default)]
-    pub helper_path: Option<String>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct TerminalSettings {
     pub shell: Option<String>,
@@ -86,6 +78,4 @@ pub struct Settings {
     pub session: SessionPreferences,
     #[serde(default)]
     pub keyboard_shortcuts: HashMap<String, Vec<String>>,
-    #[serde(default)]
-    pub codex_features: CodexFeaturesConfig,
 }

@@ -181,18 +181,6 @@ impl SettingsService {
         self.settings.session.clone()
     }
 
-    pub fn get_codex_features(&self) -> CodexFeaturesConfig {
-        self.settings.codex_features.clone()
-    }
-
-    pub fn set_codex_features(
-        &mut self,
-        features: CodexFeaturesConfig,
-    ) -> Result<(), SettingsServiceError> {
-        self.settings.codex_features = features;
-        self.save()
-    }
-
     pub fn set_session_preferences(
         &mut self,
         preferences: SessionPreferences,

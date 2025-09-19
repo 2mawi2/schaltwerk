@@ -433,11 +433,8 @@ mod service_unified_tests {
         std::fs::write(repo_root.join("CLAUDE.local.md"), "root-local-memory").unwrap();
         let claude_dir = repo_root.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(
-            claude_dir.join("settings.local.json"),
-            "{\"key\":\"value\"}",
-        )
-        .unwrap();
+        std::fs::write(claude_dir.join("settings.local.json"), "{\"key\":\"value\"}")
+            .unwrap();
 
         let params = SessionCreationParams {
             name: "copy-local",
@@ -508,7 +505,8 @@ mod service_unified_tests {
         std::fs::write(repo_root.join("CLAUDE.local.md"), "should-not-copy").unwrap();
         let claude_dir = repo_root.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("settings.local.json"), "{\"copy\":false}").unwrap();
+        std::fs::write(claude_dir.join("settings.local.json"), "{\"copy\":false}")
+            .unwrap();
 
         let params = SessionCreationParams {
             name: "cursor-session",
@@ -765,7 +763,9 @@ impl SessionManager {
 
         if should_copy_claude_locals {
             if let Err(err) = self.copy_claude_local_files(&worktree_path) {
-                warn!("Failed to copy Claude local overrides for session '{unique_name}': {err}");
+                warn!(
+                    "Failed to copy Claude local overrides for session '{unique_name}': {err}"
+                );
             }
         }
 
@@ -1253,8 +1253,8 @@ impl SessionManager {
         }
 
         let total_elapsed = start_time.elapsed();
-        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)",
-            enriched.len(),
+        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)", 
+            enriched.len(), 
             total_elapsed.as_millis(),
             db_time.as_millis(),
             git_stats_total_time.as_millis(),
@@ -1832,23 +1832,6 @@ impl SessionManager {
         let session = self.db_manager.get_session_by_name(session_name)?;
         self.db_manager
             .update_session_ready_to_merge(&session.id, false)?;
-        Ok(())
-    }
-
-    pub fn record_codex_turn_completion(
-        &self,
-        session_name: &str,
-        timestamp: chrono::DateTime<Utc>,
-    ) -> Result<()> {
-        let session = self.db_manager.get_session_by_name(session_name)?;
-        self.db_manager
-            .set_session_activity(&session.id, timestamp)?;
-
-        if session.session_state != SessionState::Spec {
-            self.db_manager
-                .update_session_state(&session.id, SessionState::Running)?;
-        }
-
         Ok(())
     }
 

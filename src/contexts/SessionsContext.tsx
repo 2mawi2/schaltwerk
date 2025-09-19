@@ -423,25 +423,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 }))
             }))
 
-            addListener(listenEvent(SchaltEvent.CodexTurnComplete, (event) => {
-                const { session_name, timestamp } = event
-                const tsMs = (timestamp ?? Math.floor(Date.now() / 1000)) * 1000
-                setAllSessions(prev => prev.map(s => {
-                    if (s.info.session_id !== session_name) return s
-                    const updatedInfo: SessionInfo = {
-                        ...s.info,
-                        last_modified: new Date(tsMs).toISOString(),
-                        last_modified_ts: tsMs,
-                        session_state: SessionState.Running,
-                        status: 'active',
-                    }
-                    return {
-                        ...s,
-                        info: updatedInfo,
-                    }
-                }))
-            }))
-
             // Git stats updates
             addListener(listenEvent(SchaltEvent.SessionGitStats, (event) => {
                 logger.debug('[SessionsContext] SessionGitStats event', event)

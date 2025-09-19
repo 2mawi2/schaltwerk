@@ -5,48 +5,10 @@ use chrono::{TimeZone, Utc};
 use rusqlite::{params, Result as SqlResult};
 use std::path::{Path, PathBuf};
 
-fn row_to_session(row: &rusqlite::Row<'_>) -> SqlResult<Session> {
-    Ok(Session {
-        id: row.get(0)?,
-        name: row.get(1)?,
-        display_name: row.get(2).ok(),
-        version_group_id: row.get(3).ok(),
-        version_number: row.get(4).ok(),
-        repository_path: PathBuf::from(row.get::<_, String>(5)?),
-        repository_name: row.get(6)?,
-        branch: row.get(7)?,
-        parent_branch: row.get(8)?,
-        worktree_path: PathBuf::from(row.get::<_, String>(9)?),
-        status: row
-            .get::<_, String>(10)?
-            .parse()
-            .unwrap_or(SessionStatus::Active),
-        created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-        updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
-        last_activity: row
-            .get::<_, Option<i64>>(13)?
-            .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-        initial_prompt: row.get(14)?,
-        ready_to_merge: row.get(15).unwrap_or(false),
-        original_agent_type: row.get(16).ok(),
-        original_skip_permissions: row.get(17).ok(),
-        pending_name_generation: row.get(18).unwrap_or(false),
-        was_auto_generated: row.get(19).unwrap_or(false),
-        spec_content: row.get(20).ok(),
-        session_state: row
-            .get::<_, String>(21)
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(SessionState::Running),
-        resume_allowed: row.get(22).unwrap_or(true),
-    })
-}
-
 pub trait SessionMethods {
     fn create_session(&self, session: &Session) -> Result<()>;
     fn get_session_by_name(&self, repo_path: &Path, name: &str) -> Result<Session>;
     fn get_session_by_id(&self, id: &str) -> Result<Session>;
-    fn get_session_by_worktree_path(&self, worktree_path: &Path) -> Result<Session>;
     fn get_session_task_content(
         &self,
         repo_path: &Path,
@@ -144,7 +106,42 @@ impl SessionMethods for Database {
              WHERE repository_path = ?1 AND name = ?2"
         )?;
 
-        let session = stmt.query_row(params![repo_path.to_string_lossy(), name], row_to_session)?;
+        let session = stmt.query_row(params![repo_path.to_string_lossy(), name], |row| {
+            Ok(Session {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                display_name: row.get(2).ok(),
+                version_group_id: row.get(3).ok(),
+                version_number: row.get(4).ok(),
+                repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                repository_name: row.get(6)?,
+                branch: row.get(7)?,
+                parent_branch: row.get(8)?,
+                worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                status: row
+                    .get::<_, String>(10)?
+                    .parse()
+                    .unwrap_or(SessionStatus::Active),
+                created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                last_activity: row
+                    .get::<_, Option<i64>>(13)?
+                    .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                initial_prompt: row.get(14)?,
+                ready_to_merge: row.get(15).unwrap_or(false),
+                original_agent_type: row.get(16).ok(),
+                original_skip_permissions: row.get(17).ok(),
+                pending_name_generation: row.get(18).unwrap_or(false),
+                was_auto_generated: row.get(19).unwrap_or(false),
+                spec_content: row.get(20).ok(),
+                session_state: row
+                    .get::<_, String>(21)
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(SessionState::Running),
+                resume_allowed: row.get(22).unwrap_or(true),
+            })
+        })?;
 
         Ok(session)
     }
@@ -162,25 +159,42 @@ impl SessionMethods for Database {
              WHERE id = ?1"
         )?;
 
-        let session = stmt.query_row(params![id], row_to_session)?;
-
-        Ok(session)
-    }
-
-    fn get_session_by_worktree_path(&self, worktree_path: &Path) -> Result<Session> {
-        let conn = self.conn.lock().unwrap();
-
-        let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                    branch, parent_branch, worktree_path,
-                    status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
-                    original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed
-             FROM sessions
-             WHERE worktree_path = ?1"
-        )?;
-
-        let session = stmt.query_row(params![worktree_path.to_string_lossy()], row_to_session)?;
+        let session = stmt.query_row(params![id], |row| {
+            Ok(Session {
+                id: row.get(0)?,
+                name: row.get(1)?,
+                display_name: row.get(2).ok(),
+                version_group_id: row.get(3).ok(),
+                version_number: row.get(4).ok(),
+                repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                repository_name: row.get(6)?,
+                branch: row.get(7)?,
+                parent_branch: row.get(8)?,
+                worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                status: row
+                    .get::<_, String>(10)?
+                    .parse()
+                    .unwrap_or(SessionStatus::Active),
+                created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                last_activity: row
+                    .get::<_, Option<i64>>(13)?
+                    .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                initial_prompt: row.get(14)?,
+                ready_to_merge: row.get(15).unwrap_or(false),
+                original_agent_type: row.get(16).ok(),
+                original_skip_permissions: row.get(17).ok(),
+                pending_name_generation: row.get(18).unwrap_or(false),
+                was_auto_generated: row.get(19).unwrap_or(false),
+                spec_content: row.get(20).ok(),
+                session_state: row
+                    .get::<_, String>(21)
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(SessionState::Running),
+                resume_allowed: row.get(22).unwrap_or(true),
+            })
+        })?;
 
         Ok(session)
     }

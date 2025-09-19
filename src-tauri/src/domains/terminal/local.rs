@@ -285,9 +285,7 @@ impl LocalPtyAdapter {
                                 // Increment sequence and update last output time
                                 state.seq += 1;
                                 state.last_output = SystemTime::now();
-
-                                let current_seq = state.seq;
-
+                                
                                 // Handle output emission - different strategies for agent vs standard terminals
                                 drop(terminals); // release lock before awaits below
 
@@ -302,7 +300,6 @@ impl LocalPtyAdapter {
                                         CoalescingParams {
                                             terminal_id: &id_clone,
                                             data: &data,
-                                            seq: current_seq,
                                         },
                                     ).await;
                                 } else {

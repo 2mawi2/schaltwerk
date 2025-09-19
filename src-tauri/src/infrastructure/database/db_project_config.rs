@@ -98,9 +98,9 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at)
+            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at) 
                 VALUES (?1, ?2, ?3, ?4)
-                ON CONFLICT(repository_path) DO UPDATE SET
+                ON CONFLICT(repository_path) DO UPDATE SET 
                     setup_script = excluded.setup_script,
                     updated_at = excluded.updated_at",
             params![canonical_path.to_string_lossy(), setup_script, now, now],
@@ -139,17 +139,17 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-                "INSERT INTO project_config (repository_path, last_selection_kind, last_selection_payload, created_at, updated_at)
+                "INSERT INTO project_config (repository_path, last_selection_kind, last_selection_payload, created_at, updated_at) 
                 VALUES (?1, ?2, ?3, ?4, ?5)
-                ON CONFLICT(repository_path) DO UPDATE SET
+                ON CONFLICT(repository_path) DO UPDATE SET 
                     last_selection_kind = excluded.last_selection_kind,
                     last_selection_payload = excluded.last_selection_payload,
                     updated_at = excluded.updated_at",
                 params![
-                    canonical_path.to_string_lossy(),
+                    canonical_path.to_string_lossy(), 
                     selection.kind,
                     selection.payload,
-                    now,
+                    now, 
                     now
                 ],
             )?;

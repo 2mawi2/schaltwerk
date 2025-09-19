@@ -1,6 +1,5 @@
 use super::ansi;
 use log::warn;
-use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter};
@@ -32,13 +31,6 @@ impl CoalescingState {
 pub struct CoalescingParams<'a> {
     pub terminal_id: &'a str,
     pub data: &'a [u8],
-    pub seq: u64,
-}
-
-#[derive(Clone, Serialize)]
-pub struct TerminalOutputPayload {
-    pub seq: u64,
-    pub data: String,
 }
 
 /// Handle coalesced output with ANSI-aware buffering
@@ -110,10 +102,7 @@ pub async fn handle_coalesced_output(
     if let Some(bytes) = emit_bytes {
         if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
             let event_name = format!("terminal-output-{}", params.terminal_id);
-            let payload = TerminalOutputPayload {
-                seq: params.seq,
-                data: String::from_utf8_lossy(&bytes).to_string(),
-            };
+            let payload = String::from_utf8_lossy(&bytes).to_string();
             if let Err(e) = handle.emit(&event_name, payload) {
                 warn!("Failed to emit terminal output: {e}");
             }
@@ -154,7 +143,6 @@ mod tests {
         let params = CoalescingParams {
             terminal_id: "test-terminal",
             data: b"hello world",
-            seq: 0,
         };
 
         assert_eq!(params.terminal_id, "test-terminal");
@@ -174,7 +162,6 @@ mod tests {
         let params = CoalescingParams {
             terminal_id: "test-term",
             data: b"test output",
-            seq: 0,
         };
 
         handle_coalesced_output(&state, params).await;
@@ -201,7 +188,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"hello ",
-                seq: 0,
             },
         )
         .await;
@@ -212,7 +198,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"world",
-                seq: 0,
             },
         )
         .await;
@@ -244,7 +229,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"data1",
-                seq: 0,
             },
         )
         .await;
@@ -253,7 +237,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"data2",
-                seq: 0,
             },
         )
         .await;
@@ -278,7 +261,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"immediate",
-                seq: 0,
             },
         )
         .await;
@@ -307,7 +289,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "term1",
                 data: b"data1",
-                seq: 0,
             },
         )
         .await;
@@ -318,7 +299,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "term2",
                 data: b"data2",
-                seq: 0,
             },
         )
         .await;
@@ -350,7 +330,6 @@ mod tests {
             CoalescingParams {
                 terminal_id,
                 data: b"test data",
-                seq: 0,
             },
         )
         .await;
@@ -390,7 +369,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "term1",
                 data: b"data1",
-                seq: 0,
             },
         )
         .await;
@@ -400,7 +378,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "term2",
                 data: b"data2",
-                seq: 0,
             },
         )
         .await;
@@ -410,7 +387,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "term3",
                 data: b"data3",
-                seq: 0,
             },
         )
         .await;
@@ -463,7 +439,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"Line 1\nLine 2 initial",
-                seq: 0,
             },
         )
         .await;
@@ -474,7 +449,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"\rLine 2 replaced",
-                seq: 0,
             },
         )
         .await;
@@ -501,7 +475,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"Previous line\nLoading.",
-                seq: 0,
             },
         )
         .await;
@@ -511,7 +484,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"\rLoading..",
-                seq: 0,
             },
         )
         .await;
@@ -521,7 +493,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"\rLoading...",
-                seq: 0,
             },
         )
         .await;
@@ -548,7 +519,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"Line 1\r\nLine 2",
-                seq: 0,
             },
         )
         .await;
@@ -558,7 +528,6 @@ mod tests {
             CoalescingParams {
                 terminal_id: "test-term",
                 data: b"\r\nLine 3",
-                seq: 0,
             },
         )
         .await;

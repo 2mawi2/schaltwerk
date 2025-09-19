@@ -13,7 +13,6 @@ export enum SchaltEvent {
   SessionGitStats = 'schaltwerk:session-git-stats',
   TerminalClosed = 'schaltwerk:terminal-closed',
   TerminalResumed = 'schaltwerk:terminal-resumed',
-  CodexTurnComplete = 'schaltwerk:codex-turn-complete',
   TerminalAgentStarted = 'schaltwerk:terminal-agent-started',
   TerminalForceScroll = 'schaltwerk:terminal-force-scroll',
   ProjectReady = 'schaltwerk:project-ready',
@@ -52,14 +51,6 @@ export interface FollowUpMessagePayload {
   message_type: 'system' | 'user'
 }
 
-export interface CodexTurnCompletePayload {
-  session_name: string
-  turn_id?: string
-  timestamp: number
-  last_assistant_message?: string
-  project?: string
-}
-
 export interface ChangedFile {
   path: string
   change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown'
@@ -96,7 +87,6 @@ export type EventPayloadMap = {
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
   [SchaltEvent.TerminalClosed]: { terminal_id: string }
   [SchaltEvent.TerminalResumed]: { terminal_id: string }
-  [SchaltEvent.CodexTurnComplete]: CodexTurnCompletePayload
   [SchaltEvent.TerminalAgentStarted]: { terminal_id: string, session_name?: string }
   [SchaltEvent.TerminalForceScroll]: { terminal_id: string }
   [SchaltEvent.ProjectReady]: string

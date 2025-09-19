@@ -20,9 +20,7 @@ mod permissions;
 mod project_manager;
 mod projects;
 
-use chrono::TimeZone;
 use project_manager::ProjectManager;
-use schaltwerk::domains::agents::codex_notify;
 use schaltwerk::infrastructure::config::SettingsManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
@@ -174,29 +172,9 @@ async fn start_terminal_monitoring(app: tauri::AppHandle) {
                 }
             };
             let stuck_terminals = manager.get_all_terminal_activity().await;
-
-            let codex_notify_enabled = if let Some(settings_manager) = SETTINGS_MANAGER.get() {
-                settings_manager
-                    .lock()
-                    .await
-                    .get_codex_features()
-                    .notify_hook_enabled
-            } else {
-                false
-            };
             let mut currently_stuck = HashSet::new();
 
             for (terminal_id, is_stuck, elapsed) in stuck_terminals {
-                if codex_notify_enabled {
-                    if let Some(session_name) =
-                        manager.session_name_for_terminal(&terminal_id).await
-                    {
-                        if codex_notify::has_session_token(&session_name) {
-                            continue;
-                        }
-                    }
-                }
-
                 if is_stuck {
                     currently_stuck.insert(terminal_id.clone());
 
@@ -498,121 +476,6 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
 
                 Ok(Response::new("OK".to_string()))
             }
-            (&hyper::Method::POST, "/webhook/codex-notify") => {
-                let headers = req.headers();
-
-                let session_name = match headers
-                    .get("X-Schaltwerk-Session")
-                    .and_then(|v| v.to_str().ok())
-                {
-                    Some(value) if !value.is_empty() => value.to_string(),
-                    _ => {
-                        return Ok(Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body("Missing X-Schaltwerk-Session header".to_string())
-                            .unwrap())
-                    }
-                };
-
-                let token = match headers
-                    .get("X-Schaltwerk-Token")
-                    .and_then(|v| v.to_str().ok())
-                {
-                    Some(value) if !value.is_empty() => value.to_string(),
-                    _ => {
-                        return Ok(Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body("Missing X-Schaltwerk-Token header".to_string())
-                            .unwrap())
-                    }
-                };
-
-                if !codex_notify::consume_session_token(&session_name, &token) {
-                    return Ok(Response::builder()
-                        .status(StatusCode::UNAUTHORIZED)
-                        .body("Invalid Codex notify token".to_string())
-                        .unwrap());
-                }
-
-                let project = headers
-                    .get("X-Schaltwerk-Project")
-                    .and_then(|v| v.to_str().ok())
-                    .map(|s| s.to_string());
-
-                let event_ts = headers
-                    .get("X-Schaltwerk-Event-Ts")
-                    .and_then(|v| v.to_str().ok())
-                    .and_then(|v| v.parse::<i64>().ok());
-
-                let body = req.into_body();
-                let body_bytes = body.collect().await?.to_bytes();
-
-                let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
-                    Ok(value) => value,
-                    Err(e) => {
-                        log::warn!("Failed to parse Codex notify payload: {e}");
-                        return Ok(Response::builder()
-                            .status(StatusCode::BAD_REQUEST)
-                            .body("Invalid JSON payload".to_string())
-                            .unwrap());
-                    }
-                };
-
-                let timestamp = event_ts
-                    .and_then(|ts| chrono::Utc.timestamp_opt(ts, 0).single())
-                    .unwrap_or_else(chrono::Utc::now);
-
-                log::info!(
-                    "Codex notify accepted for session={session_name}, payload_size={} bytes",
-                    body_bytes.len()
-                );
-
-                match get_schaltwerk_core().await {
-                    Ok(core) => {
-                        let core = core.lock().await;
-                        let manager = core.session_manager();
-                        if let Err(e) =
-                            manager.record_codex_turn_completion(&session_name, timestamp)
-                        {
-                            log::warn!(
-                                "Failed to record Codex turn completion for {session_name}: {e}"
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        log::warn!("Codex notify webhook received without active project: {e}");
-                    }
-                }
-
-                #[derive(serde::Serialize, Clone)]
-                struct CodexTurnCompletePayload {
-                    session_name: String,
-                    turn_id: Option<String>,
-                    timestamp: i64,
-                    last_assistant_message: Option<String>,
-                    project: Option<String>,
-                }
-
-                let event_payload = CodexTurnCompletePayload {
-                    session_name: session_name.clone(),
-                    turn_id: payload
-                        .get("turn-id")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
-                    timestamp: timestamp.timestamp(),
-                    last_assistant_message: payload
-                        .get("last-assistant-message")
-                        .and_then(|v| v.as_str())
-                        .map(|s| s.to_string()),
-                    project,
-                };
-
-                if let Err(e) = emit_event(&app, SchaltEvent::CodexTurnComplete, &event_payload) {
-                    log::warn!("Failed to emit CodexTurnComplete event for {session_name}: {e}");
-                }
-
-                Ok(Response::new("OK".to_string()))
-            }
             (&hyper::Method::POST, "/webhook/spec-created") => {
                 // Parse the JSON body for spec creation notification
                 let body = req.into_body();
@@ -679,8 +542,6 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
     // Find an available port starting from the base port
     let port = find_available_port(base_port).await;
     let addr = ("127.0.0.1", port);
-
-    codex_notify::set_webhook_port(port);
 
     let listener = match TcpListener::bind(&addr).await {
         Ok(l) => l,
@@ -896,10 +757,6 @@ fn main() {
             set_diff_view_preferences,
             get_session_preferences,
             set_session_preferences,
-            get_codex_features,
-            set_codex_features,
-            get_keyboard_shortcuts,
-            set_keyboard_shortcuts,
             get_auto_commit_on_review,
             set_auto_commit_on_review,
             get_project_settings,
@@ -957,7 +814,7 @@ fn main() {
                     }
                 }
             });
-
+            
             // Check git status and initialize project in background
             if let Some((dir, _)) = initial_directory.clone() {
                 let dir_path = std::path::PathBuf::from(&dir);
@@ -974,7 +831,7 @@ fn main() {
                             false
                         }
                     };
-
+                    
                     if is_git {
                         let manager = get_project_manager().await;
                         if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
@@ -986,7 +843,7 @@ fn main() {
                                 log::error!("Failed to emit project-ready event: {e}");
                             }
                         }
-
+                        
                         // Emit event to open the Git repository
                         if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenDirectory, &dir) {
                             log::error!("Failed to emit open-directory event: {e}");
@@ -1000,7 +857,7 @@ fn main() {
                 });
             }
 
-
+            
             // Initialize settings manager asynchronously
             let settings_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -1026,25 +883,25 @@ fn main() {
                     }
                 }
             });
-
+            
             // Initialize file watcher manager
             let file_watcher_handle = app.handle().clone();
             let _ = FILE_WATCHER_MANAGER.set(Arc::new(schaltwerk::domains::workspace::FileWatcherManager::new(file_watcher_handle)));
-
+            
             // Defer non-critical services to improve startup performance
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use tokio::time::{sleep, Duration};
-
+                
                 // Small delay to let UI appear first
                 sleep(Duration::from_millis(50)).await;
-
+                
                 // Start terminal monitoring for stuck detection
                 let monitor_handle = app_handle.clone();
                 tokio::spawn(async move {
                     start_terminal_monitoring(monitor_handle).await;
                 });
-
+                
                 // Start activity tracking
                 let activity_handle = app_handle.clone();
                 tokio::spawn(async move {
@@ -1066,7 +923,7 @@ fn main() {
                         }
                     }
                 });
-
+                
                 // Start webhook server for MCP notifications
                 let webhook_handle = app_handle.clone();
                 tokio::spawn(async move {
@@ -1075,10 +932,10 @@ fn main() {
                     }
                 });
             });
-
+            
             // MCP server is now managed by Claude Code via .mcp.json configuration
             // No need to start it from Schaltwerk
-
+            
             Ok(())
         })
         .on_window_event(|_window, event| {
@@ -1088,14 +945,14 @@ fn main() {
                     let manager = get_project_manager().await;
                     manager.cleanup_all().await;
                 });
-
+                
                 // Stop all file watchers
                 tauri::async_runtime::block_on(async {
                     if let Ok(watcher_manager) = get_file_watcher_manager().await {
                         watcher_manager.stop_all_watchers().await;
                     }
                 });
-
+                
                 // Stop MCP server if running
                 if let Some(process_mutex) = commands::mcp::get_mcp_server_process().get() {
                     if let Ok(mut guard) = process_mutex.try_lock() {
