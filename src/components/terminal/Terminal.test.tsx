@@ -58,7 +58,7 @@ interface MockXTerm {
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
 // ---- Mock: xterm (defined entirely inside factory to avoid hoist issues) ----
-vi.mock('@xterm/xterm', () => {
+vi.mock('xterm', () => {
   const instances: unknown[] = []
   class MockXTerm {
     static __instances = instances
@@ -139,7 +139,7 @@ vi.mock('@xterm/addon-fit', () => {
     }
     fit() {
       // import lazily to avoid circular init
-      const xterm = require('@xterm/xterm') as { __getLastInstance?: () => MockXTerm }
+      const xterm = require('xterm') as { __getLastInstance?: () => MockXTerm }
       const last = xterm.__getLastInstance?.()
       if (nextFitSize && last) {
         last.cols = nextFitSize.cols
@@ -243,7 +243,7 @@ import { TestProviders } from '../../tests/test-utils'
 // Also import mocked helpers for control
 import * as TauriEvent from '@tauri-apps/api/event'
 import * as TauriCore from '@tauri-apps/api/core'
-import * as XTermModule from '@xterm/xterm'
+import * as XTermModule from 'xterm'
 import * as FitAddonModule from '@xterm/addon-fit'
 
 function getLastXtermInstance(): MockXTerm {
