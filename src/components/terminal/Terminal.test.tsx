@@ -525,6 +525,66 @@ describe('Terminal component', () => {
     expect(focusSpy).toHaveBeenCalled()
   })
 
+  it('keeps focus inside search UI without triggering onTerminalClick', async () => {
+    const onTerminalClick = vi.fn()
+    const { container } = renderTerminal({ terminalId: 'session-search-focus-top', sessionName: 'search-focus', onTerminalClick })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    await act(async () => {
+      xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
+    })
+
+    await flushAll()
+
+    const searchInput = container.querySelector('input[placeholder="Search..."]') as HTMLInputElement | null
+    expect(searchInput).toBeTruthy()
+
+    await act(async () => {
+      searchInput!.focus()
+    })
+    fireEvent.change(searchInput!, { target: { value: 'npm' } })
+
+    expect(onTerminalClick).not.toHaveBeenCalled()
+    expect(searchInput!.value).toBe('npm')
+  })
+
+  it('keeps bottom terminal search focused when parent requests terminal focus', async () => {
+    const ref = createRef<{ focus: () => void; showSearch: () => void; scrollToBottom: () => void }>()
+    render(
+      <TestProviders>
+        <Terminal terminalId="session-search-bottom-0" sessionName="search-bottom" ref={ref} />
+      </TestProviders>
+    )
+
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    await act(async () => {
+      xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
+    })
+
+    await flushAll()
+
+    const searchInput = document.querySelector('input[placeholder="Search..."]') as HTMLInputElement | null
+    expect(searchInput).toBeTruthy()
+
+    await act(async () => {
+      searchInput!.focus()
+    })
+
+    expect(document.activeElement).toBe(searchInput)
+
+    const focusSpy = vi.spyOn(xterm, 'focus')
+
+    await act(async () => {
+      ref.current?.focus()
+    })
+
+    expect(focusSpy).not.toHaveBeenCalled()
+    focusSpy.mockRestore()
+  })
+
   it('notifies onTerminalClick when the terminal DOM gains focus', async () => {
     const onTerminalClick = vi.fn()
     const { container } = renderTerminal({ terminalId: 'session-focus-events-top', sessionName: 'focus-events', onTerminalClick })

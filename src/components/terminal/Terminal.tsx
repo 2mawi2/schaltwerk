@@ -49,6 +49,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
     const containerRef = useRef<HTMLDivElement | null>(null);
+    const searchContainerRef = useRef<HTMLDivElement | null>(null);
+    const focusSearchInput = useCallback(() => {
+        if (!searchContainerRef.current) return false;
+        const input = searchContainerRef.current.querySelector('input');
+        if (input instanceof HTMLInputElement) {
+            input.focus();
+            return true;
+        }
+        return false;
+    }, []);
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
@@ -153,6 +163,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
     useImperativeHandle(ref, () => ({
         focus: () => {
+            if (isSearchVisible && focusSearchInput()) {
+                return;
+            }
             safeTerminalFocusImmediate(() => {
                 terminal.current?.focus();
             }, isAnyModalOpen);
@@ -165,7 +178,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 terminal.current.scrollToBottom();
             }
         }
-    }), [isAnyModalOpen]);
+    }), [isAnyModalOpen, isSearchVisible, focusSearchInput]);
 
     // Keep hydratedRef in sync so listeners see the latest state
     useEffect(() => {
@@ -177,9 +190,18 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const node = containerRef.current;
         if (!node) return;
 
-        const handleFocusIn = () => {
+        const handleFocusIn = (event: FocusEvent) => {
             if (skipNextFocusCallbackRef.current) {
                 skipNextFocusCallbackRef.current = false;
+                return;
+            }
+            const target = event.target as Node | null;
+            if (target instanceof Element) {
+                if (target.closest('[data-terminal-search="true"]')) {
+                    return;
+                }
+            }
+            if (target && searchContainerRef.current && searchContainerRef.current.contains(target)) {
                 return;
             }
             onTerminalClick();
@@ -1482,7 +1504,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [terminalId]);
 
 
-    const handleTerminalClick = () => {
+    const handleTerminalClick = (event?: React.MouseEvent<HTMLDivElement>) => {
+        if (isSearchVisible) {
+            const target = event?.target as Node | null;
+            if (target instanceof Element && target.closest('[data-terminal-search="true"]')) {
+                return;
+            }
+        }
         // If user is selecting text inside the run terminal, do not steal focus (prevents jump-to-bottom)
         if (agentType === 'run' && (isUserSelectingInTerminal() || suppressNextClickRef.current)) {
             // Reset suppression after consuming it
@@ -1537,7 +1565,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             )}
             {/* Search UI opens via keyboard shortcut only (Cmd/Ctrl+F) */}
             {isSearchVisible && (
-                <div className="absolute top-2 right-2 flex items-center bg-panel border border-slate-700 rounded px-2 py-1 z-10">
+                <div ref={searchContainerRef} data-terminal-search="true" className="absolute top-2 right-2 flex items-center bg-panel border border-slate-700 rounded px-2 py-1 z-10">
                     <input
                         type="text"
                         value={searchTerm}
