@@ -25,7 +25,6 @@ import { logger } from '../../utils/logger'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
-import { useIdleSessions } from '../../hooks/useIdleSessions'
 import { useProject } from '../../contexts/ProjectContext'
 
 // Normalize backend states to UI categories
