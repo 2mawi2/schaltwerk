@@ -97,6 +97,8 @@ export const sessionReducers = {
     branch: string
     worktree_path: string
     parent_branch: string
+    created_at: string
+    last_modified?: string
   }) => {
     // Avoid duplicates
     if (sessions.some(s => s.info.session_id === payload.session_name)) return sessions
@@ -107,7 +109,8 @@ export const sessionReducers = {
       worktree_path: payload.worktree_path,
       base_branch: payload.parent_branch,
       status: 'active',
-      last_modified: undefined,
+      created_at: payload.created_at,
+      last_modified: payload.last_modified ?? payload.created_at,
       has_uncommitted_changes: false,
       is_current: false,
       session_type: 'worktree',
@@ -361,7 +364,8 @@ describe('Sidebar', () => {
         session_name: 'new-session',
         branch: 'feature/new',
         worktree_path: '/path/new',
-        parent_branch: 'main'
+        parent_branch: 'main',
+        created_at: '2025-01-01T00:00:00.000Z'
       }
 
       const updatedSessions = sessionReducers.addSession(initialSessions, addPayload)
@@ -382,7 +386,8 @@ describe('Sidebar', () => {
         session_name: 'session1', // Already exists
         branch: 'feature/duplicate',
         worktree_path: '/path/duplicate',
-        parent_branch: 'main'
+        parent_branch: 'main',
+        created_at: '2025-01-01T00:00:00.000Z'
       }
 
       const updatedSessions = sessionReducers.addSession(initialSessions, addPayload)

@@ -305,6 +305,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 branch: String,
                                 worktree_path: String,
                                 parent_branch: String,
+                                created_at: String,
+                                last_modified: Option<String>,
                             }
 
                             let session_payload = SessionAddedPayload {
@@ -324,6 +326,15 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                     .and_then(|v| v.as_str())
                                     .unwrap_or("")
                                     .to_string(),
+                                created_at: payload
+                                    .get("created_at")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string())
+                                    .unwrap_or_else(|| chrono::Utc::now().to_rfc3339()),
+                                last_modified: payload
+                                    .get("last_modified")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string()),
                             };
 
                             if let Err(e) =

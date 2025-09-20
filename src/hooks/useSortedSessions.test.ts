@@ -322,7 +322,17 @@ describe('useSortedSessions', () => {
             mockInvoke.mockClear()
 
             await act(async () => {
-                await addHandler!({ event: 'schaltwerk:session-added', id: 1, payload: {} })
+                await addHandler!({
+                    event: 'schaltwerk:session-added',
+                    id: 1,
+                    payload: {
+                        session_name: 'new-session',
+                        branch: 'branch',
+                        worktree_path: '/tmp',
+                        parent_branch: 'main',
+                        created_at: new Date().toISOString(),
+                    }
+                })
                 // Wait for debounce (increased to 200ms)
                 await new Promise(resolve => setTimeout(resolve, 250))
             })

@@ -1,10 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, act, waitFor } from '@testing-library/react'
-import { ReactNode } from 'react'
+import { ReactNode, useEffect } from 'react'
 import { SessionsProvider, useSessions } from './SessionsContext'
-import { ProjectProvider } from './ProjectContext'
+import { ProjectProvider, useProject } from './ProjectContext'
 import type { Event } from '@tauri-apps/api/event'
+import { SortMode } from '../types/sessionFilters'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -12,7 +13,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 vi.mock('@tauri-apps/api/event', () => ({
-    listen: vi.fn(() => Promise.resolve(() => {}))
+    listen: vi.fn(() => Promise.resolve(() => {})),
 }))
 
 const mockSessions = [
@@ -25,6 +26,7 @@ const mockSessions = [
             base_branch: 'main',
             status: 'spec',
             session_state: 'spec',
+            created_at: '2024-01-01T00:00:00.000Z',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: false
@@ -40,6 +42,7 @@ const mockSessions = [
             base_branch: 'main',
             status: 'active',
             session_state: 'running',
+            created_at: '2024-01-02T00:00:00.000Z',
             is_current: true,
             session_type: 'worktree',
             ready_to_merge: false
@@ -55,6 +58,7 @@ const mockSessions = [
             base_branch: 'main',
             status: 'dirty',
             session_state: 'reviewed',
+            created_at: '2023-12-31T00:00:00.000Z',
             is_current: false,
             session_type: 'worktree',
             ready_to_merge: true
@@ -62,6 +66,14 @@ const mockSessions = [
         terminals: ['session-test-ready-top', 'session-test-ready-bottom']
     }
 ]
+
+const ProjectSetter = ({ path }: { path: string }) => {
+    const { setProjectPath } = useProject()
+    useEffect(() => {
+        setProjectPath(path)
+    }, [path, setProjectPath])
+    return null
+}
 
 describe('SessionsContext', () => {
     beforeEach(() => {
@@ -74,8 +86,15 @@ describe('SessionsContext', () => {
         </ProjectProvider>
     )
 
+    const wrapperWithProject = ({ children }: { children: ReactNode }) => (
+        <ProjectProvider>
+            <ProjectSetter path="/test/project" />
+            <SessionsProvider>{children}</SessionsProvider>
+        </ProjectProvider>
+    )
+
     it('should provide initial empty state when no project is selected', async () => {
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
         
         // Wait for initialization to complete
         await waitFor(() => {
@@ -92,22 +111,6 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             return undefined
-        })
-
-        // Mock ProjectProvider to have a project
-        const wrapperWithProject = ({ children }: { children: ReactNode }) => (
-            <ProjectProvider>
-                <SessionsProvider>{children}</SessionsProvider>
-            </ProjectProvider>
-        )
-
-        // We need to mock the projectPath being set
-        vi.mock('./ProjectContext', async () => {
-            const actual = await vi.importActual('./ProjectContext')
-            return {
-                ...actual,
-                useProject: () => ({ projectPath: '/test/project' })
-            }
         })
 
         const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
@@ -134,7 +137,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
 
         await act(async () => {
             await result.current.updateSessionStatus('test-spec', 'active')
@@ -154,7 +157,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
 
         await act(async () => {
             await result.current.updateSessionStatus('test-active', 'spec')
@@ -173,7 +176,7 @@ describe('SessionsContext', () => {
             return undefined
         })
 
-        const { result } = renderHook(() => useSessions(), { wrapper })
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
 
         await act(async () => {
             await result.current.updateSessionStatus('test-active', 'dirty')
@@ -330,7 +333,16 @@ describe('SessionsContext', () => {
 
         const { result } = renderHook(() => useSessions(), { wrapper })
 
-        // Wait for initial load - sessions are sorted with unreviewed first, then reviewed at bottom
+        // Seed initial sessions via refresh event to avoid relying on backend fetch timing
+        act(() => {
+            listeners['schaltwerk:sessions-refreshed']?.({
+                event: 'schaltwerk:sessions-refreshed',
+                id: 99,
+                payload: mockSessions,
+            } as Event<unknown>)
+        })
+
+        // Sessions are sorted with unreviewed first, then reviewed at bottom
         const unreviewedMock = mockSessions.filter(s => !s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         const reviewedMock = mockSessions.filter(s => s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         const expectedSessions = [...unreviewedMock, ...reviewedMock]
@@ -351,5 +363,61 @@ describe('SessionsContext', () => {
 
         expect(result.current.sessions).toHaveLength(2)
         expect(result.current.sessions.find(s => s.info.session_id === 'test-spec')).toBeUndefined()
+    })
+
+    it('should keep creation sort order when SessionAdded fires', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'created' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        await waitFor(() => {
+            expect(result.current.sortMode).toBe(SortMode.Created)
+        })
+
+        const { listen } = await import('@tauri-apps/api/event')
+
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === 'schaltwerk:session-added')).toBe(true)
+        })
+
+        const sessionAddedHandler = vi
+            .mocked(listen)
+            .mock.calls
+            .reverse()
+            .find(call => call[0] === 'schaltwerk:session-added')?.[1]
+        expect(sessionAddedHandler).toBeDefined()
+
+        const createdAt = '2025-09-20T12:00:00.000Z'
+
+        await act(async () => {
+            sessionAddedHandler?.({
+                event: 'schaltwerk:session-added',
+                id: 99,
+                payload: {
+                    session_name: 'new-session',
+                    branch: 'feature/new-session',
+                    worktree_path: '/path/to/new',
+                    parent_branch: 'main',
+                    created_at: createdAt,
+                    last_modified: createdAt,
+                }
+            } as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            expect(result.current.sessions[0]?.info.session_id).toBe('new-session')
+        })
+
+        expect(result.current.sessions[0]?.info.created_at).toBe(createdAt)
     })
 })

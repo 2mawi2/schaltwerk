@@ -451,6 +451,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             // Session added
             addListener(listenEvent(SchaltEvent.SessionAdded, (event) => {
                 const { session_name, branch, worktree_path, parent_branch } = event
+                const nowIso = new Date().toISOString()
+                const createdAt = event.created_at ?? nowIso
+                const lastModified = event.last_modified ?? createdAt
                 setAllSessions(prev => {
                     if (prev.some(s => s.info.session_id === session_name)) return prev
                     const info: SessionInfo = {
@@ -459,7 +462,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         worktree_path,
                         base_branch: parent_branch,
                         status: 'active',
-                        last_modified: undefined,
+                        created_at: createdAt,
+                        last_modified: lastModified,
                         has_uncommitted_changes: false,
                         is_current: false,
                         session_type: 'worktree',

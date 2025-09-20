@@ -74,7 +74,14 @@ export interface SelectionPayload {
 
 export type EventPayloadMap = {
   [SchaltEvent.SessionsRefreshed]: EnrichedSession[]
-  [SchaltEvent.SessionAdded]: { session_name: string, branch: string, worktree_path: string, parent_branch: string }
+  [SchaltEvent.SessionAdded]: {
+    session_name: string
+    branch: string
+    worktree_path: string
+    parent_branch: string
+    created_at: string
+    last_modified?: string
+  }
   [SchaltEvent.SessionRemoved]: { session_name: string }
   [SchaltEvent.ArchiveUpdated]: { repo: string, count: number }
   [SchaltEvent.SessionCancelling]: { session_name: string }
