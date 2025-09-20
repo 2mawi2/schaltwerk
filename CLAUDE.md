@@ -170,6 +170,7 @@ Run `npm run test` - ALL must pass:
 - Test failures are NEVER unrelated - fix immediately
 - NEVER skip tests (no `.skip()`, `xit()`)
 - Fix performance test failures (they indicate real issues)
+- After every code change, the responsible agent must rerun the full validation suite and report "tests green" before handing the work back. Only proceed with known failing tests when the user explicitly permits leaving the suite red for that task.
 
 ## Event System
 

@@ -102,9 +102,20 @@ pub async fn handle_coalesced_output(
     if let Some(bytes) = emit_bytes {
         if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
             let event_name = format!("terminal-output-{}", params.terminal_id);
-            let payload = String::from_utf8_lossy(&bytes).to_string();
-            if let Err(e) = handle.emit(&event_name, payload) {
-                warn!("Failed to emit terminal output: {e}");
+            let (payload, remainder_prefix) = decode_coalesced_bytes(bytes, params.terminal_id);
+
+            if let Some(prefix) = remainder_prefix {
+                if !prefix.is_empty() {
+                    let mut buffers = coalescing_state.emit_buffers.write().await;
+                    let entry = buffers.entry(params.terminal_id.to_string()).or_default();
+                    entry.splice(0..0, prefix);
+                }
+            }
+
+            if let Some(text) = payload {
+                if let Err(e) = handle.emit(&event_name, text) {
+                    warn!("Failed to emit terminal output: {e}");
+                }
             }
         } else {
             // No app handle available (tests or early startup): restore bytes back to buffer
@@ -114,6 +125,45 @@ pub async fn handle_coalesced_output(
             let mut restored = bytes;
             restored.extend_from_slice(entry);
             *entry = restored;
+        }
+    }
+}
+
+fn decode_coalesced_bytes(bytes: Vec<u8>, terminal_id: &str) -> (Option<String>, Option<Vec<u8>>) {
+    match String::from_utf8(bytes) {
+        Ok(text) => (Some(text), None),
+        Err(err) => {
+            let utf8_err = err.utf8_error();
+            let valid_up_to = utf8_err.valid_up_to();
+            let mut raw = err.into_bytes();
+
+            let mut remainder = if valid_up_to < raw.len() {
+                raw.split_off(valid_up_to)
+            } else {
+                Vec::new()
+            };
+
+            let payload = if raw.is_empty() {
+                None
+            } else {
+                String::from_utf8(raw).ok()
+            };
+
+            if let Some(drop_len) = utf8_err.error_len() {
+                let drop = drop_len.min(remainder.len());
+                if drop > 0 {
+                    remainder.drain(0..drop);
+                    warn!("Dropped {drop} invalid UTF-8 byte(s) for terminal {terminal_id}");
+                }
+            }
+
+            let remainder_opt = if remainder.is_empty() {
+                None
+            } else {
+                Some(remainder)
+            };
+
+            (payload, remainder_opt)
         }
     }
 }
@@ -244,6 +294,31 @@ mod tests {
         let buffers = state.emit_buffers.read().await;
         let buffer = buffers.get("test-term").unwrap();
         assert_eq!(buffer, b"data1data2");
+    }
+
+    #[test]
+    fn test_decode_coalesced_bytes_preserves_truncated_multibyte() {
+        let data = b"Hello \xE2\x94".to_vec();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-truncated");
+        assert_eq!(payload.as_deref(), Some("Hello "));
+        assert_eq!(remainder.as_deref(), Some(&b"\xE2\x94"[..]));
+    }
+
+    #[test]
+    fn test_decode_coalesced_bytes_returns_full_text_when_complete() {
+        let data = "Line \u{2500}".as_bytes().to_vec();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-complete");
+        assert_eq!(payload.as_deref(), Some("Line \u{2500}"));
+        assert!(remainder.is_none());
+    }
+
+    #[test]
+    fn test_decode_coalesced_bytes_drops_invalid_sequence() {
+        let data = vec![0x66, 0x6f, 0xff, 0x6f]; // fo + invalid + o
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-invalid");
+        assert_eq!(payload.as_deref(), Some("fo"));
+        // invalid byte dropped, remainder contains trailing valid b"o"
+        assert_eq!(remainder.as_deref(), Some(&b"o"[..]));
     }
 
     #[tokio::test]
