@@ -1,10 +1,10 @@
-import { useEffect, useState, useImperativeHandle, forwardRef, useCallback } from 'react'
+import { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useRef } from 'react'
 import { Terminal } from './Terminal'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
-import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import { listenEvent, SchaltEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { theme } from '../../common/theme'
 
 interface RunScript {
@@ -12,6 +12,11 @@ interface RunScript {
   workingDirectory?: string
   environmentVariables: Record<string, string>
 }
+
+const RUN_EXIT_SENTINEL_PREFIX = '__SCHALTWERK_RUN_EXIT__='
+const RUN_EXIT_SENTINEL_TERMINATORS = ['\r', '\n'] as const
+const RUN_EXIT_PRINTF_COMMAND = `printf '${RUN_EXIT_SENTINEL_PREFIX}%s\r' "$__schaltwerk_exit_code"`
+const RUN_EXIT_CLEAR_LINE = "printf '\\r\\033[K'"
 
 interface RunTerminalProps {
   className?: string
@@ -42,6 +47,12 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const runStateKey = `schaltwerk:run-state:${runTerminalId}`
 
   const [isRunning, setIsRunning] = useState(() => sessionStorage.getItem(runStateKey) === 'true')
+  const runningRef = useRef(isRunning)
+  const outputBufferRef = useRef('')
+
+  useEffect(() => {
+    runningRef.current = isRunning
+  }, [isRunning])
 
   useEffect(() => {
     sessionStorage.setItem(runStateKey, String(isRunning))
@@ -77,6 +88,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
           setTerminalCreated(true)
           const storedRunning = sessionStorage.getItem(runStateKey) === 'true'
           if (storedRunning !== isRunning) {
+            runningRef.current = storedRunning
             setIsRunning(storedRunning)
             onRunningStateChange?.(storedRunning)
           }
@@ -95,6 +107,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         unlisten = await listenEvent(SchaltEvent.TerminalClosed, payload => {
           if (payload.terminal_id === runTerminalId) {
             logger.info('[RunTerminal] TerminalClosed for run terminal; marking stopped')
+            runningRef.current = false
+            outputBufferRef.current = ''
             setIsRunning(false)
             onRunningStateChange?.(false)
           }
@@ -107,13 +121,81 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     return () => { unlisten?.() }
   }, [runTerminalId, onRunningStateChange])
 
+  useEffect(() => {
+    let unlisten: (() => void) | null = null
+
+    const setup = async () => {
+      try {
+        unlisten = await listenTerminalOutput(runTerminalId, (payload) => {
+          if (!payload) return
+          const chunk = payload.toString()
+          const trimmed = chunk.trim()
+          const containsSentinel = chunk.includes(RUN_EXIT_SENTINEL_PREFIX)
+          const isNonInformational = trimmed.length === 0 && !containsSentinel
+
+          // Keep a rolling buffer so we can detect sentinel across chunk boundaries.
+          if (chunk.length > 0) {
+            outputBufferRef.current = (outputBufferRef.current + chunk).slice(-2048)
+          }
+
+          if (isNonInformational) {
+            return
+          }
+
+          let searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
+          while (searchIndex !== -1) {
+            const start = searchIndex + RUN_EXIT_SENTINEL_PREFIX.length
+            const terminatorIndex = RUN_EXIT_SENTINEL_TERMINATORS
+              .map(term => ({ term, index: outputBufferRef.current.indexOf(term, start) }))
+              .filter(({ index }) => index !== -1)
+              .sort((a, b) => a.index - b.index)[0]?.index ?? -1
+
+            if (terminatorIndex === -1) {
+              // Sentinel not complete yet; keep trailing content for next chunk
+              outputBufferRef.current = outputBufferRef.current.slice(searchIndex)
+              return
+            }
+
+            const exitCode = outputBufferRef.current.slice(start, terminatorIndex)
+            logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
+
+            if (runningRef.current) {
+              runningRef.current = false
+              setIsRunning(false)
+              onRunningStateChange?.(false)
+            }
+
+            // Trim processed data and continue searching in case of repeated sentinels.
+            outputBufferRef.current = outputBufferRef.current.slice(terminatorIndex + 1)
+            searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
+          }
+        })
+      } catch (err) {
+        logger.error('[RunTerminal] Failed to listen for run completion sentinel:', err)
+      }
+    }
+
+    setup()
+    return () => { unlisten?.() }
+  }, [runTerminalId, onRunningStateChange])
+
   const executeRunCommand = useCallback(async (command: string) => {
     try {
+      const decoratedCommand = [
+        '__schaltwerk_exit_code=0',
+        `${command}`,
+        '__schaltwerk_exit_code=$?',
+        RUN_EXIT_PRINTF_COMMAND,
+        RUN_EXIT_CLEAR_LINE,
+        'unset __schaltwerk_exit_code'
+      ].join('; ') + '\n'
+      outputBufferRef.current = ''
       await invoke(TauriCommands.WriteTerminal, {
         id: runTerminalId,
-        data: `${command}\n`,
+        data: decoratedCommand,
       })
       logger.info('[RunTerminal] Executed run script command:', command)
+      runningRef.current = true
       setIsRunning(true)
       onRunningStateChange?.(true)
     } catch (err) {
@@ -157,6 +239,8 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
       if (isRunning) {
         try {
           await invoke(TauriCommands.WriteTerminal, { id: runTerminalId, data: '\u0003' })
+          runningRef.current = false
+          outputBufferRef.current = ''
           setIsRunning(false)
           onRunningStateChange?.(false)
         } catch (err) {
