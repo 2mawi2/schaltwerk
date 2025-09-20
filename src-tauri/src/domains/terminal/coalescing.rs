@@ -130,42 +130,61 @@ pub async fn handle_coalesced_output(
 }
 
 fn decode_coalesced_bytes(bytes: Vec<u8>, terminal_id: &str) -> (Option<String>, Option<Vec<u8>>) {
-    match String::from_utf8(bytes) {
-        Ok(text) => (Some(text), None),
-        Err(err) => {
-            let utf8_err = err.utf8_error();
-            let valid_up_to = utf8_err.valid_up_to();
-            let mut raw = err.into_bytes();
+    let len = bytes.len();
+    let mut cursor = 0usize;
+    let mut output = String::new();
 
-            let mut remainder = if valid_up_to < raw.len() {
-                raw.split_off(valid_up_to)
-            } else {
-                Vec::new()
-            };
+    while cursor < len {
+        let slice = &bytes[cursor..];
 
-            let payload = if raw.is_empty() {
-                None
-            } else {
-                String::from_utf8(raw).ok()
-            };
+        match std::str::from_utf8(slice) {
+            Ok(valid) => {
+                if !valid.is_empty() {
+                    output.push_str(valid);
+                }
+                break;
+            }
+            Err(err) => {
+                let valid_prefix_len = err.valid_up_to();
+                if valid_prefix_len > 0 {
+                    let valid_slice = &slice[..valid_prefix_len];
+                    debug_assert!(std::str::from_utf8(valid_slice).is_ok());
+                    // SAFETY: `valid_prefix_len` is guaranteed to be valid UTF-8 per `Utf8Error::valid_up_to`.
+                    output.push_str(unsafe { std::str::from_utf8_unchecked(valid_slice) });
+                    cursor += valid_prefix_len;
+                }
 
-            if let Some(drop_len) = utf8_err.error_len() {
-                let drop = drop_len.min(remainder.len());
-                if drop > 0 {
-                    remainder.drain(0..drop);
-                    warn!("Dropped {drop} invalid UTF-8 byte(s) for terminal {terminal_id}");
+                match err.error_len() {
+                    Some(error_len) => {
+                        if error_len == 0 {
+                            // Defensive: advance to avoid infinite loop on unexpected zero-length errors.
+                            cursor += 1;
+                            continue;
+                        }
+
+                        let drop = error_len.min(len.saturating_sub(cursor));
+                        if drop > 0 {
+                            warn!("Dropped {drop} invalid UTF-8 byte(s) for terminal {terminal_id}");
+                            cursor += drop;
+                        }
+                    }
+                    None => {
+                        let start = cursor;
+                        let remainder = bytes[start..].to_vec();
+                        if remainder.is_empty() {
+                            let payload = if output.is_empty() { None } else { Some(output) };
+                            return (payload, None);
+                        }
+                        let payload = if output.is_empty() { None } else { Some(output) };
+                        return (payload, Some(remainder));
+                    }
                 }
             }
-
-            let remainder_opt = if remainder.is_empty() {
-                None
-            } else {
-                Some(remainder)
-            };
-
-            (payload, remainder_opt)
         }
     }
+
+    let payload = if output.is_empty() { None } else { Some(output) };
+    (payload, None)
 }
 
 #[cfg(test)]
@@ -316,9 +335,39 @@ mod tests {
     fn test_decode_coalesced_bytes_drops_invalid_sequence() {
         let data = vec![0x66, 0x6f, 0xff, 0x6f]; // fo + invalid + o
         let (payload, remainder) = decode_coalesced_bytes(data, "term-invalid");
-        assert_eq!(payload.as_deref(), Some("fo"));
-        // invalid byte dropped, remainder contains trailing valid b"o"
-        assert_eq!(remainder.as_deref(), Some(&b"o"[..]));
+        assert_eq!(payload.as_deref(), Some("foo"));
+        assert!(remainder.is_none());
+    }
+
+    #[test]
+    fn test_decode_coalesced_bytes_keeps_tail_after_invalid_pair() {
+        // Claude occasionally streams orphaned continuation bytes (0x90, 0x80) between patches.
+        let data = vec![b'f', b'o', b'o', b' ', 0x90, 0x80, b' ', b'b', b'a', b'r'];
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-tail");
+        assert_eq!(payload.as_deref(), Some("foo  bar"));
+        assert!(remainder.is_none());
+    }
+
+    #[test]
+    fn test_decode_coalesced_bytes_drops_invalid_continuations_for_claude() {
+        // Two stray continuation bytes should be discarded while preserving the rest of the line.
+        let mut data = b"let value = ".to_vec();
+        data.extend([0x80, 0xBF]);
+        data.extend_from_slice(b"formatted\n");
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-cont");
+        assert_eq!(payload.as_deref(), Some("let value = formatted\n"));
+        assert!(remainder.is_none());
+    }
+
+    #[test]
+    fn test_decode_coalesced_bytes_drops_isolated_surrogate_from_claude() {
+        // High surrogate half (0xED 0xA0 0x80) without its pair must be removed.
+        let mut data = b"println!(\"start\");".to_vec();
+        data.extend([0xED, 0xA0, 0x80]);
+        data.extend_from_slice(b"println!(\"done\");");
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-surrogate");
+        assert_eq!(payload.as_deref(), Some("println!(\"start\");println!(\"done\");"));
+        assert!(remainder.is_none());
     }
 
     #[tokio::test]
