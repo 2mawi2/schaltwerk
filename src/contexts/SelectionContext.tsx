@@ -123,6 +123,10 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const terminalsCreated = useRef(new Set<string>())
     const creationLock = useRef(new Map<string, Promise<void>>())
 
+    // Cache for expensive project ID calculations
+    const projectIdCache = useRef<string | null>(null)
+    const cachedProjectPath = useRef<string | null>(null)
+
     const isRestoringRef = useRef(false)
     // Monotonic token to ignore out-of-order async completions
     const selectionTokenRef = useRef(0)
@@ -167,26 +171,41 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     }, [])
     
     // Get terminal IDs for a selection
+    // Helper function to get cached project ID
+    const getCachedProjectId = useCallback((path: string | null): string => {
+        if (path === cachedProjectPath.current) {
+            return projectIdCache.current || 'default'
+        }
+
+        cachedProjectPath.current = path
+
+        if (!path) {
+            projectIdCache.current = 'default'
+            return 'default'
+        }
+
+        // Get just the last directory name and combine with a hash for uniqueness
+        const dirName = path.split(/[/\\]/).pop() || 'unknown'
+        // Sanitize directory name: replace spaces and special chars with underscores
+        const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')
+        // Simple hash: sum of char codes
+        let hash = 0
+        for (let i = 0; i < path.length; i++) {
+            hash = ((hash << 5) - hash) + path.charCodeAt(i)
+            hash = hash & hash // Convert to 32bit integer
+        }
+        const projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
+        projectIdCache.current = projectId
+        return projectId
+    }, [])
+
     const getTerminalIds = useCallback((sel: Selection): TerminalSet => {
         let workingDir = projectPath || ''
-        
+
         if (sel.kind === 'orchestrator') {
             // Make orchestrator terminals project-specific by using project path hash
-            // Use a simple hash of the full path to ensure uniqueness
-            let projectId = 'default'
-            if (projectPath) {
-                // Get just the last directory name and combine with a hash for uniqueness
-                const dirName = projectPath.split(/[/\\]/).pop() || 'unknown'
-                // Sanitize directory name: replace spaces and special chars with underscores
-                const sanitizedDirName = dirName.replace(/[^a-zA-Z0-9_-]/g, '_')
-                // Simple hash: sum of char codes
-                let hash = 0
-                for (let i = 0; i < projectPath.length; i++) {
-                    hash = ((hash << 5) - hash) + projectPath.charCodeAt(i)
-                    hash = hash & hash // Convert to 32bit integer
-                }
-                projectId = `${sanitizedDirName}-${Math.abs(hash).toString(16).slice(0, 6)}`
-            }
+            // Use cached project ID to avoid recalculating expensive hash
+            const projectId = getCachedProjectId(projectPath)
             const base = `orchestrator-${projectId}`
             return {
                 top: `${base}-top`,
@@ -204,7 +223,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 workingDirectory: sessionWorkingDir
             }
         }
-    }, [projectPath])
+    }, [projectPath, getCachedProjectId])
 
     const getCachedSessionSnapshot = useCallback((sessionId?: string | null): SessionSnapshot | null => {
         if (!sessionId) return null
@@ -955,41 +974,49 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
             previousProjectPath.current = projectPath
 
-            // Ensure orchestrator terminals use project-specific IDs on init
-            // Signal readiness only after the top terminal reports ready to avoid race in tests
-            try {
-                if (selection.kind === 'orchestrator') {
-                    const ids = getTerminalIds({ kind: 'orchestrator' })
-                    setTerminals(ids)
-                    await ensureTerminals({ kind: 'orchestrator' })
-                    
-                    const expectedTopId = ids.top
-                    const onReady = (ev: Event) => {
-                        const detail = (ev as CustomEvent<{ terminalId: string }>).detail
-                        if (detail?.terminalId === expectedTopId) {
-                            setIsReady(true)
-                            window.removeEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+            // Check if terminal IDs have changed before doing expensive operations
+            const currentIds = getTerminalIds({ kind: 'orchestrator' })
+            const idsChanged = !terminals.top || terminals.top !== currentIds.top
+
+            if (idsChanged) {
+                // Ensure orchestrator terminals use project-specific IDs on init
+                // Signal readiness only after the top terminal reports ready to avoid race in tests
+                try {
+                    if (selection.kind === 'orchestrator') {
+                        setTerminals(currentIds)
+                        await ensureTerminals({ kind: 'orchestrator' })
+
+                        const expectedTopId = currentIds.top
+                        const onReady = (ev: Event) => {
+                            const detail = (ev as CustomEvent<{ terminalId: string }>).detail
+                            if (detail?.terminalId === expectedTopId) {
+                                setIsReady(true)
+                                window.removeEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+                            }
                         }
-                    }
-                    window.addEventListener('schaltwerk:terminal-ready', onReady as EventListener)
-                    
-                    // Also handle the case where terminal mounted before listener attached
-                    // by synchronously marking ready when IDs are project-scoped and terminal already exists
-                    try {
-                        const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: expectedTopId })
-                        if (exists) {
-                            setIsReady(true)
-                            window.removeEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+                        window.addEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+
+                        // Also handle the case where terminal mounted before listener attached
+                        // by synchronously marking ready when IDs are project-scoped and terminal already exists
+                        try {
+                            const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: expectedTopId })
+                            if (exists) {
+                                setIsReady(true)
+                                window.removeEventListener('schaltwerk:terminal-ready', onReady as EventListener)
+                            }
+                        } catch (err) {
+                            logger.warn('[SelectionContext] Terminal existence check failed during init:', err)
                         }
-                    } catch (err) {
-                        logger.warn('[SelectionContext] Terminal existence check failed during init:', err)
+                    } else {
+                        // Non-orchestrator initialization path
+                        setIsReady(true)
                     }
-                } else {
-                    // Non-orchestrator initialization path
+                } catch (e) {
+                    logger.warn('[SelectionContext] Failed to initialize orchestrator terminals:', e)
                     setIsReady(true)
                 }
-            } catch (e) {
-                logger.warn('[SelectionContext] Failed to initialize orchestrator terminals:', e)
+            } else {
+                // Terminal IDs haven't changed, just mark as ready
                 setIsReady(true)
             }
             return
@@ -1001,7 +1028,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Still mark as ready even on error so UI doesn't hang
             setIsReady(true)
         })
-    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection, ensureTerminals]) // Re-run when projectPath changes
+    }, [projectPath, setSelection, getTerminalIds, validateAndRestoreSelection, getDefaultSelection, selection, ensureTerminals, terminals.top]) // Re-run when projectPath changes
     
     // Listen for selection events from backend (e.g., when MCP creates/updates specs)
     useEffect(() => {

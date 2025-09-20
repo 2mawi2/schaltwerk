@@ -35,14 +35,7 @@ import { KeyboardShortcutAction } from './keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 
-// Simple debounce utility
-function debounce<T extends (...args: never[]) => unknown>(func: T, wait: number): T {
-  let timeout: NodeJS.Timeout | null = null
-  return ((...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout)
-    timeout = setTimeout(() => func(...args), wait)
-  }) as T
-}
+
 
 export interface SessionActionEvent {
   action: 'cancel' | 'cancel-immediate'
@@ -864,20 +857,13 @@ export default function App() {
     }
   }, [openTabs, activeTabPath, handleSelectTab])
 
-  const switchProjectDebounced = useMemo(
-    () => debounce((direction: 'prev' | 'next') => {
-      switchProject(direction)
-    }, 300),
-    [switchProject]
-  )
-
   const handleSelectPrevProject = useCallback(() => {
-    switchProjectDebounced('prev')
-  }, [switchProjectDebounced])
-  
+    switchProject('prev')
+  }, [switchProject])
+
   const handleSelectNextProject = useCallback(() => {
-    switchProjectDebounced('next')
-  }, [switchProjectDebounced])
+    switchProject('next')
+  }, [switchProject])
 
   // Update unified work area ring color when selection changes
   useEffect(() => {

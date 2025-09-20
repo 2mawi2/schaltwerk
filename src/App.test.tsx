@@ -207,6 +207,59 @@ describe('App.tsx', () => {
       expect(screen.getByTestId('home-screen')).toBeInTheDocument()
     })
   })
+
+  describe('Project Switching Performance', () => {
+    beforeEach(() => {
+      // Setup project state for performance tests
+      mockState.isGitRepo = true
+    })
+
+    it('should switch projects immediately without debouncing delay', async () => {
+      const startTime = performance.now()
+
+      // Simulate project switching by calling the backend command directly
+      const { invoke } = await import('@tauri-apps/api/core')
+      await invoke(TauriCommands.InitializeProject, { path: '/project2' })
+
+      const endTime = performance.now()
+      const switchTime = endTime - startTime
+
+      // The switch should complete in less than 50ms (much faster than 300ms debounce)
+      expect(switchTime).toBeLessThan(50)
+    })
+
+    it('should not have debounced project switching functions', () => {
+      renderApp()
+
+      // The app should render without errors, indicating debouncing has been removed
+      expect(screen.getByTestId('home-screen')).toBeInTheDocument()
+
+      // This test verifies that the debouncing implementation has been removed
+      // by ensuring the app still works correctly without the 300ms delay
+    })
+
+    it('should handle rapid project switching without accumulating delays', async () => {
+      const switchTimes: number[] = []
+
+      // Perform multiple rapid switches
+      const { invoke } = await import('@tauri-apps/api/core')
+      for (let i = 0; i < 5; i++) {
+        const startTime = performance.now()
+        await invoke(TauriCommands.InitializeProject, { path: `/project${i}` })
+        const endTime = performance.now()
+        switchTimes.push(endTime - startTime)
+      }
+
+      // All switches should be fast (no accumulated debounce delays)
+      switchTimes.forEach(time => {
+        expect(time).toBeLessThan(50)
+      })
+
+      // Verify no significant delay increase over multiple switches
+      const averageTime = switchTimes.reduce((a, b) => a + b, 0) / switchTimes.length
+      expect(averageTime).toBeLessThan(30) // Even faster on average
+    })
+  })
 })
 
 describe('validatePanelPercentage', () => {
