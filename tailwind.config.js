@@ -1,4 +1,17 @@
 /** @type {import('tailwindcss').Config} */
+const withOpacityValue = (variable) => ({ opacityValue }) => {
+  if (opacityValue === undefined || opacityValue === null) {
+    return `rgb(var(${variable}) / 1)`
+  }
+  return `rgb(var(${variable}) / ${opacityValue})`
+}
+
+const createScale = (prefix, shades) =>
+  shades.reduce((scale, shade) => {
+    scale[shade] = withOpacityValue(`--color-${prefix}-${shade}-rgb`)
+    return scale
+  }, {})
+
 export default {
   content: [
     "./index.html",
@@ -7,25 +20,54 @@ export default {
   theme: {
     extend: {
       colors: {
-        'panel': '#0b1220',
-        'panelAlt': '#0f172a',
-        'bg-primary': '#020617',
-        'bg-secondary': '#0b1220',
-        'bg-tertiary': '#0f172a',
-        'bg-elevated': '#1e293b',
-        'bg-hover': '#334155',
-        'text-primary': '#f1f5f9',
-        'text-secondary': '#cbd5e1',
-        'text-tertiary': '#94a3b8',
-        'text-muted': '#64748b',
-        'border-default': '#1e293b',
-        'border-subtle': '#334155',
-        'border-strong': '#475569',
-        'accent-blue': '#3b82f6',
-        'accent-green': '#22c55e',
-        'accent-amber': '#f59e0b',
-        'accent-red': '#ef4444',
-        'accent-violet': '#8b5cf6',
+        panel: withOpacityValue('--color-panel-rgb'),
+        panelAlt: withOpacityValue('--color-panel-alt-rgb'),
+        'bg-primary': withOpacityValue('--color-bg-primary-rgb'),
+        'bg-secondary': withOpacityValue('--color-bg-secondary-rgb'),
+        'bg-tertiary': withOpacityValue('--color-bg-tertiary-rgb'),
+        'bg-elevated': withOpacityValue('--color-bg-elevated-rgb'),
+        'bg-hover': withOpacityValue('--color-bg-hover-rgb'),
+        'bg-active': withOpacityValue('--color-bg-active-rgb'),
+
+        'text-primary': withOpacityValue('--color-text-primary-rgb'),
+        'text-secondary': withOpacityValue('--color-text-secondary-rgb'),
+        'text-tertiary': withOpacityValue('--color-text-tertiary-rgb'),
+        'text-muted': withOpacityValue('--color-text-muted-rgb'),
+        'text-inverse': withOpacityValue('--color-text-inverse-rgb'),
+
+        'border-default': withOpacityValue('--color-border-default-rgb'),
+        'border-subtle': withOpacityValue('--color-border-subtle-rgb'),
+        'border-strong': withOpacityValue('--color-border-strong-rgb'),
+        'border-focus': withOpacityValue('--color-border-focus-rgb'),
+
+        'accent-blue': withOpacityValue('--color-accent-blue-rgb'),
+        'accent-green': withOpacityValue('--color-accent-green-rgb'),
+        'accent-amber': withOpacityValue('--color-accent-amber-rgb'),
+        'accent-red': withOpacityValue('--color-accent-red-rgb'),
+        'accent-violet': withOpacityValue('--color-accent-violet-rgb'),
+        'accent-purple': withOpacityValue('--color-accent-purple-rgb'),
+        'accent-yellow': withOpacityValue('--color-accent-yellow-rgb'),
+        'accent-cyan': withOpacityValue('--color-accent-cyan-rgb'),
+
+        'status-info': withOpacityValue('--color-status-info-rgb'),
+        'status-success': withOpacityValue('--color-status-success-rgb'),
+        'status-warning': withOpacityValue('--color-status-warning-rgb'),
+        'status-error': withOpacityValue('--color-status-error-rgb'),
+
+        slate: createScale('gray', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        gray: createScale('gray', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        blue: createScale('blue', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        green: createScale('green', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        amber: createScale('amber', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        red: createScale('red', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        yellow: createScale('yellow', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]),
+        cyan: createScale('cyan', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        purple: createScale('purple', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+        violet: createScale('violet', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]),
+
+        white: withOpacityValue('--color-white-rgb'),
+        black: withOpacityValue('--color-bg-primary-rgb'),
+        transparent: 'transparent',
       },
       fontSize: {
         // Semantic font sizes that replace legacy sizes

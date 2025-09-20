@@ -22,6 +22,7 @@ import { KEYBOARD_SHORTCUT_SECTIONS } from '../../keyboardShortcuts/metadata'
 import { shortcutFromEvent, normalizeShortcut } from '../../keyboardShortcuts/matcher'
 import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from '../../keyboardShortcuts/helpers'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
+import { theme } from '../../common/theme'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -1077,7 +1078,7 @@ fi`}
                                 spellCheck={false}
                                 style={{ 
                                     scrollbarWidth: 'thin',
-                                    scrollbarColor: '#475569 #1e293b'
+                                    scrollbarColor: `${theme.colors.border.strong} ${theme.colors.background.elevated}`
                                 }}
                             />
                         </div>
@@ -1252,7 +1253,7 @@ fi`}
                                         onChange={(e) => setTerminalFontSize(Number(e.target.value))}
                                         className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
                                         style={{
-                                            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((terminalFontSize - 8) / 16) * 100}%, #475569 ${((terminalFontSize - 8) / 16) * 100}%, #475569 100%)`
+                                            background: `linear-gradient(to right, ${theme.colors.accent.blue.DEFAULT} 0%, ${theme.colors.accent.blue.DEFAULT} ${((terminalFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} ${((terminalFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} 100%)`
                                         }}
                                     />
                                     <button
@@ -1278,7 +1279,7 @@ fi`}
                                         onChange={(e) => setUiFontSize(Number(e.target.value))}
                                         className="flex-1 h-2 bg-slate-700 rounded-lg appearance-none cursor-pointer slider"
                                         style={{
-                                            background: `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((uiFontSize - 8) / 16) * 100}%, #475569 ${((uiFontSize - 8) / 16) * 100}%, #475569 100%)`
+                                            background: `linear-gradient(to right, ${theme.colors.accent.blue.DEFAULT} 0%, ${theme.colors.accent.blue.DEFAULT} ${((uiFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} ${((uiFontSize - 8) / 16) * 100}%, ${theme.colors.background.active} 100%)`
                                         }}
                                     />
                                     <button

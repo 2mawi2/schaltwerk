@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef } from 'react'
+import { theme } from '../../common/theme'
+import { withOpacity } from '../../common/colorUtils'
 
 interface AsciiBuilderLogoProps {
   asciiArt?: string
@@ -732,11 +734,12 @@ export function AsciiBuilderLogo({
     ? 'bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-400 bg-clip-text text-transparent'
     : colorClassName
 
+  const primaryGlow = theme.colors.accent.blue.DEFAULT
   const textShadow =
     glow === 'soft'
-      ? '0 0 10px rgba(59,130,246,0.35), 0 0 22px rgba(59,130,246,0.2)'
+      ? `0 0 10px ${withOpacity(primaryGlow, 0.35)}, 0 0 22px ${withOpacity(primaryGlow, 0.2)}`
       : glow === 'subtle'
-      ? '0 0 6px rgba(59,130,246,0.25)'
+      ? `0 0 6px ${withOpacity(primaryGlow, 0.25)}`
       : 'none'
 
   return (

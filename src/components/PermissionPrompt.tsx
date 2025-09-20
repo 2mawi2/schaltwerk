@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { useFolderPermission } from '../hooks/usePermissions'
+import { theme } from '../common/theme'
 
 interface PermissionPromptProps {
   onPermissionGranted?: () => void
@@ -76,8 +77,14 @@ export function PermissionPrompt({ onPermissionGranted, showOnlyIfNeeded = true,
 
   if (hasPermission === false) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-        <div className="bg-[#1a1a1a] p-6 rounded-lg shadow-xl max-w-md mx-4">
+      <div
+        className="fixed inset-0 flex items-center justify-center z-50"
+        style={{ backgroundColor: theme.colors.overlay.backdrop }}
+      >
+        <div
+          className="p-6 rounded-lg shadow-xl max-w-md mx-4"
+          style={{ backgroundColor: theme.colors.surface.modal }}
+        >
           <h2 className="text-xl font-semibold mb-4 text-white">Folder Access Required</h2>
           
           <p className="text-gray-300 mb-4">

@@ -1,6 +1,8 @@
 // Uses the automatic JSX runtime; no React import needed
 
-function Arrow({ x1, y1, x2, y2, color = '#94a3b8' }: { x1: number; y1: number; x2: number; y2: number; color?: string }) {
+import { theme } from '../../common/theme'
+
+function Arrow({ x1, y1, x2, y2, color = theme.colors.text.tertiary }: { x1: number; y1: number; x2: number; y2: number; color?: string }) {
   // simple arrow marker replacement (triangle)
   const angle = Math.atan2(y2 - y1, x2 - x1)
   const len = 8

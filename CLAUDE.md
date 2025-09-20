@@ -125,6 +125,8 @@ Agents start via terminal commands built in `App.tsx`:
 - CSS: `var(--color-bg-secondary)`
 - Tailwind: `bg-primary text-primary`
 
+If a new UI element needs a color, add it to `src/common/theme.ts` / `src/styles/theme.css` (and Tailwind config when necessary) or reuse an existing shared component that already reads from the theme. UI components must never introduce inline hex/RGB/RGBA values; the palette is maintained centrally.
+
 Categories: background, text, border, accent (blue/green/amber/red/violet/purple/yellow/cyan), status
 
 Common mappings:

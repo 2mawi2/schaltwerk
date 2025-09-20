@@ -2,73 +2,295 @@
 :root {
   /* Background Colors */
   --color-bg-primary: #020617;
+  --color-bg-primary-rgb: 2 6 23;
   --color-bg-secondary: #0b1220;
+  --color-bg-secondary-rgb: 11 18 32;
   --color-bg-tertiary: #0f172a;
+  --color-bg-tertiary-rgb: 15 23 42;
   --color-bg-elevated: #1e293b;
+  --color-bg-elevated-rgb: 30 41 59;
   --color-bg-hover: #334155;
+  --color-bg-hover-rgb: 51 65 85;
   --color-bg-active: #475569;
-  
+  --color-bg-active-rgb: 71 85 105;
+
+  /* Panel aliases */
+  --color-panel: var(--color-bg-secondary);
+  --color-panel-rgb: var(--color-bg-secondary-rgb);
+  --color-panel-alt: var(--color-bg-tertiary);
+  --color-panel-alt-rgb: var(--color-bg-tertiary-rgb);
+
   /* Text Colors */
   --color-text-primary: #f1f5f9;
+  --color-text-primary-rgb: 241 245 249;
   --color-text-secondary: #cbd5e1;
+  --color-text-secondary-rgb: 203 213 225;
   --color-text-tertiary: #94a3b8;
+  --color-text-tertiary-rgb: 148 163 184;
   --color-text-muted: #64748b;
+  --color-text-muted-rgb: 100 116 139;
   --color-text-inverse: #020617;
-  
+  --color-text-inverse-rgb: 2 6 23;
+
   /* Border Colors */
   --color-border-default: #1e293b;
+  --color-border-default-rgb: 30 41 59;
   --color-border-subtle: #334155;
+  --color-border-subtle-rgb: 51 65 85;
   --color-border-strong: #475569;
+  --color-border-strong-rgb: 71 85 105;
   --color-border-focus: #3b82f6;
-  
-  /* Accent Colors - Blue */
+  --color-border-focus-rgb: 59 130 246;
+
+  /* Accent Colors */
   --color-accent-blue: #3b82f6;
+  --color-accent-blue-rgb: 59 130 246;
   --color-accent-blue-light: #60a5fa;
   --color-accent-blue-dark: #2563eb;
   --color-accent-blue-bg: rgba(59, 130, 246, 0.1);
   --color-accent-blue-border: rgba(59, 130, 246, 0.5);
-  
-  /* Accent Colors - Green */
+
   --color-accent-green: #22c55e;
+  --color-accent-green-rgb: 34 197 94;
   --color-accent-green-light: #4ade80;
   --color-accent-green-dark: #16a34a;
   --color-accent-green-bg: rgba(34, 197, 94, 0.1);
   --color-accent-green-border: rgba(34, 197, 94, 0.5);
-  
-  /* Accent Colors - Amber */
+
   --color-accent-amber: #f59e0b;
+  --color-accent-amber-rgb: 245 158 11;
   --color-accent-amber-light: #fbbf24;
   --color-accent-amber-dark: #d97706;
   --color-accent-amber-bg: rgba(245, 158, 11, 0.1);
   --color-accent-amber-border: rgba(245, 158, 11, 0.5);
-  
-  /* Accent Colors - Red */
+
   --color-accent-red: #ef4444;
+  --color-accent-red-rgb: 239 68 68;
   --color-accent-red-light: #f87171;
   --color-accent-red-dark: #dc2626;
   --color-accent-red-bg: rgba(239, 68, 68, 0.1);
   --color-accent-red-border: rgba(239, 68, 68, 0.5);
-  
-  /* Accent Colors - Violet */
+
   --color-accent-violet: #8b5cf6;
+  --color-accent-violet-rgb: 139 92 246;
   --color-accent-violet-light: #a78bfa;
   --color-accent-violet-dark: #7c3aed;
   --color-accent-violet-bg: rgba(139, 92, 246, 0.1);
   --color-accent-violet-border: rgba(139, 92, 246, 0.5);
-  
-  /* Accent Colors - Purple */
+
   --color-accent-purple: #a855f7;
+  --color-accent-purple-rgb: 168 85 247;
   --color-accent-purple-light: #c084fc;
   --color-accent-purple-dark: #9333ea;
   --color-accent-purple-bg: rgba(168, 85, 247, 0.1);
   --color-accent-purple-border: rgba(168, 85, 247, 0.5);
-  
+
+  --color-accent-yellow: #eab308;
+  --color-accent-yellow-rgb: 234 179 8;
+  --color-accent-yellow-light: #fde047;
+  --color-accent-yellow-dark: #ca8a04;
+  --color-accent-yellow-bg: rgba(234, 179, 8, 0.1);
+  --color-accent-yellow-border: rgba(234, 179, 8, 0.5);
+
+  --color-accent-cyan: #06b6d4;
+  --color-accent-cyan-rgb: 6 182 212;
+  --color-accent-cyan-light: #67e8f9;
+  --color-accent-cyan-dark: #0891b2;
+  --color-accent-cyan-bg: rgba(6, 182, 212, 0.1);
+  --color-accent-cyan-border: rgba(6, 182, 212, 0.5);
+
+  /* Extended Tailwind-Compatible Palettes */
+  --color-blue-50: #eff6ff;
+  --color-blue-50-rgb: 239 246 255;
+  --color-blue-100: #dbeafe;
+  --color-blue-100-rgb: 219 234 254;
+  --color-blue-200: #bfdbfe;
+  --color-blue-200-rgb: 191 219 254;
+  --color-blue-300: #93c5fd;
+  --color-blue-300-rgb: 147 197 253;
+  --color-blue-400: #60a5fa;
+  --color-blue-400-rgb: 96 165 250;
+  --color-blue-500: #3b82f6;
+  --color-blue-500-rgb: 59 130 246;
+  --color-blue-600: #2563eb;
+  --color-blue-600-rgb: 37 99 235;
+  --color-blue-700: #1d4ed8;
+  --color-blue-700-rgb: 29 78 216;
+  --color-blue-800: #1e40af;
+  --color-blue-800-rgb: 30 64 175;
+  --color-blue-900: #1e3a8a;
+  --color-blue-900-rgb: 30 58 138;
+  --color-blue-950: #172554;
+  --color-blue-950-rgb: 23 37 84;
+
+  --color-green-50: #f0fdf4;
+  --color-green-50-rgb: 240 253 244;
+  --color-green-100: #dcfce7;
+  --color-green-100-rgb: 220 252 231;
+  --color-green-200: #bbf7d0;
+  --color-green-200-rgb: 187 247 208;
+  --color-green-300: #86efac;
+  --color-green-300-rgb: 134 239 172;
+  --color-green-400: #4ade80;
+  --color-green-400-rgb: 74 222 128;
+  --color-green-500: #22c55e;
+  --color-green-500-rgb: 34 197 94;
+  --color-green-600: #16a34a;
+  --color-green-600-rgb: 22 163 74;
+  --color-green-700: #15803d;
+  --color-green-700-rgb: 21 128 61;
+  --color-green-800: #166534;
+  --color-green-800-rgb: 22 101 52;
+  --color-green-900: #14532d;
+  --color-green-900-rgb: 20 83 45;
+  --color-green-950: #052e16;
+  --color-green-950-rgb: 5 46 22;
+
+  --color-amber-50: #fffbeb;
+  --color-amber-50-rgb: 255 251 235;
+  --color-amber-100: #fef3c7;
+  --color-amber-100-rgb: 254 243 199;
+  --color-amber-200: #fde68a;
+  --color-amber-200-rgb: 253 230 138;
+  --color-amber-300: #fcd34d;
+  --color-amber-300-rgb: 252 211 77;
+  --color-amber-400: #fbbf24;
+  --color-amber-400-rgb: 251 191 36;
+  --color-amber-500: #f59e0b;
+  --color-amber-500-rgb: 245 158 11;
+  --color-amber-600: #d97706;
+  --color-amber-600-rgb: 217 119 6;
+  --color-amber-700: #b45309;
+  --color-amber-700-rgb: 180 83 9;
+  --color-amber-800: #92400e;
+  --color-amber-800-rgb: 146 64 14;
+  --color-amber-900: #78350f;
+  --color-amber-900-rgb: 120 53 15;
+  --color-amber-950: #451a03;
+  --color-amber-950-rgb: 69 26 3;
+
+  --color-red-50: #fef2f2;
+  --color-red-50-rgb: 254 242 242;
+  --color-red-100: #fee2e2;
+  --color-red-100-rgb: 254 226 226;
+  --color-red-200: #fecaca;
+  --color-red-200-rgb: 254 202 202;
+  --color-red-300: #fca5a5;
+  --color-red-300-rgb: 252 165 165;
+  --color-red-400: #f87171;
+  --color-red-400-rgb: 248 113 113;
+  --color-red-500: #ef4444;
+  --color-red-500-rgb: 239 68 68;
+  --color-red-600: #dc2626;
+  --color-red-600-rgb: 220 38 38;
+  --color-red-700: #b91c1c;
+  --color-red-700-rgb: 185 28 28;
+  --color-red-800: #991b1b;
+  --color-red-800-rgb: 153 27 27;
+  --color-red-900: #7f1d1d;
+  --color-red-900-rgb: 127 29 29;
+  --color-red-950: #450a0a;
+  --color-red-950-rgb: 69 10 10;
+
+  --color-yellow-50: #fefce8;
+  --color-yellow-50-rgb: 254 252 232;
+  --color-yellow-100: #fef9c3;
+  --color-yellow-100-rgb: 254 249 195;
+  --color-yellow-200: #fef08a;
+  --color-yellow-200-rgb: 254 240 138;
+  --color-yellow-300: #fde047;
+  --color-yellow-300-rgb: 253 224 71;
+  --color-yellow-400: #facc15;
+  --color-yellow-400-rgb: 250 204 21;
+  --color-yellow-500: #eab308;
+  --color-yellow-500-rgb: 234 179 8;
+  --color-yellow-600: #ca8a04;
+  --color-yellow-600-rgb: 202 138 4;
+  --color-yellow-700: #a16207;
+  --color-yellow-700-rgb: 161 98 7;
+  --color-yellow-800: #854d0e;
+  --color-yellow-800-rgb: 133 77 14;
+  --color-yellow-900: #713f12;
+  --color-yellow-900-rgb: 113 63 18;
+
+  --color-cyan-50: #ecfeff;
+  --color-cyan-50-rgb: 236 254 255;
+  --color-cyan-100: #cffafe;
+  --color-cyan-100-rgb: 207 250 254;
+  --color-cyan-200: #a5f3fc;
+  --color-cyan-200-rgb: 165 243 252;
+  --color-cyan-300: #67e8f9;
+  --color-cyan-300-rgb: 103 232 249;
+  --color-cyan-400: #22d3ee;
+  --color-cyan-400-rgb: 34 211 238;
+  --color-cyan-500: #06b6d4;
+  --color-cyan-500-rgb: 6 182 212;
+  --color-cyan-600: #0891b2;
+  --color-cyan-600-rgb: 8 145 178;
+  --color-cyan-700: #0e7490;
+  --color-cyan-700-rgb: 14 116 144;
+  --color-cyan-800: #155e75;
+  --color-cyan-800-rgb: 21 94 117;
+  --color-cyan-900: #164e63;
+  --color-cyan-900-rgb: 22 78 99;
+  --color-cyan-950: #083344;
+  --color-cyan-950-rgb: 8 51 68;
+
+  --color-purple-50: #faf5ff;
+  --color-purple-50-rgb: 250 245 255;
+  --color-purple-100: #f3e8ff;
+  --color-purple-100-rgb: 243 232 255;
+  --color-purple-200: #e9d5ff;
+  --color-purple-200-rgb: 233 213 255;
+  --color-purple-300: #d8b4fe;
+  --color-purple-300-rgb: 216 180 254;
+  --color-purple-400: #c084fc;
+  --color-purple-400-rgb: 192 132 252;
+  --color-purple-500: #a855f7;
+  --color-purple-500-rgb: 168 85 247;
+  --color-purple-600: #9333ea;
+  --color-purple-600-rgb: 147 51 234;
+  --color-purple-700: #7e22ce;
+  --color-purple-700-rgb: 126 34 206;
+  --color-purple-800: #6b21a8;
+  --color-purple-800-rgb: 107 33 168;
+  --color-purple-900: #581c87;
+  --color-purple-900-rgb: 88 28 135;
+  --color-purple-950: #3b0764;
+  --color-purple-950-rgb: 59 7 100;
+
+  --color-violet-50: #f5f3ff;
+  --color-violet-50-rgb: 245 243 255;
+  --color-violet-100: #ede9fe;
+  --color-violet-100-rgb: 237 233 254;
+  --color-violet-200: #ddd6fe;
+  --color-violet-200-rgb: 221 214 254;
+  --color-violet-300: #c4b5fd;
+  --color-violet-300-rgb: 196 181 253;
+  --color-violet-400: #a78bfa;
+  --color-violet-400-rgb: 167 139 250;
+  --color-violet-500: #8b5cf6;
+  --color-violet-500-rgb: 139 92 246;
+  --color-violet-600: #7c3aed;
+  --color-violet-600-rgb: 124 58 237;
+  --color-violet-700: #6d28d9;
+  --color-violet-700-rgb: 109 40 217;
+  --color-violet-800: #5b21b6;
+  --color-violet-800-rgb: 91 33 182;
+  --color-violet-900: #4c1d95;
+  --color-violet-900-rgb: 76 29 149;
+  --color-violet-950: #2e1065;
+  --color-violet-950-rgb: 46 16 101;
   /* Status Colors */
-  --color-status-info: #3b82f6;
-  --color-status-success: #22c55e;
-  --color-status-warning: #f59e0b;
-  --color-status-error: #ef4444;
-  
+  --color-status-info: var(--color-accent-blue);
+  --color-status-info-rgb: var(--color-accent-blue-rgb);
+  --color-status-success: var(--color-accent-green);
+  --color-status-success-rgb: var(--color-accent-green-rgb);
+  --color-status-warning: var(--color-accent-amber);
+  --color-status-warning-rgb: var(--color-accent-amber-rgb);
+  --color-status-error: var(--color-accent-red);
+  --color-status-error-rgb: var(--color-accent-red-rgb);
+
   /* Diff Colors */
   --color-diff-added-bg: rgba(87, 166, 74, 0.15);
   --color-diff-added-text: #57a64a;
@@ -76,49 +298,111 @@
   --color-diff-removed-text: #f48771;
   --color-diff-modified-bg: rgba(245, 158, 11, 0.15);
   --color-diff-modified-text: #f59e0b;
-  
+
   /* Scrollbar Colors */
   --color-scrollbar-track: rgba(30, 41, 59, 0.5);
   --color-scrollbar-thumb: rgba(71, 85, 105, 0.8);
   --color-scrollbar-thumb-hover: rgba(100, 116, 139, 0.9);
-  
+
   /* Selection Colors */
   --color-selection-bg: rgba(59, 130, 246, 0.5);
-  
+
   /* Overlay Colors */
   --color-overlay-backdrop: rgba(0, 0, 0, 0.6);
+  --color-overlay-strong: rgba(0, 0, 0, 0.8);
   --color-overlay-light: rgba(255, 255, 255, 0.1);
   --color-overlay-dark: rgba(0, 0, 0, 0.3);
-  
-  /* Gray Scale (for backward compatibility) */
-  --color-gray-50: #f8fafc;
-  --color-gray-100: #f1f5f9;
-  --color-gray-200: #e2e8f0;
-  --color-gray-300: #cbd5e1;
-  --color-gray-400: #94a3b8;
-  --color-gray-500: #64748b;
-  --color-gray-600: #475569;
-  --color-gray-700: #334155;
-  --color-gray-800: #1e293b;
-  --color-gray-900: #0f172a;
-  --color-gray-950: #020617;
-  
-   /* Standardized Semantic Font Sizes */
-   --font-caption: 0.6875rem;    /* 11px - Small labels, metadata */
-   --font-body: 0.875rem;        /* 14px - Primary body text */
-   --font-body-large: 1rem;      /* 16px - Larger body text */
-   --font-heading: 1.125rem;     /* 18px - Section headings */
-   --font-heading-large: 1.25rem; /* 20px - Main headings */
-   --font-heading-xlarge: 1.5rem; /* 24px - Page titles */
-   --font-display: 2rem;         /* 32px - Hero text, important notices */
 
-   /* UI-Specific Font Sizes */
-   --font-button: 0.875rem;      /* 14px - Button text */
-   --font-input: 0.875rem;       /* 14px - Input field text */
-   --font-label: 0.8125rem;      /* 13px - Form labels */
-   --font-code: 0.8125rem;       /* 13px - Code snippets (monospace) */
-   --font-terminal: 0.8125rem;   /* 13px - Terminal text */
-  
+  /* Surface Colors */
+  --color-surface-modal: #1a1a1a;
+  --color-surface-modal-rgb: 26 26 26;
+
+  /* Editor Colors */
+  --color-editor-background: #0b1220;
+  --color-editor-background-rgb: 11 18 32;
+  --color-editor-text: #e2e8f0;
+  --color-editor-caret: #d4d4d4;
+  --color-editor-gutter-text: #475569;
+  --color-editor-gutter-active-text: #c6c6c6;
+  --color-editor-active-line: rgba(255, 255, 255, 0.04);
+  --color-editor-inline-code-bg: rgba(30, 30, 30, 0.8);
+  --color-editor-code-block-bg: rgba(30, 30, 30, 0.5);
+  --color-editor-blockquote-border: #404040;
+  --color-editor-line-rule: #404040;
+  --color-editor-strikethrough: #808080;
+  --color-editor-selection: rgba(59, 130, 246, 0.3);
+  --color-editor-selection-focused: rgba(59, 130, 246, 0.4);
+  --color-editor-selection-alt: rgba(255, 255, 255, 0.04);
+
+  /* Syntax Colors */
+  --color-syntax-default: #d4d4d4;
+  --color-syntax-comment: #6a9955;
+  --color-syntax-variable: #9cdcfe;
+  --color-syntax-number: #b5cea8;
+  --color-syntax-type: #4ec9b0;
+  --color-syntax-keyword: #569cd6;
+  --color-syntax-string: #ce9178;
+  --color-syntax-function: #dcdcaa;
+  --color-syntax-operator: #d4d4d4;
+  --color-syntax-punctuation: #808080;
+  --color-syntax-tag: #569cd6;
+  --color-syntax-attribute: #9cdcfe;
+  --color-syntax-selector: #d7ba7d;
+  --color-syntax-property: #9cdcfe;
+  --color-syntax-bracket: #ffd700;
+  --color-syntax-class: #4ec9b0;
+  --color-syntax-constant: #4fc1ff;
+  --color-syntax-decorator: #dcdcaa;
+  --color-syntax-regex: #d16969;
+  --color-syntax-escape: #d7ba7d;
+  --color-syntax-emphasis: #c586c0;
+  --color-syntax-highlight: #c6c6c6;
+
+  /* Gray Scale (for legacy compatibility) */
+  --color-gray-50: #f8fafc;
+  --color-gray-50-rgb: 248 250 252;
+  --color-gray-100: #f1f5f9;
+  --color-gray-100-rgb: 241 245 249;
+  --color-gray-200: #e2e8f0;
+  --color-gray-200-rgb: 226 232 240;
+  --color-gray-300: #cbd5e1;
+  --color-gray-300-rgb: 203 213 225;
+  --color-gray-400: #94a3b8;
+  --color-gray-400-rgb: 148 163 184;
+  --color-gray-500: #64748b;
+  --color-gray-500-rgb: 100 116 139;
+  --color-gray-500-alt: #6b7280;
+  --color-gray-500-alt-rgb: 107 114 128;
+  --color-gray-600: #475569;
+  --color-gray-600-rgb: 71 85 105;
+  --color-gray-700: #334155;
+  --color-gray-700-rgb: 51 65 85;
+  --color-gray-800: #1e293b;
+  --color-gray-800-rgb: 30 41 59;
+  --color-gray-900: #0f172a;
+  --color-gray-900-rgb: 15 23 42;
+  --color-gray-950: #020617;
+  --color-gray-950-rgb: 2 6 23;
+
+  --color-white: #ffffff;
+  --color-white-rgb: 255 255 255;
+
+  /* Standardized Semantic Font Sizes */
+  --font-caption: 0.6875rem;    /* 11px - Small labels, metadata */
+  --font-body: 0.875rem;        /* 14px - Primary body text */
+  --font-body-large: 1rem;      /* 16px - Larger body text */
+  --font-heading: 1.125rem;     /* 18px - Section headings */
+  --font-heading-large: 1.25rem; /* 20px - Main headings */
+  --font-heading-xlarge: 1.5rem; /* 24px - Page titles */
+  --font-display: 2rem;         /* 32px - Hero text, important notices */
+
+  /* UI-Specific Font Sizes */
+  --font-button: 0.875rem;      /* 14px - Button text */
+  --font-input: 0.875rem;       /* 14px - Input field text */
+  --font-label: 0.8125rem;      /* 13px - Form labels */
+  --font-code: 0.8125rem;       /* 13px - Code snippets (monospace) */
+  --font-terminal: 0.8125rem;   /* 13px - Terminal text */
+
   /* Spacing Variables */
   --spacing-xs: 0.25rem;
   --spacing-sm: 0.5rem;
@@ -126,7 +410,7 @@
   --spacing-lg: 1.5rem;
   --spacing-xl: 2rem;
   --spacing-2xl: 3rem;
-  
+
   /* Border Radius Variables */
   --radius-none: 0;
   --radius-sm: 0.125rem;
@@ -135,7 +419,7 @@
   --radius-lg: 0.5rem;
   --radius-xl: 0.75rem;
   --radius-full: 9999px;
-  
+
   /* Animation Variables */
   --duration-fast: 150ms;
   --duration-normal: 300ms;
@@ -144,9 +428,9 @@
   --easing-ease-in: ease-in;
   --easing-ease-out: ease-out;
   --easing-ease-in-out: ease-in-out;
-  
-   /* Dynamic Font Sizes (updated by FontSizeContext) */
-   --terminal-font-size: 13px;
-   --ui-font-size: 14px;
-   --base-font-size: 14px;
+
+  /* Dynamic Font Sizes (updated by FontSizeContext) */
+  --terminal-font-size: 13px;
+  --ui-font-size: 14px;
+  --base-font-size: 14px;
 }

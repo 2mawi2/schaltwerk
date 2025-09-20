@@ -1,3 +1,5 @@
+import { withOpacity } from './colorUtils'
+
 export const theme = {
   colors: {
     background: {
@@ -29,57 +31,57 @@ export const theme = {
         DEFAULT: '#3b82f6',  // blue-500
         light: '#60a5fa',    // blue-400
         dark: '#2563eb',     // blue-600
-        bg: 'rgba(59, 130, 246, 0.1)',
-        border: 'rgba(59, 130, 246, 0.5)',
+        bg: withOpacity('#3b82f6', 0.1),
+        border: withOpacity('#3b82f6', 0.5),
       },
       green: {
         DEFAULT: '#22c55e',  // green-500
         light: '#4ade80',    // green-400
         dark: '#16a34a',     // green-600
-        bg: 'rgba(34, 197, 94, 0.1)',
-        border: 'rgba(34, 197, 94, 0.5)',
+        bg: withOpacity('#22c55e', 0.1),
+        border: withOpacity('#22c55e', 0.5),
       },
       amber: {
         DEFAULT: '#f59e0b',  // amber-500
         light: '#fbbf24',    // amber-400
         dark: '#d97706',     // amber-600
-        bg: 'rgba(245, 158, 11, 0.1)',
-        border: 'rgba(245, 158, 11, 0.5)',
+        bg: withOpacity('#f59e0b', 0.1),
+        border: withOpacity('#f59e0b', 0.5),
       },
       red: {
         DEFAULT: '#ef4444',  // red-500
         light: '#f87171',    // red-400
         dark: '#dc2626',     // red-600
-        bg: 'rgba(239, 68, 68, 0.1)',
-        border: 'rgba(239, 68, 68, 0.5)',
+        bg: withOpacity('#ef4444', 0.1),
+        border: withOpacity('#ef4444', 0.5),
       },
       violet: {
         DEFAULT: '#8b5cf6',  // violet-500
         light: '#a78bfa',    // violet-400
         dark: '#7c3aed',     // violet-600
-        bg: 'rgba(139, 92, 246, 0.1)',
-        border: 'rgba(139, 92, 246, 0.5)',
+        bg: withOpacity('#8b5cf6', 0.1),
+        border: withOpacity('#8b5cf6', 0.5),
       },
       purple: {
         DEFAULT: '#a855f7',  // purple-500
         light: '#c084fc',    // purple-400
         dark: '#9333ea',     // purple-600
-        bg: 'rgba(168, 85, 247, 0.1)',
-        border: 'rgba(168, 85, 247, 0.5)',
+        bg: withOpacity('#a855f7', 0.1),
+        border: withOpacity('#a855f7', 0.5),
       },
       yellow: {
         DEFAULT: '#eab308',  // yellow-500
         light: '#fde047',    // yellow-300
         dark: '#ca8a04',     // yellow-600
-        bg: 'rgba(234, 179, 8, 0.1)',
-        border: 'rgba(234, 179, 8, 0.5)',
+        bg: withOpacity('#eab308', 0.1),
+        border: withOpacity('#eab308', 0.5),
       },
       cyan: {
         DEFAULT: '#06b6d4',  // cyan-500
         light: '#67e8f9',    // cyan-300
         dark: '#0891b2',     // cyan-600
-        bg: 'rgba(6, 182, 212, 0.1)',
-        border: 'rgba(6, 182, 212, 0.5)',
+        bg: withOpacity('#06b6d4', 0.1),
+        border: withOpacity('#06b6d4', 0.5),
       },
     },
     
@@ -106,15 +108,22 @@ export const theme = {
       attribute: '#9cdcfe',
       selector: '#d7ba7d',
       property: '#9cdcfe',
+      bracket: '#ffd700',
+      constant: '#4fc1ff',
+      decorator: '#dcdcaa',
+      regex: '#d16969',
+      escape: '#d7ba7d',
+      emphasis: '#c586c0',
+      highlight: '#c6c6c6',
     },
     
     diff: {
-      addedBg: 'rgba(34, 197, 94, 0.25)',
-      addedText: '#4ade80',
-      removedBg: 'rgba(239, 68, 68, 0.25)',
-      removedText: '#f87171',
-      modifiedBg: 'rgba(245, 158, 11, 0.25)',
-      modifiedText: '#fbbf24',
+      addedBg: 'rgba(87, 166, 74, 0.15)',
+      addedText: '#57a64a',
+      removedBg: 'rgba(244, 135, 113, 0.15)',
+      removedText: '#f48771',
+      modifiedBg: 'rgba(245, 158, 11, 0.15)',
+      modifiedText: '#f59e0b',
     },
     
     scrollbar: {
@@ -131,6 +140,134 @@ export const theme = {
       backdrop: 'rgba(0, 0, 0, 0.6)',
       light: 'rgba(255, 255, 255, 0.1)',
       dark: 'rgba(0, 0, 0, 0.3)',
+      strong: 'rgba(0, 0, 0, 0.8)',
+    },
+
+    surface: {
+      modal: '#1a1a1a',
+    },
+
+    editor: {
+      background: '#0b1220',
+      text: '#e2e8f0',
+      caret: '#d4d4d4',
+      gutterText: '#475569',
+      gutterActiveText: '#c6c6c6',
+      activeLine: 'rgba(255, 255, 255, 0.04)',
+      inlineCodeBg: 'rgba(30, 30, 30, 0.8)',
+      codeBlockBg: 'rgba(30, 30, 30, 0.5)',
+      blockquoteBorder: '#404040',
+      lineRule: '#404040',
+      strikethrough: '#808080',
+      selection: withOpacity('#3b82f6', 0.3),
+      focusedSelection: withOpacity('#3b82f6', 0.4),
+      selectionAlt: withOpacity('#ffffff', 0.04),
+    },
+
+    palette: {
+      blue: {
+        50: '#eff6ff',
+        100: '#dbeafe',
+        200: '#bfdbfe',
+        300: '#93c5fd',
+        400: '#60a5fa',
+        500: '#3b82f6',
+        600: '#2563eb',
+        700: '#1d4ed8',
+        800: '#1e40af',
+        900: '#1e3a8a',
+        950: '#172554',
+      },
+      green: {
+        50: '#f0fdf4',
+        100: '#dcfce7',
+        200: '#bbf7d0',
+        300: '#86efac',
+        400: '#4ade80',
+        500: '#22c55e',
+        600: '#16a34a',
+        700: '#15803d',
+        800: '#166534',
+        900: '#14532d',
+        950: '#052e16',
+      },
+      amber: {
+        50: '#fffbeb',
+        100: '#fef3c7',
+        200: '#fde68a',
+        300: '#fcd34d',
+        400: '#fbbf24',
+        500: '#f59e0b',
+        600: '#d97706',
+        700: '#b45309',
+        800: '#92400e',
+        900: '#78350f',
+        950: '#451a03',
+      },
+      red: {
+        50: '#fef2f2',
+        100: '#fee2e2',
+        200: '#fecaca',
+        300: '#fca5a5',
+        400: '#f87171',
+        500: '#ef4444',
+        600: '#dc2626',
+        700: '#b91c1c',
+        800: '#991b1b',
+        900: '#7f1d1d',
+        950: '#450a0a',
+      },
+      yellow: {
+        50: '#fefce8',
+        100: '#fef9c3',
+        200: '#fef08a',
+        300: '#fde047',
+        400: '#facc15',
+        500: '#eab308',
+        600: '#ca8a04',
+        700: '#a16207',
+        800: '#854d0e',
+        900: '#713f12',
+      },
+      cyan: {
+        50: '#ecfeff',
+        100: '#cffafe',
+        200: '#a5f3fc',
+        300: '#67e8f9',
+        400: '#22d3ee',
+        500: '#06b6d4',
+        600: '#0891b2',
+        700: '#0e7490',
+        800: '#155e75',
+        900: '#164e63',
+        950: '#083344',
+      },
+      purple: {
+        50: '#faf5ff',
+        100: '#f3e8ff',
+        200: '#e9d5ff',
+        300: '#d8b4fe',
+        400: '#c084fc',
+        500: '#a855f7',
+        600: '#9333ea',
+        700: '#7e22ce',
+        800: '#6b21a8',
+        900: '#581c87',
+        950: '#3b0764',
+      },
+      violet: {
+        50: '#f5f3ff',
+        100: '#ede9fe',
+        200: '#ddd6fe',
+        300: '#c4b5fd',
+        400: '#a78bfa',
+        500: '#8b5cf6',
+        600: '#7c3aed',
+        700: '#6d28d9',
+        800: '#5b21b6',
+        900: '#4c1d95',
+        950: '#2e1065',
+      },
     },
   },
   

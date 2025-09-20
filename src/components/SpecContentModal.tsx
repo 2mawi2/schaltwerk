@@ -15,7 +15,7 @@ export const SpecContentModal: React.FC<SpecContentModalProps> = ({
   return (
     <div 
       className="fixed inset-0 z-[70] flex items-center justify-center p-4"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+      style={{ backgroundColor: theme.colors.overlay.strong }}
       onClick={onClose}
     >
       <div 

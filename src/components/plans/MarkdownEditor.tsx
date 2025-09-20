@@ -3,6 +3,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
 import { EditorState } from '@codemirror/state'
+import { theme } from '../../common/theme'
 
 interface MarkdownEditorProps {
   value: string
@@ -17,24 +18,27 @@ export interface MarkdownEditorRef {
   focusEnd: () => void
 }
 
+const editorColors = theme.colors.editor
+const syntaxColors = theme.colors.syntax
+
 const customTheme = EditorView.theme({
   '&': {
-    color: '#e2e8f0',
-    backgroundColor: '#0b1220',
+    color: editorColors.text,
+    backgroundColor: editorColors.background,
     fontSize: '14px',
   },
   '.cm-editor': {
-    backgroundColor: '#0b1220',
+    backgroundColor: editorColors.background,
     height: 'auto',
     minHeight: '100%',
   },
   '.cm-editor.cm-focused': {
-    backgroundColor: '#0b1220',
+    backgroundColor: editorColors.background,
     outline: 'none',
   },
   '.cm-content': {
-    caretColor: '#d4d4d4',
-    backgroundColor: '#0b1220',
+    caretColor: editorColors.caret,
+    backgroundColor: editorColors.background,
     padding: '12px',
     minHeight: '100%',
   },
@@ -47,41 +51,41 @@ const customTheme = EditorView.theme({
     padding: '0 2px',
   },
   '.cm-cursor, .cm-dropCursor': {
-    borderLeftColor: '#d4d4d4',
+    borderLeftColor: editorColors.caret,
   },
   '.cm-selectionBackground': {
-    backgroundColor: 'rgba(59, 130, 246, 0.3) !important',
+    backgroundColor: `${editorColors.selection} !important`,
   },
   '&.cm-focused .cm-selectionBackground': {
-    backgroundColor: 'rgba(59, 130, 246, 0.4) !important',
+    backgroundColor: `${editorColors.focusedSelection} !important`,
   },
   '&.cm-focused .cm-content ::selection': {
-    backgroundColor: 'rgba(59, 130, 246, 0.3) !important',
+    backgroundColor: `${editorColors.selection} !important`,
   },
   '.cm-content ::selection': {
-    backgroundColor: 'rgba(59, 130, 246, 0.3) !important',
+    backgroundColor: `${editorColors.selection} !important`,
   },
   '.cm-activeLine': {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
+    backgroundColor: editorColors.selectionAlt,
   },
   '.cm-gutters': {
-    backgroundColor: '#0b1220',
-    color: '#475569',
+    backgroundColor: editorColors.background,
+    color: editorColors.gutterText,
     border: 'none',
     borderRight: 'none',
   },
   '.cm-lineNumbers .cm-activeLineGutter': {
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-    color: '#c6c6c6',
+    backgroundColor: editorColors.selectionAlt,
+    color: editorColors.gutterActiveText,
   },
   '.cm-activeLineGutter': {
     backgroundColor: 'transparent',
   },
   '.cm-panels': {
-    backgroundColor: '#0b1220',
+    backgroundColor: editorColors.background,
   },
   '.cm-panels-bottom': {
-    backgroundColor: '#0b1220',
+    backgroundColor: editorColors.background,
   },
 }, { dark: true })
 
@@ -89,46 +93,46 @@ const syntaxHighlighting = EditorView.theme({
   '.cm-header-1': {
     fontSize: '1.5em',
     fontWeight: 'bold',
-    color: '#569cd6',
+    color: syntaxColors.keyword,
   },
   '.cm-header-2': {
     fontSize: '1.3em',
     fontWeight: 'bold',
-    color: '#569cd6',
+    color: syntaxColors.keyword,
   },
   '.cm-header-3': {
     fontSize: '1.1em',
     fontWeight: 'bold',
-    color: '#569cd6',
+    color: syntaxColors.keyword,
   },
   '.cm-header-4, .cm-header-5, .cm-header-6': {
     fontWeight: 'bold',
-    color: '#569cd6',
+    color: syntaxColors.keyword,
   },
   '.cm-strong': {
     fontWeight: 'bold',
-    color: '#d7ba7d',
+    color: syntaxColors.selector,
   },
   '.cm-emphasis': {
     fontStyle: 'italic',
-    color: '#c586c0',
+    color: syntaxColors.emphasis,
   },
   '.cm-link': {
-    color: '#4ec9b0',
+    color: syntaxColors.type,
     textDecoration: 'underline',
   },
   '.cm-url': {
-    color: '#4ec9b0',
+    color: syntaxColors.type,
     textDecoration: 'underline',
   },
   '.cm-code': {
-    backgroundColor: 'rgba(30, 30, 30, 0.8)',
-    color: '#ce9178',
+    backgroundColor: editorColors.inlineCodeBg,
+    color: syntaxColors.string,
     padding: '2px 4px',
     borderRadius: '3px',
   },
   '.cm-codeblock': {
-    backgroundColor: 'rgba(30, 30, 30, 0.5)',
+    backgroundColor: editorColors.codeBlockBg,
     display: 'block',
     padding: '8px',
     borderRadius: '4px',
@@ -136,20 +140,20 @@ const syntaxHighlighting = EditorView.theme({
     marginBottom: '4px',
   },
   '.cm-quote': {
-    color: '#6a9955',
-    borderLeft: '3px solid #404040',
+    color: syntaxColors.comment,
+    borderLeft: `3px solid ${editorColors.blockquoteBorder}`,
     paddingLeft: '8px',
     fontStyle: 'italic',
   },
   '.cm-list': {
-    color: '#d4d4d4',
+    color: syntaxColors.default,
   },
   '.cm-hr': {
-    color: '#404040',
+    color: editorColors.lineRule,
   },
   '.cm-strikethrough': {
     textDecoration: 'line-through',
-    color: '#808080',
+    color: editorColors.strikethrough,
   },
 }, { dark: true })
 
@@ -168,7 +172,7 @@ const scrollableInnerStyles: React.CSSProperties = {
   overflowY: 'auto',
   overflowX: 'hidden',
   position: 'relative',
-  backgroundColor: '#0b1220',
+  backgroundColor: editorColors.background,
 }
 
 export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorProps>(function MarkdownEditor({

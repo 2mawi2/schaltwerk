@@ -1,203 +1,22 @@
-/* VS Code Dark Theme Syntax Highlighting - Using Theme Variables */
-
 :root {
-  /* Syntax Colors - VS Code Dark Theme */
-  --syntax-default: #d4d4d4;
-  --syntax-comment: #6a9955;
-  --syntax-variable: #9cdcfe;
-  --syntax-number: #b5cea8;
-  --syntax-type: #4ec9b0;
-  --syntax-keyword: #569cd6;
-  --syntax-string: #ce9178;
-  --syntax-function: #dcdcaa;
-  --syntax-operator: #d4d4d4;
-  --syntax-punctuation: #808080;
-  --syntax-tag: #569cd6;
-  --syntax-attribute: #9cdcfe;
-  --syntax-selector: #d7ba7d;
-  --syntax-property: #9cdcfe;
-  --syntax-bracket: #ffd700;
-  --syntax-class: #4ec9b0;
-  --syntax-constant: #4fc1ff;
-  --syntax-decorator: #dcdcaa;
-  --syntax-regex: #d16969;
-  --syntax-escape: #d7ba7d;
-}
-
-/* Prism.js Theme Override - VS Code Dark */
-.token.comment,
-.token.prolog,
-.token.doctype,
-.token.cdata {
-  color: var(--syntax-comment) !important;
-}
-
-.token.punctuation {
-  color: var(--syntax-punctuation) !important;
-}
-
-.token.namespace {
-  color: var(--syntax-variable) !important;
-  opacity: 0.7;
-}
-
-.token.property,
-.token.tag,
-.token.boolean,
-.token.number,
-.token.constant,
-.token.symbol,
-.token.deleted {
-  color: var(--syntax-number) !important;
-}
-
-.token.selector,
-.token.attr-name,
-.token.string,
-.token.char,
-.token.builtin,
-.token.inserted {
-  color: var(--syntax-string) !important;
-}
-
-.token.operator,
-.token.entity,
-.token.url,
-.language-css .token.string,
-.style .token.string {
-  color: var(--syntax-operator) !important;
-}
-
-.token.atrule,
-.token.attr-value,
-.token.keyword {
-  color: var(--syntax-keyword) !important;
-}
-
-.token.function,
-.token.class-name {
-  color: var(--syntax-function) !important;
-}
-
-.token.regex,
-.token.important,
-.token.variable {
-  color: var(--syntax-variable) !important;
-}
-
-.token.important,
-.token.bold {
-  font-weight: bold;
-}
-
-.token.italic {
-  font-style: italic;
-}
-
-.token.entity {
-  cursor: help;
-}
-
-/* Language-specific overrides */
-.language-javascript .token.keyword,
-.language-typescript .token.keyword {
-  color: var(--syntax-keyword) !important;
-}
-
-.language-javascript .token.function,
-.language-typescript .token.function {
-  color: var(--syntax-function) !important;
-}
-
-.language-css .token.selector {
-  color: var(--syntax-selector) !important;
-}
-
-.language-css .token.property {
-  color: var(--syntax-property) !important;
-}
-
-.language-html .token.tag {
-  color: var(--syntax-tag) !important;
-}
-
-.language-html .token.attr-name {
-  color: var(--syntax-attribute) !important;
-}
-
-/* JSON-specific */
-.language-json .token.property {
-  color: var(--syntax-property) !important;
-}
-
-.language-json .token.string {
-  color: var(--syntax-string) !important;
-}
-
-/* Markdown-specific */
-.language-markdown .token.title {
-  color: var(--syntax-function) !important;
-  font-weight: bold;
-}
-
-.language-markdown .token.code {
-  color: var(--syntax-string) !important;
-}
-
-.language-markdown .token.list {
-  color: var(--syntax-keyword) !important;
-}
-
-/* Diff-specific highlighting (Git diffs) */
-.token.inserted {
-  color: var(--color-diff-added-text);
-  background-color: var(--color-diff-added-bg);
-}
-
-.token.deleted {
-  color: var(--color-diff-removed-text);
-  background-color: var(--color-diff-removed-bg);
-}
-
-/* Code block backgrounds */
-pre[class*="language-"] {
-  background-color: var(--color-bg-secondary);
-  border: 1px solid var(--color-border-default);
-  border-radius: var(--radius-md);
-}
-
-code[class*="language-"] {
-  color: var(--syntax-default);
-}
-
-/* Inline code */
-:not(pre) > code {
-  background-color: var(--color-bg-elevated);
-  color: var(--syntax-string);
-  padding: 0.125rem 0.25rem;
-  border-radius: var(--radius-sm);
-}
-
-/* Selection within code blocks */
-pre[class*="language-"] ::selection,
-code[class*="language-"] ::selection {
-  background-color: var(--color-selection-bg);
-}
-
-/* Line numbers (if enabled) */
-.line-numbers .line-numbers-rows {
-  border-right: 1px solid var(--color-border-subtle);
-}
-
-.line-numbers-rows > span {
-  color: var(--color-text-muted);
-}
-
-/* Highlighted lines */
-.highlight-line {
-  background-color: var(--color-bg-hover);
-  display: block;
-  margin-left: -1rem;
-  margin-right: -1rem;
-  padding-left: 1rem;
+  --syntax-default: var(--color-syntax-default);
+  --syntax-comment: var(--color-syntax-comment);
+  --syntax-variable: var(--color-syntax-variable);
+  --syntax-number: var(--color-syntax-number);
+  --syntax-type: var(--color-syntax-type);
+  --syntax-keyword: var(--color-syntax-keyword);
+  --syntax-string: var(--color-syntax-string);
+  --syntax-function: var(--color-syntax-function);
+  --syntax-operator: var(--color-syntax-operator);
+  --syntax-punctuation: var(--color-syntax-punctuation);
+  --syntax-tag: var(--color-syntax-tag);
+  --syntax-attribute: var(--color-syntax-attribute);
+  --syntax-selector: var(--color-syntax-selector);
+  --syntax-property: var(--color-syntax-property);
+  --syntax-bracket: var(--color-syntax-bracket);
+  --syntax-class: var(--color-syntax-class);
+  --syntax-constant: var(--color-syntax-constant);
+  --syntax-decorator: var(--color-syntax-decorator);
+  --syntax-regex: var(--color-syntax-regex);
+  --syntax-escape: var(--color-syntax-escape);
 }

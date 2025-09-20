@@ -1,11 +1,6 @@
 @import './styles/theme.css';
 @import "tailwindcss";
 
-@theme {
-  --color-panel: #0b1220;
-  --color-panel-alt: #0f172a;
-}
-
 /* Terminal font sizes are defined in theme.css */
 
 /* Prefer dark UI for native system widgets like scrollbars */
@@ -89,11 +84,11 @@ body,
   top: 50%;
   transform: translate(-50%, -50%);
   border-radius: 9999px;
-  background: linear-gradient(180deg, rgba(148,163,184,0.45), rgba(148,163,184,0.25));
+  background: linear-gradient(180deg, rgba(var(--color-gray-400-rgb), 0.45), rgba(var(--color-gray-400-rgb), 0.25));
   box-shadow:
-    0 0 0 1px rgba(148,163,184,0.15),
-    inset 0 0 0 1px rgba(15,23,42,0.5),
-    0 6px 12px rgba(2,6,23,0.45);
+    0 0 0 1px rgba(var(--color-gray-400-rgb), 0.15),
+    inset 0 0 0 1px rgba(var(--color-bg-tertiary-rgb), 0.5),
+    0 6px 12px rgba(var(--color-bg-primary-rgb), 0.45);
   opacity: 0.7;
   transition: opacity 150ms ease, box-shadow 150ms ease, transform 120ms ease;
   pointer-events: none; /* ensure dragging works anywhere on the gutter */
@@ -106,7 +101,7 @@ body,
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  background: rgba(148,163,184,0.25);
+  background: rgba(var(--color-gray-400-rgb), 0.25);
   opacity: 0.6;
   transition: opacity 150ms ease;
   pointer-events: none;
@@ -144,9 +139,9 @@ body,
 .gutter:hover::before {
   opacity: 1;
   box-shadow:
-    0 0 0 1px rgba(148,163,184,0.25),
-    inset 0 0 0 1px rgba(15,23,42,0.6),
-    0 8px 16px rgba(2,6,23,0.55);
+    0 0 0 1px rgba(var(--color-gray-400-rgb), 0.25),
+    inset 0 0 0 1px rgba(var(--color-bg-tertiary-rgb), 0.6),
+    0 8px 16px rgba(var(--color-bg-primary-rgb), 0.55);
 }
 
 .gutter:active::before {
@@ -184,12 +179,12 @@ body.is-split-dragging [class*="transition-"] {
 
 .xterm-viewport::-webkit-scrollbar-thumb {
   /* slate-400 at ~35% for a subtle dark thumb */
-  background-color: rgba(148, 163, 184, 0.35);
+  background-color: rgba(var(--color-gray-400-rgb), 0.35);
   border-radius: 2px;
 }
 
 .xterm-viewport::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(148, 163, 184, 0.55);
+  background-color: rgba(var(--color-gray-400-rgb), 0.55);
 }
 
 /* Hint to browsers (Safari/macOS) to prefer dark overlay scrollbars */
@@ -200,7 +195,7 @@ body.is-split-dragging [class*="transition-"] {
 
 .xterm-viewport {
   scrollbar-width: thin;
-  scrollbar-color: rgba(100, 116, 139, 0.3) transparent;
+  scrollbar-color: rgba(var(--color-gray-500-rgb), 0.3) transparent;
 }
 
 /* Hide auxiliary caret from xterm's helper textarea to prevent a second cursor */
@@ -216,12 +211,12 @@ body.is-split-dragging [class*="transition-"] {
 }
 
 .scrollbar-thumb-gray-700::-webkit-scrollbar-thumb {
-  background-color: rgb(55 65 81);
+  background-color: rgb(var(--color-gray-700-rgb) / 1);
   border-radius: 3px;
 }
 
 .scrollbar-thumb-gray-700::-webkit-scrollbar-thumb:hover {
-  background-color: rgb(75 85 99);
+  background-color: rgb(var(--color-gray-600-rgb) / 1);
 }
 
 .scrollbar-track-transparent::-webkit-scrollbar-track {
@@ -320,8 +315,8 @@ body.is-split-dragging {
 }
 
 .session-ring-gray {
-  box-shadow: 0 0 0 2px var(--color-gray-500), 0 0 0 4px rgba(107, 114, 128, 0.2);
-  background-color: rgba(107, 114, 128, 0.08) !important;
+  box-shadow: 0 0 0 2px var(--color-gray-500), 0 0 0 4px rgba(var(--color-gray-500-alt-rgb), 0.2);
+  background-color: rgba(var(--color-gray-500-alt-rgb), 0.08) !important;
 }
 
 /* Subtle header ruler to visually continue the frame into the content */
@@ -384,19 +379,19 @@ code {
 
 @keyframes filterGlow {
   0% {
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0),
-                inset 0 0 0 rgba(59, 130, 246, 0);
-    background-color: rgba(59, 130, 246, 0.1);
+    box-shadow: 0 0 0 0 rgba(var(--color-accent-blue-rgb), 0),
+                inset 0 0 0 rgba(var(--color-accent-blue-rgb), 0);
+    background-color: rgba(var(--color-accent-blue-rgb), 0.1);
   }
   50% {
-    box-shadow: 0 0 8px 1px rgba(59, 130, 246, 0.4),
-                inset 0 0 8px rgba(59, 130, 246, 0.15);
-    background-color: rgba(59, 130, 246, 0.25);
+    box-shadow: 0 0 8px 1px rgba(var(--color-accent-blue-rgb), 0.4),
+                inset 0 0 8px rgba(var(--color-accent-blue-rgb), 0.15);
+    background-color: rgba(var(--color-accent-blue-rgb), 0.25);
   }
   100% {
-    box-shadow: 0 0 4px 0.5px rgba(59, 130, 246, 0.3),
-                inset 0 0 4px rgba(59, 130, 246, 0.1);
-    background-color: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 4px 0.5px rgba(var(--color-accent-blue-rgb), 0.3),
+                inset 0 0 4px rgba(var(--color-accent-blue-rgb), 0.1);
+    background-color: rgba(var(--color-accent-blue-rgb), 0.15);
   }
 }
 
