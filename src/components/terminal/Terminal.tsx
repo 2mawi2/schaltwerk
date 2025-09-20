@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
-import { Terminal as XTerm } from 'xterm';
+import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core';
@@ -16,11 +16,17 @@ import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus, safeTerminalFocusImmediate } from '../../utils/safeFocus'
 import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
-import { applyEnqueuePolicy, makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
+import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
+import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
+
+const terminalSizeCache = new Map<string, { cols: number; rows: number }>()
+
+export function getLastMeasuredTerminalSize(id: string) {
+    return terminalSizeCache.get(id) ?? null
+}
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
-const MAX_INITIAL_FIT_ATTEMPTS = 6;
 
 // Export function to clear started tracking for specific terminals
 export function clearTerminalStartedTracking(terminalIds: string[]) {
@@ -63,14 +69,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
-    const initialFitAttemptsRef = useRef(0);
-    const initialFitRetryHandleRef = useRef<number | null>(null);
-    const scheduleInitialFitRetry = useCallback((cb: () => void) => {
-        if (initialFitRetryHandleRef.current != null) {
-            cancelAnimationFrame(initialFitRetryHandleRef.current);
-        }
-        initialFitRetryHandleRef.current = requestAnimationFrame(cb);
-    }, []);
+    // Removed initial-fit retry machinery after consolidating fit guards
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const [hydrated, setHydrated] = useState(false);
@@ -79,17 +78,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const pendingOutput = useRef<string[]>([]);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
-    // Batch terminal writes to reduce xterm parse/render overhead
-    const writeQueueRef = useRef<string[]>([]);
-    const queueBytesRef = useRef(0);
-    const droppedBytesRef = useRef(0);
-    const overflowActiveRef = useRef(false);
-    const rafIdRef = useRef<number | null>(null);
-    const pendingFlushRef = useRef<boolean>(false);
     const seqRef = useRef<number>(0);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
+    const resumeUnlistenRef = useRef<UnlistenFn | null>(null);
     const unlistenPromiseRef = useRef<Promise<UnlistenFn> | null>(null);
     const mountedRef = useRef<boolean>(false);
     const startingTerminals = useRef<Map<string, boolean>>(new Map());
@@ -108,7 +101,52 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const queueCfg = useMemo(() => (
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
-    const MAX_WRITE_CHUNK = queueCfg.maxWriteChunk;
+
+    const {
+        enqueue: enqueueQueue,
+        flushPending: flushQueuePending,
+        reset: resetQueue,
+        stats: getQueueStats,
+    } = useTerminalWriteQueue({
+        queueConfig: queueCfg,
+        logger,
+        debugTag: terminalId,
+    });
+
+    const applySizeUpdate = useCallback((cols: number, rows: number, reason: string, force = false) => {
+        const MIN_DIMENSION = 2;
+        if (!terminal.current) return false;
+        // Step 1: only apply resize thrash suppression (no right-edge margin yet)
+        if (cols < MIN_DIMENSION || rows < MIN_DIMENSION) {
+            logger.debug(`[Terminal ${terminalId}] Skipping ${reason} resize due to tiny dimensions ${cols}x${rows}`);
+            const prevCols = lastSize.current.cols;
+            const prevRows = lastSize.current.rows;
+            if (prevCols >= MIN_DIMENSION && prevRows >= MIN_DIMENSION) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.resize(prevCols, prevRows);
+                    } catch (error) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to restore previous size after tiny resize`, error);
+                    }
+                });
+            }
+            return false;
+        }
+
+        // Suppress resize thrash: ignore tiny oscillations (<2 total delta) unless forced
+        if (!force) {
+            const dCols = Math.abs(cols - lastSize.current.cols);
+            const dRows = Math.abs(rows - lastSize.current.rows);
+            if (dCols + dRows < 2) return false;
+        }
+
+        cols = cols - 2; // IMPORTANT FIX: we require this change to avoid claude code to trigger new lines when the terminal is overfloating
+
+        lastSize.current = { cols, rows };
+        terminalSizeCache.set(terminalId, { cols, rows });
+        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+        return true;
+    }, [terminalId]);
 
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
@@ -139,52 +177,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [agentType, isUserSelectingInTerminal]);
 
     const enqueueWrite = useCallback((data: string) => {
-        const next = applyEnqueuePolicy(
-            {
-                queue: writeQueueRef.current,
-                queuedBytes: queueBytesRef.current,
-                droppedBytes: droppedBytesRef.current,
-                overflowActive: overflowActiveRef.current,
-            },
-            data,
-            queueCfg
-        )
-
-        writeQueueRef.current = next.queue
-        queueBytesRef.current = next.queuedBytes
-        droppedBytesRef.current = next.droppedBytes
-
-        // Emit a single notice per overflow episode to avoid spam
-        if (!overflowActiveRef.current && next.overflowActive) {
-            const droppedKB = Math.max(1, Math.round(next.droppedBytes / 1024))
-            // Do NOT unshift; append so the message appears in order while catching up
-            const note = `\r\n[schaltwerk] high-volume output; ${droppedKB}KB skipped in UI to stay responsive. Full content preserved in transcript for agent terminals.\r\n`
-            writeQueueRef.current.push(note)
-            queueBytesRef.current += note.length
+        if (data.length === 0) return;
+        enqueueQueue(data);
+        if (termDebug()) {
+            const { queueLength } = getQueueStats();
+            logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
         }
-        overflowActiveRef.current = next.overflowActive
-    }, [queueCfg]);
-
-    const dequeueChunk = (limit: number) => {
-        let taken = 0;
-        const pieces: string[] = [];
-        while (writeQueueRef.current.length > 0 && taken < limit) {
-            const next = writeQueueRef.current[0];
-            const room = limit - taken;
-            if (next.length <= room) {
-                pieces.push(next);
-                writeQueueRef.current.shift();
-                queueBytesRef.current -= next.length;
-                taken += next.length;
-            } else {
-                pieces.push(next.slice(0, room));
-                writeQueueRef.current[0] = next.slice(room);
-                queueBytesRef.current -= room;
-                taken += room;
-            }
-        }
-        return pieces.join('');
-    };
+    }, [enqueueQueue, getQueueStats, terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -221,8 +220,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
             const target = event.target as Node | null;
-            if (target instanceof Element && target.closest('[data-terminal-search="true"]')) {
-                return;
+            if (target instanceof Element) {
+                if (target.closest('[data-terminal-search="true"]')) {
+                    return;
+                }
             }
             if (target && searchContainerRef.current && searchContainerRef.current.contains(target)) {
                 return;
@@ -345,8 +346,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     fitAddon.current!.fit();
                     const { cols, rows } = terminal.current!;
                     // Always notify PTY to nudge the TUI even if equal (OpenCode can need explicit resize)
-                    lastSize.current = { cols, rows };
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                    applySizeUpdate(cols, rows, 'opencode-search', true);
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] OpenCode search-resize failed:`, e);
                 }
@@ -365,7 +365,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         window.addEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
         return () => window.removeEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
-    }, [agentType, isBackground, terminalId, sessionName, isCommander]);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
     // Deterministic refit on session switch specifically for OpenCode
     useEffect(() => {
@@ -385,8 +385,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current!.fit();
                     const { cols, rows } = terminal.current!;
-                    lastSize.current = { cols, rows };
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                    applySizeUpdate(cols, rows, 'opencode-selection', true);
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -400,7 +399,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         };
         window.addEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
         return () => window.removeEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
-    }, [agentType, isBackground, terminalId, sessionName, isCommander]);
+    }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
     useEffect(() => {
         mountedRef.current = true;
@@ -414,11 +413,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         setHydrated(false);
         hydratedRef.current = false;
         pendingOutput.current = [];
-        writeQueueRef.current = [];
-        queueBytesRef.current = 0;
-        droppedBytesRef.current = 0;
-        if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
-        pendingFlushRef.current = false;
+        resetQueue();
 
         // Revert: Always show a visible terminal cursor.
         // Prior logic adjusted/hid the xterm cursor for TUI agents which led to
@@ -491,51 +486,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             const containerWidth = termRef.current.clientWidth;
             const containerHeight = termRef.current.clientHeight;
 
-            // Only fit if container has proper dimensions
-            if (containerWidth > 0 && containerHeight > 0) {
-                initialFitAttemptsRef.current = 0;
-                if (initialFitRetryHandleRef.current != null) {
-                    cancelAnimationFrame(initialFitRetryHandleRef.current);
-                    initialFitRetryHandleRef.current = null;
-                }
-                try {
-                    fitAddon.current.fit();
-                    const { cols, rows } = terminal.current;
-                    // Only send resize if dimensions actually changed
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
-                    logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
-                }
-            } else {
-                const attempt = ++initialFitAttemptsRef.current;
-                if (attempt <= MAX_INITIAL_FIT_ATTEMPTS) {
-                    logger.debug(`[Terminal ${terminalId}] Initial fit deferred; container not measurable yet (${containerWidth}x${containerHeight}) [attempt ${attempt}/${MAX_INITIAL_FIT_ATTEMPTS}]`);
-                    scheduleInitialFitRetry(() => {
-                        if (!cancelled) {
-                            performInitialFit();
-                        }
-                    });
-                    return;
-                }
+            // Only fit if container has proper dimensions; otherwise defer and let observers retry
+            if (containerWidth <= 0 || containerHeight <= 0) {
+                logger.debug(`[Terminal ${terminalId}] Deferring initial fit until container is measurable (${containerWidth}x${containerHeight})`);
+                return;
+            }
 
-                // In tests or when container isn't ready after repeated attempts, use default dimensions
-                logger.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
-                initialFitAttemptsRef.current = 0;
-                if (initialFitRetryHandleRef.current != null) {
-                    cancelAnimationFrame(initialFitRetryHandleRef.current);
-                    initialFitRetryHandleRef.current = null;
-                }
-                try {
-                    // Set reasonable default dimensions for tests and edge cases
-                    terminal.current.resize(80, 24);
-                    lastSize.current = { cols: 80, rows: 24 };
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
-                }
+            try {
+                fitAddon.current.fit();
+                const { cols, rows } = terminal.current;
+                applySizeUpdate(cols, rows, 'initial-fit');
+                logger.info(`[Terminal ${terminalId}] Initial fit: ${cols}x${rows} (container: ${containerWidth}x${containerHeight})`);
+            } catch (e) {
+                logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
             }
         };
         
@@ -564,19 +527,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 rendererInitialized = true;
                 try {
                     // Ensure terminal is properly fitted
-                    if (fitAddon.current && terminal.current) {
-                        fitAddon.current.fit();
-                        // Immediately propagate initial size once measurable
-                        try {
-                            const { cols, rows } = terminal.current;
-                            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                                lastSize.current = { cols, rows };
-                                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                        if (fitAddon.current && terminal.current) {
+                            fitAddon.current.fit();
+                            // Immediately propagate initial size once measurable
+                            try {
+                                const { cols, rows } = terminal.current;
+                                applySizeUpdate(cols, rows, 'renderer-init');
+                            } catch (e) {
+                                logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                             }
-                        } catch (e) {
-                            logger.warn(`[Terminal ${terminalId}] Early initial resize failed:`, e);
                         }
-                    }
                     
                     // Mark renderer as ready immediately (Canvas renderer is always ready)
                     rendererReadyRef.current = true;
@@ -587,10 +547,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             try {
                                 fitAddon.current.fit();
                                 const { cols, rows } = terminal.current;
-                                if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                                    lastSize.current = { cols, rows };
-                                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                                }
+                                applySizeUpdate(cols, rows, 'post-init');
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Post-init fit failed:`, e);
                             }
@@ -657,10 +614,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'visibility');
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Visibility fit failed:`, e);
                 }
@@ -688,12 +642,6 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 // This allows multiline input in shells that support it
                 invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
                 return false; // Prevent default Enter behavior
-            }
-            
-            // Kanban board shortcut: Cmd+Shift+K
-            if (modifierKey && event.shiftKey && (event.key === 'k' || event.key === 'K')) {
-                window.dispatchEvent(new CustomEvent('global-kanban-shortcut'))
-                return false
             }
             // Prefer Shift+Cmd/Ctrl+N as "New spec"
             if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
@@ -733,10 +681,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'initial-raf');
                 } catch {
                     // ignore single-shot fit error; RO will retry
                 }
@@ -750,53 +695,87 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
 
         const scheduleFlush = () => {
-            if (pendingFlushRef.current) return;
-            pendingFlushRef.current = true;
-            queueMicrotask(() => {
-                pendingFlushRef.current = false;
-                if (!rendererReadyRef.current || !terminal.current || writeQueueRef.current.length === 0) return;
-                const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-                try {
-                    const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                    const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
-                        ? buffer.viewportY === buffer.baseY
-                        : false;
-                    if (termDebug()) logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
-                    terminal.current.write(chunk, () => {
-                        try { if (shouldAutoScroll(wasAtBottom)) terminal.current!.scrollToBottom(); } catch (error) { logger.debug('Scroll error during terminal output (cb)', error); }
-                        if (writeQueueRef.current.length > 0) scheduleFlush();
-                    });
-                } catch (e) {
-                    logger.debug('xterm write failed in scheduleFlush', e);
+            if (!rendererReadyRef.current || !terminal.current) return;
+            if (getQueueStats().queueLength === 0) return;
+
+            flushQueuePending((chunk) => {
+                if (!rendererReadyRef.current || !terminal.current) {
+                    return false;
                 }
+
+                const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
+                    ? buffer.viewportY === buffer.baseY
+                    : false;
+
+                if (termDebug()) {
+                    const { queueLength } = getQueueStats();
+                    logger.debug(`[Terminal ${terminalId}] flush: bytes=${chunk.length} wasAtBottom=${wasAtBottom} qlen=${queueLength}`);
+                }
+
+                try {
+                    terminal.current.write(chunk, () => {
+                        try {
+                            if (shouldAutoScroll(wasAtBottom)) {
+                                terminal.current!.scrollToBottom();
+                            }
+                        } catch (error) {
+                            logger.debug('Scroll error during terminal output (cb)', error);
+                        }
+
+                        if (getQueueStats().queueLength > 0) {
+                            scheduleFlush();
+                        }
+                    });
+                } catch (error) {
+                    logger.debug('xterm write failed in scheduleFlush', error);
+                    return false;
+                }
+
+                return true;
             });
         };
 
         // Immediate flush helper (no debounce), used during hydration transitions
         const flushNow = () => {
-            if (!rendererReadyRef.current) return;
-            if (!terminal.current || writeQueueRef.current.length === 0) return;
-            const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-            try {
+            if (!rendererReadyRef.current || !terminal.current) return;
+            if (getQueueStats().queueLength === 0) return;
+
+            flushQueuePending((chunk) => {
+                if (!rendererReadyRef.current || !terminal.current) {
+                    return false;
+                }
+
                 const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
                 const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
                     ? buffer.viewportY === buffer.baseY
                     : false;
-                if (termDebug()) logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
-                terminal.current.write(chunk, () => {
-                    try {
-                        if (shouldAutoScroll(wasAtBottom)) {
-                            terminal.current!.scrollToBottom();
+
+                if (termDebug()) {
+                    logger.debug(`[Terminal ${terminalId}] flushNow: bytes=${chunk.length} wasAtBottom=${wasAtBottom}`);
+                }
+
+                try {
+                    terminal.current.write(chunk, () => {
+                        try {
+                            if (shouldAutoScroll(wasAtBottom)) {
+                                terminal.current!.scrollToBottom();
+                            }
+                        } catch (error) {
+                            logger.debug('Scroll error during buffer flush (cb)', error);
+                        } finally {
+                            if (getQueueStats().queueLength > 0) {
+                                queueMicrotask(() => flushNow());
+                            }
                         }
-                    } catch (error) {
-                        logger.debug('Scroll error during buffer flush (cb)', error);
-                    } finally {
-                        if (writeQueueRef.current.length > 0) queueMicrotask(() => flushNow());
-                    }
-                });
-            } catch (e) {
-                logger.debug('xterm write failed in flushNow', e);
-            }
+                    });
+                } catch (error) {
+                    logger.debug('xterm write failed in flushNow', error);
+                    return false;
+                }
+
+                return true;
+            }, { immediate: true });
         };
 
         // Promise-based drain used only during initial hydration to guarantee "all content applied" before reveal
@@ -821,12 +800,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 pendingOutput.current = [];
             }
 
-            // 3) Drain writeQueueRef to empty using write callbacks
+            // 3) Drain queue to empty using write callbacks
             if (!terminal.current) return;
             await new Promise<void>((resolve) => {
                 const step = () => {
                     if (!mountedRef.current || !terminal.current) return resolve();
-                    if (writeQueueRef.current.length === 0) {
+                    if (getQueueStats().queueLength === 0) {
                         // Double-check no new pending arrived mid-drain; if so, loop again
                         if (pendingOutput.current.length > 0) {
                             for (const output of pendingOutput.current) enqueueWrite(output);
@@ -838,20 +817,41 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }
 
                     // Write one chunk synchronously and continue on its callback
-                    try {
-                        const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-                        const buffer = terminal.current!.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                    let chunkProcessed = false;
+                    flushQueuePending((chunk) => {
+                        chunkProcessed = chunk.length > 0;
+                        if (!terminal.current) {
+                            return false;
+                        }
+
+                        const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
                         const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
                             ? buffer.viewportY === buffer.baseY
                             : false;
-                        terminal.current!.write(chunk, () => {
-                            try { if (shouldAutoScroll(wasAtBottom)) terminal.current!.scrollToBottom(); } catch { /* ignore */ }
-                            // Continue draining until truly empty; use microtask to avoid deep callback chains
-                            queueMicrotask(step);
-                        });
-                    } catch {
-                        // If a write fails, bail out to avoid an infinite loop; normal streaming will recover
-                        resolve();
+
+                        try {
+                            terminal.current.write(chunk, () => {
+                                try {
+                                    if (shouldAutoScroll(wasAtBottom)) {
+                                        terminal.current!.scrollToBottom();
+                                    }
+                                } catch {
+                                    // ignore scroll failures during hydration drain
+                                }
+                                // Continue draining until truly empty; use microtask to avoid deep callback chains
+                                queueMicrotask(step);
+                            });
+                        } catch (error) {
+                            logger.debug('xterm write failed in flushAllNowAsync', error);
+                            return false;
+                        }
+
+                        return true;
+                    }, { immediate: true });
+
+                    if (!chunkProcessed) {
+                        // No chunk processed (e.g., queue emptied during callbacks). Re-evaluate on next tick.
+                        queueMicrotask(step);
                     }
                 };
                 step();
@@ -864,7 +864,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
                 if (termDebug()) {
                     const n = ++seqRef.current;
-                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${writeQueueRef.current.length}`)
+                    const { queueLength } = getQueueStats();
+                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`)
                 }
                 if (cancelled) return;
                 if (!hydratedRef.current) {
@@ -919,10 +920,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       try {
                           fitAddon.current.fit();
                           const { cols, rows } = terminal.current;
-                          if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                              lastSize.current = { cols, rows };
-                              invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                          }
+                          applySizeUpdate(cols, rows, 'hydration');
                       } catch (e) {
                           // Non-fatal; ResizeObserver and later events will correct
                           logger.warn(`[Terminal ${terminalId}] Hydration fit failed:`, e);
@@ -979,7 +977,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 hydratedRef.current = true;
                 if (pendingOutput.current.length > 0) {
                     for (const output of pendingOutput.current) {
-                        writeQueueRef.current.push(output);
+                        enqueueWrite(output);
                     }
                     pendingOutput.current = [];
                     // Flush immediately; subsequent events will be batched
@@ -1001,6 +999,38 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
 
+        const rehydrateAfterResume = async () => {
+            try {
+                pendingOutput.current = []
+                resetQueue()
+                if (terminal.current) {
+                    try {
+                        terminal.current.reset()
+                    } catch (error) {
+                        logger.warn(`[Terminal ${terminalId}] Failed to reset terminal before resume:`, error)
+                    }
+                }
+                setHydrated(false)
+                hydratedRef.current = false
+                await hydrateTerminal()
+            } catch (error) {
+                logger.error(`[Terminal ${terminalId}] Failed to rehydrate after resume:`, error)
+            }
+        }
+
+        const attachResumeListener = async () => {
+            try {
+                const unlisten = await listenEvent(SchaltEvent.TerminalResumed, (payload) => {
+                    if (payload?.terminal_id !== terminalId) return
+                    rehydrateAfterResume().catch(err => logger.error(`[Terminal ${terminalId}] Resume hydration failed:`, err))
+                })
+                resumeUnlistenRef.current = unlisten
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to attach resume listener`, error)
+            }
+        }
+
+        attachResumeListener()
         hydrateTerminal();
 
         // Helper functions for scroll position management
@@ -1069,11 +1099,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         });
                     }
 
-                    // Only send resize if dimensions actually changed
-                    if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-                    }
+                    applySizeUpdate(cols, rows, 'font-size-change');
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Font size change fit failed:`, e);
                 }
@@ -1137,12 +1163,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 });
             }
 
-            // Only send resize if dimensions actually changed
-            if (cols !== lastSize.current.cols || rows !== lastSize.current.rows) {
-                lastSize.current = { cols, rows };
-                // Send resize command immediately to update PTY size
-                invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
-            }
+            applySizeUpdate(cols, rows, 'resize-observer');
         };
 
         // Use ResizeObserver with more stable debouncing to prevent jitter
@@ -1198,10 +1219,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                     logger.debug('Failed to scroll to bottom after drag', error);
                                 }
                             });
-                        }
+                       }
 
-                        lastSize.current = { cols, rows };
-                        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                        applySizeUpdate(cols, rows, 'split-final');
                     });
                 }
             } catch (error) {
@@ -1233,6 +1253,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     }
                 });
             }
+            if (resumeUnlistenRef.current) {
+                try { resumeUnlistenRef.current(); } catch (error) {
+                    logger.error(`[Terminal ${terminalId}] Resume listener cleanup error:`, error);
+                }
+                resumeUnlistenRef.current = null;
+            }
             
             // Only disconnect if not already disconnected (it disconnects itself after initialization)
             try {
@@ -1246,14 +1272,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             terminal.current = null;
             setHydrated(false);
             pendingOutput.current = [];
-            writeQueueRef.current = [];
-            if (rafIdRef.current != null) { cancelAnimationFrame(rafIdRef.current); rafIdRef.current = null; }
-            pendingFlushRef.current = false;
+            resetQueue();
             // Note: We intentionally don't close terminals here to allow switching between sessions
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal, scheduleInitialFitRetry, inputFilter]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1262,19 +1286,33 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         // Helper: minimal flush to reuse existing buffering
         const flushQueuedWritesLight = () => {
-            if (!terminal.current || writeQueueRef.current.length === 0) return;
-            const chunk = dequeueChunk(MAX_WRITE_CHUNK);
-            terminal.current.write(chunk);
-            requestAnimationFrame(() => {
-                try {
-                    const buffer = terminal.current!.buffer.active;
-                    const atBottom = buffer.viewportY === buffer.baseY;
-                    if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
-                    if (writeQueueRef.current.length > 0) flushQueuedWritesLight();
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+            if (!terminal.current || getQueueStats().queueLength === 0) return;
+
+            flushQueuePending((chunk) => {
+                if (!terminal.current) {
+                    return false;
                 }
-            });
+
+                try {
+                    terminal.current.write(chunk);
+                } catch (error) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to flush queued writes`, error);
+                    return false;
+                }
+
+                requestAnimationFrame(() => {
+                    try {
+                        const buffer = terminal.current!.buffer.active;
+                        const atBottom = buffer.viewportY === buffer.baseY;
+                        if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
+                        if (getQueueStats().queueLength > 0) flushQueuedWritesLight();
+                    } catch (e) {
+                        logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
+                    }
+                });
+
+                return true;
+            }, { immediate: true });
         };
 
         // Detach previous listener
@@ -1312,7 +1350,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll]);
+    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll]);
 
 
     // Automatically start Claude for top terminals when hydrated and first ready
@@ -1461,12 +1499,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         requestAnimationFrame(() => { if (!cancelled) start(); });
         return () => {
             cancelled = true;
-            if (initialFitRetryHandleRef.current != null) {
-                cancelAnimationFrame(initialFitRetryHandleRef.current);
-                initialFitRetryHandleRef.current = null;
-            }
         };
-    }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, scheduleInitialFitRetry]);
+    }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) return
@@ -1475,12 +1509,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 terminal.current.options.fontFamily = resolvedFontFamily
                 if (fitAddon.current) {
                     fitAddon.current.fit()
+                    const { cols, rows } = terminal.current
+                    applySizeUpdate(cols, rows, 'font-family');
                 }
             }
         } catch (e) {
             logger.warn(`[Terminal ${terminalId}] Failed to apply font family`, e)
         }
-    }, [resolvedFontFamily, terminalId])
+    }, [resolvedFontFamily, terminalId, applySizeUpdate])
 
     // Force scroll to bottom when switching sessions
     useEffect(() => {
@@ -1565,8 +1601,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [isUserSelectingInTerminal]);
 
     return (
-        <div ref={containerRef} className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} data-smartdash-exempt="true">
-            <div ref={termRef} className="h-full w-full overflow-hidden" style={readOnly ? { WebkitUserSelect: 'text', userSelect: 'text' } : undefined} />
+        <div
+            ref={containerRef}
+            className={`h-full w-full relative overflow-hidden ${className}`}
+            onClick={handleTerminalClick}
+            onMouseDown={onMouseDown}
+            onMouseMove={onMouseMove}
+            onMouseUp={onMouseUp}
+            data-smartdash-exempt="true"
+        >
+            <div
+                ref={termRef}
+                className="h-full w-full overflow-hidden"
+            />
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
                     <AnimatedText

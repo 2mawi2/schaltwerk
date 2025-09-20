@@ -48,7 +48,7 @@ export default defineConfig(({ command }) => ({
           if (id.includes('react') || id.includes('react-dom')) {
             return 'react-vendor';
           }
-          if (id.includes('xterm')) {
+          if (id.includes('@xterm/xterm')) {
             return 'xterm-vendor';
           }
           if (id.includes('highlight.js')) {
@@ -72,7 +72,7 @@ export default defineConfig(({ command }) => ({
     target: 'es2020',
   },
   optimizeDeps: {
-    include: ['react', 'react-dom', 'xterm', '@tauri-apps/api', 'clsx', 'highlight.js'],
+    include: ['react', 'react-dom', '@xterm/xterm', '@tauri-apps/api', 'clsx', 'highlight.js'],
     esbuildOptions: {
       target: 'es2020',
     },

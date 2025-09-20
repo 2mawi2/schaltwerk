@@ -195,6 +195,7 @@ body.is-split-dragging [class*="transition-"] {
 /* Hint to browsers (Safari/macOS) to prefer dark overlay scrollbars */
 .xterm-viewport {
   color-scheme: dark;
+  scrollbar-gutter: stable both-edges;
 }
 
 .xterm-viewport {
