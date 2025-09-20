@@ -81,7 +81,10 @@ mod service_unified_tests {
             was_auto_generated: false,
             spec_content: None,
             session_state: SessionState::Running,
-            resume_allowed: true,
+            // Start with resume gated off so the very first start is always fresh
+            // and uses the session's initial_prompt if provided. After that
+            // the start logic flips this back to true to allow future resumes.
+            resume_allowed: false,
         }
     }
 
@@ -771,7 +774,8 @@ impl SessionManager {
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
             session_state: SessionState::Running,
-            resume_allowed: true,
+            // Gate resume on first start so initial_prompt is used deterministically
+            resume_allowed: false,
         };
 
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
@@ -1977,7 +1981,8 @@ impl SessionManager {
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
-            resume_allowed: true,
+            // Explicitly gate resume until spec is started (start_spec_session will flip this)
+            resume_allowed: false,
         };
 
         self.db_manager.create_session(&session)?;
@@ -2045,7 +2050,8 @@ impl SessionManager {
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
             session_state: SessionState::Spec,
-            resume_allowed: true,
+            // Gate resume until immediately after first start
+            resume_allowed: false,
         };
 
         if let Err(e) = self.db_manager.create_session(&session) {

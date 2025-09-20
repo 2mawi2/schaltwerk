@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
+import { UiEvent, emitUiEvent, hasBackgroundStart } from '../../common/uiEvents'
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
@@ -1405,6 +1406,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             startingTerminals.current.set(terminalId, true);
             setAgentLoading(true);
             try {
+                // Avoid duplicate start if we already kicked off a background start for this terminal
+                if (hasBackgroundStart(terminalId)) {
+                    startedGlobal.add(terminalId);
+                    setAgentLoading(false);
+                    startingTerminals.current.set(terminalId, false);
+                    return;
+                }
                 if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                     // OPTIMIZATION: Skip terminal_exists check - trust that hydrated terminals are ready
                      // Mark as started BEFORE invoking to prevent overlaps
@@ -1442,9 +1450,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 detail: { error: errorMessage, terminalId }
                             }));
                         } else if (errorMessage.includes('Permission required for folder:')) {
-                            window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
-                                detail: { error: errorMessage }
-                            }));
+                            emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
                         } else if (errorMessage.includes('Failed to spawn command')) {
                             // Log more details about spawn failures
                             logger.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
@@ -1511,9 +1517,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
                         if (errorMessage.includes('Permission required for folder:')) {
-                            window.dispatchEvent(new CustomEvent('schaltwerk:permission-error', {
-                                detail: { error: errorMessage }
-                            }));
+                            emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
                          }
                          throw e;
                      }

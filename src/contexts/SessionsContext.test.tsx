@@ -420,4 +420,57 @@ describe('SessionsContext', () => {
 
         expect(result.current.sessions[0]?.info.created_at).toBe(createdAt)
     })
+
+  it('auto-starts new sessions in background on SessionAdded', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
+            return undefined
+  })
+
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        const { listen } = await import('@tauri-apps/api/event')
+
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === 'schaltwerk:session-added')).toBe(true)
+        })
+
+        const sessionAddedHandler = vi
+            .mocked(listen)
+            .mock.calls
+            .reverse()
+            .find(call => call[0] === 'schaltwerk:session-added')?.[1]
+        expect(sessionAddedHandler).toBeDefined()
+
+        await act(async () => {
+            sessionAddedHandler?.({
+                event: 'schaltwerk:session-added',
+                id: 1001,
+                payload: {
+                    session_name: 'bg-new',
+                    branch: 'feature/bg-new',
+                    worktree_path: '/tmp/bg',
+                    parent_branch: 'main',
+                    created_at: '2025-09-20T12:34:56.000Z',
+                    last_modified: '2025-09-20T12:34:56.000Z',
+                }
+            } as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            expect(invoke).toHaveBeenCalledWith(
+                TauriCommands.SchaltwerkCoreStartClaude,
+                expect.objectContaining({ sessionName: 'bg-new' })
+            )
+        })
+    })
 })
