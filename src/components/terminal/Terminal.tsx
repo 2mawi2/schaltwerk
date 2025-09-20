@@ -36,6 +36,12 @@ const startedGlobal = new Set<string>();
 export function clearTerminalStartedTracking(terminalIds: string[]) {
     terminalIds.forEach(id => startedGlobal.delete(id));
 }
+
+interface TerminalBufferResponse {
+    seq: number
+    startSeq: number
+    data: string
+}
 interface TerminalProps {
     terminalId: string;
     className?: string;
@@ -80,6 +86,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const [agentLoading, setAgentLoading] = useState(false);
     const hydratedRef = useRef<boolean>(false);
     const pendingOutput = useRef<string[]>([]);
+    const snapshotCursorRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const seqRef = useRef<number>(0);
@@ -897,10 +904,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
                 }
-                const snapshot = await invoke<string>(TauriCommands.GetTerminalBuffer, { id: terminalId });
-                
-                if (snapshot) {
-                    enqueueWrite(snapshot);
+                const snapshot = await invoke<TerminalBufferResponse>(TauriCommands.GetTerminalBuffer, {
+                    id: terminalId,
+                    from_seq: snapshotCursorRef.current ?? null,
+                });
+
+                snapshotCursorRef.current = snapshot.seq;
+
+                if (snapshot.data) {
+                    enqueueWrite(snapshot.data);
                 }
                 // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
@@ -1020,6 +1032,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 }
                 setHydrated(false)
                 hydratedRef.current = false
+                snapshotCursorRef.current = null
                 await hydrateTerminal()
             } catch (error) {
                 logger.error(`[Terminal ${terminalId}] Failed to rehydrate after resume:`, error)
@@ -1530,6 +1543,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     useEffect(() => {
         if (previousTerminalId.current !== terminalId) {
             // Terminal ID changed - this is a session switch
+            snapshotCursorRef.current = null
             if (terminal.current) {
                 requestAnimationFrame(() => {
                     try {

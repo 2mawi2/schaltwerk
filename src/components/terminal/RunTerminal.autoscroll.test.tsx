@@ -100,7 +100,11 @@ describe('Run terminal auto-scroll behavior', () => {
       __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void
     }).invoke.mockClear()
     ;(core as unknown as { __clearInvokeHandlers: () => void }).__clearInvokeHandlers()
-    ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 0,
+      startSeq: 0,
+      data: ''
+    }))
     ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.TerminalExists, () => true)
     ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
     ;(core as unknown as { __setInvokeHandler: (cmd: string, handler: (args?: unknown) => unknown) => void }).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)

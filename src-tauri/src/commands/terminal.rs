@@ -1,13 +1,17 @@
 use crate::{get_terminal_manager, PROJECT_MANAGER};
-use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use schaltwerk::domains::terminal::manager::CreateTerminalWithAppAndSizeParams;
-use serde::Deserialize;
+use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use serde::{Deserialize, Serialize};
 
 #[tauri::command]
-pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> Result<String, String> {
+pub async fn create_terminal(
+    app: tauri::AppHandle,
+    id: String,
+    cwd: String,
+) -> Result<String, String> {
     let manager = get_terminal_manager().await?;
     manager.set_app_handle(app.clone()).await;
-    
+
     // Get project environment variables if we have a project
     let env_vars = if let Some(project_manager) = PROJECT_MANAGER.get() {
         if let Ok(project) = project_manager.current_project().await {
@@ -23,15 +27,20 @@ pub async fn create_terminal(app: tauri::AppHandle, id: String, cwd: String) -> 
     } else {
         vec![]
     };
-    
+
     if !env_vars.is_empty() {
-        log::info!("Adding {} project environment variables to terminal {}", env_vars.len(), id);
-        manager.create_terminal_with_env(id.clone(), cwd, env_vars).await?;
+        log::info!(
+            "Adding {} project environment variables to terminal {}",
+            env_vars.len(),
+            id
+        );
+        manager
+            .create_terminal_with_env(id.clone(), cwd, env_vars)
+            .await?;
     } else {
         manager.create_terminal(id.clone(), cwd).await?;
     }
-    
-    
+
     Ok(id)
 }
 
@@ -69,7 +78,8 @@ pub async fn create_run_terminal(
 
     if let Some(mut provided) = env {
         // Remove duplicates from base by key, then extend with provided
-        let provided_keys: std::collections::HashSet<String> = provided.iter().map(|(k, _)| k.clone()).collect();
+        let provided_keys: std::collections::HashSet<String> =
+            provided.iter().map(|(k, _)| k.clone()).collect();
         env_vars.retain(|(k, _)| !provided_keys.contains(k));
         env_vars.append(&mut provided);
     }
@@ -81,17 +91,15 @@ pub async fn create_run_terminal(
 
     if let (Some(c), Some(r)) = (cols, rows) {
         manager
-            .create_terminal_with_app_and_size(
-                CreateTerminalWithAppAndSizeParams {
-                    id: id.clone(),
-                    cwd,
-                    command: bash,
-                    args,
-                    env: env_vars,
-                    cols: c,
-                    rows: r,
-                },
-            )
+            .create_terminal_with_app_and_size(CreateTerminalWithAppAndSizeParams {
+                id: id.clone(),
+                cwd,
+                command: bash,
+                args,
+                env: env_vars,
+                cols: c,
+                rows: r,
+            })
             .await?;
     } else {
         manager
@@ -103,10 +111,16 @@ pub async fn create_run_terminal(
 }
 
 #[tauri::command]
-pub async fn create_terminal_with_size(app: tauri::AppHandle, id: String, cwd: String, cols: u16, rows: u16) -> Result<String, String> {
+pub async fn create_terminal_with_size(
+    app: tauri::AppHandle,
+    id: String,
+    cwd: String,
+    cols: u16,
+    rows: u16,
+) -> Result<String, String> {
     let manager = get_terminal_manager().await?;
     manager.set_app_handle(app.clone()).await;
-    
+
     // Get project environment variables if we have a project
     let env_vars = if let Some(project_manager) = PROJECT_MANAGER.get() {
         if let Ok(project) = project_manager.current_project().await {
@@ -122,17 +136,24 @@ pub async fn create_terminal_with_size(app: tauri::AppHandle, id: String, cwd: S
     } else {
         vec![]
     };
-    
+
     log::info!("Creating terminal {id} with initial size {cols}x{rows}");
-    
+
     if !env_vars.is_empty() {
-        log::info!("Adding {} project environment variables to terminal {}", env_vars.len(), id);
-        manager.create_terminal_with_size_and_env(id.clone(), cwd, cols, rows, env_vars).await?;
+        log::info!(
+            "Adding {} project environment variables to terminal {}",
+            env_vars.len(),
+            id
+        );
+        manager
+            .create_terminal_with_size_and_env(id.clone(), cwd, cols, rows, env_vars)
+            .await?;
     } else {
-        manager.create_terminal_with_size(id.clone(), cwd, cols, rows).await?;
+        manager
+            .create_terminal_with_size(id.clone(), cwd, cols, rows)
+            .await?;
     }
-    
-    
+
     Ok(id)
 }
 
@@ -145,7 +166,9 @@ pub async fn write_terminal(id: String, data: String) -> Result<(), String> {
 #[tauri::command]
 pub async fn paste_and_submit_terminal(id: String, data: String) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
-    manager.paste_and_submit_terminal(id, data.into_bytes()).await
+    manager
+        .paste_and_submit_terminal(id, data.into_bytes())
+        .await
 }
 
 #[tauri::command]
@@ -169,24 +192,44 @@ pub async fn terminal_exists(id: String) -> Result<bool, String> {
 #[tauri::command]
 pub async fn terminals_exist_bulk(ids: Vec<String>) -> Result<Vec<(String, bool)>, String> {
     let manager = get_terminal_manager().await?;
-    
+
     // Check all terminals in parallel using join_all
-    let futures: Vec<_> = ids.into_iter().map(|id| {
-        let manager = manager.clone();
-        async move {
-            let exists = manager.terminal_exists(&id).await.unwrap_or(false);
-            (id, exists)
-        }
-    }).collect();
-    
+    let futures: Vec<_> = ids
+        .into_iter()
+        .map(|id| {
+            let manager = manager.clone();
+            async move {
+                let exists = manager.terminal_exists(&id).await.unwrap_or(false);
+                (id, exists)
+            }
+        })
+        .collect();
+
     let results = ::futures::future::join_all(futures).await;
     Ok(results)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TerminalBufferResponse {
+    pub seq: u64,
+    pub start_seq: u64,
+    pub data: String,
+}
+
 #[tauri::command]
-pub async fn get_terminal_buffer(id: String) -> Result<String, String> {
+pub async fn get_terminal_buffer(
+    id: String,
+    from_seq: Option<u64>,
+) -> Result<TerminalBufferResponse, String> {
     let manager = get_terminal_manager().await?;
-    manager.get_terminal_buffer(id).await
+    let snapshot = manager.get_terminal_buffer(id, from_seq).await?;
+    let data = String::from_utf8_lossy(&snapshot.data).to_string();
+    Ok(TerminalBufferResponse {
+        seq: snapshot.seq,
+        start_seq: snapshot.start_seq,
+        data,
+    })
 }
 
 #[tauri::command]
@@ -210,7 +253,9 @@ pub struct TerminalSessionRegistration {
 }
 
 #[tauri::command]
-pub async fn register_session_terminals(payload: TerminalSessionRegistration) -> Result<(), String> {
+pub async fn register_session_terminals(
+    payload: TerminalSessionRegistration,
+) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     for id in &payload.terminal_ids {
         manager
@@ -221,7 +266,10 @@ pub async fn register_session_terminals(payload: TerminalSessionRegistration) ->
 }
 
 #[tauri::command]
-pub async fn suspend_session_terminals(project_id: String, session_id: Option<String>) -> Result<(), String> {
+pub async fn suspend_session_terminals(
+    project_id: String,
+    session_id: Option<String>,
+) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager
         .suspend_session_terminals(&project_id, session_id.as_deref())
@@ -229,7 +277,10 @@ pub async fn suspend_session_terminals(project_id: String, session_id: Option<St
 }
 
 #[tauri::command]
-pub async fn resume_session_terminals(project_id: String, session_id: Option<String>) -> Result<(), String> {
+pub async fn resume_session_terminals(
+    project_id: String,
+    session_id: Option<String>,
+) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager
         .resume_session_terminals(&project_id, session_id.as_deref())

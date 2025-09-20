@@ -15,6 +15,13 @@ pub struct ApplicationSpec {
     pub ready_timeout_ms: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct TerminalSnapshot {
+    pub seq: u64,
+    pub start_seq: u64,
+    pub data: Vec<u8>,
+}
+
 #[async_trait::async_trait]
 pub trait TerminalBackend: Send + Sync {
     async fn create(&self, params: CreateParams) -> Result<(), String>;
@@ -29,7 +36,7 @@ pub trait TerminalBackend: Send + Sync {
     async fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), String>;
     async fn close(&self, id: &str) -> Result<(), String>;
     async fn exists(&self, id: &str) -> Result<bool, String>;
-    async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<(u64, Vec<u8>), String>;
+    async fn snapshot(&self, id: &str, from_seq: Option<u64>) -> Result<TerminalSnapshot, String>;
     async fn suspend(&self, _id: &str) -> Result<(), String> {
         Ok(())
     }

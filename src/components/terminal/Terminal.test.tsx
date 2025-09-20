@@ -269,7 +269,11 @@ beforeEach(() => {
   ;(TauriCore as unknown as MockTauriCore).__clearInvokeHandlers()
   ;(TauriEvent as unknown as MockTauriEvent).__clear()
   // sensible defaults
-  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+    seq: 0,
+    startSeq: 0,
+    data: ''
+  }))
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.TerminalExists, () => true)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)
@@ -305,7 +309,11 @@ describe('Terminal component', () => {
   // Test removed - resize functionality confirmed working in production
 
   it('hydrates from buffer and flushes pending output in order (batched)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => 'SNAP')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 1,
+      startSeq: 0,
+      data: 'SNAP'
+    }))
 
     renderTerminal({ terminalId: "session-demo-top", sessionName: "demo" })
     
@@ -337,7 +345,11 @@ describe('Terminal component', () => {
   })
 
   it('flushes output even when container has zero size (renderer ready after open)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 0,
+      startSeq: 0,
+      data: ''
+    }))
 
     const { container } = renderTerminal({ terminalId: 'session-hidden-top', sessionName: 'hidden' })
     await flushAll()
@@ -627,7 +639,11 @@ describe('Terminal component', () => {
   })
 
   it('tightens Codex bottom space on font-size change (not during streaming)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 0,
+      startSeq: 0,
+      data: ''
+    }))
     renderTerminal({ terminalId: 'session-codex-top', sessionName: 'codex', agentType: 'codex' })
     await flushAll()
 
@@ -646,7 +662,11 @@ describe('Terminal component', () => {
 
 
   it('drains output queue while scrolled up (no auto-scroll requirement)', async () => {
-    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 0,
+      startSeq: 0,
+      data: ''
+    }))
 
     renderTerminal({ terminalId: 'session-stream-top', sessionName: 'stream' })
     await flushAll()
@@ -896,7 +916,11 @@ describe('Terminal component', () => {
     // Arrange: render Claude terminal
     const core = (TauriCore as unknown as MockTauriCore)
     core.__clearInvokeHandlers()
-    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 0,
+      startSeq: 0,
+      data: ''
+    }))
     core.__setInvokeHandler(TauriCommands.ResizeTerminal, () => undefined)
 
     const { container } = renderTerminal({ terminalId: 'session-jitter-top', sessionName: 'jitter', agentType: 'claude' })

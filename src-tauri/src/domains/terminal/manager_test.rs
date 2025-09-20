@@ -22,6 +22,14 @@ mod tests {
         }
     }
 
+    async fn read_buffer(manager: &TerminalManager, id: String) -> String {
+        let snapshot = manager
+            .get_terminal_buffer(id, None)
+            .await
+            .expect("failed to get terminal buffer");
+        String::from_utf8_lossy(&snapshot.data).to_string()
+    }
+
     #[tokio::test]
     async fn test_paste_and_submit_terminal_executes() {
         let manager = TerminalManager::new();
@@ -40,7 +48,7 @@ mod tests {
 
         sleep(Duration::from_millis(100)).await;
 
-        let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
+        let buffer = read_buffer(&manager, id.clone()).await;
         assert!(
             buffer.contains("echo"),
             "Buffer should contain the echoed command"
@@ -67,7 +75,7 @@ mod tests {
 
         sleep(Duration::from_millis(200)).await;
 
-        let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
+        let buffer = read_buffer(&manager, id.clone()).await;
         assert!(
             buffer.contains("multi"),
             "Should contain multi-line content"
@@ -187,7 +195,7 @@ mod tests {
 
         assert!(manager.terminal_exists(&id).await.unwrap());
 
-        let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
+        let buffer = read_buffer(&manager, id.clone()).await;
         assert!(buffer.contains("echo"));
 
         safe_close(&manager, &id).await;
@@ -214,7 +222,7 @@ mod tests {
             .unwrap();
         sleep(Duration::from_millis(200)).await;
 
-        let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
+        let buffer = read_buffer(&manager, id.clone()).await;
         assert!(buffer.contains("test_value") || buffer.contains("CUSTOM_VAR"));
 
         safe_close(&manager, &id).await;
@@ -241,7 +249,7 @@ mod tests {
                 .unwrap();
             sleep(Duration::from_millis(200)).await;
 
-            let buffer = manager.get_terminal_buffer(id.clone()).await.unwrap();
+            let buffer = read_buffer(&manager, id.clone()).await;
             assert!(!buffer.is_empty(), "Terminal {} should have output", id);
 
             safe_close(&manager, &id).await;
@@ -368,10 +376,7 @@ mod tests {
             sleep(Duration::from_millis(delay_ms)).await;
         }
 
-        let buffer = manager
-            .get_terminal_buffer(timing_id.clone())
-            .await
-            .unwrap();
+        let buffer = read_buffer(&manager, timing_id.clone()).await;
         assert!(buffer.contains("first"));
         assert!(buffer.contains("second"));
         assert!(buffer.contains("third"));
@@ -459,7 +464,10 @@ mod tests {
             .unwrap();
         sleep(Duration::from_millis(200)).await;
 
-        let _buffer = manager.get_terminal_buffer(size_id.clone()).await.unwrap();
+        let _ = manager
+            .get_terminal_buffer(size_id.clone(), None)
+            .await
+            .unwrap();
 
         safe_close(&manager, &size_id).await;
     }
@@ -519,7 +527,7 @@ mod tests {
             .unwrap();
         sleep(Duration::from_millis(200)).await;
 
-        let buffer = manager.get_terminal_buffer(path_id.clone()).await.unwrap();
+        let buffer = read_buffer(&manager, path_id.clone()).await;
         assert!(buffer.contains("bin") || buffer.contains("PATH"));
 
         safe_close(&manager, &path_id).await;
@@ -550,10 +558,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
         }
 
-        let buffer = manager
-            .get_terminal_buffer(escape_id.clone())
-            .await
-            .unwrap();
+        let buffer = read_buffer(&manager, escape_id.clone()).await;
         assert!(!buffer.is_empty());
 
         safe_close(&manager, &escape_id).await;
@@ -617,10 +622,7 @@ mod tests {
 
         sleep(Duration::from_millis(300)).await;
 
-        let buffer = manager
-            .get_terminal_buffer(multiline_id.clone())
-            .await
-            .unwrap();
+        let buffer = read_buffer(&manager, multiline_id.clone()).await;
         assert!(buffer.contains("bash") || buffer.contains("echo"));
 
         safe_close(&manager, &multiline_id).await;
@@ -684,7 +686,9 @@ mod tests {
         );
 
         // Buffer operations succeed but return empty data for non-existent terminals
-        let result = manager.get_terminal_buffer(unique_id("non-existent")).await;
+        let result = manager
+            .get_terminal_buffer(unique_id("non-existent"), None)
+            .await;
         assert!(
             result.is_ok(),
             "Getting buffer of non-existent terminal should succeed with empty data"
@@ -779,7 +783,10 @@ mod tests {
 
         sleep(Duration::from_millis(500)).await;
 
-        let _buffer = manager.get_terminal_buffer(large_id.clone()).await.unwrap();
+        let _ = manager
+            .get_terminal_buffer(large_id.clone(), None)
+            .await
+            .unwrap();
         // The buffer should contain some output from the terminal, even if the large echo fails
         // At minimum it should contain shell prompt characters or the command itself
 
@@ -814,10 +821,10 @@ mod tests {
         // Allow time for the reader to consume the output
         sleep(Duration::from_millis(800)).await;
 
-        let buf = manager.get_terminal_buffer(id.clone()).await.unwrap();
-        println!("agent buffer length: {}", buf.len());
+        let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
+        println!("agent buffer length: {}", snapshot.data.len());
         // Buffer should be larger than the previous 2MB default when using agent top terminals
-        assert!(buf.len() > 2 * 1024 * 1024);
+        assert!(snapshot.data.len() > 2 * 1024 * 1024);
 
         safe_close(&manager, &id).await;
     }
