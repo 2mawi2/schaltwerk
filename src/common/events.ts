@@ -7,8 +7,7 @@ export enum SchaltEvent {
   CancelError = 'schaltwerk:cancel-error',
   ClaudeStarted = 'schaltwerk:claude-started',
   TerminalCreated = 'schaltwerk:terminal-created',
-  TerminalStuck = 'schaltwerk:terminal-stuck',
-  TerminalUnstuck = 'schaltwerk:terminal-unstuck',
+
   SessionActivity = 'schaltwerk:session-activity',
   SessionGitStats = 'schaltwerk:session-git-stats',
   TerminalClosed = 'schaltwerk:terminal-closed',
@@ -88,8 +87,7 @@ export type EventPayloadMap = {
   [SchaltEvent.CancelError]: { session_name: string, error: string }
   [SchaltEvent.ClaudeStarted]: { terminal_id: string, session_name: string }
   [SchaltEvent.TerminalCreated]: { terminal_id: string, cwd: string }
-  [SchaltEvent.TerminalStuck]: { terminal_id: string, time: string }
-  [SchaltEvent.TerminalUnstuck]: { terminal_id: string, time: string }
+
   [SchaltEvent.SessionActivity]: SessionActivityUpdated
   [SchaltEvent.SessionGitStats]: SessionGitStatsUpdated
   [SchaltEvent.TerminalClosed]: { terminal_id: string }

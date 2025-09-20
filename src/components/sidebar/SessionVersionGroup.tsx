@@ -12,7 +12,7 @@ interface SessionVersionGroupProps {
     payload?: string
   }
   startIndex: number  // The starting index of this group in the overall sessions list
-  hasStuckTerminals: (sessionId: string) => boolean
+
   hasFollowUpMessage: (sessionId: string) => boolean
   onSelect: (index: number) => void
   onMarkReady: (sessionId: string, hasUncommitted: boolean) => void
@@ -34,7 +34,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   group,
   selection,
   startIndex,
-  hasStuckTerminals,
+
   hasFollowUpMessage,
   onSelect,
   onMarkReady,
@@ -69,7 +69,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         session={session.session}
         index={startIndex}
         isSelected={isSelected}
-        hasStuckTerminals={hasStuckTerminals(session.session.info.session_id)}
+
         hasFollowUpMessage={hasFollowUpMessage(session.session.info.session_id)}
         isWithinVersionGroup={false}
         showPromoteIcon={false}
@@ -229,7 +229,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                   }}
                   index={startIndex + versionIndex}
                   isSelected={isSelected}
-                  hasStuckTerminals={hasStuckTerminals(version.session.info.session_id)}
+
                   hasFollowUpMessage={hasFollowUpMessage(version.session.info.session_id)}
                   isWithinVersionGroup={true}
                   showPromoteIcon={isSelected}

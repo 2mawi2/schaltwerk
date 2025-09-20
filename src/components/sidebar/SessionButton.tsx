@@ -13,7 +13,7 @@ interface SessionButtonProps {
     }
     index: number
     isSelected: boolean
-    hasStuckTerminals: boolean
+
     hasFollowUpMessage: boolean
     isWithinVersionGroup?: boolean
     showPromoteIcon?: boolean
@@ -35,13 +35,12 @@ interface SessionButtonProps {
     isRunning?: boolean
 }
 
-function getSessionStateColor(state?: string): 'green' | 'violet' | 'amber' | 'gray' {
+function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
     switch (state) {
         case 'active': return 'green'
-        case 'idle': return 'amber'
         case 'review':
         case 'ready': return 'violet'
-        case 'stale': 
+        case 'stale':
         default: return 'gray'
     }
 }
@@ -50,7 +49,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     session, 
     index, 
     isSelected, 
-    hasStuckTerminals,
+
     hasFollowUpMessage,
     isWithinVersionGroup = false,
     showPromoteIcon = false,
@@ -125,8 +124,7 @@ export const SessionButton = memo<SessionButtonProps>(({
             className={clsx(
                 'group w-full text-left px-3 py-2.5 rounded-md mb-2 border transition-all duration-300 cursor-pointer',
                 getStateBackground(),
-                hasStuckTerminals && !isSelected &&
-                    'ring-2 ring-amber-400/50 shadow-lg shadow-amber-400/20 bg-amber-950/20',
+
                 hasFollowUpMessage && !isSelected &&
                     'ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20',
                 isRunning && !isSelected &&
@@ -164,15 +162,8 @@ export const SessionButton = memo<SessionButtonProps>(({
                             </>
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
-                        {hasStuckTerminals && !isReadyToMerge && (
-                            <span className="ml-2 text-xs text-amber-400" title="Agent is idling and may need input">
-                                <div className="inline-flex items-center gap-1">
-                                    <div className="w-1.5 h-1.5 bg-amber-400 rounded-full animate-pulse" />
-                                    idle
-                                </div>
-                            </span>
-                        )}
-                        {/* Uncommitted changes indicator (to the right of idle) */}
+
+                        {/* Uncommitted changes indicator */}
                         {s.has_uncommitted_changes && !isReadyToMerge && (
                             <UncommittedIndicator
                                 className="ml-2"
@@ -254,7 +245,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                         <div className={clsx('h-2 rounded',
                             color === 'green' && 'bg-green-500',
                             color === 'violet' && 'bg-violet-500',
-                            color === 'amber' && 'bg-amber-500',
                             color === 'gray' && 'bg-slate-500')}
                             style={{ width: `${progressPercent}%` }}
                         />

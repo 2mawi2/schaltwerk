@@ -1108,22 +1108,21 @@ impl LocalPtyAdapter {
                 .duration_since(state.last_output)
                 .map_err(|e| format!("Time error: {e}"))?
                 .as_secs();
-            let is_stuck = elapsed > 60; // Increased to 60 seconds for less aggressive idle detection
-            Ok((is_stuck, elapsed))
+            // Always return false for stuck status
+            Ok((false, elapsed))
         } else {
             Err(format!("Terminal {id} not found"))
         }
     }
-
-    pub async fn get_all_terminal_activity(&self) -> Vec<(String, bool, u64)> {
+    
+    pub async fn get_all_terminal_activity(&self) -> Vec<(String, u64)> {
         let terminals = self.terminals.read().await;
         let mut results = Vec::new();
 
         for (id, state) in terminals.iter() {
             if let Ok(duration) = SystemTime::now().duration_since(state.last_output) {
                 let elapsed = duration.as_secs();
-                let is_stuck = elapsed > 60; // Increased to 60 seconds for less aggressive idle detection
-                results.push((id.clone(), is_stuck, elapsed));
+                results.push((id.clone(), elapsed));
             }
         }
 
@@ -1876,7 +1875,7 @@ mod tests {
     // ============================================================================
 
     #[tokio::test]
-    async fn test_activity_status_transitions() {
+    async fn test_activity_status_elapsed_tracking() {
         let adapter = LocalPtyAdapter::new();
         let id = unique_id("activity-test");
 
@@ -1893,7 +1892,7 @@ mod tests {
         assert!(!stuck);
         assert!(elapsed < 10); // Should be very recent
 
-        // Manually simulate old last_output to mark as stuck
+        // Manually simulate an old last_output to ensure elapsed time reflects inactivity
         {
             let mut terminals = adapter.terminals.write().await;
             if let Some(state) = terminals.get_mut(&id) {
@@ -1902,7 +1901,8 @@ mod tests {
         }
 
         let (stuck2, elapsed2) = adapter.get_activity_status(&id).await.unwrap();
-        assert!(stuck2);
+        // The adapter should always report not stuck
+        assert!(!stuck2);
         assert!(elapsed2 >= 120);
 
         safe_close(&adapter, &id).await;
@@ -1937,9 +1937,8 @@ mod tests {
         let activities = adapter.get_all_terminal_activity().await;
         assert_eq!(activities.len(), 3);
 
-        for (id, stuck, elapsed) in activities {
+        for (id, elapsed) in activities {
             assert!(ids.contains(&id));
-            assert!(!stuck);
             assert!(elapsed < 60); // Allow up to 60 seconds for test environment
         }
 

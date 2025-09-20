@@ -482,7 +482,7 @@ impl TerminalManager {
         // Note: accessing concrete method since LocalPtyAdapter is the only implementation
         let backend_terminals = self.backend.get_all_terminal_activity().await;
 
-        for (id, _is_stuck, _elapsed) in backend_terminals {
+        for (id, _elapsed) in backend_terminals {
             if !known_ids.contains(&id) {
                 warn!("Found orphaned terminal: {id}, cleaning up");
                 if let Err(e) = self.backend.close(&id).await {
@@ -503,8 +503,8 @@ impl TerminalManager {
     pub async fn get_terminal_activity_status(&self, id: String) -> Result<(bool, u64), String> {
         self.backend.get_activity_status(&id).await
     }
-
-    pub async fn get_all_terminal_activity(&self) -> Vec<(String, bool, u64)> {
+    
+    pub async fn get_all_terminal_activity(&self) -> Vec<(String, u64)> {
         self.backend.get_all_terminal_activity().await
     }
 }

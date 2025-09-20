@@ -139,96 +139,7 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
     Ok(watcher_manager.get_active_watchers().await)
 }
 
-async fn start_terminal_monitoring(app: tauri::AppHandle) {
-    use serde::Serialize;
-    use std::collections::HashSet;
-    use tokio::time::{interval, Duration};
 
-    #[derive(Serialize, Clone)]
-    struct TerminalStuckNotification {
-        terminal_id: String,
-        session_id: Option<String>,
-        elapsed_seconds: u64,
-    }
-
-    #[derive(Serialize, Clone)]
-    struct TerminalUnstuckNotification {
-        terminal_id: String,
-        session_id: Option<String>,
-    }
-
-    tokio::spawn(async move {
-        let mut interval = interval(Duration::from_secs(5)); // Check more frequently for better responsiveness
-        let mut previously_stuck = HashSet::new();
-
-        loop {
-            interval.tick().await;
-
-            let manager = match get_terminal_manager().await {
-                Ok(m) => m,
-                Err(_) => {
-                    // Skip monitoring when no active project - this is normal during startup
-                    continue;
-                }
-            };
-            let stuck_terminals = manager.get_all_terminal_activity().await;
-            let mut currently_stuck = HashSet::new();
-
-            for (terminal_id, is_stuck, elapsed) in stuck_terminals {
-                if is_stuck {
-                    currently_stuck.insert(terminal_id.clone());
-
-                    // Only notify if this terminal wasn't previously stuck
-                    if !previously_stuck.contains(&terminal_id) {
-                        let session_id = if terminal_id.starts_with("session-") {
-                            terminal_id.split('-').nth(1).map(|s| s.to_string())
-                        } else {
-                            None
-                        };
-
-                        let notification = TerminalStuckNotification {
-                            terminal_id: terminal_id.clone(),
-                            session_id,
-                            elapsed_seconds: elapsed,
-                        };
-
-                        log::info!("Terminal {terminal_id} became idle after {elapsed} seconds");
-
-                        if let Err(e) = emit_event(&app, SchaltEvent::TerminalStuck, &notification)
-                        {
-                            log::error!("Failed to emit terminal stuck notification: {e}");
-                        }
-                    }
-                } else {
-                    // Terminal is not stuck - check if it was previously stuck to emit unstuck event
-                    if previously_stuck.contains(&terminal_id) {
-                        let session_id = if terminal_id.starts_with("session-") {
-                            terminal_id.split('-').nth(1).map(|s| s.to_string())
-                        } else {
-                            None
-                        };
-
-                        let notification = TerminalUnstuckNotification {
-                            terminal_id: terminal_id.clone(),
-                            session_id,
-                        };
-
-                        log::info!("Terminal {terminal_id} became active again");
-
-                        if let Err(e) =
-                            emit_event(&app, SchaltEvent::TerminalUnstuck, &notification)
-                        {
-                            log::error!("Failed to emit terminal unstuck notification: {e}");
-                        }
-                    }
-                }
-            }
-
-            // Update the set of previously stuck terminals for next iteration
-            previously_stuck = currently_stuck;
-        }
-    });
-}
 
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
@@ -907,11 +818,8 @@ fn main() {
                 // Small delay to let UI appear first
                 sleep(Duration::from_millis(50)).await;
                 
-                // Start terminal monitoring for stuck detection
-                let monitor_handle = app_handle.clone();
-                tokio::spawn(async move {
-                    start_terminal_monitoring(monitor_handle).await;
-                });
+                // Start terminal monitoring
+
                 
                 // Start activity tracking
                 let activity_handle = app_handle.clone();

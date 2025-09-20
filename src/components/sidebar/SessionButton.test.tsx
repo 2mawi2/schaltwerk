@@ -45,7 +45,7 @@ describe('SessionButton dirty indicator', () => {
         session={session}
         index={0}
         isSelected={false}
-        hasStuckTerminals={false}
+
         hasFollowUpMessage={false}
         onSelect={() => {}}
         onMarkReady={() => {}}
@@ -66,7 +66,7 @@ describe('SessionButton dirty indicator', () => {
         session={baseSession}
         index={0}
         isSelected={false}
-        hasStuckTerminals={false}
+
         hasFollowUpMessage={false}
         onSelect={() => {}}
         onMarkReady={() => {}}

@@ -239,7 +239,7 @@ pub async fn get_terminal_activity_status(id: String) -> Result<(bool, u64), Str
 }
 
 #[tauri::command]
-pub async fn get_all_terminal_activity() -> Result<Vec<(String, bool, u64)>, String> {
+pub async fn get_all_terminal_activity() -> Result<Vec<(String, u64)>, String> {
     let manager = get_terminal_manager().await?;
     Ok(manager.get_all_terminal_activity().await)
 }
