@@ -17,7 +17,7 @@ import { clearTerminalStartedTracking } from './components/terminal/Terminal'
 import { useProject } from './contexts/ProjectContext'
 import { useFontSize } from './contexts/FontSizeContext'
 import { HomeScreen } from './components/home/HomeScreen'
-import { ProjectTab } from './components/TabBar'
+import { ProjectTab, determineNextActiveTab } from './common/projectTabs'
 import { TopBar } from './components/TopBar'
 import { PermissionPrompt } from './components/PermissionPrompt'
 import { OnboardingModal } from './components/onboarding/OnboardingModal'
@@ -80,8 +80,9 @@ export default function App() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsSpec] = useState(false)
-  const projectSwitchInProgressRef = useRef(false)
+  const projectSwitchPromiseRef = useRef<Promise<boolean> | null>(null)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
+  const projectSwitchTargetRef = useRef<string | null>(null)
   const previousFocusRef = useRef<Element | null>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
@@ -710,82 +711,94 @@ export default function App() {
     setProjectPath(null)
   }
 
-  const handleSelectTab = useCallback(async (path: string) => {
-    // Prevent redundant calls
+  const handleSelectTab = useCallback(async (path: string): Promise<boolean> => {
+    // Prevent redundant calls when already focused on the requested project
     if (path === activeTabPath && path === projectPath) {
-      return
+      return true
     }
-    
-    // Prevent concurrent project switches
-    if (projectSwitchInProgressRef.current) {
-      logger.info('Project switch already in progress, ignoring request')
-      return
+
+    const ongoingSwitch = projectSwitchPromiseRef.current
+
+    if (ongoingSwitch) {
+      // If we're already switching to this path, reuse the inflight promise
+      if (projectSwitchTargetRef.current === path) {
+        return ongoingSwitch
+      }
+
+      // Otherwise abort the previous target and wait for it to settle
+      if (projectSwitchAbortControllerRef.current) {
+        projectSwitchAbortControllerRef.current.abort()
+      }
+
+      try {
+        await ongoingSwitch
+      } catch (error) {
+        logger.warn('Previous project switch failed while awaiting completion:', error)
+      }
     }
-    
-    // Abort any previous project switch that might be stuck
-    if (projectSwitchAbortControllerRef.current) {
-      projectSwitchAbortControllerRef.current.abort()
+
+    // State might already be updated after awaiting the previous switch
+    if (path === activeTabPath && path === projectPath) {
+      return true
     }
-    
-    projectSwitchInProgressRef.current = true
-    
-    const abortController = new AbortController()
-    projectSwitchAbortControllerRef.current = abortController
-    
-    try {
-      // Add timeout to prevent indefinite waiting
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Project switch timeout')), 5000)
-      })
-      
-      const switchPromise = invoke(TauriCommands.InitializeProject, { path })
-      
-      // Race between the actual switch and timeout
-      await Promise.race([switchPromise, timeoutPromise])
-      
-      // Only update state if not aborted
-      if (!abortController.signal.aborted) {
+
+    const runSwitch = async (): Promise<boolean> => {
+      const abortController = new AbortController()
+      projectSwitchAbortControllerRef.current = abortController
+      projectSwitchTargetRef.current = path
+
+      try {
+        await invoke(TauriCommands.InitializeProject, { path })
+
+        if (abortController.signal.aborted) {
+          return false
+        }
+
         setActiveTabPath(path)
         setProjectPath(path)
         setShowHome(false)
-      }
-    } catch (error) {
-      if (!abortController.signal.aborted) {
-        logger.error('Failed to switch project in backend:', error)
-      }
-      // Don't update state if backend switch failed
-      return
-    } finally {
-      projectSwitchInProgressRef.current = false
-      if (projectSwitchAbortControllerRef.current === abortController) {
-        projectSwitchAbortControllerRef.current = null
+        return true
+      } catch (error) {
+        if (!abortController.signal.aborted) {
+          logger.error('Failed to switch project in backend:', error)
+        }
+        return false
+      } finally {
+        if (projectSwitchAbortControllerRef.current === abortController) {
+          projectSwitchAbortControllerRef.current = null
+        }
+        if (projectSwitchTargetRef.current === path) {
+          projectSwitchTargetRef.current = null
+        }
       }
     }
+
+    const switchPromise = runSwitch().finally(() => {
+      if (projectSwitchPromiseRef.current === switchPromise) {
+        projectSwitchPromiseRef.current = null
+      }
+    })
+
+    projectSwitchPromiseRef.current = switchPromise
+
+    return switchPromise
   }, [activeTabPath, projectPath, setProjectPath])
 
   const handleCloseTab = async (path: string) => {
     const tabIndex = openTabs.findIndex(tab => tab.projectPath === path)
     if (tabIndex === -1) return
 
-    // If this was the active tab, handle navigation first
-    if (path === activeTabPath) {
-      if (openTabs.length > 1) {
-        // Switch to adjacent tab before closing current one
-        const newIndex = Math.min(tabIndex, openTabs.length - 2) // -2 because we're removing one
-        const newActiveTab = openTabs[newIndex]
-        if (newActiveTab && newActiveTab.projectPath !== path) {
-          // Switch to the new project in backend first
-          try {
-            await invoke(TauriCommands.InitializeProject, { path: newActiveTab.projectPath })
-            setActiveTabPath(newActiveTab.projectPath)
-            setProjectPath(newActiveTab.projectPath)
-          } catch (error) {
-            logger.error('Failed to switch to new project:', error)
-            // Continue with tab removal even if backend switch fails
-          }
+    const closingActiveTab = path === activeTabPath
+
+    if (closingActiveTab) {
+      const nextActiveTab = determineNextActiveTab(openTabs, path)
+      if (nextActiveTab) {
+        const switched = await handleSelectTab(nextActiveTab.projectPath)
+        if (!switched) {
+          logger.warn('Aborting tab close because adjacent project failed to activate')
+          return
         }
       } else {
-        // No more tabs, go home
         handleGoHome()
       }
     }

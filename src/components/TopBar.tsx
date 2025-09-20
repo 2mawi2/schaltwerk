@@ -1,5 +1,6 @@
 import { VscHome, VscSettingsGear, VscLayoutSidebarRight, VscLayoutSidebarRightOff } from 'react-icons/vsc'
-import { TabBar, ProjectTab } from './TabBar'
+import { TabBar } from './TabBar'
+import { ProjectTab } from '../common/projectTabs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useRef, useEffect } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
@@ -12,8 +13,8 @@ interface TopBarProps {
   tabs: ProjectTab[]
   activeTabPath: string | null
   onGoHome: () => void
-  onSelectTab: (path: string) => void
-  onCloseTab: (path: string) => void
+  onSelectTab: (path: string) => void | Promise<void | boolean>
+  onCloseTab: (path: string) => void | Promise<void>
   onOpenSettings: () => void
   isRightPanelCollapsed?: boolean
   onToggleRightPanel?: () => void

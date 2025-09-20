@@ -4,8 +4,8 @@ interface TabProps {
   projectPath: string
   projectName: string
   isActive: boolean
-  onSelect: () => void
-  onClose: () => void
+  onSelect: () => void | Promise<void | boolean>
+  onClose: () => void | Promise<void>
 }
 
 export function Tab({ projectPath, projectName, isActive, onSelect, onClose }: TabProps) {

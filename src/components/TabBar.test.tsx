@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import { TabBar, ProjectTab } from './TabBar'
+import { TabBar } from './TabBar'
+import { ProjectTab } from '../common/projectTabs'
 
 describe('TabBar', () => {
   const mockTabs: ProjectTab[] = [

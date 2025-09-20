@@ -1,15 +1,11 @@
 import { Tab } from './Tab'
-
-export interface ProjectTab {
-  projectPath: string
-  projectName: string
-}
+import { ProjectTab } from '../common/projectTabs'
 
 interface TabBarProps {
   tabs: ProjectTab[]
   activeTabPath: string | null
-  onSelectTab: (path: string) => void
-  onCloseTab: (path: string) => void
+  onSelectTab: (path: string) => void | Promise<void | boolean>
+  onCloseTab: (path: string) => void | Promise<void>
 }
 
 export function TabBar({ tabs, activeTabPath, onSelectTab, onCloseTab }: TabBarProps) {
