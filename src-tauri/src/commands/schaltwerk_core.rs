@@ -48,7 +48,7 @@ fn matches_version_pattern(name: &str, base_name: &str) -> bool {
     }
 }
 
-fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, String) {
+fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, String, Option<String>) {
     if let Some(settings_manager) = SETTINGS_MANAGER.get() {
         let manager = futures::executor::block_on(settings_manager.lock());
         let env_vars = manager
@@ -56,9 +56,10 @@ fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, Strin
             .into_iter()
             .collect::<Vec<(String, String)>>();
         let cli_args = manager.get_agent_cli_args(agent_type);
-        (env_vars, cli_args)
+        let binary_path = manager.get_effective_binary_path(agent_type).ok();
+        (env_vars, cli_args, binary_path)
     } else {
-        (vec![], String::new())
+        (vec![], String::new(), None)
     }
 }
 
@@ -400,7 +401,7 @@ pub async fn schaltwerk_core_create_session(
             );
 
             // Build env vars and CLI args as used to start the session
-            let (mut env_vars, cli_args) =
+            let (mut env_vars, cli_args, binary_path) =
                 if let Some(settings_manager) = crate::SETTINGS_MANAGER.get() {
                     let manager = settings_manager.lock().await;
                     let env_vars = manager
@@ -408,9 +409,10 @@ pub async fn schaltwerk_core_create_session(
                         .into_iter()
                         .collect::<Vec<(String, String)>>();
                     let cli_args = manager.get_agent_cli_args(&agent);
-                    (env_vars, cli_args)
+                    let binary_path = manager.get_effective_binary_path(&agent).ok();
+                    (env_vars, cli_args, binary_path)
                 } else {
-                    (vec![], String::new())
+                    (vec![], String::new(), None)
                 };
 
             // Add project-specific environment variables
@@ -420,6 +422,12 @@ pub async fn schaltwerk_core_create_session(
                 }
             }
 
+            let cli_args = if cli_args.is_empty() {
+                None
+            } else {
+                Some(cli_args)
+            };
+
             let ctx = schaltwerk::domains::agents::naming::SessionRenameContext {
                 db: &db_clone,
                 session_id: &session_id,
@@ -428,8 +436,9 @@ pub async fn schaltwerk_core_create_session(
                 current_branch: &current_branch,
                 agent_type: &agent,
                 initial_prompt: initial_prompt.as_deref(),
-                cli_args: Some(&cli_args),
-                env_vars: &env_vars,
+                cli_args,
+                env_vars,
+                binary_path,
             };
             match schaltwerk::domains::agents::naming::generate_display_name_and_rename_branch(ctx)
                 .await
@@ -554,7 +563,7 @@ pub async fn schaltwerk_core_rename_version_group(
     drop(core_lock);
 
     // Get environment variables for the agent
-    let (mut env_vars, cli_args) = get_agent_env_and_cli_args(&agent_type);
+    let (mut env_vars, cli_args, binary_path) = get_agent_env_and_cli_args(&agent_type);
 
     // Add project-specific environment variables
     if let Ok(project_env_vars) = db.get_project_environment_variables(&repo_path) {
@@ -570,8 +579,13 @@ pub async fn schaltwerk_core_rename_version_group(
         &worktree_path,
         &agent_type,
         Some(&prompt),
-        Some(&cli_args),
+        if cli_args.is_empty() {
+            None
+        } else {
+            Some(cli_args.as_str())
+        },
         &env_vars,
+        binary_path.as_deref(),
     )
     .await
     {
@@ -1450,7 +1464,13 @@ pub async fn schaltwerk_core_create_spec_session(
             };
 
             let agent = agent_type_clone.unwrap_or_else(|| "claude".to_string());
-            let (env_vars, cli_args) = get_agent_env_and_cli_args(&agent);
+            let (mut env_vars, cli_args, binary_path) = get_agent_env_and_cli_args(&agent);
+
+            if let Ok(project_env_vars) = db_clone.get_project_environment_variables(&repo_path) {
+                for (key, value) in project_env_vars {
+                    env_vars.push((key, value));
+                }
+            }
 
             log::info!("Starting name generation for spec session '{session_name}' with agent '{agent}'...");
 
@@ -1466,9 +1486,10 @@ pub async fn schaltwerk_core_create_spec_session(
                 cli_args: if cli_args.is_empty() {
                     None
                 } else {
-                    Some(cli_args.as_str())
+                    Some(cli_args)
                 },
-                env_vars: &env_vars,
+                env_vars,
+                binary_path,
             };
 
             match naming::generate_display_name_and_rename_branch(ctx).await {
@@ -1734,7 +1755,7 @@ pub async fn schaltwerk_core_start_spec_session(
             );
 
             // Build env vars and CLI args as used to start the session
-            let (mut env_vars, cli_args) =
+            let (mut env_vars, cli_args, binary_path) =
                 if let Some(settings_manager) = crate::SETTINGS_MANAGER.get() {
                     let manager = settings_manager.lock().await;
                     let env_vars = manager
@@ -1742,9 +1763,10 @@ pub async fn schaltwerk_core_start_spec_session(
                         .into_iter()
                         .collect::<Vec<(String, String)>>();
                     let cli_args = manager.get_agent_cli_args(&agent);
-                    (env_vars, cli_args)
+                    let binary_path = manager.get_effective_binary_path(&agent).ok();
+                    (env_vars, cli_args, binary_path)
                 } else {
-                    (vec![], String::new())
+                    (vec![], String::new(), None)
                 };
 
             // Add project-specific environment variables
@@ -1754,6 +1776,12 @@ pub async fn schaltwerk_core_start_spec_session(
                 }
             }
 
+            let cli_args = if cli_args.is_empty() {
+                None
+            } else {
+                Some(cli_args)
+            };
+
             let ctx = schaltwerk::domains::agents::naming::SessionRenameContext {
                 db: &db_clone,
                 session_id: &session_id,
@@ -1762,8 +1790,9 @@ pub async fn schaltwerk_core_start_spec_session(
                 current_branch: &current_branch,
                 agent_type: &agent,
                 initial_prompt: initial_prompt.as_deref(),
-                cli_args: Some(&cli_args),
-                env_vars: &env_vars,
+                cli_args,
+                env_vars,
+                binary_path,
             };
             match schaltwerk::domains::agents::naming::generate_display_name_and_rename_branch(ctx)
                 .await

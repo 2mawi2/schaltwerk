@@ -14,8 +14,9 @@ pub struct SessionRenameContext<'a> {
     pub current_branch: &'a str,
     pub agent_type: &'a str,
     pub initial_prompt: Option<&'a str>,
-    pub cli_args: Option<&'a str>,
-    pub env_vars: &'a [(String, String)],
+    pub cli_args: Option<String>,
+    pub env_vars: Vec<(String, String)>,
+    pub binary_path: Option<String>,
 }
 
 pub fn truncate_prompt(prompt: &str) -> String {
@@ -75,14 +76,28 @@ fn ansi_strip(input: &str) -> String {
 pub async fn generate_display_name_and_rename_branch(
     ctx: SessionRenameContext<'_>,
 ) -> Result<Option<String>> {
+    let SessionRenameContext {
+        db,
+        session_id,
+        worktree_path,
+        repo_path,
+        current_branch,
+        agent_type,
+        initial_prompt,
+        cli_args,
+        env_vars,
+        binary_path,
+    } = ctx;
+
     let result = generate_display_name(
-        ctx.db,
-        ctx.session_id,
-        ctx.worktree_path,
-        ctx.agent_type,
-        ctx.initial_prompt,
-        ctx.cli_args,
-        ctx.env_vars,
+        db,
+        session_id,
+        worktree_path,
+        agent_type,
+        initial_prompt,
+        cli_args.as_deref(),
+        &env_vars,
+        binary_path.as_deref(),
     )
     .await?;
 
@@ -91,28 +106,23 @@ pub async fn generate_display_name_and_rename_branch(
         let new_branch = format!("schaltwerk/{new_name}");
 
         // Only rename if the branch name would actually change
-        if ctx.current_branch != new_branch {
-            log::info!(
-                "Renaming branch from '{}' to '{new_branch}'",
-                ctx.current_branch
-            );
+        if current_branch != new_branch {
+            log::info!("Renaming branch from '{current_branch}' to '{new_branch}'");
 
             // Rename the branch
-            match git::rename_branch(ctx.repo_path, ctx.current_branch, &new_branch) {
+            match git::rename_branch(repo_path, current_branch, &new_branch) {
                 Ok(()) => {
                     log::info!("Successfully renamed branch to '{new_branch}'");
 
                     // Update the worktree to use the new branch
-                    match git::update_worktree_branch(ctx.worktree_path, &new_branch) {
+                    match git::update_worktree_branch(worktree_path, &new_branch) {
                         Ok(()) => {
                             log::info!(
                                 "Successfully updated worktree to use branch '{new_branch}'"
                             );
 
                             // Update the branch name in the database
-                            if let Err(e) =
-                                ctx.db.update_session_branch(ctx.session_id, &new_branch)
-                            {
+                            if let Err(e) = db.update_session_branch(session_id, &new_branch) {
                                 log::error!("Failed to update branch name in database: {e}");
                             }
                         }
@@ -122,7 +132,7 @@ pub async fn generate_display_name_and_rename_branch(
                             );
                             // Try to revert the branch rename
                             if let Err(revert_err) =
-                                git::rename_branch(ctx.repo_path, &new_branch, ctx.current_branch)
+                                git::rename_branch(repo_path, &new_branch, current_branch)
                             {
                                 log::error!("Failed to revert branch rename: {revert_err}");
                             }
@@ -131,8 +141,7 @@ pub async fn generate_display_name_and_rename_branch(
                 }
                 Err(e) => {
                     log::warn!(
-                        "Could not rename branch from '{}' to '{new_branch}': {e}",
-                        ctx.current_branch
+                        "Could not rename branch from '{current_branch}' to '{new_branch}': {e}"
                     );
                 }
             }
@@ -142,6 +151,7 @@ pub async fn generate_display_name_and_rename_branch(
     Ok(result)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn generate_display_name(
     db: &Database,
     session_id: &str,
@@ -150,6 +160,7 @@ pub async fn generate_display_name(
     initial_prompt: Option<&str>,
     cli_args: Option<&str>,
     env_vars: &[(String, String)],
+    binary_path: Option<&str>,
 ) -> Result<Option<String>> {
     log::info!(
         "generate_display_name called: session_id={}, agent_type={}, prompt={:?}",
@@ -346,23 +357,21 @@ Respond with just the short kebab-case name:"#
 
         // OpenCode uses the `run` command with a specific model and prompt
         let binary = super::opencode::resolve_opencode_binary();
-        let output = Command::new(&binary)
-            .args([
-                "run",
-                "--model",
-                "openrouter/openai/gpt-4o-mini",
-                &prompt_plain,
-            ])
-            .current_dir(&run_dir)
-            .env("NO_COLOR", "1")
-            .env("CLICOLOR", "0")
-            .env("TERM", "dumb")
-            .env("CI", "1")
-            .env("NONINTERACTIVE", "1")
-            .env("OPENCODE_NO_INTERACTIVE", "1")
-            .stdin(std::process::Stdio::null())
-            .output()
-            .await;
+        let mut command = Command::new(&binary);
+        command.args([
+            "run",
+            "--model",
+            "openrouter/openai/gpt-4o-mini",
+            &prompt_plain,
+        ]);
+        command.current_dir(&run_dir);
+        command.stdin(std::process::Stdio::null());
+        command.env("OPENCODE_NO_INTERACTIVE", "1");
+        for (key, value) in build_namegen_env(env_vars) {
+            command.env(key, value);
+        }
+
+        let output = command.output().await;
 
         let output = match output {
             Ok(output) => {
@@ -430,17 +439,15 @@ Respond with just the short kebab-case name:"#
         log::info!("Attempting to generate name with gemini");
 
         let binary = super::gemini::resolve_gemini_binary();
-        let output = Command::new(&binary)
-            .args(["--prompt", prompt_plain.as_str()])
-            .current_dir(&run_dir)
-            .env("NO_COLOR", "1")
-            .env("CLICOLOR", "0")
-            .env("TERM", "dumb")
-            .env("CI", "1")
-            .env("NONINTERACTIVE", "1")
-            .stdin(std::process::Stdio::null())
-            .output()
-            .await;
+        let mut command = Command::new(&binary);
+        command.args(["--prompt", prompt_plain.as_str()]);
+        command.current_dir(&run_dir);
+        command.stdin(std::process::Stdio::null());
+        for (key, value) in build_namegen_env(env_vars) {
+            command.env(key, value);
+        }
+
+        let output = command.output().await;
 
         let output = match output {
             Ok(output) => {
@@ -512,24 +519,19 @@ Respond with just the short kebab-case name:"#
     }
 
     log::info!("Attempting to generate name with claude");
-    let output = Command::new("claude")
-        .args([
-            "--print",
-            prompt_plain.as_str(),
-            "--output-format",
-            "json",
-            "--model",
-            "sonnet",
-        ])
-        .current_dir(&run_dir)
-        .env("NO_COLOR", "1")
-        .env("CLICOLOR", "0")
-        .env("TERM", "dumb")
-        .env("CI", "1")
-        .env("NONINTERACTIVE", "1")
-        .stdin(std::process::Stdio::null())
-        .output()
-        .await;
+    let claude_args = build_claude_namegen_args(&prompt_plain, cli_args);
+    let binary = binary_path.unwrap_or("claude");
+    log::debug!("Claude namegen using binary: {binary}");
+    let mut command = Command::new(binary);
+    command.args(&claude_args);
+    command.current_dir(&run_dir);
+    command.stdin(std::process::Stdio::null());
+
+    for (key, value) in build_namegen_env(env_vars) {
+        command.env(key, value);
+    }
+
+    let output = command.output().await;
 
     let output = match output {
         Ok(output) => {
@@ -598,6 +600,51 @@ Respond with just the short kebab-case name:"#
     // Clean up temp directory
     let _ = std::fs::remove_dir_all(&unique_temp_dir);
     Ok(None)
+}
+
+fn build_claude_namegen_args(prompt_plain: &str, cli_args: Option<&str>) -> Vec<String> {
+    let mut user_args: Vec<String> = Vec::new();
+
+    if let Some(raw) = cli_args {
+        let trimmed = raw.trim();
+        if !trimmed.is_empty() {
+            user_args = shell_words::split(trimmed).unwrap_or_else(|_| vec![trimmed.to_string()]);
+        }
+    }
+
+    let mut has_output_format_override = false;
+
+    for token in &user_args {
+        let token_str = token.as_str();
+        if token_str == "--output-format" || token_str.starts_with("--output-format=") {
+            has_output_format_override = true;
+        }
+    }
+
+    let mut args = user_args;
+    args.push("--print".to_string());
+    args.push(prompt_plain.to_string());
+
+    if !has_output_format_override {
+        args.push("--output-format".to_string());
+        args.push("json".to_string());
+    }
+
+    args
+}
+
+fn build_namegen_env(env_vars: &[(String, String)]) -> Vec<(String, String)> {
+    let mut combined = vec![
+        ("NO_COLOR".to_string(), "1".to_string()),
+        ("CLICOLOR".to_string(), "0".to_string()),
+        ("TERM".to_string(), "dumb".to_string()),
+        ("CI".to_string(), "1".to_string()),
+        ("NONINTERACTIVE".to_string(), "1".to_string()),
+    ];
+
+    combined.extend(env_vars.iter().cloned());
+
+    combined
 }
 
 // Codex helpers (keep in sync with schaltwerk_core)
@@ -926,6 +973,7 @@ mod tests {
             None,
             None,
             &[],
+            None,
         )
         .await;
 
@@ -941,6 +989,7 @@ mod tests {
             Some(""),
             None,
             &[],
+            None,
         )
         .await;
 
@@ -956,6 +1005,7 @@ mod tests {
             Some("   \n\t  "),
             None,
             &[],
+            None,
         )
         .await;
 
@@ -983,6 +1033,7 @@ mod tests {
                 Some("Test prompt for timeout"),
                 None,
                 &[],
+                None,
             ),
         )
         .await;
@@ -1014,6 +1065,7 @@ mod tests {
             Some("Test prompt"),
             None,
             &[],
+            None,
         )
         .await;
 
@@ -1040,16 +1092,68 @@ mod tests {
             current_branch: "schaltwerk/old-name",
             agent_type: "claude",
             initial_prompt: Some("Test prompt"),
-            cli_args: Some("--model sonnet"),
-            env_vars: &[("KEY".to_string(), "VALUE".to_string())],
+            cli_args: Some("--model sonnet".to_string()),
+            env_vars: vec![("KEY".to_string(), "VALUE".to_string())],
+            binary_path: Some("/usr/local/bin/claude".to_string()),
         };
 
         // Verify context fields are accessible
         assert_eq!(ctx.session_id, "test-session");
         assert_eq!(ctx.agent_type, "claude");
         assert_eq!(ctx.initial_prompt, Some("Test prompt"));
-        assert_eq!(ctx.cli_args, Some("--model sonnet"));
+        assert_eq!(ctx.cli_args.as_deref(), Some("--model sonnet"));
         assert_eq!(ctx.env_vars.len(), 1);
+        assert_eq!(ctx.binary_path.as_deref(), Some("/usr/local/bin/claude"));
+    }
+
+    #[test]
+    fn test_claude_namegen_args_respect_cli_overrides() {
+        let args = build_claude_namegen_args(
+            "prompt text",
+            Some("--profile work --model opus"),
+        );
+
+        assert!(args.len() >= 2);
+        assert_eq!(args[0], "--profile");
+        assert_eq!(args[1], "work");
+        assert!(args.contains(&"opus".to_string()));
+
+        let has_default_model = args
+            .windows(2)
+            .any(|pair| pair == ["--model".to_string(), "sonnet".to_string()]);
+        assert!(!has_default_model);
+    }
+
+    #[test]
+    fn test_namegen_env_allows_user_overrides() {
+        let envs = build_namegen_env(&[("NO_COLOR".to_string(), "0".to_string())]);
+
+        let no_color_entries: Vec<_> = envs
+            .iter()
+            .filter(|(k, _)| k == "NO_COLOR")
+            .map(|(_, v)| v)
+            .collect();
+
+        assert_eq!(no_color_entries.last(), Some(&&"0".to_string()));
+        assert!(envs.iter().any(|(k, _)| k == "CLICOLOR"));
+    }
+
+    #[test]
+    fn test_claude_namegen_args_without_overrides() {
+        let args = build_claude_namegen_args("prompt", None);
+
+        assert!(args.contains(&"--print".to_string()));
+        assert!(args.contains(&"prompt".to_string()));
+        assert!(args.contains(&"--output-format".to_string()));
+        assert!(args.contains(&"json".to_string()));
+
+        let has_model_flag = args.iter().any(|token| {
+            token == "--model"
+                || token.starts_with("--model=")
+                || token == "-m"
+                || token.starts_with("-m=")
+        });
+        assert!(!has_model_flag);
     }
 
 }
