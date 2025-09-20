@@ -57,13 +57,13 @@ export function applyEnqueuePolicy(
 }
 
 export function makeAgentQueueConfig(): QueueConfig {
-  const maxQueueBytes = 32 * 1024 * 1024 // 32MB
-  const targetAfterDrop = 16 * 1024 * 1024 // 16MB
+  const maxQueueBytes = 96 * 1024 * 1024 // 96MB
+  const targetAfterDrop = 64 * 1024 * 1024 // 64MB
   return {
     maxQueueBytes,
     targetAfterDrop,
     lowWaterMark: Math.floor(targetAfterDrop / 2),
-    maxWriteChunk: 512 * 1024, // 512KB drain chunks for faster catch-up
+    maxWriteChunk: 1024 * 1024, // 1MB drain chunks for faster catch-up
   }
 }
 
@@ -77,4 +77,3 @@ export function makeDefaultQueueConfig(): QueueConfig {
     maxWriteChunk: 128 * 1024, // 128KB
   }
 }
-

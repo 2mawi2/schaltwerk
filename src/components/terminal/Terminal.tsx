@@ -20,6 +20,10 @@ import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/termin
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 
 const terminalSizeCache = new Map<string, { cols: number; rows: number }>()
+const DEFAULT_SCROLLBACK_LINES = 10000
+const BACKGROUND_SCROLLBACK_LINES = 5000
+const AGENT_SCROLLBACK_LINES = 200000
+const RIGHT_EDGE_GUARD_COLUMNS = 2
 
 export function getLastMeasuredTerminalSize(id: string) {
     return terminalSizeCache.get(id) ?? null
@@ -97,6 +101,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
 
+    // Agent conversation terminal detection reused across sizing logic and scrollback config
+    const isAgentTopTerminal = useMemo(() => (
+        terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
+    ), [terminalId])
+
     // Write queue helpers shared across effects (agent terminals get larger buffers)
     const queueCfg = useMemo(() => (
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
@@ -140,13 +149,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (dCols + dRows < 2) return false;
         }
 
-        cols = cols - 2; // IMPORTANT FIX: we require this change to avoid claude code to trigger new lines when the terminal is overfloating
+        const guardOffset = isAgentTopTerminal ? 0 : RIGHT_EDGE_GUARD_COLUMNS;
+        const effectiveCols = Math.max(cols - guardOffset, MIN_DIMENSION);
 
         lastSize.current = { cols, rows };
-        terminalSizeCache.set(terminalId, { cols, rows });
-        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+        terminalSizeCache.set(terminalId, { cols: effectiveCols, rows });
+        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols: effectiveCols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
         return true;
-    }, [terminalId]);
+    }, [terminalId, isAgentTopTerminal]);
 
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
@@ -421,13 +431,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // unconditionally enable a blinking block cursor for all terminals.
         // Agent conversation terminals (session/orchestrator top) need deeper scrollback to preserve history
         // Background terminals use reduced scrollback to save memory
-        const isAgentTopTerminal = (terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-')))
-        
-        let scrollbackLines = 10000; // Default for bottom terminals
+        let scrollbackLines = DEFAULT_SCROLLBACK_LINES; // Default for bottom terminals
         if (isBackground) {
-            scrollbackLines = 5000; // Reduced for background terminals
+            scrollbackLines = BACKGROUND_SCROLLBACK_LINES; // Reduced for background terminals
         } else if (isAgentTopTerminal) {
-            scrollbackLines = 50000; // Full history for active agent terminals
+            scrollbackLines = AGENT_SCROLLBACK_LINES; // Deep history for agent conversation terminals
         }
 
         terminal.current = new XTerm({
@@ -1277,7 +1285,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {

@@ -14,7 +14,7 @@ use crate::infrastructure::events::{emit_event, SchaltEvent};
 // Default in-memory buffer sizes for terminal output
 // Agent conversation terminals can produce very large transcripts; give them more room
 const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2MB for regular terminals
-const AGENT_MAX_BUFFER_SIZE: usize = 16 * 1024 * 1024; // 16MB for agent "top" terminals
+const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024; // 64MB for agent "top" terminals
 
 // PTY state maps moved to instance level to avoid test interference
 

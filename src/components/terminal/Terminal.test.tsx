@@ -674,6 +674,40 @@ describe('Terminal component', () => {
     expect(allWrites).toBe(payload.length)
   })
 
+  it('configures expanded scrollback for agent conversation terminals', async () => {
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+
+    renderTerminal({ terminalId: 'session-codex-top', sessionName: 'codex', agentType: 'codex' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    expect(xterm.options.scrollback).toBe(200000)
+  })
+
+  it('resizes agent top terminals without reducing backend columns', async () => {
+    ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => '')
+
+    renderTerminal({ terminalId: 'session-width-top', sessionName: 'width', agentType: 'codex' })
+    await flushAll()
+
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
+    core.invoke.mockClear()
+
+    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
+    const xterm = getLastXtermInstance()
+
+    ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
+    xterm.cols = 120
+    xterm.rows = 40
+
+    ro.trigger()
+    await advanceAndFlush(100)
+
+    const resizeCalls = core.invoke.mock.calls.filter((call: unknown[]) => call[0] === TauriCommands.ResizeTerminal)
+    expect(resizeCalls.length).toBeGreaterThan(0)
+    expect(resizeCalls.pop()?.[1]).toMatchObject({ cols: 120, rows: 40 })
+  })
+
 
   
 
