@@ -9,7 +9,6 @@ import { UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
 import { theme } from '../../common/theme';
-import { AnimatedText } from '../common/AnimatedText';
 import '@xterm/xterm/css/xterm.css';
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
@@ -18,6 +17,8 @@ import { buildTerminalFontFamily } from '../../utils/terminalFonts'
 import { countTrailingBlankLines, ActiveBufferLike } from '../../utils/termScroll'
 import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/terminalQueue'
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
+import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
+import { TerminalSearchPanel } from './TerminalSearchPanel'
 
 const terminalSizeCache = new Map<string, { cols: number; rows: number }>()
 const DEFAULT_SCROLLBACK_LINES = 10000
@@ -89,6 +90,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const snapshotCursorRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
+    const handleSearchTermChange = useCallback((value: string) => {
+        setSearchTerm(value);
+    }, []);
+    const handleFindNext = useCallback(() => {
+        if (searchAddon.current && terminal.current) {
+            searchAddon.current.findNext(searchTerm);
+        }
+    }, [searchTerm]);
+    const handleFindPrevious = useCallback(() => {
+        if (searchAddon.current && terminal.current) {
+            searchAddon.current.findPrevious(searchTerm);
+        }
+    }, [searchTerm]);
+    const handleCloseSearch = useCallback(() => {
+        setIsSearchVisible(false);
+        setSearchTerm('');
+    }, []);
     const seqRef = useRef<number>(0);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
@@ -1636,80 +1654,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 ref={termRef}
                 className="h-full w-full overflow-hidden"
             />
-            {(!hydrated || agentLoading) && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
-                    <AnimatedText
-                        text="loading"
-                        colorClassName="text-slate-500"
-                        size="md"
-                        speedMultiplier={3}
-                    />
-                </div>
-            )}
+            <TerminalLoadingOverlay visible={!hydrated || agentLoading} />
             {/* Search UI opens via keyboard shortcut only (Cmd/Ctrl+F) */}
             {isSearchVisible && (
-                <div ref={searchContainerRef} data-terminal-search="true" className="absolute top-2 right-2 flex items-center bg-panel border border-slate-700 rounded px-2 py-1 z-10">
-                    <input
-                        type="text"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter') {
-                                if (searchAddon.current && terminal.current) {
-                                    if (e.shiftKey) {
-                                        searchAddon.current.findPrevious(searchTerm);
-                                    } else {
-                                        searchAddon.current.findNext(searchTerm);
-                                    }
-                                }
-                            } else if (e.key === 'Escape') {
-                                setIsSearchVisible(false);
-                                setSearchTerm('');
-                            }
-                        }}
-                        placeholder="Search..."
-                        className="bg-transparent text-sm text-slate-200 outline-none w-40"
-                        autoFocus
-                    />
-                    <button 
-                        onClick={() => {
-                            if (searchAddon.current && terminal.current) {
-                                searchAddon.current.findPrevious(searchTerm);
-                            }
-                        }}
-                        className="text-slate-400 hover:text-slate-200 ml-1"
-                        title="Previous match (Shift+Enter)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M7 12L3 8L7 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                    </button>
-                    <button 
-                        onClick={() => {
-                            if (searchAddon.current && terminal.current) {
-                                searchAddon.current.findNext(searchTerm);
-                            }
-                        }}
-                        className="text-slate-400 hover:text-slate-200 ml-1"
-                        title="Next match (Enter)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M9 4L13 8L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                    </button>
-                    <button 
-                        onClick={() => {
-                            setIsSearchVisible(false);
-                            setSearchTerm('');
-                        }}
-                        className="text-slate-400 hover:text-slate-200 ml-2"
-                        title="Close search (Escape)"
-                    >
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                            <path d="M12 4L4 12M4 4L12 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                        </svg>
-                    </button>
-                </div>
+                <TerminalSearchPanel
+                    ref={searchContainerRef}
+                    searchTerm={searchTerm}
+                    onSearchTermChange={handleSearchTermChange}
+                    onFindNext={handleFindNext}
+                    onFindPrevious={handleFindPrevious}
+                    onClose={handleCloseSearch}
+                />
             )}
         </div>
     );
