@@ -26,6 +26,7 @@ import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
 import { useIdleSessions } from '../../hooks/useIdleSessions'
+import { useProject } from '../../contexts/ProjectContext'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -50,6 +51,7 @@ interface SidebarProps {
 
 export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, onSelectNextProject }: SidebarProps) {
     const { selection, setSelection, terminals, clearTerminalTracking } = useSelection()
+    const { projectPath } = useProject()
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { isSessionRunning } = useRun()
     const { isAnyModalOpen } = useModal()
@@ -112,34 +114,113 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         idleThresholdMs: IDLE_THRESHOLD_MS
     })
 
+    type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
+    const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())
+    const ensureProjectMemory = useCallback((): Record<FilterMode, FilterMemoryEntry> => {
+        const key = projectPath || '__default__'
+        if (!selectionMemoryRef.current.has(key)) {
+            selectionMemoryRef.current.set(key, {
+                [FilterMode.All]: { lastSelection: null, lastSessions: [] },
+                [FilterMode.Spec]: { lastSelection: null, lastSessions: [] },
+                [FilterMode.Running]: { lastSelection: null, lastSessions: [] },
+                [FilterMode.Reviewed]: { lastSelection: null, lastSessions: [] },
+            })
+        }
+        return selectionMemoryRef.current.get(key)!
+    }, [projectPath])
+
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
         await reloadSessions()
         recomputeIdleSessions()
     }, [reloadSessions, recomputeIdleSessions])
     
-    // Auto-select first visible session when current selection disappears from view
+    // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
-        // Skip auto-selection during project switches to avoid conflicts with restoration
         if (isProjectSwitching.current) return
-        
-        if (selection.kind !== 'session') return
-        
-        const currentSessionVisible = sessions.some(s => s.info.session_id === selection.payload)
-        
-        if (!currentSessionVisible && sessions.length > 0 && selection.payload) {
-            // Select the first available session in the new filtered/sorted list
-            const targetSession = sessions[0]
-            setSelection({
-                kind: 'session',
-                payload: targetSession.info.session_id,
-                worktreePath: targetSession.info.worktree_path,
-                sessionState: mapSessionUiState(targetSession.info)
-            }, false, false) // Auto-selection - not intentional
-        } else if (!currentSessionVisible && sessions.length === 0) {
-            // No sessions visible, select orchestrator
-            setSelection({ kind: 'orchestrator' }, false, false) // Auto-selection - not intentional
+
+        const memory = ensureProjectMemory()
+        const entry = memory[filterMode]
+        const visibleSessions = sessions
+        const visibleIds = new Set(visibleSessions.map(s => s.info.session_id))
+        const currentSelectionId = selection.kind === 'session' ? (selection.payload ?? null) : null
+
+        const previousSessions = entry.lastSessions
+        entry.lastSessions = visibleSessions
+
+        const removalCandidate = lastRemovedSessionRef.current
+
+        if (selection.kind === 'orchestrator') {
+            entry.lastSelection = null
+            if (!removalCandidate) {
+                return
+            }
         }
-    }, [sessions, selection, setSelection])
+
+        if (visibleSessions.length === 0) {
+            entry.lastSelection = null
+            void setSelection({ kind: 'orchestrator' }, false, false)
+            if (lastRemovedSessionRef.current) {
+                lastRemovedSessionRef.current = null
+            }
+            return
+        }
+
+        if (selection.kind === 'session' && currentSelectionId && visibleIds.has(currentSelectionId)) {
+            entry.lastSelection = currentSelectionId
+            if (lastRemovedSessionRef.current) {
+                lastRemovedSessionRef.current = null
+            }
+            return
+        }
+
+        const rememberedId = entry.lastSelection
+        const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
+        let candidateId: string | null = null
+
+        if (rememberedId && visibleIds.has(rememberedId)) {
+            candidateId = rememberedId
+        }
+
+        if (!candidateId && baselineId && previousSessions.length > 0) {
+            const neighbourId = computeNextSelectedSessionId(previousSessions, baselineId, baselineId)
+            if (neighbourId && visibleIds.has(neighbourId)) {
+                candidateId = neighbourId
+            } else {
+                const previousIndex = previousSessions.findIndex(s => s.info.session_id === baselineId)
+                if (previousIndex !== -1 && visibleSessions.length > 0) {
+                    const boundedIndex = Math.min(previousIndex, visibleSessions.length - 1)
+                    candidateId = visibleSessions[boundedIndex]?.info.session_id ?? null
+                }
+            }
+        }
+
+        if (!candidateId && visibleSessions.length > 0) {
+            candidateId = visibleSessions[0]?.info.session_id ?? null
+        }
+
+        if (candidateId) {
+            entry.lastSelection = candidateId
+            if (candidateId !== currentSelectionId) {
+                const targetSession = visibleSessions.find(s => s.info.session_id === candidateId)
+                    ?? allSessions.find(s => s.info.session_id === candidateId)
+                if (targetSession) {
+                    void setSelection({
+                        kind: 'session',
+                        payload: candidateId,
+                        worktreePath: targetSession.info.worktree_path,
+                        sessionState: mapSessionUiState(targetSession.info)
+                    }, false, false)
+                }
+            }
+        } else {
+            entry.lastSelection = null
+            void setSelection({ kind: 'orchestrator' }, false, false)
+        }
+
+        if (removalCandidate) {
+            lastRemovedSessionRef.current = null
+        }
+    }, [sessions, selection, filterMode, ensureProjectMemory, allSessions, setSelection])
 
     // Fetch current branch for orchestrator
     useEffect(() => {
@@ -610,14 +691,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // No longer need to listen for events - context handles everything
 
     // Keep latest values in refs for use in event handlers without re-attaching listeners
-    const latestSelectionRef = useRef(selection)
-    const latestSortedSessionsRef = useRef(sessions)
-    const latestFilterModeRef = useRef(filterMode)
     const latestSessionsRef = useRef(allSessions)
+    const lastRemovedSessionRef = useRef<string | null>(null)
 
-    useEffect(() => { latestSelectionRef.current = selection }, [selection])
-    useEffect(() => { latestSortedSessionsRef.current = sessions }, [sessions])
-    useEffect(() => { latestFilterModeRef.current = filterMode }, [filterMode])
     useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
 
     // Scroll selected session into view when selection changes
@@ -654,38 +730,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             // the current filter.
 
             // Session removed
-            const u4 = await listenEvent(SchaltEvent.SessionRemoved, async (event) => {
-                const { session_name } = event
-                const currentSelection = latestSelectionRef.current
-                const currentSorted = latestSortedSessionsRef.current
-                const currentSelectedId = currentSelection.kind === 'session' ? (currentSelection.payload || null) : null
-                const nextSelectionId = computeNextSelectedSessionId(currentSorted, session_name, currentSelectedId)
-
-                if (currentSelectedId === session_name) {
-                    if (nextSelectionId) {
-                        const nextSession = sessions.find(s => s.info.session_id === nextSelectionId)
-                        await setSelection({ 
-                            kind: 'session', 
-                            payload: nextSelectionId,
-                            worktreePath: nextSession?.info.worktree_path,
-                            sessionState: nextSession ? mapSessionUiState(nextSession.info) : undefined
-                        }, false, false) // Fallback - not intentional
-                    } else {
-                        // If the removed item is already gone from the list due to event timing,
-                        // select the first visible item under the current filter, if any
-                        const firstVisible = latestSortedSessionsRef.current[0]
-                        if (firstVisible) {
-                            await setSelection({
-                                kind: 'session',
-                                payload: firstVisible.info.session_id,
-                                worktreePath: firstVisible.info.worktree_path,
-                                sessionState: mapSessionUiState(firstVisible.info)
-                            }, false, false)
-                        } else {
-                            await setSelection({ kind: 'orchestrator' }, false, false) // No items left
-                        }
-                    }
-                }
+            const u4 = await listenEvent(SchaltEvent.SessionRemoved, (event) => {
+                lastRemovedSessionRef.current = event.session_name
             })
             unlisteners.push(u4)
             
@@ -735,7 +781,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             })
         }
     // Attach once on mount; use refs above for latest values inside handlers
-    }, [sessions, setCurrentFocus, setFocusForSession, setSelection])
+    }, [setCurrentFocus, setFocusForSession, setSelection])
 
     // Calculate counts based on all sessions (unaffected by search)
     const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(allSessions)
