@@ -104,14 +104,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     })
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
-    const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
-
-    const { idleIds, recomputeIdle: recomputeIdleSessions } = useIdleSessions({
-        sessions: allSessions,
-        includeSpecs: false,
-        includeReviewed: false,
-        idleThresholdMs: IDLE_THRESHOLD_MS
-    })
 
     type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())
@@ -130,8 +122,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
         await reloadSessions()
-        recomputeIdleSessions()
-    }, [reloadSessions, recomputeIdleSessions])
+    }, [reloadSessions])
     
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
@@ -231,9 +222,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             })
     }, [])
 
-    useEffect(() => {
-        recomputeIdleSessions()
-    }, [loading, recomputeIdleSessions])
+
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
@@ -974,7 +963,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     group={group}
                                     selection={selection}
                                     startIndex={groupStartIndex}
-                                    hasStuckTerminals={(sessionId: string) => idleIds.has(sessionId)}
+
                                     hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
                                     onSelect={(index) => {
                                         void handleSelectSession(index)
