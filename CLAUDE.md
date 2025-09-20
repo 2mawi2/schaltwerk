@@ -221,7 +221,9 @@ emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions)?;
 - Either use the code or delete it
 
 **Non-Deterministic Solutions PROHIBITED**
-- NO timeouts, delays, sleep (e.g., `setTimeout`, `sleep`)
+- NO timeouts, delays, sleep (e.g., `setTimeout`, `sleep`) in application logic or test code.
+  - This restriction does not apply to operational safeguards like wrapping long-running terminal commands
+    with a timeout to prevent the CLI from hanging during manual workflows.
 - NO retry loops, polling (especially `setInterval` for state sync!)
 - NO timing-based solutions
 - These approaches are unreliable, hard to maintain, and behave inconsistently across different environments
