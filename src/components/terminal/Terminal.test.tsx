@@ -157,15 +157,23 @@ vi.mock('@xterm/addon-fit', () => {
 
 // ---- Mock: @xterm/addon-search ----
 vi.mock('@xterm/addon-search', () => {
+  const instances: MockSearchAddon[] = []
   class MockSearchAddon {
+    findNext = vi.fn()
+    findPrevious = vi.fn()
+    constructor() {
+      instances.push(this)
+    }
     activate() {
       // Mock addon activation - required by xterm addon interface
     }
-    findNext = vi.fn()
-    findPrevious = vi.fn()
+  }
+  function __getLastSearchAddon() {
+    return instances[instances.length - 1]
   }
   return {
     SearchAddon: MockSearchAddon,
+    __getLastSearchAddon,
   }
 })
 
@@ -237,13 +245,16 @@ class MockResizeObserver {
 
 
 // Now import the component under test
-import { Terminal } from './Terminal'
+import { Terminal, clearTerminalStartedTracking, getLastMeasuredTerminalSize, type TerminalHandle } from './Terminal'
 import { TestProviders } from '../../tests/test-utils'
 // Also import mocked helpers for control
 import * as TauriEvent from '@tauri-apps/api/event'
 import * as TauriCore from '@tauri-apps/api/core'
 import * as XTermModule from '@xterm/xterm'
 import * as FitAddonModule from '@xterm/addon-fit'
+import * as SearchAddonModule from '@xterm/addon-search'
+import * as TerminalFonts from '../../utils/terminalFonts'
+import { logger } from '../../utils/logger'
 
 function getLastXtermInstance(): MockXTerm {
   return (XTermModule as unknown as { __getLastInstance: () => MockXTerm }).__getLastInstance()
@@ -263,6 +274,13 @@ async function advanceAndFlush(ms: number) {
   await flushAll()
 }
 
+function setElementDimensions(el: HTMLElement | null, width: number, height: number) {
+  if (!el) return
+  Object.defineProperty(el, 'clientWidth', { value: width, configurable: true })
+  Object.defineProperty(el, 'clientHeight', { value: height, configurable: true })
+  Object.defineProperty(el, 'isConnected', { value: true, configurable: true })
+}
+
 beforeEach(() => {
   vi.useFakeTimers()
   ;(TauriCore as unknown as MockTauriCore).invoke.mockClear()
@@ -279,6 +297,7 @@ beforeEach(() => {
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.WriteTerminal, () => undefined)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, () => undefined)
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaude, () => undefined)
+  ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ fontFamily: null }))
   const mockFontSizes = [14, 14] as [number, number];
   ;(TauriCore as unknown as MockTauriCore).__setInvokeHandler(TauriCommands.SchaltwerkCoreGetFontSizes, () => mockFontSizes)
   ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize(null)
@@ -963,5 +982,457 @@ describe('Terminal component', () => {
     // Confirm no ResizeTerminal was invoked for sub-2px jitter
     const jitterCalls = core.invoke.mock.calls.filter(c => c[0] === TauriCommands.ResizeTerminal)
     expect(jitterCalls.length).toBe(0)
+  })
+
+  it('records last measured size for bottom terminals with guard columns', async () => {
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }
+    const { container } = renderTerminal({ terminalId: 'session-metrics-bottom-0', sessionName: 'metrics' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 900, 400)
+    setElementDimensions(termEl, 900, 400)
+
+    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
+    ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 132, rows: 44 })
+    const xterm = getLastXtermInstance()
+    xterm.cols = 132
+    xterm.rows = 44
+
+    ro.trigger()
+    await advanceAndFlush(100)
+
+    const size = getLastMeasuredTerminalSize('session-metrics-bottom-0')
+    expect(size).toEqual({ cols: 130, rows: 44 })
+
+    const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
+    expect(resizeCalls.at(-1)?.[1]).toMatchObject({ cols: 130, rows: 44 })
+  })
+
+  it('forces scroll to bottom only for matching terminal force event', async () => {
+    renderTerminal({ terminalId: 'session-force-top', sessionName: 'force' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+    scrollSpy.mockClear()
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-other-top' })
+    expect(scrollSpy).not.toHaveBeenCalled()
+
+    scrollSpy.mockClear()
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-force-top' })
+    expect(scrollSpy).toHaveBeenCalled()
+  })
+
+  it('reconfigures output listener when agent type changes', async () => {
+    const eventModule = TauriEvent as unknown as MockTauriEvent
+    const { rerender } = render(
+      <TestProviders>
+        <Terminal terminalId="session-agent-top" sessionName="agent" agentType="codex" />
+      </TestProviders>
+    )
+
+    await flushAll()
+    const initialListenCalls = eventModule.listen.mock.calls.length
+
+    rerender(
+      <TestProviders>
+        <Terminal terminalId="session-agent-top" sessionName="agent" agentType="run" />
+      </TestProviders>
+    )
+
+    await flushAll()
+    const afterListenCalls = eventModule.listen.mock.calls.length
+    expect(afterListenCalls).toBeGreaterThan(initialListenCalls)
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-agent-top', 'hello-world')
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
+    expect(writes).toContain('hello-world')
+  })
+
+  it('handles OpenCode search and selection resize events for matching sessions', async () => {
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
+    const { container } = renderTerminal({ terminalId: 'session-opencode-top', sessionName: 'opencode', agentType: 'opencode' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 640, 360)
+    setElementDimensions(termEl, 640, 360)
+
+    ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 160, rows: 48 })
+    const xterm = getLastXtermInstance()
+    xterm.cols = 160
+    xterm.rows = 48
+    core.invoke.mockClear()
+
+    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail: { kind: 'session', sessionId: 'other' } }))
+    await advanceAndFlush(50)
+    const baseline = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal).length
+
+    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail: { kind: 'session', sessionId: 'opencode' } }))
+    await advanceAndFlush(100)
+    const searchCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
+    expect(searchCalls.at(-1)?.[1]).toMatchObject({ cols: 160, rows: 48 })
+    expect(searchCalls.length).toBeGreaterThan(baseline)
+
+    core.invoke.mockClear()
+    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail: { kind: 'session', sessionId: 'opencode' } }))
+    await advanceAndFlush(100)
+    const selectionCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
+    expect(selectionCalls.length).toBeGreaterThan(0)
+  })
+
+  it('suppresses auto scroll while run terminal selection is active', async () => {
+    const { container } = renderTerminal({ terminalId: 'session-run-bottom-0', sessionName: 'runner', agentType: 'run' })
+    await flushAll()
+
+    const termRoot = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement
+    const termViewport = termRoot.querySelector('div') as HTMLDivElement
+    setElementDimensions(termRoot, 800, 400)
+    setElementDimensions(termViewport, 800, 400)
+
+    const xterm = getLastXtermInstance()
+    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+    xterm.buffer.active.baseY = 100
+    xterm.buffer.active.viewportY = 100
+    xterm.buffer.active.length = 140
+
+    fireEvent.mouseDown(termRoot, { clientX: 10, clientY: 10 })
+    fireEvent.mouseMove(termRoot, { clientX: 40, clientY: 45 })
+
+    const selectionMock = {
+      isCollapsed: false,
+      anchorNode: termViewport.firstChild ?? termViewport,
+      focusNode: termViewport.firstChild ?? termViewport
+    } as unknown as Selection
+    const getSelectionSpy = vi.spyOn(window, 'getSelection')
+    getSelectionSpy.mockReturnValue(selectionMock)
+
+    scrollSpy.mockClear()
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'SELECTING-1')
+    await advanceAndFlush(200)
+    const selectingCalls = scrollSpy.mock.calls.length
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'SELECTING-2')
+    await advanceAndFlush(200)
+    expect(scrollSpy.mock.calls.length).toBe(selectingCalls)
+
+    fireEvent.mouseUp(termRoot)
+    await advanceAndFlush(10)
+    getSelectionSpy.mockReturnValue({ isCollapsed: true } as unknown as Selection)
+    document.dispatchEvent(new Event('selectionchange'))
+    await advanceAndFlush(50)
+
+    scrollSpy.mockClear()
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'CLEARED')
+    await advanceAndFlush(200)
+    expect(scrollSpy).toHaveBeenCalled()
+    getSelectionSpy.mockRestore()
+  })
+
+  it('rehydrates from TerminalResumed events using latest buffer data', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 1,
+      startSeq: 0,
+      data: 'INIT'
+    }))
+
+    renderTerminal({ terminalId: 'session-resume-top', sessionName: 'resume' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 2,
+      startSeq: 0,
+      data: 'RESUMED'
+    }))
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-top' })
+    await advanceAndFlush(400)
+
+    const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
+    expect(writes).toContain('RESUMED')
+  })
+
+  it('updates terminal font family when settings and runtime events change', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    const fontSpy = vi.spyOn(TerminalFonts, 'buildTerminalFontFamily')
+    core.__setInvokeHandler(TauriCommands.GetTerminalSettings, () => ({ fontFamily: 'Victor Mono' }))
+
+    const { container } = renderTerminal({ terminalId: 'session-font-top', sessionName: 'font' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 800, 480)
+    setElementDimensions(termEl, 800, 480)
+
+    const xterm = getLastXtermInstance()
+    expect(String(xterm.options.fontFamily)).toContain('Victor Mono')
+    expect(fontSpy).toHaveBeenCalledWith('Victor Mono')
+
+    window.dispatchEvent(new CustomEvent('schaltwerk:terminal-font-updated', { detail: { fontFamily: 'Cousine' } }))
+    await flushAll()
+    await advanceAndFlush(50)
+    await flushAll()
+    expect(fontSpy).toHaveBeenCalledWith('Cousine')
+    fontSpy.mockRestore()
+  })
+
+  it('allows Claude restart after clearing started tracking for session terminals', async () => {
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][], clear: () => void } } }
+    const terminalId = 'session-restart-top'
+
+    const first = renderTerminal({ terminalId, sessionName: 'restart' })
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+    const startCallsFirst = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartClaude)
+    expect(startCallsFirst.length).toBeGreaterThan(0)
+    first.unmount()
+
+    core.invoke.mockClear()
+    const second = renderTerminal({ terminalId, sessionName: 'restart' })
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+    const startCallsSecond = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartClaude)
+    expect(startCallsSecond.length).toBe(0)
+    second.unmount()
+
+    clearTerminalStartedTracking([terminalId])
+    core.invoke.mockClear()
+    const third = renderTerminal({ terminalId, sessionName: 'restart' })
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+    const startCallsThird = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.SchaltwerkCoreStartClaude)
+    expect(startCallsThird.length).toBeGreaterThan(0)
+    third.unmount()
+    clearTerminalStartedTracking([terminalId])
+  })
+
+  it.each([
+    { message: 'No project is currently open', event: 'schaltwerk:no-project-error' },
+    { message: 'Permission required for folder: /tmp/project', event: 'schaltwerk:permission-error' },
+    { message: 'Failed to spawn command: claude', event: 'schaltwerk:spawn-error' },
+    { message: 'not a git repository', event: 'schaltwerk:not-git-error' }
+  ])('dispatches orchestrator start errors (%s)', async ({ message, event }) => {
+    const core = TauriCore as unknown as MockTauriCore
+    const terminalId = 'orchestrator-error-top'
+    core.__setInvokeHandler(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, () => {
+      throw new Error(message)
+    })
+
+    const handler = vi.fn()
+    const listener = handler as EventListener
+    window.addEventListener(event, listener, { once: true })
+
+    const instance = renderTerminal({ terminalId, sessionName: 'orch', isCommander: true })
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+    vi.advanceTimersByTime(1)
+    await flushAll()
+
+    expect(handler).toHaveBeenCalled()
+    instance.unmount()
+    window.removeEventListener(event, listener)
+    clearTerminalStartedTracking([terminalId])
+  })
+
+  it('executes search addon controls and keyboard shortcuts', async () => {
+    const ref = createRef<TerminalHandle>()
+    render(
+      <TestProviders>
+        <Terminal terminalId="session-search-ui-top" sessionName="search-ui" ref={ref} />
+      </TestProviders>
+    )
+    await flushAll()
+
+    act(() => {
+      ref.current?.showSearch()
+    })
+    await flushAll()
+
+    const searchInput = document.querySelector('input[placeholder="Search..."]') as HTMLInputElement
+    expect(searchInput).toBeTruthy()
+    fireEvent.change(searchInput, { target: { value: 'build' } })
+
+    const addon = (SearchAddonModule as unknown as { __getLastSearchAddon: () => { findNext: ReturnType<typeof vi.fn>; findPrevious: ReturnType<typeof vi.fn> } }).__getLastSearchAddon()
+
+    fireEvent.keyDown(searchInput, { key: 'Enter', shiftKey: true })
+    fireEvent.keyDown(searchInput, { key: 'Enter', shiftKey: false })
+    fireEvent.keyDown(searchInput, { key: 'Escape' })
+
+    expect(addon.findPrevious).toHaveBeenCalled()
+    expect(addon.findNext).toHaveBeenCalled()
+
+    act(() => {
+      ref.current?.showSearch()
+    })
+    await flushAll()
+
+    const prevButton = document.querySelector('[title="Previous match (Shift+Enter)"]') as HTMLButtonElement
+    const nextButton = document.querySelector('[title="Next match (Enter)"]') as HTMLButtonElement
+    const closeButton = document.querySelector('[title="Close search (Escape)"]') as HTMLButtonElement
+
+    fireEvent.click(prevButton)
+    fireEvent.click(nextButton)
+    fireEvent.click(closeButton)
+
+    expect(addon.findPrevious).toHaveBeenCalledTimes(2)
+    expect(addon.findNext).toHaveBeenCalledTimes(2)
+  })
+
+  it('skips terminal click callback during immediate focus bounce', async () => {
+    const onTerminalClick = vi.fn()
+    const { container } = renderTerminal({ terminalId: 'session-focus-guard-top', sessionName: 'guard', onTerminalClick })
+    await flushAll()
+
+    const root = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement
+    fireEvent.click(root)
+    fireEvent.focusIn(root)
+    await flushAll()
+    expect(onTerminalClick).toHaveBeenCalledTimes(1)
+
+    await advanceAndFlush(20)
+    fireEvent.focusIn(root)
+    await flushAll()
+    expect(onTerminalClick).toHaveBeenCalledTimes(2)
+  })
+
+  it('restores previous size when fit reports tiny dimensions', async () => {
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }
+    const { container } = renderTerminal({ terminalId: 'session-tiny-top', sessionName: 'tiny' })
+    await flushAll()
+
+    const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
+    const termEl = outer?.querySelector('div') as HTMLDivElement | null
+    setElementDimensions(outer, 640, 360)
+    setElementDimensions(termEl, 640, 360)
+
+    const ro = (globalThis as Record<string, unknown>).__lastRO as MockResizeObserver
+    const xterm = getLastXtermInstance()
+    const resizeSpy = vi.spyOn(xterm, 'resize')
+
+    ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 120, rows: 40 })
+    xterm.cols = 120
+    xterm.rows = 40
+    ro.trigger()
+    await advanceAndFlush(50)
+
+    core.invoke.mockClear()
+    resizeSpy.mockClear()
+
+    ;(FitAddonModule as unknown as MockFitAddonModule).__setNextFitSize({ cols: 1, rows: 1 })
+    xterm.cols = 1
+    xterm.rows = 1
+    ro.trigger()
+    await advanceAndFlush(50)
+
+    const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
+    expect(resizeCalls.length).toBe(0)
+    expect(resizeSpy).toHaveBeenCalled()
+  })
+
+  it('treats hasSelection terminals as user-selected for auto scroll checks', async () => {
+    const { container } = renderTerminal({ terminalId: 'session-hasselect-top', sessionName: 'hasselect', agentType: 'run' })
+    await flushAll()
+
+    const termRoot = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement
+    const termViewport = termRoot.querySelector('div') as HTMLDivElement
+    setElementDimensions(termRoot, 640, 360)
+    setElementDimensions(termViewport, 640, 360)
+
+    const xterm = getLastXtermInstance() as MockXTerm & { hasSelection?: () => boolean }
+    xterm.hasSelection = () => true
+    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-hasselect-top', 'SELECTION-ACTIVE-1')
+    await advanceAndFlush(200)
+    const firstCalls = scrollSpy.mock.calls.length
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-hasselect-top', 'SELECTION-ACTIVE-2')
+    await advanceAndFlush(200)
+    expect(scrollSpy.mock.calls.length).toBe(firstCalls)
+  })
+
+  it('exposes scrollToBottom via imperative ref', async () => {
+    const ref = createRef<TerminalHandle>()
+    render(
+      <TestProviders>
+        <Terminal terminalId="session-scroll-ref-top" sessionName="scroll-ref" ref={ref} />
+      </TestProviders>
+    )
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+
+    ref.current?.scrollToBottom()
+    expect(scrollSpy).toHaveBeenCalled()
+  })
+
+  it('ignores focus events originating from the search container', async () => {
+    const onTerminalClick = vi.fn()
+    const { container } = renderTerminal({ terminalId: 'session-search-focus-top', sessionName: 'search-focus', onTerminalClick })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    act(() => {
+      xterm.__triggerKey({ key: 'f', metaKey: true, ctrlKey: false } as KeyboardEvent)
+    })
+    await flushAll()
+
+    const searchContainer = container.querySelector('[data-terminal-search="true"]') as HTMLDivElement
+    fireEvent.focusIn(searchContainer)
+    await flushAll()
+
+    expect(onTerminalClick).not.toHaveBeenCalled()
+  })
+
+  it('flushes buffered output when hydration fails', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {
+      throw new Error('hydrate-failure')
+    })
+
+    renderTerminal({ terminalId: 'session-hydration-fail-top', sessionName: 'hydration-fail' })
+    await flushAll()
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-hydration-fail-top', 'RECOVER')
+    await advanceAndFlush(400)
+
+    const xterm = getLastXtermInstance()
+    const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
+    expect(writes).toContain('RECOVER')
+  })
+
+  it('emits debug logs when TERMINAL_DEBUG flag is set', async () => {
+    window.localStorage.setItem('TERMINAL_DEBUG', '1')
+    const debugSpy = vi.spyOn(logger, 'debug')
+
+    renderTerminal({ terminalId: 'session-debug-top', sessionName: 'debug' })
+    await flushAll()
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-debug-top', 'DEBUGDATA')
+    await advanceAndFlush(200)
+
+    expect(debugSpy).toHaveBeenCalled()
+    window.localStorage.removeItem('TERMINAL_DEBUG')
+    debugSpy.mockRestore()
   })
 })
