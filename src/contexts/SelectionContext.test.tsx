@@ -3,6 +3,7 @@ import { TauriCommands } from '../common/tauriCommands'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { ReactNode } from 'react'
 import { MockTauriInvokeArgs } from '../types/testing'
+import { EnrichedSession, RawSession, SessionState } from '../types/session'
 
 // Mock Tauri APIs BEFORE importing provider modules
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -14,18 +15,78 @@ import { TestProviders } from '../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 const mockInvoke = invoke as MockedFunction<typeof invoke>
 
+function createRawSession(
+  name: string,
+  worktreePath: string,
+  state: SessionState = SessionState.Running
+): RawSession {
+  const now = new Date().toISOString()
+  return {
+    id: `${name}-id`,
+    name,
+    display_name: name,
+    repository_path: '/test/project',
+    repository_name: 'project',
+    branch: `${name}-branch`,
+    parent_branch: 'main',
+    worktree_path: worktreePath,
+    status: state === SessionState.Spec ? 'spec' : 'active',
+    created_at: now,
+    updated_at: now,
+    ready_to_merge: false,
+    pending_name_generation: false,
+    was_auto_generated: false,
+    session_state: state,
+  }
+}
+
+function createEnrichedSession(
+  name: string,
+  worktreePath: string,
+  state: SessionState = SessionState.Running
+): EnrichedSession {
+  const now = new Date().toISOString()
+  return {
+    info: {
+      session_id: name,
+      display_name: name,
+      branch: `${name}-branch`,
+      worktree_path: worktreePath,
+      base_branch: 'main',
+      status: state === SessionState.Spec ? 'spec' : 'active',
+      created_at: now,
+      last_modified: now,
+      has_uncommitted_changes: false,
+      is_current: false,
+      session_type: 'worktree',
+      session_state: state,
+      ready_to_merge: false,
+    },
+    status: undefined,
+    terminals: [],
+  }
+}
+
 // Test wrapper component using comprehensive TestProviders
 const wrapper = ({ children }: { children: ReactNode }) => (
   <TestProviders>{children}</TestProviders>
 )
 
+let enrichedSessionsMock: EnrichedSession[]
+let rawSessionsMock: Record<string, RawSession>
+
 describe('SelectionContext', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     localStorage.clear()
-    
+
     // Setup default mocks
     let savedSelection: { kind: 'session'|'orchestrator', payload: string|null } | null = null
+    enrichedSessionsMock = []
+    rawSessionsMock = {
+      'test-session': createRawSession('test-session', '/test/session/path'),
+    }
+
     mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
       const typedArgs = args as { name?: string; id?: string } | undefined
       switch (command) {
@@ -36,13 +97,13 @@ describe('SelectionContext', () => {
         case TauriCommands.CreateTerminal:
           return Promise.resolve()
         case TauriCommands.SchaltwerkCoreGetSession:
-          return Promise.resolve({
-            worktree_path: '/test/session/path',
-            session_id: typedArgs?.name || 'test-session',
-            session_state: 'running',
-            name: typedArgs?.name || 'test-session'
-          })
+          if (typedArgs?.name && rawSessionsMock[typedArgs.name]) {
+            return Promise.resolve(rawSessionsMock[typedArgs.name])
+          }
+          return Promise.resolve(createRawSession(typedArgs?.name || 'test-session', '/test/session/path'))
         case TauriCommands.PathExists:
+          return Promise.resolve(true)
+        case TauriCommands.DirectoryExists:
           return Promise.resolve(true)
         case TauriCommands.GetProjectSelection:
           return Promise.resolve(savedSelection)
@@ -53,7 +114,7 @@ describe('SelectionContext', () => {
           }
           return Promise.resolve()
         case TauriCommands.SchaltwerkCoreListEnrichedSessions:
-          return Promise.resolve([])
+          return Promise.resolve(enrichedSessionsMock)
         case TauriCommands.SchaltwerkCoreListSessionsByState:
           return Promise.resolve([])
         case TauriCommands.GetProjectSessionsSettings:
@@ -69,6 +130,36 @@ describe('SelectionContext', () => {
         default:
           return Promise.resolve()
       }
+    })
+  })
+
+  describe('session metadata caching', () => {
+    it('reuses cached session details across rapid session switches', async () => {
+      enrichedSessionsMock = [
+        createEnrichedSession('session-a', '/sessions/a'),
+        createEnrichedSession('session-b', '/sessions/b'),
+      ]
+
+      rawSessionsMock = {
+        'session-a': createRawSession('session-a', '/sessions/a'),
+        'session-b': createRawSession('session-b', '/sessions/b'),
+      }
+
+      const { result } = renderHook(() => useSelection(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.isReady).toBe(true)
+      })
+
+      await act(async () => {
+        const first = result.current.setSelection({ kind: 'session', payload: 'session-a' })
+        const second = result.current.setSelection({ kind: 'session', payload: 'session-b' })
+        const third = result.current.setSelection({ kind: 'session', payload: 'session-a' })
+        await Promise.all([first, second, third])
+      })
+
+      const getSessionCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.SchaltwerkCoreGetSession)
+      expect(getSessionCalls.length).toBeLessThanOrEqual(2)
     })
   })
 

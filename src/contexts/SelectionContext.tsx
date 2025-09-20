@@ -6,9 +6,62 @@ import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
-import { RawSession, ProjectSelection } from '../types/session'
+import { RawSession, ProjectSelection, EnrichedSession } from '../types/session'
 import { logger } from '../utils/logger'
 import { useModal } from './ModalContext'
+
+type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
+
+interface SessionSnapshot {
+    sessionId: string
+    sessionState: NormalizedSessionState
+    worktreePath?: string
+    branch?: string
+    readyToMerge?: boolean
+    source: 'enriched' | 'raw'
+}
+
+function normalizeSessionState(
+    sessionState?: string | null,
+    status?: string,
+    readyToMerge?: boolean
+): NormalizedSessionState {
+    if (sessionState === 'spec' || sessionState === 'running' || sessionState === 'reviewed') {
+        return sessionState
+    }
+    if (status === 'spec') {
+        return 'spec'
+    }
+    if (readyToMerge) {
+        return 'reviewed'
+    }
+    return 'running'
+}
+
+function snapshotFromRawSession(raw: RawSession): SessionSnapshot {
+    const normalized = normalizeSessionState(raw.session_state, raw.status, raw.ready_to_merge)
+    return {
+        sessionId: raw.name,
+        sessionState: normalized,
+        worktreePath: raw.worktree_path,
+        branch: raw.branch,
+        readyToMerge: raw.ready_to_merge,
+        source: 'raw'
+    }
+}
+
+function snapshotFromEnrichedSession(session: EnrichedSession): SessionSnapshot {
+    const info = session.info
+    const normalized = normalizeSessionState(info.session_state, info.status, info.ready_to_merge)
+    return {
+        sessionId: info.session_id,
+        sessionState: normalized,
+        worktreePath: info.worktree_path,
+        branch: info.branch,
+        readyToMerge: info.ready_to_merge,
+        source: 'enriched'
+    }
+}
 
 export interface Selection {
     kind: 'session' | 'orchestrator'
@@ -44,7 +97,7 @@ const SelectionContext = createContext<SelectionContextType>({
 export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const { projectPath } = useProject()
     const { terminalFontSize: _terminalFontSize } = useFontSize()
-    const { setCurrentSelection, filterMode } = useSessions()
+    const { setCurrentSelection, filterMode, allSessions } = useSessions()
     const [selection, setSelectionState] = useState<Selection>({ kind: 'orchestrator' })
     const [terminals, setTerminals] = useState<TerminalSet>({
         top: 'orchestrator-default-top',
@@ -78,6 +131,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const suppressAutoRestoreRef = useRef(false)
     // Track active file watcher session to switch watchers on selection change
     const lastWatchedSessionRef = useRef<string | null>(null)
+    useEffect(() => {
+        const cache = sessionSnapshotsRef.current
+        const seen = new Set<string>()
+        for (const session of allSessions) {
+            const snapshot = snapshotFromEnrichedSession(session)
+            cache.set(snapshot.sessionId, snapshot)
+            seen.add(snapshot.sessionId)
+        }
+        for (const key of Array.from(cache.keys())) {
+            if (!seen.has(key) && !sessionFetchPromisesRef.current.has(key)) {
+                cache.delete(key)
+            }
+        }
+    }, [allSessions])
+    const sessionSnapshotsRef = useRef(new Map<string, SessionSnapshot>())
+    const sessionFetchPromisesRef = useRef(new Map<string, Promise<SessionSnapshot | null>>())
 
     // Helper: finalize a selection change by removing the switching class and notifying listeners
     const finalizeSelectionChange = useCallback((sel: Selection) => {
@@ -136,6 +205,54 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
         }
     }, [projectPath])
+
+    const getCachedSessionSnapshot = useCallback((sessionId?: string | null): SessionSnapshot | null => {
+        if (!sessionId) return null
+        return sessionSnapshotsRef.current.get(sessionId) ?? null
+    }, [])
+
+    const ensureSessionSnapshot = useCallback(async (
+        sessionId?: string | null,
+        options: { refresh?: boolean } = {}
+    ): Promise<SessionSnapshot | null> => {
+        if (!sessionId) return null
+
+        if (!options.refresh) {
+            const cached = sessionSnapshotsRef.current.get(sessionId)
+            if (cached) return cached
+        } else {
+            sessionSnapshotsRef.current.delete(sessionId)
+        }
+
+        if (options.refresh) {
+            sessionFetchPromisesRef.current.delete(sessionId)
+        } else {
+            const inFlight = sessionFetchPromisesRef.current.get(sessionId)
+            if (inFlight) {
+                return inFlight
+            }
+        }
+
+        const fetchPromise = (async () => {
+            try {
+                const raw = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionId })
+                if (!raw) {
+                    return null
+                }
+                const snapshot = snapshotFromRawSession(raw)
+                sessionSnapshotsRef.current.set(sessionId, snapshot)
+                return snapshot
+            } catch (error) {
+                logger.warn('[SelectionContext] Failed to fetch session snapshot', error)
+                return null
+            } finally {
+                sessionFetchPromisesRef.current.delete(sessionId)
+            }
+        })()
+
+        sessionFetchPromisesRef.current.set(sessionId, fetchPromise)
+        return fetchPromise
+    }, [])
 
     const computeSessionParams = useCallback((sel: Selection) => {
         if (!projectPath) return null
@@ -241,72 +358,71 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             return ids
         }
 
-        // Always fetch session data to ensure we have the correct worktree path
+        const sessionId = sel.payload
+        if (!sessionId) {
+            setIsSpec(false)
+            return ids
+        }
+
+        let snapshot = getCachedSessionSnapshot(sessionId)
+        if (!snapshot) {
+            snapshot = await ensureSessionSnapshot(sessionId)
+        }
+
+        if (!snapshot) {
+            logger.warn('[SelectionContext] Missing session snapshot while ensuring terminals', { sessionId })
+            setIsSpec(false)
+            return ids
+        }
+
+        const isSpecSession = snapshot.sessionState === 'spec'
+        setIsSpec(isSpecSession)
+
+        if (isSpecSession) {
+            return ids
+        }
+
+        const worktreePath = snapshot.worktreePath
+        if (!worktreePath) {
+            logger.error(`[SelectionContext] Session ${sessionId} is running but has no worktree_path`)
+            return ids
+        }
+
         try {
-            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: sel.payload })
-            const state: string | undefined = sessionData?.session_state
-            const worktreePath: string | undefined = sessionData?.worktree_path
-            const isSpecSession = state === 'spec'
-            setIsSpec(!!isSpecSession)
-
-            if (isSpecSession) {
-                // Do not create terminals for specs
+            const exists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
+            if (!exists) {
+                logger.warn(`[SelectionContext] Worktree path does not exist for session ${sessionId}: ${worktreePath}`)
                 return ids
             }
 
-            // For running sessions, worktree_path must exist
-            if (!worktreePath) {
-                logger.error(`[SelectionContext] Session ${sel.payload} is not a spec but has no worktree_path`)
-                // Don't create terminals with incorrect working directory
+            const gitDir = `${worktreePath}/.git`
+            const hasGit = await invoke<boolean>(TauriCommands.PathExists, { path: gitDir })
+            if (!hasGit) {
+                logger.warn(`[SelectionContext] Worktree is not properly initialized for session ${sessionId}: ${worktreePath}`)
                 return ids
             }
+        } catch (_e) {
+            logger.warn(`[SelectionContext] Could not verify worktree path for session ${sessionId}:`, _e)
+            return ids
+        }
 
-            // Verify worktree directory exists and is valid before creating terminals
-            try {
-                const exists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
-                if (!exists) {
-                    logger.warn(`[SelectionContext] Worktree path does not exist for session ${sel.payload}: ${worktreePath}`)
-                    return ids
-                }
-                
-                // Additional check: ensure it's a valid git worktree
-                const gitDir = `${worktreePath}/.git`
-                const hasGit = await invoke<boolean>(TauriCommands.PathExists, { path: gitDir })
-                if (!hasGit) {
-                    logger.warn(`[SelectionContext] Worktree is not properly initialized for session ${sel.payload}: ${worktreePath}`)
-                    return ids
-                }
-            } catch (_e) {
-                logger.warn(`[SelectionContext] Could not verify worktree path for session ${sel.payload}:`, _e)
-                return ids
+        await createTerminal(ids.top, worktreePath)
+        await registerTerminalsForSelection([ids.top], sel)
+        try {
+            const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
+            if (legacyExists) {
+                await invoke(TauriCommands.CloseTerminal, { id: ids.bottomBase })
+                terminalsCreated.current.delete(ids.bottomBase)
             }
+        } catch (_e) {
+            logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sessionId}:`, _e)
+        }
 
-            await createTerminal(ids.top, worktreePath)
-            await registerTerminalsForSelection([ids.top], sel)
-            // Proactively close legacy base bottom terminals if they exist to avoid orphans
-            try {
-                const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
-                if (legacyExists) {
-                    await invoke(TauriCommands.CloseTerminal, { id: ids.bottomBase })
-                    terminalsCreated.current.delete(ids.bottomBase)
-                }
-            } catch (_e) {
-                logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sel.payload}:`, _e)
-            }
-            // Bottom terminals are managed by TerminalTabs (tabbed: -bottom-0, -bottom-1, ...)
-            // Do not create the base bottom terminal here to avoid orphan terminals
-            // Return TerminalSet with the correct working directory
-            return {
-                ...ids,
-                workingDirectory: worktreePath
-            }
-            } catch (_e) {
-                logger.error('[SelectionContext] Failed to inspect session state; not creating terminals for failed session lookup', _e)
-                setIsSpec(false)
-                // Don't create terminals if we can't determine session state
-                return ids
-            }
-    }, [getTerminalIds, createTerminal, projectPath, registerTerminalsForSelection])
+        return {
+            ...ids,
+            workingDirectory: worktreePath
+        }
+    }, [getTerminalIds, projectPath, createTerminal, registerTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot])
     
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
@@ -340,8 +456,12 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // For sessions, check if it still exists and worktree is valid
         if (remembered.kind === 'session' && remembered.payload) {
             try {
-                const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: remembered.payload })
-                const worktreePath = sessionData?.worktree_path || remembered.worktreePath
+                const snapshot = await ensureSessionSnapshot(remembered.payload)
+                if (!snapshot) {
+                    logger.info(`[SelectionContext] Session ${remembered.payload} could not be resolved, falling back to orchestrator`)
+                    return { kind: 'orchestrator' }
+                }
+                const worktreePath = snapshot.worktreePath || remembered.worktreePath
 
                 // Check if worktree directory still exists
                 if (worktreePath) {
@@ -363,7 +483,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     kind: 'session',
                     payload: remembered.payload,
                     worktreePath,
-                    sessionState: sessionData?.session_state
+                    sessionState: snapshot.sessionState
                 }
             } catch (error) {
                 logger.info(`[SelectionContext] Session ${remembered.payload} no longer exists, falling back to orchestrator`, error)
@@ -374,7 +494,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
 
         // Default fallback
         return { kind: 'orchestrator' }
-    }, [])
+    }, [ensureSessionSnapshot])
     
     // Clear terminal tracking and close terminals to prevent orphaned processes
     // Used when: 1) Switching projects (orchestrator IDs change), 2) Restarting orchestrator with new model
@@ -450,12 +570,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     let resolvedState = newSelection.sessionState
                     let resolvedWorktree = newSelection.worktreePath
                     if (!resolvedState || !resolvedWorktree) {
-                        try {
-                            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: newSelection.payload })
-                            resolvedState = resolvedState || (sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined)
-                            resolvedWorktree = resolvedWorktree || sessionData?.worktree_path
-                        } catch (e) {
-                            logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', e)
+                        const shouldForceRefresh = selection.kind === 'session' && selection.payload === newSelection.payload && newSelection.sessionState === undefined
+                        let snapshot = getCachedSessionSnapshot(newSelection.payload)
+                        if (!snapshot || shouldForceRefresh) {
+                            try {
+                                snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
+                            } catch (e) {
+                                logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', e)
+                            }
+                        }
+                        if (snapshot) {
+                            resolvedState = resolvedState || snapshot.sessionState
+                            resolvedWorktree = resolvedWorktree || snapshot.worktreePath
                         }
                     }
                     setIsSpec(resolvedState === 'spec')
@@ -519,12 +645,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     let resolvedState = newSelection.sessionState
                     let resolvedWorktree = newSelection.worktreePath
                     if (!resolvedState) {
-                        try {
-                            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: newSelection.payload })
-                            resolvedState = sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined
-                            resolvedWorktree = resolvedWorktree || sessionData?.worktree_path
-                        } catch (_e) {
-                            logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', _e)
+                        const shouldForceRefresh = selection.kind === 'session' && selection.payload === newSelection.payload && newSelection.sessionState === undefined
+                        let snapshot = getCachedSessionSnapshot(newSelection.payload)
+                        if (!snapshot || shouldForceRefresh) {
+                            try {
+                                snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
+                            } catch (_e) {
+                                logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', _e)
+                            }
+                        }
+                        if (snapshot) {
+                            resolvedState = snapshot.sessionState
+                            resolvedWorktree = resolvedWorktree || snapshot.worktreePath
                         }
                     }
                     setIsSpec(resolvedState === 'spec')
@@ -661,7 +793,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             }
             if (!isAuto) userSelectionInFlightRef.current = false
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot])
 
     // Start a lightweight backend watcher for the currently selected running session
     useEffect(() => {
@@ -713,12 +845,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         let unlisten: (() => void) | null = null
         const attach = async () => {
             try {
-                unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async () => {
+                unlisten = await listenEvent(SchaltEvent.SessionsRefreshed, async (updatedSessions) => {
                     if (selection.kind !== 'session' || !selection.payload) return
                     try {
-                        const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: selection.payload })
-                        const state: string | undefined = sessionData?.session_state
-                        const worktreePath: string | undefined = sessionData?.worktree_path
+                        let snapshot: SessionSnapshot | null = null
+                        if (Array.isArray(updatedSessions)) {
+                            const refreshed = updatedSessions.find((s) => s.info.session_id === selection.payload)
+                            if (refreshed) {
+                                snapshot = snapshotFromEnrichedSession(refreshed)
+                                sessionSnapshotsRef.current.set(selection.payload, snapshot)
+                            }
+                        }
+                        if (!snapshot) {
+                            snapshot = await ensureSessionSnapshot(selection.payload, { refresh: false })
+                        }
+                        const state = snapshot?.sessionState
+                        const worktreePath = snapshot?.worktreePath
                         const nowSpec = state === 'spec'
                         const wasSpec = isSpec
 
@@ -730,7 +872,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                             // Session became running - update the selection's sessionState
                             const updatedSelection = {
                                 ...selection,
-                                sessionState: state as 'spec' | 'running' | 'reviewed' | undefined,
+                                sessionState: state,
                                 worktreePath: worktreePath || selection.worktreePath
                             }
                             setSelectionState(updatedSelection)
@@ -777,7 +919,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         return () => { try { if (unlisten) unlisten() } catch {
             // Cleanup failed, ignore
         } }
-    }, [selection, ensureTerminals, getTerminalIds, isSpec])
+    }, [selection, ensureTerminals, getTerminalIds, isSpec, ensureSessionSnapshot])
     
     // Initialize on mount and when project path changes
     useEffect(() => {
@@ -874,16 +1016,20 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     // and the sidebar filter is set to Running. This avoids jumping away from terminals
                     // when a new spec is created by MCP/background.
                     if (target?.kind === 'session') {
+                        let resolvedSnapshot: SessionSnapshot | null = null
                         let targetIsSpec = target.sessionState === 'spec'
 
                         // If the event didn't include sessionState, resolve it
                         if (target.sessionState === undefined) {
-                            try {
-                                const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: target.payload })
-                                targetIsSpec = sessionData?.session_state === 'spec'
-                            } catch (_e) {
-                                logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', _e)
+                            resolvedSnapshot = getCachedSessionSnapshot(target.payload)
+                            if (!resolvedSnapshot) {
+                                try {
+                                    resolvedSnapshot = await ensureSessionSnapshot(target.payload)
+                                } catch (_e) {
+                                    logger.warn('[SelectionContext] Failed to resolve session state for backend selection event:', _e)
+                                }
                             }
+                            targetIsSpec = resolvedSnapshot?.sessionState === 'spec'
                         }
 
                         // If currently on a running session and filter hides specs, ignore spec selection
@@ -906,15 +1052,20 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                     }
                     // Augment target with resolved state/worktree for determinism
                     if (target?.kind === 'session' && target.payload && target.sessionState === undefined) {
-                        try {
-                            const sessionData = await invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: target.payload })
+                        let snapshot = getCachedSessionSnapshot(target.payload)
+                        if (!snapshot) {
+                            try {
+                                snapshot = await ensureSessionSnapshot(target.payload)
+                            } catch (_e) {
+                                logger.warn('[SelectionContext] Failed to resolve state for backend selection event:', _e)
+                            }
+                        }
+                        if (snapshot) {
                             target = {
                                 ...target,
-                                sessionState: sessionData?.session_state as 'spec' | 'running' | 'reviewed' | undefined,
-                                worktreePath: sessionData?.worktree_path || target.worktreePath
+                                sessionState: snapshot.sessionState,
+                                worktreePath: snapshot.worktreePath || target.worktreePath
                             }
-                        } catch (_e) {
-                            logger.warn('[SelectionContext] Failed to resolve state for backend selection event:', _e)
                         }
                     }
                     // Set the selection to the requested session/spec - this is intentional (backend requested)
@@ -932,7 +1083,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 unlisten()
             }
         }
-    }, [setSelection, selection, isSpec, filterMode, isAnyModalOpen])
+    }, [setSelection, selection, isSpec, filterMode, isAnyModalOpen, getCachedSessionSnapshot, ensureSessionSnapshot])
 
     // When modals close, apply any deferred selection
     useEffect(() => {
