@@ -487,15 +487,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
                 }
             } else {
-                // In tests or when container isn't ready, use default dimensions
-                logger.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
-                try {
-                    // Set reasonable default dimensions for tests and edge cases
-                    terminal.current.resize(80, 24);
-                    lastSize.current = { cols: 80, rows: 24 };
-                } catch (e) {
-                    logger.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
-                }
+                // Container is not measurable yet; defer to resize observer without warning during expected startup jitter
+                logger.debug(`[Terminal ${terminalId}] Initial fit deferred; container not measurable yet (${containerWidth}x${containerHeight})`);
+                return;
             }
         };
         
