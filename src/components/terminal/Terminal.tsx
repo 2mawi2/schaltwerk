@@ -36,6 +36,7 @@ interface TerminalProps {
     onTerminalClick?: () => void;
     isBackground?: boolean;
     onReady?: () => void;
+    inputFilter?: (data: string) => boolean;
 }
 
 export interface TerminalHandle {
@@ -44,7 +45,7 @@ export interface TerminalHandle {
     scrollToBottom: () => void;
 }
 
-export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady }, ref) => {
+export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId, className = '', sessionName, isCommander = false, agentType, readOnly = false, onTerminalClick, isBackground = false, onReady, inputFilter }, ref) => {
     const { terminalFontSize } = useFontSize();
     const { addEventListener, addResizeObserver } = useCleanupRegistry();
     const { isAnyModalOpen } = useModal();
@@ -99,6 +100,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Drag-selection suppression for run terminals
     const suppressNextClickRef = useRef<boolean>(false);
     const mouseDownPosRef = useRef<{ x: number; y: number } | null>(null);
+    const dragSelectingRef = useRef<boolean>(false);
+    const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
 
     // Write queue helpers shared across effects (agent terminals get larger buffers)
@@ -110,6 +113,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Selection-aware autoscroll helpers (run terminal: avoid jumping while user selects text)
     const isUserSelectingInTerminal = useCallback((): boolean => {
         try {
+            if (terminal.current && typeof terminal.current.hasSelection === 'function') {
+                if (terminal.current.hasSelection()) return true;
+            }
             const sel = typeof window !== 'undefined' ? window.getSelection() : null;
             if (!sel || sel.isCollapsed) return false;
             const anchor = sel.anchorNode;
@@ -124,7 +130,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
     const shouldAutoScroll = useCallback((wasAtBottom: boolean) => {
         if (!wasAtBottom) return false;
-        if (agentType === 'run' && isUserSelectingInTerminal()) return false;
+        if (agentType === 'run') {
+            if (dragSelectingRef.current) return false;
+            if (selectionActiveRef.current) return false;
+            if (isUserSelectingInTerminal()) return false;
+        }
         return true;
     }, [agentType, isUserSelectingInTerminal]);
 
@@ -1075,6 +1085,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Send input to backend (disabled for readOnly terminals)
         if (!readOnly) {
             terminal.current.onData((data) => {
+                if (inputFilter && !inputFilter(data)) {
+                    if (termDebug()) {
+                        logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
+                    }
+                    return;
+                }
                 invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
             });
         }
@@ -1237,7 +1253,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal, scheduleInitialFitRetry]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal, scheduleInitialFitRetry, inputFilter]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1516,6 +1532,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const onMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         mouseDownPosRef.current = { x: e.clientX, y: e.clientY };
         suppressNextClickRef.current = false;
+        dragSelectingRef.current = false;
     };
     const onMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
         if (!mouseDownPosRef.current) return;
@@ -1523,16 +1540,33 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const dy = Math.abs(e.clientY - mouseDownPosRef.current.y);
         if (dx + dy > 3) {
             suppressNextClickRef.current = true;
+            dragSelectingRef.current = true;
         }
     };
     const onMouseUp = () => {
         // Keep suppressNextClickRef until click handler runs; then it resets there
         mouseDownPosRef.current = null;
+        requestAnimationFrame(() => {
+            selectionActiveRef.current = isUserSelectingInTerminal();
+            if (!selectionActiveRef.current) {
+                dragSelectingRef.current = false;
+            }
+        });
     };
+    useEffect(() => {
+        const handleSelectionChange = () => {
+            selectionActiveRef.current = isUserSelectingInTerminal();
+            if (!selectionActiveRef.current) {
+                dragSelectingRef.current = false;
+            }
+        };
+        document.addEventListener('selectionchange', handleSelectionChange);
+        return () => document.removeEventListener('selectionchange', handleSelectionChange);
+    }, [isUserSelectingInTerminal]);
 
     return (
         <div ref={containerRef} className={`h-full w-full relative overflow-hidden px-2 ${className}`} onClick={handleTerminalClick} onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp} data-smartdash-exempt="true">
-            <div ref={termRef} className="h-full w-full overflow-hidden" />
+            <div ref={termRef} className="h-full w-full overflow-hidden" style={readOnly ? { WebkitUserSelect: 'text', userSelect: 'text' } : undefined} />
             {(!hydrated || agentLoading) && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background-secondary z-20">
                     <AnimatedText

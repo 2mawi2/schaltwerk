@@ -1058,7 +1058,6 @@ export function TerminalGrid() {
                                             ref={(ref) => { if (ref) runTerminalRefs.current.set('orchestrator', ref) }}
                                             className="h-full w-full overflow-hidden"
                                             sessionName={undefined}
-                                            isCommander={true}
                                             onTerminalClick={handleTerminalClick}
                                             workingDirectory={terminals.workingDirectory}
                                             onRunningStateChange={(isRunning) => {
@@ -1090,7 +1089,6 @@ export function TerminalGrid() {
                                                 ref={(ref) => { if (ref) runTerminalRefs.current.set(sessionId, ref) }}
                                                 className="h-full w-full overflow-hidden"
                                                 sessionName={sessionId}
-                                                isCommander={false}
                                                 onTerminalClick={handleTerminalClick}
                                                 workingDirectory={active.info.worktree_path}
                                                 onRunningStateChange={(isRunning) => {

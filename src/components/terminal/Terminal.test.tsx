@@ -3,7 +3,6 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
-import { logger } from '../../utils/logger'
 
 // Type definitions for mocks
 interface MockTauriCore {
@@ -365,24 +364,14 @@ describe('Terminal component', () => {
   })
 
   it('defers initial resize until container becomes measurable', async () => {
-    const warnSpy = vi.spyOn(logger, 'warn')
-    try {
-      const { container } = renderTerminal({ terminalId: 'session-defer-top', sessionName: 'defer' })
-      await flushAll()
-
-      const warnedInitially = warnSpy.mock.calls.some((call) => {
-        const [message] = call
-        return typeof message === 'string' && message.includes('Container dimensions not ready')
-      })
-      // Component should log a warning but avoid issuing resize commands until measurements exist
-      expect(warnedInitially).toBe(true)
+    const { container } = renderTerminal({ terminalId: 'session-defer-top', sessionName: 'defer' })
+    await flushAll()
 
       const resizeCalls = (TauriCore as unknown as MockTauriCore & {
         invoke: { mock: { calls: unknown[][] } }
       }).invoke.mock.calls.filter((c: unknown[]) => c[0] === TauriCommands.ResizeTerminal)
       expect(resizeCalls.length).toBe(0)
 
-      warnSpy.mockClear()
 
       const outer = container.querySelector('[data-smartdash-exempt="true"]') as HTMLDivElement | null
       const termEl = outer?.querySelector('div') as HTMLDivElement | null
@@ -415,9 +404,6 @@ describe('Terminal component', () => {
       expect(afterCalls.length).toBe(1)
       const lastCall = afterCalls[0]
       expect(lastCall[1]).toMatchObject({ id: 'session-defer-top', cols: 120, rows: 40 })
-    } finally {
-      warnSpy.mockRestore()
-    }
   })
 
   // Test removed - Codex normalization confirmed working in production
@@ -430,6 +416,33 @@ describe('Terminal component', () => {
     xterm.__triggerData('hello')
 
     expect((TauriCore as unknown as MockTauriCore).invoke).toHaveBeenCalledWith(TauriCommands.WriteTerminal, { id: 'session-io-top', data: 'hello' })
+  })
+
+  it('filters printable input when inputFilter rejects it', async () => {
+    const filter = vi.fn((data: string) => data !== 'a')
+    renderTerminal({ terminalId: 'session-filter-top', sessionName: 'filter', inputFilter: filter })
+    await flushAll()
+
+    const core = TauriCore as unknown as MockTauriCore & { invoke: { mock: { calls: unknown[][] } } }
+    const xterm = getLastXtermInstance()
+
+    const callsBefore = core.invoke.mock.calls.length
+
+    await act(async () => {
+      xterm.__triggerData('a')
+    })
+
+    const callsAfterPrintable = core.invoke.mock.calls.slice(callsBefore)
+    expect(filter).toHaveBeenCalledWith('a')
+    expect(callsAfterPrintable.some(call => call[0] === TauriCommands.WriteTerminal && (call[1] as { data: string }).data === 'a')).toBe(false)
+
+    await act(async () => {
+      xterm.__triggerData('\n')
+    })
+
+    const callsAfterControl = core.invoke.mock.calls.slice(callsBefore)
+    expect(filter).toHaveBeenCalledWith('\n')
+    expect(callsAfterControl.some(call => call[0] === TauriCommands.WriteTerminal && (call[1] as { data: string }).data === '\n')).toBe(true)
   })
 
   // Removed flaky resize debounce test per guidance

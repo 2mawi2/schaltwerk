@@ -38,7 +38,7 @@ function Wrapper() {
   const ref = useRef<RunTerminalHandle>(null)
   return (
     <div>
-      <RunTerminal ref={ref} className="h-40" sessionName="test" isCommander={false} onRunningStateChange={() => {}} />
+      <RunTerminal ref={ref} className="h-40" sessionName="test" onRunningStateChange={() => {}} />
       <button onClick={() => ref.current?.toggleRun()}>toggle</button>
     </div>
   )
