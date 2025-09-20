@@ -325,6 +325,8 @@ async fn start_spec_session(
     let base_branch = payload["base_branch"].as_str().map(|s| s.to_string());
     let agent_type = payload["agent_type"].as_str();
     let skip_permissions = payload["skip_permissions"].as_bool();
+    let version_group_id = payload["version_group_id"].as_str().map(|s| s.to_string());
+    let version_number = payload["version_number"].as_i64().map(|n| n as i32);
 
     let core = match get_schaltwerk_core().await {
         Ok(c) => c,
@@ -344,6 +346,8 @@ async fn start_spec_session(
     match manager.start_spec_session_with_config(
         name,
         base_branch.as_deref(),
+        version_group_id.as_deref(),
+        version_number,
         agent_type,
         skip_permissions,
     ) {

@@ -305,7 +305,14 @@ mod service_unified_tests {
             .unwrap();
 
         manager
-            .start_spec_session_with_config(spec_name, None, Some("codex"), Some(true))
+            .start_spec_session_with_config(
+                spec_name,
+                None,
+                None,
+                None,
+                Some("codex"),
+                Some(true),
+            )
             .unwrap();
 
         // Fetch running session to start agent
@@ -372,6 +379,63 @@ mod service_unified_tests {
         } else {
             std::env::remove_var("HOME");
         }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_start_spec_with_config_preserves_version_group_metadata() {
+        use std::process::Command;
+        let (manager, temp_dir) = create_test_session_manager();
+
+        let repo = temp_dir.path().join("repo");
+        Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["config", "user.name", "Test User"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("README.md"), "Initial").unwrap();
+        Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let spec_name = "codex_spec_group";
+        manager
+            .create_spec_session(spec_name, "Spec content")
+            .unwrap();
+
+        let group_id = "version-group-123";
+
+        manager
+            .start_spec_session_with_config(
+                spec_name,
+                None,
+                Some(group_id),
+                Some(1),
+                Some("codex"),
+                Some(false),
+            )
+            .unwrap();
+
+        let running = manager.db_manager.get_session_by_name(spec_name).unwrap();
+        assert_eq!(running.version_group_id.as_deref(), Some(group_id));
+        assert_eq!(running.version_number, Some(1));
     }
 
     #[test]
@@ -1764,6 +1828,8 @@ impl SessionManager {
         &self,
         session_name: &str,
         base_branch: Option<&str>,
+        version_group_id: Option<&str>,
+        version_number: Option<i32>,
         agent_type: Option<&str>,
         skip_permissions: Option<bool>,
     ) -> Result<()> {
@@ -1786,7 +1852,7 @@ impl SessionManager {
         }
 
         // Start the draft session
-        self.start_spec_session(session_name, base_branch, None, None)?;
+        self.start_spec_session(session_name, base_branch, version_group_id, version_number)?;
         Ok(())
     }
 

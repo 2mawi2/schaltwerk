@@ -1594,8 +1594,8 @@ pub async fn schaltwerk_core_start_spec_session(
     app: tauri::AppHandle,
     name: String,
     base_branch: Option<String>,
-    _version_group_id: Option<String>,
-    _version_number: Option<i32>,
+    version_group_id: Option<String>,
+    version_number: Option<i32>,
     agent_type: Option<String>,
     skip_permissions: Option<bool>,
 ) -> Result<(), String> {
@@ -1609,6 +1609,8 @@ pub async fn schaltwerk_core_start_spec_session(
         .start_spec_session_with_config(
             &name,
             base_branch.as_deref(),
+            version_group_id.as_deref(),
+            version_number,
             agent_type.as_deref(),
             skip_permissions,
         )
