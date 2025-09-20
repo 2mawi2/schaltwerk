@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, MouseEvent as ReactMouseEvent, useMemo, useRef } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
@@ -135,8 +135,23 @@ vi.mock('./Terminal', () => {
 // Mock TerminalTabs to work with the mount counting system
 vi.mock('./TerminalTabs', () => {
   let lastFocusedTerminalId: string | null = null
-  const TerminalTabsMock = forwardRef<MockTerminalTabsRef, { baseTerminalId: string; isCommander?: boolean }>(function TerminalTabsMock(props, ref) {
-    const { baseTerminalId, isCommander } = props
+  const tabFunctionStore = new Map<string, { addTab: ReturnType<typeof vi.fn>; closeTab: ReturnType<typeof vi.fn>; setActiveTab: ReturnType<typeof vi.fn> }>()
+
+  const getOrCreateTabFns = (terminalId: string) => {
+    let entry = tabFunctionStore.get(terminalId)
+    if (!entry) {
+      entry = {
+        addTab: vi.fn(),
+        closeTab: vi.fn(),
+        setActiveTab: vi.fn()
+      }
+      tabFunctionStore.set(terminalId, entry)
+    }
+    return entry
+  }
+
+  const TerminalTabsMock = forwardRef<MockTerminalTabsRef, { baseTerminalId: string; isCommander?: boolean; onTerminalClick?: (event: ReactMouseEvent) => void }>(function TerminalTabsMock(props, ref) {
+    const { baseTerminalId, isCommander, onTerminalClick } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
     const focus = vi.fn()
@@ -152,6 +167,8 @@ vi.mock('./TerminalTabs', () => {
     }, [terminalId, focus])
 
     const focusTerminal = vi.fn((tid?: string) => { lastFocusedTerminalId = tid || null })
+    const tabFns = getOrCreateTabFns(terminalId)
+
     useImperativeHandle(ref, () => ({ 
       focus,
       focusTerminal,
@@ -160,15 +177,12 @@ vi.mock('./TerminalTabs', () => {
         activeTab: 0,
         canAddTab: true
       }),
-      getTabFunctions: () => ({
-        addTab: vi.fn(),
-        closeTab: vi.fn(),
-        setActiveTab: vi.fn()
-      })
-    }), [focus, terminalId, focusTerminal])
+      getTabFunctions: () => tabFns
+    }), [focus, terminalId, focusTerminal, tabFns])
 
-    const handleClick = () => {
+    const handleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
       focus()
+      onTerminalClick?.(event)
     }
 
     return (
@@ -186,7 +200,8 @@ vi.mock('./TerminalTabs', () => {
   
   return {
     TerminalTabs: TerminalTabsMock,
-    __getLastFocusedTerminalId: () => lastFocusedTerminalId
+    __getLastFocusedTerminalId: () => lastFocusedTerminalId,
+    __getTabFunctions: (id: string) => tabFunctionStore.get(id)
   }
 })
 
@@ -195,33 +210,63 @@ const runTerminalRefs = new Map<string, MockRunTerminalRef>()
 const runTerminalStates = new Map<string, boolean>()
 
 vi.mock('./RunTerminal', () => {
-  const RunTerminalMock = forwardRef<MockRunTerminalRef, { sessionName?: string; onRunningStateChange?: (running: boolean) => void }>(function RunTerminalMock(props, ref) {
-    const { sessionName, onRunningStateChange } = props
+  const RunTerminalMock = forwardRef<MockRunTerminalRef, { sessionName?: string; onRunningStateChange?: (running: boolean) => void; onTerminalClick?: (event: ReactMouseEvent<HTMLDivElement>) => void }>(function RunTerminalMock(props, ref) {
+    const { sessionName, onRunningStateChange, onTerminalClick } = props
     const sessionKey = sessionName || 'orchestrator'
-    
-    useImperativeHandle(ref, () => ({
-      toggleRun: vi.fn(() => {
+    const onRunningStateChangeRef = useRef(onRunningStateChange)
+    useEffect(() => {
+      onRunningStateChangeRef.current = onRunningStateChange
+    }, [onRunningStateChange])
+
+    const toggleRunRef = useRef<ReturnType<typeof vi.fn> | null>(null)
+    if (!toggleRunRef.current) {
+      toggleRunRef.current = vi.fn(() => {
         const currentState = runTerminalStates.get(sessionKey) || false
         runTerminalStates.set(sessionKey, !currentState)
-        onRunningStateChange?.(!currentState)
-      }),
-      isRunning: () => runTerminalStates.get(sessionKey) || false
-    }), [sessionKey, onRunningStateChange])
-    
+        onRunningStateChangeRef.current?.(!currentState)
+      })
+    }
+
+    const toggleRun = toggleRunRef.current!
+
+    const handle = useMemo<MockRunTerminalRef>(() => ({
+      toggleRun,
+      isRunning: () => runTerminalStates.get(sessionKey) || false,
+    }), [toggleRun, sessionKey])
+
+    useImperativeHandle(ref, () => handle, [handle])
+
     useEffect(() => {
-      if (ref && typeof ref === 'object' && 'current' in ref && ref.current) {
-        runTerminalRefs.set(sessionKey, ref.current)
-      }
+      runTerminalRefs.set(sessionKey, handle)
       return () => {
         runTerminalRefs.delete(sessionKey)
       }
-    }, [sessionKey, ref])
-    
-    return <div data-testid={`run-terminal-${sessionKey}`}>Run Terminal {sessionKey}</div>
+    }, [sessionKey, handle])
+
+    return (
+      <div
+        data-testid={`run-terminal-${sessionKey}`}
+        onClick={event => onTerminalClick?.(event)}
+      >
+        Run Terminal {sessionKey}
+      </div>
+    )
   })
   
   return { RunTerminal: RunTerminalMock }
 })
+
+const loadRunScriptConfigurationMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    hasRunScripts: false,
+    shouldActivateRunMode: false,
+    savedActiveTab: null,
+  }))
+) as ReturnType<typeof vi.fn>
+
+vi.mock('../../utils/runScriptLoader', () => ({
+  loadRunScriptConfiguration: loadRunScriptConfigurationMock,
+}))
 
 // Mock Tauri core invoke used by SelectionContext (providers in tests)
 vi.mock('@tauri-apps/api/core', () => ({
@@ -271,8 +316,16 @@ beforeEach(() => {
   vi.useFakeTimers()
   mountCount.clear()
   unmountCount.clear()
+  runTerminalRefs.clear()
+  runTerminalStates.clear()
   // Don't clear focusSpies here - let components register them after mounting
   vi.clearAllMocks()
+  sessionStorage.clear()
+  loadRunScriptConfigurationMock.mockResolvedValue({
+    hasRunScripts: false,
+    shouldActivateRunMode: false,
+    savedActiveTab: null,
+  })
 
   mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
     switch (command) {
@@ -523,6 +576,8 @@ describe('TerminalGrid', () => {
         expect(bridge?.isReady).toBe(true)
       }, { timeout: 3000 })
 
+      if (!bridge) throw new Error('bridge not initialized')
+
       // Initially the + button should be visible
       expect(screen.getByTitle('Add new terminal')).toBeInTheDocument()
 
@@ -668,9 +723,69 @@ describe('TerminalGrid', () => {
         expect(screen.queryByText('Terminal 2')).not.toBeInTheDocument()
       }, { timeout: 3000 })
     })
+
+    it('invokes tab function callbacks when tabs are added, selected, and closed', async () => {
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(bridge).toBeDefined()
+        expect(bridge?.isReady).toBe(true)
+      }, { timeout: 3000 })
+
+      if (!bridge) throw new Error('bridge not initialized')
+
+      const addButton = screen.getByTitle('Add new terminal')
+      fireEvent.click(addButton)
+
+      await screen.findByText('Terminal 2', {}, { timeout: 3000 })
+
+      const bottomTerminalId = bridge.terminals.bottomBase.includes('orchestrator')
+        ? `${bridge.terminals.bottomBase}-0`
+        : bridge.terminals.bottomBase
+      const tabModule = TerminalTabsModule as unknown as { __getTabFunctions?: (id: string) => { addTab: ReturnType<typeof vi.fn>; closeTab: ReturnType<typeof vi.fn>; setActiveTab: ReturnType<typeof vi.fn> } }
+      const tabFns = tabModule.__getTabFunctions?.(bottomTerminalId)
+      expect(tabFns).toBeDefined()
+      expect(tabFns?.addTab).toHaveBeenCalledTimes(1)
+
+      const terminalTwoTab = await screen.findByText('Terminal 2', {}, { timeout: 3000 })
+      fireEvent.click(terminalTwoTab)
+      expect(tabFns?.setActiveTab).toHaveBeenCalledWith(1)
+
+      const closeTerminalTwo = await screen.findByTitle('Close Terminal 2', {}, { timeout: 3000 })
+      fireEvent.click(closeTerminalTwo)
+      expect(tabFns?.closeTab).toHaveBeenCalledWith(1)
+    })
   })
 
   describe('Terminal Minimization', () => {
+    it('initializes split sizes from sessionStorage entries with sensible fallbacks', async () => {
+      sessionStorage.setItem('schaltwerk:terminal-grid:sizes:orchestrator', 'not-json')
+      sessionStorage.setItem('schaltwerk:terminal-grid:collapsed:orchestrator', 'true')
+      sessionStorage.setItem('schaltwerk:terminal-grid:lastExpandedBottom:orchestrator', '200')
+
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(bridge).toBeDefined()
+        expect(bridge?.isReady).toBe(true)
+      }, { timeout: 3000 })
+
+      const split = screen.getByTestId('split')
+      expect(split.getAttribute('data-sizes')).toBe(JSON.stringify([90, 10]))
+
+      const expandButton = screen.getByLabelText('Expand terminal panel')
+      fireEvent.click(expandButton)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Collapse terminal panel')).toBeInTheDocument()
+      })
+
+      const expandedSizesAttr = screen.getByTestId('split').getAttribute('data-sizes')
+      expect(expandedSizesAttr).toBe(JSON.stringify([72, 28]))
+    })
+
     it('toggles terminal collapse state correctly', async () => {
       renderGrid()
       vi.useRealTimers()
@@ -977,6 +1092,177 @@ describe('TerminalGrid', () => {
     })
   })
 
+  describe('Run Mode Shortcuts and Controls', () => {
+    it('activates run mode via Cmd+E, toggles the run terminal, and returns focus with Cmd+/', async () => {
+      loadRunScriptConfigurationMock.mockResolvedValue({
+        hasRunScripts: true,
+        shouldActivateRunMode: false,
+        savedActiveTab: null,
+      })
+
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(bridge).toBeDefined()
+        expect(bridge?.isReady).toBe(true)
+      }, { timeout: 3000 })
+
+      await waitFor(() => {
+        expect(loadRunScriptConfigurationMock).toHaveBeenCalled()
+      })
+
+      const activeBridge = bridge
+      if (!activeBridge) {
+        throw new Error('bridge not initialized')
+      }
+
+      const rafQueue: FrameRequestCallback[] = []
+      const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
+        rafQueue.push(cb)
+        return rafQueue.length as unknown as number
+      })
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
+        if (rafQueue[id - 1]) {
+          rafQueue[id - 1] = () => {}
+        }
+      })
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: 'e', metaKey: true })
+      })
+
+      await screen.findByTestId('run-terminal-orchestrator')
+
+      expect(sessionStorage.getItem('schaltwerk:run-mode:orchestrator')).toBe('true')
+
+      await waitFor(() => {
+        expect(runTerminalRefs.get('orchestrator')).toBeDefined()
+      })
+
+      while (rafQueue.length) {
+        const cb = rafQueue.shift()
+        cb?.(performance.now())
+      }
+
+      expect(runTerminalStates.get('orchestrator')).toBe(true)
+
+      const stopButton = await screen.findByRole('button', { name: /Stop\s+⌘E/i })
+      await act(async () => {
+        fireEvent.click(stopButton)
+      })
+      expect(runTerminalStates.get('orchestrator')).toBe(false)
+
+      await act(async () => {
+        fireEvent.keyDown(document, { key: '/', metaKey: true })
+      })
+
+      while (rafQueue.length) {
+        const cb = rafQueue.shift()
+        cb?.(performance.now())
+      }
+
+      const activeTabKey = 'schaltwerk:active-tab:orchestrator'
+      expect(sessionStorage.getItem(activeTabKey)).toBe('0')
+
+      const bottomId = activeBridge.terminals.bottomBase.includes('orchestrator')
+        ? `${activeBridge.terminals.bottomBase}-0`
+        : activeBridge.terminals.bottomBase
+      const terminalModule = (await import('./Terminal')) as unknown as MockTerminalModule
+      expect(terminalModule.__getFocusSpy(bottomId)).toHaveBeenCalled()
+
+      const runModeButton = await screen.findByRole('button', { name: /Run\s+⌘E/i })
+      await act(async () => {
+        fireEvent.click(runModeButton)
+      })
+
+      await waitFor(() => {
+        expect(rafQueue.length).toBeGreaterThan(0)
+      })
+
+      while (rafQueue.length) {
+        const cb = rafQueue.shift()
+        cb?.(performance.now())
+      }
+      expect(runTerminalStates.get('orchestrator')).toBe(true)
+
+      rafSpy.mockRestore()
+      cancelSpy.mockRestore()
+    })
+  })
+
+  describe('Panel interactions and resize events', () => {
+    it('expands collapsed panel on terminal click and emits resize notifications', async () => {
+      loadRunScriptConfigurationMock.mockResolvedValue({
+        hasRunScripts: true,
+        shouldActivateRunMode: true,
+        savedActiveTab: -1,
+      })
+
+      renderGrid()
+      vi.useRealTimers()
+
+      await waitFor(() => {
+        expect(bridge).toBeDefined()
+        expect(bridge?.isReady).toBe(true)
+      }, { timeout: 3000 })
+
+      await waitFor(() => {
+        expect(loadRunScriptConfigurationMock).toHaveBeenCalled()
+      })
+
+      if (!bridge) throw new Error('bridge not initialized')
+
+      const runTerminal = await screen.findByTestId('run-terminal-orchestrator')
+
+      const collapseButton = screen.getByLabelText('Collapse terminal panel')
+      fireEvent.click(collapseButton)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Expand terminal panel')).toBeInTheDocument()
+      })
+
+      fireEvent.click(runTerminal)
+
+      await waitFor(() => {
+        expect(screen.getByLabelText('Collapse terminal panel')).toBeInTheDocument()
+      })
+
+      const bottomId = bridge.terminals.bottomBase.includes('orchestrator')
+        ? `${bridge.terminals.bottomBase}-0`
+        : bridge.terminals.bottomBase
+      const terminalModule = (await import('./Terminal')) as unknown as MockTerminalModule
+      expect(terminalModule.__getFocusSpy(bottomId)).toHaveBeenCalled()
+
+      const topHeader = screen.getByText('Orchestrator — main repo')
+      const topPanel = topHeader.closest('div')?.parentElement?.parentElement as HTMLDivElement | null
+      expect(topPanel).not.toBeNull()
+      if (!topPanel) throw new Error('top panel not found')
+
+      fireEvent.transitionEnd(topPanel, { propertyName: 'height', bubbles: true })
+
+      const splitMod = await import('react-split') as unknown as {
+        __getLastProps?: () => {
+          onDragStart?: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
+          onDragEnd?: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
+        }
+      }
+      const splitProps = splitMod.__getLastProps?.()
+      expect(splitProps).toBeTruthy()
+      if (!splitProps?.onDragEnd || !splitProps.onDragStart) throw new Error('split mock props missing')
+
+      const dragStartEvent = new MouseEvent('mousedown')
+      const dragEndEvent = new MouseEvent('mouseup')
+      splitProps.onDragStart([60, 40], 1, dragStartEvent)
+      splitProps.onDragEnd([60, 40], 1, dragEndEvent)
+
+      await waitFor(() => {
+        expect(screen.getByTestId('split').getAttribute('data-sizes')).toBe(JSON.stringify([60, 40]))
+      })
+      expect(document.body.classList.contains('is-split-dragging')).toBe(false)
+    })
+  })
+
   it('focuses the specific terminal on focus request and on terminal-ready', async () => {
     renderGrid()
     vi.useRealTimers()
@@ -996,6 +1282,10 @@ describe('TerminalGrid', () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal', { detail: { terminalId: bottomId, focusType: 'terminal' } }))
     })
 
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(null)))
+    })
+
     // Our mock records the last focused terminal id via focusTerminal
     const getLastFocused = (TerminalTabsModule as unknown as { __getLastFocusedTerminalId: () => string | null }).__getLastFocusedTerminalId
     await waitFor(() => {
@@ -1006,6 +1296,10 @@ describe('TerminalGrid', () => {
     act(() => {
       // Reset internal marker by issuing a bogus focus to null
       window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', { detail: { terminalId: bottomId } }))
+    })
+
+    await act(async () => {
+      await new Promise(resolve => requestAnimationFrame(() => resolve(null)))
     })
 
     await waitFor(() => {
@@ -1023,12 +1317,16 @@ describe('TerminalGrid', () => {
     }, { timeout: 3000 })
 
     // Access the mocked Split props to trigger onDragStart manually
-    const splitMod = await import('react-split') as unknown as { __getLastProps?: () => { onDragStart: () => void } }
+    const splitMod = await import('react-split') as unknown as {
+      __getLastProps?: () => {
+        onDragStart: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
+      }
+    }
     const props = splitMod.__getLastProps?.() || null
     expect(props).toBeTruthy()
     // Start dragging (adds body class)
     if (!props) throw new Error('react-split mock props missing')
-    props.onDragStart()
+    props.onDragStart([72, 28], 0, new MouseEvent('mousedown'))
     expect(document.body.classList.contains('is-split-dragging')).toBe(true)
 
     // Simulate a global pointerup that would happen outside the gutter

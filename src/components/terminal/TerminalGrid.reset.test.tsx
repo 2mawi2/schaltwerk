@@ -65,4 +65,28 @@ describe('TerminalGrid reset button (session header)', () => {
       expect(mockedInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName: 'demo-session' })
     })
   })
+
+  it('allows canceling the reset dialog without invoking the backend', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockedInvoke = vi.mocked(invoke)
+    mockedInvoke.mockClear()
+
+    render(
+      <TestProviders>
+        <SelectionBridge />
+        <TerminalGrid />
+      </TestProviders>
+    )
+
+    await waitFor(() => expect(screen.getByText(/Agent — demo-session/)).toBeInTheDocument())
+
+    fireEvent.click(screen.getByRole('button', { name: /reset session/i }))
+    fireEvent.click(screen.getByRole('button', { name: /cancel/i }))
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Reset Session Worktree/)).not.toBeInTheDocument()
+    })
+
+    expect(mockedInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetSessionWorktree, expect.anything())
+  })
 })
