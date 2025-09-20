@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
-import { TERMINAL_RESET_EVENT, TerminalResetDetail } from '../types/terminalEvents'
+import { TerminalResetDetail, createTerminalResetEvent } from '../types/terminalEvents'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -16,6 +16,7 @@ export interface TerminalIds {
 
 export interface SessionManagementHookReturn {
     isResetting: boolean
+    resettingSelection: SessionSelection | null
     resetSession: (selection: SessionSelection, terminals: TerminalIds) => Promise<void>
     switchModel: (
         agentType: string, 
@@ -27,7 +28,8 @@ export interface SessionManagementHookReturn {
 }
 
 export function useSessionManagement(): SessionManagementHookReturn {
-    const [isResetting, setIsResetting] = useState(false)
+    const [resettingSelection, setResettingSelection] = useState<SessionSelection | null>(null)
+    const isResetting = resettingSelection !== null
 
     const resetOrchestratorTerminal = useCallback(async (terminalId: string): Promise<void> => {
         await invoke(TauriCommands.SchaltwerkCoreResetOrchestrator, { terminalId })
@@ -73,7 +75,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const notifyTerminalsReset = useCallback((detail: TerminalResetDetail): void => {
-        window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, { detail }))
+        window.dispatchEvent(createTerminalResetEvent(detail))
     }, [])
 
     const waitForAgentStarted = useCallback(async (terminalId: string): Promise<void> => {
@@ -125,9 +127,11 @@ export function useSessionManagement(): SessionManagementHookReturn {
         terminals: TerminalIds
     ): Promise<void> => {
         if (isResetting) return
-        
+
         try {
-            setIsResetting(true)
+            setResettingSelection(selection.kind === 'session' && selection.payload
+                ? { kind: 'session', payload: selection.payload }
+                : { kind: selection.kind })
             
             let resetDetail: TerminalResetDetail = { kind: 'orchestrator' }
 
@@ -145,7 +149,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             notifyTerminalsReset(resetDetail)
             
         } finally {
-            setIsResetting(false)
+            setResettingSelection(null)
         }
     }, [isResetting, resetOrchestratorTerminal, resetSessionTerminals, notifyTerminalsReset, waitForAgentStarted, waitForTerminalClosed])
 
@@ -234,6 +238,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     return {
         isResetting,
+        resettingSelection,
         resetSession,
         switchModel
     }

@@ -67,13 +67,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         setIsSearchVisible,
         reloadSessions 
     } = useSessions()
-    const { isResetting, resetSession, switchModel } = useSessionManagement()
+    const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
+    const orchestratorResetting = resettingSelection?.kind === 'orchestrator'
     
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
@@ -771,7 +772,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }}
                                     ariaLabel="Reset orchestrator"
                                     tooltip="Reset orchestrator (⌘Y)"
-                                    disabled={isResetting}
+                                    disabled={orchestratorResetting}
                                 />
                             </div>
                             <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
@@ -1013,7 +1014,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         setSwitchModelSessionId(sessionId)
                                         setSwitchOrchestratorModal(true)
                                     }}
-                                    isResetting={isResetting}
+                                    resettingSelection={resettingSelection}
                                     isSessionRunning={isSessionRunning}
                                 />
                             )

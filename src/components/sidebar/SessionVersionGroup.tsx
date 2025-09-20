@@ -3,6 +3,7 @@ import { clsx } from 'clsx'
 import { SessionButton } from './SessionButton'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec } from '../../utils/sessionFilters'
+import { SessionSelection } from '../../hooks/useSessionManagement'
 
 interface SessionVersionGroupProps {
   group: SessionVersionGroupType
@@ -23,7 +24,7 @@ interface SessionVersionGroupProps {
   onSelectBestVersion?: (groupBaseName: string, selectedSessionId: string) => void
   onReset?: (sessionId: string) => void
   onSwitchModel?: (sessionId: string) => void
-  isResetting?: boolean
+  resettingSelection?: SessionSelection | null
   isInSpecMode?: boolean  // Optional: whether we're in spec mode
   currentSpecId?: string | null  // Optional: current spec selected in spec mode
   isSessionRunning?: (sessionId: string) => boolean  // Function to check if a session is running
@@ -45,7 +46,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   onSelectBestVersion,
   onReset,
   onSwitchModel,
-  isResetting,
+  resettingSelection,
   isInSpecMode,
   currentSpecId,
   isSessionRunning
@@ -59,6 +60,9 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
     // Check if this session is selected either as a normal session or as a spec in spec mode
     const isSelected = (selection.kind === 'session' && selection.payload === session.session.info.session_id) ||
                       (isInSpecMode === true && isSpec(session.session.info) && currentSpecId === session.session.info.session_id)
+
+    const isResettingForSession = resettingSelection?.kind === 'session'
+      && resettingSelection.payload === session.session.info.session_id
 
     return (
       <SessionButton
@@ -78,7 +82,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         onDeleteSpec={onDeleteSpec}
         onReset={onReset}
         onSwitchModel={onSwitchModel}
-        isResetting={isResetting}
+        isResetting={isResettingForSession}
         isRunning={isSessionRunning?.(session.session.info.session_id) || false}
       />
     )
@@ -250,7 +254,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                   onPromoteVersionHoverEnd={() => setIsPreviewingDeletion(false)}
                   onReset={onReset}
                   onSwitchModel={onSwitchModel}
-                  isResetting={isResetting}
+                  isResetting={resettingSelection?.kind === 'session'
+                    && resettingSelection.payload === version.session.info.session_id}
                   isRunning={isSessionRunning?.(version.session.info.session_id) || false}
                       />
                     </div>

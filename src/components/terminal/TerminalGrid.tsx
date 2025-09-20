@@ -195,15 +195,23 @@ export function TerminalGrid() {
     useEffect(() => {
         const handleTerminalReset = (event: Event) => {
             const detail = (event as CustomEvent<TerminalResetDetail | undefined>).detail
-            const shouldReset = !detail
-                || detail.kind === 'orchestrator'
-                || (detail.kind === 'session'
-                    && selection.kind === 'session'
-                    && !!selection.payload
-                    && selection.payload === detail.sessionId)
-
-            if (!shouldReset) {
+            if (!detail) {
+                logger.debug('[TerminalGrid] Ignoring reset event without detail')
                 return
+            }
+
+            if (detail.kind === 'orchestrator') {
+                if (selection.kind !== 'orchestrator') {
+                    return
+                }
+            } else if (detail.kind === 'session') {
+                if (
+                    selection.kind !== 'session'
+                    || !selection.payload
+                    || selection.payload !== detail.sessionId
+                ) {
+                    return
+                }
             }
 
             setTerminalKey(prev => prev + 1)

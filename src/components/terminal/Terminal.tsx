@@ -20,6 +20,7 @@ import { applyEnqueuePolicy, makeAgentQueueConfig, makeDefaultQueueConfig } from
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
+const MAX_INITIAL_FIT_ATTEMPTS = 6;
 
 // Export function to clear started tracking for specific terminals
 export function clearTerminalStartedTracking(terminalIds: string[]) {
@@ -61,6 +62,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const termRef = useRef<HTMLDivElement>(null);
     const terminal = useRef<XTerm | null>(null);
     const fitAddon = useRef<FitAddon | null>(null);
+    const initialFitAttemptsRef = useRef(0);
+    const initialFitRetryHandleRef = useRef<number | null>(null);
+    const scheduleInitialFitRetry = useCallback((cb: () => void) => {
+        if (initialFitRetryHandleRef.current != null) {
+            cancelAnimationFrame(initialFitRetryHandleRef.current);
+        }
+        initialFitRetryHandleRef.current = requestAnimationFrame(cb);
+    }, []);
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
     const [hydrated, setHydrated] = useState(false);
@@ -468,12 +477,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // CRITICAL: Wait for container dimensions before fitting - essential for xterm.js 5.x cursor positioning
         const performInitialFit = () => {
             if (!fitAddon.current || !termRef.current || !terminal.current) return;
-            
+
             const containerWidth = termRef.current.clientWidth;
             const containerHeight = termRef.current.clientHeight;
-            
+
             // Only fit if container has proper dimensions
             if (containerWidth > 0 && containerHeight > 0) {
+                initialFitAttemptsRef.current = 0;
+                if (initialFitRetryHandleRef.current != null) {
+                    cancelAnimationFrame(initialFitRetryHandleRef.current);
+                    initialFitRetryHandleRef.current = null;
+                }
                 try {
                     fitAddon.current.fit();
                     const { cols, rows } = terminal.current;
@@ -487,9 +501,31 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     logger.warn(`[Terminal ${terminalId}] Initial fit failed:`, e);
                 }
             } else {
-                // Container is not measurable yet; defer to resize observer without warning during expected startup jitter
-                logger.debug(`[Terminal ${terminalId}] Initial fit deferred; container not measurable yet (${containerWidth}x${containerHeight})`);
-                return;
+                const attempt = ++initialFitAttemptsRef.current;
+                if (attempt <= MAX_INITIAL_FIT_ATTEMPTS) {
+                    logger.debug(`[Terminal ${terminalId}] Initial fit deferred; container not measurable yet (${containerWidth}x${containerHeight}) [attempt ${attempt}/${MAX_INITIAL_FIT_ATTEMPTS}]`);
+                    scheduleInitialFitRetry(() => {
+                        if (!cancelled) {
+                            performInitialFit();
+                        }
+                    });
+                    return;
+                }
+
+                // In tests or when container isn't ready after repeated attempts, use default dimensions
+                logger.warn(`[Terminal ${terminalId}] Container dimensions not ready (${containerWidth}x${containerHeight}), using defaults`);
+                initialFitAttemptsRef.current = 0;
+                if (initialFitRetryHandleRef.current != null) {
+                    cancelAnimationFrame(initialFitRetryHandleRef.current);
+                    initialFitRetryHandleRef.current = null;
+                }
+                try {
+                    // Set reasonable default dimensions for tests and edge cases
+                    terminal.current.resize(80, 24);
+                    lastSize.current = { cols: 80, rows: 24 };
+                } catch (e) {
+                    logger.warn(`[Terminal ${terminalId}] Default resize failed:`, e);
+                }
             }
         };
         
@@ -1201,7 +1237,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, queueCfg, MAX_WRITE_CHUNK, shouldAutoScroll, isUserSelectingInTerminal, scheduleInitialFitRetry]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1407,8 +1443,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Delay a tick to ensure xterm is laid out
         let cancelled = false;
         requestAnimationFrame(() => { if (!cancelled) start(); });
-        return () => { cancelled = true };
-    }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen]);
+        return () => {
+            cancelled = true;
+            if (initialFitRetryHandleRef.current != null) {
+                cancelAnimationFrame(initialFitRetryHandleRef.current);
+                initialFitRetryHandleRef.current = null;
+            }
+        };
+    }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, scheduleInitialFitRetry]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) return
