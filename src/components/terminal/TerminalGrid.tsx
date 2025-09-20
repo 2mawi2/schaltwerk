@@ -15,7 +15,6 @@ import { AgentType } from '../../types/session'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import { invoke } from '@tauri-apps/api/core'
 import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
-import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
@@ -746,7 +745,6 @@ export function TerminalGrid() {
     // Render terminals as soon as we have project-scoped ids even if not ready yet
     const hasProjectScopedIds = terminals.top && !terminals.top.includes('orchestrator-default')
     const shouldRenderTerminals = isReady || hasProjectScopedIds
-    const showLoadingOverlay = !isReady
 
     // Spec sessions show placeholder instead of terminals
     if (selection.kind === 'session' && isSpec) {
@@ -786,11 +784,6 @@ export function TerminalGrid() {
 
     return (
         <div ref={containerRef} className="h-full px-2 pb-2 pt-0 relative">
-            {showLoadingOverlay && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                    <AnimatedText text="loading" colorClassName="text-slate-500" size="md" speedMultiplier={3} />
-                </div>
-            )}
             <Split 
                 className="h-full flex flex-col overflow-hidden" 
                 direction="vertical" 
