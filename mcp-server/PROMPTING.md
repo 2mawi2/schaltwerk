@@ -40,7 +40,6 @@ Be specific and detailed in your prompts:
 
 #### Agent Type Selection
 - Use `"claude"` for general development agents (default)
-- Use `"cursor"` when Cursor IDE integration is preferred
 - Set `skip_permissions: true` for fully autonomous operation
 
 ### Monitoring Sessions

@@ -233,94 +233,6 @@ Respond with just the short kebab-case name:"#
         run_dir.display()
     );
 
-    // Use the appropriate agent based on user's selection
-    if agent_type == "cursor" {
-        log::info!("Attempting to generate name with cursor-agent");
-
-        let output = Command::new("cursor-agent")
-            .args(cursor_namegen_args(&prompt_plain))
-            .current_dir(&run_dir)
-            .env("NO_COLOR", "1")
-            .env("CLICOLOR", "0")
-            .env("TERM", "dumb")
-            .env("CI", "1")
-            .env("NONINTERACTIVE", "1")
-            .stdin(std::process::Stdio::null())
-            .output()
-            .await;
-
-        let output = match output {
-            Ok(output) => {
-                log::debug!("cursor-agent executed successfully");
-                Some(output)
-            }
-            Err(e) => {
-                log::warn!("Failed to execute cursor-agent: {e}");
-                return Err(anyhow!("cursor-agent not available: {e}"));
-            }
-        };
-
-        if let Some(output) = output {
-            if output.status.success() {
-                let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
-                log::debug!("cursor-agent stdout: {stdout}");
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                if !stderr.trim().is_empty() {
-                    log::debug!("cursor-agent stderr: {}", stderr.trim());
-                }
-
-                // Try JSON first
-                let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(&stdout);
-                let candidate = if let Ok(v) = parsed_json {
-                    v.as_str()
-                        .or_else(|| v.get("result").and_then(|x| x.as_str()))
-                        .or_else(|| v.get("response").and_then(|x| x.as_str()))
-                        .map(|s| s.to_string())
-                } else {
-                    None
-                }
-                // Fallback to raw plain text if JSON failed or missing fields
-                .or_else(|| {
-                    let raw = stdout.trim();
-                    if !raw.is_empty() {
-                        Some(raw.to_string())
-                    } else {
-                        None
-                    }
-                });
-
-                if let Some(result) = candidate {
-                    log::info!("cursor-agent returned name candidate: {result}");
-                    let name = sanitize_name(&result);
-                    log::info!("Sanitized name: {name}");
-
-                    if !name.is_empty() {
-                        db.update_session_display_name(session_id, &name)?;
-                        log::info!("Updated database with display_name '{name}' for session_id '{session_id}'");
-                        return Ok(Some(name));
-                    } else {
-                        log::warn!("Sanitized name empty after processing cursor-agent output");
-                    }
-                } else {
-                    log::warn!("cursor-agent produced no usable output for naming");
-                }
-            } else {
-                let code = output.status.code().unwrap_or(-1);
-                let stderr = String::from_utf8_lossy(&output.stderr);
-                log::warn!(
-                    "cursor-agent returned non-zero exit status: code={code}, stderr='{}'",
-                    stderr.trim()
-                );
-            }
-        }
-
-        // If we get here with cursor, we couldn't generate a name
-        log::warn!("cursor-agent could not generate a name for session_id '{session_id}'");
-        // Clean up temp directory
-        let _ = std::fs::remove_dir_all(&unique_temp_dir);
-        return Ok(None);
-    }
-
     // Handle Codex name generation
     if agent_type == "codex" {
         log::info!("Attempting to generate name with codex");
@@ -591,84 +503,6 @@ Respond with just the short kebab-case name:"#
         return Ok(None);
     }
 
-    // Handle Qwen name generation
-    if agent_type == "qwen" {
-        log::info!("Attempting to generate name with qwen");
-
-        let binary = super::qwen::resolve_qwen_binary();
-        let output = Command::new(&binary)
-            .args(["--prompt", prompt_plain.as_str()])
-            .current_dir(&run_dir)
-            .env("NO_COLOR", "1")
-            .env("CLICOLOR", "0")
-            .env("TERM", "dumb")
-            .env("CI", "1")
-            .env("NONINTERACTIVE", "1")
-            .stdin(std::process::Stdio::null())
-            .output()
-            .await;
-
-        let output = match output {
-            Ok(output) => {
-                log::debug!("qwen executed successfully");
-                output
-            }
-            Err(e) => {
-                log::warn!("Failed to execute qwen: {e}");
-                return Ok(None);
-            }
-        };
-
-        if output.status.success() {
-            let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
-            log::debug!("qwen stdout: {stdout}");
-
-            // Qwen returns plain text, so we look for a kebab-case name in the output
-            // Split by newlines and find the first line that looks like a kebab-case name
-            let candidate = stdout
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .filter(|line| {
-                    line.chars()
-                        .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
-                })
-                .filter(|line| line.contains('-') || line.len() <= 10) // Has hyphens or very short
-                .filter(|line| line.len() <= 30) // Reasonable length
-                .find(|_| true) // Get first match
-                .map(|s| s.to_string());
-
-            if let Some(result) = candidate {
-                log::info!("qwen returned name candidate: {result}");
-                let name = sanitize_name(&result);
-                log::info!("Sanitized name: {name}");
-
-                if !name.is_empty() {
-                    db.update_session_display_name(session_id, &name)?;
-                    log::info!(
-                        "Updated database with display_name '{name}' for session_id '{session_id}'"
-                    );
-                    return Ok(Some(name));
-                }
-            } else {
-                log::warn!("qwen produced no usable output for naming");
-            }
-        } else {
-            let code = output.status.code().unwrap_or(-1);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            log::warn!(
-                "qwen returned non-zero exit status: code={code}, stderr='{}', stdout='{}'",
-                stderr.trim(),
-                stdout.trim()
-            );
-        }
-
-        // Clean up temp directory
-        let _ = std::fs::remove_dir_all(&unique_temp_dir);
-        return Ok(None);
-    }
-
     // Use Claude only if claude was selected (not as a fallback)
     if agent_type != "claude" {
         log::info!("Agent type is '{agent_type}', not generating name with claude");
@@ -766,19 +600,6 @@ Respond with just the short kebab-case name:"#
     Ok(None)
 }
 
-// Build arguments for cursor-agent name generation
-fn cursor_namegen_args(prompt_plain: &str) -> Vec<String> {
-    // Align flags with Claude semantics: use --print and JSON output
-    vec![
-        "--print".to_string(),
-        "--output-format".to_string(),
-        "json".to_string(),
-        "-m".to_string(),
-        "gpt-5".to_string(),
-        prompt_plain.to_string(),
-    ]
-}
-
 // Codex helpers (keep in sync with schaltwerk_core)
 // NOTE: These functions are duplicated here because the naming module needs to apply
 // the same Codex-specific flag normalization when invoking Codex for name generation.
@@ -838,19 +659,6 @@ mod tests {
     use super::*;
     use std::time::Duration;
     use tokio::time::timeout;
-
-    #[test]
-    fn test_cursor_namegen_arg_shape_with_gpt5() {
-        let prompt = "Generate a short name";
-        let args = cursor_namegen_args(prompt);
-        // Expect shape: --print --output-format json -m gpt-5 <prompt>
-        assert_eq!(args[0], "--print");
-        assert_eq!(args[1], "--output-format");
-        assert_eq!(args[2], "json");
-        assert_eq!(args[3], "-m");
-        assert_eq!(args[4], "gpt-5");
-        assert_eq!(args[5], prompt);
-    }
 
     #[test]
     fn test_sanitize_name() {
@@ -1244,19 +1052,4 @@ mod tests {
         assert_eq!(ctx.env_vars.len(), 1);
     }
 
-    #[test]
-    fn test_cursor_namegen_args_structure() {
-        // Test that cursor args are properly formatted for name generation
-        let prompt = "Build a todo app with React";
-        let args = cursor_namegen_args(prompt);
-
-        // Verify the exact structure expected by cursor-agent
-        assert_eq!(args.len(), 6);
-        assert_eq!(args[0], "--print");
-        assert_eq!(args[1], "--output-format");
-        assert_eq!(args[2], "json");
-        assert_eq!(args[3], "-m");
-        assert_eq!(args[4], "gpt-5");
-        assert_eq!(args[5], prompt);
-    }
 }

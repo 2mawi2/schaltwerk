@@ -454,7 +454,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cursorStyle: 'block',
             cursorInactiveStyle: 'outline',
             scrollback: scrollbackLines,
-            // Important: Keep TUI control sequences intact (e.g., from cursor-agent)
+            // Important: Keep TUI control sequences intact (e.g., emitted by agent CLIs)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
             disableStdin: readOnly,

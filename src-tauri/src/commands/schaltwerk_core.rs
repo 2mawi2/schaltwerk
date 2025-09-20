@@ -943,7 +943,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "cursor-agent", "codex", "opencode", "gemini"] {
+        for agent in ["claude", "codex", "opencode", "gemini"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1034,7 +1034,6 @@ pub async fn schaltwerk_core_start_claude_with_restart(
     // Log the exact command that will be executed
     let kind_str = match agent_kind {
         agent_ctx::AgentKind::Claude => "claude",
-        agent_ctx::AgentKind::Cursor => "cursor",
         agent_ctx::AgentKind::Codex => "codex",
         agent_ctx::AgentKind::OpenCode => "opencode",
         agent_ctx::AgentKind::Gemini => "gemini",
@@ -1153,7 +1152,7 @@ pub async fn schaltwerk_core_start_claude_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "cursor-agent", "codex", "opencode", "gemini"] {
+        for agent in ["claude", "codex", "opencode", "gemini"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");
@@ -1949,7 +1948,7 @@ pub async fn schaltwerk_core_start_fresh_orchestrator(
         let mut paths = std::collections::HashMap::new();
 
         // Get resolved binary paths for all agents
-        for agent in ["claude", "cursor-agent", "codex", "opencode", "gemini"] {
+        for agent in ["claude", "codex", "opencode", "gemini"] {
             match settings.get_effective_binary_path(agent) {
                 Ok(path) => {
                     log::debug!("Cached binary path for {agent}: {path}");

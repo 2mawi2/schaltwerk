@@ -85,7 +85,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     const agentType = s.original_agent_type as (SessionInfo['original_agent_type'])
     const agentKey = (agentType || '').toLowerCase()
     const agentLabel = agentKey
-    const agentColor = agentKey === 'claude' ? 'blue' : agentKey === 'cursor' ? 'purple' : agentKey === 'opencode' ? 'green' : agentKey === 'gemini' ? 'orange' : agentKey === 'codex' ? 'red' : ''
+    const agentColor = agentKey === 'claude' ? 'blue' : agentKey === 'opencode' ? 'green' : agentKey === 'gemini' ? 'orange' : agentKey === 'codex' ? 'red' : ''
     
     // Determine session state - use the backend session_state directly
     const sessionState = isReadyToMerge ? 'reviewed' : s.session_state
@@ -278,7 +278,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                             className={clsx(
                                 'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
                                 agentColor === 'blue' && 'bg-blue-900/30 text-blue-300 border-blue-700/50',
-                                agentColor === 'purple' && 'bg-purple-900/30 text-purple-300 border-purple-700/50',
                                 agentColor === 'green' && 'bg-green-900/30 text-green-300 border-green-700/50',
                                 agentColor === 'orange' && 'bg-orange-900/30 text-orange-300 border-orange-700/50',
                                 agentColor === 'red' && 'bg-red-900/30 text-red-300 border-red-700/50'
@@ -288,7 +287,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                             <span className={clsx(
                                 'w-1 h-1 rounded-full',
                                 agentColor === 'blue' && 'bg-blue-500',
-                                agentColor === 'purple' && 'bg-purple-500',
                                 agentColor === 'green' && 'bg-green-500',
                                 agentColor === 'orange' && 'bg-orange-500',
                                 agentColor === 'red' && 'bg-red-500'

@@ -34,7 +34,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </p>
                 <ul className="list-disc pl-6 mb-4 space-y-2">
                     <li><strong>Left Sidebar:</strong> Agent list and project navigation</li>
-                    <li><strong>Center Panel:</strong> AI Agent workspace (Claude, Cursor, Gemini, etc.)</li>
+                    <li><strong>Center Panel:</strong> AI Agent workspace (Claude, Gemini, OpenCode, Codex)</li>
                     <li><strong>Bottom Terminals:</strong> Command-line access for development agents</li>
                     <li><strong>Right Panel:</strong> Diff viewer for changes or Agents/Specs overview</li>
                 </ul>
@@ -68,7 +68,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     <li>Click <strong>Open</strong> to launch that session's worktree or the global project in your default tool.</li>
                 </ol>
                 <p className="text-body text-slate-400">
-                    Need a different app? Use the arrow beside <strong>Open</strong> to choose Finder, Cursor, VS Code, or another configured tool.
+                    Need a different app? Use the arrow beside <strong>Open</strong> to choose Finder, VS Code, or another configured tool.
                 </p>
             </div>
         ),
@@ -335,10 +335,6 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-2">
                         <div className="text-blue-400 font-medium text-body">Claude</div>
                         <div className="text-caption text-slate-400">Anthropic's AI assistant</div>
-                    </div>
-                    <div className="bg-slate-800/50 border border-slate-700 rounded p-2">
-                        <div className="text-purple-400 font-medium text-body">Cursor</div>
-                        <div className="text-caption text-slate-400">AI code editor agent</div>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-2">
                         <div className="text-green-400 font-medium text-body">OpenCode</div>

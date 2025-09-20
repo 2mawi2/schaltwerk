@@ -78,7 +78,7 @@ Once configured, Claude can use the following tools:
 Use schaltwerk_create to start a new session:
 - name: "feature-auth" 
 - prompt: "implement user authentication with JWT"
-- agent_type: "claude" (or "cursor")
+- agent_type: "claude" (supported: claude, opencode, gemini, codex)
 - base_branch: "main" (optional)
 - skip_permissions: true (for autonomous operation)
 ```

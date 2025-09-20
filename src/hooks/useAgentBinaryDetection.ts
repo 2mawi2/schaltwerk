@@ -19,15 +19,13 @@ export interface AgentBinaryConfig {
     detected_binaries: DetectedBinary[]
 }
 
-export type AgentType = 'claude' | 'cursor-agent' | 'opencode' | 'gemini' | 'qwen' | 'codex'
+export type AgentType = 'claude' | 'opencode' | 'gemini' | 'codex'
 
 // UI agent names to backend agent names mapping
 const AGENT_TO_BINARY_MAPPING: Record<string, AgentType> = {
     'claude': 'claude',
-    'cursor': 'cursor-agent',
     'opencode': 'opencode',
     'gemini': 'gemini',
-    'qwen': 'qwen',
     'codex': 'codex'
 }
 
@@ -42,10 +40,8 @@ interface UseAgentBinaryDetectionOptions {
 
 const DEFAULT_CONFIGS: Record<AgentType, AgentBinaryConfig> = {
     'claude': { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
-    'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
     'opencode': { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
     'gemini': { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-    'qwen': { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
     'codex': { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
 }
 

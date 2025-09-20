@@ -22,19 +22,15 @@ describe('useSettings', () => {
       
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [{ key: 'API_KEY', value: 'test-key' }],
-        'cursor-agent': [{ key: 'TOKEN', value: 'test-token' }],
-        opencode: [],
+        opencode: [{ key: 'OPENAI_API_KEY', value: 'openai-key' }],
         gemini: [{ key: 'PROJECT_ID', value: 'test-id' }],
-        qwen: [],
         codex: []
       }
       
       const cliArgs: Record<AgentType, string> = {
         claude: '--verbose',
-        'cursor-agent': '--silent',
-        opencode: '',
+        opencode: '--temperature 0.8',
         gemini: '--project test',
-        qwen: '',
         codex: ''
       }
 
@@ -51,12 +47,12 @@ describe('useSettings', () => {
         cliArgs: '--verbose'
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
-        agentType: 'cursor-agent',
-        envVars: { TOKEN: 'test-token' }
+        agentType: 'opencode',
+        envVars: { OPENAI_API_KEY: 'openai-key' }
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
-        agentType: 'cursor-agent',
-        cliArgs: '--silent'
+        agentType: 'opencode',
+        cliArgs: '--temperature 0.8'
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
         agentType: 'gemini',
@@ -66,7 +62,7 @@ describe('useSettings', () => {
         agentType: 'gemini',
         cliArgs: '--project test'
       })
-      expect(mockInvoke).toHaveBeenCalledTimes(10)
+      expect(mockInvoke).toHaveBeenCalledTimes(8)
     })
 
     it('filters out empty environment variable keys', async () => {
@@ -78,19 +74,15 @@ describe('useSettings', () => {
           { key: '', value: 'orphan-value' },
           { key: '  ', value: 'whitespace-key' }
         ],
-        'cursor-agent': [],
         opencode: [],
         gemini: [],
-        qwen: [],
         codex: []
       }
       
       const cliArgs: Record<AgentType, string> = {
         claude: '',
-        'cursor-agent': '',
         opencode: '',
         gemini: '',
-        qwen: '',
         codex: ''
       }
 
@@ -217,19 +209,15 @@ describe('useSettings', () => {
       
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [],
-        'cursor-agent': [],
         opencode: [],
         gemini: [],
-        qwen: [],
         codex: []
       }
       
       const cliArgs: Record<AgentType, string> = {
         claude: '',
-        'cursor-agent': '',
         opencode: '',
         gemini: '',
-        qwen: '',
         codex: ''
       }
       
@@ -279,19 +267,15 @@ describe('useSettings', () => {
 
       const envVars: Record<AgentType, Array<{key: string, value: string}>> = {
         claude: [],
-        'cursor-agent': [],
         opencode: [],
         gemini: [],
-        qwen: [],
         codex: []
       }
       
       const cliArgs: Record<AgentType, string> = {
         claude: '',
-        'cursor-agent': '',
         opencode: '',
         gemini: '',
-        qwen: '',
         codex: ''
       }
       
@@ -352,10 +336,8 @@ describe('useSettings', () => {
 
       expect(loadedVars).toEqual({
         claude: [{ key: 'API_KEY', value: 'claude-key' }],
-        'cursor-agent': [],
         opencode: [],
         gemini: [{ key: 'PROJECT', value: 'gemini-project' }],
-        qwen: [],
         codex: []
       })
       expect(result.current.loading).toBe(false)
@@ -372,10 +354,8 @@ describe('useSettings', () => {
 
       expect(loadedVars).toEqual({
         claude: [],
-        'cursor-agent': [],
         opencode: [],
         gemini: [],
-        qwen: [],
         codex: []
       })
     })
@@ -389,7 +369,7 @@ describe('useSettings', () => {
           if (agentType === 'claude') {
             return Promise.resolve('--verbose --debug')
           }
-          if (agentType === 'cursor-agent') {
+          if (agentType === 'opencode') {
             return Promise.resolve('--silent')
           }
           return Promise.resolve('')
@@ -405,10 +385,8 @@ describe('useSettings', () => {
 
       expect(loadedArgs).toEqual({
         claude: '--verbose --debug',
-        'cursor-agent': '--silent',
-        opencode: '',
+        opencode: '--silent',
         gemini: '',
-        qwen: '',
         codex: ''
       })
     })
@@ -424,10 +402,8 @@ describe('useSettings', () => {
 
       expect(loadedArgs).toEqual({
         claude: '',
-        'cursor-agent': '',
         opencode: '',
         gemini: '',
-        qwen: '',
         codex: ''
       })
     })

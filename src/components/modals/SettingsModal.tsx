@@ -242,26 +242,20 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     })
     const [envVars, setEnvVars] = useState<Record<AgentType, Array<{key: string, value: string}>>>({
         claude: [],
-        'cursor-agent': [],
         opencode: [],
         gemini: [],
-        qwen: [],
         codex: []
     })
     const [cliArgs, setCliArgs] = useState<Record<AgentType, string>>({
         claude: '',
-        'cursor-agent': '',
         opencode: '',
         gemini: '',
-        qwen: '',
         codex: ''
     })
     const [binaryConfigs, setBinaryConfigs] = useState<Record<AgentType, AgentBinaryConfig>>({
         claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
-        'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
         opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
         gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-        qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
         codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
     })
     const [notification, setNotification] = useState<NotificationState>({
@@ -272,7 +266,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [appVersion, setAppVersion] = useState<string>('')
 
     const [selectedSpec, setSelectedSpec] = useState<{ name: string; content: string } | null>(null)
-    
+
+    const displayNameForAgent = useCallback((agent: AgentType) => {
+        if (agent === 'opencode') return 'OpenCode'
+        if (agent === 'codex') return 'Codex'
+        if (agent === 'gemini') return 'Gemini'
+        return 'Claude'
+    }, [])
+
     const {
         loading,
         saving,
@@ -364,13 +365,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             
             const configMap: Record<AgentType, AgentBinaryConfig> = {
                 claude: { agent_name: 'claude', custom_path: null, auto_detect: true, detected_binaries: [] },
-                'cursor-agent': { agent_name: 'cursor-agent', custom_path: null, auto_detect: true, detected_binaries: [] },
                 opencode: { agent_name: 'opencode', custom_path: null, auto_detect: true, detected_binaries: [] },
                 gemini: { agent_name: 'gemini', custom_path: null, auto_detect: true, detected_binaries: [] },
-                qwen: { agent_name: 'qwen', custom_path: null, auto_detect: true, detected_binaries: [] },
                 codex: { agent_name: 'codex', custom_path: null, auto_detect: true, detected_binaries: [] }
             }
-            
+
             for (const config of configs) {
                 const agent = config.agent_name as AgentType
                 if (agent && configMap[agent]) {
@@ -722,7 +721,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         <div className="flex flex-col h-full">
             <div className="border-b border-slate-800">
                 <div className="flex">
-                    {(['claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', 'codex'] as AgentType[]).map(agent => (
+                    {(['claude', 'opencode', 'gemini', 'codex'] as AgentType[]).map(agent => (
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
@@ -732,7 +731,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     : 'text-slate-400 hover:text-slate-300'
                             }`}
                         >
-                            {agent === 'opencode' ? 'OpenCode' : agent === 'codex' ? 'Codex' : agent === 'cursor-agent' ? 'Cursor' : agent}
+                            {displayNameForAgent(agent)}
                         </button>
                     ))}
                 </div>
@@ -751,7 +750,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Binary Path</h3>
                         <div className="text-body text-slate-400 mb-4">
-                            Configure which {activeAgentTab === 'cursor-agent' ? 'cursor-agent' : activeAgentTab} binary to use. 
+                            Configure which {displayNameForAgent(activeAgentTab)} binary to use. 
                             Auto-detection finds all installed versions and recommends the best one.
                             <span className="block mt-2 text-caption text-slate-500">
                                 Note: Agent binary configurations are stored globally and apply to all projects.
@@ -829,7 +828,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                     type="text"
                                     value={binaryConfigs[activeAgentTab].custom_path || ''}
                                     onChange={(e) => handleBinaryPathChange(activeAgentTab, e.target.value || null)}
-                                    placeholder={binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)?.path || `Path to ${activeAgentTab} binary`}
+                                    placeholder={binaryConfigs[activeAgentTab].detected_binaries.find(b => b.is_recommended)?.path || `Path to ${displayNameForAgent(activeAgentTab)} binary`}
                                     className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
                                 <button
@@ -886,7 +885,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                     <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-body font-medium text-slate-200 mb-2">CLI Arguments</h3>
                         <div className="text-body text-slate-400 mb-3">
-                            Add custom command-line arguments that will be appended to the {activeAgentTab === 'cursor-agent' ? 'cursor-agent' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} command.
+                            Add custom command-line arguments that will be appended to the {displayNameForAgent(activeAgentTab)} command.
                         </div>
                         <input
                             type="text"
@@ -909,7 +908,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                     <div className="border-t border-slate-700 pt-6">
                         <h3 className="text-body font-medium text-slate-200 mb-2">Environment Variables</h3>
                         <div className="text-body text-slate-400 mb-4">
-                            Configure environment variables for {activeAgentTab === 'cursor-agent' ? 'Cursor' : activeAgentTab === 'opencode' ? 'OpenCode' : activeAgentTab === 'codex' ? 'Codex' : activeAgentTab} agent. 
+                            Configure environment variables for {displayNameForAgent(activeAgentTab)} agent. 
                             These variables will be available when starting agents with this agent type.
                         </div>
 
@@ -983,23 +982,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         </div>
                     )}
 
-                    {activeAgentTab === 'cursor-agent' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
-                                <strong>Common Cursor CLI arguments:</strong>
-                                <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><code>--model gpt-4</code> - Specify model preference</li>
-                                    <li><code>--max-tokens 4000</code> - Set token limit</li>
-                                </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
-                                <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li>CURSOR_API_KEY - Your Cursor API key</li>
-                                    <li>CURSOR_MODEL - Model preference</li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
-
                     {activeAgentTab === 'opencode' && (
                         <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
                             <div className="text-caption text-slate-400">
@@ -1029,25 +1011,6 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                 <ul className="mt-2 space-y-1 list-disc list-inside">
                                     <li>GOOGLE_API_KEY - Your Google AI Studio API key</li>
                                     <li>GEMINI_MODEL - Model to use</li>
-                                </ul>
-                            </div>
-                        </div>
-                    )}
-
-                    {activeAgentTab === 'qwen' && (
-                        <div className="mt-6 p-3 bg-slate-800/50 border border-slate-700 rounded">
-                            <div className="text-caption text-slate-400">
-                                <strong>Common Qwen Code CLI arguments:</strong>
-                                <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li><code>--prompt "task description"</code> - Start with specific prompt</li>
-                                    <li><code>--temperature 0.9</code> - Set response temperature</li>
-                                    <li><code>--yolo</code> - Skip permission prompts (if supported)</li>
-                                </ul>
-                                <strong className="block mt-3">Common environment variables:</strong>
-                                <ul className="mt-2 space-y-1 list-disc list-inside">
-                                    <li>QWEN_API_KEY - Your Qwen API key</li>
-                                    <li>OPENAI_API_KEY - OpenAI-compatible API key</li>
-                                    <li>QWEN_MODEL - Model to use (defaults to Qwen-Coder)</li>
                                 </ul>
                             </div>
                         </div>

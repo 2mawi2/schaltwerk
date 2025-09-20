@@ -145,7 +145,6 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               const agentType = firstSession.original_agent_type
               const baseBranch = firstSession.base_branch
               const agentColor = agentType === 'claude' ? 'blue' : 
-                               agentType === 'cursor' ? 'purple' : 
                                agentType === 'opencode' ? 'green' : 
                                agentType === 'gemini' ? 'orange' : 
                                agentType === 'codex' ? 'red' : 'gray'
@@ -159,7 +158,6 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                         className={clsx(
                           'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
                           agentColor === 'blue' && 'bg-blue-900/30 text-blue-300 border-blue-700/50',
-                          agentColor === 'purple' && 'bg-purple-900/30 text-purple-300 border-purple-700/50',
                           agentColor === 'green' && 'bg-green-900/30 text-green-300 border-green-700/50',
                           agentColor === 'orange' && 'bg-orange-900/30 text-orange-300 border-orange-700/50',
                           agentColor === 'red' && 'bg-red-900/30 text-red-300 border-red-700/50'
@@ -169,7 +167,6 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                         <span className={clsx(
                           'w-1 h-1 rounded-full',
                           agentColor === 'blue' && 'bg-blue-500',
-                          agentColor === 'purple' && 'bg-purple-500',
                           agentColor === 'green' && 'bg-green-500',
                           agentColor === 'orange' && 'bg-orange-500',
                           agentColor === 'red' && 'bg-red-500'

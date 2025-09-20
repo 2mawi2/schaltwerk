@@ -168,14 +168,7 @@ pub async fn get_all_agent_binary_configs() -> Result<Vec<AgentBinaryConfig>, St
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     let mut settings = settings_manager.lock().await;
 
-    let known_agents = vec![
-        "claude",
-        "cursor-agent",
-        "codex",
-        "opencode",
-        "gemini",
-        "qwen",
-    ];
+    let known_agents = vec!["claude", "codex", "opencode", "gemini"];
     let mut configs = Vec::new();
 
     for agent in known_agents {
@@ -211,14 +204,7 @@ pub async fn detect_all_agent_binaries() -> Result<Vec<AgentBinaryConfig>, Strin
         .ok_or_else(|| "Settings manager not initialized".to_string())?;
     let mut settings = settings_manager.lock().await;
 
-    let known_agents = vec![
-        "claude",
-        "cursor-agent",
-        "codex",
-        "opencode",
-        "gemini",
-        "qwen",
-    ];
+    let known_agents = vec!["claude", "codex", "opencode", "gemini"];
     let mut configs = Vec::new();
 
     for agent in known_agents {

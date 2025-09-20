@@ -53,20 +53,20 @@ describe('useClaudeSession', () => {
   it('gets and sets agent type with defaults on error', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     
-    mockInvoke.mockResolvedValueOnce('cursor')
+    mockInvoke.mockResolvedValueOnce('opencode')
     const { result } = renderHook(() => useClaudeSession())
 
     const agent = await result.current.getAgentType()
-    expect(agent).toBe('cursor')
+    expect(agent).toBe('opencode')
 
     mockInvoke.mockRejectedValueOnce(new Error('boom'))
     const agentOnError = await result.current.getAgentType()
     expect(agentOnError).toBe('claude')
 
     mockInvoke.mockResolvedValueOnce(undefined)
-    const setOk = await result.current.setAgentType('cursor')
+    const setOk = await result.current.setAgentType('opencode')
     expect(setOk).toBe(true)
-    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, { agentType: 'cursor' })
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, { agentType: 'opencode' })
     
     consoleErrorSpy.mockRestore()
   })

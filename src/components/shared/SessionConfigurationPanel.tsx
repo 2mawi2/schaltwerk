@@ -58,6 +58,7 @@ export function SessionConfigurationPanel({
     const initialAgentTypeRef = useRef(initialAgentType)
     const getSkipPermissionsRef = useRef(getSkipPermissions)
     const getAgentTypeRef = useRef(getAgentType)
+    const saveAgentTypeRef = useRef(saveAgentType)
     const prevInitialBaseBranchRef = useRef(initialBaseBranch)
 
     useEffect(() => { onBaseBranchChangeRef.current = onBaseBranchChange }, [onBaseBranchChange])
@@ -65,6 +66,7 @@ export function SessionConfigurationPanel({
     useEffect(() => { onSkipPermissionsChangeRef.current = onSkipPermissionsChange }, [onSkipPermissionsChange])
     useEffect(() => { getSkipPermissionsRef.current = getSkipPermissions }, [getSkipPermissions])
     useEffect(() => { getAgentTypeRef.current = getAgentType }, [getAgentType])
+    useEffect(() => { saveAgentTypeRef.current = saveAgentType }, [saveAgentType])
 
     useEffect(() => {
         baseBranchValueRef.current = baseBranch
@@ -99,12 +101,23 @@ export function SessionConfigurationPanel({
             }
 
             if (!agentTypeTouchedRef.current && initialAgentTypeRef.current === 'claude') {
+                const storedAgentTypeString =
+                    typeof storedAgentType === 'string' ? storedAgentType : null
                 const normalizedType =
-                    typeof storedAgentType === 'string' && AGENT_TYPES.includes(storedAgentType as AgentType)
-                        ? (storedAgentType as AgentType)
+                    storedAgentTypeString && AGENT_TYPES.includes(storedAgentTypeString as AgentType)
+                        ? (storedAgentTypeString as AgentType)
                         : 'claude'
+
                 setAgentType(normalizedType)
                 onAgentTypeChangeRef.current?.(normalizedType)
+
+                if (storedAgentTypeString !== normalizedType) {
+                    try {
+                        await saveAgentTypeRef.current?.(normalizedType)
+                    } catch (err) {
+                        logger.warn('Failed to persist normalized agent type:', err)
+                    }
+                }
             }
         } catch (err) {
             logger.warn('Failed to load configuration:', err)
@@ -249,7 +262,7 @@ export function SessionConfigurationPanel({
                             className="text-xs"
                             style={{ color: theme.colors.text.secondary }}
                         >
-                            {agentType === 'cursor' ? 'Force' : 'Skip perms'}
+                            Skip perms
                         </label>
                     </div>
                 )}
@@ -316,7 +329,7 @@ export function SessionConfigurationPanel({
                         className="text-sm"
                         style={{ color: theme.colors.text.secondary }}
                     >
-                        {agentType === 'cursor' ? 'Force flag' : 'Skip permissions'}
+                        Skip permissions
                     </label>
                 </div>
             )}

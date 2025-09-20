@@ -20,14 +20,14 @@ It's an orchestration tool for agentic coding. In this IDE you do not edit code 
 
 **Local testing** - Everything happens on your machine. Run your test suite, build the project, debug issues - all before any code gets committed.
 
-**Works with any AI** - Claude, Cursor Agent, Codex, Gemini, Qwen, OpenCode, your own scripts - if it runs in a terminal, Schaltwerk can manage it.
+**Works with any AI** - Claude, Codex, Gemini, OpenCode, your own scripts - if it runs in a terminal, Schaltwerk can manage it.
 
 **Spec-driven workflow** - Start by writing what you want in markdown. Convert it to a session when ready. The spec becomes the agent's initial prompt.
 
 ## Core Features
 
 ### Multi-Agent Support
-- Run different AI agents (Claude, Cursor Agent, Codex, Gemini, Qwen, OpenCode)
+- Run different AI agents (Claude, Codex, Gemini, OpenCode)
 - Each agent works in its own git worktree
 - Manage multiple agents working on different parts of your codebase
 
@@ -210,7 +210,7 @@ Users update via: `brew upgrade --cask schaltwerk`
 ## Use Cases
 
 ### Parallel Feature Development
-Have Claude work on the authentication system while Cursor Agent builds the UI. Each works in isolation. Review both, merge what works.
+Have Claude work on the authentication system while OpenCode builds the UI. Each works in isolation. Review both, merge what works.
 
 ### Multiple Bug Fixes
 Assign different bugs to different agents. Each fix gets tested in its own worktree before you merge it.

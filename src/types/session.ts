@@ -1,4 +1,4 @@
-export const AGENT_TYPES = ['claude', 'cursor', 'opencode', 'gemini', 'qwen', 'codex'] as const
+export const AGENT_TYPES = ['claude', 'opencode', 'gemini', 'codex'] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
 
 export enum SessionState {

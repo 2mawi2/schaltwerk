@@ -89,7 +89,7 @@ async fn test_command_functions_exist_and_callable() {
         "test-orchestrator-1",
         "test-orchestrator-2",
         "orchestrator-claude-top",
-        "orchestrator-cursor-top",
+        "orchestrator-opencode-top",
     ];
 
     for terminal_id in terminal_ids {

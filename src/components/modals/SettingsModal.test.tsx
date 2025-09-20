@@ -93,19 +93,15 @@ vi.mock('../../contexts/ActionButtonsContext', () => ({
 
 const createEmptyEnvVars = () => ({
   claude: [],
-  'cursor-agent': [],
   opencode: [],
   gemini: [],
-  qwen: [],
   codex: [],
 })
 
 const createEmptyCliArgs = () => ({
   claude: '',
-  'cursor-agent': '',
   opencode: '',
   gemini: '',
-  qwen: '',
   codex: '',
 })
 

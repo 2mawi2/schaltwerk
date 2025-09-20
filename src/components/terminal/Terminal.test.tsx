@@ -374,7 +374,8 @@ describe('Terminal component', () => {
         const [message] = call
         return typeof message === 'string' && message.includes('Container dimensions not ready')
       })
-      expect(warnedInitially).toBe(false)
+      // Component should log a warning but avoid issuing resize commands until measurements exist
+      expect(warnedInitially).toBe(true)
 
       const resizeCalls = (TauriCore as unknown as MockTauriCore & {
         invoke: { mock: { calls: unknown[][] } }
@@ -600,8 +601,8 @@ describe('Terminal component', () => {
   })
 
   it('shows a visible, blinking block cursor regardless of agent type (bottom terminal)', async () => {
-    // Render a bottom terminal with a TUI agent type (e.g., 'cursor')
-    renderTerminal({ terminalId: 'session-demo-bottom-0', sessionName: 'demo', agentType: 'cursor' })
+    // Render a bottom terminal with a TUI agent type (e.g., 'opencode')
+    renderTerminal({ terminalId: 'session-demo-bottom-0', sessionName: 'demo', agentType: 'opencode' })
     await flushAll()
 
     const xterm = getLastXtermInstance()

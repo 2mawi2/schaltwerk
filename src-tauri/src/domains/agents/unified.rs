@@ -51,42 +51,6 @@ impl AgentCommand for ClaudeAgent {
     }
 }
 
-pub struct CursorAgent;
-
-impl AgentCommand for CursorAgent {
-    fn binary_name(&self) -> &str {
-        "cursor-agent"
-    }
-
-    fn default_binary(&self) -> &str {
-        "cursor-agent"
-    }
-
-    fn find_session(&self, path: &Path) -> Option<String> {
-        super::cursor::find_cursor_session(path)
-    }
-
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String {
-        let config = super::cursor::CursorConfig {
-            binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
-        };
-        super::cursor::build_cursor_command_with_config(
-            worktree_path,
-            session_id,
-            initial_prompt,
-            skip_permissions,
-            Some(&config),
-        )
-    }
-}
-
 pub struct CodexAgent;
 
 impl AgentCommand for CodexAgent {
@@ -136,41 +100,6 @@ impl AgentCommand for CodexAgent {
     }
 }
 
-pub struct QwenAgent;
-
-impl AgentCommand for QwenAgent {
-    fn binary_name(&self) -> &str {
-        "qwen"
-    }
-
-    fn default_binary(&self) -> &str {
-        "qwen"
-    }
-
-    fn find_session(&self, path: &Path) -> Option<String> {
-        super::qwen::find_qwen_session(path)
-    }
-
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        _session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String {
-        let config = super::qwen::QwenConfig {
-            binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
-        };
-        super::qwen::build_qwen_command_with_config(
-            worktree_path,
-            None,
-            initial_prompt,
-            skip_permissions,
-            Some(&config),
-        )
-    }
-}
 
 pub struct GeminiAgent;
 
@@ -258,9 +187,7 @@ impl AgentRegistry {
         let mut agents: HashMap<&'static str, Box<dyn AgentCommand>> = HashMap::new();
 
         agents.insert("claude", Box::new(ClaudeAgent));
-        agents.insert("cursor", Box::new(CursorAgent));
         agents.insert("codex", Box::new(CodexAgent));
-        agents.insert("qwen", Box::new(QwenAgent));
         agents.insert("gemini", Box::new(GeminiAgent));
         agents.insert("opencode", Box::new(OpenCodeAgent));
 
@@ -293,9 +220,7 @@ mod tests {
     fn test_registry_has_all_agents() {
         let registry = AgentRegistry::new();
         assert!(registry.get("claude").is_some());
-        assert!(registry.get("cursor").is_some());
         assert!(registry.get("codex").is_some());
-        assert!(registry.get("qwen").is_some());
         assert!(registry.get("gemini").is_some());
         assert!(registry.get("opencode").is_some());
     }
@@ -304,11 +229,9 @@ mod tests {
     fn test_registry_supported_agents() {
         let registry = AgentRegistry::new();
         let supported = registry.supported_agents();
-        assert_eq!(supported.len(), 6);
+        assert_eq!(supported.len(), 4);
         assert!(supported.contains(&"claude"));
-        assert!(supported.contains(&"cursor"));
         assert!(supported.contains(&"codex"));
-        assert!(supported.contains(&"qwen"));
         assert!(supported.contains(&"gemini"));
         assert!(supported.contains(&"opencode"));
     }
@@ -367,52 +290,6 @@ mod tests {
         }
     }
 
-    mod cursor_tests {
-        use super::*;
-
-        #[test]
-        fn test_cursor_command_matches_original() {
-            let agent = CursorAgent;
-            let path = Path::new("/test/path");
-
-            let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("cursor-agent"));
-            let original_cmd = crate::domains::agents::cursor::build_cursor_command_with_config(
-                path,
-                None,
-                Some("test prompt"),
-                true,
-                Some(&crate::domains::agents::cursor::CursorConfig {
-                    binary_path: Some("cursor-agent".to_string()),
-                }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_cursor_with_session_resume() {
-            let agent = CursorAgent;
-            let path = Path::new("/test/path");
-
-            let unified_cmd = agent.build_command(path, Some("session-uuid"), None, false, None);
-            let original_cmd = crate::domains::agents::cursor::build_cursor_command_with_config(
-                path,
-                Some("session-uuid"),
-                None,
-                false,
-                Some(&crate::domains::agents::cursor::CursorConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_cursor_binary_name() {
-            let agent = CursorAgent;
-            assert_eq!(agent.binary_name(), "cursor-agent");
-            assert_eq!(agent.default_binary(), "cursor-agent");
-        }
-    }
-
     mod codex_tests {
         use super::*;
 
@@ -468,53 +345,6 @@ mod tests {
             let agent = CodexAgent;
             assert_eq!(agent.binary_name(), "codex");
             assert_eq!(agent.default_binary(), "codex");
-        }
-    }
-
-    mod qwen_tests {
-        use super::*;
-
-        #[test]
-        fn test_qwen_command_matches_original() {
-            let agent = QwenAgent;
-            let path = Path::new("/test/path");
-
-            let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("qwen"));
-            let original_cmd = crate::domains::agents::qwen::build_qwen_command_with_config(
-                path,
-                None,
-                Some("test prompt"),
-                true,
-                Some(&crate::domains::agents::qwen::QwenConfig {
-                    binary_path: Some("qwen".to_string()),
-                }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_qwen_ignores_session_id() {
-            let agent = QwenAgent;
-            let path = Path::new("/test/path");
-
-            // Qwen ignores session_id
-            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
-            let original_cmd = crate::domains::agents::qwen::build_qwen_command_with_config(
-                path,
-                None, // Original always passes None
-                None,
-                false,
-                Some(&crate::domains::agents::qwen::QwenConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_qwen_binary_name() {
-            let agent = QwenAgent;
-            assert_eq!(agent.binary_name(), "qwen");
-            assert_eq!(agent.default_binary(), "qwen");
         }
     }
 

@@ -5,20 +5,16 @@ use std::collections::HashMap;
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentCliArgs {
     pub claude: String,
-    pub cursor: String,
     pub opencode: String,
     pub gemini: String,
-    pub qwen: String,
     pub codex: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentEnvVars {
     pub claude: HashMap<String, String>,
-    pub cursor: HashMap<String, String>,
     pub opencode: HashMap<String, String>,
     pub gemini: HashMap<String, String>,
-    pub qwen: HashMap<String, String>,
     pub codex: HashMap<String, String>,
 }
 
@@ -60,10 +56,8 @@ pub struct AgentBinaryConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentBinaryConfigs {
     pub claude: Option<AgentBinaryConfig>,
-    pub cursor_agent: Option<AgentBinaryConfig>,
     pub opencode: Option<AgentBinaryConfig>,
     pub gemini: Option<AgentBinaryConfig>,
-    pub qwen: Option<AgentBinaryConfig>,
     pub codex: Option<AgentBinaryConfig>,
 }
 

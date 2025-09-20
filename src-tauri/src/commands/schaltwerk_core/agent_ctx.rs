@@ -8,7 +8,6 @@ use std::path::Path;
 
 pub enum AgentKind {
     Claude,
-    Cursor,
     Codex,
     OpenCode,
     Gemini,
@@ -18,8 +17,6 @@ pub enum AgentKind {
 pub fn infer_agent_kind(agent_name: &str) -> AgentKind {
     if agent_name.ends_with("/claude") || agent_name == "claude" {
         AgentKind::Claude
-    } else if agent_name.ends_with("/cursor-agent") || agent_name == "cursor-agent" {
-        AgentKind::Cursor
     } else if agent_name.ends_with("/codex") || agent_name == "codex" {
         AgentKind::Codex
     } else if agent_name.contains("opencode") {
@@ -38,7 +35,6 @@ pub async fn collect_agent_env_and_cli(
 ) -> (Vec<(String, String)>, String) {
     let agent_str = match agent_kind {
         AgentKind::Claude => "claude",
-        AgentKind::Cursor => "cursor",
         AgentKind::Codex => "codex",
         AgentKind::OpenCode => "opencode",
         AgentKind::Gemini => "gemini",
@@ -104,10 +100,6 @@ mod tests {
         assert!(matches!(
             infer_agent_kind("/usr/bin/claude"),
             AgentKind::Claude
-        ));
-        assert!(matches!(
-            infer_agent_kind("cursor-agent"),
-            AgentKind::Cursor
         ));
         assert!(matches!(infer_agent_kind("codex"), AgentKind::Codex));
         assert!(matches!(

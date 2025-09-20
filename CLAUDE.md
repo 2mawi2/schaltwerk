@@ -1,7 +1,7 @@
 # CLAUDE.md - Schaltwerk Development Guidelines
 
 ## Project Overview
-Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, Cursor, etc.) can work without affecting the main codebase.
+Tauri-based desktop app for managing AI coding sessions using git worktrees. Each session gets an isolated branch/worktree where AI agents (Claude, Gemini, OpenCode, Codex, etc.) can work without affecting the main codebase.
 
 ## Platform Support
 - macOS only. Windows and Linux are not supported at this time.
@@ -108,7 +108,6 @@ Sessions are stored in SQLite at `~/Library/Application Support/schaltwerk/{proj
 
 ### Agent Integration
 Agents start via terminal commands built in `App.tsx`:
-- Cursor: `cursor --folder-uri {worktree-path}`
 - Each agent runs in session's isolated worktree
 
 ### MCP Server Webhook

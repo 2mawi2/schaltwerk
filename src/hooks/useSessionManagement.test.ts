@@ -249,7 +249,7 @@ describe('useSessionManagement', () => {
 
             await act(async () => {
                 await result.current!.switchModel(
-                    'cursor', 
+                    'opencode', 
                     selection, 
                     mockTerminals,
                     mockClearTerminalTracking,
@@ -259,7 +259,7 @@ describe('useSessionManagement', () => {
 
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSessionAgentType, {
                 sessionName: 'test-session',
-                agentType: 'cursor'
+                agentType: 'opencode'
             })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeWithRestart, {
                 sessionName: 'test-session',

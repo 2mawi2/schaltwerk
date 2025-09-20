@@ -49,7 +49,6 @@ pub fn clean_invalid_binary_paths(settings: &mut Settings) {
     };
 
     fix_config(&mut settings.agent_binaries.claude);
-    fix_config(&mut settings.agent_binaries.cursor_agent);
     fix_config(&mut settings.agent_binaries.opencode);
     fix_config(&mut settings.agent_binaries.gemini);
     fix_config(&mut settings.agent_binaries.codex);

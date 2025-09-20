@@ -753,8 +753,6 @@ impl LocalPtyAdapter {
             Some("codex")
         } else if terminal_id.contains("claude") {
             Some("claude")
-        } else if terminal_id.contains("cursor") {
-            Some("cursor")
         } else if terminal_id.contains("opencode") {
             Some("opencode")
         } else if terminal_id.contains("gemini") {

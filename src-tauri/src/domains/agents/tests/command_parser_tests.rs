@@ -19,15 +19,6 @@ fn test_parse_agent_command_claude_resume() {
 }
 
 #[test]
-fn test_parse_agent_command_cursor_with_force_and_prompt() {
-    let cmd = r#"cd /a/b && cursor-agent -f "implement \"feature\"""#;
-    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
-    assert_eq!(cwd, "/a/b");
-    assert_eq!(agent, "cursor-agent");
-    assert_eq!(args, vec!["-f", "implement \"feature\""]);
-}
-
-#[test]
 fn test_parse_agent_command_invalid_format() {
     let cmd = "echo hi";
     let res = parse_agent_command(cmd);
@@ -145,19 +136,12 @@ fn test_parse_agent_command_codex_danger_mode() {
 }
 
 #[test]
-fn test_parse_agent_command_qwen_with_yolo() {
-    let cmd = r#"cd /tmp/work && qwen --yolo"#;
-    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
-    assert_eq!(cwd, "/tmp/work");
-    assert_eq!(agent, "qwen");
-    assert_eq!(args, vec!["--yolo"]);
-}
+fn test_parse_agent_command_rejects_unsupported_agent() {
+    let cmd = r#"cd /a/b && cursor-agent -f "implement feature""#;
+    let result = parse_agent_command(cmd);
+    assert!(result.is_err());
 
-#[test]
-fn test_parse_agent_command_qwen_absolute_path() {
-    let cmd = r#"cd /tmp/work && /usr/local/bin/qwen"#;
-    let (cwd, agent, args) = parse_agent_command(cmd).unwrap();
-    assert_eq!(cwd, "/tmp/work");
-    assert_eq!(agent, "/usr/local/bin/qwen");
-    assert_eq!(args, Vec::<String>::new());
+    let qwen_cmd = r#"cd /tmp/work && qwen --yolo"#;
+    let qwen_result = parse_agent_command(qwen_cmd);
+    assert!(qwen_result.is_err());
 }

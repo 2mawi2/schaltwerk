@@ -50,9 +50,9 @@ describe('ModelSelector', () => {
 
     // Ensure all options are present
     expect(screen.getAllByRole('button', { name: 'Claude' })).toHaveLength(2)
-    expect(screen.getByRole('button', { name: 'Cursor' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'OpenCode' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Gemini' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Codex' })).toBeInTheDocument()
   })
 
   test('changes selection on option click and closes menu', async () => {
@@ -60,12 +60,12 @@ describe('ModelSelector', () => {
     const { onChange } = setup('claude')
 
     await user.click(screen.getByRole('button', { name: /Claude/i }))
-    await user.click(screen.getByRole('button', { name: 'Cursor' }))
+    await user.click(screen.getByRole('button', { name: 'OpenCode' }))
 
-    expect(onChange).toHaveBeenCalledWith('cursor')
+    expect(onChange).toHaveBeenCalledWith('opencode')
 
     // menu should close (options disappear)
-    expect(screen.queryByRole('button', { name: 'Cursor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenCode' })).not.toBeInTheDocument()
   })
 
   test('keyboard navigation: Enter opens menu, ArrowDown navigates, Enter selects', async () => {
@@ -76,11 +76,11 @@ describe('ModelSelector', () => {
     toggle.focus()
     await user.keyboard('{Enter}')
 
-    // Move to second option (Cursor) using arrow down
+    // Move to second option (OpenCode) using arrow down
     await user.keyboard('{ArrowDown}')
     await user.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('cursor')
+    expect(onChange).toHaveBeenCalledWith('opencode')
   })
 
   test('disabled state prevents opening and interaction', async () => {
@@ -91,14 +91,14 @@ describe('ModelSelector', () => {
     expect(toggle).toBeDisabled()
 
     await user.click(toggle)
-    expect(screen.queryByRole('button', { name: 'Cursor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenCode' })).not.toBeInTheDocument()
   })
 
   test('default model selection reflects initial value', () => {
-    setup('cursor')
-    const toggle = screen.getByRole('button', { name: /Cursor/i })
+    setup('opencode')
+    const toggle = screen.getByRole('button', { name: /OpenCode/i })
     expect(toggle).toBeInTheDocument()
-    expect(toggle.textContent).toContain('Cursor')
+    expect(toggle.textContent).toContain('OpenCode')
   })
 
   test('falls back to default model when given invalid value', () => {
@@ -120,9 +120,9 @@ describe('ModelSelector', () => {
 
     const { onChange } = setup('claude')
     await user.click(screen.getByRole('button', { name: /Claude/i }))
-    await user.click(screen.getByRole('button', { name: 'Cursor' }))
+    await user.click(screen.getByRole('button', { name: 'OpenCode' }))
 
-    expect(onChange).toHaveBeenCalledWith('cursor')
+    expect(onChange).toHaveBeenCalledWith('opencode')
     expect(fetchSpy).not.toHaveBeenCalled()
 
     fetchSpy.mockRestore()
@@ -155,14 +155,14 @@ describe('ModelSelector', () => {
     await user.keyboard('{ArrowDown}')
     await user.keyboard('{Enter}')
 
-    expect(onChange).toHaveBeenCalledWith('cursor')
+    expect(onChange).toHaveBeenCalledWith('opencode')
   })
 
   test('keyboard navigation: ArrowUp moves focus to previous option', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('cursor')
+    const { onChange } = setup('opencode')
 
-    const toggle = screen.getByRole('button', { name: /Cursor/i })
+    const toggle = screen.getByRole('button', { name: /OpenCode/i })
     await user.click(toggle)
 
     await user.keyboard('{ArrowUp}')
@@ -191,11 +191,11 @@ describe('ModelSelector', () => {
     const toggle = screen.getByRole('button', { name: /Claude/i })
     await user.click(toggle)
 
-    expect(screen.getByRole('button', { name: 'Cursor' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'OpenCode' })).toBeInTheDocument()
 
     await user.keyboard('{Escape}')
 
-    expect(screen.queryByRole('button', { name: 'Cursor' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'OpenCode' })).not.toBeInTheDocument()
   })
 
   test('keyboard navigation: highlights focused option visually', async () => {
@@ -207,8 +207,8 @@ describe('ModelSelector', () => {
 
     await user.keyboard('{ArrowDown}')
 
-    const cursorOption = screen.getByRole('button', { name: 'Cursor' })
+    const opencodeOption = screen.getByRole('button', { name: 'OpenCode' })
     // Check that the option exists and is rendered
-    expect(cursorOption).toBeInTheDocument()
+    expect(opencodeOption).toBeInTheDocument()
   })
 })

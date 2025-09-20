@@ -51,10 +51,8 @@ impl SettingsService {
     pub fn get_agent_env_vars(&self, agent_type: &str) -> HashMap<String, String> {
         match agent_type {
             "claude" => self.settings.agent_env_vars.claude.clone(),
-            "cursor" | "cursor-agent" => self.settings.agent_env_vars.cursor.clone(),
             "opencode" => self.settings.agent_env_vars.opencode.clone(),
             "gemini" => self.settings.agent_env_vars.gemini.clone(),
-            "qwen" => self.settings.agent_env_vars.qwen.clone(),
             "codex" => self.settings.agent_env_vars.codex.clone(),
             _ => HashMap::new(),
         }
@@ -67,10 +65,8 @@ impl SettingsService {
     ) -> Result<(), SettingsServiceError> {
         match agent_type {
             "claude" => self.settings.agent_env_vars.claude = env_vars,
-            "cursor" | "cursor-agent" => self.settings.agent_env_vars.cursor = env_vars,
             "opencode" => self.settings.agent_env_vars.opencode = env_vars,
             "gemini" => self.settings.agent_env_vars.gemini = env_vars,
-            "qwen" => self.settings.agent_env_vars.qwen = env_vars,
             "codex" => self.settings.agent_env_vars.codex = env_vars,
             _ => {
                 return Err(SettingsServiceError::UnknownAgentType(
@@ -105,10 +101,8 @@ impl SettingsService {
     pub fn get_agent_cli_args(&self, agent_type: &str) -> String {
         match agent_type {
             "claude" => self.settings.agent_cli_args.claude.clone(),
-            "cursor" | "cursor-agent" => self.settings.agent_cli_args.cursor.clone(),
             "opencode" => self.settings.agent_cli_args.opencode.clone(),
             "gemini" => self.settings.agent_cli_args.gemini.clone(),
-            "qwen" => self.settings.agent_cli_args.qwen.clone(),
             "codex" => self.settings.agent_cli_args.codex.clone(),
             _ => String::new(),
         }
@@ -125,10 +119,8 @@ impl SettingsService {
 
         match agent_type {
             "claude" => self.settings.agent_cli_args.claude = cli_args.clone(),
-            "cursor" | "cursor-agent" => self.settings.agent_cli_args.cursor = cli_args.clone(),
             "opencode" => self.settings.agent_cli_args.opencode = cli_args.clone(),
             "gemini" => self.settings.agent_cli_args.gemini = cli_args.clone(),
-            "qwen" => self.settings.agent_cli_args.qwen = cli_args.clone(),
             "codex" => self.settings.agent_cli_args.codex = cli_args.clone(),
             _ => {
                 let error = format!("Unknown agent type: {agent_type}");
@@ -216,10 +208,8 @@ impl SettingsService {
     pub fn get_agent_binary_config(&self, agent_name: &str) -> Option<AgentBinaryConfig> {
         match agent_name {
             "claude" => self.settings.agent_binaries.claude.clone(),
-            "cursor-agent" => self.settings.agent_binaries.cursor_agent.clone(),
             "opencode" => self.settings.agent_binaries.opencode.clone(),
             "gemini" => self.settings.agent_binaries.gemini.clone(),
-            "qwen" => self.settings.agent_binaries.qwen.clone(),
             "codex" => self.settings.agent_binaries.codex.clone(),
             _ => None,
         }
@@ -231,10 +221,8 @@ impl SettingsService {
     ) -> Result<(), SettingsServiceError> {
         match config.agent_name.as_str() {
             "claude" => self.settings.agent_binaries.claude = Some(config),
-            "cursor-agent" => self.settings.agent_binaries.cursor_agent = Some(config),
             "opencode" => self.settings.agent_binaries.opencode = Some(config),
             "gemini" => self.settings.agent_binaries.gemini = Some(config),
-            "qwen" => self.settings.agent_binaries.qwen = Some(config),
             "codex" => self.settings.agent_binaries.codex = Some(config),
             _ => return Err(SettingsServiceError::UnknownAgentType(config.agent_name)),
         }
@@ -246,16 +234,10 @@ impl SettingsService {
         if let Some(config) = &self.settings.agent_binaries.claude {
             configs.push(config.clone());
         }
-        if let Some(config) = &self.settings.agent_binaries.cursor_agent {
-            configs.push(config.clone());
-        }
         if let Some(config) = &self.settings.agent_binaries.opencode {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.gemini {
-            configs.push(config.clone());
-        }
-        if let Some(config) = &self.settings.agent_binaries.qwen {
             configs.push(config.clone());
         }
         if let Some(config) = &self.settings.agent_binaries.codex {

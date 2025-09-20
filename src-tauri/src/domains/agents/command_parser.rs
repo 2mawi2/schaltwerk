@@ -1,5 +1,5 @@
 pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>), String> {
-    // Command format: "cd /path/to/worktree && {claude|cursor-agent|<path>/opencode|opencode|gemini} [args]"
+    // Command format: "cd /path/to/worktree && {claude|<path>/opencode|opencode|gemini|codex} [args]"
     // Use splitn to only split on the FIRST " && " to preserve any " && " in agent arguments
     let parts: Vec<&str> = command.splitn(2, " && ").collect();
     if parts.len() != 2 {
@@ -22,22 +22,18 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
 
     // Normalize/validate the agent token
     let is_claude = agent_token == "claude" || agent_token.ends_with("/claude");
-    let is_cursor_agent = agent_token == "cursor-agent" || agent_token.ends_with("/cursor-agent");
     let is_opencode = agent_token == "opencode" || agent_token.ends_with("/opencode");
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
-    let is_qwen = agent_token == "qwen" || agent_token.ends_with("/qwen");
     let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
 
     let agent_name = if is_claude
-        || is_cursor_agent
         || is_opencode
         || is_gemini
-        || is_qwen
         || is_codex
     {
         agent_token
     } else {
-        return Err(format!("Second part doesn't start with 'claude', 'cursor-agent', 'opencode', 'gemini', 'qwen', or 'codex': {command}"));
+        return Err(format!("Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"));
     };
 
     // Split the rest into arguments, handling quoted strings

@@ -7,7 +7,7 @@ import { ModalProvider } from '../../contexts/ModalContext'
 // Expose spies so tests can assert persistence/saves
 const mockGetSkipPermissions = vi.fn().mockResolvedValue(true)
 const mockSetSkipPermissions = vi.fn().mockResolvedValue(true)
-const mockGetAgentType = vi.fn().mockResolvedValue('cursor')
+const mockGetAgentType = vi.fn().mockResolvedValue('opencode')
 const mockSetAgentType = vi.fn().mockResolvedValue(true)
 
 vi.mock('../../hooks/useClaudeSession', () => ({
@@ -203,15 +203,11 @@ describe('NewSessionModal', () => {
 
     fireEvent.click(agentDropdown)
 
-    const cursorOptionButtons = await screen.findAllByRole('button', { name: /Cursor/i })
-    const cursorOption = cursorOptionButtons[cursorOptionButtons.length - 1]
-    fireEvent.click(cursorOption)
+    const opencodeOptionButtons = await screen.findAllByRole('button', { name: /OpenCode/i })
+    const opencodeOption = opencodeOptionButtons[opencodeOptionButtons.length - 1]
+    fireEvent.click(opencodeOption)
 
-    const forceCheckbox = await screen.findByRole('checkbox', { name: /Force flag/i }) as HTMLInputElement
-    expect(forceCheckbox.checked).toBe(true)
-
-    fireEvent.click(forceCheckbox)
-    expect(forceCheckbox.checked).toBe(false)
+    expect(screen.queryByLabelText(/Skip permissions/i)).toBeNull()
   })
 
   it('handles keyboard shortcuts: Esc closes, Cmd+Enter creates', async () => {

@@ -6,10 +6,8 @@ import { AgentType, AGENT_TYPES } from '../../types/session'
 
 const MODEL_METADATA: Record<AgentType, { label: string; color: string }> = {
     claude: { label: 'Claude', color: 'blue' },
-    cursor: { label: 'Cursor', color: 'purple' },
     opencode: { label: 'OpenCode', color: 'green' },
     gemini: { label: 'Gemini', color: 'orange' },
-    qwen: { label: 'Qwen Code', color: 'cyan' },
     codex: { label: 'Codex', color: 'red' }
 }
 
@@ -58,10 +56,8 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                     ) : (
                         <span className={`w-2 h-2 rounded-full ${
                             model.color === 'blue' ? 'bg-blue-500' : 
-                            model.color === 'purple' ? 'bg-purple-500' : 
                             model.color === 'green' ? 'bg-green-500' : 
-                            model.color === 'orange' ? 'bg-orange-500' :
-                            model.color === 'cyan' ? 'bg-cyan-500' : 'bg-red-500'
+                            model.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
                         } ${!available && !loading ? 'opacity-50' : ''}`} />
                     )}
                     <span className="flex items-center gap-1">

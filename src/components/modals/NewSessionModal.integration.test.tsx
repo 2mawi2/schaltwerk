@@ -45,7 +45,7 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
                     Change Branch
                 </button>
                 <button 
-                    onClick={() => onAgentTypeChange?.('cursor')}
+                    onClick={() => onAgentTypeChange?.('opencode')}
                     data-testid="change-agent"
                 >
                     Change Agent

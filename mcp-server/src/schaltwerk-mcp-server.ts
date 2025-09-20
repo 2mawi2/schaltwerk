@@ -17,7 +17,7 @@ import { SchaltwerkBridge, Session } from "./schaltwerk-bridge.js"
 interface SchaltwerkStartArgs {
   name?: string
   prompt?: string
-  agent_type?: 'claude' | 'cursor' | 'opencode'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex'
   base_branch?: string
   skip_permissions?: boolean
   is_draft?: boolean
@@ -62,7 +62,7 @@ interface SchaltwerkCurrentSpecUpdateArgs {
 
 interface SchaltwerkDraftStartArgs {
   session_name: string
-  agent_type?: 'claude' | 'cursor' | 'opencode'
+  agent_type?: 'claude' | 'opencode' | 'gemini' | 'codex'
   skip_permissions?: boolean
   base_branch?: string
 }
@@ -106,13 +106,15 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 📋 USAGE:
 - Basic: schaltwerk_create(name: "feature-auth", prompt: "implement user authentication")
-- With agent type: schaltwerk_create(name: "api-feature", prompt: "add REST API", agent_type: "cursor")
+- With agent type: schaltwerk_create(name: "api-feature", prompt: "add REST API", agent_type: "opencode")
 - With base branch: schaltwerk_create(name: "fix-bug", prompt: "fix login issue", base_branch: "develop")
 - Skip permissions: schaltwerk_create(name: "quick-fix", prompt: "fix typo", skip_permissions: true)
 
 🤖 AGENT TYPES:
 - 'claude': Use Claude AI assistant (default)
-- 'cursor': Use Cursor IDE integration
+- 'opencode': Run the OpenCode CLI agent
+- 'gemini': Use Google's Gemini CLI tooling
+- 'codex': Use Codex CLI with sandbox controls
 
 📝 PROMPTING:
 When creating sessions for AI agents, provide clear, specific prompts:
@@ -141,7 +143,7 @@ The prompt becomes the initial context for the AI agent working in that session.
             },
             agent_type: {
               type: "string",
-              enum: ["claude", "cursor"],
+              enum: ["claude", "opencode", "gemini", "codex"],
               description: "AI agent type to use (default: claude)"
             },
             base_branch: {
@@ -166,7 +168,7 @@ The prompt becomes the initial context for the AI agent working in that session.
 - status: "new" | "reviewed" 
 - created_at: ISO timestamp
 - last_activity: ISO timestamp or null
-- agent_type: "claude" | "cursor"
+- agent_type: "claude" | "opencode" | "gemini" | "codex"
 - branch: Git branch name
 - worktree_path: Local path
 - initial_prompt: Original agent description
@@ -442,8 +444,9 @@ schaltwerk_pause(session_name: "feature-auth")
 
 🤖 AGENT TYPES:
 - 'claude': Claude AI assistant (default)
-- 'cursor': Cursor IDE integration
 - 'opencode': OpenCode assistant
+- 'gemini': Gemini CLI agent
+- 'codex': Codex assistant with sandbox controls
 
 ⚡ WHAT HAPPENS:
 1. Creates Git worktree from base branch
@@ -461,7 +464,7 @@ schaltwerk_pause(session_name: "feature-auth")
             },
             agent_type: {
               type: "string",
-              enum: ["claude", "cursor", "opencode"],
+              enum: ["claude", "opencode", "gemini", "codex"],
               description: "AI agent type to use (default: claude)"
             },
             skip_permissions: {

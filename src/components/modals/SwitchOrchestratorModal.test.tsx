@@ -6,7 +6,7 @@ import { SwitchOrchestratorModal } from './SwitchOrchestratorModal'
 vi.mock('../../hooks/useClaudeSession', () => {
   return {
     useClaudeSession: () => ({
-      getAgentType: vi.fn().mockResolvedValue('cursor'),
+      getAgentType: vi.fn().mockResolvedValue('opencode'),
     }),
   }
 })
@@ -80,21 +80,21 @@ describe('SwitchOrchestratorModal', () => {
   it('loads current agent type on open and displays it', async () => {
     openModal()
     // Wait until ModelSelector button reflects the loaded agent type
-    await waitFor(() => expect(screen.getByRole('button', { name: /cursor/i })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: /opencode/i })).toBeInTheDocument())
   })
 
   it('calls onSwitch with the currently selected agent type', async () => {
     const { onSwitch } = openModal()
 
-    // Wait for agent type to load to "Cursor"
-    await waitFor(() => screen.getByRole('button', { name: /cursor/i }))
+    // Wait for agent type to load to "OpenCode"
+    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
 
-    // Click Switch Agent -> should call with 'cursor'
+    // Click Switch Agent -> should call with 'opencode'
     fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
-    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith('cursor'))
+    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith('opencode'))
 
     // Change selection to Claude via dropdown and switch again
-    const selectorButton = screen.getByRole('button', { name: /cursor/i })
+    const selectorButton = screen.getByRole('button', { name: /opencode/i })
     fireEvent.click(selectorButton)
     const claudeOption = await screen.findByRole('button', { name: /^claude$/i })
     fireEvent.click(claudeOption)
@@ -108,7 +108,7 @@ describe('SwitchOrchestratorModal', () => {
       () => new Promise<void>(resolve => setTimeout(resolve, 50))
     )
     openModal({ onSwitch: slowResolve })
-    await waitFor(() => screen.getByRole('button', { name: /cursor/i }))
+    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
     const switchBtn = screen.getByRole('button', { name: /switch agent/i }) as HTMLButtonElement
     fireEvent.click(switchBtn)
     await waitFor(() => expect(slowResolve).toHaveBeenCalledTimes(1))
@@ -122,7 +122,7 @@ describe('SwitchOrchestratorModal', () => {
     )
     openModal({ onSwitch: rejectOnce })
     // Wait for initial load before triggering switch
-    await waitFor(() => screen.getByRole('button', { name: /cursor/i }))
+    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
 
     const switchBtn = screen.getByRole('button', { name: /switch agent/i }) as HTMLButtonElement
 

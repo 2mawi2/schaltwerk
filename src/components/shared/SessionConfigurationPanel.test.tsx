@@ -75,7 +75,6 @@ vi.mock('../inputs/ModelSelector', () => ({
                 disabled={disabled}
             >
                 <option value="claude">Claude</option>
-                <option value="cursor">Cursor</option>
                 <option value="opencode">OpenCode</option>
                 <option value="gemini">Gemini</option>
                 <option value="codex">Codex</option>
@@ -206,9 +205,9 @@ describe('SessionConfigurationPanel', () => {
 
         const select = screen.getByTestId('model-selector').querySelector('select')
         expect(select).toBeTruthy()
-        fireEvent.change(select!, { target: { value: 'cursor' } })
+        fireEvent.change(select!, { target: { value: 'opencode' } })
 
-        expect(onAgentTypeChange).toHaveBeenCalledWith('cursor')
+        expect(onAgentTypeChange).toHaveBeenCalledWith('opencode')
     })
 
     test('calls onSkipPermissionsChange when checkbox changes', async () => {

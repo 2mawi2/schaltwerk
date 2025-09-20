@@ -178,7 +178,7 @@ mod service_unified_tests {
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
-        for (i, agent_type) in ["claude", "cursor", "codex", "qwen", "gemini", "opencode"]
+        for (i, agent_type) in ["claude", "codex", "gemini", "opencode"]
             .iter()
             .enumerate()
         {
@@ -393,8 +393,9 @@ mod service_unified_tests {
         let error = result.unwrap_err().to_string();
         assert!(error.contains("Unsupported agent type: unsupported-agent"));
         assert!(error.contains("claude"));
-        assert!(error.contains("cursor"));
         assert!(error.contains("codex"));
+        assert!(error.contains("gemini"));
+        assert!(error.contains("opencode"));
     }
 
     #[test]
@@ -509,13 +510,13 @@ mod service_unified_tests {
             .unwrap();
 
         let params = SessionCreationParams {
-            name: "cursor-session",
+            name: "opencode-session",
             prompt: None,
             base_branch: None,
             was_auto_generated: false,
             version_group_id: None,
             version_number: None,
-            agent_type: Some("cursor"),
+            agent_type: Some("opencode"),
             skip_permissions: Some(false),
         };
 
@@ -1536,14 +1537,9 @@ impl SessionManager {
                 .mark_session_prompted(&session.worktree_path);
             let prompt_to_use = session.initial_prompt.as_deref();
 
-            let binary_key = if agent_type == "cursor" {
-                "cursor-agent"
-            } else {
-                &agent_type
-            };
             let binary_path = self.utils.get_effective_binary_path_with_override(
-                binary_key,
-                binary_paths.get(binary_key).map(|s| s.as_str()),
+                &agent_type,
+                binary_paths.get(&agent_type).map(|s| s.as_str()),
             );
 
             Ok(agent.build_command(
@@ -1700,14 +1696,9 @@ impl SessionManager {
 
         // For all other agents, use the registry
         if let Some(agent) = registry.get(agent_type) {
-            let binary_key = if agent_type == "cursor" {
-                "cursor-agent"
-            } else {
-                agent_type
-            };
             let binary_path = self.utils.get_effective_binary_path_with_override(
-                binary_key,
-                binary_paths.get(binary_key).map(|s| s.as_str()),
+                agent_type,
+                binary_paths.get(agent_type).map(|s| s.as_str()),
             );
 
             let session_id = if resume_session {
