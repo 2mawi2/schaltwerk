@@ -100,7 +100,6 @@ impl AgentCommand for CodexAgent {
     }
 }
 
-
 pub struct GeminiAgent;
 
 impl AgentCommand for GeminiAgent {

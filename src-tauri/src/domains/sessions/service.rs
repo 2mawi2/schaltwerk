@@ -178,10 +178,7 @@ mod service_unified_tests {
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
         // Test each supported agent type
-        for (i, agent_type) in ["claude", "codex", "gemini", "opencode"]
-            .iter()
-            .enumerate()
-        {
+        for (i, agent_type) in ["claude", "codex", "gemini", "opencode"].iter().enumerate() {
             let session = create_test_session(&temp_dir, agent_type, &i.to_string());
 
             // Create session in database
@@ -305,14 +302,7 @@ mod service_unified_tests {
             .unwrap();
 
         manager
-            .start_spec_session_with_config(
-                spec_name,
-                None,
-                None,
-                None,
-                Some("codex"),
-                Some(true),
-            )
+            .start_spec_session_with_config(spec_name, None, None, None, Some("codex"), Some(true))
             .unwrap();
 
         // Fetch running session to start agent
@@ -498,8 +488,11 @@ mod service_unified_tests {
         std::fs::write(repo_root.join("CLAUDE.local.md"), "root-local-memory").unwrap();
         let claude_dir = repo_root.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("settings.local.json"), "{\"key\":\"value\"}")
-            .unwrap();
+        std::fs::write(
+            claude_dir.join("settings.local.json"),
+            "{\"key\":\"value\"}",
+        )
+        .unwrap();
 
         let params = SessionCreationParams {
             name: "copy-local",
@@ -570,8 +563,7 @@ mod service_unified_tests {
         std::fs::write(repo_root.join("CLAUDE.local.md"), "should-not-copy").unwrap();
         let claude_dir = repo_root.join(".claude");
         std::fs::create_dir_all(&claude_dir).unwrap();
-        std::fs::write(claude_dir.join("settings.local.json"), "{\"copy\":false}")
-            .unwrap();
+        std::fs::write(claude_dir.join("settings.local.json"), "{\"copy\":false}").unwrap();
 
         let params = SessionCreationParams {
             name: "opencode-session",
@@ -828,9 +820,7 @@ impl SessionManager {
 
         if should_copy_claude_locals {
             if let Err(err) = self.copy_claude_local_files(&worktree_path) {
-                warn!(
-                    "Failed to copy Claude local overrides for session '{unique_name}': {err}"
-                );
+                warn!("Failed to copy Claude local overrides for session '{unique_name}': {err}");
             }
         }
 

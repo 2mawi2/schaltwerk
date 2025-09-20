@@ -5,9 +5,9 @@ use git2::{DiffOptions, Oid, Repository, StatusOptions};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
-use std::sync::{Mutex, OnceLock};
 #[cfg(test)]
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 #[cfg(test)]
 static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();

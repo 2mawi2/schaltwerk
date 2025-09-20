@@ -1108,10 +1108,7 @@ mod tests {
 
     #[test]
     fn test_claude_namegen_args_respect_cli_overrides() {
-        let args = build_claude_namegen_args(
-            "prompt text",
-            Some("--profile work --model opus"),
-        );
+        let args = build_claude_namegen_args("prompt text", Some("--profile work --model opus"));
 
         assert!(args.len() >= 2);
         assert_eq!(args[0], "--profile");
@@ -1155,5 +1152,4 @@ mod tests {
         });
         assert!(!has_model_flag);
     }
-
 }

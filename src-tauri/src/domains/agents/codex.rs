@@ -1,5 +1,160 @@
+use once_cell::sync::Lazy;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::RwLock;
+use std::time::{Duration, Instant};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+struct DirSignature {
+    modified_millis: Option<u128>,
+}
+
+impl DirSignature {
+    fn from_path(path: &Path) -> Self {
+        let modified_millis = fs::metadata(path)
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|ts| ts.duration_since(std::time::SystemTime::UNIX_EPOCH).ok())
+            .map(|dur| dur.as_millis());
+        Self { modified_millis }
+    }
+}
+
+#[derive(Clone, Default)]
+struct SessionFileInfo {
+    path: PathBuf,
+    modified_millis: Option<u128>,
+}
+
+#[derive(Clone, Default)]
+struct Snapshot {
+    per_cwd: HashMap<String, Vec<SessionFileInfo>>,
+    global_newest: Option<PathBuf>,
+    scanned_files: usize,
+}
+
+#[derive(Default)]
+struct IndexState {
+    snapshot: Option<Snapshot>,
+    signature: Option<DirSignature>,
+}
+
+struct CodexSessionIndex {
+    state: RwLock<IndexState>,
+}
+
+struct MatchResult {
+    resume_path: PathBuf,
+    is_global_newest: bool,
+}
+
+impl CodexSessionIndex {
+    fn new() -> Self {
+        Self {
+            state: RwLock::new(IndexState::default()),
+        }
+    }
+
+    fn match_for_cwd(
+        &self,
+        sessions_dir: &Path,
+        target_cwd: &str,
+    ) -> Result<Option<MatchResult>, std::io::Error> {
+        if !sessions_dir.exists() {
+            self.clear();
+            return Ok(None);
+        }
+
+        let signature = DirSignature::from_path(sessions_dir);
+        let mut needs_refresh = false;
+
+        if let Ok(state) = self.state.read() {
+            if state.signature.as_ref() != Some(&signature) {
+                needs_refresh = true;
+            } else if let Some(snapshot) = &state.snapshot {
+                if let Some(entries) = snapshot.per_cwd.get(target_cwd) {
+                    if let Some(info) = entries.first() {
+                        let is_global_newest = snapshot
+                            .global_newest
+                            .as_ref()
+                            .map(|p| p == &info.path)
+                            .unwrap_or(false);
+                        return Ok(Some(MatchResult {
+                            resume_path: info.path.clone(),
+                            is_global_newest,
+                        }));
+                    }
+                } else {
+                    return Ok(None);
+                }
+            } else {
+                needs_refresh = true;
+            }
+        }
+
+        if !needs_refresh {
+            // Cache exists but did not contain the target CWD
+            return Ok(None);
+        }
+
+        let mut state = self.state.write().unwrap();
+        if state.signature.as_ref() != Some(&signature) {
+            let start = Instant::now();
+            let snapshot = build_snapshot(sessions_dir)?;
+            let elapsed = start.elapsed();
+            if snapshot.scanned_files > 0 {
+                let level = if elapsed > Duration::from_millis(100) {
+                    log::Level::Info
+                } else {
+                    log::Level::Debug
+                };
+                log::log!(
+                    level,
+                    "Codex session index refresh scanned {} files in {}ms",
+                    snapshot.scanned_files,
+                    elapsed.as_millis()
+                );
+            }
+            state.snapshot = Some(snapshot);
+            state.signature = Some(signature);
+        }
+
+        if let Some(snapshot) = &state.snapshot {
+            if let Some(entries) = snapshot.per_cwd.get(target_cwd) {
+                if let Some(info) = entries.first() {
+                    let is_global_newest = snapshot
+                        .global_newest
+                        .as_ref()
+                        .map(|p| p == &info.path)
+                        .unwrap_or(false);
+                    return Ok(Some(MatchResult {
+                        resume_path: info.path.clone(),
+                        is_global_newest,
+                    }));
+                }
+            } else {
+                return Ok(None);
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn clear(&self) {
+        if let Ok(mut state) = self.state.write() {
+            state.snapshot = None;
+            state.signature = None;
+        }
+    }
+
+    #[cfg(test)]
+    fn reset_for_tests(&self) {
+        self.clear();
+    }
+}
+
+static CODEX_SESSION_INDEX: Lazy<CodexSessionIndex> = Lazy::new(CodexSessionIndex::new);
 
 #[derive(Debug, Clone, Default)]
 pub struct CodexConfig {
@@ -12,18 +167,19 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
         path.display()
     );
 
-    // Prefer runtime HOME to support tests that set it mid-process; fall back to OS home.
     let home = std::env::var("HOME")
         .ok()
         .map(PathBuf::from)
         .or_else(dirs::home_dir);
 
-    if home.is_none() {
-        log::warn!("❌ Codex session detection: Could not determine home directory");
-        return None;
-    }
+    let home = match home {
+        Some(home) => home,
+        None => {
+            log::warn!("❌ Codex session detection: Could not determine home directory");
+            return None;
+        }
+    };
 
-    let home = home.unwrap();
     let sessions_dir = home.join(".codex").join("sessions");
     let target_path = path.to_string_lossy().to_string();
 
@@ -33,52 +189,36 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
     );
     log::debug!("🎯 Codex session detection: Target CWD: {target_path:?}");
 
-    if !sessions_dir.exists() {
-        log::debug!(
-            "📂 Codex session detection: Sessions directory does not exist, no sessions to resume"
-        );
-        return None;
-    }
-
-    // Determine whether the newest global session belongs to this worktree.
-    // If yes, we can safely use --continue. If not, but there is at least one match
-    // for this worktree, fall back to the interactive picker via --resume.
-    match (
-        find_newest_session_for_cwd(&sessions_dir, &target_path),
-        find_newest_session(&sessions_dir),
-    ) {
-        (Ok(newest_match), Ok(global_newest)) => {
-            match (newest_match.as_ref(), global_newest.as_ref()) {
-                (None, _) => {
-                    log::debug!("❌ Codex session detection: No sessions found matching CWD: {target_path:?}");
-                }
-                (Some(nm), Some(gn)) if nm == gn => {
-                    log::debug!(
-                        "✅ Safe to --continue: newest global session matches this worktree"
-                    );
-                    return Some("__continue__".to_string());
-                }
-                (Some(_nm), _) => {
-                    log::debug!("⚠️ Not safe to --continue: global newest belongs to a different context; using picker");
-                    return Some("__resume__".to_string());
-                }
+    match CODEX_SESSION_INDEX.match_for_cwd(&sessions_dir, &target_path) {
+        Ok(Some(result)) => {
+            if result.is_global_newest {
+                log::debug!("✅ Safe to --continue: newest global session matches this worktree");
+                Some("__continue__".to_string())
+            } else {
+                log::debug!("⚠️ Not safe to --continue: using resume picker sentinel");
+                Some("__resume__".to_string())
             }
         }
-        (Err(e), _) => {
-            log::error!(
-                "💥 Codex session detection: Error scanning sessions directory for matches: {e}"
+        Ok(None) => {
+            log::debug!(
+                "🚫 Codex session detection: No resumable sessions found for path: {}",
+                path.display()
             );
+            None
         }
-        (_, Err(e)) => {
-            log::error!("💥 Codex session detection: Error determining newest global session: {e}");
+        Err(err) => {
+            log::error!(
+                "💥 Codex session detection: Error building cache, falling back to legacy scan: {err}"
+            );
+            legacy_match_for_cwd(&sessions_dir, &target_path).map(|legacy| {
+                if legacy.is_global_newest {
+                    "__continue__".to_string()
+                } else {
+                    "__resume__".to_string()
+                }
+            })
         }
     }
-
-    log::debug!(
-        "🚫 Codex session detection: No resumable sessions found for path: {}",
-        path.display()
-    );
-    None
 }
 
 // Efficiently finds the newest matching session for a given CWD by scanning
@@ -144,98 +284,39 @@ pub fn find_codex_session(path: &Path) -> Option<String> {
 
 /// Returns the newest matching Codex session JSONL path for this worktree, if any.
 pub fn find_codex_resume_path(path: &Path) -> Option<PathBuf> {
-    // Prefer runtime HOME to support tests that set it mid-process; fall back to OS home.
     let home = std::env::var("HOME")
         .ok()
         .map(PathBuf::from)
         .or_else(dirs::home_dir)?;
+
     let sessions_dir = home.join(".codex").join("sessions");
-    if !sessions_dir.exists() {
-        return None;
-    }
     let target_path = path.to_string_lossy().to_string();
-    if let Ok(mut entries) = find_sessions_by_cwd(&sessions_dir, &target_path) {
-        if !entries.is_empty() {
-            return entries.swap_remove(0).into();
+
+    match CODEX_SESSION_INDEX.match_for_cwd(&sessions_dir, &target_path) {
+        Ok(Some(result)) => Some(result.resume_path),
+        Ok(None) => None,
+        Err(err) => {
+            log::error!(
+                "💥 Codex resume detection: Error building cache, falling back to legacy scan: {err}"
+            );
+            legacy_match_for_cwd(&sessions_dir, &target_path).map(|legacy| legacy.resume_path)
         }
     }
-    None
 }
 
-fn find_sessions_by_cwd(
-    sessions_dir: &Path,
-    target_cwd: &str,
-) -> Result<Vec<PathBuf>, std::io::Error> {
-    let mut matching_sessions = Vec::new();
-    let mut total_scanned = 0;
-
-    fn scan_directory(
-        dir: &Path,
-        target: &str,
-        matches: &mut Vec<PathBuf>,
-        scanned_count: &mut i32,
-    ) -> Result<(), std::io::Error> {
-        log::trace!("📁 Scanning directory: {}", dir.display());
-
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-
-            if path.is_dir() {
-                scan_directory(&path, target, matches, scanned_count)?;
-            } else if path.extension().is_some_and(|ext| ext == "jsonl") {
-                *scanned_count += 1;
-                log::trace!("🔍 Checking session file: {}", path.display());
-
-                if session_matches_cwd(&path, target) {
-                    log::trace!("✅ Found matching session: {}", path.display());
-                    matches.push(path);
-                } else {
-                    log::trace!("❌ Session does not match CWD: {}", path.display());
-                }
-            }
-        }
-        Ok(())
-    }
-
-    scan_directory(
-        sessions_dir,
-        target_cwd,
-        &mut matching_sessions,
-        &mut total_scanned,
-    )?;
-
-    log::debug!(
-        "📊 Session scan complete: {} JSONL files scanned, {} matches found",
-        total_scanned,
-        matching_sessions.len()
-    );
-
-    // Sort by modification time (newest first)
-    matching_sessions.sort_by_key(|path| {
-        path.metadata()
-            .and_then(|m| m.modified())
-            .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-    });
-    matching_sessions.reverse();
-
-    if !matching_sessions.is_empty() {
-        log::trace!("📅 Sessions sorted by modification time (newest first):");
-        for (i, session) in matching_sessions.iter().enumerate() {
-            if let Ok(metadata) = session.metadata() {
-                if let Ok(modified) = metadata.modified() {
-                    log::trace!(
-                        "  {}. {} (modified: {:?})",
-                        i + 1,
-                        session.display(),
-                        modified
-                    );
-                }
-            }
-        }
-    }
-
-    Ok(matching_sessions)
+fn legacy_match_for_cwd(sessions_dir: &Path, target_cwd: &str) -> Option<MatchResult> {
+    let newest_match = find_newest_session_for_cwd(sessions_dir, target_cwd)
+        .ok()
+        .flatten()?;
+    let global_newest = find_newest_session(sessions_dir).ok().flatten();
+    let is_global_newest = global_newest
+        .as_ref()
+        .map(|p| p == &newest_match)
+        .unwrap_or(false);
+    Some(MatchResult {
+        resume_path: newest_match,
+        is_global_newest,
+    })
 }
 
 fn find_newest_session(sessions_dir: &Path) -> Result<Option<PathBuf>, std::io::Error> {
@@ -275,24 +356,29 @@ fn find_newest_session(sessions_dir: &Path) -> Result<Option<PathBuf>, std::io::
 }
 
 fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
+    extract_session_cwds(session_file)
+        .into_iter()
+        .any(|cwd| cwd == target_cwd)
+}
+
+fn extract_session_cwds(session_file: &Path) -> Vec<String> {
     log::trace!(
-        "🔍 Checking session file for CWD match: {}",
+        "🔍 Collecting candidate CWDs from Codex session: {}",
         session_file.display()
     );
-    log::trace!("🎯 Looking for CWD: {target_cwd:?}");
 
     let content = match fs::read_to_string(session_file) {
         Ok(content) => content,
         Err(e) => {
             log::trace!("❌ Failed to read session file: {e}");
-            return false;
+            return Vec::new();
         }
     };
 
-    let lines: Vec<&str> = content.lines().collect();
-    log::trace!("📄 Session file has {} lines to check", lines.len());
+    let mut seen = HashSet::new();
+    let mut results = Vec::new();
 
-    for (line_num, line) in lines.iter().enumerate() {
+    for (line_num, line) in content.lines().enumerate() {
         if let Ok(json) = serde_json::from_str::<serde_json::Value>(line) {
             log::trace!(
                 "📝 Parsing JSON on line {}: {:?}",
@@ -302,65 +388,123 @@ fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
                     .unwrap_or("unknown")
             );
 
-            // Check session_meta.cwd field (top-level)
             if let Some(cwd) = json.get("cwd").and_then(|v| v.as_str()) {
-                log::trace!("🔍 Found top-level CWD: {cwd:?}");
-                if cwd == target_cwd {
-                    log::trace!(
-                        "✅ CWD match found in top-level field: {}",
-                        session_file.display()
-                    );
-                    return true;
-                }
+                push_unique_cwd(cwd, &mut seen, &mut results);
             }
 
-            // Check session_meta payload
             if let Some(payload) = json.get("payload") {
                 if let Some(cwd) = payload.get("cwd").and_then(|v| v.as_str()) {
-                    log::trace!("🔍 Found payload CWD: {cwd:?}");
-                    if cwd == target_cwd {
-                        log::trace!(
-                            "✅ CWD match found in payload field: {}",
-                            session_file.display()
-                        );
-                        return true;
-                    }
+                    push_unique_cwd(cwd, &mut seen, &mut results);
                 }
 
-                // Check environment_context in message content
                 if let Some(content_array) = payload.get("content").and_then(|v| v.as_array()) {
-                    log::trace!(
-                        "📋 Checking {} content items for environment_context",
-                        content_array.len()
-                    );
-                    for (item_idx, content_item) in content_array.iter().enumerate() {
+                    for content_item in content_array.iter() {
                         if let Some(text) = content_item.get("text").and_then(|v| v.as_str()) {
-                            if text.contains("<environment_context>") {
-                                log::trace!(
-                                    "🌍 Found environment_context in content item {item_idx}"
-                                );
-                                let cwd_pattern = format!("<cwd>{target_cwd}</cwd>");
-                                if text.contains(&cwd_pattern) {
-                                    log::trace!(
-                                        "✅ CWD match found in environment_context: {}",
-                                        session_file.display()
-                                    );
-                                    return true;
-                                } else {
-                                    log::trace!("❌ environment_context does not contain target CWD pattern");
-                                }
-                            }
+                            extract_cwds_from_text(text, &mut seen, &mut results);
                         }
                     }
                 }
             }
-        } else {
-            log::trace!("⚠️ Line {} is not valid JSON, skipping", line_num + 1);
         }
     }
 
-    log::trace!("❌ No CWD match found in session file");
-    false
+    if results.is_empty() {
+        log::trace!("❌ No CWD candidates found in session file");
+    } else {
+        log::trace!("✅ Found {} candidate CWDs", results.len());
+    }
+
+    results
+}
+
+fn push_unique_cwd(cwd: &str, seen: &mut HashSet<String>, output: &mut Vec<String>) {
+    if seen.insert(cwd.to_string()) {
+        output.push(cwd.to_string());
+        log::trace!("🔍 Recorded candidate CWD: {cwd}");
+    }
+}
+
+fn extract_cwds_from_text(text: &str, seen: &mut HashSet<String>, output: &mut Vec<String>) {
+    let mut remaining = text;
+    while let Some(start) = remaining.find("<cwd>") {
+        let after_start = &remaining[start + 5..];
+        if let Some(end) = after_start.find("</cwd>") {
+            let value = &after_start[..end];
+            push_unique_cwd(value.trim(), seen, output);
+            remaining = &after_start[end + 6..];
+        } else {
+            break;
+        }
+    }
+}
+
+fn build_snapshot(sessions_dir: &Path) -> Result<Snapshot, std::io::Error> {
+    if !sessions_dir.exists() {
+        return Ok(Snapshot::default());
+    }
+
+    let mut per_cwd: HashMap<String, Vec<SessionFileInfo>> = HashMap::new();
+    let mut global_newest: Option<(u128, PathBuf)> = None;
+    let mut stack = vec![sessions_dir.to_path_buf()];
+    let mut scanned_files = 0usize;
+
+    while let Some(dir) = stack.pop() {
+        for entry in fs::read_dir(&dir)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                stack.push(path);
+                continue;
+            }
+            if path.extension().is_none_or(|ext| ext != "jsonl") {
+                continue;
+            }
+            scanned_files += 1;
+            let modified_millis = path
+                .metadata()
+                .ok()
+                .and_then(|m| m.modified().ok())
+                .and_then(|ts| ts.duration_since(std::time::SystemTime::UNIX_EPOCH).ok())
+                .map(|dur| dur.as_millis());
+
+            if let Some(millis) = modified_millis {
+                match &global_newest {
+                    Some((current, _)) if millis > *current => {
+                        global_newest = Some((millis, path.clone()));
+                    }
+                    None => global_newest = Some((millis, path.clone())),
+                    _ => {}
+                }
+            } else if global_newest.is_none() {
+                global_newest = Some((0, path.clone()));
+            }
+
+            for cwd in extract_session_cwds(&path) {
+                per_cwd
+                    .entry(cwd)
+                    .or_default()
+                    .push(SessionFileInfo {
+                        path: path.clone(),
+                        modified_millis,
+                    });
+            }
+        }
+    }
+
+    for entries in per_cwd.values_mut() {
+        entries.sort_by(|a, b| match (b.modified_millis, a.modified_millis) {
+            (Some(bm), Some(am)) => bm.cmp(&am),
+            (Some(_), None) => std::cmp::Ordering::Less,
+            (None, Some(_)) => std::cmp::Ordering::Greater,
+            (None, None) => b.path.cmp(&a.path),
+        });
+    }
+
+    Ok(Snapshot {
+        per_cwd,
+        global_newest: global_newest.map(|(_, path)| path),
+        scanned_files,
+    })
 }
 
 pub fn extract_session_id_from_path(session_file: &Path) -> Option<String> {
@@ -489,9 +633,12 @@ pub fn build_codex_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::env;
     use std::fs;
     use std::io::Write;
     use std::path::Path;
+    use std::thread;
+    use std::time::Duration;
     use tempfile::tempdir;
 
     #[test]
@@ -717,6 +864,74 @@ mod tests {
 
         assert!(session_matches_cwd(temp_file.path(), "/path/to/project"));
         assert!(!session_matches_cwd(temp_file.path(), "/different/path"));
+    }
+
+    #[test]
+    fn test_extract_session_cwds_collects_candidates() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        let mut temp_file = NamedTempFile::new().unwrap();
+        writeln!(
+            temp_file,
+            r#"{{"timestamp":"2025-09-13T01:00:00.000Z","type":"session_meta","cwd":"/path/a","payload":{{"cwd":"/path/b"}}}}"#
+        )
+        .unwrap();
+        writeln!(
+            temp_file,
+            r#"{{"timestamp":"2025-09-13T01:00:01.000Z","type":"response_item","payload":{{"type":"message","content":[{{"type":"input_text","text":"<environment_context><cwd>/path/c</cwd></environment_context>"}}]}}}}"#
+        )
+        .unwrap();
+
+        let mut cwds = extract_session_cwds(temp_file.path());
+        cwds.sort();
+        assert_eq!(cwds, vec!["/path/a", "/path/b", "/path/c"]);
+    }
+
+    #[test]
+    fn test_find_codex_session_fast_uses_cached_snapshot() {
+        let temp_home = tempdir().unwrap();
+        let sessions_root = temp_home.path().join(".codex").join("sessions");
+        let target_dir = sessions_root.join("2025").join("09").join("20");
+        fs::create_dir_all(&target_dir).unwrap();
+
+        let target_file = target_dir.join("session-a.jsonl");
+        let mut handle = fs::File::create(&target_file).unwrap();
+        writeln!(
+            handle,
+            r#"{{"timestamp":"2025-09-20T10:00:00.000Z","cwd":"/worktree/a"}}"#
+        )
+        .unwrap();
+        drop(handle);
+
+        thread::sleep(Duration::from_millis(5));
+
+        let other_file = target_dir.join("session-b.jsonl");
+        let mut handle = fs::File::create(&other_file).unwrap();
+        writeln!(
+            handle,
+            r#"{{"timestamp":"2025-09-20T10:00:01.000Z","cwd":"/other/worktree"}}"#
+        )
+        .unwrap();
+        drop(handle);
+
+        let original_home = env::var("HOME").ok();
+        env::set_var("HOME", temp_home.path());
+        CODEX_SESSION_INDEX.reset_for_tests();
+
+        let resume_hint = find_codex_session_fast(Path::new("/worktree/a"));
+        assert_eq!(resume_hint.as_deref(), Some("__resume__"));
+
+        // Second call should hit the cached snapshot with the same result.
+        let resume_hint_cached = find_codex_session_fast(Path::new("/worktree/a"));
+        assert_eq!(resume_hint_cached.as_deref(), Some("__resume__"));
+
+        CODEX_SESSION_INDEX.reset_for_tests();
+        if let Some(home) = original_home {
+            env::set_var("HOME", home);
+        } else {
+            env::remove_var("HOME");
+        }
     }
 
     #[test]

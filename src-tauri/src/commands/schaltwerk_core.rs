@@ -325,8 +325,6 @@ pub async fn schaltwerk_core_create_session(
             params.name
         );
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
             let (session_info, db_clone) = {
                 let core = match get_schaltwerk_core().await {
                     Ok(c) => c,
@@ -1433,9 +1431,6 @@ pub async fn schaltwerk_core_create_spec_session(
         let spec_content_clone = spec_content.clone();
 
         tokio::spawn(async move {
-            // Small delay to ensure database write is complete
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
             // Get fresh session data
             let (repo_path, worktree_path, branch, db_clone) = {
                 let core = match get_schaltwerk_core().await {
@@ -1677,8 +1672,6 @@ pub async fn schaltwerk_core_start_spec_session(
         let app_handle = app.clone();
 
         tokio::spawn(async move {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
             let (session_info, db_clone) = {
                 let core = match get_schaltwerk_core().await {
                     Ok(c) => c,
@@ -1944,9 +1937,6 @@ pub async fn schaltwerk_core_reset_orchestrator(terminal_id: String) -> Result<S
         log::warn!("Failed to close terminal {terminal_id}: {e}");
         // Continue anyway, terminal might already be closed
     }
-
-    // Wait a brief moment to ensure cleanup
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
     // Start a FRESH orchestrator session (bypassing session discovery)
     schaltwerk_core_start_fresh_orchestrator(terminal_id).await

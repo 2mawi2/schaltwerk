@@ -26,14 +26,12 @@ pub fn parse_agent_command(command: &str) -> Result<(String, String, Vec<String>
     let is_gemini = agent_token == "gemini" || agent_token.ends_with("/gemini");
     let is_codex = agent_token == "codex" || agent_token.ends_with("/codex");
 
-    let agent_name = if is_claude
-        || is_opencode
-        || is_gemini
-        || is_codex
-    {
+    let agent_name = if is_claude || is_opencode || is_gemini || is_codex {
         agent_token
     } else {
-        return Err(format!("Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"));
+        return Err(format!(
+            "Second part doesn't start with 'claude', 'opencode', 'gemini', or 'codex': {command}"
+        ));
     };
 
     // Split the rest into arguments, handling quoted strings

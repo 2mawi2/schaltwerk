@@ -81,11 +81,11 @@ pub async fn get_orchestrator_working_changes() -> Result<Vec<ChangedFile>, Stri
 mod tests {
     use super::*;
     use crate::{get_project_manager, get_schaltwerk_core};
-    use tokio::runtime::Runtime;
     use std::collections::HashMap;
     use std::fs;
     use std::process::Command as StdCommand;
     use tempfile::TempDir;
+    use tokio::runtime::Runtime;
 
     fn setup_test_git_repo() -> TempDir {
         let temp_dir = TempDir::new().unwrap();
@@ -274,9 +274,7 @@ mod tests {
                     agent_type: None,
                     skip_permissions: None,
                 };
-                let session = session_manager
-                    .create_session_with_agent(params)
-                    .unwrap();
+                let session = session_manager.create_session_with_agent(params).unwrap();
                 (
                     session.name.clone(),
                     session.parent_branch.clone(),
@@ -286,12 +284,10 @@ mod tests {
 
             fs::write(worktree_path.join("README.md"), session_edit).unwrap();
 
-            let (old_content, new_content) = get_file_diff_from_main(
-                Some(session_name.clone()),
-                "README.md".to_string(),
-            )
-            .await
-            .unwrap();
+            let (old_content, new_content) =
+                get_file_diff_from_main(Some(session_name.clone()), "README.md".to_string())
+                    .await
+                    .unwrap();
 
             assert_eq!(old_content, feature_content.to_string());
             assert_eq!(new_content, session_edit.to_string());
