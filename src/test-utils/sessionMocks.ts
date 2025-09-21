@@ -14,7 +14,7 @@ export const mockEnrichedSession = (name: string, status: string = 'active', rea
     ready_to_merge: readyToMerge,
     diff_stats: undefined,
     is_current: false,
-    session_type: 'worktree' as const,
+    session_type: "worktree" as const,
   },
   terminals: [
     `session-${name}-top`,
