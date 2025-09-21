@@ -354,11 +354,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             for (const session of event) {
                                 newSessionsMap.set(session.info.session_id, session)
                             }
-                            
+
                             // Keep existing sessions if they haven't changed, preserving order
                             const updated: EnrichedSession[] = []
                             const seenIds = new Set<string>()
-                            
+
                             // First, update existing sessions in their current positions
                             for (const existing of prev) {
                                 const newSession = newSessionsMap.get(existing.info.session_id)
@@ -373,7 +373,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 }
                                 // Note: If the session doesn't exist in newSession, it's removed (don't add to updated)
                             }
-                            
+
                             // Add new sessions at the end
                             for (const newSession of event) {
                                 const sessionId = newSession.info.session_id
@@ -383,24 +383,26 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                 seenIds.add(sessionId)
                                 updated.push(newSession)
                             }
-                            
+
                             // Only update if something actually changed
-                            if (updated.length === prev.length && 
+                            if (updated.length === prev.length &&
                                 updated.every((s, i) => s === prev[i])) {
                                 return prev // No change, keep same reference
                             }
-                            
+
                             return updated
                         })
-                        
+
                         const next = new Map<string, string>()
                         for (const s of event) next.set(s.info.session_id, mapSessionUiState(s.info))
                         prevStatesRef.current = next
                     } else {
-                        await reloadSessions()
+                        // Don't call reloadSessions() here to avoid circular dependency
+                        // The SessionsRefreshed event should contain the full session list
+                        logger.warn('[SessionsContext] Received empty SessionsRefreshed event, ignoring to prevent circular calls')
                     }
                 } catch (e) {
-                    logger.error('[SessionsContext] Failed to reload sessions:', e)
+                    logger.error('[SessionsContext] Failed to process SessionsRefreshed event:', e)
                 }
             }))
 

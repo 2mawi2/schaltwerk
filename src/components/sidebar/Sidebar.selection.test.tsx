@@ -37,16 +37,10 @@ vi.mock('@tauri-apps/api/event', () => ({
       }
     })
   })
-}))
-
-
-
-
-
-
+})
 
 describe('Reviewed session cancellation focus preservation', () => {
-  let currentSessions: any[] = []
+  let currentSessions: unknown[] = []
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -63,21 +57,21 @@ describe('Reviewed session cancellation focus preservation', () => {
     // Create a dynamic mock that always returns current sessions
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       // Always use the current value of currentSessions
-      const sessions = (global as any).__testCurrentSessions || currentSessions
-      console.log('Mock invoke called:', cmd, 'with sessions:', sessions.length, 'session names:', sessions.map((s: any) => s.info.session_id))
+      const sessions = (globalThis as any).__testCurrentSessions || currentSessions
+      console.log('Mock invoke called:', cmd, 'with sessions:', sessions.length, 'session names:', sessions.map((s: unknown) => (s as any).info.session_id))
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
         console.log('Returning sessions:', sessions)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        const filtered = mode === 'spec' ? sessions.filter((s: any) => s.info.session_state === 'spec') :
-                        mode === 'running' ? sessions.filter((s: any) => s.info.session_state !== 'spec' && !s.info.ready_to_merge) :
-                        mode === 'reviewed' ? sessions.filter((s: any) => s.info.ready_to_merge) : sessions
+        const filtered = mode === 'spec' ? sessions.filter((s: unknown) => (s as any).info.session_state === 'spec') :
+                        mode === 'running' ? sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge) :
+                        mode === 'reviewed' ? sessions.filter((s: unknown) => (s as any).info.ready_to_merge) : sessions
         console.log('Returning filtered sessions for mode', mode, ':', filtered.length)
-        if (mode === 'spec') return sessions.filter((s: any) => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter((s: any) => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter((s: any) => s.info.ready_to_merge)
+        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
@@ -96,9 +90,9 @@ describe('Reviewed session cancellation focus preservation', () => {
     // Remove session from mock data when SessionRemoved event is emitted
     if (event === SchaltEvent.SessionRemoved) {
       const sessionName = (payload as { session_name: string }).session_name
-      currentSessions = currentSessions.filter((s: any) => s.info.session_id !== sessionName)
+      currentSessions = currentSessions.filter((s: unknown) => (s as any).info.session_id !== sessionName)
       // Update global reference so mock can access updated sessions
-      ;(global as any).__testCurrentSessions = currentSessions
+      ;(globalThis as any).__testCurrentSessions = currentSessions
       console.log('Session removed:', sessionName, 'Remaining sessions:', currentSessions.length)
     }
 
@@ -108,8 +102,6 @@ describe('Reviewed session cancellation focus preservation', () => {
       }
     })
   }
-
-
 
   it('preserves focus on current session when a reviewed session is cancelled', async () => {
     render(<TestProviders><Sidebar /></TestProviders>)
@@ -150,9 +142,9 @@ describe('Reviewed session cancellation focus preservation', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
@@ -189,58 +181,65 @@ describe('Reviewed session cancellation focus preservation', () => {
     })
   })
 
-   it('continues normal auto-selection behavior for non-reviewed session cancellation', async () => {
-     const currentSession = mockEnrichedSession('current-session', 'active', false)
-     const runningSession = mockEnrichedSession('running-session', 'active', false)
-     const specSession = mockEnrichedSession('spec-session', 'spec', false)
+  it('continues normal auto-selection behavior for non-reviewed session cancellation', async () => {
+    const currentSession = mockEnrichedSession('current-session', 'active', false)
+    const runningSession = mockEnrichedSession('running-session', 'active', false)
+    const specSession = mockEnrichedSession('spec-session', 'active', false)
 
-     currentSessions = [currentSession, runningSession, specSession]
+    currentSessions = [currentSession, runningSession, specSession]
 
-    render(<TestProviders><Sidebar /></TestProviders>)
+   render(<TestProviders><Sidebar /></TestProviders>)
 
-    // Wait for sessions to load
-    await waitFor(() => {
-      const allButtons = screen.getAllByRole('button')
-      console.log('All buttons found:', allButtons.length)
-      allButtons.forEach((btn, index) => {
-        console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
-      })
+   // Wait for sessions to load
+   await waitFor(() => {
+     const allButtons = screen.getAllByRole('button')
+     console.log('All buttons found:', allButtons.length)
+     allButtons.forEach((btn, index) => {
+       console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
+     })
 
-      const sessionButtons = allButtons.filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
-      })
-      console.log('Session buttons found:', sessionButtons.length)
-      console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map((s: any) => s.info.session_id))
-      expect(sessionButtons).toHaveLength(3)
-    })
+     const sessionButtons = allButtons.filter(btn => {
+       const text = btn.textContent || ''
+       return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
+     })
+     console.log('Session buttons found:', sessionButtons.length)
+     console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map((s: unknown) => (s as any).info.session_id))
+     expect(sessionButtons).toHaveLength(3)
+   })
 
-    // Select the current session
-    await userEvent.click(screen.getByText('current-session'))
-    await waitFor(() => {
-      const currentButton = screen.getByText('current-session').closest('[role="button"]')
-      expect(currentButton).toHaveClass('session-ring-blue')
-    })
+   // Select the running session
+   await userEvent.click(screen.getByText('running-session'))
+   await waitFor(() => {
+     const runningButton = screen.getByText('running-session').closest('[role="button"]')
+     expect(runningButton).toHaveClass('session-ring-blue')
+   })
 
-    // Cancel a non-reviewed session
-    await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'running-session' })
+   // Cancel the running session
+   await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'running-session' })
 
-    // Debug: Check what sessions are visible after removal
-    await waitFor(() => {
-      const sessionButtons = screen.getAllByRole('button').filter(btn => {
-        const text = btn.textContent || ''
-        return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
-      })
-      console.log('Visible sessions after removal:', sessionButtons.length)
-      sessionButtons.forEach(btn => console.log('Session:', btn.textContent, 'Classes:', btn.className))
-    })
+   // Check what sessions are visible after removal
+   await waitFor(() => {
+     const sessionButtons = screen.getAllByRole('button').filter(btn => {
+       const text = btn.textContent || ''
+       return text.includes('current-session') || text.includes('spec-session')
+     })
+     console.log('Visible sessions after removal:', sessionButtons.length)
+     sessionButtons.forEach(btn => console.log('Session:', btn.textContent, 'Classes:', btn.className))
+     expect(sessionButtons).toHaveLength(2)
+   })
 
-    // Should auto-select to the next available session (spec-session)
-    await waitFor(() => {
-      const specButton = screen.getByText('spec-session').closest('[role="button"]')
-      expect(specButton).toHaveClass('session-ring-blue')
-    })
-  })
+   // Should auto-select to the next available session (spec-session)
+   await waitFor(() => {
+     const specButton = screen.getByText('spec-session').closest('[role="button"]')
+     expect(specButton).toHaveClass('session-ring-blue')
+   })
+
+   // And current should not be selected
+   await waitFor(() => {
+     const currentButton = screen.getByText('current-session').closest('[role="button"]')
+     expect(currentButton).not.toHaveClass('session-ring-blue')
+   })
+ })
 
   it('handles multiple reviewed sessions correctly during cancellation', async () => {
     const currentSession = mockEnrichedSession('current-session', 'active', false)
@@ -253,9 +252,9 @@ describe('Reviewed session cancellation focus preservation', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
@@ -300,9 +299,9 @@ describe('Reviewed session cancellation focus preservation', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
@@ -350,9 +349,9 @@ describe('Reviewed session cancellation focus preservation', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
         return sessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []

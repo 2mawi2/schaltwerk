@@ -37,9 +37,7 @@ function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
 function isSpec(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
-
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
-
 
 interface SidebarProps {
     isDiffViewerOpen?: boolean
@@ -107,29 +105,31 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
     type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())
-    const ensureProjectMemory = useCallback((): Record<FilterMode, FilterMemoryEntry> => {
-        const key = projectPath || '__default__'
-        if (!selectionMemoryRef.current.has(key)) {
-            selectionMemoryRef.current.set(key, {
-                [FilterMode.All]: { lastSelection: null, lastSessions: [] },
-                [FilterMode.Spec]: { lastSelection: null, lastSessions: [] },
-                [FilterMode.Running]: { lastSelection: null, lastSessions: [] },
-                [FilterMode.Reviewed]: { lastSelection: null, lastSessions: [] },
-            })
-        }
-        return selectionMemoryRef.current.get(key)!
-    }, [projectPath])
+
+    const ensureProjectMemory = useCallback(() => {
+      const key = projectPath || '__default__';
+      if (!selectionMemoryRef.current.has(key)) {
+        selectionMemoryRef.current.set(key, {
+          [FilterMode.All]: { lastSelection: null, lastSessions: [] },
+          [FilterMode.Spec]: { lastSelection: null, lastSessions: [] },
+          [FilterMode.Running]: { lastSelection: null, lastSessions: [] },
+          [FilterMode.Reviewed]: { lastSelection: null, lastSessions: [] },
+        });
+      }
+      return selectionMemoryRef.current.get(key)!;
+    }, [projectPath]);
 
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
         await reloadSessions()
-    }, [reloadSessions])
+    }, [reloadSessions]);
     
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
         if (isProjectSwitching.current) return
 
-        const memory = ensureProjectMemory()
-        const entry = memory[filterMode]
+        const memory = ensureProjectMemory();
+        const entry = memory[filterMode];
+
         const visibleSessions = sessions
         const visibleIds = new Set(visibleSessions.map(s => s.info.session_id))
         const currentSelectionId = selection.kind === 'session' ? (selection.payload ?? null) : null
@@ -179,7 +179,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 candidateId = null // Will fall back to orchestrator below
             }
         } else {
-            // Normal auto-selection logic for non-reviewed sessions
+            // Normal auto-selection logic for non-reviewed sessions (including specs)
             const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
 
             if (rememberedId && visibleIds.has(rememberedId)) {
@@ -238,13 +238,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             })
     }, [])
 
-
-
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }
     
-
     // Helper to flatten grouped sessions into a linear array
     const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
         const sessionGroups = groupSessionsByVersion(sessionsToFlatten)
