@@ -139,6 +139,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         const removalCandidate = lastRemovedSessionRef.current
 
+        // Check if the removed session was a reviewed session
+        const wasReviewedSession = removalCandidate ?
+            allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
+
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
             if (!removalCandidate) {
@@ -164,28 +168,40 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
 
         const rememberedId = entry.lastSelection
-        const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
         let candidateId: string | null = null
 
-        if (rememberedId && visibleIds.has(rememberedId)) {
-            candidateId = rememberedId
-        }
-
-        if (!candidateId && baselineId && previousSessions.length > 0) {
-            const neighbourId = computeNextSelectedSessionId(previousSessions, baselineId, baselineId)
-            if (neighbourId && visibleIds.has(neighbourId)) {
-                candidateId = neighbourId
+        // If a reviewed session was cancelled, preserve current focus instead of auto-switching
+        if (wasReviewedSession && removalCandidate) {
+            // Keep current selection or fall back to orchestrator
+            if (currentSelectionId && visibleIds.has(currentSelectionId)) {
+                candidateId = currentSelectionId
             } else {
-                const previousIndex = previousSessions.findIndex(s => s.info.session_id === baselineId)
-                if (previousIndex !== -1 && visibleSessions.length > 0) {
-                    const boundedIndex = Math.min(previousIndex, visibleSessions.length - 1)
-                    candidateId = visibleSessions[boundedIndex]?.info.session_id ?? null
+                candidateId = null // Will fall back to orchestrator below
+            }
+        } else {
+            // Normal auto-selection logic for non-reviewed sessions
+            const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
+
+            if (rememberedId && visibleIds.has(rememberedId)) {
+                candidateId = rememberedId
+            }
+
+            if (!candidateId && baselineId && previousSessions.length > 0) {
+                const neighbourId = computeNextSelectedSessionId(previousSessions, baselineId, baselineId)
+                if (neighbourId && visibleIds.has(neighbourId)) {
+                    candidateId = neighbourId
+                } else {
+                    const previousIndex = previousSessions.findIndex(s => s.info.session_id === baselineId)
+                    if (previousIndex !== -1 && visibleSessions.length > 0) {
+                        const boundedIndex = Math.min(previousIndex, visibleSessions.length - 1)
+                        candidateId = visibleSessions[boundedIndex]?.info.session_id ?? null
+                    }
                 }
             }
-        }
 
-        if (!candidateId && visibleSessions.length > 0) {
-            candidateId = visibleSessions[0]?.info.session_id ?? null
+            if (!candidateId && visibleSessions.length > 0) {
+                candidateId = visibleSessions[0]?.info.session_id ?? null
+            }
         }
 
         if (candidateId) {
