@@ -1,6 +1,6 @@
 import { render, screen, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { Event } from '@tauri-apps/api/event'
+
 import { invoke } from '@tauri-apps/api/core'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
@@ -24,10 +24,10 @@ vi.mock('../../contexts/ProjectContext', async () => {
   }
 })
 
-const listeners: Record<string, Array<(event: Event<unknown>) => void>> = {}
+const listeners: Record<string, Array<(event: Event) => void>> = {}
 
 vi.mock('@tauri-apps/api/event', () => ({
-  listen: vi.fn().mockImplementation((eventName: string, callback: (event: Event<unknown>) => void) => {
+  listen: vi.fn().mockImplementation((eventName, callback) => {
     if (!listeners[eventName]) listeners[eventName] = []
     listeners[eventName].push(callback)
     return Promise.resolve(() => {
@@ -66,8 +66,8 @@ describe('Reviewed session cancellation focus preservation', () => {
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
         const filtered = mode === 'spec' ? sessions.filter((s: unknown) => (s as any).info.session_state === 'spec') :
-                        mode === 'running' ? sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge) :
-                        mode === 'reviewed' ? sessions.filter((s: unknown) => (s as any).info.ready_to_merge) : sessions
+          mode === 'running' ? sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge) :
+            mode === 'reviewed' ? sessions.filter((s: unknown) => (s as any).info.ready_to_merge) : sessions
         console.log('Returning filtered sessions for mode', mode, ':', filtered.length)
         if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
         if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
@@ -91,14 +91,14 @@ describe('Reviewed session cancellation focus preservation', () => {
     if (event === SchaltEvent.SessionRemoved) {
       const sessionName = (payload as { session_name: string }).session_name
       currentSessions = currentSessions.filter((s: unknown) => (s as any).info.session_id !== sessionName)
-      // Update global reference so mock can access updated sessions
-      ;(globalThis as any).__testCurrentSessions = currentSessions
+        // Update global reference so mock can access updated sessions
+        ; (globalThis as any).__testCurrentSessions = currentSessions
       console.log('Session removed:', sessionName, 'Remaining sessions:', currentSessions.length)
     }
 
     await act(async () => {
       for (const handler of handlers) {
-        await handler({ event, id: 0, payload } as Event<unknown>)
+        await handler({ event, id: 0, payload } as unknown as Event)
       }
     })
   }
@@ -187,59 +187,61 @@ describe('Reviewed session cancellation focus preservation', () => {
     const specSession = mockEnrichedSession('spec-session', 'spec', false)
 
     currentSessions = [currentSession, runningSession, specSession]
+    ;(globalThis as any).__testCurrentSessions = currentSessions
 
-   render(<TestProviders><Sidebar /></TestProviders>)
+    render(<TestProviders><Sidebar /></TestProviders>)
 
-   // Wait for sessions to load
-   await waitFor(() => {
-     const allButtons = screen.getAllByRole('button')
-     console.log('All buttons found:', allButtons.length)
-     allButtons.forEach((btn, index) => {
-       console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
-     })
+    // Wait for sessions to load
+    await waitFor(() => {
+      const allButtons = screen.getAllByRole('button')
+      console.log('All buttons found:', allButtons.length)
+      allButtons.forEach((btn, index) => {
+        console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
+      })
 
-     const sessionButtons = allButtons.filter(btn => {
-       const text = btn.textContent || ''
-       return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
-     })
-     console.log('Session buttons found:', sessionButtons.length)
-     console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map((s: unknown) => (s as any).info.session_id))
-     expect(sessionButtons).toHaveLength(3)
-   })
+      const sessionButtons = allButtons.filter(btn => {
+        const text = btn.textContent || ''
+        return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
+      })
+      console.log('Session buttons found:', sessionButtons.length)
+      console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map((s: unknown) => (s as any).info.session_id))
+      expect(sessionButtons).toHaveLength(3)
+    })
 
-   // Select the running session
-   await userEvent.click(screen.getByText('running-session'))
-   await waitFor(() => {
-     const runningButton = screen.getByText('running-session').closest('[role="button"]')
-     expect(runningButton).toHaveClass('session-ring-blue')
-   })
+    // Select the running session
+    await userEvent.click(screen.getByText('running-session'))
+    await waitFor(() => {
+      const runningButton = screen.getByText('running-session').closest('[role="button"]')
+      expect(runningButton).toHaveClass('session-ring-blue')
+    })
 
-   // Cancel the running session
-   await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'running-session' })
+    // Cancel the running session
+    await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'running-session' })
 
-   // Check what sessions are visible after removal
-   await waitFor(() => {
-     const sessionButtons = screen.getAllByRole('button').filter(btn => {
-       const text = btn.textContent || ''
-       return text.includes('current-session') || text.includes('spec-session')
-     })
-     console.log('Visible sessions after removal:', sessionButtons.length)
-     sessionButtons.forEach(btn => console.log('Session:', btn.textContent, 'Classes:', btn.className))
-     expect(sessionButtons).toHaveLength(2)
-   })
+    // Check what sessions are visible after removal
+    await waitFor(() => {
+      const sessionButtons = screen.getAllByRole('button').filter(btn => {
+        const text = btn.textContent || ''
+        return text.includes('current-session') || text.includes('spec-session')
+      })
+      console.log('Visible sessions after removal:', sessionButtons.length)
+      sessionButtons.forEach(btn => console.log('Session:', btn.textContent, 'Classes:', btn.className))
+      expect(sessionButtons).toHaveLength(2)
+    })
 
-   // Should auto-select to the next available session (spec-session)
-   await waitFor(() => {
-     const specButton = screen.getByText('spec-session').closest('[role="button"]')
-     expect(specButton).toHaveClass('session-ring-blue')
-   })
+    // Should auto-select to the next available session (spec-session)
+    await waitFor(() => {
+      const specButton = screen.getByText('spec-session').closest('[role="button"]')
+      expect(specButton).toHaveClass('session-ring-blue')
+    })
 
-   // And current should not be selected
-   await waitFor(() => {
-     const currentButton = screen.getByText('current-session').closest('[role="button"]')
-     expect(currentButton).not.toHaveClass('session-ring-blue')
-   })
- })
+    // And current should not be selected
+    await waitFor(() => {
+      const currentButton = screen.getByText('current-session').closest('[role="button"]')
+      expect(currentButton).not.toHaveClass('session-ring-blue')
+    })
+  })
+
 
   it('handles multiple reviewed sessions correctly during cancellation', async () => {
     const currentSession = mockEnrichedSession('current-session', 'active', false)
