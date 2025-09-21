@@ -285,6 +285,7 @@ pub async fn schaltwerk_core_create_session(
         version_number: params.version_number,
         agent_type: params.agent_type.as_deref(),
         skip_permissions: params.skip_permissions,
+        attached_images: vec![],
     };
     let session = manager
         .create_session_with_agent(creation_params)
@@ -2115,6 +2116,75 @@ pub async fn schaltwerk_core_discard_file_in_orchestrator(file_path: String) -> 
         std::path::Path::new(&file_path),
     )
     .map_err(|e| format!("Failed to discard file changes: {e}"))
+}
+
+#[tauri::command]
+pub async fn upload_attached_files(files: Vec<String>) -> Result<Vec<String>, String> {
+    log::info!("Uploading {} attached files", files.len());
+
+    let _core = get_schaltwerk_core().await?;
+    let _core = _core.lock().await;
+
+    let mut uploaded_paths = Vec::new();
+
+    // For now, we'll assume the files are already accessible at the given paths
+    // In a real implementation, this would handle actual file uploads
+    for file_path in files {
+        let path = std::path::Path::new(&file_path);
+
+        // Check if the file exists and is readable
+        if !path.exists() {
+            return Err(format!("File does not exist: {file_path}"));
+        }
+
+        if !path.is_file() {
+            return Err(format!("Path is not a file: {file_path}"));
+        }
+
+        // For now, just return the original path
+        // In a real implementation, this would copy the file to a temporary location
+        // and return the new path
+        uploaded_paths.push(file_path);
+    }
+
+    log::info!("Successfully processed {} attached files", uploaded_paths.len());
+    Ok(uploaded_paths)
+}
+
+#[tauri::command]
+pub async fn upload_attached_files_with_data(files: Vec<(String, Vec<u8>)>) -> Result<Vec<String>, String> {
+    log::info!("Uploading {} attached files with data", files.len());
+
+    let _core = get_schaltwerk_core().await?;
+    let _core = _core.lock().await;
+
+    let mut uploaded_paths = Vec::new();
+
+    // Create a temporary directory for uploaded files
+    let temp_dir = std::env::temp_dir();
+    let upload_dir = temp_dir.join("schaltwerk_uploads");
+    std::fs::create_dir_all(&upload_dir)
+        .map_err(|e| format!("Failed to create upload directory: {e}"))?;
+
+    for (filename, file_data) in files {
+        // Create a unique filename to avoid conflicts
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| format!("Failed to get timestamp: {e}"))?
+            .as_nanos();
+
+        let unique_filename = format!("{timestamp}_{filename}");
+        let file_path = upload_dir.join(&unique_filename);
+
+        // Write the file data
+        std::fs::write(&file_path, file_data)
+            .map_err(|e| format!("Failed to write file {}: {e}", file_path.display()))?;
+
+        uploaded_paths.push(file_path.to_string_lossy().to_string());
+    }
+
+    log::info!("Successfully uploaded {} attached files to temporary location", uploaded_paths.len());
+    Ok(uploaded_paths)
 }
 
 #[cfg(test)]

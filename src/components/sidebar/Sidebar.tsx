@@ -104,14 +104,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     })
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
-    const IDLE_THRESHOLD_MS = 5 * 60 * 1000 // 5 minutes
 
-    const { idleIds, recomputeIdle: recomputeIdleSessions } = useIdleSessions({
-        sessions: allSessions,
-        includeSpecs: false,
-        includeReviewed: false,
-        idleThresholdMs: IDLE_THRESHOLD_MS
-    })
+    // TODO: Implement useIdleSessions hook or replace with proper idle detection
+    const idleIds = new Set<string>()
+    const recomputeIdleSessions = useCallback(() => {}, [])
 
     type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())

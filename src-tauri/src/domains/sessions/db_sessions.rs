@@ -61,8 +61,8 @@ impl SessionMethods for Database {
                 branch, parent_branch, worktree_path,
                 status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                 original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                spec_content, session_state, resume_allowed
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)",
+                spec_content, session_state, resume_allowed, attached_images
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24)",
             params![
                 session.id,
                 session.name,
@@ -87,6 +87,7 @@ impl SessionMethods for Database {
                 session.spec_content,
                 session.session_state.as_str(),
                 session.resume_allowed,
+                serde_json::to_string(&session.attached_images).unwrap_or_else(|_| "[]".to_string()),
             ],
         )?;
 
@@ -101,7 +102,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed
+                    spec_content, session_state, resume_allowed, attached_images
              FROM sessions
              WHERE repository_path = ?1 AND name = ?2"
         )?;
@@ -134,14 +135,21 @@ impl SessionMethods for Database {
                 pending_name_generation: row.get(18).unwrap_or(false),
                 was_auto_generated: row.get(19).unwrap_or(false),
                 spec_content: row.get(20).ok(),
-                session_state: row
-                    .get::<_, String>(21)
-                    .ok()
-                    .and_then(|s| s.parse().ok())
-                    .unwrap_or(SessionState::Running),
-                resume_allowed: row.get(22).unwrap_or(true),
-            })
-        })?;
+                 session_state: row
+                     .get::<_, Option<String>>(21)
+                     .ok()
+                     .flatten()
+                     .and_then(|s| s.parse().ok())
+                     .unwrap_or(SessionState::Running),
+                 resume_allowed: row.get(22).unwrap_or(true),
+                 attached_images: row
+                     .get::<_, Option<String>>(23)
+                     .ok()
+                     .flatten()
+                     .and_then(|s| serde_json::from_str(&s).ok())
+                     .unwrap_or_default(),
+             })
+         })?;
 
         Ok(session)
     }
@@ -154,7 +162,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed
+                    spec_content, session_state, resume_allowed, attached_images
              FROM sessions
              WHERE id = ?1"
         )?;
@@ -188,11 +196,18 @@ impl SessionMethods for Database {
                 was_auto_generated: row.get(19).unwrap_or(false),
                 spec_content: row.get(20).ok(),
                 session_state: row
-                    .get::<_, String>(21)
+                    .get::<_, Option<String>>(21)
                     .ok()
+                    .flatten()
                     .and_then(|s| s.parse().ok())
                     .unwrap_or(SessionState::Running),
                 resume_allowed: row.get(22).unwrap_or(true),
+                 attached_images: row
+                     .get::<_, Option<String>>(23)
+                     .ok()
+                     .flatten()
+                     .and_then(|s| serde_json::from_str(&s).ok())
+                     .unwrap_or_default(),
             })
         })?;
 
@@ -222,57 +237,63 @@ impl SessionMethods for Database {
         Ok(result)
     }
 
-    fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>> {
-        let conn = self.conn.lock().unwrap();
+     fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>> {
+         let conn = self.conn.lock().unwrap();
 
-        let mut stmt = conn.prepare(
-            "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
-                    branch, parent_branch, worktree_path,
-                    status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
-                    original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed
-             FROM sessions
-             WHERE repository_path = ?1
-             ORDER BY ready_to_merge ASC, last_activity DESC"
-        )?;
+         let mut stmt = conn.prepare(
+             "SELECT id, name, display_name, version_group_id, version_number, repository_path, repository_name,
+                     branch, parent_branch, worktree_path,
+                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
+                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
+                     spec_content, session_state, resume_allowed, attached_images
+              FROM sessions
+              WHERE repository_path = ?1
+              ORDER BY ready_to_merge ASC, last_activity DESC"
+         )?;
 
-        let sessions = stmt
-            .query_map(params![repo_path.to_string_lossy()], |row| {
-                Ok(Session {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    display_name: row.get(2).ok(),
-                    version_group_id: row.get(3).ok(),
-                    version_number: row.get(4).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
-                    repository_name: row.get(6)?,
-                    branch: row.get(7)?,
-                    parent_branch: row.get(8)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
-                    status: row
-                        .get::<_, String>(10)?
-                        .parse()
-                        .unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
-                    last_activity: row
-                        .get::<_, Option<i64>>(13)?
-                        .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(14)?,
-                    ready_to_merge: row.get(15).unwrap_or(false),
-                    original_agent_type: row.get(16).ok(),
-                    original_skip_permissions: row.get(17).ok(),
-                    pending_name_generation: row.get(18).unwrap_or(false),
-                    was_auto_generated: row.get(19).unwrap_or(false),
-                    spec_content: row.get(20).ok(),
-                    session_state: row
-                        .get::<_, String>(21)
-                        .ok()
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(SessionState::Running),
-                    resume_allowed: row.get(22).unwrap_or(true),
-                })
-            })?
+         let sessions = stmt
+             .query_map(params![repo_path.to_string_lossy()], |row| {
+                 Ok(Session {
+                     id: row.get(0)?,
+                     name: row.get(1)?,
+                     display_name: row.get(2).ok(),
+                     version_group_id: row.get(3).ok(),
+                     version_number: row.get(4).ok(),
+                     repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                     repository_name: row.get(6)?,
+                     branch: row.get(7)?,
+                     parent_branch: row.get(8)?,
+                     worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                     status: row
+                         .get::<_, String>(10)?
+                         .parse()
+                         .unwrap_or(SessionStatus::Active),
+                     created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                     updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                     last_activity: row
+                         .get::<_, Option<i64>>(13)?
+                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                     initial_prompt: row.get(14)?,
+                     ready_to_merge: row.get(15).unwrap_or(false),
+                     original_agent_type: row.get(16).ok(),
+                     original_skip_permissions: row.get(17).ok(),
+                     pending_name_generation: row.get(18).unwrap_or(false),
+                     was_auto_generated: row.get(19).unwrap_or(false),
+                     spec_content: row.get(20).ok(),
+                     session_state: row
+                         .get::<_, String>(21)
+                         .ok()
+                         .and_then(|s| s.parse().ok())
+                         .unwrap_or(SessionState::Running),
+                     resume_allowed: row.get(22).unwrap_or(true),
+                     attached_images: row
+                         .get::<_, Option<String>>(23)
+                         .ok()
+                         .flatten()
+                         .and_then(|s| serde_json::from_str(&s).ok())
+                         .unwrap_or_default(),
+                 })
+             })?
             .collect::<SqlResult<Vec<_>>>()?;
 
         Ok(sessions)
@@ -286,49 +307,56 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed
+                    spec_content, session_state, resume_allowed, attached_images
              FROM sessions
-             WHERE status = 'active'
-             ORDER BY ready_to_merge ASC, last_activity DESC"
-        )?;
+              WHERE status = 'active'
+              ORDER BY ready_to_merge ASC, last_activity DESC"
+         )?;
 
-        let sessions = stmt
-            .query_map([], |row| {
-                Ok(Session {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    display_name: row.get(2).ok(),
-                    version_group_id: row.get(3).ok(),
-                    version_number: row.get(4).ok(),
-                    repository_path: PathBuf::from(row.get::<_, String>(5)?),
-                    repository_name: row.get(6)?,
-                    branch: row.get(7)?,
-                    parent_branch: row.get(8)?,
-                    worktree_path: PathBuf::from(row.get::<_, String>(9)?),
-                    status: row
-                        .get::<_, String>(10)?
-                        .parse()
-                        .unwrap_or(SessionStatus::Active),
-                    created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
-                    updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
-                    last_activity: row
-                        .get::<_, Option<i64>>(13)?
-                        .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
-                    initial_prompt: row.get(14)?,
-                    ready_to_merge: row.get(15).unwrap_or(false),
-                    original_agent_type: row.get(16).ok(),
-                    original_skip_permissions: row.get(17).ok(),
-                    pending_name_generation: row.get(18).unwrap_or(false),
-                    was_auto_generated: row.get(19).unwrap_or(false),
-                    spec_content: row.get(20).ok(),
-                    session_state: row
-                        .get::<_, String>(21)
-                        .ok()
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(SessionState::Running),
-                    resume_allowed: row.get(22).unwrap_or(true),
-                })
-            })?
+         let sessions = stmt
+             .query_map([], |row| {
+                 Ok(Session {
+                     id: row.get(0)?,
+                     name: row.get(1)?,
+                     display_name: row.get(2).ok(),
+                     version_group_id: row.get(3).ok(),
+                     version_number: row.get(4).ok(),
+                     repository_path: PathBuf::from(row.get::<_, String>(5)?),
+                     repository_name: row.get(6)?,
+                     branch: row.get(7)?,
+                     parent_branch: row.get(8)?,
+                     worktree_path: PathBuf::from(row.get::<_, String>(9)?),
+                     status: row
+                         .get::<_, String>(10)?
+                         .parse()
+                         .unwrap_or(SessionStatus::Active),
+                     created_at: Utc.timestamp_opt(row.get(11)?, 0).unwrap(),
+                     updated_at: Utc.timestamp_opt(row.get(12)?, 0).unwrap(),
+                     last_activity: row
+                         .get::<_, Option<i64>>(13)?
+                         .and_then(|ts| Utc.timestamp_opt(ts, 0).single()),
+                     initial_prompt: row.get(14)?,
+                     ready_to_merge: row.get(15).unwrap_or(false),
+                     original_agent_type: row.get(16).ok(),
+                     original_skip_permissions: row.get(17).ok(),
+                     pending_name_generation: row.get(18).unwrap_or(false),
+                     was_auto_generated: row.get(19).unwrap_or(false),
+                     spec_content: row.get(20).ok(),
+                     session_state: row
+                         .get::<_, Option<String>>(21)
+                         .ok()
+                         .flatten()
+                         .and_then(|s| s.parse().ok())
+                         .unwrap_or(SessionState::Running),
+                     resume_allowed: row.get(22).unwrap_or(true),
+                     attached_images: row
+                         .get::<_, Option<String>>(23)
+                         .ok()
+                         .flatten()
+                         .and_then(|s| serde_json::from_str(&s).ok())
+                         .unwrap_or_default(),
+                 })
+             })?
             .collect::<SqlResult<Vec<_>>>()?;
 
         Ok(sessions)
@@ -421,7 +449,7 @@ impl SessionMethods for Database {
                     branch, parent_branch, worktree_path,
                     status, created_at, updated_at, last_activity, initial_prompt, ready_to_merge,
                     original_agent_type, original_skip_permissions, pending_name_generation, was_auto_generated,
-                    spec_content, session_state, resume_allowed
+                    spec_content, session_state, resume_allowed, attached_images
              FROM sessions
              WHERE repository_path = ?1 AND session_state = ?2
              ORDER BY ready_to_merge ASC, last_activity DESC"
@@ -458,12 +486,19 @@ impl SessionMethods for Database {
                         pending_name_generation: row.get(18).unwrap_or(false),
                         was_auto_generated: row.get(19).unwrap_or(false),
                         spec_content: row.get(20).ok(),
-                        session_state: row
-                            .get::<_, String>(21)
-                            .ok()
-                            .and_then(|s| s.parse().ok())
-                            .unwrap_or(SessionState::Running),
-                        resume_allowed: row.get(22).unwrap_or(true),
+                     session_state: row
+                         .get::<_, Option<String>>(21)
+                         .ok()
+                         .flatten()
+                         .and_then(|s| s.parse().ok())
+                         .unwrap_or(SessionState::Running),
+                resume_allowed: row.get(22).unwrap_or(true),
+                 attached_images: row
+                     .get::<_, Option<String>>(23)
+                     .ok()
+                     .flatten()
+                     .and_then(|s| serde_json::from_str(&s).ok())
+                     .unwrap_or_default(),
                     })
                 },
             )?

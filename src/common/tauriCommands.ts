@@ -126,6 +126,7 @@ export const TauriCommands = {
   ResumeSessionTerminals: 'resume_session_terminals',
   SchaltwerkTerminalAcknowledgeOutput: 'terminal_acknowledge_output',
   UpdateRecentProjectTimestamp: 'update_recent_project_timestamp',
+  UploadAttachedFilesWithData: 'upload_attached_files_with_data',
   WriteTerminal: 'write_terminal',
 } as const
 

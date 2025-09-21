@@ -80,6 +80,7 @@ pub fn build_claude_command_with_config(
     initial_prompt: Option<&str>,
     skip_permissions: bool,
     config: Option<&ClaudeConfig>,
+    attached_images: &[String],
 ) -> String {
     // Use simple binary name and let system PATH handle resolution
     let binary_name = if let Some(cfg) = config {
@@ -100,6 +101,14 @@ pub fn build_claude_command_with_config(
 
     if skip_permissions {
         cmd.push_str(" --dangerously-skip-permissions");
+    }
+
+    // Add attached images if any
+    if !attached_images.is_empty() {
+        log::debug!("📎 Claude command builder: Adding {} attached images", attached_images.len());
+        for image_path in attached_images {
+            cmd.push_str(&format!(" --image \"{image_path}\""));
+        }
     }
 
     // Use specific session resumption, continue most recent, or start fresh
@@ -154,6 +163,7 @@ mod tests {
             Some("implement feature X"),
             true,
             Some(&config),
+            &[],
         );
         assert_eq!(
             cmd,
@@ -172,6 +182,7 @@ mod tests {
             None,
             false,
             Some(&config),
+            &[],
         );
         assert_eq!(cmd, r#"cd /path/to/worktree && claude -r session123"#);
     }
@@ -273,6 +284,7 @@ mod tests {
             None,
             false,
             Some(&config),
+            &[],
         );
         assert_eq!(cmd, "cd /path/to/worktree && claude");
     }
@@ -288,6 +300,7 @@ mod tests {
             None,
             true,
             Some(&config),
+            &[],
         );
         assert_eq!(
             cmd,
@@ -306,6 +319,7 @@ mod tests {
             Some(r#"implement "feature" with quotes"#),
             false,
             Some(&config),
+            &[],
         );
         assert_eq!(
             cmd,
@@ -344,6 +358,7 @@ mod tests {
             None,
             false,
             Some(&config),
+            &[],
         );
         assert_eq!(cmd, "cd /path/to/worktree && claude --continue");
     }
@@ -359,10 +374,69 @@ mod tests {
             None,
             true,
             Some(&config),
+            &[],
         );
         assert_eq!(
             cmd,
             "cd /path/to/worktree && claude --dangerously-skip-permissions --continue"
         );
+    }
+
+    #[test]
+    fn test_build_claude_command_with_single_attached_image() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let attached_images = vec!["/path/to/image.png".to_string()];
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some("analyze this image"),
+            false,
+            Some(&config),
+            &attached_images,
+        );
+        assert!(cmd.contains("/path/to/image.png"));
+        assert!(cmd.contains("analyze this image"));
+    }
+
+    #[test]
+    fn test_build_claude_command_with_multiple_attached_images() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let attached_images = vec![
+            "/path/to/image1.png".to_string(),
+            "/path/to/image2.jpg".to_string(),
+        ];
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some("compare these images"),
+            false,
+            Some(&config),
+            &attached_images,
+        );
+        assert!(cmd.contains("/path/to/image1.png"));
+        assert!(cmd.contains("/path/to/image2.jpg"));
+        assert!(cmd.contains("compare these images"));
+    }
+
+    #[test]
+    fn test_build_claude_command_with_image_path_containing_spaces() {
+        let config = ClaudeConfig {
+            binary_path: Some("claude".to_string()),
+        };
+        let attached_images = vec!["/path/to/my image.png".to_string()];
+        let cmd = build_claude_command_with_config(
+            Path::new("/path/to/worktree"),
+            None,
+            Some("describe this image"),
+            false,
+            Some(&config),
+            &attached_images,
+        );
+        assert!(cmd.contains("/path/to/my image.png"));
+        assert!(cmd.contains("describe this image"));
     }
 }

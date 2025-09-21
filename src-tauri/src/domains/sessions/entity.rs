@@ -83,9 +83,11 @@ pub struct Session {
     pub spec_content: Option<String>,
     // Current session state (Spec, Running, Reviewed)
     pub session_state: SessionState,
-    // Whether agent resume/continue is allowed (freshly false after Spec/Cancel until first start)
-    pub resume_allowed: bool,
-}
+     // Whether agent resume/continue is allowed (freshly false after Spec/Cancel until first start)
+     pub resume_allowed: bool,
+     // Paths to images attached to this session/spec
+     pub attached_images: Vec<String>,
+ }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]

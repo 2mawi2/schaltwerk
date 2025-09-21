@@ -34,6 +34,7 @@ pub fn build_gemini_command_with_config(
     _initial_prompt: Option<&str>,
     skip_permissions: bool,
     config: Option<&GeminiConfig>,
+    attached_images: &[String],
 ) -> String {
     // Use simple binary name and let system PATH handle resolution
     let binary_name = if let Some(cfg) = config {
@@ -54,6 +55,14 @@ pub fn build_gemini_command_with_config(
 
     if skip_permissions {
         cmd.push_str(" --yolo");
+    }
+
+    // Add attached images if any
+    if !attached_images.is_empty() {
+        log::debug!("📎 Gemini command builder: Adding {} attached images", attached_images.len());
+        for image_path in attached_images {
+            cmd.push_str(&format!(" --image \"{image_path}\""));
+        }
     }
 
     // Prefer using real CLI interactive prompt flag when available.
@@ -84,6 +93,7 @@ mod tests {
             Some("implement feature X"),
             true,
             Some(&config),
+            &[],
         );
         assert_eq!(
             cmd,
@@ -102,6 +112,7 @@ mod tests {
             None,
             false,
             Some(&config),
+            &[],
         );
         // Gemini doesn't support resume, so we just start interactive mode
         assert_eq!(cmd, "cd /path/to/worktree && gemini");
@@ -118,6 +129,7 @@ mod tests {
             None,
             false,
             Some(&config),
+            &[],
         );
         assert_eq!(cmd, "cd /path/to/worktree && gemini");
     }
@@ -133,6 +145,7 @@ mod tests {
             Some(r#"implement "feature" with quotes"#),
             false,
             Some(&config),
+            &[],
         );
         assert_eq!(
             cmd,
