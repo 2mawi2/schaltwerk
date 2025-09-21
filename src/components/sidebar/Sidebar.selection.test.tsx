@@ -54,6 +54,9 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     currentSessions = [currentSession, reviewedSession, anotherSession]
 
+    // Set the global variable that the mock expects
+    ;(globalThis as any).__testCurrentSessions = currentSessions
+
     // Create a dynamic mock that always returns current sessions
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       // Always use the current value of currentSessions
@@ -138,14 +141,18 @@ describe('Reviewed session cancellation focus preservation', () => {
     const reviewedSession = mockEnrichedSession('reviewed-session', 'active', true)
     const sessions = [reviewedSession]
 
+    // Set the global variable for this test
+    ;(globalThis as any).__testCurrentSessions = sessions
+
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      const currentSessions = (globalThis as any).__testCurrentSessions || sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
-        return sessions
+        if (mode === 'spec') return currentSessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return currentSessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return currentSessions.filter((s: unknown) => (s as any).info.ready_to_merge)
+        return currentSessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -190,22 +197,24 @@ describe('Reviewed session cancellation focus preservation', () => {
 
    render(<TestProviders><Sidebar /></TestProviders>)
 
-   // Wait for sessions to load
-   await waitFor(() => {
-     const allButtons = screen.getAllByRole('button')
-     console.log('All buttons found:', allButtons.length)
-     allButtons.forEach((btn, index) => {
-       console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
-     })
+    // Wait for sessions to load
+    await waitFor(() => {
+      const allButtons = screen.getAllByRole('button')
+      console.log('All buttons found:', allButtons.length)
+      allButtons.forEach((btn, index) => {
+        console.log(`Button ${index}:`, btn.textContent, 'Classes:', btn.className)
+      })
 
-     const sessionButtons = allButtons.filter(btn => {
-       const text = btn.textContent || ''
-       return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
-     })
-     console.log('Session buttons found:', sessionButtons.length)
-     console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map((s: unknown) => (s as any).info.session_id))
-     expect(sessionButtons).toHaveLength(3)
-   })
+      const sessionButtons = allButtons.filter(btn => {
+        const text = btn.textContent || ''
+        return text.includes('current-session') || text.includes('running-session') || text.includes('spec-session')
+      })
+      console.log('Session buttons found:', sessionButtons.length)
+      console.log('Current sessions in mock:', currentSessions.length, 'session names:', currentSessions.map((s: unknown) => (s as any).info.session_id))
+      console.log('Mock invoke call count:', vi.mocked(invoke).mock.calls.length)
+      console.log('Mock invoke calls:', vi.mocked(invoke).mock.calls.map(call => [call[0], call[1]]))
+      expect(sessionButtons).toHaveLength(3)
+    })
 
    // Select the running session
    await userEvent.click(screen.getByText('running-session'))
@@ -248,14 +257,18 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     const sessions = [currentSession, reviewedSession1, reviewedSession2]
 
+    // Set the global variable for this test
+    ;(globalThis as any).__testCurrentSessions = sessions
+
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      const currentSessions = (globalThis as any).__testCurrentSessions || sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
-        return sessions
+        if (mode === 'spec') return currentSessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return currentSessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return currentSessions.filter((s: unknown) => (s as any).info.ready_to_merge)
+        return currentSessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -295,14 +308,18 @@ describe('Reviewed session cancellation focus preservation', () => {
     const reviewedSession = mockEnrichedSession('reviewed-session', 'active', true)
     const sessions = [reviewedSession]
 
+    // Set the global variable for this test
+    ;(globalThis as any).__testCurrentSessions = sessions
+
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      const currentSessions = (globalThis as any).__testCurrentSessions || sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
-        return sessions
+        if (mode === 'spec') return currentSessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return currentSessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return currentSessions.filter((s: unknown) => (s as any).info.ready_to_merge)
+        return currentSessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
@@ -345,14 +362,18 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     const sessions = [currentSession, reviewedSession, anotherSession]
 
+    // Set the global variable for this test
+    ;(globalThis as any).__testCurrentSessions = sessions
+
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
-      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      const currentSessions = (globalThis as any).__testCurrentSessions || sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return currentSessions
       if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
         const mode = (args as { filterMode?: string })?.filterMode || 'all'
-        if (mode === 'spec') return sessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
-        if (mode === 'running') return sessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
-        if (mode === 'reviewed') return sessions.filter((s: unknown) => (s as any).info.ready_to_merge)
-        return sessions
+        if (mode === 'spec') return currentSessions.filter((s: unknown) => (s as any).info.session_state === 'spec')
+        if (mode === 'running') return currentSessions.filter((s: unknown) => (s as any).info.session_state !== 'spec' && !(s as any).info.ready_to_merge)
+        if (mode === 'reviewed') return currentSessions.filter((s: unknown) => (s as any).info.ready_to_merge)
+        return currentSessions
       }
       if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
       if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
