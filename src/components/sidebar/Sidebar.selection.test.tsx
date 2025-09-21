@@ -37,7 +37,7 @@ vi.mock('@tauri-apps/api/event', () => ({
       }
     })
   })
-})
+}))
 
 describe('Reviewed session cancellation focus preservation', () => {
   let currentSessions: unknown[] = []
@@ -182,9 +182,9 @@ describe('Reviewed session cancellation focus preservation', () => {
   })
 
   it('continues normal auto-selection behavior for non-reviewed session cancellation', async () => {
-    const currentSession = mockEnrichedSession('current-session', 'active', false)
-    const runningSession = mockEnrichedSession('running-session', 'active', false)
-    const specSession = mockEnrichedSession('spec-session', 'active', false)
+    const currentSession = mockEnrichedSession('current-session', 'running', false)
+    const runningSession = mockEnrichedSession('running-session', 'running', false)
+    const specSession = mockEnrichedSession('spec-session', 'spec', false)
 
     currentSessions = [currentSession, runningSession, specSession]
 
