@@ -979,9 +979,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     key={group.baseName}
                                     group={group}
                                     selection={selection}
-                                    startIndex={groupStartIndex}
+    startIndex={groupStartIndex}
+    hasStuckTerminals={() => false}
 
-                                    hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
+    hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
                                     onSelect={(index) => {
                                         void handleSelectSession(index)
                                     }}

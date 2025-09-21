@@ -24,6 +24,7 @@ interface Props {
         versionCount?: number
         agentType?: AgentType
         skipPermissions?: boolean
+        attachedImages?: string[]
     }) => void | Promise<void>
 }
 
@@ -173,6 +174,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setCreating(true)
             
             
+            const uploadedImagePaths = await uploadAttachedFiles(attachedImages)
+
             const createData = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (taskContent || undefined),
@@ -184,7 +187,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 versionCount: createAsDraft ? 1 : versionCount,
                 agentType: createAsDraft ? agentType : undefined,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
-                // attachedImages: await uploadAttachedFiles(attachedImages), // TODO: pass to backend
+                attachedImages: uploadedImagePaths,
             }
             logger.info('[NewSessionModal] Creating session with data:', {
                 ...createData,

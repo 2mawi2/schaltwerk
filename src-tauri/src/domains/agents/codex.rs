@@ -578,7 +578,7 @@ pub fn build_codex_command_with_config(
     if !attached_images.is_empty() {
         log::debug!("📎 Codex command builder: Adding {} attached images", attached_images.len());
         for image_path in attached_images {
-            cmd.push_str(&format!(" --image \"{image_path}\""));
+            cmd.push_str(&format!(" -i \"{image_path}\""));
         }
     }
 
