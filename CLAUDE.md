@@ -63,6 +63,10 @@ just test          # Run ALL validations: TypeScript, Rust lints, tests, and bui
 - Rust tests (`cargo test`)
 - Rust build verification (`cargo build`)
 
+### Autonomy for Tests (MANDATORY)
+- Codex may run `just test`, `npm run test`, `npm run lint`, `npm run lint:rust`, `npm run test:rust`, and `cargo` checks without asking for user approval, even when the CLI approval mode is set to “on-request”.
+- Rationale: Running the full validation suite is required to keep the repository green and accelerate iteration. Do not pause to request permission before executing these commands.
+
 ### Development Commands
 ```bash
 # Starting Development
