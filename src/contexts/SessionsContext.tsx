@@ -456,8 +456,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 const nowIso = new Date().toISOString()
                 const createdAt = event.created_at ?? nowIso
                 const lastModified = event.last_modified ?? createdAt
-
-                // Update local list deterministically without reordering existing entries
                 setAllSessions(prev => {
                     if (prev.some(s => s.info.session_id === session_name)) return prev
                     const info: SessionInfo = {
@@ -483,52 +481,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     const enriched: EnrichedSession = { info, status: undefined, terminals }
                     return [enriched, ...prev]
                 })
-
-                // Deterministic background auto-start for newly created sessions
-                // Do not depend on Terminal mount (focus). Backend will emit ClaudeStarted to prevent double-starts.
-                // Only auto-start if this session wasn't already started by the App.tsx modal path
-                ;(async () => {
-                    // Compute terminal id once
-                    const sanitized = session_name.replace(/[^a-zA-Z0-9_-]/g, '_')
-                    const topId = `session-${sanitized}-top`
-
-                    // Check if this session was already started by the App.tsx modal path
-                    // If it was, the terminal should already be marked as background-started
-                    try {
-                        const { hasBackgroundStart } = await import('../common/uiEvents')
-                        if (hasBackgroundStart(topId)) {
-                            logger.debug(`[SessionsContext] Session ${session_name} already started by modal path, skipping auto-start`)
-                            return
-                        }
-                    } catch (e) {
-                        logger.warn('[SessionsContext] Failed to check background start status', e)
-                    }
-
-                    try {
-                        // Provide sensible defaults for background TUI sizing to reduce first-frame issues
-                        await invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName: session_name, cols: 220, rows: 60 })
-                        // Mark as background-started only after successful spawn
-                        try {
-                            const { markBackgroundStart } = await import('../common/uiEvents')
-                            markBackgroundStart(topId)
-                        } catch (e) {
-                            logger.warn('[SessionsContext] Failed to mark background start', e)
-                        }
-                    } catch (error) {
-                        // Surface permission issues via the existing UI prompt path
-                        const message = String(error)
-                        if (message.includes('Permission required for folder:')) {
-                            try {
-                                const { emitUiEvent, UiEvent } = await import('../common/uiEvents')
-                                emitUiEvent(UiEvent.PermissionError, { error: message })
-                            } catch (e) {
-                                logger.warn('[SessionsContext] Failed to dispatch permission error event', e)
-                            }
-                        } else {
-                            logger.warn('[SessionsContext] Auto-start for new session failed:', error)
-                        }
-                    }
-                })()
             }))
 
             // Session cancelling (marks as cancelling but doesn't remove)
