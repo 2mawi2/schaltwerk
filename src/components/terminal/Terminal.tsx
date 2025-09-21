@@ -1,11 +1,14 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
-import { UiEvent, emitUiEvent, hasBackgroundStart } from '../../common/uiEvents'
+import { UiEvent, emitUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
+import { recordTerminalSize } from '../../common/terminalSizeCache'
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core'
+import { startOrchestratorTop, startSessionTop } from '../../common/agentSpawn'
+import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
 import { useCleanupRegistry } from '../../hooks/useCleanupRegistry';
@@ -21,15 +24,10 @@ import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
 
-const terminalSizeCache = new Map<string, { cols: number; rows: number }>()
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 200000
 const RIGHT_EDGE_GUARD_COLUMNS = 2
-
-export function getLastMeasuredTerminalSize(id: string) {
-    return terminalSizeCache.get(id) ?? null
-}
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -37,6 +35,8 @@ const startedGlobal = new Set<string>();
 // Export function to clear started tracking for specific terminals
 export function clearTerminalStartedTracking(terminalIds: string[]) {
     terminalIds.forEach(id => startedGlobal.delete(id));
+    clearInflights(terminalIds);
+    clearBackgroundStarts(terminalIds);
 }
 
 interface TerminalBufferResponse {
@@ -179,7 +179,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const effectiveCols = Math.max(cols - guardOffset, MIN_DIMENSION);
 
         lastSize.current = { cols, rows };
-        terminalSizeCache.set(terminalId, { cols: effectiveCols, rows });
+        recordTerminalSize(terminalId, effectiveCols, rows);
         invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols: effectiveCols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
         return true;
     }, [terminalId, isAgentTopTerminal]);
@@ -1406,11 +1406,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             startingTerminals.current.set(terminalId, true);
             setAgentLoading(true);
             try {
-                // Avoid duplicate start if we already kicked off a background start for this terminal
+                // Avoid duplicate start if a background-start mark exists for this terminal.
+                // IMPORTANT: also CONSUME the mark to prevent the global registry from leaking ids.
                 if (hasBackgroundStart(terminalId)) {
-                    startedGlobal.add(terminalId);
                     setAgentLoading(false);
                     startingTerminals.current.set(terminalId, false);
+                    try {
+                        clearBackgroundStarts([terminalId]);
+                        logger.debug(`[Terminal ${terminalId}] Consumed background-start mark.`);
+                    } catch (ce) {
+                        logger.warn(`[Terminal ${terminalId}] Failed to clear background-start mark:`, ce);
+                    }
                     return;
                 }
                 if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
@@ -1419,18 +1425,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      startedGlobal.add(terminalId);
                      try {
                             // Provide initial size at spawn to avoid early overflow in TUI apps
-                            let cols: number | undefined = undefined;
-                            let rows: number | undefined = undefined;
+                            let measured: { cols?: number; rows?: number } | undefined
                             try {
                                 if (fitAddon.current && terminal.current) {
                                     fitAddon.current.fit();
-                                    cols = terminal.current.cols;
-                                    rows = terminal.current.rows;
+                                    measured = { cols: terminal.current.cols, rows: terminal.current.rows }
                                 }
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
                             }
-                            await invoke(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, { terminalId, cols, rows });
+                            await startOrchestratorTop({ terminalId, measured });
                             // OPTIMIZATION: Immediate focus and loading state update (modal-safe)
                             safeTerminalFocusImmediate(() => {
                                 terminal.current?.focus();
@@ -1485,18 +1489,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                      startedGlobal.add(terminalId);
                      try {
                            // Provide initial size for session terminals as well
-                           let cols: number | undefined = undefined;
-                           let rows: number | undefined = undefined;
+                           let measured: { cols?: number; rows?: number } | undefined
                            try {
                                if (fitAddon.current && terminal.current) {
                                    fitAddon.current.fit();
-                                   cols = terminal.current.cols;
-                                   rows = terminal.current.rows;
+                                   measured = { cols: terminal.current.cols, rows: terminal.current.rows }
                                }
                            } catch (e) {
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
-                           await invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName, cols, rows });
+                           await startSessionTop({ sessionName, topId: terminalId, measured });
                            // Focus the terminal after Claude starts successfully (modal-safe)
                            requestAnimationFrame(() => {
                                safeTerminalFocus(() => {

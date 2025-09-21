@@ -82,12 +82,17 @@ mod service_unified_tests {
             was_auto_generated: false,
             spec_content: None,
             session_state: SessionState::Running,
+<<<<<<< HEAD
              // Start with resume gated off so the very first start is always fresh
              // and uses the session's initial_prompt if provided. After that
              // the start logic flips this back to true to allow future resumes.
              resume_allowed: false,
-             attached_images: params.attached_images,
+             attached_images: vec![],
          }
+=======
+            resume_allowed: true,
+        }
+>>>>>>> main
     }
 
     #[test]
@@ -778,11 +783,17 @@ impl SessionManager {
             pending_name_generation: params.was_auto_generated,
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
+<<<<<<< HEAD
              session_state: SessionState::Running,
              // Gate resume on first start so initial_prompt is used deterministically
              resume_allowed: false,
-             attached_images: params.attached_images,
+             attached_images: params.attached_images.clone(),
          };
+=======
+            session_state: SessionState::Running,
+            resume_allowed: true,
+        };
+>>>>>>> main
 
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
         if repo_was_empty {
@@ -1991,11 +2002,17 @@ impl SessionManager {
             pending_name_generation,
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
+<<<<<<< HEAD
              session_state: SessionState::Spec,
              // Explicitly gate resume until spec is started (start_spec_session will flip this)
              resume_allowed: false,
              attached_images: params.attached_images,
          };
+=======
+            session_state: SessionState::Spec,
+            resume_allowed: true,
+        };
+>>>>>>> main
 
         self.db_manager.create_session(&session)?;
 
@@ -2061,11 +2078,17 @@ impl SessionManager {
             pending_name_generation: false,
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
+<<<<<<< HEAD
              session_state: SessionState::Spec,
              // Gate resume until immediately after first start
              resume_allowed: false,
              attached_images: params.attached_images,
          };
+=======
+            session_state: SessionState::Spec,
+            resume_allowed: true,
+        };
+>>>>>>> main
 
         if let Err(e) = self.db_manager.create_session(&session) {
             self.cache_manager.unreserve_name(&unique_name);

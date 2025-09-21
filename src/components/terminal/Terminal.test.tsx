@@ -245,7 +245,8 @@ class MockResizeObserver {
 
 
 // Now import the component under test
-import { Terminal, clearTerminalStartedTracking, getLastMeasuredTerminalSize, type TerminalHandle } from './Terminal'
+import { Terminal, clearTerminalStartedTracking, type TerminalHandle } from './Terminal'
+import { getTerminalSize } from '../../common/terminalSizeCache'
 import { TestProviders } from '../../tests/test-utils'
 // Also import mocked helpers for control
 import * as TauriEvent from '@tauri-apps/api/event'
@@ -1003,7 +1004,7 @@ describe('Terminal component', () => {
     ro.trigger()
     await advanceAndFlush(100)
 
-    const size = getLastMeasuredTerminalSize('session-metrics-bottom-0')
+    const size = getTerminalSize('session-metrics-bottom-0')
     expect(size).toEqual({ cols: 130, rows: 44 })
 
     const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)

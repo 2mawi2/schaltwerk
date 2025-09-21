@@ -421,7 +421,7 @@ describe('SessionsContext', () => {
         expect(result.current.sessions[0]?.info.created_at).toBe(createdAt)
     })
 
-  it('auto-starts new sessions in background on SessionAdded', async () => {
+    it('auto-starts new sessions with SchaltwerkCoreStartClaude', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
@@ -429,17 +429,12 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
             return undefined
-  })
-
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(result.current.loading).toBe(false)
         })
 
-        const { listen } = await import('@tauri-apps/api/event')
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        await waitFor(() => expect(result.current.loading).toBe(false))
 
+        const { listen } = await import('@tauri-apps/api/event')
         await waitFor(() => {
             expect(vi.mocked(listen).mock.calls.some(call => call[0] === 'schaltwerk:session-added')).toBe(true)
         })
@@ -472,5 +467,61 @@ describe('SessionsContext', () => {
                 expect.objectContaining({ sessionName: 'bg-new' })
             )
         })
+    })
+
+    it('skips auto-start when a background-start mark already exists', async () => {
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string, _args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
+            return undefined
+        })
+
+        const { markBackgroundStart, __debug_getBackgroundStartIds } = await import('../common/uiEvents')
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+        await waitFor(() => expect(result.current.loading).toBe(false))
+
+        const { listen } = await import('@tauri-apps/api/event')
+        await waitFor(() => {
+            expect(vi.mocked(listen).mock.calls.some(call => call[0] === 'schaltwerk:session-added')).toBe(true)
+        })
+
+        // Prepare the background-start mark as if App.tsx had already claimed start authority.
+        const sessionName = 'bg-marked'
+        const topId = `session-${sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')}-top`
+        markBackgroundStart(topId)
+        expect(__debug_getBackgroundStartIds()).toContain(topId)
+
+        const sessionAddedHandler = vi
+            .mocked(listen)
+            .mock.calls
+            .reverse()
+            .find(call => call[0] === 'schaltwerk:session-added')?.[1]
+        expect(sessionAddedHandler).toBeDefined()
+
+        await act(async () => {
+            sessionAddedHandler?.({
+                event: 'schaltwerk:session-added',
+                id: 1002,
+                payload: {
+                    session_name: sessionName,
+                    branch: 'feature/bg-marked',
+                    worktree_path: '/tmp/bg2',
+                    parent_branch: 'main',
+                    created_at: '2025-09-20T12:34:56.000Z',
+                    last_modified: '2025-09-20T12:34:56.000Z',
+                }
+            } as Event<unknown>)
+        })
+
+        // Because the mark existed, SessionsContext must NOT invoke StartClaude for this session.
+        // We assert that no call was made with sessionName === 'bg-marked'
+        const calls = vi.mocked(invoke).mock.calls.filter(
+          ([cmd, args]) => cmd === TauriCommands.SchaltwerkCoreStartClaude && (args as { sessionName?: string })?.sessionName === sessionName
+        )
+        expect(calls.length).toBe(0)
     })
 })

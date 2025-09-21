@@ -155,14 +155,6 @@ Always write tests first, before implementing features:
 
 This applies to both TypeScript and Rust code. The test defines the contract before the implementation exists.
 
-### Autonomy Overrides (Repo-Specific)
-In this repository, agents MUST run the full validation suite proactively without asking for permission, even when the Codex CLI approval mode is set to “on-request”. This repo-level rule overrides generic CLI guidance for interactive modes.
-
-- Always run tests automatically after meaningful code changes and before handing work back.
-- It is explicitly allowed to run the following without prior approval: `just test`, `npm run test`, `npm run lint`, `npm run lint:rust`, `cargo clippy`, `cargo test`, `cargo build`.
-- Do not pause to request confirmation before running tests or linters. Treat them as safe, non-destructive operations.
-- Continue to request confirmation only for destructive actions (e.g., deleting branches/worktrees, data wipes) or operations with side effects outside the workspace.
-
 ## Specification Writing Guidelines
 
 ### Technical Specs (MANDATORY)

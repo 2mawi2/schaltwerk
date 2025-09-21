@@ -9,6 +9,9 @@ import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValid
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types/session'
 import { logger } from '../utils/logger'
+import { hasBackgroundStart, emitUiEvent, UiEvent } from '../common/uiEvents'
+import { hasInflight } from '../utils/singleflight'
+import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSpawn'
 
 interface SessionsContextValue {
     sessions: EnrichedSession[]
@@ -456,8 +459,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 const nowIso = new Date().toISOString()
                 const createdAt = event.created_at ?? nowIso
                 const lastModified = event.last_modified ?? createdAt
-
-                // Update local list deterministically without reordering existing entries
                 setAllSessions(prev => {
                     if (prev.some(s => s.info.session_id === session_name)) return prev
                     const info: SessionInfo = {
@@ -492,38 +493,22 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     const sanitized = session_name.replace(/[^a-zA-Z0-9_-]/g, '_')
                     const topId = `session-${sanitized}-top`
 
-                    // Check if this session was already started by the App.tsx modal path
-                    // If it was, the terminal should already be marked as background-started
-                    try {
-                        const { hasBackgroundStart } = await import('../common/uiEvents')
-                        if (hasBackgroundStart(topId)) {
-                            logger.debug(`[SessionsContext] Session ${session_name} already started by modal path, skipping auto-start`)
-                            return
-                        }
-                    } catch (e) {
-                        logger.warn('[SessionsContext] Failed to check background start status', e)
+                    // If a start is already intended or in-flight, skip.
+                    if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                        logger.debug(`[SessionsContext] Skip auto-start; mark or inflight present for ${topId}`)
+                        return
                     }
 
                     try {
-                        // Provide sensible defaults for background TUI sizing to reduce first-frame issues
-                        await invoke(TauriCommands.SchaltwerkCoreStartClaude, { sessionName: session_name, cols: 220, rows: 60 })
-                        // Mark as background-started only after successful spawn
-                        try {
-                            const { markBackgroundStart } = await import('../common/uiEvents')
-                            markBackgroundStart(topId)
-                        } catch (e) {
-                            logger.warn('[SessionsContext] Failed to mark background start', e)
-                        }
+                        // Become the start authority by marking BEFORE invoking.
+                        const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+                        await startSessionTop({ sessionName: session_name, topId, projectOrchestratorId })
+                        logger.info(`[SessionsContext] Started agent for ${session_name} (auto-start).`)
                     } catch (error) {
                         // Surface permission issues via the existing UI prompt path
                         const message = String(error)
                         if (message.includes('Permission required for folder:')) {
-                            try {
-                                const { emitUiEvent, UiEvent } = await import('../common/uiEvents')
-                                emitUiEvent(UiEvent.PermissionError, { error: message })
-                            } catch (e) {
-                                logger.warn('[SessionsContext] Failed to dispatch permission error event', e)
-                            }
+                            emitUiEvent(UiEvent.PermissionError, { error: message })
                         } else {
                             logger.warn('[SessionsContext] Auto-start for new session failed:', error)
                         }
