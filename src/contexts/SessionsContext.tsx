@@ -9,6 +9,9 @@ import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValid
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types/session'
 import { logger } from '../utils/logger'
+import { hasBackgroundStart, emitUiEvent, UiEvent } from '../common/uiEvents'
+import { hasInflight } from '../utils/singleflight'
+import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSpawn'
 
 interface SessionsContextValue {
     sessions: EnrichedSession[]
@@ -481,6 +484,36 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     const enriched: EnrichedSession = { info, status: undefined, terminals }
                     return [enriched, ...prev]
                 })
+
+                // Deterministic background auto-start for newly created sessions
+                // Do not depend on Terminal mount (focus). Backend will emit ClaudeStarted to prevent double-starts.
+                // Only auto-start if this session wasn't already started by the App.tsx modal path
+                ;(async () => {
+                    // Compute terminal id once
+                    const sanitized = session_name.replace(/[^a-zA-Z0-9_-]/g, '_')
+                    const topId = `session-${sanitized}-top`
+
+                    // If a start is already intended or in-flight, skip.
+                    if (hasBackgroundStart(topId) || hasInflight(topId)) {
+                        logger.debug(`[SessionsContext] Skip auto-start; mark or inflight present for ${topId}`)
+                        return
+                    }
+
+                    try {
+                        // Become the start authority by marking BEFORE invoking.
+                        const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+                        await startSessionTop({ sessionName: session_name, topId, projectOrchestratorId })
+                        logger.info(`[SessionsContext] Started agent for ${session_name} (auto-start).`)
+                    } catch (error) {
+                        // Surface permission issues via the existing UI prompt path
+                        const message = String(error)
+                        if (message.includes('Permission required for folder:')) {
+                            emitUiEvent(UiEvent.PermissionError, { error: message })
+                        } else {
+                            logger.warn('[SessionsContext] Auto-start for new session failed:', error)
+                        }
+                    }
+                })()
             }))
 
             // Session cancelling (marks as cancelling but doesn't remove)

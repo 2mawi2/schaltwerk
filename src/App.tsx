@@ -28,6 +28,8 @@ import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
 import { TauriCommands } from './common/tauriCommands'
+import { UiEvent, listenUiEvent, clearBackgroundStarts, clearBackgroundStartsByPrefix } from './common/uiEvents'
+import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
@@ -216,9 +218,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const handlePermissionError = (event: Event) => {
-      const customEvent = event as CustomEvent<{error: string}>
-      const error = customEvent.detail?.error
+    const handlePermissionError = (detail: { error: string }) => {
+      const error = detail?.error
       if (error?.includes('Permission required for folder:')) {
         // Extract the folder path from the error message
         const match = error.match(/Permission required for folder: ([^.]+)/)
@@ -229,11 +230,9 @@ export default function App() {
       }
     }
 
-    window.addEventListener('schaltwerk:permission-error', handlePermissionError)
+    const cleanup = listenUiEvent(UiEvent.PermissionError, handlePermissionError)
 
-    return () => {
-      window.removeEventListener('schaltwerk:permission-error', handlePermissionError)
-    }
+    return cleanup
   }, [])
 
   useEffect(() => {
@@ -531,14 +530,14 @@ export default function App() {
           // This ensures all versions start working immediately, not just the focused one
           for (const sessionName of sessionNames) {
             try {
-              // Start the AI agent (this creates the top terminal with agent)
-              await invoke(TauriCommands.SchaltwerkCoreStartClaude, {
-                sessionName: sessionName,
-                // Provide a generous initial size to avoid first-frame wrapping before UI fit
-                cols: 220,
-                rows: 60
-              })
-              
+              // Start the AI agent (this creates the top terminal with agent).
+              // Mark BEFORE starting so SessionsContext will not double-start.
+              const sanitized = sessionName.replace(/[^a-zA-Z0-9_-]/g, '_')
+              const topId = `session-${sanitized}-top`
+              const projectOrchestratorId = computeProjectOrchestratorId(projectPath)
+
+              await startSessionTop({ sessionName, topId, projectOrchestratorId })
+
               // Bottom terminals are created on demand by TerminalTabs (-bottom-0). Nothing to do here.
               logger.info(`[App] Started agent for session ${sessionName}`)
             } catch (_e) {
@@ -821,6 +820,14 @@ export default function App() {
 
         // Clear started guard so orchestrator can auto-start on reopen
         clearTerminalStartedTracking([topId])
+        // Also clear background-start marks for this project's orchestrator terminals
+        try {
+          clearBackgroundStarts([topId])
+          // And for any bottom terminals (if ever marked in the future)
+          clearBackgroundStartsByPrefix(`${base}-`)
+        } catch (cleanupErr) {
+          logger.warn('Failed to clear background-start marks for closed project:', cleanupErr)
+        }
         // Clear creation tracking so ensureTerminals will recreate if needed
         await clearTerminalTracking([topId, bottomBaseId])
       } catch (_e) {
