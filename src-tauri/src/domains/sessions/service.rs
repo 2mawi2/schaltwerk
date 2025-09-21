@@ -86,7 +86,7 @@ mod service_unified_tests {
              // and uses the session's initial_prompt if provided. After that
              // the start logic flips this back to true to allow future resumes.
              resume_allowed: false,
-             attached_images: vec![],
+             attached_images: params.attached_images,
          }
     }
 
@@ -509,7 +509,7 @@ mod service_unified_tests {
             version_number: None,
             agent_type: Some("claude"),
             skip_permissions: Some(true),
-            attached_images: vec![],
+            attached_images: params.attached_images,
         };
 
         let session = manager
@@ -581,7 +581,7 @@ mod service_unified_tests {
             version_number: None,
             agent_type: Some("opencode"),
             skip_permissions: Some(false),
-            attached_images: vec![],
+            attached_images: params.attached_images,
         };
 
         let session = manager
@@ -711,13 +711,12 @@ impl SessionManager {
             version_number,
             agent_type: None,
             skip_permissions: None,
-            attached_images: vec![],
+            attached_images: params.attached_images,
         };
         self.create_session_with_agent(params)
     }
 
-    pub fn create_session_with_agent(&self, params: SessionCreationParams) -> Result<Session> {
-        log::info!(
+    // Already has params.attached_images in the Session creation, but confirm\n        log::info!(
             "Creating session '{}' in repository: {}",
             params.name,
             self.repo_path.display()
@@ -782,7 +781,7 @@ impl SessionManager {
              session_state: SessionState::Running,
              // Gate resume on first start so initial_prompt is used deterministically
              resume_allowed: false,
-             attached_images: vec![],
+             attached_images: params.attached_images,
          };
 
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
@@ -1995,7 +1994,7 @@ impl SessionManager {
              session_state: SessionState::Spec,
              // Explicitly gate resume until spec is started (start_spec_session will flip this)
              resume_allowed: false,
-             attached_images: vec![],
+             attached_images: params.attached_images,
          };
 
         self.db_manager.create_session(&session)?;
@@ -2065,7 +2064,7 @@ impl SessionManager {
              session_state: SessionState::Spec,
              // Gate resume until immediately after first start
              resume_allowed: false,
-             attached_images: vec![],
+             attached_images: params.attached_images,
          };
 
         if let Err(e) = self.db_manager.create_session(&session) {

@@ -184,7 +184,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 versionCount: createAsDraft ? 1 : versionCount,
                 agentType: createAsDraft ? agentType : undefined,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
-                attachedImages: await uploadAttachedFiles(attachedImages),
+                // attachedImages: await uploadAttachedFiles(attachedImages), // TODO: pass to backend
             }
             logger.info('[NewSessionModal] Creating session with data:', {
                 ...createData,

@@ -38,7 +38,7 @@ import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 
 
 
-export interface SessionActionEvent {
+export interface SessionActionEvent {\n  attachedImages?: string[];\n
   action: 'cancel' | 'cancel-immediate'
   sessionId: string
   sessionName: string
@@ -971,8 +971,7 @@ export default function App() {
                  }, 100)
                }
              }}
-             onCreate={handleCreateSession}
-           />
+             onCreate={(data) => handleCreateSession({...data, attachedImages: data.attachedImages || []})}\n           />
 
           {currentSession && (
             <>

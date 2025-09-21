@@ -65,7 +65,7 @@ export const TauriCommands = {
   SchaltwerkCoreConvertSessionToDraft: 'schaltwerk_core_convert_session_to_draft',
   SchaltwerkCoreCreateAndStartSpecSession: 'schaltwerk_core_create_and_start_spec_session',
   SchaltwerkCoreCreateSession: 'schaltwerk_core_create_session',
-  SchaltwerkCoreCreateSpecSession: 'schaltwerk_core_create_spec_session',
+  SchaltwerkCoreCreateSpecSession: 'schaltwerk_core_create_spec_session',\n  SchaltwerkCoreCreateSpecSessionWithImages: 'schaltwerk_core_create_spec_session_with_images',
   SchaltwerkCoreDeleteArchivedSpec: 'schaltwerk_core_delete_archived_spec',
   SchaltwerkCoreGetAgentType: 'schaltwerk_core_get_agent_type',
   SchaltwerkCoreGetArchiveMaxEntries: 'schaltwerk_core_get_archive_max_entries',
