@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import { ONBOARDING_STEPS } from './steps'
+import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
 
 function SmartModalOverlay({ highlightElement, highlightRect }: { highlightElement: Element | null, highlightRect: DOMRect | null }) {
@@ -95,6 +97,8 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
     const [highlightElement, setHighlightElement] = useState<Element | null>(null)
     const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null)
 
+    const [projectPath, setProjectPath] = useState<string | null>(null)
+
     const step = ONBOARDING_STEPS[currentStep]
     const isLastStep = currentStep === ONBOARDING_STEPS.length - 1
 
@@ -176,10 +180,25 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
         return () => window.removeEventListener('keydown', handleKeyDown)
     }, [open, currentStep, isLastStep, handleNext, handlePrevious, onClose])
 
+    useEffect(() => {
+        if (open) {
+            // Get the active project path for MCP configuration
+            invoke<string | null>(TauriCommands.GetActiveProjectPath).then(path => {
+                if (path) setProjectPath(path)
+            }).catch(error => {
+                logger.warn('Failed to get project path for MCP configuration:', error)
+            })
+        }
+    }, [open])
+
+
+
     const handleSkip = () => {
         onComplete()
         onClose()
     }
+
+
 
     if (!open) return null
 
@@ -223,7 +242,10 @@ export function OnboardingModal({ open, onClose, onComplete }: Props) {
                     </div>
 
                     <div className="px-6 py-6 text-slate-300">
-                        {step.content}
+                        {typeof step.content === 'function'
+                            ? step.content({ projectPath })
+                            : step.content
+                        }
                     </div>
 
                     <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between">

@@ -3,7 +3,9 @@ import { BranchingDiagram, LifecycleDiagram } from './Diagrams'
 
 export interface OnboardingStep {
     title: string
-    content: React.ReactNode
+    content: React.ReactNode | ((props: {
+        projectPath: string | null
+    }) => React.ReactNode)
     highlight?: string
     action?: 'highlight' | 'overlay'
 }
@@ -102,123 +104,248 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
         highlight: '[data-testid="sidebar"]',
         action: 'highlight'
     },
-    {
-        title: "Orchestrator Basics (MCP)",
-        content: (
-            <div>
-                <p className="mb-4">
-                    The <strong>Orchestrator</strong> is your repo’s control center. With MCP enabled, use natural language or one‑click actions to integrate sessions. Sessions are git branches + worktrees, so you can merge, PR, or rebase per your strategy.
-                </p>
-                <div className="bg-purple-900/30 border border-purple-700/50 rounded p-3 mb-4">
-                    <div className="flex items-start gap-2">
-                        <svg className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <div>
-                            <p className="text-purple-200 text-body font-medium mb-1">What you can do</p>
-                            <ul className="text-caption text-purple-300/80 space-y-1 list-disc list-inside">
-                                <li>Configure an <strong>Action Button</strong> for one‑click routines.</li>
-                                <li>Prompt the orchestrator manually in natural language.</li>
-                                <li>Or manage branches directly — <code>schaltwerk/{'{'}session{'}'}</code> + <code>.schaltwerk/worktrees/{'{'}session{'}'}</code>.</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
+     {
+         title: "Orchestrator Basics",
+         content: (
+             <div>
+                 <p className="mb-4">
+                     The <strong>Orchestrator</strong> is your repo's control center for managing sessions. Sessions are git branches + worktrees, so you can merge, PR, or rebase per your strategy.
+                 </p>
+                 <div className="bg-purple-900/30 border border-purple-700/50 rounded p-3 mb-4">
+                     <div className="flex items-start gap-2">
+                         <svg className="w-5 h-5 text-purple-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                         </svg>
+                         <div>
+                             <p className="text-purple-200 text-body font-medium mb-1">What you can do</p>
+                             <ul className="text-caption text-purple-300/80 space-y-1 list-disc list-inside">
+                                 <li>Use <strong>Action Buttons</strong> for one-click routines.</li>
+                                 <li>Manage branches directly — <code>schaltwerk/{'{'}session{'}'}</code> + <code>.schaltwerk/worktrees/{'{'}session{'}'}</code>.</li>
+                                 <li>Integrate with MCP for natural language control.</li>
+                             </ul>
+                         </div>
+                     </div>
+                 </div>
 
-                <div className="grid grid-cols-1 gap-3">
-                    <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
-                        <h4 className="text-blue-400 font-medium mb-2">Lifecycle at a Glance</h4>
-                        <LifecycleDiagram />
-                    </div>
-                    <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
-                        <h4 className="text-emerald-400 font-medium mb-2">Branching Examples</h4>
-                        <BranchingDiagram />
-                    </div>
-                </div>
-            </div>
-        ),
-        highlight: '.font-medium.text-slate-100',
-        action: 'highlight'
-    },
-    {
-        title: "Orchestrator Actions (MCP)",
-        content: (
-            <div>
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
-                    <p className="text-blue-200 text-body font-medium mb-2">Action Button Presets</p>
-                    <ul className="text-caption text-blue-300/80 space-y-2 list-disc list-inside">
-                        <li><strong>Merge Reviewed to Main:</strong> Find Reviewed → run <code>npm run test</code> (or <code>just test</code>) → squash‑merge into <code>main</code> → push → ask to cancel sessions.</li>
-                        <li><strong>PR All Running to Feature:</strong> Push each <code>schaltwerk/{'{'}session{'}'}</code> → open PRs into your chosen <code>feature/x</code> → leave sessions running.</li>
-                        <li><strong>Review Queue:</strong> List sessions + diffs → per session choose Merge, PR, or Skip.</li>
-                    </ul>
-                    <p className="text-caption text-blue-300/70 mt-2">Configure in Settings → Action Buttons. Trigger via F1–F6 or click in the terminal header.</p>
-                </div>
+                 <div className="grid grid-cols-1 gap-3">
+                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
+                         <h4 className="text-blue-400 font-medium mb-2">Lifecycle at a Glance</h4>
+                         <LifecycleDiagram />
+                     </div>
+                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
+                         <h4 className="text-emerald-400 font-medium mb-2">Branching Examples</h4>
+                         <BranchingDiagram />
+                     </div>
+                 </div>
+             </div>
+         ),
+         highlight: '.font-medium.text-slate-100',
+         action: 'highlight'
+     },
+      {
+          title: "MCP Integration",
+          content: (
+              <div>
+                  <p className="mb-4">
+                      <strong>Model Context Protocol (MCP)</strong> enables AI agents to directly manage your Schaltwerk sessions through natural language commands. This is the most powerful way to control your workflow.
+                  </p>
 
-                <div className="bg-amber-900/30 border border-amber-700/50 rounded p-3 mb-4">
-                    <p className="text-amber-200 text-body font-medium mb-2">Manual Orchestrator Prompts</p>
-                    <ul className="text-caption text-amber-300/80 space-y-1 list-disc list-inside">
-                        <li>“Find all reviewed sessions, run tests, squash‑merge into main, then cancel each after success. Confirm per session.”</li>
-                        <li>“For running sessions based on feature/payments, push to origin as schaltwerk/{'{'}session{'}'}, open PRs into feature/payments. Don’t cancel.”</li>
-                        <li>“Group sessions by base branch and let me choose: merge reviewed now or create PRs for running.”</li>
-                    </ul>
-                </div>
+                  <div className="bg-green-900/30 border border-green-700/50 rounded p-3 mb-4">
+                      <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                              <p className="text-green-200 text-body font-medium mb-2">
+                                  What You Can Do with MCP
+                              </p>
+                              <ul className="text-caption text-green-300/80 space-y-1 list-disc list-inside">
+                                  <li><strong>Natural Language:</strong> "Create a session to implement user authentication"</li>
+                                  <li><strong>Session Management:</strong> "List all reviewed sessions and merge them to main"</li>
+                                  <li><strong>Workflow Control:</strong> "Find running sessions, run tests, then create PRs"</li>
+                                  <li><strong>Batch Operations:</strong> "Cancel all paused sessions older than a week"</li>
+                              </ul>
+                          </div>
+                      </div>
+                  </div>
 
-                <div className="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
-                    <h4 className="text-slate-200 font-medium mb-1">DIY (No Orchestrator Needed)</h4>
-                    <p className="text-body text-slate-300 mb-2">Use git directly — sessions are normal branches + worktrees.</p>
-                    <ol className="text-caption text-slate-400 list-decimal list-inside space-y-1">
-                        <li>Checkout target branch (<code>main</code> or <code>feature/x</code>).</li>
-                        <li>Review <code>schaltwerk/{'{'}session{'}'}</code> → <code>git merge --squash</code> or open a PR.</li>
-                        <li>After integration, cancel the session in Schaltwerk to remove its worktree.</li>
-                    </ol>
-                    <p className="text-caption text-slate-500 mt-2">Worktrees live in <code>.schaltwerk/worktrees/{'{'}session{'}'}</code>.</p>
-                </div>
+                  <div className="text-body text-slate-400">
+                      <p className="mb-2">
+                          <strong>Pro Tip:</strong> MCP integration makes Schaltwerk incredibly powerful. You can manage entire workflows with simple commands like "merge all reviewed sessions to main" or "create a session for the payments feature."
+                      </p>
+                      <p>
+                          <strong>Next:</strong> The next step will show you how to configure MCP integration.
+                      </p>
+                  </div>
+              </div>
+          )
+      },
+      {
+          title: "Configure MCP Integration",
+          content: (
+              <div>
+                  <p className="mb-4">
+                      MCP integration enables natural language control of Schaltwerk from your AI agents. Here's how to set it up:
+                  </p>
 
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
-                    <p className="text-blue-200 text-body"><strong>Tip:</strong> Start sessions off the branch you plan to integrate back into. Example: start from <code>feature/payments</code> → merge/PR back to <code>feature/payments</code>; or start from <code>main</code> → merge back to <code>main</code>.</p>
-                </div>
-            </div>
-        )
-    },
-    {
-        title: "MCP Integration (Optional)",
-        content: (
-            <div>
-                <p className="mb-4">
-                    <strong>Model Context Protocol (MCP)</strong> enables Claude Code to directly manage your Schaltwerk sessions through natural language commands.
-                </p>
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
-                    <div className="flex items-start gap-2">
-                        <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                        <div>
-                            <p className="text-blue-200 text-body font-medium mb-2">
-                                Opt-in Setup Required
-                            </p>
-                            <p className="text-blue-300/80 text-body mb-2">
-                                To enable MCP integration:
-                            </p>
-                            <ul className="text-caption text-blue-300/70 space-y-1 list-disc list-inside">
-                                <li>Go to Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>) → Agent Configuration → Claude</li>
-                                <li>Enable "MCP Server Configuration"</li>
-                                <li>Click "Configure MCP for This Project"</li>
-                                <li>Restart Claude Code to activate</li>
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                <div className="text-body text-slate-400">
-                    <p className="mb-2">
-                        <strong>What you get:</strong> Natural language session management, orchestrator workflow control, and seamless integration between Claude Code and Schaltwerk.
-                    </p>
-                    <p>
-                        <strong>Note:</strong> This is completely optional - Schaltwerk works perfectly without MCP integration.
-                    </p>
-                </div>
-            </div>
-        )
-    },
+                  <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                      <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                          <div>
+                              <p className="text-blue-200 text-body font-medium mb-2">
+                                  Quick Setup Steps
+                              </p>
+                              <ol className="text-caption text-blue-300/70 space-y-1 list-decimal list-inside">
+                                  <li>Go to Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>) → Agent Configuration</li>
+                                  <li>Select your preferred AI agent (Claude, Gemini, OpenCode, etc.)</li>
+                                  <li>Enable "MCP Server Configuration"</li>
+                                  <li>Click "Configure MCP for This Project"</li>
+                                  <li>Restart your AI agent to activate</li>
+                              </ol>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-green-900/30 border border-green-700/50 rounded p-3 mb-4">
+                      <div className="flex items-start gap-2">
+                          <svg className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                              <p className="text-green-200 text-body font-medium mb-2">
+                                  What MCP Enables
+                              </p>
+                              <ul className="text-caption text-green-300/80 space-y-1 list-disc list-inside">
+                                  <li>Creates <code>.mcp.json</code> configuration file in your project</li>
+                                  <li>Adds the configuration to your <code>.gitignore</code> file</li>
+                                  <li>Enables natural language session management</li>
+                                  <li>Works with any supported AI agent</li>
+                              </ul>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="bg-amber-900/30 border border-amber-700/50 rounded p-3 mb-4">
+                      <p className="text-amber-200 text-body font-medium mb-2">Skip for Now</p>
+                      <p className="text-amber-300/80 text-body">
+                          You can always configure MCP later in Settings → Agent Configuration. The setup process is the same.
+                      </p>
+                  </div>
+
+                  <div className="text-body text-slate-400">
+                      <p className="mb-2">
+                          <strong>Recommendation:</strong> Set up MCP - it's quick and unlocks the most powerful features of Schaltwerk.
+                      </p>
+                      <p>
+                          <strong>Time:</strong> Less than 30 seconds to configure.
+                      </p>
+                  </div>
+              </div>
+          ),
+          highlight: '[title="Settings"]',
+          action: 'highlight'
+      },
+     {
+         title: "Action Buttons",
+         content: (
+             <div>
+                 <p className="mb-4">
+                     Action buttons provide instant access to common AI prompts. They appear in the terminal header for both orchestrator and session views.
+                 </p>
+                 <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                     <p className="text-blue-200 text-body font-medium mb-2">Default Action Button Presets</p>
+                     <ul className="text-caption text-blue-300/80 space-y-2 list-disc list-inside">
+                         <li><strong>Merge Reviewed to Main:</strong> Find reviewed sessions → run tests → squash-merge into main</li>
+                         <li><strong>PR All Running:</strong> Push sessions and create pull requests</li>
+                         <li><strong>Review Queue:</strong> List sessions and choose merge, PR, or skip</li>
+                     </ul>
+                     <p className="text-caption text-blue-300/70 mt-2">Configure in Settings → Action Buttons. Trigger via F1–F6 or click in the terminal header.</p>
+                 </div>
+
+                 <div className="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
+                     <h4 className="text-slate-200 font-medium mb-2">Customization</h4>
+                     <p className="text-body text-slate-300 mb-2">
+                         Configure up to 6 custom buttons in Settings → Action Buttons with prompts specific to your workflow.
+                     </p>
+                     <p className="text-body text-slate-300">
+                         Access with <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">F1-F6</kbd> • Configure in Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>)
+                     </p>
+                 </div>
+             </div>
+         )
+     },
+     {
+         title: "MCP Integration - Natural Language Control",
+         content: (
+             <div>
+                 <p className="mb-4">
+                     <strong>Model Context Protocol (MCP)</strong> enables AI agents to directly manage your Schaltwerk sessions through natural language commands. This is the most powerful way to control your workflow.
+                 </p>
+
+                 <div className="bg-green-900/30 border border-green-700/50 rounded p-3 mb-4">
+                     <div className="flex items-start gap-2">
+                         <svg className="w-5 h-5 text-green-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                         </svg>
+                         <div>
+                             <p className="text-green-200 text-body font-medium mb-2">
+                                 What You Can Do with MCP
+                             </p>
+                             <ul className="text-caption text-green-300/80 space-y-1 list-disc list-inside">
+                                 <li><strong>Natural Language:</strong> "Create a session to implement user authentication"</li>
+                                 <li><strong>Session Management:</strong> "List all reviewed sessions and merge them to main"</li>
+                                 <li><strong>Workflow Control:</strong> "Find running sessions, run tests, then create PRs"</li>
+                                 <li><strong>Batch Operations:</strong> "Cancel all paused sessions older than a week"</li>
+                             </ul>
+                         </div>
+                     </div>
+                 </div>
+
+                 <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                     <div className="flex items-start gap-2">
+                         <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                         </svg>
+                         <div>
+                             <p className="text-blue-200 text-body font-medium mb-2">
+                                 Quick Setup (Recommended)
+                             </p>
+                             <p className="text-blue-300/80 text-body mb-2">
+                                 Configure MCP to use natural language commands immediately:
+                             </p>
+                             <ol className="text-caption text-blue-300/70 space-y-1 list-decimal list-inside">
+                                 <li>Go to Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>) → Agent Configuration</li>
+                                 <li>Select your preferred AI agent (Claude, Gemini, OpenCode, etc.)</li>
+                                 <li>Enable "MCP Server Configuration"</li>
+                                 <li>Click "Configure MCP for This Project"</li>
+                                 <li>Restart your AI agent to activate</li>
+                             </ol>
+                         </div>
+                     </div>
+                 </div>
+
+                 <div className="bg-amber-900/30 border border-amber-700/50 rounded p-3 mb-4">
+                     <p className="text-amber-200 text-body font-medium mb-2">Alternative: Manual Setup</p>
+                     <p className="text-amber-300/80 text-body mb-2">
+                         If you prefer to set up MCP later, you can find detailed instructions in Settings → Agent Configuration.
+                     </p>
+                 </div>
+
+                 <div className="text-body text-slate-400">
+                     <p className="mb-2">
+                         <strong>Pro Tip:</strong> MCP integration makes Schaltwerk incredibly powerful. You can manage entire workflows with simple commands like "merge all reviewed sessions to main" or "create a session for the payments feature."
+                     </p>
+                     <p>
+                         <strong>Don't worry:</strong> You can always set this up later in Settings if you prefer to explore the interface first.
+                     </p>
+                 </div>
+             </div>
+         ),
+         highlight: '[title="Settings"]',
+         action: 'highlight'
+     },
     {
         title: "Keyboard-Driven Session Management",
         content: (
