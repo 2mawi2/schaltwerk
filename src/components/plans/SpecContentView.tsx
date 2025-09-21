@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
-import { VscCopy } from 'react-icons/vsc'
+import { VscCopy, VscClose } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
+import type { RawSession } from '../../types/session'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -21,6 +22,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [copying, setCopying] = useState(false)
+  const [attachedImages, setAttachedImages] = useState<string[]>([])
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
@@ -28,11 +30,17 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     let mounted = true
     setLoading(true)
     setError(null)
-    invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName })
-      .then(([draftContent, initialPrompt]) => {
+
+    // Fetch both content and session info for attached images
+    Promise.all([
+      invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName }),
+      invoke<RawSession>(TauriCommands.SchaltwerkCoreGetSession, { name: sessionName })
+    ])
+      .then(([[draftContent, initialPrompt], session]) => {
         if (!mounted) return
         const text: string = draftContent ?? initialPrompt ?? ''
         setContent(text)
+        setAttachedImages(session.attached_images || [])
       })
       .catch((e) => {
         if (!mounted) return
@@ -121,6 +129,37 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
             {copying ? 'Copied!' : 'Copy'}
           </button>
         </div>
+
+        {/* Attached Images Section */}
+        {attachedImages.length > 0 && (
+          <div className="px-3 py-2 border-b border-slate-800">
+            <div className="text-xs text-slate-400 mb-2">Attached Images:</div>
+            <div className="flex flex-wrap gap-2">
+              {attachedImages.map((imagePath, index) => (
+                <div key={index} className="relative group">
+                  <img
+                    src={`file://${imagePath}`}
+                    alt={`Attached image ${index + 1}`}
+                    className="w-16 h-16 object-cover rounded border border-slate-600"
+                    title={imagePath}
+                  />
+                  <button
+                    onClick={() => {
+                      const newImages = attachedImages.filter((_, i) => i !== index)
+                      setAttachedImages(newImages)
+                      // TODO: Update backend to remove image from session
+                    }}
+                    className="absolute -top-1 -right-1 bg-red-600 hover:bg-red-700 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    title="Remove image"
+                  >
+                    <VscClose size={10} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <Suspense fallback={
           <div className="flex-1 flex items-center justify-center">
             <AnimatedText text="loading" size="md" />
@@ -156,6 +195,26 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
           </button>
         </div>
       </div>
+
+      {/* Attached Images Section */}
+      {attachedImages.length > 0 && (
+        <div className="px-3 py-2 border-b border-slate-800">
+          <div className="text-xs text-slate-400 mb-2">Attached Images:</div>
+          <div className="flex flex-wrap gap-2">
+            {attachedImages.map((imagePath, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={`file://${imagePath}`}
+                  alt={`Attached image ${index + 1}`}
+                  className="w-16 h-16 object-cover rounded border border-slate-600"
+                  title={imagePath}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 overflow-auto">
         <Suspense fallback={
           <div className="h-full flex items-center justify-center">

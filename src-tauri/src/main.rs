@@ -712,7 +712,10 @@ fn main() {
             get_mcp_status,
             configure_mcp_for_project,
             remove_mcp_for_project,
-            ensure_mcp_gitignored
+            ensure_mcp_gitignored,
+            // File upload commands
+            schaltwerk_core::upload_attached_files,
+            schaltwerk_core::upload_attached_files_with_data
         ])
         .setup(move |app| {
             // Get current git branch and update window title asynchronously

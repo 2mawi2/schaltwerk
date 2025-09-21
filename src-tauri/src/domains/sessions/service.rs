@@ -14,6 +14,7 @@ pub struct SessionCreationParams<'a> {
     pub version_number: Option<i32>,
     pub agent_type: Option<&'a str>,
     pub skip_permissions: Option<bool>,
+    pub attached_images: Vec<String>,
 }
 
 const SESSION_READY_COMMIT_MESSAGE: &str = "Complete development work for {}";
@@ -58,31 +59,36 @@ mod service_unified_tests {
         let worktree_path = temp_dir.path().join("worktrees").join(&session_name);
         std::fs::create_dir_all(&worktree_path).unwrap();
 
-        Session {
-            id: Uuid::new_v4().to_string(),
-            name: session_name.clone(),
-            display_name: None,
-            version_group_id: None,
-            version_number: None,
-            repository_path: repo_path,
-            repository_name: "test-repo".to_string(),
-            branch: "schaltwerk/test-session".to_string(),
-            parent_branch: "main".to_string(),
-            worktree_path,
-            status: SessionStatus::Active,
-            created_at: Utc::now(),
-            updated_at: Utc::now(),
-            last_activity: None,
-            initial_prompt: Some("test prompt".to_string()),
-            ready_to_merge: false,
-            original_agent_type: Some(agent_type.to_string()),
-            original_skip_permissions: Some(true),
-            pending_name_generation: false,
-            was_auto_generated: false,
-            spec_content: None,
-            session_state: SessionState::Running,
-            resume_allowed: true,
-        }
+         Session {
+             id: Uuid::new_v4().to_string(),
+             name: session_name.clone(),
+             display_name: None,
+             version_group_id: None,
+             version_number: None,
+             repository_path: repo_path,
+             repository_name: "test-repo".to_string(),
+             branch: "schaltwerk/test-session".to_string(),
+             parent_branch: "main".to_string(),
+             worktree_path,
+             status: SessionStatus::Active,
+             created_at: Utc::now(),
+             updated_at: Utc::now(),
+             last_activity: None,
+             initial_prompt: Some("test prompt".to_string()),
+             ready_to_merge: false,
+             original_agent_type: Some(agent_type.to_string()),
+             original_skip_permissions: Some(true),
+             pending_name_generation: false,
+             was_auto_generated: false,
+             spec_content: None,
+             session_state: SessionState::Running,
+             // Start with resume gated off so the very first start is always fresh
+             // and uses the session's initial_prompt if provided. After that
+             // the start logic flips this back to true to allow future resumes.
+             resume_allowed: false,
+             attached_images: vec![],
+         }
+
     }
 
     #[test]
@@ -208,6 +214,7 @@ mod service_unified_tests {
                     session.initial_prompt.as_deref(),
                     session.original_skip_permissions.unwrap_or(false),
                     None,
+                    &session.attached_images,
                 );
 
                 // The service command should match what the registry produces
@@ -503,6 +510,7 @@ mod service_unified_tests {
             version_number: None,
             agent_type: Some("claude"),
             skip_permissions: Some(true),
+            attached_images: vec![],
         };
 
         let session = manager
@@ -574,6 +582,7 @@ mod service_unified_tests {
             version_number: None,
             agent_type: Some("opencode"),
             skip_permissions: Some(false),
+            attached_images: vec![],
         };
 
         let session = manager
@@ -703,11 +712,13 @@ impl SessionManager {
             version_number,
             agent_type: None,
             skip_permissions: None,
+            attached_images: vec![], // Default empty for auto-generated sessions
         };
         self.create_session_with_agent(params)
     }
 
     pub fn create_session_with_agent(&self, params: SessionCreationParams) -> Result<Session> {
+        // Already has params.attached_images in the Session creation, but confirm
         log::info!(
             "Creating session '{}' in repository: {}",
             params.name,
@@ -770,9 +781,13 @@ impl SessionManager {
             pending_name_generation: params.was_auto_generated,
             was_auto_generated: params.was_auto_generated,
             spec_content: None,
-            session_state: SessionState::Running,
-            resume_allowed: true,
+
+             session_state: SessionState::Running,
+             // Gate resume on first start so initial_prompt is used deterministically
+             resume_allowed: false,
+              attached_images: params.attached_images.clone(),
         };
+
 
         let repo_was_empty = !git::repository_has_commits(&self.repo_path).unwrap_or(true);
         if repo_was_empty {
@@ -1469,6 +1484,7 @@ impl SessionManager {
                     prompt_to_use,
                     skip_permissions,
                     Some(&binary_path),
+                    &session.attached_images,
                 ));
             }
         }
@@ -1580,6 +1596,7 @@ impl SessionManager {
                     prompt_to_use,
                     skip_permissions,
                     Some(&binary_path),
+                    &session.attached_images,
                 ));
             }
         }
@@ -1602,6 +1619,7 @@ impl SessionManager {
                 prompt_to_use,
                 skip_permissions,
                 Some(&binary_path),
+                &session.attached_images,
             ))
         } else {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
@@ -1744,6 +1762,7 @@ impl SessionManager {
                     None,
                     skip_permissions,
                     Some(&binary_path),
+                    &[],
                 ));
             }
         }
@@ -1767,6 +1786,7 @@ impl SessionManager {
                 None,
                 skip_permissions,
                 Some(&binary_path),
+                &[],
             ))
         } else {
             log::error!("Unknown agent type '{agent_type}' for orchestrator");
@@ -1976,9 +1996,13 @@ impl SessionManager {
             pending_name_generation,
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
-            session_state: SessionState::Spec,
-            resume_allowed: true,
-        };
+
+             session_state: SessionState::Spec,
+             // Explicitly gate resume until spec is started (start_spec_session will flip this)
+             resume_allowed: false,
+             attached_images: vec![],
+          };
+
 
         self.db_manager.create_session(&session)?;
 
@@ -2044,11 +2068,14 @@ impl SessionManager {
             pending_name_generation: false,
             was_auto_generated: false,
             spec_content: Some(spec_content.to_string()),
-            session_state: SessionState::Spec,
-            resume_allowed: true,
-        };
 
-        if let Err(e) = self.db_manager.create_session(&session) {
+             session_state: SessionState::Spec,
+             // Gate resume until immediately after first start
+             resume_allowed: false,
+              attached_images: vec![],
+          };
+
+         if let Err(e) = self.db_manager.create_session(&session) {
             self.cache_manager.unreserve_name(&unique_name);
             return Err(anyhow!("Failed to save spec session to database: {}", e));
         }

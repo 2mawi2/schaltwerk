@@ -273,6 +273,7 @@ mod tests {
                     version_number: None,
                     agent_type: None,
                     skip_permissions: None,
+                    attached_images: vec![],
                 };
                 let session = session_manager.create_session_with_agent(params).unwrap();
                 (

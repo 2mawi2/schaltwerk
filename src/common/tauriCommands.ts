@@ -66,6 +66,7 @@ export const TauriCommands = {
   SchaltwerkCoreCreateAndStartSpecSession: 'schaltwerk_core_create_and_start_spec_session',
   SchaltwerkCoreCreateSession: 'schaltwerk_core_create_session',
   SchaltwerkCoreCreateSpecSession: 'schaltwerk_core_create_spec_session',
+  SchaltwerkCoreCreateSpecSessionWithImages: 'schaltwerk_core_create_spec_session_with_images',
   SchaltwerkCoreDeleteArchivedSpec: 'schaltwerk_core_delete_archived_spec',
   SchaltwerkCoreGetAgentType: 'schaltwerk_core_get_agent_type',
   SchaltwerkCoreGetArchiveMaxEntries: 'schaltwerk_core_get_archive_max_entries',
@@ -126,6 +127,7 @@ export const TauriCommands = {
   ResumeSessionTerminals: 'resume_session_terminals',
   SchaltwerkTerminalAcknowledgeOutput: 'terminal_acknowledge_output',
   UpdateRecentProjectTimestamp: 'update_recent_project_timestamp',
+  UploadAttachedFilesWithData: 'upload_attached_files_with_data',
   WriteTerminal: 'write_terminal',
 } as const
 
