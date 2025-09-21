@@ -809,8 +809,8 @@ mod tests {
                 "sh".to_string(),
                 vec![
                     "-c".to_string(),
-                    // Generate ~4MB of 'A' via dd + tr, then keep process alive briefly
-                    "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'A'; sleep 2"
+                    // Generate ~4MB of 'A' via dd + tr, then exit immediately
+                    "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'A'"
                         .to_string(),
                 ],
                 vec![],
@@ -818,8 +818,22 @@ mod tests {
             .await
             .unwrap();
 
-        // Allow time for the reader to consume the output
-        sleep(Duration::from_millis(800)).await;
+        // Poll buffer until output is captured (max 100 iterations to avoid infinite loop)
+        let mut attempts = 0;
+        let mut last_len = 0;
+        loop {
+            attempts += 1;
+            let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
+            let current_len = snapshot.data.len();
+            if current_len > 2 * 1024 * 1024 || (current_len == last_len && attempts > 10) {
+                break;
+            }
+            last_len = current_len;
+            sleep(Duration::from_millis(50)).await;
+            if attempts > 100 {
+                panic!("Buffer not populated after 100 attempts");
+            }
+        }
 
         let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
         println!("agent buffer length: {}", snapshot.data.len());

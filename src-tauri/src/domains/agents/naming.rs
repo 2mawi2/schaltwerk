@@ -2,6 +2,8 @@ use crate::{
     domains::git, domains::sessions::db_sessions::SessionMethods,
     schaltwerk_core::database::Database,
 };
+
+
 use anyhow::{anyhow, Result};
 use std::path::Path;
 use tokio::process::Command;
@@ -20,7 +22,8 @@ pub struct SessionRenameContext<'a> {
 }
 
 pub fn truncate_prompt(prompt: &str) -> String {
-    let first_lines: String = prompt.lines().take(4).collect::<Vec<_>>().join("\n");
+    let first_lines: String = prompt.lines().take(4).collect::<Vec<_>>().join("
+");
     if first_lines.len() > 400 {
         first_lines.chars().take(400).collect::<String>()
     } else {
@@ -210,6 +213,31 @@ Agent: {truncated}
 Respond with just the short kebab-case name:"#
     );
 
+    // JSON prompt specifically for OpenCode for more reliable parsing
+    let prompt_json = format!(
+        r#"IMPORTANT: Do not use any tools. Answer this message directly without searching or reading files.
+
+Generate a SHORT kebab-case name for this agent.
+
+Rules:
+- Maximum 3-4 words
+- 20 characters or less preferred
+- Use only lowercase letters, numbers, hyphens
+- Be concise - capture the essence, not details
+- Return ONLY JSON format: {{"name": "kebab-case-name"}}
+- Do NOT use tools or commands
+
+Examples of good names:
+- {{"name": "auth-system"}} (not "implement-user-authentication-system")
+- {{"name": "horse-app"}} (not "lets-talk-about-horses-and-build")
+- {{"name": "fix-login"}} (not "fix-the-login-button-on-homepage")
+- {{"name": "api-docs"}} (not "create-api-documentation-for-endpoints")
+
+Agent: {truncated}
+
+Respond with JSON: {{"name": "short-kebab-case-name"}}"#
+    );
+
     // Always use a temporary directory for agent execution to avoid interference with active sessions
     let temp_base = std::env::temp_dir();
     let unique_temp_dir = temp_base.join(format!("schaltwerk_namegen_{session_id}"));
@@ -232,7 +260,8 @@ Respond with just the short kebab-case name:"#
 
         // Create a minimal file so the directory isn't empty
         let readme_path = unique_temp_dir.join("README.md");
-        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation\n")
+        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation
+")
         {
             log::debug!("Failed to create README in temp dir (non-fatal): {e}");
         }
@@ -355,18 +384,12 @@ Respond with just the short kebab-case name:"#
     if agent_type == "opencode" {
         log::info!("Attempting to generate name with opencode");
 
-        // OpenCode uses the `run` command with a specific model and prompt
+        // OpenCode uses the run command for non-interactive usage
         let binary = super::opencode::resolve_opencode_binary();
         let mut command = Command::new(&binary);
-        command.args([
-            "run",
-            "--model",
-            "openrouter/openai/gpt-4o-mini",
-            &prompt_plain,
-        ]);
+        command.args(["run", &prompt_json]);
         command.current_dir(&run_dir);
         command.stdin(std::process::Stdio::null());
-        command.env("OPENCODE_NO_INTERACTIVE", "1");
         for (key, value) in build_namegen_env(env_vars) {
             command.env(key, value);
         }
@@ -388,20 +411,7 @@ Respond with just the short kebab-case name:"#
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
             log::debug!("opencode stdout: {stdout}");
 
-            // OpenCode returns plain text, so we look for a kebab-case name in the output
-            // Split by newlines and find the first line that looks like a kebab-case name
-            let candidate = stdout
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .filter(|line| !line.contains(' ')) // No spaces
-                .filter(|line| {
-                    line.chars()
-                        .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
-                })
-                .filter(|line| line.len() <= 30) // Reasonable length
-                .find(|_| true) // Get first match
-                .map(|s| s.to_string());
+    let candidate = parse_opencode_output(&stdout);
 
             if let Some(result) = candidate {
                 log::info!("opencode returned name candidate: {result}");
@@ -633,6 +643,44 @@ fn build_claude_namegen_args(prompt_plain: &str, cli_args: Option<&str>) -> Vec<
     args
 }
 
+pub fn parse_opencode_output(stdout: &str) -> Option<String> {
+    // Try JSON first, then fallback to raw text
+    let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(stdout);
+    let candidate = if let Ok(v) = parsed_json {
+        v.as_str()
+            .or_else(|| v.get("name").and_then(|x| x.as_str()))
+            .map(|s| s.to_string())
+    } else {
+        None
+    }
+    .or_else(|| {
+        // Fallback to plain text parsing for backward compatibility
+        stdout
+            .lines()
+            .map(|line| line.trim())
+            .filter(|line| !line.is_empty())
+            .filter(|line| !line.contains(' ')) // No spaces
+            .filter(|line| {
+                line.chars()
+                    .all(|c| c.is_ascii_lowercase() || c == '-' || c.is_ascii_digit())
+            })
+            .filter(|line| line.len() <= 30) // Reasonable length
+            .find(|_| true) // Get first match
+            .map(|s| s.to_string())
+            .or_else(|| {
+                // Final fallback: if no strict pattern match, use the raw output
+                let raw = stdout.trim();
+                if !raw.is_empty() {
+                    Some(raw.to_string())
+                } else {
+                    None
+                }
+            })
+    });
+
+    candidate
+}
+
 fn build_namegen_env(env_vars: &[(String, String)]) -> Vec<(String, String)> {
     let mut combined = vec![
         ("NO_COLOR".to_string(), "1".to_string()),
@@ -708,6 +756,27 @@ mod tests {
     use tokio::time::timeout;
 
     #[test]
+    fn test_parse_opencode_json() {
+        let input = r#"{"name": "test-name"}"#;
+        let result = parse_opencode_output(input);
+        assert_eq!(result, Some("test-name".to_string()));
+    }
+
+    #[test]
+    fn test_parse_opencode_plain() {
+        let input = "auth-system\nother";
+        let result = parse_opencode_output(input);
+        assert_eq!(result, Some("auth-system".to_string()));
+    }
+
+    #[test]
+    fn test_parse_opencode_no_match() {
+        let input = "No kebab";
+        let result = parse_opencode_output(input);
+        assert_eq!(result, Some("No kebab".to_string()));
+    }
+
+    #[test]
     fn test_sanitize_name() {
         assert_eq!(sanitize_name("Hello World!"), "hello-world");
         assert_eq!(sanitize_name("implement-user-auth"), "implement-user-auth");
@@ -738,7 +807,11 @@ mod tests {
         let short_prompt = "Short agent";
         assert_eq!(truncate_prompt(short_prompt), "Short agent");
 
-        let long_prompt = "This is a very long prompt that contains multiple lines\nSecond line here\nThird line\nFourth line\nFifth line should be truncated";
+        let long_prompt = "This is a very long prompt that contains multiple lines
+Second line here
+Third line
+Fourth line
+Fifth line should be truncated";
         let result = truncate_prompt(long_prompt);
         assert!(result.lines().count() <= 4);
         assert!(result.len() <= 400);
@@ -755,13 +828,24 @@ mod tests {
         assert_eq!(result.len(), 400);
 
         // Exactly 4 lines
-        let four_lines = "Line 1\nLine 2\nLine 3\nLine 4";
+        let four_lines = "Line 1
+Line 2
+Line 3
+Line 4";
         assert_eq!(truncate_prompt(four_lines), four_lines);
 
         // More than 4 lines
-        let many_lines = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\nLine 6";
+        let many_lines = "Line 1
+Line 2
+Line 3
+Line 4
+Line 5
+Line 6";
         let result = truncate_prompt(many_lines);
-        assert_eq!(result, "Line 1\nLine 2\nLine 3\nLine 4");
+        assert_eq!(result, "Line 1
+Line 2
+Line 3
+Line 4");
     }
 
     #[test]
@@ -1002,7 +1086,8 @@ mod tests {
             "test-session",
             &worktree_path,
             "claude",
-            Some("   \n\t  "),
+            Some("   
+\t  "),
             None,
             &[],
             None,
