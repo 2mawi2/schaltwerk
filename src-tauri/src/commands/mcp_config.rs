@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -16,6 +17,8 @@ mod client {
         Claude,
         #[serde(rename = "codex")]
         Codex,
+        #[serde(rename = "opencode")]
+        OpenCode,
     }
 
     impl McpClient {
@@ -23,6 +26,7 @@ mod client {
             match self {
                 Self::Claude => "claude",
                 Self::Codex => "codex",
+                Self::OpenCode => "opencode",
             }
         }
     }
@@ -43,6 +47,7 @@ mod client {
         match client {
             McpClient::Claude => configure_mcp_claude(project_path, mcp_server_path),
             McpClient::Codex => configure_mcp_codex(mcp_server_path),
+            McpClient::OpenCode => configure_mcp_opencode(project_path, mcp_server_path),
         }
     }
 
@@ -120,6 +125,7 @@ mod client {
         match client {
             McpClient::Claude => remove_mcp_claude(project_path),
             McpClient::Codex => remove_mcp_codex(),
+            McpClient::OpenCode => remove_mcp_opencode(project_path),
         }
     }
 
@@ -172,6 +178,10 @@ mod client {
                 "Add to ~/.codex/config.toml:\n[mcp_servers.schaltwerk]\ncommand = \"node\"\nargs = [\"{}\"]",
                 mcp_server_path.replace('"', "\\\"")
             ),
+            McpClient::OpenCode => format!(
+                "Add to opencode.json:\n{{\n  \"mcp\": {{\n    \"schaltwerk\": {{\n      \"type\": \"local\",\n      \"command\": [\"node\", \"{}\"],\n      \"enabled\": true\n    }}\n  }}\n}}",
+                mcp_server_path.replace('"', "\\\"")
+            ),
         }
     }
 
@@ -205,6 +215,105 @@ mod client {
             .unwrap_or_else(|_| home.join(".codex"));
         let path = base.join("config.toml");
         Ok((path, !base.exists()))
+    }
+
+    pub fn opencode_config_path(project_path: &str) -> Result<(PathBuf, bool), String> {
+        // Check for project-specific config first
+        let project_config = PathBuf::from(project_path).join("opencode.json");
+        if project_config.exists() {
+            return Ok((project_config, false));
+        }
+
+        // Fall back to global config
+        let home = dirs::home_dir().ok_or("Could not determine home directory")?;
+        let global_config = home.join(".opencode").join("config.json");
+        let exists = global_config.exists();
+        Ok((global_config, !exists))
+    }
+
+    pub fn configure_mcp_opencode(project_path: &str, mcp_server_path: &str) -> Result<String, String> {
+        let (config_path, created_dir) = opencode_config_path(project_path)?;
+
+        if created_dir {
+            if let Some(parent) = config_path.parent() {
+                log::info!("Created OpenCode config directory at {}", parent.display());
+            }
+        }
+
+        // Read existing config or create new one
+        let config_content = if config_path.exists() {
+            std::fs::read_to_string(&config_path)
+                .map_err(|e| format!("Failed to read OpenCode config: {e}"))?
+        } else {
+            String::from("{\n  \"$schema\": \"https://opencode.ai/config.json\"\n}")
+        };
+
+        // Parse JSON to check if MCP section exists
+        let mut config: serde_json::Value = serde_json::from_str(&config_content)
+            .map_err(|e| format!("Failed to parse OpenCode config JSON: {e}"))?;
+
+        // Ensure MCP section exists
+        if config.get("mcp").is_none() {
+            config["mcp"] = serde_json::json!({});
+        }
+
+        // Add or update Schaltwerk MCP server
+        let mcp_section = config.get_mut("mcp").unwrap();
+        let schaltwerk_config = serde_json::json!({
+            "type": "local",
+            "command": ["node", mcp_server_path],
+            "enabled": true
+        });
+        mcp_section["schaltwerk"] = schaltwerk_config;
+
+        // Write updated config
+        if let Some(dir) = config_path.parent() {
+            std::fs::create_dir_all(dir)
+                .map_err(|e| format!("Failed to create OpenCode config dir: {e}"))?;
+        }
+
+        let updated_content = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Failed to serialize OpenCode config: {e}"))?;
+
+        std::fs::write(&config_path, updated_content)
+            .map_err(|e| format!("Failed to write OpenCode config: {e}"))?;
+
+        log::info!("Wrote OpenCode MCP config at {}", config_path.display());
+        Ok("OpenCode MCP configured successfully".to_string())
+    }
+
+    pub fn remove_mcp_opencode(project_path: &str) -> Result<String, String> {
+        let (config_path, _) = opencode_config_path(project_path)?;
+
+        if !config_path.exists() {
+            return Ok("OpenCode config not found".to_string());
+        }
+
+        let config_content = std::fs::read_to_string(&config_path)
+            .map_err(|e| format!("Failed to read OpenCode config: {e}"))?;
+
+        let mut config: serde_json::Value = serde_json::from_str(&config_content)
+            .map_err(|e| format!("Failed to parse OpenCode config JSON: {e}"))?;
+
+        // Remove Schaltwerk from MCP section
+        if let Some(mcp_section) = config.get_mut("mcp") {
+            if let Some(mcp_obj) = mcp_section.as_object_mut() {
+                mcp_obj.remove("schaltwerk");
+
+                // If MCP section is empty, remove it entirely
+                if mcp_obj.is_empty() {
+                    config.as_object_mut().unwrap().remove("mcp");
+                }
+            }
+        }
+
+        let updated_content = serde_json::to_string_pretty(&config)
+            .map_err(|e| format!("Failed to serialize OpenCode config: {e}"))?;
+
+        std::fs::write(&config_path, updated_content)
+            .map_err(|e| format!("Failed to update OpenCode config: {e}"))?;
+
+        Ok("Removed schaltwerk MCP from OpenCode config".to_string())
     }
 }
 
@@ -279,7 +388,32 @@ fn get_release_mcp_path(exe_path: &std::path::Path) -> Result<(PathBuf, bool), S
 fn parse_client_or_default(client: Option<String>) -> client::McpClient {
     match client.as_deref() {
         Some("codex") => client::McpClient::Codex,
+        Some("opencode") => client::McpClient::OpenCode,
         _ => client::McpClient::Claude,
+    }
+}
+
+fn check_opencode_config_status(project_path: &str) -> bool {
+    if let Ok((config_path, _)) = client::opencode_config_path(project_path) {
+        if config_path.exists() {
+            std::fs::read_to_string(config_path)
+                .map(|content| {
+                    // Parse JSON and check if schaltwerk MCP server is configured
+                    serde_json::from_str::<serde_json::Value>(&content)
+                        .map(|config| {
+                            config
+                                .get("mcp")
+                                .and_then(|mcp| mcp.get("schaltwerk"))
+                                .is_some()
+                        })
+                        .unwrap_or(false)
+                })
+                .unwrap_or(false)
+        } else {
+            false
+        }
+    } else {
+        false
     }
 }
 
@@ -307,6 +441,9 @@ fn check_mcp_configuration_status(project_path: &str, client: client::McpClient)
             } else {
                 false
             }
+        }
+        client::McpClient::OpenCode => {
+            check_opencode_config_status(project_path)
         }
     }
 }
