@@ -56,12 +56,12 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPreviewingDeletion, setIsPreviewingDeletion] = useState(false)
 
-  // If it's not a version group, render the single session normally
-  if (!group.isVersionGroup) {
-    const session = group.versions[0]
-    // Check if this session is selected either as a normal session or as a spec in spec mode
-    const isSelected = (selection.kind === 'session' && selection.payload === session.session.info.session_id) ||
-                      (isInSpecMode === true && isSpec(session.session.info) && currentSpecId === session.session.info.session_id)
+   // If it's not a version group, render the single session normally
+   if (!group.isVersionGroup) {
+     const session = group.versions[0]
+     // Check if this session is selected either as a normal session or as a spec in spec mode
+      const isSelected = (selection.kind === 'session' && selection.payload === session.session.info.session_id) ||
+                          (isInSpecMode === true && isSpec(session.session.info) && currentSpecId === session.session.info.session_id)
 
     const isResettingForSession = resettingSelection?.kind === 'session'
       && resettingSelection.payload === session.session.info.session_id
@@ -202,12 +202,12 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               <div className="absolute left-2 top-2 bottom-2 w-px bg-slate-600/50" />
               
               <div className="space-y-1">
-                {group.versions.map((version, versionIndex) => {
-                  // Check if this version is selected either as a normal session or as a spec in spec mode
-                  const isSelected = (selection.kind === 'session' && selection.payload === version.session.info.session_id) ||
-                                   (isInSpecMode === true && isSpec(version.session.info) && currentSpecId === version.session.info.session_id)
-                  const displayName = `(v${version.versionNumber})`
-                  const willBeDeleted = isPreviewingDeletion && hasSelectedVersion && !isSelected
+                 {group.versions.map((version, versionIndex) => {
+                   // Check if this version is selected either as a normal session or as a spec in spec mode
+                    const isSelected = (selection.kind === 'session' && selection.payload === version.session.info.session_id) ||
+                                     (isInSpecMode === true && isSpec(version.session.info) && currentSpecId === version.session.info.session_id)
+                    const displayName = `(v${version.versionNumber})`
+                    const willBeDeleted = isPreviewingDeletion && hasSelectedVersion && !isSelected
 
                   return (
                     <div key={version.session.info.session_id} className="relative">

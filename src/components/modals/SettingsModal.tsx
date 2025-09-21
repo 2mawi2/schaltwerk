@@ -740,12 +740,12 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
 
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-6">
-                    {/* MCP Configuration for Claude/Codex */}
-                    {projectPath && (activeAgentTab === 'claude' || activeAgentTab === 'codex') && (
-                        <div>
-                            <MCPConfigPanel projectPath={projectPath} agent={activeAgentTab} />
-                        </div>
-                    )}
+                     {/* MCP Configuration for Claude/Codex/OpenCode */}
+                     {projectPath && (activeAgentTab === 'claude' || activeAgentTab === 'codex' || activeAgentTab === 'opencode') && (
+                         <div>
+                             <MCPConfigPanel projectPath={projectPath} agent={activeAgentTab} />
+                         </div>
+                     )}
 
                     {/* Binary Path Configuration */}
                     <div>

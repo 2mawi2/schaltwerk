@@ -37,9 +37,7 @@ function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
 function isSpec(info: SessionInfo): boolean { return mapSessionUiState(info) === 'spec' }
 function isReviewed(info: SessionInfo): boolean { return mapSessionUiState(info) === 'reviewed' }
 
-
 // Removed legacy terminal-stuck idle handling; we rely on last-edited timestamps only
-
 
 interface SidebarProps {
     isDiffViewerOpen?: boolean
@@ -105,36 +103,37 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
 
-    // TODO: Implement useIdleSessions hook or replace with proper idle detection
-    const idleIds = new Set<string>()
-    const recomputeIdleSessions = useCallback(() => {}, [])
+
+
+
 
     type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())
-    const ensureProjectMemory = useCallback((): Record<FilterMode, FilterMemoryEntry> => {
-        const key = projectPath || '__default__'
-        if (!selectionMemoryRef.current.has(key)) {
-            selectionMemoryRef.current.set(key, {
-                [FilterMode.All]: { lastSelection: null, lastSessions: [] },
-                [FilterMode.Spec]: { lastSelection: null, lastSessions: [] },
-                [FilterMode.Running]: { lastSelection: null, lastSessions: [] },
-                [FilterMode.Reviewed]: { lastSelection: null, lastSessions: [] },
-            })
-        }
-        return selectionMemoryRef.current.get(key)!
-    }, [projectPath])
+
+    const ensureProjectMemory = useCallback(() => {
+      const key = projectPath || '__default__';
+      if (!selectionMemoryRef.current.has(key)) {
+        selectionMemoryRef.current.set(key, {
+          [FilterMode.All]: { lastSelection: null, lastSessions: [] },
+          [FilterMode.Spec]: { lastSelection: null, lastSessions: [] },
+          [FilterMode.Running]: { lastSelection: null, lastSessions: [] },
+          [FilterMode.Reviewed]: { lastSelection: null, lastSessions: [] },
+        });
+      }
+      return selectionMemoryRef.current.get(key)!;
+    }, [projectPath]);
 
     const reloadSessionsAndRefreshIdle = useCallback(async () => {
         await reloadSessions()
-        recomputeIdleSessions()
-    }, [reloadSessions, recomputeIdleSessions])
+    }, [reloadSessions]);
     
     // Maintain per-filter selection memory and choose the next best session when visibility changes
     useEffect(() => {
         if (isProjectSwitching.current) return
 
-        const memory = ensureProjectMemory()
-        const entry = memory[filterMode]
+        const memory = ensureProjectMemory();
+        const entry = memory[filterMode];
+
         const visibleSessions = sessions
         const visibleIds = new Set(visibleSessions.map(s => s.info.session_id))
         const currentSelectionId = selection.kind === 'session' ? (selection.payload ?? null) : null
@@ -143,6 +142,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         entry.lastSessions = visibleSessions
 
         const removalCandidate = lastRemovedSessionRef.current
+
+        // Check if the removed session was a reviewed session
+        const wasReviewedSession = removalCandidate ?
+            allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
 
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
@@ -169,28 +172,40 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
 
         const rememberedId = entry.lastSelection
-        const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
         let candidateId: string | null = null
 
-        if (rememberedId && visibleIds.has(rememberedId)) {
-            candidateId = rememberedId
-        }
-
-        if (!candidateId && baselineId && previousSessions.length > 0) {
-            const neighbourId = computeNextSelectedSessionId(previousSessions, baselineId, baselineId)
-            if (neighbourId && visibleIds.has(neighbourId)) {
-                candidateId = neighbourId
+        // If a reviewed session was cancelled, preserve current focus instead of auto-switching
+        if (wasReviewedSession && removalCandidate) {
+            // Keep current selection or fall back to orchestrator
+            if (currentSelectionId && visibleIds.has(currentSelectionId)) {
+                candidateId = currentSelectionId
             } else {
-                const previousIndex = previousSessions.findIndex(s => s.info.session_id === baselineId)
-                if (previousIndex !== -1 && visibleSessions.length > 0) {
-                    const boundedIndex = Math.min(previousIndex, visibleSessions.length - 1)
-                    candidateId = visibleSessions[boundedIndex]?.info.session_id ?? null
+                candidateId = null // Will fall back to orchestrator below
+            }
+        } else {
+            // Normal auto-selection logic for non-reviewed sessions (including specs)
+            const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
+
+            if (rememberedId && visibleIds.has(rememberedId)) {
+                candidateId = rememberedId
+            }
+
+            if (!candidateId && baselineId && previousSessions.length > 0) {
+                const neighbourId = computeNextSelectedSessionId(previousSessions, baselineId, baselineId)
+                if (neighbourId && visibleIds.has(neighbourId)) {
+                    candidateId = neighbourId
+                } else {
+                    const previousIndex = previousSessions.findIndex(s => s.info.session_id === baselineId)
+                    if (previousIndex !== -1 && visibleSessions.length > 0) {
+                        const boundedIndex = Math.min(previousIndex, visibleSessions.length - 1)
+                        candidateId = visibleSessions[boundedIndex]?.info.session_id ?? null
+                    }
                 }
             }
-        }
 
-        if (!candidateId && visibleSessions.length > 0) {
-            candidateId = visibleSessions[0]?.info.session_id ?? null
+            if (!candidateId && visibleSessions.length > 0) {
+                candidateId = visibleSessions[0]?.info.session_id ?? null
+            }
         }
 
         if (candidateId) {
@@ -227,15 +242,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             })
     }, [])
 
-    useEffect(() => {
-        recomputeIdleSessions()
-    }, [loading, recomputeIdleSessions])
-
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
     }
     
-
     // Helper to flatten grouped sessions into a linear array
     const flattenGroupedSessions = (sessionsToFlatten: EnrichedSession[]): EnrichedSession[] => {
         const sessionGroups = groupSessionsByVersion(sessionsToFlatten)
@@ -970,7 +980,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     group={group}
                                     selection={selection}
                                     startIndex={groupStartIndex}
-                                    hasStuckTerminals={(sessionId: string) => idleIds.has(sessionId)}
+
                                     hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
                                     onSelect={(index) => {
                                         void handleSelectSession(index)
