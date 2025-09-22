@@ -168,7 +168,7 @@ vi.mock('./TerminalTabs', () => {
         unmountCount.set(terminalId, (unmountCount.get(terminalId) || 0) + 1)
         focusSpies.delete(terminalId)
       }
-    }, [terminalId])
+    }, [terminalId, focus])
 
     const focusTerminal = vi.fn((tid?: string) => { lastFocusedTerminalId = tid || null })
     const tabFns = getOrCreateTabFns(terminalId)

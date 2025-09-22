@@ -87,7 +87,7 @@ impl Utf8Stream {
             .map(|last| now.duration_since(last) >= self.warn_every)
             .unwrap_or(true);
 
-        let should_log_step = self.warn_count % self.warn_step == 0;
+        let should_log_step = self.warn_count.is_multiple_of(self.warn_step);
 
         if should_log_time || should_log_step {
             match self.invalid_policy {
