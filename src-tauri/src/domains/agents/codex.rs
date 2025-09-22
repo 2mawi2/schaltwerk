@@ -550,7 +550,6 @@ pub fn build_codex_command_with_config(
     initial_prompt: Option<&str>,
     sandbox_mode: &str,
     config: Option<&CodexConfig>,
-    attached_images: &[String],
 ) -> String {
     // Use simple binary name and let system PATH handle resolution
     let binary_name = if let Some(cfg) = config {
@@ -573,14 +572,6 @@ pub fn build_codex_command_with_config(
 
     // Add sandbox mode first (this is an option)
     cmd.push_str(&format!(" --sandbox {sandbox_mode}"));
-
-    // Add attached images if any
-    if !attached_images.is_empty() {
-        log::debug!("📎 Codex command builder: Adding {} attached images", attached_images.len());
-        for image_path in attached_images {
-            cmd.push_str(&format!(" -i \"{image_path}\""));
-        }
-    }
 
     // Handle session resumption
     log::debug!(
@@ -661,7 +652,6 @@ mod tests {
             Some("implement feature X"),
             "workspace-write",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -680,7 +670,6 @@ mod tests {
             None,
             "read-only",
             Some(&config),
-            &[],
         );
         assert_eq!(cmd, "cd /path/to/worktree && codex --sandbox read-only");
     }
@@ -696,7 +685,6 @@ mod tests {
             Some("this prompt should be ignored"),
             "workspace-write",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -715,7 +703,6 @@ mod tests {
             Some("this prompt should be ignored"),
             "workspace-write",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -734,7 +721,6 @@ mod tests {
             None,
             "workspace-write",
             Some(&config),
-            &[],
         );
         assert!(cmd.contains("cd /repo/worktree-a && codex --sandbox workspace-write resume 2a593eaf-00b5-476a-bb16-f49c5dfb60c4"));
     }
@@ -750,7 +736,6 @@ mod tests {
             None,
             "danger-full-access",
             Some(&config),
-            &[],
         );
         assert!(cmd.contains("cd /repo/worktree-a && codex --sandbox danger-full-access resume 2a593eaf-00b5-476a-bb16-f49c5dfb60c4"));
     }
@@ -773,7 +758,6 @@ mod tests {
             None,
             "workspace-write",
             Some(&config),
-            &[],
         );
 
         assert!(cmd.contains(
@@ -803,7 +787,6 @@ mod tests {
             None,
             "workspace-write",
             Some(&config),
-            &[],
         );
 
         assert!(cmd.contains("cd /repo/worktree-a && codex --sandbox workspace-write resume"));
@@ -821,7 +804,6 @@ mod tests {
             Some("fix bugs"),
             "danger-full-access",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -840,7 +822,6 @@ mod tests {
             Some(r#"implement "feature" with quotes"#),
             "workspace-write",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -991,7 +972,6 @@ mod tests {
             None,
             "danger-full-access",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -1010,7 +990,6 @@ mod tests {
             None,
             "danger-full-access",
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,

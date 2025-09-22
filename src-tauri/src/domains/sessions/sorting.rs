@@ -47,10 +47,9 @@ mod session_sorting_tests {
             } else {
                 None
             },
-             session_state: state,
-             resume_allowed: true,
-             attached_images: vec![],
-         }
+            session_state: state,
+            resume_allowed: true,
+        }
     }
 
     fn setup_test_sessions() -> (TempDir, SessionManager, Vec<Session>) {

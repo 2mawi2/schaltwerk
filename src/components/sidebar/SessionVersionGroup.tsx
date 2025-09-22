@@ -13,9 +13,8 @@ interface SessionVersionGroupProps {
   }
   startIndex: number  // The starting index of this group in the overall sessions list
 
-   hasFollowUpMessage: (sessionId: string) => boolean
-   hasStuckTerminals: (sessionId: string) => boolean
-   onSelect: (index: number) => void
+  hasFollowUpMessage: (sessionId: string) => boolean
+  onSelect: (index: number) => void
   onMarkReady: (sessionId: string, hasUncommitted: boolean) => void
   onUnmarkReady: (sessionId: string) => void
   onCancel: (sessionId: string, hasUncommitted: boolean) => void
@@ -37,7 +36,6 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   startIndex,
 
   hasFollowUpMessage,
-  hasStuckTerminals: _hasStuckTerminals,
   onSelect,
   onMarkReady,
   onUnmarkReady,

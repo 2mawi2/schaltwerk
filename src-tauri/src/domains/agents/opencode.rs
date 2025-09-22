@@ -208,7 +208,6 @@ pub fn build_opencode_command_with_config(
     initial_prompt: Option<&str>,
     _skip_permissions: bool,
     config: Option<&OpenCodeConfig>,
-    attached_images: &[String],
 ) -> String {
     // Use simple binary name and let system PATH handle resolution
     let binary_name = if let Some(cfg) = config {
@@ -226,14 +225,6 @@ pub fn build_opencode_command_with_config(
         "opencode"
     };
     let mut cmd = format!("cd {} && {}", worktree_path.display(), binary_name);
-
-    // Add attached images if any
-    if !attached_images.is_empty() {
-        log::debug!("📎 OpenCode command builder: Adding {} attached images", attached_images.len());
-        for image_path in attached_images {
-            cmd.push_str(&format!(" --image \"{image_path}\""));
-        }
-    }
 
     match session_info {
         Some(info) if info.has_history => {
@@ -556,7 +547,6 @@ mod tests {
             Some("implement feature X"),
             true,
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -579,7 +569,6 @@ mod tests {
             None,
             false,
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -598,7 +587,6 @@ mod tests {
             None,
             false,
             Some(&config),
-            &[],
         );
         assert_eq!(cmd, "cd /path/to/worktree && opencode");
     }
@@ -620,7 +608,6 @@ mod tests {
             None,
             false,
             Some(&config),
-            &[],
         );
         assert_eq!(cmd, "cd /path/to/worktree && opencode");
 
@@ -631,7 +618,6 @@ mod tests {
             Some("implement feature Y"),
             false,
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd_with_prompt,
@@ -654,7 +640,6 @@ mod tests {
             Some("new agent"),
             true,
             Some(&config),
-            &[],
         );
         // When session has history, we use --session to continue the specific session
         assert_eq!(
@@ -674,7 +659,6 @@ mod tests {
             Some(r#"implement "feature" with quotes"#),
             false,
             Some(&config),
-            &[],
         );
         assert_eq!(
             cmd,
@@ -743,7 +727,6 @@ Run Mode is a terminal interface feature that provides a dedicated "Run" tab.
             Some(prompt),
             false,
             Some(&config),
-            &[],
         );
 
         // The command should properly escape all special characters

@@ -24,7 +24,6 @@ interface Props {
         versionCount?: number
         agentType?: AgentType
         skipPermissions?: boolean
-        attachedImages?: string[]
     }) => void | Promise<void>
 }
 
@@ -46,7 +45,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [isPrefillPending, setIsPrefillPending] = useState(false)
     const [hasPrefillData, setHasPrefillData] = useState(false)
     const [originalSpecName, setOriginalSpecName] = useState<string>('')
-    const [attachedImages, setAttachedImages] = useState<File[]>([])
     const nameInputRef = useRef<HTMLInputElement>(null)
     const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
     const wasEditedRef = useRef(false)
@@ -63,54 +61,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
 
     const handleAgentTypeChange = (type: AgentType) => {
         setAgentType(type)
-        // Clear attached images if switching away from Codex
-        if (type !== 'codex' && attachedImages.length > 0) {
-            setAttachedImages([])
-        }
     }
 
     const handleSkipPermissionsChange = (enabled: boolean) => {
         setSkipPermissions(enabled)
-    }
-
-    const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const files = Array.from(event.target.files || [])
-        const imageFiles = files.filter(file => file.type.startsWith('image/'))
-        setAttachedImages(prev => [...prev, ...imageFiles])
-    }
-
-    const handleRemoveImage = (index: number) => {
-        setAttachedImages(prev => prev.filter((_, i) => i !== index))
-    }
-
-    const uploadAttachedFiles = async (files: File[]): Promise<string[]> => {
-        if (files.length === 0) {
-            return []
-        }
-
-        try {
-            // Convert files to (filename, data) pairs
-            const fileDataPairs: [string, number[]][] = await Promise.all(
-                files.map(async (file) => {
-                    const arrayBuffer = await file.arrayBuffer()
-                    const uint8Array = new Uint8Array(arrayBuffer)
-                    const data = Array.from(uint8Array)
-                    return [file.name, data] as [string, number[]]
-                })
-            )
-
-            logger.info('[NewSessionModal] Uploading attached files:', files.map(f => f.name))
-
-            // Call the backend upload command
-            const uploadedPaths = await invoke(TauriCommands.UploadAttachedFilesWithData, {
-                files: fileDataPairs
-            }) as string[]
-
-            return uploadedPaths
-        } catch (error) {
-            logger.error('[NewSessionModal] Failed to upload attached files:', error)
-            return []
-        }
     }
 
     const validateSessionName = useCallback((sessionName: string): string | null => {
@@ -174,8 +128,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setCreating(true)
             
             
-            const uploadedImagePaths = await uploadAttachedFiles(attachedImages)
-
             const createData = {
                 name: finalName,
                 prompt: createAsDraft ? undefined : (taskContent || undefined),
@@ -187,7 +139,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 versionCount: createAsDraft ? 1 : versionCount,
                 agentType: createAsDraft ? agentType : undefined,
                 skipPermissions: createAsDraft ? skipPermissions : undefined,
-                attachedImages: uploadedImagePaths,
             }
             logger.info('[NewSessionModal] Creating session with data:', {
                 ...createData,
@@ -201,7 +152,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             // Parent handles showing the error; re-enable to allow retry
             setCreating(false)
         }
-    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions, attachedImages])
+    }, [creating, name, taskContent, baseBranch, onCreate, validateSessionName, createAsDraft, versionCount, agentType, skipPermissions])
 
     // Keep ref in sync immediately on render to avoid stale closures in tests
     createRef.current = handleCreate
@@ -255,7 +206,6 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                 setNameLocked(false)
                 setOriginalSpecName('')
                 setShowVersionMenu(false)
-                setAttachedImages([])
                 // Default version count is 1 (not from settings anymore)
                 setVersionCount(1)
                 // Initialize configuration from persisted state to reflect real settings
@@ -311,18 +261,10 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setSkipPermissions(false)
             setVersionCount(1)
             setShowVersionMenu(false)
-            setAttachedImages([])
             wasOpenRef.current = false
             lastInitialIsDraftRef.current = undefined
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft])
-
-    // Show warning if images are attached to a spec with non-Codex agent
-    useEffect(() => {
-        if (createAsDraft && agentType !== 'codex' && attachedImages.length > 0) {
-            // Warning is already shown in the UI, no additional action needed
-        }
-    }, [createAsDraft, agentType, attachedImages])
 
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens
@@ -511,79 +453,17 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                             className="w-full h-32 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm" 
                             placeholder={createAsDraft ? "Enter spec content in markdown..." : "Describe the agent for the Claude session"} 
                         />
-                         <p className="text-xs text-slate-400 mt-1">
-                             {createAsDraft && (
-                                 <>
-                                     <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                         <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                                     </svg>
-                                     Spec agents are saved for later. You can start them when ready.
-                                 </>
-                             )}
-                         </p>
-                     </div>
-
-                      {agentType === 'codex' && (
-                          <div>
-                              <label className="block text-sm text-slate-300 mb-1">
-                                  Attach images (optional)
-                              </label>
-                              <div className="space-y-2">
-                                  <input
-                                      type="file"
-                                      accept="image/*"
-                                      multiple
-                                      onChange={handleImageSelect}
-                                      className="w-full text-sm text-slate-300 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-slate-700 file:text-slate-300 hover:file:bg-slate-600"
-                                  />
-                                  {attachedImages.length > 0 && (
-                                      <div className="flex flex-wrap gap-2">
-                                          {attachedImages.map((file, index) => (
-                                              <div key={index} className="relative group">
-                                                  <div className="w-16 h-16 bg-slate-700 rounded border border-slate-600 flex items-center justify-center overflow-hidden">
-                                                      <img
-                                                          src={URL.createObjectURL(file)}
-                                                          alt={file.name}
-                                                          className="w-full h-full object-cover"
-                                                      />
-                                                  </div>
-                                                  <button
-                                                      type="button"
-                                                      onClick={() => handleRemoveImage(index)}
-                                                      className="absolute -top-1 -right-1 w-5 h-5 bg-red-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                                                      title="Remove image"
-                                                  >
-                                                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                      </svg>
-                                                  </button>
-                                                  <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-75 text-white text-xs p-1 truncate opacity-0 group-hover:opacity-100 transition-opacity">
-                                                      {file.name}
-                                                  </div>
-                                              </div>
-                                          ))}
-                                      </div>
-                                  )}
-                              </div>
-                              <p className="text-xs text-slate-400 mt-1">
-                                  Images will be attached to the session and available to the AI agent.
-                              </p>
-                          </div>
-                      )}
-
-                      {createAsDraft && agentType !== 'codex' && attachedImages.length > 0 && (
-                          <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 flex items-start gap-2">
-                              <svg className="w-5 h-5 text-amber-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <div className="text-sm text-amber-200">
-                                  <p className="font-medium mb-1">Images attached to spec</p>
-                                  <p className="text-xs text-amber-300">
-                                      Images will only be processed when this spec is started with Codex. Other agents will ignore attached images.
-                                  </p>
-                              </div>
-                          </div>
-                      )}
+                        <p className="text-xs text-slate-400 mt-1">
+                            {createAsDraft && (
+                                <>
+                                    <svg className="inline-block w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                                    </svg>
+                                    Spec agents are saved for later. You can start them when ready.
+                                </>
+                            )}
+                        </p>
+                    </div>
 
                     {repositoryIsEmpty && !createAsDraft && (
                         <div className="bg-amber-900/30 border border-amber-700/50 rounded-lg p-3 flex items-start gap-2">

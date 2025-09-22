@@ -78,14 +78,13 @@ export interface RawSession {
     pending_name_generation: boolean
     was_auto_generated: boolean
     spec_content?: string
-     session_state: 'spec' | 'running' | 'reviewed'
-     attached_images?: string[]
-     git_stats?: {
-         files_changed: number
-         additions: number
-         deletions: number
-         insertions: number
-     }
+    session_state: 'spec' | 'running' | 'reviewed'
+    git_stats?: {
+        files_changed: number
+        additions: number
+        deletions: number
+        insertions: number
+    }
 }
 
 // Project selection returned from get_project_selection

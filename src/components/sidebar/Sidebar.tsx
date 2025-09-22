@@ -103,10 +103,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
 
-
-
-
-
     type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
     const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())
 
@@ -979,10 +975,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     key={group.baseName}
                                     group={group}
                                     selection={selection}
-    startIndex={groupStartIndex}
-    hasStuckTerminals={() => false}
+                                    startIndex={groupStartIndex}
 
-    hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
+                                    hasFollowUpMessage={(sessionId: string) => sessionsWithNotifications.has(sessionId)}
                                     onSelect={(index) => {
                                         void handleSelectSession(index)
                                     }}

@@ -413,33 +413,32 @@ mod tests {
         let mock_emitter = MockEmitter::new();
         let tracker = ActivityTracker::new(db.clone(), mock_emitter.clone());
 
-         let session = Session {
-             id: "s-1".into(),
-             name: "test-session".into(),
-             display_name: None,
-             version_group_id: None,
-             version_number: None,
-             repository_path: repo_path.clone(),
-             repository_name: "repo".into(),
-             branch: "schaltwerk/test-session".into(),
-             parent_branch: parent_branch.clone(),
-             worktree_path: worktree_path.clone(),
-             status: SessionStatus::Active,
-             created_at: Utc::now(),
-             updated_at: Utc::now(),
-             last_activity: None,
-             initial_prompt: None,
-             ready_to_merge: false,
-             original_agent_type: None,
-             original_skip_permissions: None,
-             pending_name_generation: false,
-             was_auto_generated: false,
-             spec_content: None,
-             session_state: SessionState::Running,
-             resume_allowed: true,
-             attached_images: vec![],
-         };
-         db.create_session(&session).unwrap();
+        let session = Session {
+            id: "s-1".into(),
+            name: "test-session".into(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            repository_path: repo_path.clone(),
+            repository_name: "repo".into(),
+            branch: "schaltwerk/test-session".into(),
+            parent_branch: parent_branch.clone(),
+            worktree_path: worktree_path.clone(),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+            resume_allowed: true,
+        };
+        db.create_session(&session).unwrap();
 
         // Create untracked file (should be detected)
         std::fs::write(worktree_path.join("untracked.txt"), "hi").unwrap();
@@ -479,33 +478,32 @@ mod tests {
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("file.txt"), "x").unwrap();
 
-         let session = Session {
-             id: "s-2".into(),
-             name: "fallback".into(),
-             display_name: None,
-             version_group_id: None,
-             version_number: None,
-             repository_path: temp.path().to_path_buf(),
-             repository_name: "repo".into(),
-             branch: "schaltwerk/fallback".into(),
-             parent_branch: "main".into(),
-             worktree_path: dir.clone(),
-             status: SessionStatus::Active,
-             created_at: Utc::now(),
-             updated_at: Utc::now(),
-             last_activity: None,
-             initial_prompt: None,
-             ready_to_merge: false,
-             original_agent_type: None,
-             original_skip_permissions: None,
-             pending_name_generation: false,
-             was_auto_generated: false,
-             spec_content: None,
-             session_state: SessionState::Running,
-             resume_allowed: true,
-             attached_images: vec![],
-         };
-         db.create_session(&session).unwrap();
+        let session = Session {
+            id: "s-2".into(),
+            name: "fallback".into(),
+            display_name: None,
+            version_group_id: None,
+            version_number: None,
+            repository_path: temp.path().to_path_buf(),
+            repository_name: "repo".into(),
+            branch: "schaltwerk/fallback".into(),
+            parent_branch: "main".into(),
+            worktree_path: dir.clone(),
+            status: SessionStatus::Active,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+            last_activity: None,
+            initial_prompt: None,
+            ready_to_merge: false,
+            original_agent_type: None,
+            original_skip_permissions: None,
+            pending_name_generation: false,
+            was_auto_generated: false,
+            spec_content: None,
+            session_state: SessionState::Running,
+            resume_allowed: true,
+        };
+        db.create_session(&session).unwrap();
 
         let emitted = tracker
             .refresh_stats_and_activity_for_session(&session)

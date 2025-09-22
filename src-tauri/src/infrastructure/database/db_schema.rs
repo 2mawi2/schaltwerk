@@ -27,9 +27,8 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             original_skip_permissions BOOLEAN,
             pending_name_generation BOOLEAN DEFAULT FALSE,
             was_auto_generated BOOLEAN DEFAULT FALSE,
-             spec_content TEXT,
-             attached_images TEXT DEFAULT '[]',
-             UNIQUE(repository_path, name)
+            spec_content TEXT,
+            UNIQUE(repository_path, name)
         )",
         [],
     )?;
@@ -205,17 +204,12 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
         "ALTER TABLE sessions ADD COLUMN session_state TEXT DEFAULT 'running'",
         [],
     );
-     // New: gate agent resume after Spec/Cancel until first fresh start
-     let _ = conn.execute(
-         "ALTER TABLE sessions ADD COLUMN resume_allowed BOOLEAN DEFAULT TRUE",
-         [],
-     );
-     // New: support for attached images in sessions/specs
-     let _ = conn.execute(
-         "ALTER TABLE sessions ADD COLUMN attached_images TEXT DEFAULT '[]'",
-         [],
-     );
-     Ok(())
+    // New: gate agent resume after Spec/Cancel until first fresh start
+    let _ = conn.execute(
+        "ALTER TABLE sessions ADD COLUMN resume_allowed BOOLEAN DEFAULT TRUE",
+        [],
+    );
+    Ok(())
 }
 
 /// Apply migrations for the project_config table

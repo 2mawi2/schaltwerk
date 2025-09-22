@@ -40,7 +40,6 @@ import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 
 
 export interface SessionActionEvent {
-  attachedImages?: string[];
   action: 'cancel' | 'cancel-immediate'
   sessionId: string
   sessionName: string
@@ -464,7 +463,7 @@ export default function App() {
     }
   }
 
-   const handleCreateSession = async (data: {
+  const handleCreateSession = async (data: {
     name: string
     prompt?: string
     baseBranch: string
@@ -474,7 +473,6 @@ export default function App() {
     versionCount?: number
     agentType?: string
     skipPermissions?: boolean
-     attachedImages?: string[]
   }) => {
     try {
       await preserveSelection(async () => {
@@ -1062,7 +1060,7 @@ export default function App() {
                  }, 100)
                }
              }}
-             onCreate={(data) => handleCreateSession({...data, attachedImages: data.attachedImages || []})}
+             onCreate={handleCreateSession}
            />
 
           {currentSession && (

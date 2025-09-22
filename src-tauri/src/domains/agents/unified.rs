@@ -12,7 +12,6 @@ pub trait AgentCommand: Send + Sync {
         initial_prompt: Option<&str>,
         skip_permissions: bool,
         binary_override: Option<&str>,
-        attached_images: &[String],
     ) -> String;
 }
 
@@ -38,7 +37,6 @@ impl AgentCommand for ClaudeAgent {
         initial_prompt: Option<&str>,
         skip_permissions: bool,
         binary_override: Option<&str>,
-        attached_images: &[String],
     ) -> String {
         let config = super::claude::ClaudeConfig {
             binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
@@ -49,7 +47,6 @@ impl AgentCommand for ClaudeAgent {
             initial_prompt,
             skip_permissions,
             Some(&config),
-            attached_images,
         )
     }
 }
@@ -83,7 +80,6 @@ impl AgentCommand for CodexAgent {
         initial_prompt: Option<&str>,
         skip_permissions: bool,
         binary_override: Option<&str>,
-        attached_images: &[String],
     ) -> String {
         let sandbox_mode = if skip_permissions {
             "danger-full-access"
@@ -100,7 +96,6 @@ impl AgentCommand for CodexAgent {
             initial_prompt,
             sandbox_mode,
             Some(&config),
-            attached_images,
         )
     }
 }
@@ -127,7 +122,6 @@ impl AgentCommand for GeminiAgent {
         initial_prompt: Option<&str>,
         skip_permissions: bool,
         binary_override: Option<&str>,
-        attached_images: &[String],
     ) -> String {
         let config = super::gemini::GeminiConfig {
             binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
@@ -138,7 +132,6 @@ impl AgentCommand for GeminiAgent {
             initial_prompt,
             skip_permissions,
             Some(&config),
-            attached_images,
         )
     }
 }
@@ -165,7 +158,6 @@ impl AgentCommand for OpenCodeAgent {
         initial_prompt: Option<&str>,
         skip_permissions: bool,
         binary_override: Option<&str>,
-        attached_images: &[String],
     ) -> String {
         let session_info = session_id.map(|id| super::opencode::OpenCodeSessionInfo {
             id: id.to_string(),
@@ -181,7 +173,6 @@ impl AgentCommand for OpenCodeAgent {
             initial_prompt,
             skip_permissions,
             Some(&config),
-            attached_images,
         )
     }
 }
@@ -261,7 +252,7 @@ mod tests {
 
             // Test basic command
             let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("claude"), &[]);
+                agent.build_command(path, None, Some("test prompt"), true, Some("claude"));
             let original_cmd = crate::domains::agents::claude::build_claude_command_with_config(
                 path,
                 None,
@@ -270,7 +261,6 @@ mod tests {
                 Some(&crate::domains::agents::claude::ClaudeConfig {
                     binary_path: Some("claude".to_string()),
                 }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -280,14 +270,13 @@ mod tests {
             let agent = ClaudeAgent;
             let path = Path::new("/test/path");
 
-            let unified_cmd = agent.build_command(path, Some("session123"), None, false, None, &[]);
+            let unified_cmd = agent.build_command(path, Some("session123"), None, false, None);
             let original_cmd = crate::domains::agents::claude::build_claude_command_with_config(
                 path,
                 Some("session123"),
                 None,
                 false,
                 Some(&crate::domains::agents::claude::ClaudeConfig { binary_path: None }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -309,7 +298,7 @@ mod tests {
             let path = Path::new("/test/path");
 
             // Test danger mode
-            let unified_cmd = agent.build_command(path, None, Some("test"), true, Some("codex"), &[]);
+            let unified_cmd = agent.build_command(path, None, Some("test"), true, Some("codex"));
             let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
                 path,
                 None,
@@ -318,19 +307,17 @@ mod tests {
                 Some(&crate::domains::agents::codex::CodexConfig {
                     binary_path: Some("codex".to_string()),
                 }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
 
             // Test safe mode
-            let unified_cmd = agent.build_command(path, None, Some("test"), false, None, &[]);
+            let unified_cmd = agent.build_command(path, None, Some("test"), false, None);
             let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
                 path,
                 None,
                 Some("test"),
                 "workspace-write",
                 Some(&crate::domains::agents::codex::CodexConfig { binary_path: None }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -341,14 +328,13 @@ mod tests {
             let path = Path::new("/test/path");
 
             // Codex ignores session_id when provided
-            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None, &[]);
+            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
             let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
                 path,
                 Some("ignored"),
                 None,
                 "workspace-write",
                 Some(&crate::domains::agents::codex::CodexConfig { binary_path: None }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -370,7 +356,7 @@ mod tests {
             let path = Path::new("/test/path");
 
             let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("gemini"), &[]);
+                agent.build_command(path, None, Some("test prompt"), true, Some("gemini"));
             let original_cmd = crate::domains::agents::gemini::build_gemini_command_with_config(
                 path,
                 None,
@@ -379,7 +365,6 @@ mod tests {
                 Some(&crate::domains::agents::gemini::GeminiConfig {
                     binary_path: Some("gemini".to_string()),
                 }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -390,14 +375,13 @@ mod tests {
             let path = Path::new("/test/path");
 
             // Gemini ignores session_id
-            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None, &[]);
+            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
             let original_cmd = crate::domains::agents::gemini::build_gemini_command_with_config(
                 path,
                 None, // Original always passes None
                 None,
                 false,
                 Some(&crate::domains::agents::gemini::GeminiConfig { binary_path: None }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -419,7 +403,7 @@ mod tests {
             let path = Path::new("/test/path");
 
             let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("opencode"), &[]);
+                agent.build_command(path, None, Some("test prompt"), true, Some("opencode"));
             let original_cmd = crate::domains::agents::opencode::build_opencode_command_with_config(
                 path,
                 None,
@@ -428,7 +412,6 @@ mod tests {
                 Some(&crate::domains::agents::opencode::OpenCodeConfig {
                     binary_path: Some("opencode".to_string()),
                 }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -438,7 +421,7 @@ mod tests {
             let agent = OpenCodeAgent;
             let path = Path::new("/test/path");
 
-            let unified_cmd = agent.build_command(path, Some("test-session"), None, false, None, &[]);
+            let unified_cmd = agent.build_command(path, Some("test-session"), None, false, None);
             let session_info = crate::domains::agents::opencode::OpenCodeSessionInfo {
                 id: "test-session".to_string(),
                 has_history: true,
@@ -449,7 +432,6 @@ mod tests {
                 None,
                 false,
                 Some(&crate::domains::agents::opencode::OpenCodeConfig { binary_path: None }),
-                &[],
             );
             assert_eq!(unified_cmd, original_cmd);
         }
@@ -470,7 +452,7 @@ mod tests {
 
         for agent_name in registry.supported_agents() {
             let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, None, false, None, &[]);
+            let cmd = agent.build_command(path, None, None, false, None);
 
             // All commands should contain the cd and binary name
             assert!(cmd.starts_with(&format!("cd {} && ", path.display())));
@@ -486,7 +468,7 @@ mod tests {
 
         for agent_name in registry.supported_agents() {
             let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, None, false, Some(custom_binary), &[]);
+            let cmd = agent.build_command(path, None, None, false, Some(custom_binary));
 
             // Command should use the custom binary path
             assert!(cmd.contains(custom_binary));
@@ -501,105 +483,10 @@ mod tests {
 
         for agent_name in registry.supported_agents() {
             let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some(prompt_with_quotes), false, None, &[]);
+            let cmd = agent.build_command(path, None, Some(prompt_with_quotes), false, None);
 
             // Quotes should be escaped
             assert!(cmd.contains(r#"\"feature\""#));
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_single_attached_image() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let attached_images = vec!["/path/to/image1.png".to_string()];
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some("test prompt"), false, None, &attached_images);
-
-            // Command should contain the image path
-            assert!(cmd.contains("/path/to/image1.png"));
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_multiple_attached_images() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let attached_images = vec![
-            "/path/to/image1.png".to_string(),
-            "/path/to/image2.jpg".to_string(),
-            "/path/to/image3.gif".to_string(),
-        ];
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some("test prompt"), false, None, &attached_images);
-
-            // Command should contain all image paths
-            for image_path in &attached_images {
-                assert!(cmd.contains(image_path));
-            }
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_empty_attached_images() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let attached_images: Vec<String> = vec![];
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some("test prompt"), false, None, &attached_images);
-
-            // Command should not contain any image-related content
-            assert!(!cmd.contains("image"));
-            assert!(!cmd.contains("attach"));
-            assert!(!cmd.contains("png"));
-            assert!(!cmd.contains("jpg"));
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_image_paths_with_spaces() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let attached_images = vec![
-            "/path/to/my image.png".to_string(),
-            "/path/to/another file.jpg".to_string(),
-        ];
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some("test prompt"), false, None, &attached_images);
-
-            // Command should contain the image paths with proper escaping
-            for image_path in &attached_images {
-                assert!(cmd.contains(image_path));
-            }
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_image_paths_with_special_characters() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let attached_images = vec![
-            "/path/to/image-with-dashes.png".to_string(),
-            "/path/to/image_with_underscores.jpg".to_string(),
-            "/path/to/image (with parentheses).gif".to_string(),
-        ];
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some("test prompt"), false, None, &attached_images);
-
-            // Command should contain the image paths with proper escaping
-            for image_path in &attached_images {
-                assert!(cmd.contains(image_path));
-            }
         }
     }
 }
