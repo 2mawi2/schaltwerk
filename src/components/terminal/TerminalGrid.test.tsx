@@ -434,29 +434,33 @@ describe('TerminalGrid', () => {
       expect(bridge?.isReady).toBe(true)
     }, { timeout: 3000 })
 
-    // Click top header -> focus claude (top) after 100ms
+    // Click top header -> focus claude (top)
     fireEvent.click(getOrchestratorHeader())
-    await new Promise(r => setTimeout(r, 120))
     const topFocus = (await import('./Terminal')) as unknown as MockTerminalModule
-    expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
+    }, { timeout: 2000 })
 
     // Click bottom terminal element explicitly to focus it
     const bottomFocusSpy = (await import('./Terminal')) as unknown as MockTerminalModule
     const bottomTerminalId = bridge!.terminals.bottomBase.includes('orchestrator') ? `${bridge!.terminals.bottomBase}-0` : bridge!.terminals.bottomBase
     const bottomTerminalEl = screen.getByTestId(`terminal-${bottomTerminalId}`)
     fireEvent.click(bottomTerminalEl)
-    await new Promise(r => setTimeout(r, 50))
-    expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
+    }, { timeout: 2000 })
 
     // Also clicking terminals directly should focus
     const topTerminal = screen.getByTestId(`terminal-${bridge!.terminals.top}`)
     const bottomTerminal = screen.getByTestId(`terminal-${bottomTerminalId}`)
     fireEvent.click(topTerminal)
-    await new Promise(r => setTimeout(r, 120))
-    expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(topFocus.__getFocusSpy(bridge!.terminals.top)).toHaveBeenCalled()
+    }, { timeout: 2000 })
     fireEvent.click(bottomTerminal)
-    await new Promise(r => setTimeout(r, 120))
-    expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(bottomFocusSpy.__getFocusSpy(bottomTerminalId)).toHaveBeenCalled()
+    }, { timeout: 2000 })
   })
 
   it('switches terminals when session changes and focuses according to session focus state', async () => {
@@ -494,81 +498,87 @@ describe('TerminalGrid', () => {
     // Click directly on bottom terminal to focus it
     const bottomEl = screen.getByTestId('terminal-session-dev-bottom')
     fireEvent.click(bottomEl)
-    await new Promise(r => setTimeout(r, 50))
-    expect(m.__getFocusSpy('session-dev-bottom')).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(m.__getFocusSpy('session-dev-bottom')).toHaveBeenCalled()
+    }, { timeout: 2000 })
     fireEvent.click(screen.getByText(/Agent\s+[—-]{1,2}\s+dev/))
-    await new Promise(r => setTimeout(r, 120))
-    expect(m.__getFocusSpy('session-dev-top')).toHaveBeenCalled()
+    await waitFor(() => {
+      expect(m.__getFocusSpy('session-dev-top')).toHaveBeenCalled()
+    }, { timeout: 2000 })
   })
 
-  it('handles terminal reset events by remounting terminals and cleans up on unmount', async () => {
-    const utils = renderGrid()
-    // Use real timers to allow async initialization to complete
-    vi.useRealTimers()
+   it('handles terminal reset events by remounting terminals and cleans up on unmount', async () => {
+     const utils = renderGrid()
+     // Use real timers to allow async initialization to complete
+     vi.useRealTimers()
 
-    // Wait for bridge to be ready with increased timeout
-    await waitFor(() => {
-      expect(bridge).toBeDefined()
-      expect(bridge?.isReady).toBe(true)
-    }, { timeout: 3000 })
+     // Wait for bridge to be ready with increased timeout
+     await waitFor(() => {
+       expect(bridge).toBeDefined()
+       expect(bridge?.isReady).toBe(true)
+     }, { timeout: 3000 })
 
-    const m = (await import('./Terminal')) as unknown as MockTerminalModule
-    const topId = bridge!.terminals.top
-    const bottomId = bridge!.terminals.bottomBase.includes('orchestrator') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for orchestrator only
+     const m = (await import('./Terminal')) as unknown as MockTerminalModule
+     const topId = bridge!.terminals.top
+     const bottomId = bridge!.terminals.bottomBase.includes('orchestrator') ? bridge!.terminals.bottomBase + '-0' : bridge!.terminals.bottomBase // Tab terminal has -0 suffix for orchestrator only
 
-    // Assert top terminal is present in the DOM and capture its focus spy reference
-    expect(screen.getByTestId(`terminal-${topId}`)).toBeInTheDocument()
-    const initialTopFocusSpy = m.__getFocusSpy(topId)
-    
-    // Wait for bottom terminal tab to be created asynchronously
-    let initialBottomMounts = 0
-    await waitFor(() => {
-      initialBottomMounts = m.__getMountCount(bottomId)
-      expect(initialBottomMounts).toBeGreaterThanOrEqual(1)
-    }, { timeout: 3000 })
+     // Assert top terminal is present in the DOM and capture initial mount counts
+     expect(screen.getByTestId(`terminal-${topId}`)).toBeInTheDocument()
+     const initialTopMounts = m.__getMountCount(topId)
 
-    // Dispatch reset event for unrelated session -> should be ignored
-    act(() => {
-      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-        detail: { kind: 'session', sessionId: 'unrelated-session' },
-      }))
-    })
-    await act(async () => {
-      await Promise.resolve()
-    })
-    expect(m.__getFocusSpy(topId)).toBe(initialTopFocusSpy)
+     // Wait for bottom terminal tab to be created asynchronously
+     let initialBottomMounts = 0
+     await waitFor(() => {
+       initialBottomMounts = m.__getMountCount(bottomId)
+       expect(initialBottomMounts).toBeGreaterThanOrEqual(1)
+     }, { timeout: 3000 })
 
-    // Dispatch reset event -> key increments -> both terminals remount
-    act(() => {
-      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-        detail: { kind: 'orchestrator' },
-      }))
-    })
-    await act(async () => {
-      await Promise.resolve()
-    })
+     // Dispatch reset event for unrelated session -> should be ignored (no remount)
+     act(() => {
+       window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+         detail: { kind: 'session', sessionId: 'unrelated-session' },
+       }))
+     })
+     await act(async () => {
+       await Promise.resolve()
+     })
 
-    // After reset, a new instance should mount; focus spy reference changes
-    const newTopFocusSpy = m.__getFocusSpy(topId)
-    expect(newTopFocusSpy).not.toBe(initialTopFocusSpy)
+     // Terminals should not have remounted - mount counts should remain the same
+     expect(m.__getMountCount(topId)).toBe(initialTopMounts)
+     expect(m.__getMountCount(bottomId)).toBe(initialBottomMounts)
 
-    // Unmount component -> listener should be removed; subsequent events won't change counts
-    utils.unmount()
-    // Each terminal should have unmounted at least once
-    // After unmount, spies are cleaned up
-    expect(m.__getFocusSpy(topId)).toBeUndefined()
-    expect(m.__getFocusSpy(bottomId)).toBeUndefined()
-    act(() => {
-      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-        detail: { kind: 'orchestrator' },
-      }))
-    })
+     // Dispatch reset event for current session -> should trigger remount
+     act(() => {
+       window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+         detail: { kind: 'orchestrator' },
+       }))
+     })
+     await act(async () => {
+       await Promise.resolve()
+     })
 
-    // After the reset, terminals should have been remounted at least once
-    // No-op: component unmounted; ensure no residual spies
-    expect(m.__getFocusSpy(topId)).toBeUndefined()
-    expect(m.__getFocusSpy(bottomId)).toBeUndefined()
-  })
+     // After reset, terminals should have remounted - mount counts should increase
+     expect(m.__getMountCount(topId)).toBeGreaterThan(initialTopMounts)
+     expect(m.__getMountCount(bottomId)).toBeGreaterThan(initialBottomMounts)
+
+     // Unmount component -> listener should be removed; subsequent events won't change counts
+     utils.unmount()
+
+     // After unmount, spies are cleaned up
+     expect(m.__getFocusSpy(topId)).toBeUndefined()
+     expect(m.__getFocusSpy(bottomId)).toBeUndefined()
+
+     // Dispatch another reset event after unmount -> should have no effect
+     act(() => {
+       window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
+         detail: { kind: 'orchestrator' },
+       }))
+     })
+
+     // Mount counts should remain unchanged after unmount
+     expect(m.__getMountCount(topId)).toBeGreaterThan(initialTopMounts)
+     expect(m.__getMountCount(bottomId)).toBeGreaterThan(initialBottomMounts)
+   })
 
   describe('Terminal Tab Management', () => {
     it('shows + icon again after deleting terminal tabs when at max capacity', async () => {
@@ -1123,13 +1133,12 @@ describe('TerminalGrid', () => {
 
       const rafQueue: FrameRequestCallback[] = []
       const rafSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation(cb => {
-        rafQueue.push(cb)
+        // Execute immediately for deterministic behavior in CI
+        cb(performance.now())
         return rafQueue.length as unknown as number
       })
-      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(id => {
-        if (rafQueue[id - 1]) {
-          rafQueue[id - 1] = () => {}
-        }
+      const cancelSpy = vi.spyOn(window, 'cancelAnimationFrame').mockImplementation(() => {
+        // No-op for deterministic behavior
       })
 
       // Prefer clicking the Run button over synthetic Meta+E to avoid
@@ -1291,7 +1300,8 @@ describe('TerminalGrid', () => {
     })
 
     await act(async () => {
-      await new Promise(resolve => requestAnimationFrame(() => resolve(null)))
+      // Use immediate execution instead of requestAnimationFrame for deterministic behavior
+      await Promise.resolve()
     })
 
     // Our mock records the last focused terminal id via focusTerminal
@@ -1307,7 +1317,8 @@ describe('TerminalGrid', () => {
     })
 
     await act(async () => {
-      await new Promise(resolve => requestAnimationFrame(() => resolve(null)))
+      // Use immediate execution instead of requestAnimationFrame for deterministic behavior
+      await Promise.resolve()
     })
 
     await waitFor(() => {

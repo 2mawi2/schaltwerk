@@ -1,7 +1,7 @@
-import { render, screen, act } from '@testing-library/react'
-import { TauriCommands } from '../../common/tauriCommands'
-import { useRef } from 'react'
-import { vi, beforeEach } from 'vitest'
+ import { TauriCommands } from '../../common/tauriCommands'
+ import { useRef } from 'react'
+ import { vi, beforeEach } from 'vitest'
+ import { render, screen, act, waitFor } from '@testing-library/react'
 import { RunTerminal, type RunTerminalHandle } from './RunTerminal'
 
 const RUN_EXIT_PRINTF_PATTERN = '__SCHALTWERK_RUN_EXIT__='
@@ -95,14 +95,14 @@ describe('RunTerminal', () => {
       handler({ payload: { terminal_id: 'run-terminal-test' } })
     })
 
-    // Wait for state update
-    await act(async () => {
-      await new Promise(resolve => setTimeout(resolve, 10))
-    })
+    // Wait for state update using waitFor instead of setTimeout
+    await waitFor(() => {
+      expect(screen.getByText('Ready to run:')).toBeInTheDocument()
+    }, { timeout: 2000 })
 
     // Should now show "Ready to run:" again and the process ended message
-    await screen.findByText('Ready to run:')
-    expect(await screen.findByText('[process has ended]')).toBeInTheDocument()
+    expect(screen.getByText('Ready to run:')).toBeInTheDocument()
+    expect(screen.getByText('[process has ended]')).toBeInTheDocument()
   })
 
   it('resets running state when run command exits naturally', async () => {
