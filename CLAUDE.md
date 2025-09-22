@@ -307,3 +307,8 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 - Fix problems directly, no fallbacks/alternatives
 - All code must be used now (no YAGNI)
 - Always use the project 'logger' with the appropriate log level instead of using console logs when introducing logging
+
+## Plan Files
+
+- Store all plan MD files in the `plans/` directory, not at the repository root
+- This keeps the root clean and organizes planning documents

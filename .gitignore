@@ -38,3 +38,6 @@ coverage/
 
 # OpenCode configuration file
 opencode.json
+
+# Plan files directory
+plans/
