@@ -84,11 +84,15 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Removed initial-fit retry machinery after consolidating fit guards
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
-    const [hydrated, setHydrated] = useState(false);
-    const [agentLoading, setAgentLoading] = useState(false);
-    const hydratedRef = useRef<boolean>(false);
-    const pendingOutput = useRef<string[]>([]);
-    const snapshotCursorRef = useRef<number | null>(null);
+     const [hydrated, setHydrated] = useState(false);
+     const [agentLoading, setAgentLoading] = useState(false);
+      const [agentStopped, setAgentStopped] = useState(false);
+      const terminalEverStartedRef = useRef<boolean>(false);
+     const hydratedRef = useRef<boolean>(false);
+     const pendingOutput = useRef<string[]>([]);
+     const snapshotCursorRef = useRef<number | null>(null);
+     // Tracks user-initiated SIGINT (Ctrl+C) to distinguish from startup/other exits.
+     const lastSigintAtRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const handleSearchTermChange = useCallback((value: string) => {
@@ -127,10 +131,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
 
-    // Agent conversation terminal detection reused across sizing logic and scrollback config
-    const isAgentTopTerminal = useMemo(() => (
-        terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
-    ), [terminalId])
+     // Agent conversation terminal detection reused across sizing logic and scrollback config
+     const isAgentTopTerminal = useMemo(() => (
+         terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
+     ), [terminalId])
+
+     // Initialize agentStopped state from sessionStorage (only for agent top terminals)
+     useEffect(() => {
+         if (!isAgentTopTerminal) return;
+         const key = `schaltwerk:agent-stopped:${terminalId}`;
+         setAgentStopped(sessionStorage.getItem(key) === 'true');
+     }, [isAgentTopTerminal, terminalId]);
 
     // Write queue helpers shared across effects (agent terminals get larger buffers)
     const queueCfg = useMemo(() => (
@@ -212,14 +223,47 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         return true;
     }, [agentType, isUserSelectingInTerminal]);
 
-    const enqueueWrite = useCallback((data: string) => {
-        if (data.length === 0) return;
-        enqueueQueue(data);
-        if (termDebug()) {
-            const { queueLength } = getQueueStats();
-            logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
-        }
-    }, [enqueueQueue, getQueueStats, terminalId]);
+     const enqueueWrite = useCallback((data: string) => {
+         if (data.length === 0) return;
+         enqueueQueue(data);
+         if (termDebug()) {
+             const { queueLength } = getQueueStats();
+             logger.debug(`[Terminal ${terminalId}] enqueue +${data.length}B qlen=${queueLength}`);
+         }
+     }, [enqueueQueue, getQueueStats, terminalId]);
+
+     const restartAgent = useCallback(async () => {
+         if (!isAgentTopTerminal) return;
+         setAgentLoading(true);
+         sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
+         clearTerminalStartedTracking([terminalId]); // clears startedGlobal + inflights/background marks
+
+         try {
+             // Provide initial size to avoid early overflow
+             let measured: { cols?: number; rows?: number } | undefined;
+             try {
+                 if (fitAddon.current && terminal.current) {
+                     fitAddon.current.fit();
+                     measured = { cols: terminal.current.cols, rows: terminal.current.rows };
+                 }
+             } catch (e) {
+                 logger.warn(`[Terminal ${terminalId}] Failed to measure before restart:`, e);
+             }
+
+             if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
+                 await startOrchestratorTop({ terminalId, measured });
+             } else if (sessionName) {
+                 await startSessionTop({ sessionName, topId: terminalId, measured });
+             }
+             setAgentStopped(false);
+         } catch (e) {
+             logger.error(`[Terminal ${terminalId}] Restart failed:`, e);
+             // Keep banner up so user can retry
+             setAgentStopped(true);
+         } finally {
+             setAgentLoading(false);
+         }
+     }, [isAgentTopTerminal, isCommander, sessionName, terminalId]);
 
     useImperativeHandle(ref, () => ({
         focus: () => {
@@ -301,31 +345,72 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         return () => window.removeEventListener('schaltwerk:terminal-font-updated', handler as EventListener)
     }, [])
 
-    // Listen for Claude auto-start events to prevent double-starting
-    useEffect(() => {
-        let unlistenClaudeStarted: UnlistenFn | null = null;
-        
-        const setupListener = async () => {
-            try {
-                unlistenClaudeStarted = await listenEvent(SchaltEvent.ClaudeStarted, (payload) => {
-                    logger.info(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
-                    
-                    // Mark the terminal as started globally to prevent auto-start
-                    startedGlobal.add(payload.terminal_id);
-                });
-            } catch (e) {
-                logger.error('[Terminal] Failed to set up claude-started listener:', e);
-            }
-        };
-        
-        setupListener();
-        
-        return () => {
-            if (unlistenClaudeStarted) {
-                unlistenClaudeStarted();
-            }
-        };
-    }, []);
+     // Listen for Claude auto-start events to prevent double-starting
+     useEffect(() => {
+         let unlistenClaudeStarted: UnlistenFn | null = null;
+
+         const setupListener = async () => {
+             try {
+                 unlistenClaudeStarted = await listenEvent(SchaltEvent.ClaudeStarted, (payload) => {
+                     logger.info(`[Terminal] Received claude-started event for ${payload.terminal_id}`);
+
+                     // Mark the terminal as started globally to prevent auto-start
+                     startedGlobal.add(payload.terminal_id);
+
+                      // Clear stopped flag if agent started by any means
+                      if (payload?.terminal_id === terminalId) {
+                          sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
+                          setAgentStopped(false);
+                          terminalEverStartedRef.current = true;
+                      }
+                 });
+             } catch (e) {
+                 logger.error('[Terminal] Failed to set up claude-started listener:', e);
+             }
+         };
+
+         setupListener();
+
+         return () => {
+             if (unlistenClaudeStarted) {
+                 unlistenClaudeStarted();
+             }
+         };
+      }, [terminalId]);
+
+      // Listen for TerminalClosed events to detect when agent terminals are killed
+      useEffect(() => {
+          if (!isAgentTopTerminal) return;
+          let unlisten: UnlistenFn | null = null;
+          (async () => {
+              try {
+                  unlisten = await listenEvent(SchaltEvent.TerminalClosed, (payload) => {
+                      if (payload?.terminal_id !== terminalId) return;
+                      
+                      // Only show banner if there's a recent SIGINT (user Ctrl+C) and terminal has actually started
+                      const now = Date.now();
+                      const sigintTime = lastSigintAtRef.current;
+                      const timeSinceSigint = sigintTime ? now - sigintTime : Infinity;
+                      const RECENT_SIGINT_WINDOW_MS = 2000; // 2 seconds
+                      
+                      if (terminalEverStartedRef.current && sigintTime && timeSinceSigint < RECENT_SIGINT_WINDOW_MS) {
+                          // Respect the user's ^C: mark stopped and persist
+                          setAgentLoading(false);
+                          setAgentStopped(true);
+                          sessionStorage.setItem(`schaltwerk:agent-stopped:${terminalId}`, 'true');
+                          // Allow future manual restarts
+                          clearTerminalStartedTracking([terminalId]);
+                          logger.info(`[Terminal ${terminalId}] Agent stopped by user (SIGINT detected ${timeSinceSigint}ms ago)`);
+                      } else {
+                          logger.debug(`[Terminal ${terminalId}] Terminal closed but no recent SIGINT or not started yet (sigint: ${sigintTime}, timeSince: ${timeSinceSigint}ms, started: ${terminalEverStartedRef.current})`);
+                      }
+                  });
+              } catch (e) {
+                  logger.warn(`[Terminal ${terminalId}] Failed to attach TerminalClosed listener`, e);
+              }
+          })();
+          return () => { try { unlisten?.(); } catch (e) { logger.debug(`[Terminal ${terminalId}] Failed to cleanup TerminalClosed listener:`, e); } };
+      }, [isAgentTopTerminal, terminalId]);
 
     // Listen for force scroll events (e.g., after review comment paste)
     useEffect(() => {
@@ -1189,18 +1274,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         addEventListener(window, 'font-size-changed', handleFontSizeChange);
 
-        // Send input to backend (disabled for readOnly terminals)
-        if (!readOnly) {
-            terminal.current.onData((data) => {
-                if (inputFilter && !inputFilter(data)) {
-                    if (termDebug()) {
-                        logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
-                    }
-                    return;
-                }
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
-            });
-        }
+     // Send input to backend (disabled for readOnly terminals)
+     if (!readOnly) {
+         terminal.current.onData((data) => {
+             if (inputFilter && !inputFilter(data)) {
+                 if (termDebug()) {
+                     logger.debug(`[Terminal ${terminalId}] blocked input: ${JSON.stringify(data)}`);
+                 }
+                 return;
+             }
+             
+             // Track SIGINT (Ctrl+C) for agent stop detection
+             if (isAgentTopTerminal && data === '\u0003') {
+                 lastSigintAtRef.current = Date.now();
+                 logger.debug(`[Terminal ${terminalId}] SIGINT detected (Ctrl+C)`);
+             }
+             
+             invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
+         });
+     }
         
         // Send initialization sequence to ensure proper terminal mode
         // This helps with arrow key handling in some shells
@@ -1434,11 +1526,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll]);
 
 
-    // Automatically start Claude for top terminals when hydrated and first ready
-    useEffect(() => {
-        if (!hydrated) return;
-        if (!terminalId.endsWith('-top')) return;
-        if (startedGlobal.has(terminalId)) return;
+     // Automatically start Claude for top terminals when hydrated and first ready
+     useEffect(() => {
+         if (!hydrated) return;
+         if (!terminalId.endsWith('-top')) return;
+         if (startedGlobal.has(terminalId)) return;
+         if (agentStopped) return;
 
         const start = async () => {
             if (startingTerminals.current.get(terminalId)) {
@@ -1464,7 +1557,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     // OPTIMIZATION: Skip terminal_exists check - trust that hydrated terminals are ready
                      // Mark as started BEFORE invoking to prevent overlaps
                      startedGlobal.add(terminalId);
-                     try {
+                      try {
                             // Provide initial size at spawn to avoid early overflow in TUI apps
                             let measured: { cols?: number; rows?: number } | undefined
                             try {
@@ -1476,6 +1569,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
                             }
                             await startOrchestratorTop({ terminalId, measured });
+                            // Mark that this terminal has been started at least once
+                            terminalEverStartedRef.current = true;
                             // OPTIMIZATION: Immediate focus and loading state update (modal-safe)
                             safeTerminalFocusImmediate(() => {
                                 terminal.current?.focus();
@@ -1539,19 +1634,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                            } catch (e) {
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);
                            }
-                           await startSessionTop({ sessionName, topId: terminalId, measured });
-                           // Focus the terminal after Claude starts successfully (modal-safe)
-                           requestAnimationFrame(() => {
-                               safeTerminalFocus(() => {
-                                   terminal.current?.focus();
-                               }, isAnyModalOpen)
-                           });
-                           // Ensure terminal is fully ready before showing it
-                           requestAnimationFrame(() => {
-                               requestAnimationFrame(() => {
-                                   setAgentLoading(false);
-                               });
-                           });
+                            await startSessionTop({ sessionName, topId: terminalId, measured });
+                            // Mark that this terminal has been started at least once
+                            terminalEverStartedRef.current = true;
+                            // Focus the terminal after Claude starts successfully (modal-safe)
+                            requestAnimationFrame(() => {
+                                safeTerminalFocus(() => {
+                                    terminal.current?.focus();
+                                }, isAnyModalOpen)
+                            });
+                            // Ensure terminal is fully ready before showing it
+                            requestAnimationFrame(() => {
+                                requestAnimationFrame(() => {
+                                    setAgentLoading(false);
+                                });
+                            });
                       } catch (e) {
                          // Roll back start flags on failure to allow retry
                          startedGlobal.delete(terminalId);
@@ -1583,10 +1680,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Delay a tick to ensure xterm is laid out
         let cancelled = false;
         requestAnimationFrame(() => { if (!cancelled) start(); });
-        return () => {
-            cancelled = true;
-        };
-    }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen]);
+         return () => {
+             cancelled = true;
+         };
+     }, [hydrated, terminalId, isCommander, sessionName, isAnyModalOpen, agentStopped]);
 
     useEffect(() => {
         if (!terminal.current || !resolvedFontFamily) return
@@ -1697,11 +1794,24 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             onMouseUp={onMouseUp}
             data-smartdash-exempt="true"
         >
-            <div
-                ref={termRef}
-                className="h-full w-full overflow-hidden"
-            />
-            <TerminalLoadingOverlay visible={!hydrated || agentLoading} />
+             <div
+                 ref={termRef}
+                 className="h-full w-full overflow-hidden"
+             />
+              {isAgentTopTerminal && agentStopped && hydrated && terminalEverStartedRef.current && (
+                 <div className="absolute inset-0 flex items-center justify-center z-30">
+                     <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 rounded px-3 py-2 shadow-lg">
+                         <span className="text-sm text-slate-300">Agent stopped</span>
+                         <button
+                             onClick={(e) => { e.stopPropagation(); restartAgent(); }}
+                             className="text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                         >
+                             Restart
+                         </button>
+                     </div>
+                 </div>
+             )}
+             <TerminalLoadingOverlay visible={!hydrated || agentLoading} />
             {/* Search UI opens via keyboard shortcut only (Cmd/Ctrl+F) */}
             {isSearchVisible && (
                 <TerminalSearchPanel
