@@ -82,7 +82,9 @@ const focusSpies = new Map<string, ReturnType<typeof vi.fn>>()
 vi.mock('./Terminal', () => {
   const TerminalMock = forwardRef<MockTerminalRef, { terminalId: string; className?: string; sessionName?: string; isCommander?: boolean }>(function TerminalMock(props, ref) {
     const { terminalId, className = '', sessionName, isCommander } = props
-    const focus = vi.fn()
+    const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
+    if (!focusRef.current) focusRef.current = vi.fn()
+    const focus = focusRef.current
     focusSpies.set(terminalId, focus)
     useEffect(() => {
       mountCount.set(terminalId, (mountCount.get(terminalId) || 0) + 1)
@@ -93,10 +95,10 @@ vi.mock('./Terminal', () => {
     }, [terminalId])
 
     useImperativeHandle(ref, () => ({ 
-      focus,
+      focus: focusRef.current!,
       showSearch: vi.fn(),
       scrollToBottom: vi.fn()
-    }), [focus])
+    }), [])
 
     const handleClick = () => {
       focus()
@@ -154,7 +156,9 @@ vi.mock('./TerminalTabs', () => {
     const { baseTerminalId, isCommander, onTerminalClick } = props
     // For orchestrator, add -0 suffix; for sessions, no suffix
     const terminalId = isCommander ? `${baseTerminalId}-0` : baseTerminalId
-    const focus = vi.fn()
+    const focusRef = useRef<ReturnType<typeof vi.fn> | null>(null)
+    if (!focusRef.current) focusRef.current = vi.fn()
+    const focus = focusRef.current
     
     // Track mount for the tab terminal and register focus spy
     useEffect(() => {
@@ -164,13 +168,13 @@ vi.mock('./TerminalTabs', () => {
         unmountCount.set(terminalId, (unmountCount.get(terminalId) || 0) + 1)
         focusSpies.delete(terminalId)
       }
-    }, [terminalId, focus])
+    }, [terminalId])
 
     const focusTerminal = vi.fn((tid?: string) => { lastFocusedTerminalId = tid || null })
     const tabFns = getOrCreateTabFns(terminalId)
 
     useImperativeHandle(ref, () => ({ 
-      focus,
+      focus: focusRef.current!,
       focusTerminal,
       getTabsState: () => ({
         tabs: [{ index: 0, terminalId, label: 'Terminal 1' }],
@@ -178,7 +182,7 @@ vi.mock('./TerminalTabs', () => {
         canAddTab: true
       }),
       getTabFunctions: () => tabFns
-    }), [focus, terminalId, focusTerminal, tabFns])
+    }), [terminalId, focusTerminal, tabFns])
 
     const handleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
       focus()
@@ -1193,10 +1197,8 @@ describe('TerminalGrid', () => {
         fireEvent.click(runModeBtn2)
       })
 
-      await waitFor(() => {
-        expect(rafQueue.length).toBeGreaterThan(0)
-      })
-
+      // Our requestAnimationFrame mock executes callbacks immediately for
+      // deterministic behavior, so there is no queued work to drain here.
       while (rafQueue.length) {
         const cb = rafQueue.shift()
         cb?.(performance.now())
@@ -1299,9 +1301,10 @@ describe('TerminalGrid', () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal', { detail: { terminalId: bottomId, focusType: 'terminal' } }))
     })
 
-    await act(async () => {
-      // Use immediate execution instead of requestAnimationFrame for deterministic behavior
-      await Promise.resolve()
+    // Deterministically wait for focusTerminal to be recorded
+    await waitFor(() => {
+      const getLastFocused = (TerminalTabsModule as unknown as { __getLastFocusedTerminalId: () => string | null }).__getLastFocusedTerminalId
+      expect(getLastFocused()).toBe(bottomId)
     })
 
     // Our mock records the last focused terminal id via focusTerminal
@@ -1316,9 +1319,9 @@ describe('TerminalGrid', () => {
       window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', { detail: { terminalId: bottomId } }))
     })
 
-    await act(async () => {
-      // Use immediate execution instead of requestAnimationFrame for deterministic behavior
-      await Promise.resolve()
+    await waitFor(() => {
+      const getLastFocused = (TerminalTabsModule as unknown as { __getLastFocusedTerminalId: () => string | null }).__getLastFocusedTerminalId
+      expect(getLastFocused()).toBe(bottomId)
     })
 
     await waitFor(() => {
