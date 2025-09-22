@@ -52,6 +52,7 @@ pub mod ansi;
 pub mod coalescing;
 pub mod local;
 pub mod manager;
+pub mod utf8_stream;
 
 #[cfg(test)]
 pub mod manager_test;

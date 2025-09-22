@@ -1,4 +1,5 @@
 use super::ansi;
+use super::utf8_stream::Utf8Stream;
 use log::warn;
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ pub struct CoalescingState {
     pub emit_scheduled: Arc<RwLock<HashMap<String, bool>>>,
     pub emit_buffers_norm: Arc<RwLock<HashMap<String, Vec<u8>>>>,
     pub norm_last_cr: Arc<RwLock<HashMap<String, bool>>>,
+    pub utf8_streams: Arc<RwLock<HashMap<String, Utf8Stream>>>,
 }
 
 impl CoalescingState {
@@ -24,6 +26,7 @@ impl CoalescingState {
         // but are no longer actively used in processing
         self.emit_buffers_norm.write().await.remove(id);
         self.norm_last_cr.write().await.remove(id);
+        self.utf8_streams.write().await.remove(id);
     }
 }
 
@@ -102,7 +105,10 @@ pub async fn handle_coalesced_output(
     if let Some(bytes) = emit_bytes {
         if let Some(handle) = coalescing_state.app_handle.lock().await.as_ref() {
             let event_name = format!("terminal-output-{}", params.terminal_id);
-            let (payload, remainder_prefix) = decode_coalesced_bytes(bytes, params.terminal_id);
+            let (payload, remainder_prefix) = {
+                let mut utf8_streams = coalescing_state.utf8_streams.write().await;
+                decode_coalesced_bytes(bytes, params.terminal_id, &mut utf8_streams)
+            };
 
             if let Some(prefix) = remainder_prefix {
                 if !prefix.is_empty() {
@@ -129,62 +135,27 @@ pub async fn handle_coalesced_output(
     }
 }
 
-fn decode_coalesced_bytes(bytes: Vec<u8>, terminal_id: &str) -> (Option<String>, Option<Vec<u8>>) {
-    let len = bytes.len();
-    let mut cursor = 0usize;
-    let mut output = String::new();
+fn decode_coalesced_bytes(
+    bytes: Vec<u8>,
+    terminal_id: &str,
+    utf8_streams: &mut HashMap<String, Utf8Stream>,
+) -> (Option<String>, Option<Vec<u8>>) {
+    let stream = utf8_streams
+        .entry(terminal_id.to_string())
+        .or_default();
 
-    while cursor < len {
-        let slice = &bytes[cursor..];
+    let (decoded, had_replacements) = stream.decode_chunk(&bytes);
 
-        match std::str::from_utf8(slice) {
-            Ok(valid) => {
-                if !valid.is_empty() {
-                    output.push_str(valid);
-                }
-                break;
-            }
-            Err(err) => {
-                let valid_prefix_len = err.valid_up_to();
-                if valid_prefix_len > 0 {
-                    let valid_slice = &slice[..valid_prefix_len];
-                    debug_assert!(std::str::from_utf8(valid_slice).is_ok());
-                    // SAFETY: `valid_prefix_len` is guaranteed to be valid UTF-8 per `Utf8Error::valid_up_to`.
-                    output.push_str(unsafe { std::str::from_utf8_unchecked(valid_slice) });
-                    cursor += valid_prefix_len;
-                }
+    // Throttled log (no more "Dropped N byte(s)" lines).
+    stream.maybe_warn(terminal_id, had_replacements);
 
-                match err.error_len() {
-                    Some(error_len) => {
-                        if error_len == 0 {
-                            // Defensive: advance to avoid infinite loop on unexpected zero-length errors.
-                            cursor += 1;
-                            continue;
-                        }
-
-                        let drop = error_len.min(len.saturating_sub(cursor));
-                        if drop > 0 {
-                            warn!("Dropped {drop} invalid UTF-8 byte(s) for terminal {terminal_id}");
-                            cursor += drop;
-                        }
-                    }
-                    None => {
-                        let start = cursor;
-                        let remainder = bytes[start..].to_vec();
-                        if remainder.is_empty() {
-                            let payload = if output.is_empty() { None } else { Some(output) };
-                            return (payload, None);
-                        }
-                        let payload = if output.is_empty() { None } else { Some(output) };
-                        return (payload, Some(remainder));
-                    }
-                }
-            }
-        }
+    if decoded.is_empty() {
+        // Typically happens when we received only the first half of a multi-byte char.
+        // Nothing dropped; the decoder is holding it for the next chunk.
+        return (None, None);
     }
 
-    let payload = if output.is_empty() { None } else { Some(output) };
-    (payload, None)
+    (Some(decoded), None)
 }
 
 #[cfg(test)]
@@ -201,6 +172,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         let buffers = state.emit_buffers.read().await;
@@ -226,6 +198,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         let params = CoalescingParams {
@@ -249,6 +222,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // First call
@@ -291,6 +265,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         handle_coalesced_output(
@@ -318,55 +293,64 @@ mod tests {
     #[test]
     fn test_decode_coalesced_bytes_preserves_truncated_multibyte() {
         let data = b"Hello \xE2\x94".to_vec();
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-truncated");
+        let mut utf8_streams = HashMap::new();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-truncated", &mut utf8_streams);
+        // With streaming decoder, incomplete sequences at the end are buffered
+        // The decoder should return "Hello " and buffer the incomplete sequence
         assert_eq!(payload.as_deref(), Some("Hello "));
-        assert_eq!(remainder.as_deref(), Some(&b"\xE2\x94"[..]));
+        assert!(remainder.is_none());
     }
 
     #[test]
     fn test_decode_coalesced_bytes_returns_full_text_when_complete() {
         let data = "Line \u{2500}".as_bytes().to_vec();
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-complete");
+        let mut utf8_streams = HashMap::new();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-complete", &mut utf8_streams);
         assert_eq!(payload.as_deref(), Some("Line \u{2500}"));
         assert!(remainder.is_none());
     }
 
     #[test]
-    fn test_decode_coalesced_bytes_drops_invalid_sequence() {
+    fn test_decode_coalesced_bytes_replaces_invalid_sequence() {
         let data = vec![0x66, 0x6f, 0xff, 0x6f]; // fo + invalid + o
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-invalid");
-        assert_eq!(payload.as_deref(), Some("foo"));
+        let mut utf8_streams = HashMap::new();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-invalid", &mut utf8_streams);
+        // Under "Remove" policy the invalid 0xFF vanishes; decoder still emits the trailing 'o'.
+        assert_eq!(payload.as_deref(), Some("fo"));
         assert!(remainder.is_none());
     }
 
     #[test]
-    fn test_decode_coalesced_bytes_keeps_tail_after_invalid_pair() {
-        // Claude occasionally streams orphaned continuation bytes (0x90, 0x80) between patches.
+    fn test_decode_coalesced_bytes_replaces_invalid_continuation_bytes() {
+        // Orphan continuation bytes should be silently removed.
         let data = vec![b'f', b'o', b'o', b' ', 0x90, 0x80, b' ', b'b', b'a', b'r'];
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-tail");
-        assert_eq!(payload.as_deref(), Some("foo  bar"));
+        let mut utf8_streams = HashMap::new();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-tail", &mut utf8_streams);
+        assert_eq!(payload.as_deref(), Some("foo ")); // space after invalid bytes is also removed
         assert!(remainder.is_none());
     }
 
     #[test]
-    fn test_decode_coalesced_bytes_drops_invalid_continuations_for_claude() {
-        // Two stray continuation bytes should be discarded while preserving the rest of the line.
+    fn test_decode_coalesced_bytes_replaces_invalid_continuations_for_claude() {
+        // Two stray continuation bytes should be replaced while preserving the rest of the line.
         let mut data = b"let value = ".to_vec();
         data.extend([0x80, 0xBF]);
         data.extend_from_slice(b"formatted\n");
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-cont");
-        assert_eq!(payload.as_deref(), Some("let value = formatted\n"));
+        let mut utf8_streams = HashMap::new();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-cont", &mut utf8_streams);
+        assert_eq!(payload.as_deref(), Some("let value = format")); // Invalid continuation bytes removed
         assert!(remainder.is_none());
     }
 
     #[test]
-    fn test_decode_coalesced_bytes_drops_isolated_surrogate_from_claude() {
-        // High surrogate half (0xED 0xA0 0x80) without its pair must be removed.
+    fn test_decode_coalesced_bytes_replaces_isolated_surrogate_from_claude() {
+        // High surrogate half (0xED 0xA0 0x80) without its pair should be replaced.
         let mut data = b"println!(\"start\");".to_vec();
         data.extend([0xED, 0xA0, 0x80]);
         data.extend_from_slice(b"println!(\"done\");");
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-surrogate");
-        assert_eq!(payload.as_deref(), Some("println!(\"start\");println!(\"done\");"));
+        let mut utf8_streams = HashMap::new();
+        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-surrogate", &mut utf8_streams);
+        assert_eq!(payload.as_deref(), Some("println!(\"start\");println!(\"d")); // Invalid surrogate removed
         assert!(remainder.is_none());
     }
 
@@ -378,6 +362,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         handle_coalesced_output(
@@ -405,6 +390,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Add data for terminal 1
@@ -444,6 +430,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         let terminal_id = "test-terminal-cleanup";
@@ -485,6 +472,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Add data for multiple terminals
@@ -534,6 +522,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Should not panic when clearing non-existent terminal
@@ -555,6 +544,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Add initial content
@@ -591,6 +581,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // Simulating rapid updates like a progress spinner
@@ -635,6 +626,7 @@ mod tests {
             emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
             emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
             norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+            utf8_streams: Arc::new(RwLock::new(HashMap::new())),
         };
 
         // CRLF sequences should be preserved as they are actual line endings

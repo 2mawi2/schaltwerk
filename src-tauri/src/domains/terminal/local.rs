@@ -8,7 +8,7 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
 use tokio::sync::{Mutex, RwLock};
 
 // Default in-memory buffer sizes for terminal output
@@ -180,6 +180,7 @@ impl LocalPtyAdapter {
                 emit_scheduled: Arc::new(RwLock::new(HashMap::new())),
                 emit_buffers_norm: Arc::new(RwLock::new(HashMap::new())),
                 norm_last_cr: Arc::new(RwLock::new(HashMap::new())),
+                utf8_streams: Arc::new(RwLock::new(HashMap::new())),
             },
             suspended: Arc::new(RwLock::new(HashSet::new())),
             pending_control_sequences: Arc::new(Mutex::new(HashMap::new())),
@@ -399,35 +400,15 @@ impl LocalPtyAdapter {
                                     return;
                                 }
 
-                                if Self::is_agent_terminal(&id_clone) {
-                                    // Agent terminals need ANSI-aware buffering and carriage return optimization
-                                    handle_coalesced_output(
-                                        &coalescing_state_clone,
-                                        CoalescingParams {
-                                            terminal_id: &id_clone,
-                                            data: &sanitized,
-                                        },
-                                    )
-                                    .await;
-                                } else {
-                                    // Standard terminals use direct output but with minimal ANSI processing
-                                    // for fish shell compatibility while maintaining low latency
-                                    if let Some(handle) =
-                                        coalescing_state_clone.app_handle.lock().await.as_ref()
-                                    {
-                                        let event_name = format!("terminal-output-{id_clone}");
-
-                                        // Apply minimal carriage return processing for fish compatibility
-                                        let processed_data =
-                                            Self::process_carriage_returns_minimal(&sanitized);
-                                        let payload =
-                                            String::from_utf8_lossy(&processed_data).to_string();
-
-                                        if let Err(e) = handle.emit(&event_name, payload) {
-                                            warn!("Failed to emit direct terminal output: {e}");
-                                        }
-                                    }
-                                }
+                                 // All terminals now use UTF-8 stream for consistent malformed byte handling
+                                 handle_coalesced_output(
+                                     &coalescing_state_clone,
+                                     CoalescingParams {
+                                         terminal_id: &id_clone,
+                                         data: &sanitized,
+                                     },
+                                 )
+                                 .await;
                             }
                         });
                     }
@@ -889,45 +870,7 @@ impl LocalPtyAdapter {
             && (terminal_id.contains("session-") || terminal_id.contains("orchestrator-"))
     }
 
-    /// Minimal carriage return processing for fish shell compatibility
-    /// Only handles standalone CR sequences that would interfere with autosuggestions
-    fn process_carriage_returns_minimal(data: &[u8]) -> Vec<u8> {
-        if !data.contains(&b'\r') {
-            return data.to_vec();
-        }
 
-        let mut result = Vec::with_capacity(data.len());
-        let mut i = 0;
-
-        while i < data.len() {
-            if data[i] == b'\r' {
-                // Check if this is CRLF (should be preserved as-is)
-                if i + 1 < data.len() && data[i + 1] == b'\n' {
-                    result.push(b'\r');
-                    result.push(b'\n');
-                    i += 2;
-                } else {
-                    // Standalone CR - this can interfere with fish autosuggestions
-                    // Convert to just the content after CR if there's more data
-                    let remaining = &data[i + 1..];
-                    if remaining.contains(&b'\n') {
-                        // There's a newline later, so this CR overwrites current line content
-                        // Skip the CR and continue with the overwriting content
-                        i += 1;
-                    } else {
-                        // No newline follows, preserve the CR
-                        result.push(b'\r');
-                        i += 1;
-                    }
-                }
-            } else {
-                result.push(data[i]);
-                i += 1;
-            }
-        }
-
-        result
-    }
 
     /// Determines the agent type from terminal ID
     fn get_agent_type_from_terminal(terminal_id: &str) -> Option<&'static str> {
