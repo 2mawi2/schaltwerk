@@ -403,6 +403,47 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
     }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
+    // Listen for session-switching animation completion for OpenCode
+    useEffect(() => {
+        const handleSessionSwitchAnimationEnd = () => {
+            if (agentType !== 'opencode' || isBackground) return;
+
+            // Check if session-switching class was removed (animation finished)
+            if (!document.body.classList.contains('session-switching')) {
+                const doFitAndNotify = () => {
+                    try {
+                        if (!fitAddon.current || !terminal.current || !termRef.current) return;
+                        const el = termRef.current;
+                        if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
+
+                        fitAddon.current!.fit();
+                        const { cols, rows } = terminal.current!;
+                        applySizeUpdate(cols, rows, 'opencode-session-switch', true);
+                    } catch (e) {
+                        logger.warn(`[Terminal ${terminalId}] OpenCode session-switch resize failed:`, e);
+                    }
+                };
+
+                // Two-phase fit to ensure both axes settle after layout changes
+                doFitAndNotify();
+                requestAnimationFrame(() => doFitAndNotify());
+            }
+        };
+
+        // Use MutationObserver to watch for class changes on document.body
+        const observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'attributes' && mutation.attributeName === 'class') {
+                    handleSessionSwitchAnimationEnd();
+                }
+            });
+        });
+
+        observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+
+        return () => observer.disconnect();
+    }, [agentType, isBackground, terminalId, applySizeUpdate]);
+
     // Deterministic refit on session switch specifically for OpenCode
     useEffect(() => {
         const handleSelectionResize = (e: Event) => {

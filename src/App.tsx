@@ -112,8 +112,19 @@ export default function App() {
     setRightPanelCollapsedExplicit(false)
     document.body.classList.remove('is-split-dragging')
     window.dispatchEvent(new Event('right-panel-split-drag-end'))
+
+    // Dispatch OpenCode resize event when right panel drag ends
+    try {
+      const detail = selection.kind === 'session'
+        ? { kind: 'session', sessionId: selection.payload }
+        : { kind: 'orchestrator' as const }
+      window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+    } catch (e) {
+      logger.warn('[App] Failed to dispatch OpenCode resize event on right panel drag end', e)
+    }
+
     setIsDraggingRightSplit(false)
-  }, [setRightPanelCollapsedExplicit, setRightSizes])
+  }, [setRightPanelCollapsedExplicit, setRightSizes, selection])
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first

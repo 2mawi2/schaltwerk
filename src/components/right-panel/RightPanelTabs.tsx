@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
@@ -9,6 +9,7 @@ import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
 import Split from 'react-split'
+import { logger } from '../../utils/logger'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -23,6 +24,25 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
   const { setFocusForSession, currentFocus } = useFocus()
     const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
     const [localFocus, setLocalFocus] = useState<boolean>(false)
+
+    // Drag handlers for internal split
+    const handleInternalSplitDragStart = useCallback(() => {
+      document.body.classList.add('is-split-dragging')
+    }, [])
+
+    const handleInternalSplitDragEnd = useCallback(() => {
+      document.body.classList.remove('is-split-dragging')
+
+      // Dispatch OpenCode resize event when internal right panel split drag ends
+      try {
+        const detail = selection.kind === 'session'
+          ? { kind: 'session', sessionId: selection.payload }
+          : { kind: 'orchestrator' as const }
+        window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+      } catch (e) {
+        logger.warn('[RightPanelTabs] Failed to dispatch OpenCode resize event on internal split drag end', e)
+      }
+    }, [selection])
 
    // Determine active tab based on user selection or smart defaults
    // For specs, always show info tab regardless of user selection
@@ -148,6 +168,8 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             minSize={[140, 120]}
             gutterSize={8}
             direction="vertical"
+            onDragStart={handleInternalSplitDragStart}
+            onDragEnd={handleInternalSplitDragEnd}
           >
             {/* Top: Changes */}
             <div className="min-h-[120px] overflow-hidden">
