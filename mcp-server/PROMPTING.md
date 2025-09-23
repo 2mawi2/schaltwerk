@@ -6,6 +6,64 @@ This guide helps AI assistants effectively use the Schaltwerk MCP server for man
 
 When the Schaltwerk MCP server is available, you can manage development sessions directly. Here's how to use it effectively:
 
+### 🔒 Critical Security Guidelines
+
+**SESSION PROTECTION IS PARAMOUNT:**
+- **Never cancel or delete sessions without explicit user consent** - especially sessions marked as 'reviewed'
+- **Only cancel reviewed sessions after successful merge to main branch and passing tests**
+- **Preserve Git state for all failed operations** - never delete sessions that fail to merge
+- **Always validate before operations** - check git status, ensure clean working tree, verify on correct branch
+- **Test after merge operations** - run tests and only proceed if they pass
+- **Send follow-up messages for issues** - don't force merge problematic sessions
+- **Git recovery awareness** - commits can be recovered from Git history, but uncommitted changes are permanently lost
+- **If MCP server is not accessible, ask user for help immediately** - do not attempt manual operations
+
+### Merge Workflow Security
+
+**CRITICAL MERGE PROCESS:**
+- **First merge main into session branch** to resolve conflicts before merging back
+- **Understand Git diffs after merging main**: Files appearing as "removed" are actually files added to main after session creation - these are NORMAL and should not be considered session deletions
+- **Focus on what the session ADDS** (new files, modifications) - ignore apparent "deletions" of files that existed in main but not in session branch point
+- **Run tests after merge attempts** - only proceed with cancellation if tests pass
+- **Send follow-up messages for merge issues** - don't force merge when conflicts or issues arise
+
+**Validation Criteria for Merges:**
+- ✅ **PROCEED**: Small mechanical conflicts, clean diffs (ignoring false deletions), tests pass
+- ❌ **SEND FOLLOW-UP**: Compilation failures, test failures, complex conflicts, unclear changes, obvious regressions
+- ❓ **ASK USER**: Content duplication, unclear session purpose, strategic decisions
+
+**Follow-up Message Strategy:**
+- **Technical issues agents can fix**: Send descriptive messages explaining specific problems (compilation errors, integration issues, merge conflicts)
+- **Strategic issues**: Ask user for guidance on duplication, purpose clarification, or complex decisions
+- **When in doubt**: Send follow-up for technical issues, ask user for strategic issues
+
+**Decision Making Philosophy:**
+- **Automation handles**: Simple conflicts, mechanical merges, integration coordination
+- **Agents handle**: Complex conflicts, code logic issues, feature-specific problems
+- **User handles**: Content duplication decisions, strategic choices, session purpose clarification
+- **Git State Protection**: NEVER delete/cancel sessions unless successfully merged - all failed merges preserve Git state
+
+**Git Recovery (if commits exist):**
+```
+# Check if commits still exist in git database
+git cat-file -t <commit-hash> 2>/dev/null && echo "Recoverable!"
+
+# Recover from commit hash
+git checkout -b recover-session <commit-hash>
+
+# Merge to main
+git checkout main && git merge --squash recover-session
+git commit -m "Recover lost session: <description>"
+```
+
+**⚠️ Remember**: Uncommitted changes in worktrees are permanently lost when cancelled - commits in git database can be recovered.
+
+**Reviewed Sessions Protection:**
+- Sessions marked as 'reviewed' represent validated, approved work ready for integration
+- These sessions should only be cancelled after successful merge validation
+- Never delete reviewed sessions due to perceived invalidity - seek user guidance instead
+- Preserve all Git commits and history even after session operations
+
 ### Session Management Capabilities
 
 You have access to tools for managing Schaltwerk sessions:
@@ -66,7 +124,12 @@ Look for:
 2. **Clear Naming**: Use descriptive session names that reflect the work
 3. **Detailed Prompts**: Provide comprehensive context in initial prompts
 4. **Regular Monitoring**: Check session status periodically
-5. **Cleanup**: Cancel abandoned sessions to keep workspace clean
+5. **Safe Session Management**:
+   - Use `schaltwerk_pause` instead of `schaltwerk_cancel` when uncertain about session state
+   - Never cancel reviewed sessions without successful merge validation
+   - Preserve Git state for all session operations
+   - Ask user for help if MCP server operations fail or are unclear
+6. **Merge Validation**: Always validate merges with tests before considering sessions complete
 
 ### Example Workflows
 
@@ -89,10 +152,13 @@ Use: schaltwerk_list()
 Use: schaltwerk_list({ json: true })
 ```
 
-#### Cleaning Up
+#### Cleaning Up (SAFE OPERATIONS ONLY)
 ```
-"This experimental session is no longer needed. I'll remove it."
-Use: schaltwerk_cancel(session_name: "experiment-feature")
+"For experimental sessions that are fully committed and merged, I can safely remove them."
+Use: schaltwerk_cancel(session_name: "experiment-feature", force: true)  // ONLY after merge validation
+
+"For uncertain sessions, use pause instead:"
+Use: schaltwerk_pause(session_name: "uncertain-session")  // SAFE - preserves all work
 ```
 
 ## Prompt Templates for Common Agents

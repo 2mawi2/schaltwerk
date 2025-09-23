@@ -85,15 +85,26 @@ interface SchaltwerkConvertToSpecArgs {
 
 const bridge = new SchaltwerkBridge()
 
-const server = new Server({
-  name: "schaltwerk-mcp-server",
-  version: "1.0.0",
-}, {
-  capabilities: {
-    tools: {},
-    resources: {},
-  }
-})
+ const server = new Server({
+   name: "schaltwerk-mcp-server",
+   version: "1.0.0",
+ }, {
+   capabilities: {
+     tools: {},
+     resources: {},
+   }
+ })
+
+  // 🔒 SECURITY NOTICE: This MCP server manages Git worktrees and sessions
+  // - All session operations preserve Git history and commits
+  // - Reviewed sessions represent validated work that should be protected
+  // - Never delete sessions without user consent or successful merge validation
+  // - If MCP server is not accessible, ask user for help immediately
+  // - Session cancellation requires explicit force parameter for safety
+  // - First merge main into session branch before merging back
+  // - Understand Git diffs: false "deletions" are normal after merging main
+  // - Send follow-up messages for merge issues, don't force problematic merges
+  // - Git recovery: commits can be recovered from git cat-file, uncommitted changes are lost
 
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
@@ -158,31 +169,46 @@ The prompt becomes the initial context for the AI agent working in that session.
           required: ["name", "prompt"]
         }
       },
-      {
-        name: "schaltwerk_list",
-        description: `List all Schaltwerk sessions with essential metadata for session management.
+       {
+         name: "schaltwerk_list",
+         description: `List all Schaltwerk sessions with essential metadata for session management.
 
-📊 JSON OUTPUT (json: true):
-- name: Session identifier
-- display_name: Human-readable name
-- status: "new" | "reviewed" 
-- created_at: ISO timestamp
-- last_activity: ISO timestamp or null
-- agent_type: "claude" | "opencode" | "gemini" | "codex"
-- branch: Git branch name
-- worktree_path: Local path
-- initial_prompt: Original agent description
+ 📊 JSON OUTPUT (json: true):
+ - name: Session identifier
+ - display_name: Human-readable name
+ - status: "new" | "reviewed"
+ - created_at: ISO timestamp
+ - last_activity: ISO timestamp or null
+ - agent_type: "claude" | "opencode" | "gemini" | "codex"
+ - branch: Git branch name
+ - worktree_path: Local path
+ - initial_prompt: Original agent description
 
-📋 TEXT OUTPUT (default):
-- Formatted list showing review status, name, agent, and last modified
+ 📋 TEXT OUTPUT (default):
+ - Formatted list showing review status, name, agent, and last modified
 
-💡 COMMON AGENTS:
-- List unreviewed sessions: filter by status="new"
-- Find active work: check last_activity timestamps
-- Identify sessions by agent type
-- Get session paths for file operations
+ 💡 COMMON AGENTS:
+ - List unreviewed sessions: filter by status="new"
+ - Find active work: check last_activity timestamps
+ - Identify sessions by agent type
+ - Get session paths for file operations
 
-Use json: true for programmatic access with clean, essential data only.`,
+   🔒 SESSION PROTECTION NOTICE:
+   - Sessions marked as 'reviewed' represent validated work ready for merge
+   - These sessions should only be cancelled after successful merge to main branch and passing tests
+   - Never delete reviewed sessions due to perceived invalidity - seek user guidance instead
+   - Preserve Git state for all failed merge operations - never delete sessions that fail to merge
+   - If MCP server is not accessible, ask user for help immediately rather than attempting manual operations
+   - Always validate merges with tests before considering sessions complete
+
+   🔄 MERGE WORKFLOW SECURITY:
+   - First merge main into session branch to resolve conflicts before merging back
+   - Understand Git diffs: false "deletions" are normal after merging main (files added to main after session creation)
+   - Focus on what session ADDS (new/modified files) - ignore apparent deletions of main's newer files
+   - Send follow-up messages for merge issues - don't force problematic merges
+   - Git recovery: commits recoverable via git cat-file, uncommitted changes permanently lost
+
+  Use json: true for programmatic access with clean, essential data only.`,
         inputSchema: {
           type: "object",
           properties: {
@@ -225,42 +251,77 @@ REQUIREMENTS: Target session must exist and be active.`,
           required: ["session_name", "message"]
         }
       },
-      {
-        name: "schaltwerk_cancel",
-        description: `Cancel and permanently delete a Schaltwerk session.
+       {
+         name: "schaltwerk_cancel",
+         description: `Cancel and permanently delete a Schaltwerk session.
 
-⚠️ EXTREMELY DESTRUCTIVE OPERATION - READ CAREFULLY ⚠️
+ ⚠️ EXTREMELY DESTRUCTIVE OPERATION - READ CAREFULLY ⚠️
 
-🔒 SAFETY CHECKS:
-- By default, checks for uncommitted changes and REFUSES to proceed
-- Requires 'force: true' to bypass safety checks
-- Suggests committing work before cancellation
-- Provides clear warnings about data loss
+ 🔒 SAFETY CHECKS:
+ - By default, checks for uncommitted changes and REFUSES to proceed
+ - Requires 'force: true' to bypass safety checks
+ - Suggests committing work before cancellation
+ - Provides clear warnings about data loss
 
-📋 SAFE USAGE:
-schaltwerk_cancel(session_name: "feature-auth")  // Checks for uncommitted work first
-schaltwerk_cancel(session_name: "feature-auth", force: true)  // Forces deletion
+ 📋 SAFE USAGE:
+ schaltwerk_cancel(session_name: "feature-auth")  // Checks for uncommitted work first
+ schaltwerk_cancel(session_name: "feature-auth", force: true)  // Forces deletion
 
-🔥 DESTRUCTIVE ACTIONS (only with force: true):
-- Removes the Git worktree
-- Deletes the Git branch  
-- Loses ALL uncommitted changes
-- Cannot be undone
+ 🔥 DESTRUCTIVE ACTIONS (only with force: true):
+ - Removes the Git worktree
+ - Deletes the Git branch
+ - Loses ALL uncommitted changes
+ - Cannot be undone
 
-✅ WHEN TO USE:
-- Cleaning up sessions that are fully committed
-- Removing experimental branches with no valuable work
-- After work has been merged elsewhere
+  ✅ WHEN TO USE:
+  - Cleaning up sessions that are fully committed and merged
+  - Removing experimental branches with no valuable work
+  - After work has been successfully merged to main and tests pass
 
-❌ WHEN NOT TO USE:
-- If session has uncommitted work you want to keep
-- Without first checking what work would be lost
-- If you're unsure about the session's state
+  ❌ WHEN NOT TO USE:
+  - If session has uncommitted work you want to keep
+  - Without first checking what work would be lost
+  - If you're unsure about the session's state
+  - Sessions marked as 'reviewed' - these should only be cancelled after successful merge to main AND passing tests
+  - Sessions with valuable work that hasn't been merged yet
+  - Any session that has not been validated through merge and testing
 
-🛡️ SAFER ALTERNATIVES:
-- 'schaltwerk_pause': Archive session without deletion
-- Commit your work first, then cancel
-- Use 'schaltwerk_finish' to properly complete and merge work`,
+   🚨 CRITICAL SECURITY: SESSION PROTECTION
+   - NEVER cancel sessions that have been marked as 'reviewed' unless they have been successfully merged to main branch and all tests pass
+   - Reviewed sessions represent work that has been validated and approved for integration
+   - If a reviewed session cannot be merged due to conflicts or issues, preserve the session and seek user guidance
+   - Only cancel reviewed sessions after successful merge validation - never delete them due to perceived invalidity
+   - Git state protection: All commits in reviewed sessions are preserved in Git history even after cancellation
+   - Uncommitted changes are permanently lost when sessions are cancelled - commits can be recovered
+
+   🔄 MERGE WORKFLOW SECURITY:
+   - First merge main into session branch to resolve conflicts before merging back
+   - Understand Git diffs after merging main: files appearing as "removed" are actually files added to main after session creation
+   - Focus on what the session ADDS (new files, modifications) - ignore apparent "deletions" of files that existed in main but not in session branch point
+   - Run tests after merge attempts - only proceed with cancellation if tests pass
+   - Send follow-up messages for merge issues - don't force merge when conflicts or issues arise
+
+   📋 VALIDATION CRITERIA:
+   - ✅ PROCEED: Small mechanical conflicts, clean diffs (ignoring false deletions), tests pass
+   - ❌ SEND FOLLOW-UP: Compilation failures, test failures, complex conflicts, unclear changes, obvious regressions
+   - ❓ ASK USER: Content duplication, unclear session purpose, strategic decisions
+
+   💬 FOLLOW-UP STRATEGY:
+   - Technical issues agents can fix: Send descriptive messages explaining specific problems
+   - Strategic issues: Ask user for guidance on duplication, purpose clarification, or complex decisions
+   - When in doubt: Send follow-up for technical issues, ask user for strategic issues
+
+   🎯 DECISION PHILOSOPHY:
+   - Automation handles: Simple conflicts, mechanical merges, integration coordination
+   - Agents handle: Complex conflicts, code logic issues, feature-specific problems
+   - User handles: Content duplication decisions, strategic choices, session purpose clarification
+
+  🛡️ SAFER ALTERNATIVES:
+  - 'schaltwerk_pause': Archive session without deletion (RECOMMENDED for uncertain sessions)
+  - Commit your work first, then cancel
+  - Use proper merge workflow to integrate work before cancellation
+
+  💡 SESSION RECOVERY: If commits exist in Git database, they can be recovered even after session cancellation using 'git checkout -b recover-session <commit-hash>'`,
         inputSchema: {
           type: "object",
           properties: {
@@ -277,31 +338,40 @@ schaltwerk_cancel(session_name: "feature-auth", force: true)  // Forces deletion
           required: ["session_name"]
         }
       },
-      {
-        name: "schaltwerk_pause",
-        description: `Pause a Schaltwerk session without deleting it (SAFE alternative to cancel).
+       {
+         name: "schaltwerk_pause",
+         description: `Pause a Schaltwerk session without deleting it (SAFE alternative to cancel).
 
-🛡️ SAFE OPERATION - NO DATA LOSS
-- Preserves all uncommitted changes
-- Keeps Git branch intact  
-- Maintains worktree for future use
-- Can be easily resumed later
+ 🛡️ SAFE OPERATION - NO DATA LOSS
+ - Preserves all uncommitted changes
+ - Keeps Git branch intact
+ - Maintains worktree for future use
+ - Can be easily resumed later
 
-📋 USAGE:
-schaltwerk_pause(session_name: "feature-auth")
+ 📋 USAGE:
+ schaltwerk_pause(session_name: "feature-auth")
 
-✅ WHEN TO USE:
-- Taking a break from current work
-- Switching to other priorities
-- Keeping work for later review
-- Uncertain about whether to keep the session
+ ✅ WHEN TO USE:
+ - Taking a break from current work
+ - Switching to other priorities
+ - Keeping work for later review
+ - Uncertain about whether to keep the session
+ - When you need to preserve work but cannot complete it immediately
 
-🔄 TO RESUME:
-- Session remains available in schaltwerk_list
-- Worktree and branch are preserved
-- Can continue work exactly where you left off
+ 🔄 TO RESUME:
+ - Session remains available in schaltwerk_list
+ - Worktree and branch are preserved
+ - Can continue work exactly where you left off
 
-💡 This is the RECOMMENDED way to stop working on a session without losing progress.`,
+ 💡 This is the RECOMMENDED way to stop working on a session without losing progress.
+
+  🔒 SESSION PROTECTION:
+  - Pausing is always safe - no work is ever lost (RECOMMENDED for uncertain sessions)
+  - Use pause instead of cancel when uncertain about session state
+  - Reviewed sessions can be paused and resumed without affecting their reviewed status
+  - All Git commits and uncommitted changes are preserved when pausing
+  - If MCP server is not accessible, ask user for help rather than attempting risky operations
+  - Safe alternative to cancellation - preserves all work for future use`,
         inputSchema: {
           type: "object",
           properties: {
@@ -506,19 +576,25 @@ schaltwerk_pause(session_name: "feature-auth")
           additionalProperties: false
         }
       },
-      {
-        name: "schaltwerk_draft_delete",
-        description: `Delete a spec session permanently.
+       {
+         name: "schaltwerk_draft_delete",
+         description: `Delete a spec session permanently.
 
-⚠️ DESTRUCTIVE OPERATION
-- Permanently removes spec from database
-- Cannot be undone
-- No worktree to clean up (specs don't create worktrees)
+ ⚠️ DESTRUCTIVE OPERATION
+ - Permanently removes spec from database
+ - Cannot be undone
+ - No worktree to clean up (specs don't create worktrees)
 
-📋 USAGE:
-schaltwerk_draft_delete(session_name: "old-spec")
+ 📋 USAGE:
+ schaltwerk_draft_delete(session_name: "old-spec")
 
-✅ SAFE TO USE: Only affects database record, no files or branches.`,
+ ✅ SAFE TO USE: Only affects database record, no files or branches.
+
+ 🔒 SECURITY CONSIDERATIONS:
+ - Only delete specs that are truly obsolete or completed
+ - Consider converting to active session instead of deleting if work might be valuable
+ - If MCP server is not accessible, ask user for help rather than attempting deletion
+ - Specs represent planning work - preserve them when in doubt`,
         inputSchema: {
           type: "object",
           properties: {
@@ -530,27 +606,42 @@ schaltwerk_draft_delete(session_name: "old-spec")
           required: ["session_name"]
         }
        },
-       {
-         name: "schaltwerk_mark_session_reviewed",
-         description: `Mark a running session as reviewed and ready for merge.
+        {
+          name: "schaltwerk_mark_session_reviewed",
+          description: `Mark a running session as reviewed and ready for merge.
 
-🎯 PURPOSE: Mark active development sessions as complete and ready for code review/merge.
+ 🎯 PURPOSE: Mark active development sessions as complete and ready for code review/merge.
 
-📋 USAGE:
-schaltwerk_mark_session_reviewed(session_name: "feature-auth")
+ 📋 USAGE:
+ schaltwerk_mark_session_reviewed(session_name: "feature-auth")
 
-⚡ WHAT HAPPENS:
-1. Sets the session's ready_to_merge flag to true
-2. Session status changes from 'running' to 'reviewed'
-3. Session appears in reviewed sessions list
-4. Worktree and branch are preserved for potential rollback
+ ⚡ WHAT HAPPENS:
+ 1. Sets the session's ready_to_merge flag to true
+ 2. Session status changes from 'running' to 'reviewed'
+ 3. Session appears in reviewed sessions list
+ 4. Worktree and branch are preserved for potential rollback
 
-✅ WHEN TO USE:
-- Development work is complete and tested
-- Session is ready to be marked as reviewed
-- Want to mark session as done without deleting it
+ ✅ WHEN TO USE:
+ - Development work is complete and tested
+ - Session is ready to be marked as reviewed
+ - Want to mark session as done without deleting it
 
-⚠️ IMPORTANT: This is reversible - you can convert reviewed sessions back to specs for rework.`,
+ ⚠️ IMPORTANT: This is reversible - you can convert reviewed sessions back to specs for rework.
+
+   🔒 SECURITY CONSIDERATIONS:
+   - Reviewed sessions represent validated work that should be preserved
+   - These sessions should only be cancelled after successful merge to main branch and passing tests
+   - Never delete reviewed sessions due to perceived invalidity - they represent approved work
+   - If merge conflicts or issues arise, preserve the session and seek user guidance
+   - Always validate merges with tests before considering sessions complete
+   - Git state protection: All commits in reviewed sessions are preserved in Git history
+   - Uncommitted changes are permanently lost when sessions are cancelled - preserve work through proper merge workflow
+
+   🔄 NEXT STEPS AFTER MARKING REVIEWED:
+   - Reviewed sessions are ready for merge workflow: first merge main into session branch, then merge session back to main
+   - Understand Git diffs after merging main: false "deletions" are normal (files added to main after session creation)
+   - Focus on session additions/modifications when validating merge content
+   - Send follow-up messages for technical issues, ask user for strategic decisions`,
          inputSchema: {
            type: "object",
            properties: {
@@ -562,28 +653,34 @@ schaltwerk_mark_session_reviewed(session_name: "feature-auth")
            required: ["session_name"]
          }
        },
-       {
-         name: "schaltwerk_convert_to_spec",
-         description: `Convert a running or reviewed session back to spec state for rework.
+        {
+          name: "schaltwerk_convert_to_spec",
+          description: `Convert a running or reviewed session back to spec state for rework.
 
-🎯 PURPOSE: Convert active or reviewed sessions back to spec state when changes are needed.
+ 🎯 PURPOSE: Convert active or reviewed sessions back to spec state when changes are needed.
 
-📋 USAGE:
-schaltwerk_convert_to_spec(session_name: "feature-auth")
+ 📋 USAGE:
+ schaltwerk_convert_to_spec(session_name: "feature-auth")
 
-⚡ WHAT HAPPENS:
-1. Session state changes from 'running'/'reviewed' to 'spec'
-2. ready_to_merge flag is reset to false
-3. Worktree is removed (branch preserved)
-4. Session content becomes spec content for refinement
-5. Can be started again with schaltwerk_draft_start
+ ⚡ WHAT HAPPENS:
+ 1. Session state changes from 'running'/'reviewed' to 'spec'
+ 2. ready_to_merge flag is reset to false
+ 3. Worktree is removed (branch preserved)
+ 4. Session content becomes spec content for refinement
+ 5. Can be started again with schaltwerk_draft_start
 
-✅ WHEN TO USE:
-- Need to rework a session after review
-- Want to convert a running session to spec for specning
-- Session needs significant changes before completion
+ ✅ WHEN TO USE:
+ - Need to rework a session after review
+ - Want to convert a running session to spec for specning
+ - Session needs significant changes before completion
 
-⚠️ IMPORTANT: Worktree is removed but branch and all commits are preserved.`,
+ ⚠️ IMPORTANT: Worktree is removed but branch and all commits are preserved.
+
+ 🔒 SESSION PROTECTION:
+ - Converting reviewed sessions back to spec preserves all Git history and commits
+ - This operation is safe and reversible - no work is lost
+ - Reviewed sessions converted to spec can be restarted later with schaltwerk_draft_start
+ - If MCP server is not accessible during this operation, ask user for help immediately`,
          inputSchema: {
            type: "object",
            properties: {
@@ -595,64 +692,78 @@ schaltwerk_convert_to_spec(session_name: "feature-auth")
            required: ["session_name"]
          }
        },
-       {
-         name: "schaltwerk_get_current_tasks",
-        description: `Get current agents with flexible field selection to manage response size.
+        {
+          name: "schaltwerk_get_current_tasks",
+         description: `Get current agents with flexible field selection to manage response size.
 
-🎯 PURPOSE: Retrieve agent information with control over which fields to include, preventing large responses.
+ 🎯 PURPOSE: Retrieve agent information with control over which fields to include, preventing large responses.
 
-📊 FIELD SELECTION:
-Use the 'fields' parameter to specify which fields to include. This is critical for managing response size.
+ 📊 FIELD SELECTION:
+ Use the 'fields' parameter to specify which fields to include. This is critical for managing response size.
 
-🔧 AVAILABLE FIELDS:
-- name: Agent identifier (always included)
-- display_name: Human-readable name
-- status: 'active' | 'spec' | 'cancelled' | 'paused'
-- session_state: 'Spec' | 'Running' | 'Reviewed'
-- created_at: ISO timestamp
-- last_activity: ISO timestamp
-- branch: Git branch name
-- worktree_path: Local directory path
-- ready_to_merge: Boolean for review status
-- initial_prompt: Original agent description (can be large)
-- draft_content: Full spec content (can be VERY large)
+ 🔧 AVAILABLE FIELDS:
+ - name: Agent identifier (always included)
+ - display_name: Human-readable name
+ - status: 'active' | 'spec' | 'cancelled' | 'paused'
+ - session_state: 'Spec' | 'Running' | 'Reviewed'
+ - created_at: ISO timestamp
+ - last_activity: ISO timestamp
+ - branch: Git branch name
+ - worktree_path: Local directory path
+ - ready_to_merge: Boolean for review status
+ - initial_prompt: Original agent description (can be large)
+ - draft_content: Full spec content (can be VERY large)
 
-📋 USAGE PATTERNS:
+ 📋 USAGE PATTERNS:
 
-1️⃣ QUICK OVERVIEW (default - minimal fields):
-schaltwerk_get_current_tasks()
-Returns: name, status, session_state, branch only
+ 1️⃣ QUICK OVERVIEW (default - minimal fields):
+ schaltwerk_get_current_tasks()
+ Returns: name, status, session_state, branch only
 
-2️⃣ AGENT MANAGEMENT (medium detail):
-schaltwerk_get_current_tasks(fields: ["name", "status", "session_state", "branch", "created_at", "last_activity"])
-Use when: Managing sessions, checking activity, organizing work
+ 2️⃣ AGENT MANAGEMENT (medium detail):
+ schaltwerk_get_current_tasks(fields: ["name", "status", "session_state", "branch", "created_at", "last_activity"])
+ Use when: Managing sessions, checking activity, organizing work
 
-3️⃣ PLAN SELECTION (content preview):
-schaltwerk_get_current_tasks(
-  fields: ["name", "status", "session_state", "draft_content"],
-  status_filter: "spec",
-  content_preview_length: 200
-)
-Use when: Browsing specs to find the right one to start
+ 3️⃣ PLAN SELECTION (content preview):
+ schaltwerk_get_current_tasks(
+   fields: ["name", "status", "session_state", "draft_content"],
+   status_filter: "spec",
+   content_preview_length: 200
+ )
+ Use when: Browsing specs to find the right one to start
 
-4️⃣ FULL DETAILS (use sparingly):
-schaltwerk_get_current_tasks(fields: ["all"])
-Use when: Need complete information for specific analysis
+ 4️⃣ FULL DETAILS (use sparingly):
+ schaltwerk_get_current_tasks(fields: ["all"])
+ Use when: Need complete information for specific analysis
 
-⚠️ PERFORMANCE TIPS:
-- Never request 'draft_content' or 'initial_prompt' unless needed
-- Use status_filter to reduce dataset size
-- Use content_preview_length for spec browsing
-- Default fields are optimized for common operations
+ ⚠️ PERFORMANCE TIPS:
+ - Never request 'draft_content' or 'initial_prompt' unless needed
+ - Use status_filter to reduce dataset size
+ - Use content_preview_length for spec browsing
+ - Default fields are optimized for common operations
 
-🎯 FILTERING:
-- status_filter: Filter by status ('spec', 'active', 'reviewed')
-- Reduces response size by excluding irrelevant agents
+ 🎯 FILTERING:
+ - status_filter: Filter by status ('spec', 'active', 'reviewed')
+ - Reduces response size by excluding irrelevant agents
 
-💡 BEST PRACTICES:
-- Start with minimal fields, add more if needed
-- Use filters to focus on relevant agents
-- Request content fields only when examining specific agents`,
+ 💡 BEST PRACTICES:
+ - Start with minimal fields, add more if needed
+ - Use filters to focus on relevant agents
+ - Request content fields only when examining specific agents
+
+   🔒 SESSION PROTECTION:
+   - Sessions with 'ready_to_merge: true' are reviewed and should be preserved
+   - Never delete reviewed sessions without successful merge validation and passing tests
+   - Preserve Git state for all failed merge operations - never delete sessions that fail to merge
+   - Always validate merges with tests before considering sessions complete
+   - If MCP server is not accessible, ask user for help immediately
+   - Uncommitted changes are permanently lost when sessions are cancelled - preserve work through proper merge workflow
+
+   🔄 MERGE WORKFLOW FOR REVIEWED SESSIONS:
+   - First merge main into session branch to resolve conflicts before merging back
+   - Understand Git diffs: false "deletions" are normal after merging main (files added to main after session creation)
+   - Focus on what session ADDS (new/modified files) - ignore apparent deletions of main's newer files
+   - Send follow-up messages for technical issues, ask user for strategic decisions`,
         inputSchema: {
           type: "object",
           properties: {
