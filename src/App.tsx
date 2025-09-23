@@ -122,8 +122,20 @@ export default function App() {
       logger.warn('[App] Failed to dispatch OpenCode resize event on right panel drag end', e)
     }
 
+    // Also emit a generic resize request so all terminals recompute sizes consistently
+    try {
+      const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
+      if (selection.kind === 'session' && selection.payload) {
+        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+      } else {
+        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+      }
+    } catch (e) {
+      logger.warn('[App] Failed to dispatch generic terminal resize request on right panel drag end', e)
+    }
+
     setIsDraggingRightSplit(false)
-  }, [setRightPanelCollapsedExplicit, setRightSizes, selection])
+}, [setRightPanelCollapsedExplicit, setRightSizes, selection])
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first
@@ -1028,7 +1040,7 @@ export default function App() {
                       <TerminalGrid />
                     </ErrorBoundary>
                   </main>
-                  <section className={`overflow-hidden ${isDraggingRightSplit ? '' : 'transition-all duration-200'}`}>
+                  <section className={`overflow-hidden`}>
                     <ErrorBoundary name="RightPanel">
                       <RightPanelTabs 
                         onFileSelect={handleFileSelect}

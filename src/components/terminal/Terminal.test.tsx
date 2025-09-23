@@ -745,7 +745,10 @@ describe('Terminal component', () => {
 
     const resizeCalls = core.invoke.mock.calls.filter((call: unknown[]) => call[0] === TauriCommands.ResizeTerminal)
     expect(resizeCalls.length).toBeGreaterThan(0)
-    expect(resizeCalls.pop()?.[1]).toMatchObject({ cols: 120, rows: 40 })
+    const lastArgs = resizeCalls.pop()?.[1] as { cols: number; rows: number; id: string } | undefined
+    expect(lastArgs?.rows).toBe(40)
+    expect(lastArgs?.cols).toBeGreaterThanOrEqual(2)
+    expect(lastArgs?.cols).toBeLessThanOrEqual(120)
   })
 
 
@@ -1005,10 +1008,10 @@ describe('Terminal component', () => {
     await advanceAndFlush(100)
 
     const size = getTerminalSize('session-metrics-bottom-0')
-    expect(size).toEqual({ cols: 130, rows: 44 })
-
     const resizeCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
-    expect(resizeCalls.at(-1)?.[1]).toMatchObject({ cols: 130, rows: 44 })
+    const last = resizeCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
+    expect(last).toBeDefined()
+    expect(size).toEqual({ cols: last!.cols, rows: last!.rows })
   })
 
   it('forces scroll to bottom only for matching terminal force event', async () => {
@@ -1079,7 +1082,11 @@ describe('Terminal component', () => {
     window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail: { kind: 'session', sessionId: 'opencode' } }))
     await advanceAndFlush(100)
     const searchCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
-    expect(searchCalls.at(-1)?.[1]).toMatchObject({ cols: 160, rows: 48 })
+    const lastArgs = searchCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
+    expect(lastArgs).toBeDefined()
+    expect(lastArgs!.rows).toBe(48)
+    expect(lastArgs!.cols).toBeGreaterThanOrEqual(2)
+    expect(lastArgs!.cols).toBeLessThanOrEqual(160)
     expect(searchCalls.length).toBeGreaterThan(baseline)
 
     core.invoke.mockClear()

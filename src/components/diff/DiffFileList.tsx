@@ -376,7 +376,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
                 key={file.path}
                 className={clsx(
                   "flex items-center gap-2 px-2 py-2 rounded cursor-pointer",
-                  "hover:bg-slate-800/50 transition-colors",
+                  "hover:bg-slate-800/50",
                   selectedFile === file.path && "bg-slate-800/30"
                 )}
                 onClick={() => handleFileClick(file)}

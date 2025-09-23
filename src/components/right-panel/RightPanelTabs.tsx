@@ -83,7 +83,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
   return (
     <div 
-      className={`h-full flex flex-col bg-panel border-2 rounded ${isDragging ? '' : 'transition-all duration-200 ease-in-out'} ${localFocus && !isDragging ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+      className={`h-full flex flex-col bg-panel border-2 rounded ${localFocus ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
       {/* Header: hide tabs when split mode is active */}
@@ -93,7 +93,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             <button
               onClick={() => setUserSelectedTab('changes')}
               className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
                 activeTab === 'changes' 
                   ? localFocus 
                     ? 'text-blue-200 bg-blue-800/30' 
@@ -113,7 +113,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             <button
               onClick={() => setUserSelectedTab('info')}
               className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
                 activeTab === 'info' 
                   ? localFocus 
                     ? 'text-blue-200 bg-blue-800/30' 
@@ -133,7 +133,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             <button
               onClick={() => setUserSelectedTab('agent')}
               className={clsx(
-                'h-full flex-1 px-3 text-xs font-medium transition-colors flex items-center justify-center gap-1.5',
+                'h-full flex-1 px-3 text-xs font-medium flex items center justify-center gap-1.5',
                 activeTab === 'agent'
                   ? localFocus
                     ? 'text-blue-200 bg-blue-800/30'
@@ -152,7 +152,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
         </div>
       )}
 
-      <div className={`h-[2px] flex-shrink-0 ${isDragging ? '' : 'transition-opacity duration-200'} ${
+      <div className={`h-[2px] flex-shrink-0 ${
         localFocus && !isDragging
           ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
           : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
@@ -191,7 +191,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
             </div>
           </Split>
         ) : (
-          <div className="absolute inset-0 animate-fadeIn" key={activeTab}>
+          <div className="absolute inset-0" key={activeTab}>
             {activeTab === 'changes' ? (
               <SimpleDiffPanel 
                 onFileSelect={onFileSelect} 

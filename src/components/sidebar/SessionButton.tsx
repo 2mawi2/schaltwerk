@@ -174,7 +174,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                         {hasFollowUpMessage && !isReadyToMerge && (
                             <span className="ml-2 inline-flex items-center gap-1" title="New follow-up message received">
                                 <span className="flex h-4 w-4 relative">
-                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                                    <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
                                     <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-white text-[9px] items-center justify-center font-bold">!</span>
                                 </span>
                             </span>

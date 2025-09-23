@@ -8,6 +8,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { SearchAddon } from '@xterm/addon-search';
 import { invoke } from '@tauri-apps/api/core'
 import { startOrchestratorTop, startSessionTop } from '../../common/agentSpawn'
+import { schedulePtyResize } from '../../common/ptyResizeScheduler'
 import { clearInflights } from '../../utils/singleflight'
 import { UnlistenFn } from '@tauri-apps/api/event';
 import { useFontSize } from '../../contexts/FontSizeContext';
@@ -28,6 +29,8 @@ const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 200000
 const RIGHT_EDGE_GUARD_COLUMNS = 2
+// Track last effective size we told the PTY (after guard), for SIGWINCH nudging
+const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
 // Global guard to avoid starting Claude multiple times for the same terminal id across remounts
 const startedGlobal = new Set<string>();
@@ -84,6 +87,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Removed initial-fit retry machinery after consolidating fit guards
     const searchAddon = useRef<SearchAddon | null>(null);
     const lastSize = useRef<{ cols: number; rows: number }>({ cols: 80, rows: 24 });
+    const lastEffectiveRef = useRef<{ cols: number; rows: number }>(lastEffectiveRefInit);
      const [hydrated, setHydrated] = useState(false);
      const [agentLoading, setAgentLoading] = useState(false);
       const [agentStopped, setAgentStopped] = useState(false);
@@ -179,19 +183,55 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             return false;
         }
 
-        // Suppress resize thrash: ignore tiny oscillations (<2 total delta) unless forced
-        if (!force) {
+        const dragging = document.body.classList.contains('is-split-dragging');
+        // Suppress resize thrash: ignore tiny oscillations (<2 total delta) unless forced or dragging
+        if (!force && !dragging) {
             const dCols = Math.abs(cols - lastSize.current.cols);
             const dRows = Math.abs(rows - lastSize.current.rows);
             if (dCols + dRows < 2) return false;
         }
 
-        const guardOffset = isAgentTopTerminal ? 0 : RIGHT_EDGE_GUARD_COLUMNS;
-        const effectiveCols = Math.max(cols - guardOffset, MIN_DIMENSION);
+        const effectiveCols = Math.max(cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIMENSION);
 
+        const measuredChanged = (cols !== lastSize.current.cols) || (rows !== lastSize.current.rows);
         lastSize.current = { cols, rows };
+
+        // Align frontend grid to effective size first, then repaint
+        try {
+            terminal.current.resize(effectiveCols, rows);
+            (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+        } catch (e) {
+            logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
+        }
+
+        // If the container changed but the effective cols stayed the same, TUIs may not reflow (no SIGWINCH).
+        const sameEffective = (effectiveCols === lastEffectiveRef.current.cols) && (rows === lastEffectiveRef.current.rows);
+        // Nudge top agent terminals when not dragging to guarantee reflow
+        if (!dragging && isAgentTopTerminal && measuredChanged && sameEffective) {
+            const nudgeCols = Math.max(effectiveCols - 1, MIN_DIMENSION);
+            try {
+                terminal.current.resize(nudgeCols, rows);
+                (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] frontend nudge resize failed`, e);
+            }
+            recordTerminalSize(terminalId, nudgeCols, rows);
+            schedulePtyResize(terminalId, { cols: nudgeCols, rows }, { force: true });
+            try {
+                terminal.current?.resize(effectiveCols, rows);
+                (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+            } catch (e) {
+                logger.debug(`[Terminal ${terminalId}] final resize after nudge failed`, e);
+            }
+            recordTerminalSize(terminalId, effectiveCols, rows);
+            schedulePtyResize(terminalId, { cols: effectiveCols, rows }, { force: true });
+            lastEffectiveRef.current = { cols: effectiveCols, rows };
+            return true;
+        }
+
         recordTerminalSize(terminalId, effectiveCols, rows);
-        invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols: effectiveCols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+        schedulePtyResize(terminalId, { cols: effectiveCols, rows });
+        lastEffectiveRef.current = { cols: effectiveCols, rows };
         return true;
     }, [terminalId, isAgentTopTerminal]);
 
@@ -238,17 +278,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
          sessionStorage.removeItem(`schaltwerk:agent-stopped:${terminalId}`);
          clearTerminalStartedTracking([terminalId]); // clears startedGlobal + inflights/background marks
 
-         try {
-             // Provide initial size to avoid early overflow
-             let measured: { cols?: number; rows?: number } | undefined;
              try {
-                 if (fitAddon.current && terminal.current) {
-                     fitAddon.current.fit();
-                     measured = { cols: terminal.current.cols, rows: terminal.current.rows };
+                 // Provide initial size to avoid early overflow (apply guard)
+                 let measured: { cols?: number; rows?: number } | undefined;
+                 try {
+                     if (fitAddon.current && terminal.current) {
+                         fitAddon.current.fit();
+                         const MIN_DIM = 2;
+                         const mCols = Math.max(terminal.current.cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                         measured = { cols: mCols, rows: terminal.current.rows };
+                     }
+                 } catch (e) {
+                     logger.warn(`[Terminal ${terminalId}] Failed to measure before restart:`, e);
                  }
-             } catch (e) {
-                 logger.warn(`[Terminal ${terminalId}] Failed to measure before restart:`, e);
-             }
 
              if (isCommander || (terminalId.includes('orchestrator') && terminalId.endsWith('-top'))) {
                  await startOrchestratorTop({ terminalId, measured });
@@ -545,9 +587,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
             const run = () => {
                 try {
-                    fitAddon.current!.fit();
-                    const { cols, rows } = terminal.current!;
-                    applySizeUpdate(cols, rows, 'opencode-selection', true);
+                    if (!fitAddon.current || !terminal.current || !termRef.current) return;
+                    fitAddon.current.fit();
+                    const { cols, rows } = terminal.current;
+                    // Use strong recompute to mirror initialization
+                    // Force=true to bypass thrash guards on selection events
+                    const MIN_DIM = 2;
+                    const effectiveCols = Math.max(cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                    try { terminal.current.resize(effectiveCols, rows); } catch (e) { logger.debug(`[Terminal ${terminalId}] frontend resize failed during opencode-selection`, e) }
+                    recordTerminalSize(terminalId, effectiveCols, rows);
+                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols: effectiveCols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -562,6 +611,54 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         window.addEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
         return () => window.removeEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
     }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
+
+    // Generic, agent-agnostic terminal resize request listener (reuse applySizeUpdate; two-pass fit)
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent<{ target: 'session' | 'orchestrator' | 'all'; sessionId?: string }>).detail
+            const sanitize = (s?: string) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
+            // Determine if this terminal should react
+            let shouldHandle = false
+            if (!detail || detail.target === 'all') {
+                shouldHandle = true
+            } else if (detail.target === 'orchestrator') {
+                shouldHandle = terminalId.startsWith('orchestrator-')
+            } else if (detail.target === 'session') {
+                if (detail.sessionId) {
+                    const prefix = `session-${sanitize(detail.sessionId)}-`
+                    shouldHandle = terminalId.startsWith(prefix)
+                }
+            }
+
+            if (!shouldHandle) return
+            // Avoid hammering while the user drags splitters
+            if (document.body.classList.contains('is-split-dragging')) return
+
+            try {
+                if (!fitAddon.current || !terminal.current || !termRef.current) return
+                if (!termRef.current.isConnected) return
+                // Pass 1: fit now
+                fitAddon.current.fit()
+                let { cols, rows } = terminal.current
+                applySizeUpdate(cols, rows, 'generic-resize-request:raf1', true)
+                // Pass 2: fit again on next frame (layout/scrollbar settles)
+                requestAnimationFrame(() => {
+                    try {
+                        if (!fitAddon.current || !terminal.current || !termRef.current || !termRef.current.isConnected) return
+                        fitAddon.current.fit()
+                        const m = terminal.current
+                        applySizeUpdate(m.cols, m.rows, 'generic-resize-request:raf2', true)
+                    } catch (err) {
+                        logger.debug('[Terminal] second-pass generic fit failed', err)
+                    }
+                })
+            } catch (e) {
+                logger.warn(`[Terminal ${terminalId}] Generic resize request failed:`, e)
+            }
+        }
+        window.addEventListener(String(UiEvent.TerminalResizeRequest), handler as EventListener)
+        return () => window.removeEventListener(String(UiEvent.TerminalResizeRequest), handler as EventListener)
+    }, [terminalId, applySizeUpdate])
 
     useEffect(() => {
         mountedRef.current = true;
@@ -1311,39 +1408,24 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 return;
             }
 
-            // Capture scroll position before resize
-            const { wasAtBottom } = captureScrollPosition();
+            // Capture scroll position before resize (not used here but available for future logic)
+            const { wasAtBottom: _wasAtBottom } = captureScrollPosition();
 
             try {
-                // Force a proper fit with accurate dimensions
                 fitAddon.current.fit();
+                const { cols, rows } = terminal.current;
+                const dragging = document.body.classList.contains('is-split-dragging');
+                applySizeUpdate(cols, rows, 'resize-observer', dragging);
             } catch (e) {
                 logger.warn(`[Terminal ${terminalId}] fit() failed during resize; skipping this tick`, e);
                 return;
             }
-            const { cols, rows } = terminal.current;
-
-            // Only scroll to bottom on resize if user was at bottom AND we're not during a UI layout change
-            // Skip auto-scroll during session switches to prevent interference with scrolling
-            const isUILayoutChange = document.body.classList.contains('session-switching');
-            if (wasAtBottom && !isUILayoutChange && (agentType !== 'run' || !isUserSelectingInTerminal())) {
-                requestAnimationFrame(() => {
-                    try {
-                        terminal.current?.scrollToBottom();
-                    } catch (error) {
-                        logger.debug('Failed to scroll to bottom after resize', error);
-                    }
-                });
-            }
-
-            applySizeUpdate(cols, rows, 'resize-observer');
         };
 
         // Use ResizeObserver with more stable debouncing to prevent jitter
         let roRafPending = false;
         
         addResizeObserver(termRef.current, () => {
-            if (document.body.classList.contains('is-split-dragging')) return;
             if (roRafPending) return;
             roRafPending = true;
             requestAnimationFrame(() => {
@@ -1563,7 +1645,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             try {
                                 if (fitAddon.current && terminal.current) {
                                     fitAddon.current.fit();
-                                    measured = { cols: terminal.current.cols, rows: terminal.current.rows }
+                                    const MIN_DIM = 2;
+                                    const mCols = Math.max(terminal.current.cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                                    measured = { cols: mCols, rows: terminal.current.rows };
                                 }
                             } catch (e) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to measure size before orchestrator start:`, e);
@@ -1629,7 +1713,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                            try {
                                if (fitAddon.current && terminal.current) {
                                    fitAddon.current.fit();
-                                   measured = { cols: terminal.current.cols, rows: terminal.current.rows }
+                                   const MIN_DIM = 2;
+                                   const mCols = Math.max(terminal.current.cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
+                                   measured = { cols: mCols, rows: terminal.current.rows };
                                }
                            } catch (e) {
                                logger.warn(`[Terminal ${terminalId}] Failed to measure size before session start:`, e);

@@ -39,7 +39,7 @@ function DiffLineRowComponent({
         <td className="w-10 text-center select-none">
           <button
             onClick={onToggleCollapse}
-            className="p-1 text-slate-600 hover:text-slate-400 transition-colors"
+            className="p-1 text-slate-600 hover:text-slate-400"
             aria-label={isCollapsed ? "Expand" : "Collapse"}
           >
             {isCollapsed ? <VscChevronRight /> : <VscChevronDown />}
@@ -79,7 +79,7 @@ function DiffLineRowComponent({
   return (
     <tr
       className={clsx(
-        "group transition-colors relative",
+        "group relative",
         line.type === 'added' && "bg-green-900/30 hover:bg-green-900/40",
         line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40", 
         line.type === 'unchanged' && "hover:bg-slate-800/50",
@@ -99,7 +99,7 @@ function DiffLineRowComponent({
             onMouseEnter={() => onLineMouseEnter?.(lineNum, side)}
             onMouseUp={(e) => onLineMouseUp?.(e)}
             className={clsx(
-              "p-1 transition-all rounded",
+              "p-1 rounded",
               isSelected 
                 ? "text-blue-400 bg-blue-500/20 hover:bg-blue-500/30" 
                 : "text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-300 hover:bg-slate-800"

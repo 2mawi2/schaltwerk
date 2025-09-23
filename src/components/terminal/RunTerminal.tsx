@@ -313,7 +313,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     <div className={`${className} flex flex-col overflow-hidden`} style={{ backgroundColor: theme.colors.background.primary }}>
       <div className="bg-slate-900 border-b border-slate-800 px-4 py-2 flex-shrink-0">
         <div className="flex items-center gap-3 text-xs">
-          <span className={`${isRunning ? 'text-green-500 animate-pulse' : 'text-slate-600'}`}>
+          <span className={`${isRunning ? 'text-green-500' : 'text-slate-600'}`}>
             {isRunning ? '▶' : '■'}
           </span>
           <span className="text-slate-500">{isRunning ? 'Running:' : 'Ready to run:'}</span>

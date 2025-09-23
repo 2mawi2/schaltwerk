@@ -57,13 +57,12 @@ export function UnifiedTab({
   return (
     <div
       className={`
-        relative h-full flex items-center cursor-pointer group transition-all duration-300 ease-out min-w-0 ${className}
+        relative h-full flex items-center cursor-pointer group min-w-0 ${className}
         ${disabled ? 'cursor-not-allowed opacity-50' : ''}
         ${isActive
           ? 'text-white'
           : 'text-slate-300 hover:text-white'
         }
-        hover:scale-[1.02] active:scale-[0.98]
       `}
       style={{
         backgroundColor: isActive
@@ -123,12 +122,11 @@ export function UnifiedTab({
           <button
             onClick={handleClose}
             className={`
-              ml-2 w-4 h-4 flex items-center justify-center rounded-full transition-all duration-200
+              ml-2 w-4 h-4 flex items-center justify-center rounded-full
               ${isActive
-                ? 'text-slate-300 hover:text-white hover:bg-white/20 hover:scale-110'
-                : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-white hover:bg-slate-600/60 hover:scale-110'
+                ? 'text-slate-300 hover:text-white hover:bg-white/20'
+                : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-white hover:bg-slate-600/60'
               }
-              active:scale-95
             `}
             style={{
               fontSize: '14px',

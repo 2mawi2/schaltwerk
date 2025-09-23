@@ -63,7 +63,7 @@ function HighlightCutout({ highlightRect }: { highlightRect: DOMRect | null }) {
     return (
         <>
             <div 
-                className="absolute border-4 border-blue-400 rounded-lg shadow-lg shadow-blue-400/50 bg-transparent animate-pulse"
+                className="absolute border-4 border-blue-400 rounded-lg shadow-lg shadow-blue-400/50 bg-transparent"
                 style={{
                     left: rect.left - padding,
                     top: rect.top - padding,

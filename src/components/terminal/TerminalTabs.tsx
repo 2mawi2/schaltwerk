@@ -165,7 +165,7 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
         {canAddTab && (
           <button
             onClick={addTab}
-            className="flex items-center justify-center w-14 h-full transition-all duration-300 ease-out hover:scale-105 active:scale-95"
+            className="flex items-center justify-center w-14 h-full"
             style={{
               color: theme.colors.text.tertiary,
               borderRight: `1px solid ${theme.colors.border.subtle}`,

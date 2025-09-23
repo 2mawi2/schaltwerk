@@ -835,15 +835,26 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     <span className="text-xs flex-shrink-0">Agents</span>
                     <div className="flex items-center gap-1 ml-auto flex-nowrap overflow-x-auto" style={{ scrollbarGutter: 'stable both-edges' }}>
                         {/* Search Icon */}
-                        <button
-                            onClick={() => {
-                                setIsSearchVisible(true)
-                                // Trigger OpenCode TUI resize workaround for the active context
-                                const detail = selection.kind === 'session'
-                                  ? { kind: 'session', sessionId: selection.payload }
-                                  : { kind: 'orchestrator' as const }
-                                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
-                            }}
+                                <button
+                                    onClick={() => {
+                                        setIsSearchVisible(true)
+                                        // Trigger OpenCode TUI resize workaround for the active context
+                                        const detail = selection.kind === 'session'
+                                          ? { kind: 'session', sessionId: selection.payload }
+                                          : { kind: 'orchestrator' as const }
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                                        // Generic resize request for all terminals in the active context
+                                        try {
+                                            const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
+                                            if (selection.kind === 'session' && selection.payload) {
+                                                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                                            } else {
+                                                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                                            }
+                                        } catch (e) {
+                                            logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search open)', e)
+                                        }
+                                    }}
                             className={clsx('px-1 py-0.5 rounded hover:bg-slate-700/50 flex items-center flex-shrink-0',
                                 isSearchVisible ? 'bg-slate-700/50 text-white' : 'text-slate-400 hover:text-white')}
                             title="Search sessions"
@@ -853,36 +864,36 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             </svg>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.All ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.All && 'animate-filterGlow')}
+                                keyboardNavigatedFilter === FilterMode.All && '' )}
                             onClick={() => setFilterMode(FilterMode.All)}
                             title="Show all agents"
                         >
                             All <span className="text-slate-400">({allCount})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200',
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1',
                                 filterMode === FilterMode.Spec ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Spec && 'animate-filterGlow')}
+                                keyboardNavigatedFilter === FilterMode.Spec && '' )}
                             onClick={() => setFilterMode(FilterMode.Spec)}
                             title="Show spec agents"
                         >
                             Specs <span className="text-slate-400">({specsCount})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.Running ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Running && 'animate-filterGlow')}
+                                keyboardNavigatedFilter === FilterMode.Running && '' )}
                             onClick={() => setFilterMode(FilterMode.Running)}
                             title="Show running agents"
                         >
                             Running <span className="text-slate-400">({runningCount})</span>
                         </button>
                         <button
-                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1 transition-all duration-200', 
+                            className={clsx('text-[10px] px-2 py-0.5 rounded flex items-center gap-1', 
                                 filterMode === FilterMode.Reviewed ? 'bg-slate-700/60 text-white' : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/50',
-                                keyboardNavigatedFilter === FilterMode.Reviewed && 'animate-filterGlow')}
+                                keyboardNavigatedFilter === FilterMode.Reviewed && '' )}
                             onClick={() => setFilterMode(FilterMode.Reviewed)}
                             title="Show reviewed agents"
                         >
@@ -928,6 +939,16 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                   ? { kind: 'session', sessionId: selection.payload }
                                   : { kind: 'orchestrator' as const }
                                 window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                                try {
+                                    const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
+                                    if (selection.kind === 'session' && selection.payload) {
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                                    } else {
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                                    }
+                                } catch (e) {
+                                    logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search type)', e)
+                                }
                             }}
                             placeholder="Search sessions..."
                             className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-500"
@@ -947,6 +968,16 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                   ? { kind: 'session', sessionId: selection.payload }
                                   : { kind: 'orchestrator' as const }
                                 window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                                try {
+                                    const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
+                                    if (selection.kind === 'session' && selection.payload) {
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                                    } else {
+                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                                    }
+                                } catch (e) {
+                                    logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search close)', e)
+                                }
                             }}
                             className="text-slate-400 hover:text-slate-200 p-0.5"
                             title="Close search"

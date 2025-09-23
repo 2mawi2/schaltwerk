@@ -39,7 +39,7 @@ export function DiffFileExplorer({
   getConfirmationMessage = (count: number) => `Are you sure you want to cancel this review? You will lose ${count} comment${count > 1 ? 's' : ''}.`
 }: DiffFileExplorerProps) {
   return (
-    <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col animate-slideIn">
+  <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col">
       <div className="p-3 border-b border-slate-800">
         <div className="text-sm font-medium mb-1">Changed Files</div>
         <div className="text-xs text-slate-500">{files.length} files</div>
@@ -53,7 +53,7 @@ export function DiffFileExplorer({
             <div
               key={file.path}
               className={clsx(
-                "px-3 py-2 cursor-pointer hover:bg-slate-800/50 transition-colors",
+                "px-3 py-2 cursor-pointer hover:bg-slate-800/50",
                 "flex items-center gap-2",
                 isLeftSelected && "bg-slate-800"
               )}
@@ -89,7 +89,7 @@ export function DiffFileExplorer({
           <div className="space-y-2">
             <button
               onClick={onFinishReview}
-              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
             >
               <VscCheck />
               <span>
@@ -105,7 +105,7 @@ export function DiffFileExplorer({
                   onCancelReview()
                 }
               }}
-              className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium transition-colors text-slate-400 hover:text-slate-300"
+              className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-300"
             >
               Cancel Review
             </button>

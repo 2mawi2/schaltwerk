@@ -142,16 +142,16 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
         <div className="mb-8 grid grid-cols-1 md:grid-cols-2 gap-4">
           <button
             onClick={() => setShowNewProjectDialog(true)}
-            className="bg-emerald-900/30 hover:bg-emerald-800/40 border border-emerald-700/50 text-emerald-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 transition-all duration-200 group"
+            className="bg-emerald-900/30 hover:bg-emerald-800/40 border border-emerald-700/50 text-emerald-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
           >
-            <VscNewFolder className="text-2xl group-hover:scale-110 transition-transform" />
+            <VscNewFolder className="text-2xl" />
             <span className="text-lg font-medium">New Project</span>
           </button>
           <button
             onClick={handleSelectDirectory}
-            className="bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/50 text-cyan-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 transition-all duration-200 group"
+            className="bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/50 text-cyan-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
           >
-            <VscFolderOpened className="text-2xl group-hover:scale-110 transition-transform" />
+            <VscFolderOpened className="text-2xl" />
             <span className="text-lg font-medium">Open Repository</span>
           </button>
         </div>
@@ -167,7 +167,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
               {recentProjects.map((project) => (
                 <div
                   key={project.path}
-                  className="bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-lg p-4 transition-all duration-200 group relative"
+                  className="bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-lg p-4 group relative"
                 >
                   <button
                     onClick={() => handleOpenRecent(project)}

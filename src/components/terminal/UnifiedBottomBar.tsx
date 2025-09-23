@@ -47,7 +47,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
     <div
       ref={ref}
       data-bottom-header
-      className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center transition-colors duration-200 ${
+      className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
         isFocused
           ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
           : 'text-slate-400 border-slate-800 hover:bg-slate-800'
@@ -92,7 +92,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
                   e.stopPropagation()
                   onTabAdd()
                 }}
-                className="flex items-center justify-center w-12 h-full transition-all duration-200 hover:scale-105 active:scale-95"
+                className="flex items-center justify-center w-12 h-full"
                 style={{
                   color: theme.colors.text.tertiary,
                   borderRight: `1px solid ${theme.colors.border.subtle}`,
@@ -132,7 +132,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
               onRunScript?.()
             }}
             title={getRunButtonTooltip(isRunning)}
-            className={`px-1.5 py-1 flex items-center gap-0.5 rounded transition-colors text-xs ${
+            className={`px-1.5 py-1 flex items-center gap-0.5 rounded text-xs ${
               isRunning
                 ? isFocused
                   ? 'bg-red-600/60 hover:bg-red-600/80 text-red-100'
@@ -149,7 +149,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
         )}
         
         <span 
-          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors duration-200 ${
+          className={`text-[10px] px-1.5 py-0.5 rounded ${
             isFocused
               ? 'bg-blue-600/40 text-blue-200'
               : 'bg-slate-700/50 text-slate-400'
@@ -165,7 +165,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             onToggleCollapse()
           }}
           title={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
-          className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${
+          className={`w-7 h-7 flex items-center justify-center rounded ${
             isFocused
               ? 'hover:bg-blue-600/50 text-blue-200 hover:text-blue-100'
               : 'hover:bg-slate-700/50 text-slate-300 hover:text-slate-100'

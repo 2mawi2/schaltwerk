@@ -61,7 +61,7 @@ export function UncommittedIndicator({
                 title={tooltipText}
             >
                 <span className="relative flex items-center">
-                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
                 </span>
                 <span className="leading-none">{label}</span>
             </button>

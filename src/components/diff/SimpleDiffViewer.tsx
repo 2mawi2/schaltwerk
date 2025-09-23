@@ -21,7 +21,7 @@ export function SimpleDiffViewer({
 
   if (viewMode === 'split') {
     return (
-      <div className="h-full flex flex-col animate-fadeIn">
+  <div className="h-full flex flex-col">
         <div className="flex border-b border-slate-800">
           <div className="flex-1 px-3 py-2 text-xs text-slate-400 border-r border-slate-800">
             {leftTitle}
@@ -47,7 +47,7 @@ export function SimpleDiffViewer({
   }
 
   return (
-    <div className="h-full overflow-auto animate-fadeIn">
+    <div className="h-full overflow-auto">
       <div className="border-b border-slate-800 px-3 py-2 text-xs text-slate-400">
         {leftTitle} → {rightTitle}
       </div>

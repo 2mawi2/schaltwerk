@@ -956,14 +956,14 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
         <>
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 animate-fadeIn"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
             onClick={onClose}
           />
 
           {/* Modal */}
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div
-              className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800 animate-slideUp"
+              className="bg-slate-950 rounded-xl shadow-2xl w-[95vw] h-[90vh] flex flex-col overflow-hidden border border-slate-800"
               data-testid="diff-modal"
               data-selected-file={selectedFile || ''}
             >
@@ -979,7 +979,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                   {headerActions}
                   <button
                     onClick={toggleContinuousScroll}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+                    className="p-1.5 hover:bg-slate-800 rounded-lg"
                     title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
                   >
                     {continuousScroll ? (
@@ -990,7 +990,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                   </button>
                   <button
                     onClick={onClose}
-                    className="p-1.5 hover:bg-slate-800 rounded-lg transition-colors"
+                    className="p-1.5 hover:bg-slate-800 rounded-lg"
                   >
                     <VscClose className="text-xl" />
                   </button>
@@ -1013,7 +1013,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 />
 
                 {/* Diff viewer */}
-                <div className="flex-1 flex flex-col overflow-hidden relative animate-fadeIn">
+                <div className="flex-1 flex flex-col overflow-hidden relative">
                   {fileAction}
                   <DiffViewer
                     files={files}
@@ -1139,14 +1139,14 @@ function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
       <div className="mt-3 flex justify-end gap-2">
         <button
           onClick={onCancel}
-          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm transition-colors"
+          className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded text-sm"
         >
           Cancel
         </button>
         <button
           onClick={handleSubmit}
           disabled={!text.trim()}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium transition-colors flex items-center gap-2"
+          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium flex items-center gap-2"
         >
           <VscSend />
           Submit

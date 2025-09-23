@@ -164,6 +164,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             } catch (e) {
                 logger.warn('[SelectionContext] Failed to dispatch selection resize event', e)
             }
+
+            // Also request a generic terminal resize so all terminals recompute cols/rows deterministically
+            try {
+                const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
+                if (sel.kind === 'session' && sel.payload) {
+                    window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(sel.payload) } }))
+                } else {
+                    window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                }
+            } catch (e) {
+                logger.warn('[SelectionContext] Failed to dispatch generic terminal resize request', e)
+            }
         }
         const isTestEnv = typeof process !== 'undefined' && (process as unknown as { env?: Record<string, string> }).env?.NODE_ENV === 'test'
         if (isTestEnv) doFinalize()

@@ -1,11 +1,13 @@
 export enum UiEvent {
   PermissionError = 'schaltwerk:permission-error',
   BackgroundStartMarked = 'schaltwerk:terminal-background-started',
+  TerminalResizeRequest = 'schaltwerk:terminal-resize-request',
 }
 
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
+  [UiEvent.TerminalResizeRequest]: { target: 'session' | 'orchestrator' | 'all'; sessionId?: string }
 }
 
 export function emitUiEvent<T extends UiEvent>(event: T, detail: UiEventPayloads[T]): void {

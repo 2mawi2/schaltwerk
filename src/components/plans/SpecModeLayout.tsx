@@ -89,7 +89,7 @@ export function SpecModeLayout({ sessionName, onExit }: Props) {
         </div>
         <button
           onClick={onExit}
-          className="flex items-center gap-1 px-2 py-1 rounded transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded"
           style={{ 
             fontSize: theme.fontSize.button,
             color: theme.colors.text.secondary
