@@ -8,7 +8,7 @@ import { VscFile, VscDiffAdded, VscDiffModified, VscDiffRemoved, VscFileBinary, 
 import clsx from 'clsx'
 import { isBinaryFileByExtension } from '../../utils/binaryDetection'
 import { logger } from '../../utils/logger'
-import { TERMINAL_RESET_EVENT } from '../../types/terminalEvents'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 import { AnimatedText } from '../common/AnimatedText'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
@@ -301,9 +301,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     try {
       await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
       await loadChangedFilesRef.current()
-      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-        detail: { kind: 'session', sessionId: sessionName },
-      }))
+      emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: sessionName })
     } catch (e) {
       logger.error('Failed to reset session from header:', e)
     } finally {

@@ -5,6 +5,7 @@ import { isSpec } from '../utils/sessionFilters'
 import { FilterMode } from '../types/sessionFilters'
 import { listenEvent, SchaltEvent } from '../common/eventSystem'
 import { logger } from '../utils/logger'
+import { UiEvent, listenUiEvent, emitUiEvent } from '../common/uiEvents'
 
 function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
@@ -157,12 +158,10 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
 
   // Listen for spec creation events (for potential future use)
   useEffect(() => {
-    const handleSpecCreated = (event: CustomEvent<{ name: string }>) => {
-      // Spec created - no automatic spec mode activation
-      logger.info('[useSpecMode] Spec created:', event.detail.name)
-    }
-    window.addEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
-    return () => window.removeEventListener('schaltwerk:spec-created', handleSpecCreated as EventListener)
+    const cleanup = listenUiEvent(UiEvent.SpecCreated, detail => {
+      logger.info('[useSpecMode] Spec created:', detail.name)
+    })
+    return cleanup
   }, [])
   
   // Handle MCP spec updates - only exit spec mode if current spec is deleted
@@ -192,16 +191,14 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
 
   // Handle entering spec mode
   useEffect(() => {
-    const handleEnterSpecMode = (event: CustomEvent<{ sessionName: string }>) => {
-      const { sessionName } = event.detail
+    const cleanup = listenUiEvent(UiEvent.EnterSpecMode, detail => {
+      const { sessionName } = detail
       if (sessionName) {
-        // Enter spec mode regardless of current selection - we'll switch to orchestrator automatically
         enterSpecMode(sessionName, currentFilterMode)
       }
-    }
+    })
 
-    window.addEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
-    return () => window.removeEventListener('schaltwerk:enter-spec-mode', handleEnterSpecMode as EventListener)
+    return cleanup
   }, [enterSpecMode, currentFilterMode])
 
   // Handle exiting spec mode
@@ -279,7 +276,7 @@ export function useSpecMode({ projectPath, selection, sessions, setFilterMode, s
         if (selection.kind !== 'orchestrator') {
           await setSelection({ kind: 'orchestrator' })
         }
-        window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
+        emitUiEvent(UiEvent.NewSpecRequest)
       }
     }
   }, [commanderSpecModeSession, sessions, enterSpecMode, selection.kind, setSelection, handleExitSpecMode, lastSelectedSpec, currentFilterMode])

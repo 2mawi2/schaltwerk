@@ -23,7 +23,7 @@ import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
-import { TERMINAL_RESET_EVENT, TerminalResetDetail, createTerminalResetEvent } from '../../types/terminalEvents'
+import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../common/uiEvents'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -124,7 +124,7 @@ export function TerminalGrid() {
         try {
             setIsResetting(true)
             await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName: selection.payload })
-            window.dispatchEvent(createTerminalResetEvent({ kind: 'session', sessionId: selection.payload }))
+            emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: selection.payload })
             setConfirmResetOpen(false)
         } catch (err) {
             logger.error('[TerminalGrid] Failed to reset session worktree:', err)
@@ -192,8 +192,7 @@ export function TerminalGrid() {
     
     // Listen for terminal reset events and focus terminal events
     useEffect(() => {
-        const handleTerminalReset = (event: Event) => {
-            const detail = (event as CustomEvent<TerminalResetDetail | undefined>).detail
+        const handleTerminalReset = (detail?: TerminalResetDetail) => {
             if (!detail) {
                 logger.debug('[TerminalGrid] Ignoring reset event without detail')
                 return
@@ -219,7 +218,7 @@ export function TerminalGrid() {
         // Track the last specifically requested terminal focus so we can apply it when ready
         let lastRequestedTerminalId: string | null = null
 
-        const handleFocusTerminal = (e?: Event) => {
+        const handleFocusTerminal = (detail?: { terminalId?: string; focusType?: 'terminal' | 'claude' }) => {
             // Don't focus terminal if any modal is open
             if (isAnyModalOpen()) return
 
@@ -231,7 +230,6 @@ export function TerminalGrid() {
             }
 
             // If a specific terminalId was provided, prefer focusing that one
-            const detail = (e as CustomEvent<{ terminalId?: string; focusType?: 'terminal' | 'claude' }> | undefined)?.detail
             const targetId = detail?.terminalId || null
             if (targetId) {
                 lastRequestedTerminalId = targetId
@@ -248,9 +246,8 @@ export function TerminalGrid() {
 
         // When a terminal instance finishes hydrating, it emits 'schaltwerk:terminal-ready'.
         // If that matches the last requested terminal to focus, focus it deterministically now.
-        const handleTerminalReady = (e: Event) => {
+        const handleTerminalReady = (detail?: { terminalId: string }) => {
             if (isAnyModalOpen()) return
-            const detail = (e as CustomEvent<{ terminalId: string }>).detail
             if (!detail) return
             if (lastRequestedTerminalId && detail.terminalId === lastRequestedTerminalId) {
                 safeTerminalFocus(() => {
@@ -261,13 +258,13 @@ export function TerminalGrid() {
             }
         }
 
-        window.addEventListener(TERMINAL_RESET_EVENT, handleTerminalReset as EventListener)
-        window.addEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
-        window.addEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
+        const cleanupReset = listenUiEvent(UiEvent.TerminalReset, handleTerminalReset)
+        const cleanupFocus = listenUiEvent(UiEvent.FocusTerminal, handleFocusTerminal)
+        const cleanupReady = listenUiEvent(UiEvent.TerminalReady, handleTerminalReady)
         return () => {
-            window.removeEventListener(TERMINAL_RESET_EVENT, handleTerminalReset as EventListener)
-            window.removeEventListener('schaltwerk:focus-terminal', handleFocusTerminal as EventListener)
-            window.removeEventListener('schaltwerk:terminal-ready', handleTerminalReady as EventListener)
+            cleanupReset()
+            cleanupFocus()
+            cleanupReady()
         }
     }, [isBottomCollapsed, lastExpandedBottomPercent, runModeActive, terminalTabsState.activeTab, isAnyModalOpen, selection.kind, selection.payload])
 
@@ -765,10 +762,11 @@ export function TerminalGrid() {
     // Get all running sessions for background terminals
     const dispatchOpencodeFinalResize = () => {
         try {
-            const detail = selection.kind === 'session'
-                ? { kind: 'session', sessionId: selection.payload }
-                : { kind: 'orchestrator' as const };
-            window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }));
+            if (selection.kind === 'session' && selection.payload) {
+                emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: selection.payload })
+            } else {
+                emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'orchestrator' })
+            }
         } catch (e) {
             logger.warn('[TerminalGrid] Failed to dispatch OpenCode final resize', e)
         }
@@ -776,9 +774,9 @@ export function TerminalGrid() {
         try {
             const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
             if (selection.kind === 'session' && selection.payload) {
-                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
             } else {
-                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
             }
         } catch (e) {
             logger.warn('[TerminalGrid] Failed to dispatch generic terminal resize request', e)

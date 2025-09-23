@@ -5,6 +5,7 @@ import { TestProviders } from '../../tests/test-utils'
 import { invoke } from '@tauri-apps/api/core'
 import { describe, test, expect, vi, beforeEach } from 'vitest'
 import type { MockedFunction } from 'vitest'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 // Mock Tauri
 vi.mock('@tauri-apps/api/core', () => ({
@@ -318,15 +319,13 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         })
 
         // Simulate prefill event
-        window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
-            detail: {
-                name: 'prefilled_session',
-                taskContent: 'Test content',
-                baseBranch: 'feature/prefill',
-                lockName: false,
-                fromDraft: false
-            }
-        }))
+        emitUiEvent(UiEvent.NewSessionPrefill, {
+            name: 'prefilled_session',
+            taskContent: 'Test content',
+            baseBranch: 'feature/prefill',
+            lockName: false,
+            fromDraft: false
+        })
 
         await waitFor(() => {
             const nameInput = screen.getByDisplayValue('prefilled_session')

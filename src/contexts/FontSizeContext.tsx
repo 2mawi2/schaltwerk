@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, ReactNode } fro
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
+import { emitUiEvent, UiEvent } from '../common/uiEvents'
 
 interface FontSizeContextType {
   terminalFontSize: number
@@ -71,9 +72,7 @@ export function FontSizeProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.setProperty('--terminal-font-size', `${terminalFontSize}px`)
     document.documentElement.style.setProperty('--ui-font-size', `${uiFontSize}px`)
 
-    window.dispatchEvent(new CustomEvent('font-size-changed', {
-      detail: { terminalFontSize, uiFontSize }
-    }))
+    emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize, uiFontSize })
 
     const pending = { terminal: terminalFontSize, ui: uiFontSize }
 

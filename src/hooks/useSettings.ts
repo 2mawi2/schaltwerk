@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
+import { emitUiEvent, UiEvent } from '../common/uiEvents'
 import {
     KeyboardShortcutConfig,
     defaultShortcutConfig,
@@ -73,7 +74,7 @@ export const useSettings = () => {
         try {
             if (typeof window !== 'undefined') {
                 const font = terminalSettings.fontFamily || null
-                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-font-updated', { detail: { fontFamily: font } }))
+                emitUiEvent(UiEvent.TerminalFontUpdated, { fontFamily: font })
             }
         } catch (e) {
             logger.warn('Failed to dispatch terminal font update event', e)

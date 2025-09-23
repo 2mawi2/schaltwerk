@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, waitFor } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 // Mock dependencies
 vi.mock('@tauri-apps/api/core', () => ({
@@ -458,32 +459,27 @@ describe('Sidebar', () => {
     })
 
     it('should emit cancel events when requested', () => {
-      // Test the event emission logic directly - just test that events can be dispatched
       const mockEventListener = vi.fn()
-      
-      window.addEventListener('schaltwerk:session-action', mockEventListener)
 
-      // Simulate the event dispatch that happens in the component
-      const testEvent = new CustomEvent('schaltwerk:session-action', {
-        detail: {
-          action: 'cancel',
-          sessionId: 'test-session',
-          sessionName: 'test-session',
-          hasUncommittedChanges: true
-        }
-      })
-      
-      window.dispatchEvent(testEvent)
+      window.addEventListener(String(UiEvent.SessionAction), mockEventListener)
 
-      expect(mockEventListener).toHaveBeenCalled()
-      expect(testEvent.detail).toEqual({
+      emitUiEvent(UiEvent.SessionAction, {
         action: 'cancel',
         sessionId: 'test-session',
         sessionName: 'test-session',
         hasUncommittedChanges: true
       })
 
-      window.removeEventListener('schaltwerk:session-action', mockEventListener)
+      expect(mockEventListener).toHaveBeenCalled()
+      const eventArg = mockEventListener.mock.calls[0][0] as CustomEvent
+      expect(eventArg.detail).toEqual({
+        action: 'cancel',
+        sessionId: 'test-session',
+        sessionName: 'test-session',
+        hasUncommittedChanges: true
+      })
+
+      window.removeEventListener(String(UiEvent.SessionAction), mockEventListener)
     })
   })
 

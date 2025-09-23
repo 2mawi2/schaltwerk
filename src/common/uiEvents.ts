@@ -2,15 +2,148 @@ export enum UiEvent {
   PermissionError = 'schaltwerk:permission-error',
   BackgroundStartMarked = 'schaltwerk:terminal-background-started',
   TerminalResizeRequest = 'schaltwerk:terminal-resize-request',
+  TerminalReset = 'schaltwerk:reset-terminals',
+  OpencodeSelectionResize = 'schaltwerk:opencode-selection-resize',
+  OpencodeSearchResize = 'schaltwerk:opencode-search-resize',
+  FocusTerminal = 'schaltwerk:focus-terminal',
+  TerminalReady = 'schaltwerk:terminal-ready',
+  SessionAction = 'schaltwerk:session-action',
+  StartAgentFromSpec = 'schaltwerk:start-agent-from-spec',
+  NewSessionPrefill = 'schaltwerk:new-session:prefill',
+  NewSessionPrefillPending = 'schaltwerk:new-session:prefill-pending',
+  NewSessionSetSpec = 'schaltwerk:new-session:set-spec',
+  NewSessionRequest = 'schaltwerk:new-session',
+  NewSpecRequest = 'schaltwerk:new-spec',
+  SessionCreated = 'schaltwerk:session-created',
+  SpecCreated = 'schaltwerk:spec-created',
+  RetryAgentStart = 'schaltwerk:retry-agent-start',
+  OpenNewProjectDialog = 'schaltwerk:open-new-project-dialog',
+  OpenDiffView = 'schaltwerk:open-diff-view',
+  OpenDiffFile = 'schaltwerk:open-diff-file',
+  TerminalFontUpdated = 'schaltwerk:terminal-font-updated',
+  FontSizeChanged = 'font-size-changed',
+  GlobalNewSessionShortcut = 'global-new-session-shortcut',
+  GlobalMarkReadyShortcut = 'global-mark-ready-shortcut',
+  NoProjectError = 'schaltwerk:no-project-error',
+  SpawnError = 'schaltwerk:spawn-error',
+  NotGitError = 'schaltwerk:not-git-error',
+  ModalsChanged = 'schaltwerk:modals-changed',
+  EnterSpecMode = 'schaltwerk:enter-spec-mode',
+}
+
+export interface TerminalResizeRequestDetail {
+  target: 'session' | 'orchestrator' | 'all'
+  sessionId?: string
+}
+
+export type TerminalResetDetail =
+  | { kind: 'orchestrator' }
+  | { kind: 'session'; sessionId: string }
+
+export type SelectionResizeDetail =
+  | { kind: 'session'; sessionId: string }
+  | { kind: 'orchestrator' }
+
+export interface FocusTerminalDetail {
+  terminalId?: string
+  focusType?: 'terminal' | 'claude'
+}
+
+export interface SessionActionDetail {
+  action: 'cancel' | 'cancel-immediate' | 'delete-spec'
+  sessionId: string
+  sessionName: string
+  sessionDisplayName?: string
+  branch?: string
+  hasUncommittedChanges?: boolean
+}
+
+export interface StartAgentFromSpecDetail {
+  name?: string
+}
+
+export interface NewSessionPrefillDetail {
+  name?: string
+  taskContent?: string
+  baseBranch?: string
+  lockName?: boolean
+  fromDraft?: boolean
+  originalSpecName?: string
+}
+
+export interface SessionCreatedDetail {
+  name: string
+}
+
+export interface SpecCreatedDetail {
+  name: string
+}
+
+export interface OpenDiffFileDetail {
+  filePath?: string
+}
+
+export interface TerminalFontUpdatedDetail {
+  fontFamily: string | null
+}
+
+export interface FontSizeChangedDetail {
+  terminalFontSize: number
+  uiFontSize: number
+}
+
+export interface TerminalErrorDetail {
+  error: string
+  terminalId: string
+}
+
+export interface ModalsChangedDetail {
+  openCount: number
+}
+
+export interface EnterSpecModeDetail {
+  sessionName: string
 }
 
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
-  [UiEvent.TerminalResizeRequest]: { target: 'session' | 'orchestrator' | 'all'; sessionId?: string }
+  [UiEvent.TerminalResizeRequest]: TerminalResizeRequestDetail
+  [UiEvent.TerminalReset]: TerminalResetDetail
+  [UiEvent.OpencodeSelectionResize]: SelectionResizeDetail
+  [UiEvent.OpencodeSearchResize]: SelectionResizeDetail
+  [UiEvent.FocusTerminal]: FocusTerminalDetail | undefined
+  [UiEvent.TerminalReady]: { terminalId: string }
+  [UiEvent.SessionAction]: SessionActionDetail
+  [UiEvent.StartAgentFromSpec]: StartAgentFromSpecDetail | undefined
+  [UiEvent.NewSessionPrefill]: NewSessionPrefillDetail | undefined
+  [UiEvent.NewSessionPrefillPending]: undefined
+  [UiEvent.NewSessionSetSpec]: undefined
+  [UiEvent.NewSessionRequest]: undefined
+  [UiEvent.NewSpecRequest]: undefined
+  [UiEvent.SessionCreated]: SessionCreatedDetail
+  [UiEvent.SpecCreated]: SpecCreatedDetail
+  [UiEvent.RetryAgentStart]: undefined
+  [UiEvent.OpenNewProjectDialog]: undefined
+  [UiEvent.OpenDiffView]: undefined
+  [UiEvent.OpenDiffFile]: OpenDiffFileDetail | undefined
+  [UiEvent.TerminalFontUpdated]: TerminalFontUpdatedDetail
+  [UiEvent.FontSizeChanged]: FontSizeChangedDetail
+  [UiEvent.GlobalNewSessionShortcut]: undefined
+  [UiEvent.GlobalMarkReadyShortcut]: undefined
+  [UiEvent.NoProjectError]: TerminalErrorDetail
+  [UiEvent.SpawnError]: TerminalErrorDetail
+  [UiEvent.NotGitError]: TerminalErrorDetail
+  [UiEvent.ModalsChanged]: ModalsChangedDetail
+  [UiEvent.EnterSpecMode]: EnterSpecModeDetail
 }
 
-export function emitUiEvent<T extends UiEvent>(event: T, detail: UiEventPayloads[T]): void {
+type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]
+  ? [UiEventPayloads[T]?]
+  : [UiEventPayloads[T]]
+
+export function emitUiEvent<T extends UiEvent>(event: T, ...args: UiEventArgs<T>): void {
+  const detail = (args.length > 0 ? args[0] : undefined) as UiEventPayloads[T]
   window.dispatchEvent(new CustomEvent(String(event), { detail }))
 }
 

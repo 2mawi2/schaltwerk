@@ -22,6 +22,7 @@ import { VscRefresh, VscCode } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
+import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
@@ -288,41 +289,35 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 // Check if it's a spec
                 if (isSpec(selectedSession.info)) {
                     // For specs, always show confirmation dialog (ignore immediate flag)
-                    window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
-                        detail: {
-                            action: 'delete-spec',
-                            sessionId: selectedSession.info.session_id,
-                            sessionName: selectedSession.info.session_id,
-                            sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
-                            branch: selectedSession.info.branch,
-                            hasUncommittedChanges: false // Specs don't have uncommitted changes
-                        }
-                    }))
+                    emitUiEvent(UiEvent.SessionAction, {
+                        action: 'delete-spec',
+                        sessionId: selectedSession.info.session_id,
+                        sessionName: selectedSession.info.session_id,
+                        sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                        branch: selectedSession.info.branch,
+                        hasUncommittedChanges: false,
+                    })
                 } else {
                     // For regular sessions, handle as before
                     if (immediate) {
                         // immediate cancel without modal
-                        window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
-                            detail: {
-                                action: 'cancel-immediate',
-                                sessionId: selectedSession.info.session_id,
-                                sessionName: selectedSession.info.session_id,
-                                sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
-                                branch: selectedSession.info.branch,
-                                hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false
-                            }
-                        }))
+                        emitUiEvent(UiEvent.SessionAction, {
+                            action: 'cancel-immediate',
+                            sessionId: selectedSession.info.session_id,
+                            sessionName: selectedSession.info.session_id,
+                            sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                            branch: selectedSession.info.branch,
+                            hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false,
+                        })
                     } else {
-                        window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
-                            detail: {
-                                action: 'cancel',
-                                sessionId: selectedSession.info.session_id,
-                                sessionName: selectedSession.info.session_id,
-                                sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
-                                branch: selectedSession.info.branch,
-                                hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false
-                            }
-                        }))
+                        emitUiEvent(UiEvent.SessionAction, {
+                            action: 'cancel',
+                            sessionId: selectedSession.info.session_id,
+                            sessionName: selectedSession.info.session_id,
+                            sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                            branch: selectedSession.info.branch,
+                            hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false,
+                        })
                     }
                 }
             }
@@ -656,7 +651,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onOpenDiffViewer: () => {
             // Open diff viewer for both sessions and orchestrator
             if (selection.kind !== 'session' && selection.kind !== 'orchestrator') return
-            window.dispatchEvent(new CustomEvent('schaltwerk:open-diff-view'))
+            emitUiEvent(UiEvent.OpenDiffView)
         },
         onFocusTerminal: () => {
             // Don't dispatch focus events if any modal is open
@@ -667,7 +662,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             const sessionKey = selection.kind === 'orchestrator' ? 'orchestrator' : (selection.payload || 'unknown')
             setFocusForSession(sessionKey, 'terminal')
             setCurrentFocus('terminal')
-            window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal'))
+            emitUiEvent(UiEvent.FocusTerminal)
         },
         onSelectPrevProject: handleSelectPrevProject,
         onSelectNextProject: handleSelectNextProject,
@@ -682,9 +677,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     
     // Global shortcut from terminal for Mark Reviewed (⌘R)
     useEffect(() => {
-        const handler = (_event: Event) => handleMarkSelectedSessionReady()
-        window.addEventListener('global-mark-ready-shortcut', handler)
-        return () => window.removeEventListener('global-mark-ready-shortcut', handler)
+        const cleanup = listenUiEvent(UiEvent.GlobalMarkReadyShortcut, () => handleMarkSelectedSessionReady())
+        return cleanup
     }, [selection, sessions, handleMarkSelectedSessionReady])
 
     // Selection is now restored by SelectionContext itself
@@ -839,17 +833,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     onClick={() => {
                                         setIsSearchVisible(true)
                                         // Trigger OpenCode TUI resize workaround for the active context
-                                        const detail = selection.kind === 'session'
-                                          ? { kind: 'session', sessionId: selection.payload }
-                                          : { kind: 'orchestrator' as const }
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                                        if (selection.kind === 'session' && selection.payload) {
+                                            emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: selection.payload })
+                                        } else {
+                                            emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
+                                        }
                                         // Generic resize request for all terminals in the active context
                                         try {
                                             const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                                             if (selection.kind === 'session' && selection.payload) {
-                                                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                                                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
                                             } else {
-                                                window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                                                emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                                             }
                                         } catch (e) {
                                             logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search open)', e)
@@ -935,16 +930,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             onChange={(e) => {
                                 setSearchQuery(e.target.value)
                                 // Each search keystroke nudges OpenCode to repaint correctly for the active context
-                                const detail = selection.kind === 'session'
-                                  ? { kind: 'session', sessionId: selection.payload }
-                                  : { kind: 'orchestrator' as const }
-                                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                                if (selection.kind === 'session' && selection.payload) {
+                                    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: selection.payload })
+                                } else {
+                                    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
+                                }
                                 try {
                                     const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                                     if (selection.kind === 'session' && selection.payload) {
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
                                     } else {
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                                     }
                                 } catch (e) {
                                     logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search type)', e)
@@ -964,16 +960,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 setSearchQuery('')
                                 setIsSearchVisible(false)
                                 // Also trigger a resize when closing search (layout shifts)
-                                const detail = selection.kind === 'session'
-                                  ? { kind: 'session', sessionId: selection.payload }
-                                  : { kind: 'orchestrator' as const }
-                                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail }))
+                                if (selection.kind === 'session' && selection.payload) {
+                                    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: selection.payload })
+                                } else {
+                                    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'orchestrator' })
+                                }
                                 try {
                                     const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                                     if (selection.kind === 'session' && selection.payload) {
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
                                     } else {
-                                        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                                        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                                     }
                                 } catch (e) {
                                     logger.warn('[Sidebar] Failed to dispatch generic terminal resize request (search close)', e)
@@ -1031,16 +1028,14 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     onCancel={(sessionId, hasUncommitted) => {
                                         const session = sessions.find(s => s.info.session_id === sessionId)
                                         if (session) {
-                                            window.dispatchEvent(new CustomEvent('schaltwerk:session-action', {
-                                                detail: {
-                                                    action: 'cancel',
-                                                    sessionId,
-                                                    sessionName: sessionId,
-                                                    sessionDisplayName: session.info.display_name || session.info.session_id,
-                                                    branch: session.info.branch,
-                                                    hasUncommittedChanges: hasUncommitted
-                                                }
-                                            }))
+                                            emitUiEvent(UiEvent.SessionAction, {
+                                                action: 'cancel',
+                                                sessionId,
+                                                sessionName: sessionId,
+                                                sessionDisplayName: session.info.display_name || session.info.session_id,
+                                                branch: session.info.branch,
+                                                hasUncommittedChanges: hasUncommitted,
+                                            })
                                         }
                                     }}
                                     onConvertToSpec={(sessionId) => {
@@ -1062,8 +1057,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }}
                                     onRunDraft={async (sessionId) => {
                                         try {
-                                            // Open Start agent modal prefilled from spec
-                                            window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', { detail: { name: sessionId } }))
+                                            emitUiEvent(UiEvent.StartAgentFromSpec, { name: sessionId })
                                         } catch (err) {
                                             logger.error('Failed to open start modal from spec:', err)
                                         }
