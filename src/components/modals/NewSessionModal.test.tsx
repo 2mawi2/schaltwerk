@@ -281,6 +281,12 @@ describe('NewSessionModal', () => {
       const inputs = document.querySelectorAll('input')
       expect(inputs.length).toBeGreaterThan(0)
     })
+
+    // Wait for base branch to be initialized
+    await waitFor(() => {
+      const branchInput = screen.getByPlaceholderText('Type to search branches... (Tab to autocomplete)')
+      expect(branchInput).toHaveValue('main')
+    })
     
     // Test 1: Submit without any interaction - userEditedName should be false
     const createBtn = screen.getByTitle('Start agent (Cmd+Enter)')
