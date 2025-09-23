@@ -30,10 +30,3 @@ pub fn clipboard_write_text(text: String) -> Result<(), String> {
         Err(format!("pbcopy exited with status: {status}"))
     }
 }
-
-/// Clipboard write not supported on this platform
-#[cfg(not(target_os = "macos"))]
-#[tauri::command]
-pub fn clipboard_write_text(_text: String) -> Result<(), String> {
-    Err("Clipboard write not supported on this platform".to_string())
-}
