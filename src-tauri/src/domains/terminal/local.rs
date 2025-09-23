@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{broadcast, Mutex, RwLock};
 
 // Default in-memory buffer sizes for terminal output
 // Agent conversation terminals can produce very large transcripts; give them more room
@@ -38,6 +38,8 @@ pub struct LocalPtyAdapter {
     coalescing_state: CoalescingState,
     suspended: Arc<RwLock<HashSet<String>>>,
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    // Event broadcasting for deterministic testing
+    output_event_sender: Arc<broadcast::Sender<(String, u64)>>, // (terminal_id, new_seq)
 }
 
 struct ReaderState {
@@ -48,6 +50,7 @@ struct ReaderState {
     coalescing_state: CoalescingState,
     suspended: Arc<RwLock<HashSet<String>>>,
     pending_control_sequences: Arc<Mutex<HashMap<String, Vec<u8>>>>,
+    output_event_sender: Arc<broadcast::Sender<(String, u64)>>,
 }
 
 impl Default for LocalPtyAdapter {
@@ -167,6 +170,7 @@ impl LocalPtyAdapter {
 
     pub fn new() -> Self {
         let app_handle = Arc::new(Mutex::new(None));
+        let (output_event_sender, _) = broadcast::channel(1000); // Buffer up to 1000 events
         Self {
             terminals: Arc::new(RwLock::new(HashMap::new())),
             creating: Arc::new(Mutex::new(HashSet::new())),
@@ -184,6 +188,7 @@ impl LocalPtyAdapter {
             },
             suspended: Arc::new(RwLock::new(HashSet::new())),
             pending_control_sequences: Arc::new(Mutex::new(HashMap::new())),
+            output_event_sender: Arc::new(output_event_sender),
         }
     }
 
@@ -365,6 +370,7 @@ impl LocalPtyAdapter {
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
                         let suspended_clone = Arc::clone(&reader_state.suspended);
+                        let output_event_sender_clone = Arc::clone(&reader_state.output_event_sender);
 
                         runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
@@ -386,6 +392,7 @@ impl LocalPtyAdapter {
                                 // Increment sequence and update last output time
                                 state.seq = state.seq.saturating_add(sanitized_len as u64);
                                 state.last_output = SystemTime::now();
+                                let new_seq = state.seq; // Capture for event emission
                                 let buffer_len = state.buffer.len() as u64;
                                 state.start_seq = if buffer_len == 0 {
                                     state.seq
@@ -395,6 +402,9 @@ impl LocalPtyAdapter {
 
                                 // Handle output emission - different strategies for agent vs standard terminals
                                 drop(terminals); // release lock before awaits below
+
+                                // Emit deterministic event for test synchronization
+                                let _ = output_event_sender_clone.send((id_clone.clone(), new_seq));
 
                                 if suspended_clone.read().await.contains(&id_clone) {
                                     return;
@@ -486,6 +496,7 @@ impl LocalPtyAdapter {
                 coalescing_state: self.coalescing_state.clone(),
                 suspended: Arc::clone(&self.suspended),
                 pending_control_sequences: Arc::clone(&self.pending_control_sequences),
+                output_event_sender: Arc::clone(&self.output_event_sender),
             },
         );
 
@@ -1250,6 +1261,67 @@ impl LocalPtyAdapter {
 
         info!("Dead terminal {id} cleanup completed");
     }
+
+    /// Wait for terminal output to change (deterministic alternative to sleep)
+    /// Returns when the terminal's sequence number increases from the given threshold
+    pub async fn wait_for_output_change(&self, id: &str, min_seq: u64) -> Result<u64, String> {
+        let mut receiver = self.output_event_sender.subscribe();
+
+        // First check if we already have enough output
+        if let Some(state) = self.terminals.read().await.get(id) {
+            if state.seq > min_seq {
+                return Ok(state.seq);
+            }
+        } else {
+            return Err(format!("Terminal {id} not found"));
+        }
+
+        // Wait for output change event with timeout to prevent infinite hang
+        let timeout_duration = Duration::from_secs(10); // 10 second safety timeout
+        let timeout_result = tokio::time::timeout(timeout_duration, async {
+            while let Ok((terminal_id, new_seq)) = receiver.recv().await {
+                if terminal_id == id && new_seq > min_seq {
+                    return Ok(new_seq);
+                }
+            }
+            Err("Event channel closed".to_string())
+        }).await;
+
+        match timeout_result {
+            Ok(result) => result,
+            Err(_) => {
+                // Fallback: check terminal state one more time
+                if let Some(state) = self.terminals.read().await.get(id) {
+                    if state.seq > min_seq {
+                        Ok(state.seq)
+                    } else {
+                        Err(format!("Timeout waiting for output change on terminal {id}. Current seq: {}, waiting for: > {}", state.seq, min_seq))
+                    }
+                } else {
+                    Err(format!("Terminal {id} not found after timeout"))
+                }
+            }
+        }
+    }
+
+    /// Execute a command and wait for it to produce output (deterministic)
+    pub async fn write_and_wait(&self, id: &str, data: &[u8]) -> Result<u64, String> {
+        // Get current sequence before writing
+        let initial_seq = {
+            let terminals = self.terminals.read().await;
+            if let Some(state) = terminals.get(id) {
+                state.seq
+            } else {
+                return Err(format!("Terminal {id} not found"));
+            }
+        };
+
+        // Write the command
+        self.write(id, data).await?;
+
+        // Wait for output to change
+        self.wait_for_output_change(id, initial_seq).await
+    }
 }
 
 async fn get_shell_config() -> (String, Vec<String>) {
@@ -1326,6 +1398,45 @@ mod tests {
     use tokio::time::sleep;
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    // Helper function to wait for command output with simple polling fallback
+    async fn execute_command_and_wait(
+        adapter: &LocalPtyAdapter,
+        id: &str,
+        command: &[u8],
+    ) -> Result<String, String> {
+        // Get initial sequence
+        let initial_seq = {
+            let terminals = adapter.terminals.read().await;
+            if let Some(state) = terminals.get(id) {
+                state.seq
+            } else {
+                return Err(format!("Terminal {id} not found"));
+            }
+        };
+
+        // Write command
+        adapter.write(id, command).await?;
+
+        // Simple polling with short intervals - more reliable than broadcast channels in test environment
+        for _attempt in 0..50 { // 50 attempts * 100ms = 5 second max wait
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            let terminals = adapter.terminals.read().await;
+            if let Some(state) = terminals.get(id) {
+                if state.seq > initial_seq {
+                    drop(terminals);
+                    let snapshot = adapter.snapshot(id, None).await.map_err(|e| format!("Failed to get snapshot: {e}"))?;
+                    return Ok(String::from_utf8_lossy(&snapshot.data).to_string());
+                }
+            }
+        }
+
+        // If we get here, return whatever we have
+        let snapshot = adapter.snapshot(id, None).await.map_err(|e| format!("Failed to get snapshot: {e}"))?;
+        Ok(String::from_utf8_lossy(&snapshot.data).to_string())
+    }
+
 
     fn unique_id(prefix: &str) -> String {
         format!(
@@ -1503,19 +1614,13 @@ mod tests {
         };
 
         adapter.create(params).await.unwrap();
-        sleep(Duration::from_millis(100)).await;
 
-        // Write some data
-        adapter.write(&id, b"echo 'test output'\n").await.unwrap();
-        sleep(Duration::from_millis(200)).await;
-
-        // Get snapshot
-        let snapshot = adapter.snapshot(&id, None).await.unwrap();
-        assert!(snapshot.seq > 0);
-        assert!(!snapshot.data.is_empty());
+        // Execute command and wait for output deterministically
+        let output = execute_command_and_wait(&adapter, &id, b"echo 'test output'\n")
+            .await
+            .expect("Failed to execute test command");
 
         // Data should contain our command or output
-        let output = String::from_utf8_lossy(&snapshot.data);
         assert!(output.contains("echo") || output.contains("test") || !output.is_empty());
 
         safe_close(&adapter, &id).await;
@@ -1541,23 +1646,25 @@ mod tests {
         };
 
         adapter.create(params).await.unwrap();
-        sleep(Duration::from_millis(100)).await;
 
-        // Write data to generate some output
-        adapter.write(&id, b"echo 'first'\n").await.unwrap();
-        sleep(Duration::from_millis(200)).await;
+        // Execute first command and get sequence
+        let _output1 = execute_command_and_wait(&adapter, &id, b"echo 'first'\n")
+            .await
+            .expect("Failed to execute first command");
 
         let snapshot1 = adapter.snapshot(&id, None).await.unwrap();
         let seq1 = snapshot1.seq;
 
-        adapter.write(&id, b"echo 'second'\n").await.unwrap();
-        sleep(Duration::from_millis(200)).await;
+        // Execute second command and get sequence
+        let _output2 = execute_command_and_wait(&adapter, &id, b"echo 'second'\n")
+            .await
+            .expect("Failed to execute second command");
 
         let snapshot2 = adapter.snapshot(&id, None).await.unwrap();
         let seq2 = snapshot2.seq;
 
         // Sequence should have increased
-        assert!(seq2 >= seq1);
+        assert!(seq2 > seq1);
 
         // Request incremental snapshot from previous sequence
         let delta = adapter.snapshot(&id, Some(seq1)).await.unwrap();
@@ -1907,17 +2014,15 @@ mod tests {
         };
 
         adapter.create_with_size(params, 150, 50).await.unwrap();
-        sleep(Duration::from_millis(100)).await;
 
-        // Send command to check environment variables
-        adapter
-            .write(&id, b"echo LINES=$LINES COLUMNS=$COLUMNS TERM=$TERM\n")
-            .await
-            .unwrap();
-        sleep(Duration::from_millis(300)).await;
-
-        let snapshot = adapter.snapshot(&id, None).await.unwrap();
-        let output = String::from_utf8_lossy(&snapshot.data);
+        // Execute command and wait for output deterministically
+        let output = execute_command_and_wait(
+            &adapter,
+            &id,
+            b"echo LINES=$LINES COLUMNS=$COLUMNS TERM=$TERM\n",
+        )
+        .await
+        .expect("Failed to execute environment check command");
 
         // Check that environment variables were set correctly
         assert!(

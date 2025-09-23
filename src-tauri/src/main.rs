@@ -586,7 +586,7 @@ fn main() {
             get_app_version,
             schaltwerk_core_log_frontend_message,
             // Clipboard
-            commands::clipboard::clipboard_write_text,
+            #[cfg(target_os = "macos")] commands::clipboard::clipboard_write_text,
             // MCP commands
             start_mcp_server,
             // Para core commands
