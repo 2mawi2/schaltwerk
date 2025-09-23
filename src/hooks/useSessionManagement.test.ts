@@ -190,8 +190,8 @@ describe('useSessionManagement', () => {
             const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
-                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
-                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_orchestrator_skip_permissions
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_orchestrator_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockImplementationOnce(async () => { // close_terminal
                     const tev = TauriEvent as unknown as { __emit: (event: string, payload: unknown) => void }
@@ -217,10 +217,10 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetOrchestratorSkipPermissions, {
                 enabled: true
             })
-            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetOrchestratorAgentType, {
                 agentType: 'gemini'
             })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
@@ -285,8 +285,8 @@ describe('useSessionManagement', () => {
             const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
-                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
-                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_orchestrator_skip_permissions
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_orchestrator_agent_type
                 .mockResolvedValueOnce(false) // terminal_exists returns false
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude_orchestrator
 
@@ -302,7 +302,7 @@ describe('useSessionManagement', () => {
             })
 
             expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
-            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, {
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetOrchestratorSkipPermissions, {
                 enabled: false
             })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {

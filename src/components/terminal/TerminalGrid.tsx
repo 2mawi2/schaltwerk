@@ -48,7 +48,7 @@ export function TerminalGrid() {
     const { selection, terminals, isReady, isSpec } = useSelection()
     const { getFocusForSession, setFocusForSession, currentFocus } = useFocus()
     const { addRunningSession, removeRunningSession } = useRun()
-    const { getAgentType } = useClaudeSession()
+    const { getAgentType, getOrchestratorAgentType } = useClaudeSession()
     const { actionButtons } = useActionButtons()
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
@@ -280,18 +280,30 @@ export function TerminalGrid() {
             }
             // Use session's original_agent_type if available, otherwise default to 'claude'
             // This handles existing sessions that don't have the field yet
-            const sessionAgentType: AgentType = session.info.original_agent_type || 'claude'
-            logger.info(`Session ${selection.payload} agent type: ${sessionAgentType} (original_agent_type: ${session.info.original_agent_type})`)
-            setAgentType(sessionAgentType)
+            const sessionAgentType = session.info.original_agent_type as AgentType | undefined
+            if (sessionAgentType) {
+                logger.info(`Session ${selection.payload} agent type: ${sessionAgentType} (original_agent_type: ${session.info.original_agent_type})`)
+                setAgentType(sessionAgentType)
+            } else {
+                getAgentType()
+                    .then(type => {
+                        const normalized = (type as AgentType) || 'claude'
+                        setAgentType(normalized)
+                    })
+                    .catch(error => {
+                        logger.error('Failed to get session default agent type:', error)
+                        setAgentType('claude')
+                    })
+            }
         } else {
             // For orchestrator or when no session selected, use global agent type
-            getAgentType().then(setAgentType).catch(error => {
-                logger.error('Failed to get global agent type:', error)
+            getOrchestratorAgentType().then(setAgentType).catch(error => {
+                logger.error('Failed to get orchestrator agent type:', error)
                 // Default to 'claude' if we can't get the global agent type
                 setAgentType('claude')
             })
         }
-    }, [selection, sessions, getAgentType])
+    }, [selection, sessions, getAgentType, getOrchestratorAgentType])
 
     // Load run script availability and manage run mode state
     useEffect(() => {

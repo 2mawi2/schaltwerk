@@ -7,6 +7,10 @@ pub trait AppConfigMethods {
     fn set_skip_permissions(&self, enabled: bool) -> Result<()>;
     fn get_agent_type(&self) -> Result<String>;
     fn set_agent_type(&self, agent_type: &str) -> Result<()>;
+    fn get_orchestrator_skip_permissions(&self) -> Result<bool>;
+    fn set_orchestrator_skip_permissions(&self, enabled: bool) -> Result<()>;
+    fn get_orchestrator_agent_type(&self) -> Result<String>;
+    fn set_orchestrator_agent_type(&self, agent_type: &str) -> Result<()>;
     fn get_font_sizes(&self) -> Result<(i32, i32)>;
     fn set_font_sizes(&self, terminal_font_size: i32, ui_font_size: i32) -> Result<()>;
     fn get_default_base_branch(&self) -> Result<Option<String>>;
@@ -44,6 +48,37 @@ impl AppConfigMethods for Database {
         Ok(())
     }
 
+    fn get_orchestrator_skip_permissions(&self) -> Result<bool> {
+        let result: rusqlite::Result<bool> = {
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT orchestrator_skip_permissions FROM app_config WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+        };
+
+        match result {
+            Ok(value) => Ok(value),
+            Err(_) => self.get_skip_permissions(),
+        }
+    }
+
+    fn set_orchestrator_skip_permissions(&self, enabled: bool) -> Result<()> {
+        let result = {
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE app_config SET orchestrator_skip_permissions = ?1 WHERE id = 1",
+                params![enabled],
+            )
+        };
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(_) => self.set_skip_permissions(enabled),
+        }
+    }
+
     fn get_agent_type(&self) -> Result<String> {
         let conn = self.conn.lock().unwrap();
 
@@ -68,6 +103,37 @@ impl AppConfigMethods for Database {
         )?;
 
         Ok(())
+    }
+
+    fn get_orchestrator_agent_type(&self) -> Result<String> {
+        let result: rusqlite::Result<String> = {
+            let conn = self.conn.lock().unwrap();
+            conn.query_row(
+                "SELECT orchestrator_agent_type FROM app_config WHERE id = 1",
+                [],
+                |row| row.get(0),
+            )
+        };
+
+        match result {
+            Ok(value) => Ok(value),
+            Err(_) => self.get_agent_type(),
+        }
+    }
+
+    fn set_orchestrator_agent_type(&self, agent_type: &str) -> Result<()> {
+        let result = {
+            let conn = self.conn.lock().unwrap();
+            conn.execute(
+                "UPDATE app_config SET orchestrator_agent_type = ?1 WHERE id = 1",
+                params![agent_type],
+            )
+        };
+
+        match result {
+            Ok(_) => Ok(()),
+            Err(_) => self.set_agent_type(agent_type),
+        }
     }
 
     fn get_font_sizes(&self) -> Result<(i32, i32)> {
@@ -196,7 +262,17 @@ mod tests {
         // Initialize with default row
         let conn = db.conn.lock().unwrap();
         conn.execute(
-            "INSERT OR REPLACE INTO app_config (id, skip_permissions, agent_type, default_open_app, terminal_font_size, ui_font_size, tutorial_completed) VALUES (1, FALSE, 'claude', 'finder', 13, 12, FALSE)",
+            "INSERT OR REPLACE INTO app_config (
+                id,
+                skip_permissions,
+                agent_type,
+                orchestrator_skip_permissions,
+                orchestrator_agent_type,
+                default_open_app,
+                terminal_font_size,
+                ui_font_size,
+                tutorial_completed
+            ) VALUES (1, FALSE, 'claude', FALSE, 'claude', 'finder', 13, 12, FALSE)",
             [],
         ).expect("Failed to initialize app_config");
         drop(conn);

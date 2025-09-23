@@ -1647,8 +1647,8 @@ impl SessionManager {
             return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
         }
 
-        let skip_permissions = self.db_manager.get_skip_permissions()?;
-        let agent_type = self.db_manager.get_agent_type()?;
+        let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
+        let agent_type = self.db_manager.get_orchestrator_agent_type()?;
 
         log::info!(
             "Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}"
@@ -1695,8 +1695,8 @@ impl SessionManager {
             ));
         }
 
-        let skip_permissions = self.db_manager.get_skip_permissions()?;
-        let agent_type = self.db_manager.get_agent_type()?;
+        let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
+        let agent_type = self.db_manager.get_orchestrator_agent_type()?;
 
         log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
 
