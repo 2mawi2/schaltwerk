@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
-import { UiEvent, emitUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
+import { UiEvent, emitUiEvent, listenUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
 import { recordTerminalSize } from '../../common/terminalSizeCache'
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -377,14 +377,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [])
 
     useEffect(() => {
-        const handler = (e: Event) => {
-            const detail = (e as CustomEvent).detail as { fontFamily?: string | null } | undefined
-            const custom = detail?.fontFamily ?? null
+        const cleanup = listenUiEvent(UiEvent.TerminalFontUpdated, detail => {
+            const custom = detail.fontFamily ?? null
             const chain = buildTerminalFontFamily(custom)
             setResolvedFontFamily(chain)
-        }
-        window.addEventListener('schaltwerk:terminal-font-updated', handler as EventListener)
-        return () => window.removeEventListener('schaltwerk:terminal-font-updated', handler as EventListener)
+        })
+        return cleanup
     }, [])
 
      // Listen for Claude auto-start events to prevent double-starting
@@ -487,16 +485,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
     // Workaround: force-fit and send PTY resize when session search runs for OpenCode
     useEffect(() => {
-        const handleSearchResize = (e: Event) => {
-            // Only affect visible, non-background OpenCode terminals
+        const handleSearchResize = (detail?: { kind?: 'session' | 'orchestrator'; sessionId?: string }) => {
             if (agentType !== 'opencode' || isBackground) return;
             if (!fitAddon.current || !terminal.current || !termRef.current) return;
             const el = termRef.current;
             if (!el.isConnected || el.clientWidth === 0 || el.clientHeight === 0) return;
 
-            // Scope to the intended target: current session or orchestrator
-            const detail = (e as CustomEvent).detail as { kind?: 'session' | 'orchestrator'; sessionId?: string } | undefined
-            if (detail && detail.kind) {
+            if (detail?.kind) {
                 if (detail.kind === 'session') {
                     if (!sessionName || detail.sessionId !== sessionName) return;
                 } else if (detail.kind === 'orchestrator') {
@@ -525,8 +520,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 doFitAndNotify();
             });
         };
-        window.addEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
-        return () => window.removeEventListener('schaltwerk:opencode-search-resize', handleSearchResize as EventListener);
+        const cleanup = listenUiEvent(UiEvent.OpencodeSearchResize, handleSearchResize)
+        return cleanup
         // Deliberately depend on agentType/isBackground to keep logic accurate per mount
     }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
@@ -573,9 +568,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
     // Deterministic refit on session switch specifically for OpenCode
     useEffect(() => {
-        const handleSelectionResize = (e: Event) => {
+        const handleSelectionResize = (detail?: { kind?: 'session' | 'orchestrator'; sessionId?: string }) => {
             if (agentType !== 'opencode' || isBackground) return;
-            const detail = (e as CustomEvent<{ kind?: 'session' | 'orchestrator'; sessionId?: string }>).detail;
             if (detail?.kind === 'session') {
                 if (!sessionName || detail.sessionId !== sessionName) return;
             } else if (detail?.kind === 'orchestrator') {
@@ -608,8 +602,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 requestAnimationFrame(() => run());
             });
         };
-        window.addEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
-        return () => window.removeEventListener('schaltwerk:opencode-selection-resize', handleSelectionResize as EventListener);
+        const cleanup = listenUiEvent(UiEvent.OpencodeSelectionResize, handleSelectionResize)
+        return cleanup
     }, [agentType, isBackground, terminalId, sessionName, isCommander, applySizeUpdate]);
 
     // Generic, agent-agnostic terminal resize request listener (reuse applySizeUpdate; two-pass fit)
@@ -902,18 +896,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
             // Prefer Shift+Cmd/Ctrl+N as "New spec"
             if (modifierKey && event.shiftKey && (event.key === 'n' || event.key === 'N')) {
-                window.dispatchEvent(new CustomEvent('schaltwerk:new-spec'))
+                emitUiEvent(UiEvent.NewSpecRequest)
                 return false
             }
             // Plain Cmd/Ctrl+N opens the regular new session modal
             if (modifierKey && !event.shiftKey && (event.key === 'n' || event.key === 'N')) {
-                // Dispatch a custom event to trigger the global new session handler
-                window.dispatchEvent(new CustomEvent('global-new-session-shortcut'))
+                emitUiEvent(UiEvent.GlobalNewSessionShortcut)
                 return false // Prevent xterm.js from processing this event
             }
             if (modifierKey && (event.key === 'r' || event.key === 'R')) {
-                // Dispatch a custom event to trigger the global mark reviewed handler
-                window.dispatchEvent(new CustomEvent('global-mark-ready-shortcut'))
+                emitUiEvent(UiEvent.GlobalMarkReadyShortcut)
                 return false
             }
             if (modifierKey && (event.key === 'f' || event.key === 'F')) {
@@ -1227,9 +1219,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
                   // Emit terminal ready event for focus management after we've fully flushed and fitted
                   if (typeof window !== 'undefined') {
-                      window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', {
-                          detail: { terminalId }
-                      }));
+                      emitUiEvent(UiEvent.TerminalReady, { terminalId });
                  }
                 
             } catch (error) {
@@ -1668,26 +1658,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         // Check if it's a permission error and dispatch event
                         const errorMessage = String(e);
                         if (errorMessage.includes('No project is currently open')) {
-                            // Handle no project error
                             logger.error(`[Terminal ${terminalId}] No project open:`, errorMessage);
-                            window.dispatchEvent(new CustomEvent('schaltwerk:no-project-error', {
-                                detail: { error: errorMessage, terminalId }
-                            }));
+                            emitUiEvent(UiEvent.NoProjectError, { error: errorMessage, terminalId });
                         } else if (errorMessage.includes('Permission required for folder:')) {
                             emitUiEvent(UiEvent.PermissionError, { error: errorMessage });
                         } else if (errorMessage.includes('Failed to spawn command')) {
-                            // Log more details about spawn failures
                             logger.error(`[Terminal ${terminalId}] Spawn failure details:`, errorMessage);
-                            // Dispatch a specific event for spawn failures
-                            window.dispatchEvent(new CustomEvent('schaltwerk:spawn-error', {
-                                detail: { error: errorMessage, terminalId }
-                            }));
+                            emitUiEvent(UiEvent.SpawnError, { error: errorMessage, terminalId });
                          } else if (errorMessage.includes('not a git repository')) {
-                             // Handle non-git repository error
                              logger.error(`[Terminal ${terminalId}] Not a git repository:`, errorMessage);
-                             window.dispatchEvent(new CustomEvent('schaltwerk:not-git-error', {
-                                 detail: { error: errorMessage, terminalId }
-                             }));
+                             emitUiEvent(UiEvent.NotGitError, { error: errorMessage, terminalId });
                          }
                          throw e;
                      }

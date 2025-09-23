@@ -5,6 +5,7 @@ import { TestProviders } from './tests/test-utils'
 import App from './App'
 import { validatePanelPercentage } from './utils/panel'
 import { vi } from 'vitest'
+import { UiEvent, emitUiEvent } from './common/uiEvents'
 
 // ---- Mock: react-split (layout only) ----
 vi.mock('react-split', () => ({
@@ -187,9 +188,7 @@ describe('App.tsx', () => {
       renderApp()
 
       // Trigger the spec start event
-      window.dispatchEvent(new CustomEvent('schaltwerk:start-agent-from-spec', {
-        detail: { name: 'test-spec' }
-      }))
+      emitUiEvent(UiEvent.StartAgentFromSpec, { name: 'test-spec' })
 
       // Wait for the event to be processed
       await waitFor(() => {

@@ -7,7 +7,7 @@ import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { ConfirmDiscardDialog } from '../common/ConfirmDiscardDialog'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { logger } from '../../utils/logger'
-import { TERMINAL_RESET_EVENT } from '../../types/terminalEvents'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 type DiffSessionActionsRenderProps = {
   headerActions: ReactNode
@@ -74,9 +74,7 @@ export function DiffSessionActions({
       setIsResetting(true)
       await invoke(TauriCommands.SchaltwerkCoreResetSessionWorktree, { sessionName })
       await onLoadChangedFiles()
-      window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-        detail: { kind: 'session', sessionId: sessionName },
-      }))
+      emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: sessionName })
       onClose()
     } catch (error) {
       logger.error('Failed to reset session worktree:', error)

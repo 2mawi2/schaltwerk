@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { NewSessionModal } from './NewSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 // Expose spies so tests can assert persistence/saves
 const mockGetSkipPermissions = vi.fn().mockResolvedValue(false)
@@ -112,7 +113,7 @@ describe('NewSessionModal', () => {
     expect(checkbox.checked).toBe(false)
     
     // First, dispatch prefill-pending event to prevent the useLayoutEffect from resetting state
-    window.dispatchEvent(new Event('schaltwerk:new-session:prefill-pending'))
+    emitUiEvent(UiEvent.NewSessionPrefillPending)
     
     // Small delay to ensure the prefill-pending state is set
     await new Promise(resolve => setTimeout(resolve, 10))
@@ -140,15 +141,13 @@ describe('NewSessionModal', () => {
     const specName = 'test-spec'
     
     await act(async () => {
-      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
-        detail: {
-          name: specName,
-          taskContent: draftContent,
-          baseBranch: 'main',
-          lockName: true,
-          fromDraft: true,
-        }
-      }))
+      emitUiEvent(UiEvent.NewSessionPrefill, {
+        name: specName,
+        taskContent: draftContent,
+        baseBranch: 'main',
+        lockName: true,
+        fromDraft: true,
+      })
     })
     
     // Wait for the content to be prefilled
@@ -173,15 +172,13 @@ describe('NewSessionModal', () => {
     
     // Schedule the event to be dispatched slightly after the modal opens
     setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
-        detail: {
-          name: specName,
-          taskContent: draftContent,
-          baseBranch: 'main',
-          lockName: true,
-          fromDraft: true,
-        }
-      }))
+      emitUiEvent(UiEvent.NewSessionPrefill, {
+        name: specName,
+        taskContent: draftContent,
+        baseBranch: 'main',
+        lockName: true,
+        fromDraft: true,
+      })
     }, 50)
     
     // Now open the modal
@@ -345,13 +342,11 @@ describe('NewSessionModal', () => {
     // Dispatch the prefill event to simulate starting from a spec
     const draftContent = '# My Spec\n\nThis is the spec content.'
     await act(async () => {
-      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
-        detail: {
-          name: 'test-spec',
-          taskContent: draftContent,
-          fromDraft: true, // This should make createAsDraft false (starting agent from spec)
-        }
-      }))
+      emitUiEvent(UiEvent.NewSessionPrefill, {
+        name: 'test-spec',
+        taskContent: draftContent,
+        fromDraft: true, // This should make createAsDraft false (starting agent from spec)
+      })
     })
     
     // Check that the label is "Initial prompt (optional)" when starting agent from spec

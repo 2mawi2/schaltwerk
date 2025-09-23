@@ -9,6 +9,7 @@ import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
 import { AgentType } from '../../types/session'
+import { UiEvent, listenUiEvent, NewSessionPrefillDetail } from '../../common/uiEvents'
 
 interface Props {
     open: boolean
@@ -269,9 +270,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens
     useEffect(() => {
-        const prefillHandler = (event: CustomEvent) => {
-            logger.info('[NewSessionModal] Received prefill event with detail:', event?.detail)
-            const detail = event?.detail || {}
+        const prefillHandler = (detailArg?: NewSessionPrefillDetail) => {
+            logger.info('[NewSessionModal] Received prefill event with detail:', detailArg)
+            const detail = detailArg || {}
             const nameFromDraft: string | undefined = detail.name
             const taskContentFromDraft: string | undefined = detail.taskContent
             const lockName: boolean | undefined = detail.lockName
@@ -317,11 +318,11 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setIsPrefillPending(true)
         }
         
-        window.addEventListener('schaltwerk:new-session:prefill' as keyof WindowEventMap, prefillHandler as EventListener)
-        window.addEventListener('schaltwerk:new-session:prefill-pending' as keyof WindowEventMap, prefillPendingHandler as EventListener)
+        const cleanupPrefill = listenUiEvent(UiEvent.NewSessionPrefill, prefillHandler)
+        const cleanupPending = listenUiEvent(UiEvent.NewSessionPrefillPending, prefillPendingHandler)
         return () => {
-            window.removeEventListener('schaltwerk:new-session:prefill' as keyof WindowEventMap, prefillHandler as EventListener)
-            window.removeEventListener('schaltwerk:new-session:prefill-pending' as keyof WindowEventMap, prefillPendingHandler as EventListener)
+            cleanupPrefill()
+            cleanupPending()
         }
     }, [])
 

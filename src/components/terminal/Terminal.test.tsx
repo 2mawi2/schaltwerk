@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 // Type definitions for mocks
 interface MockTauriCore {
@@ -675,7 +676,7 @@ describe('Terminal component', () => {
     xterm.__setTrailingBlankLines(3)
 
     // Font-size change SHOULD tighten
-    window.dispatchEvent(new CustomEvent('font-size-changed', { detail: { terminalFontSize: 14, uiFontSize: 14 } }))
+    emitUiEvent(UiEvent.FontSizeChanged, { terminalFontSize: 14, uiFontSize: 14 })
     await advanceAndFlush(150)
     expect(xterm.scrollLines.mock.calls.some((c: unknown[]) => c[0] === -3)).toBe(true)
   })
@@ -1075,11 +1076,11 @@ describe('Terminal component', () => {
     xterm.rows = 48
     core.invoke.mockClear()
 
-    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail: { kind: 'session', sessionId: 'other' } }))
+    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: 'other' })
     await advanceAndFlush(50)
     const baseline = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal).length
 
-    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-search-resize', { detail: { kind: 'session', sessionId: 'opencode' } }))
+    emitUiEvent(UiEvent.OpencodeSearchResize, { kind: 'session', sessionId: 'opencode' })
     await advanceAndFlush(100)
     const searchCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
     const lastArgs = searchCalls.at(-1)?.[1] as { cols: number; rows: number } | undefined
@@ -1090,7 +1091,7 @@ describe('Terminal component', () => {
     expect(searchCalls.length).toBeGreaterThan(baseline)
 
     core.invoke.mockClear()
-    window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail: { kind: 'session', sessionId: 'opencode' } }))
+    emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: 'opencode' })
     await advanceAndFlush(100)
     const selectionCalls = core.invoke.mock.calls.filter(call => call[0] === TauriCommands.ResizeTerminal)
     expect(selectionCalls.length).toBeGreaterThan(0)
@@ -1187,7 +1188,7 @@ describe('Terminal component', () => {
     expect(String(xterm.options.fontFamily)).toContain('Victor Mono')
     expect(fontSpy).toHaveBeenCalledWith('Victor Mono')
 
-    window.dispatchEvent(new CustomEvent('schaltwerk:terminal-font-updated', { detail: { fontFamily: 'Cousine' } }))
+    emitUiEvent(UiEvent.TerminalFontUpdated, { fontFamily: 'Cousine' })
     await flushAll()
     await advanceAndFlush(50)
     await flushAll()

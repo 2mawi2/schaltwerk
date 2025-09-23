@@ -3,7 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { MockTauriInvokeArgs } from '../../types/testing'
-import { TERMINAL_RESET_EVENT } from '../../types/terminalEvents'
+import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
 // Type definitions for proper typing
 interface MockSplitProps {
@@ -538,11 +538,9 @@ describe('TerminalGrid', () => {
      }, { timeout: 3000 })
 
      // Dispatch reset event for unrelated session -> should be ignored (no remount)
-     act(() => {
-       window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-         detail: { kind: 'session', sessionId: 'unrelated-session' },
-       }))
-     })
+    act(() => {
+      emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: 'unrelated-session' })
+    })
      await act(async () => {
        await Promise.resolve()
      })
@@ -552,11 +550,9 @@ describe('TerminalGrid', () => {
      expect(m.__getMountCount(bottomId)).toBe(initialBottomMounts)
 
      // Dispatch reset event for current session -> should trigger remount
-     act(() => {
-       window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-         detail: { kind: 'orchestrator' },
-       }))
-     })
+    act(() => {
+      emitUiEvent(UiEvent.TerminalReset, { kind: 'orchestrator' })
+    })
      await act(async () => {
        await Promise.resolve()
      })
@@ -573,11 +569,9 @@ describe('TerminalGrid', () => {
      expect(m.__getFocusSpy(bottomId)).toBeUndefined()
 
      // Dispatch another reset event after unmount -> should have no effect
-     act(() => {
-       window.dispatchEvent(new CustomEvent(TERMINAL_RESET_EVENT, {
-         detail: { kind: 'orchestrator' },
-       }))
-     })
+    act(() => {
+      emitUiEvent(UiEvent.TerminalReset, { kind: 'orchestrator' })
+    })
 
      // Mount counts should remain unchanged after unmount
      expect(m.__getMountCount(topId)).toBeGreaterThan(initialTopMounts)
@@ -1298,7 +1292,7 @@ describe('TerminalGrid', () => {
 
     // Dispatch a focus request targeting a specific terminal id
     act(() => {
-      window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal', { detail: { terminalId: bottomId, focusType: 'terminal' } }))
+      emitUiEvent(UiEvent.FocusTerminal, { terminalId: bottomId, focusType: 'terminal' })
     })
 
     // Deterministically wait for focusTerminal to be recorded
@@ -1316,7 +1310,7 @@ describe('TerminalGrid', () => {
     // Clear and simulate the terminal becoming ready; focus should be applied again deterministically
     act(() => {
       // Reset internal marker by issuing a bogus focus to null
-      window.dispatchEvent(new CustomEvent('schaltwerk:terminal-ready', { detail: { terminalId: bottomId } }))
+      emitUiEvent(UiEvent.TerminalReady, { terminalId: bottomId })
     })
 
     await waitFor(() => {

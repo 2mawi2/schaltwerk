@@ -6,29 +6,17 @@ import { invoke } from '@tauri-apps/api/core'
 import { MockTauriInvokeArgs } from '../types/testing'
 import { TestProviders } from '../tests/test-utils'
 import { ReactNode, createElement } from 'react'
-import { TERMINAL_RESET_EVENT } from '../types/terminalEvents'
+import { UiEvent, emitUiEvent } from '../common/uiEvents'
 
 // Mock the invoke function
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }))
 
-// Mock window event listeners
-const mockAddEventListener = vi.fn()
-const mockRemoveEventListener = vi.fn()
-
-Object.defineProperty(window, 'addEventListener', {
-  writable: true,
-  value: mockAddEventListener
-})
-
-Object.defineProperty(window, 'removeEventListener', {
-  writable: true,
-  value: mockRemoveEventListener
-})
-
 describe('useTerminalTabs', () => {
   const mockInvoke = invoke as MockedFunction<typeof invoke>
+  let addEventSpy: ReturnType<typeof vi.spyOn>
+  let removeEventSpy: ReturnType<typeof vi.spyOn>
   const defaultInvokeImplementation = (command: string, _args?: MockTauriInvokeArgs) => {
     switch (command) {
       case TauriCommands.TerminalExists:
@@ -48,8 +36,8 @@ describe('useTerminalTabs', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockAddEventListener.mockClear()
-    mockRemoveEventListener.mockClear()
+    addEventSpy = vi.spyOn(window, 'addEventListener')
+    removeEventSpy = vi.spyOn(window, 'removeEventListener')
     mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => defaultInvokeImplementation(command, args))
     // Clear global state between tests by directly accessing the module's global variables
     // This is a workaround since we can't easily reset the module-level state
@@ -57,6 +45,8 @@ describe('useTerminalTabs', () => {
 
   afterEach(() => {
     vi.clearAllTimers()
+    addEventSpy.mockRestore()
+    removeEventSpy.mockRestore()
   })
 
   const wrapper = ({ children }: { children: ReactNode }) => createElement(TestProviders, null, children)
@@ -107,8 +97,8 @@ describe('useTerminalTabs', () => {
         workingDirectory: '/test/dir'
       })
 
-      expect(mockAddEventListener).toHaveBeenCalledWith(
-        TERMINAL_RESET_EVENT,
+      expect(addEventSpy).toHaveBeenCalledWith(
+        String(UiEvent.TerminalReset),
         expect.any(Function)
       )
     })
@@ -121,8 +111,8 @@ describe('useTerminalTabs', () => {
 
       unmount()
 
-      expect(mockRemoveEventListener).toHaveBeenCalledWith(
-        TERMINAL_RESET_EVENT,
+      expect(removeEventSpy).toHaveBeenCalledWith(
+        String(UiEvent.TerminalReset),
         expect.any(Function)
       )
     })
@@ -182,14 +172,8 @@ describe('useTerminalTabs', () => {
       expect(result.current.tabs).toHaveLength(2)
 
       // Trigger reset event
-      const resetHandler = mockAddEventListener.mock.calls.find(
-        call => call[0] === TERMINAL_RESET_EVENT
-      )?.[1]
-
-      act(() => {
-        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
-          detail: { kind: 'orchestrator' },
-        }))
+      await act(async () => {
+        emitUiEvent(UiEvent.TerminalReset, { kind: 'orchestrator' })
       })
 
       expect(result.current.tabs).toHaveLength(1)
@@ -217,22 +201,14 @@ describe('useTerminalTabs', () => {
 
       expect(result.current.tabs).toHaveLength(2)
 
-      const resetHandler = mockAddEventListener.mock.calls.find(
-        call => call[0] === TERMINAL_RESET_EVENT
-      )?.[1]
-
-      act(() => {
-        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
-          detail: { kind: 'session', sessionId: 'other-session' },
-        }))
+      await act(async () => {
+        emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: 'other-session' })
       })
 
       expect(result.current.tabs).toHaveLength(2)
 
-      act(() => {
-        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
-          detail: { kind: 'session', sessionId: 'session-foo' },
-        }))
+      await act(async () => {
+        emitUiEvent(UiEvent.TerminalReset, { kind: 'session', sessionId: 'session-foo' })
       })
 
       expect(result.current.tabs).toHaveLength(1)
@@ -258,15 +234,8 @@ describe('useTerminalTabs', () => {
 
       expect(result.current.tabs).toHaveLength(2)
 
-      // Trigger reset
-      const resetHandler = mockAddEventListener.mock.calls.find(
-        call => call[0] === TERMINAL_RESET_EVENT
-      )?.[1]
-
-      act(() => {
-        resetHandler?.(new CustomEvent(TERMINAL_RESET_EVENT, {
-          detail: { kind: 'orchestrator' },
-        }))
+      await act(async () => {
+        emitUiEvent(UiEvent.TerminalReset, { kind: 'orchestrator' })
       })
 
       // Should be reset to initial state

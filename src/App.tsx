@@ -28,7 +28,15 @@ import { theme } from './common/theme'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
 import { TauriCommands } from './common/tauriCommands'
-import { UiEvent, listenUiEvent, clearBackgroundStarts, clearBackgroundStartsByPrefix } from './common/uiEvents'
+import {
+  UiEvent,
+  listenUiEvent,
+  emitUiEvent,
+  clearBackgroundStarts,
+  clearBackgroundStartsByPrefix,
+  SessionActionDetail,
+  StartAgentFromSpecDetail,
+} from './common/uiEvents'
 import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpawn'
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
@@ -37,16 +45,6 @@ import { KeyboardShortcutAction } from './keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 
-
-
-export interface SessionActionEvent {
-  action: 'cancel' | 'cancel-immediate'
-  sessionId: string
-  sessionName: string
-  sessionDisplayName?: string
-  branch?: string
-  hasUncommittedChanges?: boolean
-}
 
 
 // Helper function to get the basename of a path (last segment)
@@ -114,21 +112,21 @@ export default function App() {
 
     // Dispatch OpenCode resize event when right panel drag ends
     try {
-      const detail = selection.kind === 'session'
-        ? { kind: 'session', sessionId: selection.payload }
-        : { kind: 'orchestrator' as const }
-      window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+      if (selection.kind === 'session' && selection.payload) {
+        emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: selection.payload })
+      } else {
+        emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'orchestrator' })
+      }
     } catch (e) {
       logger.warn('[App] Failed to dispatch OpenCode resize event on right panel drag end', e)
     }
 
-    // Also emit a generic resize request so all terminals recompute sizes consistently
     try {
       const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
       if (selection.kind === 'session' && selection.payload) {
-        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(selection.payload) } }))
+        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(selection.payload) })
       } else {
-        window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+        emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
       }
     } catch (e) {
       logger.warn('[App] Failed to dispatch generic terminal resize request on right panel drag end', e)
@@ -189,7 +187,7 @@ export default function App() {
         const isEmpty = await invoke<boolean>(TauriCommands.RepositoryIsEmpty)
         if (isEmpty) {
           setShowHome(true)
-          window.dispatchEvent(new CustomEvent('schaltwerk:open-new-project-dialog'))
+          emitUiEvent(UiEvent.OpenNewProjectDialog)
         }
       } catch (_e) {
         logger.warn('Failed to check if repository is empty:', _e)
@@ -259,8 +257,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    const handleSessionAction = (event: CustomEvent<SessionActionEvent>) => {
-      const { action, sessionId, sessionName, sessionDisplayName, branch, hasUncommittedChanges = false } = event.detail
+    const cleanup = listenUiEvent(UiEvent.SessionAction, (detail: SessionActionDetail) => {
+      const { action, sessionId, sessionName, sessionDisplayName, branch, hasUncommittedChanges = false } = detail
 
       setCurrentSession({
         id: sessionId,
@@ -273,16 +271,14 @@ export default function App() {
       if (action === 'cancel') {
         setCancelModalOpen(true)
       } else if (action === 'cancel-immediate') {
-        // perform cancel directly
         setCancelModalOpen(false)
         void handleCancelSession()
       } else if (action === 'delete-spec') {
         setDeleteSpecModalOpen(true)
       }
-    }
+    })
 
-    window.addEventListener('schaltwerk:session-action', handleSessionAction as EventListener)
-    return () => window.removeEventListener('schaltwerk:session-action', handleSessionAction as EventListener)
+    return cleanup
   }, [handleCancelSession])
 
   useEffect(() => {
@@ -343,58 +339,53 @@ export default function App() {
       setSelectedDiffFile(null)
       setIsDiffViewerOpen(true)
     }
-    const handleOpenDiffFile = (e: Event) => {
-      const customEvent = e as CustomEvent<{ filePath?: string }>
-      const filePath = customEvent?.detail?.filePath || null
-      setSelectedDiffFile(filePath)
-      setIsDiffViewerOpen(true)
-    }
 
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener('global-new-session-shortcut', handleGlobalNewSession)
-    window.addEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
-    window.addEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
+    const cleanupGlobalNewSession = listenUiEvent(UiEvent.GlobalNewSessionShortcut, () => handleGlobalNewSession())
+    const cleanupOpenDiffView = listenUiEvent(UiEvent.OpenDiffView, () => handleOpenDiffView())
+    const cleanupOpenDiffFile = listenUiEvent(UiEvent.OpenDiffFile, detail => {
+      const filePath = detail?.filePath || null
+      setSelectedDiffFile(filePath)
+      setIsDiffViewerOpen(true)
+    })
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener('global-new-session-shortcut', handleGlobalNewSession)
-      window.removeEventListener('schaltwerk:open-diff-view', handleOpenDiffView as EventListener)
-      window.removeEventListener('schaltwerk:open-diff-file', handleOpenDiffFile as EventListener)
+      cleanupGlobalNewSession()
+      cleanupOpenDiffView()
+      cleanupOpenDiffFile()
     }
   }, [newSessionOpen, cancelModalOpen, increaseFontSizes, decreaseFontSizes, resetFontSizes, keyboardShortcutConfig, platform])
 
   // Open NewSessionModal in spec creation mode when requested
   useEffect(() => {
-    const handler = () => {
+    const cleanup = listenUiEvent(UiEvent.NewSpecRequest, () => {
       logger.info('[App] schaltwerk:new-spec event received - opening modal for spec creation')
       previousFocusRef.current = document.activeElement
                        setOpenAsSpec(true)
       setNewSessionOpen(true)
-    }
-    window.addEventListener('schaltwerk:new-spec', handler as EventListener)
-    return () => window.removeEventListener('schaltwerk:new-spec', handler as EventListener)
+    })
+    return cleanup
   }, [])
   
   
 
   // Open NewSessionModal for new agent when requested
   useEffect(() => {
-    const handler = () => {
+    const cleanup = listenUiEvent(UiEvent.NewSessionRequest, () => {
       logger.info('[App] schaltwerk:new-session event received - opening modal in agent mode')
       previousFocusRef.current = document.activeElement
        setOpenAsSpec(false)
       setNewSessionOpen(true)
-    }
-    window.addEventListener('schaltwerk:new-session', handler as EventListener)
-    return () => window.removeEventListener('schaltwerk:new-session', handler as EventListener)
+    })
+    return cleanup
   }, [])
 
   // Open Start Agent modal prefilled from an existing spec
   useEffect(() => {
-    const handler = async (event: Event) => {
-      const customEvent = event as CustomEvent<{ name?: string }>
-      logger.info('[App] Received start-agent-from-spec event:', customEvent.detail)
-      const name = customEvent.detail?.name
+    const cleanup = listenUiEvent(UiEvent.StartAgentFromSpec, async (detail?: StartAgentFromSpecDetail) => {
+      logger.info('[App] Received start-agent-from-spec event:', detail)
+      const name = detail?.name
       if (!name) {
         logger.warn('[App] No name provided in start-agent-from-spec event')
         return
@@ -403,7 +394,7 @@ export default function App() {
       previousFocusRef.current = document.activeElement
 
       // Notify modal that prefill is coming
-      window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill-pending'))
+      emitUiEvent(UiEvent.NewSessionPrefillPending)
 
       // Fetch spec content first, then open modal with prefilled data
       logger.info('[App] Fetching session data for prefill:', name)
@@ -419,16 +410,13 @@ export default function App() {
         // Use requestAnimationFrame to ensure modal is rendered before dispatching
         requestAnimationFrame(() => {
           logger.info('[App] Dispatching prefill event with data')
-          window.dispatchEvent(new CustomEvent('schaltwerk:new-session:prefill', {
-            detail: prefillData
-          }))
+          emitUiEvent(UiEvent.NewSessionPrefill, prefillData)
         })
       } else {
         logger.warn('[App] No prefill data fetched for session:', name)
       }
-    }
-    window.addEventListener('schaltwerk:start-agent-from-spec', handler as EventListener)
-    return () => window.removeEventListener('schaltwerk:start-agent-from-spec', handler as EventListener)
+    })
+    return cleanup
   }, [fetchSessionForPrefill])
 
 
@@ -545,9 +533,7 @@ export default function App() {
           setStartFromSpecName(null)
 
           // Dispatch event for other components to know a session was created from spec
-          window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
-            detail: { name: firstSessionName }
-          }))
+          emitUiEvent(UiEvent.SessionCreated, { name: firstSessionName })
 
           // Start agents for all spec-derived sessions (this creates terminals with agents)
           // This ensures all versions start working immediately, not just the focused one
@@ -584,9 +570,7 @@ export default function App() {
           setNewSessionOpen(false)
 
           // Dispatch event for other components to know a spec was created
-          window.dispatchEvent(new CustomEvent('schaltwerk:spec-created', {
-            detail: { name: data.name }
-          }))
+          emitUiEvent(UiEvent.SpecCreated, { name: data.name })
         } else {
           // Create one or multiple sessions depending on versionCount
           const count = Math.max(1, Math.min(4, data.versionCount ?? 1))
@@ -647,9 +631,7 @@ export default function App() {
           // The user should remain focused on their current session
           
           // Dispatch event for other components to know a session was created
-          window.dispatchEvent(new CustomEvent('schaltwerk:session-created', {
-            detail: { name: data.name }
-          }))
+          emitUiEvent(UiEvent.SessionCreated, { name: data.name })
           
           // For regular (non-spec) sessions with multiple versions, proactively create terminals
           // This addresses the lazy initialization issue where only the first selected session 
@@ -1130,8 +1112,7 @@ export default function App() {
                 setPermissionDeniedPath(null)
               }}
               onRetryAgent={() => {
-                // Trigger a re-attempt to start the agent
-                window.dispatchEvent(new CustomEvent('schaltwerk:retry-agent-start'))
+                emitUiEvent(UiEvent.RetryAgentStart)
                 setShowPermissionPrompt(false)
                 setPermissionDeniedPath(null)
               }}
@@ -1141,4 +1122,4 @@ export default function App() {
       )}
     </ErrorBoundary>
   )
-}// Test comment added to main
+}

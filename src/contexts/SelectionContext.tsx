@@ -9,6 +9,7 @@ import { FilterMode } from '../types/sessionFilters'
 import { RawSession, ProjectSelection, EnrichedSession } from '../types/session'
 import { logger } from '../utils/logger'
 import { useModal } from './ModalContext'
+import { UiEvent, emitUiEvent } from '../common/uiEvents'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -157,10 +158,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const doFinalize = () => {
             document.body.classList.remove('session-switching')
             try {
-                const detail = sel.kind === 'session'
-                    ? { kind: 'session', sessionId: sel.payload }
-                    : { kind: 'orchestrator' as const }
-                window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+                if (sel.kind === 'session' && sel.payload) {
+                    emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: sel.payload })
+                } else {
+                    emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'orchestrator' })
+                }
             } catch (e) {
                 logger.warn('[SelectionContext] Failed to dispatch selection resize event', e)
             }
@@ -169,9 +171,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 const sanitize = (s?: string | null) => (s ?? '').replace(/[^a-zA-Z0-9_-]/g, '_')
                 if (sel.kind === 'session' && sel.payload) {
-                    window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'session', sessionId: sanitize(sel.payload) } }))
+                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'session', sessionId: sanitize(sel.payload) })
                 } else {
-                    window.dispatchEvent(new CustomEvent('schaltwerk:terminal-resize-request', { detail: { target: 'orchestrator' } }))
+                    emitUiEvent(UiEvent.TerminalResizeRequest, { target: 'orchestrator' })
                 }
             } catch (e) {
                 logger.warn('[SelectionContext] Failed to dispatch generic terminal resize request', e)

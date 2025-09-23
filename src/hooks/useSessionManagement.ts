@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
-import { TerminalResetDetail, createTerminalResetEvent } from '../types/terminalEvents'
+import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -76,7 +76,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
     }, [])
 
     const notifyTerminalsReset = useCallback((detail: TerminalResetDetail): void => {
-        window.dispatchEvent(createTerminalResetEvent(detail))
+        emitUiEvent(UiEvent.TerminalReset, detail)
     }, [])
 
     const waitForAgentStarted = useCallback(async (terminalId: string): Promise<void> => {

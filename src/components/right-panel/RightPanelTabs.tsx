@@ -11,6 +11,7 @@ import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPan
 import Split from 'react-split'
 import { CopyBundleBar } from './CopyBundleBar'
 import { logger } from '../../utils/logger'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -36,10 +37,11 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
       // Dispatch OpenCode resize event when internal right panel split drag ends
       try {
-        const detail = selection.kind === 'session'
-          ? { kind: 'session', sessionId: selection.payload }
-          : { kind: 'orchestrator' as const }
-        window.dispatchEvent(new CustomEvent('schaltwerk:opencode-selection-resize', { detail }))
+        if (selection.kind === 'session' && selection.payload) {
+          emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: selection.payload })
+        } else {
+          emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'orchestrator' })
+        }
       } catch (e) {
         logger.warn('[RightPanelTabs] Failed to dispatch OpenCode resize event on internal split drag end', e)
       }

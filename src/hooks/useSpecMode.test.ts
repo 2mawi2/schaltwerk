@@ -3,6 +3,7 @@ import { useSpecMode, getSpecToSelect } from './useSpecMode'
 import { Selection } from '../contexts/SelectionContext'
 import { EnrichedSession } from '../types/session'
 import { FilterMode } from '../types/sessionFilters'
+import { UiEvent } from '../common/uiEvents'
 
 // Mock event system
 vi.mock('../common/eventSystem', () => ({
@@ -357,7 +358,7 @@ describe('useSpecMode', () => {
 
       expect(dispatchEventSpy).toHaveBeenCalledWith(
         expect.objectContaining({
-          type: 'schaltwerk:new-spec'
+          type: String(UiEvent.NewSpecRequest)
         })
       )
 

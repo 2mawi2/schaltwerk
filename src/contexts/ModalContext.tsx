@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react'
 import { logger } from '../utils/logger'
+import { emitUiEvent, UiEvent } from '../common/uiEvents'
 
 interface ModalContextType {
     registerModal: (modalId: string) => void
@@ -38,9 +39,7 @@ export function ModalProvider({ children }: { children: ReactNode }) {
         }
         // Emit a simple event others can use to detect modal state changes if needed
         try {
-            window.dispatchEvent(new CustomEvent('schaltwerk:modals-changed', {
-                detail: { openCount: openModals.size }
-            }))
+            emitUiEvent(UiEvent.ModalsChanged, { openCount: openModals.size })
         } catch (e) {
             logger.warn('[ModalContext] Failed to dispatch modals-changed event:', e)
         }

@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { logger } from '../utils/logger'
 import { TabInfo } from '../types/terminalTabs'
 import { useProject } from '../contexts/ProjectContext'
-import { TERMINAL_RESET_EVENT, TerminalResetDetail } from '../types/terminalEvents'
+import { UiEvent, TerminalResetDetail, emitUiEvent, listenUiEvent } from '../common/uiEvents'
 
 interface SessionTabState {
   activeTab: number
@@ -77,8 +77,7 @@ export function useTerminalTabs({
   }, [sessionName])
 
   useEffect(() => {
-    const handleReset = (event: Event) => {
-      const detail = (event as CustomEvent<TerminalResetDetail>).detail
+    const handleReset = (detail?: TerminalResetDetail) => {
       if (!shouldHandleReset(detail)) return
       // Clear all state for this session
       const currentState = globalTabState.get(sessionKey)
@@ -103,8 +102,8 @@ export function useTerminalTabs({
       triggerUpdate()
     }
 
-    window.addEventListener(TERMINAL_RESET_EVENT, handleReset)
-    return () => window.removeEventListener(TERMINAL_RESET_EVENT, handleReset)
+    const cleanup = listenUiEvent(UiEvent.TerminalReset, handleReset)
+    return cleanup
   }, [sessionKey, baseTerminalId, maxTabs, triggerUpdate, shouldHandleReset])
 
   const sessionTabs = globalTabState.get(sessionKey)!
@@ -168,9 +167,7 @@ export function useTerminalTabs({
          // Focus the newly created terminal tab
          if (typeof window !== 'undefined') {
            requestAnimationFrame(() => {
-             window.dispatchEvent(new CustomEvent('schaltwerk:focus-terminal', {
-               detail: { terminalId: newTerminalId, focusType: 'terminal' }
-             }))
+             emitUiEvent(UiEvent.FocusTerminal, { terminalId: newTerminalId, focusType: 'terminal' })
            })
          }
      } catch (error) {

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
-import { useModalPrefill, processPrefillData, PrefillEventDetail, ModalPrefillHandlers } from './useModalPrefill'
+import { useModalPrefill, processPrefillData, ModalPrefillHandlers } from './useModalPrefill'
+import { UiEvent, emitUiEvent, NewSessionPrefillDetail } from '../common/uiEvents'
 
 describe('useModalPrefill', () => {
   describe('processPrefillData', () => {
@@ -19,7 +20,7 @@ describe('useModalPrefill', () => {
     })
 
     it('updates name and related state when name is provided', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         name: 'test-session',
         lockName: true,
       }
@@ -33,7 +34,7 @@ describe('useModalPrefill', () => {
     })
 
     it('updates agent content when provided', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         taskContent: '# Spec content\n\nDescription',
       }
 
@@ -43,7 +44,7 @@ describe('useModalPrefill', () => {
     })
 
     it('updates base branch when provided', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         baseBranch: 'main',
       }
 
@@ -53,7 +54,7 @@ describe('useModalPrefill', () => {
     })
 
     it('sets createAsDraft to false when fromDraft is true', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         fromDraft: true,
       }
 
@@ -63,7 +64,7 @@ describe('useModalPrefill', () => {
     })
 
     it('handles lockName being false', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         name: 'test-session',
         lockName: false,
       }
@@ -74,7 +75,7 @@ describe('useModalPrefill', () => {
     })
 
     it('does not update name when not provided', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         taskContent: 'Content only',
       }
 
@@ -87,7 +88,7 @@ describe('useModalPrefill', () => {
     })
 
     it('does not update agent content when not provided', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         name: 'test-session',
       }
 
@@ -97,7 +98,7 @@ describe('useModalPrefill', () => {
     })
 
     it('handles all fields being provided', () => {
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         name: 'full-session',
         taskContent: 'Full content',
         baseBranch: 'develop',
@@ -117,7 +118,7 @@ describe('useModalPrefill', () => {
     })
 
     it('handles empty detail object', () => {
-      const detail: PrefillEventDetail = {}
+      const detail: NewSessionPrefillDetail = {}
 
       processPrefillData(detail, handlers)
 
@@ -152,7 +153,7 @@ describe('useModalPrefill', () => {
       const { unmount } = renderHook(() => useModalPrefill(handlers))
 
       expect(addEventListenerSpy).toHaveBeenCalledWith(
-        'schaltwerk:new-session:prefill',
+        String(UiEvent.NewSessionPrefill),
         expect.any(Function)
       )
 
@@ -168,7 +169,7 @@ describe('useModalPrefill', () => {
       unmount()
 
       expect(removeEventListenerSpy).toHaveBeenCalledWith(
-        'schaltwerk:new-session:prefill',
+        String(UiEvent.NewSessionPrefill),
         expect.any(Function)
       )
 
@@ -178,7 +179,7 @@ describe('useModalPrefill', () => {
     it('handles prefill event when dispatched', () => {
       renderHook(() => useModalPrefill(handlers))
 
-      const detail: PrefillEventDetail = {
+      const detail: NewSessionPrefillDetail = {
         name: 'event-session',
         taskContent: 'Event content',
         baseBranch: 'main',
@@ -186,8 +187,7 @@ describe('useModalPrefill', () => {
         fromDraft: true,
       }
 
-      const event = new CustomEvent('schaltwerk:new-session:prefill', { detail })
-      window.dispatchEvent(event)
+      emitUiEvent(UiEvent.NewSessionPrefill, detail)
 
       expect(handlers.setName).toHaveBeenCalledWith('event-session')
       expect(handlers.setTaskContent).toHaveBeenCalledWith('Event content')
@@ -201,8 +201,7 @@ describe('useModalPrefill', () => {
     it('handles event with empty detail', () => {
       renderHook(() => useModalPrefill(handlers))
 
-      const event = new CustomEvent('schaltwerk:new-session:prefill', { detail: {} })
-      window.dispatchEvent(event)
+      emitUiEvent(UiEvent.NewSessionPrefill, {})
 
       expect(handlers.setName).not.toHaveBeenCalled()
       expect(handlers.setTaskContent).not.toHaveBeenCalled()
@@ -213,8 +212,7 @@ describe('useModalPrefill', () => {
     it('handles event with no detail', () => {
       renderHook(() => useModalPrefill(handlers))
 
-      const event = new CustomEvent('schaltwerk:new-session:prefill')
-      window.dispatchEvent(event)
+      emitUiEvent(UiEvent.NewSessionPrefill)
 
       // Should not throw and should handle gracefully
       expect(handlers.setName).not.toHaveBeenCalled()

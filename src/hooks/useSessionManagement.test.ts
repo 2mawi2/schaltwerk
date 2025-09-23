@@ -4,19 +4,14 @@ import { renderHook, act } from '@testing-library/react'
 import { useSessionManagement } from './useSessionManagement'
 import { invoke } from '@tauri-apps/api/core'
 import * as TauriEvent from '@tauri-apps/api/event'
-import { TERMINAL_RESET_EVENT } from '../types/terminalEvents'
+import { UiEvent } from '../common/uiEvents'
 
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
     invoke: vi.fn()
 }))
 
-// Mock window.dispatchEvent
-const mockDispatchEvent = vi.fn()
-Object.defineProperty(window, 'dispatchEvent', {
-    value: mockDispatchEvent,
-    writable: true
-})
+const dispatchSpy = vi.spyOn(window, 'dispatchEvent')
 
 describe('useSessionManagement', () => {
     const mockTerminals = {
@@ -30,7 +25,12 @@ describe('useSessionManagement', () => {
 
     beforeEach(() => {
         vi.clearAllMocks()
+        dispatchSpy.mockClear()
         mockInvoke.mockResolvedValue(true)
+    })
+
+    afterAll(() => {
+        dispatchSpy.mockRestore()
     })
 
     describe('resetSession', () => {
@@ -52,9 +52,9 @@ describe('useSessionManagement', () => {
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreResetOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
-            expect(mockDispatchEvent).toHaveBeenCalledWith(
+            expect(dispatchSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    type: TERMINAL_RESET_EVENT,
+                    type: String(UiEvent.TerminalReset),
                     detail: { kind: 'orchestrator' },
                 })
             )
@@ -95,9 +95,9 @@ describe('useSessionManagement', () => {
                 sessionName: 'test-session',
                 forceRestart: true
             })
-            expect(mockDispatchEvent).toHaveBeenCalledWith(
+            expect(dispatchSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    type: TERMINAL_RESET_EVENT,
+                    type: String(UiEvent.TerminalReset),
                     detail: { kind: 'session', sessionId: 'test-session' },
                 })
             )
@@ -326,9 +326,9 @@ describe('useSessionManagement', () => {
                 )
             })
 
-            expect(mockDispatchEvent).toHaveBeenCalledWith(
+            expect(dispatchSpy).toHaveBeenCalledWith(
                 expect.objectContaining({
-                    type: TERMINAL_RESET_EVENT,
+                    type: String(UiEvent.TerminalReset),
                     detail: { kind: 'orchestrator' },
                 })
             )
@@ -393,9 +393,9 @@ describe('useSessionManagement', () => {
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
-                expect(mockDispatchEvent).toHaveBeenCalledWith(
+                expect(dispatchSpy).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        type: TERMINAL_RESET_EVENT,
+                        type: String(UiEvent.TerminalReset),
                         detail: { kind: 'orchestrator' },
                     })
                 )
@@ -418,9 +418,9 @@ describe('useSessionManagement', () => {
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
-                expect(mockDispatchEvent).toHaveBeenCalledWith(
+                expect(dispatchSpy).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        type: TERMINAL_RESET_EVENT,
+                        type: String(UiEvent.TerminalReset),
                         detail: { kind: 'orchestrator' },
                     })
                 )
@@ -443,9 +443,9 @@ describe('useSessionManagement', () => {
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.TerminalExists, expect.any(Object))
                 expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaude, expect.any(Object))
                 // Should still dispatch reset event and wait
-                expect(mockDispatchEvent).toHaveBeenCalledWith(
+                expect(dispatchSpy).toHaveBeenCalledWith(
                     expect.objectContaining({
-                        type: TERMINAL_RESET_EVENT,
+                        type: String(UiEvent.TerminalReset),
                         detail: { kind: 'orchestrator' },
                     })
                 )

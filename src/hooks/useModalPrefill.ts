@@ -1,12 +1,5 @@
 import { useEffect, Dispatch, SetStateAction } from 'react'
-
-export interface PrefillEventDetail {
-  name?: string
-  taskContent?: string
-  baseBranch?: string
-  lockName?: boolean
-  fromDraft?: boolean
-}
+import { UiEvent, NewSessionPrefillDetail, listenUiEvent } from '../common/uiEvents'
 
 export interface ModalPrefillHandlers {
   setName: Dispatch<SetStateAction<string>>
@@ -22,7 +15,7 @@ export interface ModalPrefillHandlers {
  * Processes the prefill event detail and updates the modal state
  */
 export function processPrefillData(
-  detail: PrefillEventDetail,
+  detail: NewSessionPrefillDetail,
   handlers: ModalPrefillHandlers
 ): void {
   const {
@@ -63,16 +56,10 @@ export function processPrefillData(
  */
 export function useModalPrefill(handlers: ModalPrefillHandlers) {
   useEffect(() => {
-    const prefillHandler = (event: CustomEvent<PrefillEventDetail>) => {
-      const detail = event.detail || {}
-      processPrefillData(detail, handlers)
-    }
+    const cleanup = listenUiEvent(UiEvent.NewSessionPrefill, detail => {
+      processPrefillData(detail ?? {}, handlers)
+    })
 
-    // Type assertion needed for custom event
-    window.addEventListener('schaltwerk:new-session:prefill', prefillHandler as EventListener)
-    
-    return () => {
-      window.removeEventListener('schaltwerk:new-session:prefill', prefillHandler as EventListener)
-    }
+    return cleanup
   }, [handlers])
 }

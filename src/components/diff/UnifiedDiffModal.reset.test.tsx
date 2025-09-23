@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { UnifiedDiffModal } from './UnifiedDiffModal'
 import { TestProviders } from '../../tests/test-utils'
@@ -31,11 +31,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 describe('UnifiedDiffModal reset button', () => {
-  beforeEach(() => {
-    // Set selection to a session context so the button renders
-    window.dispatchEvent(new CustomEvent('schaltwerk:set-selection', { detail: { kind: 'session', payload: 'demo' } }))
-  })
-
   it('renders reset button and triggers confirmation flow', async () => {
     render(
       <TestProviders>
