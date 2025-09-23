@@ -32,12 +32,38 @@ beforeEach(() => {
   for (const key of Object.keys(eventHandlers)) {
     eventHandlers[key] = null
   }
+  focusMock?.mockClear()
+  showSearchMock?.mockClear()
+  scrollToBottomMock?.mockClear()
 })
 
-// Stub internal Terminal component to avoid xterm heavy setup
+// Stub internal Terminal component to avoid xterm heavy setup while exposing scroll spy
+const terminalMocks = vi.hoisted(() => {
+  const React = require('react') as typeof import('react')
+  const focusMock = vi.fn()
+  const showSearchMock = vi.fn()
+  const scrollToBottomMock = vi.fn()
+  const TerminalStub = React.forwardRef((_props: unknown, ref) => {
+    React.useImperativeHandle(ref, () => ({
+      focus: focusMock,
+      showSearch: showSearchMock,
+      scrollToBottom: scrollToBottomMock,
+    }))
+    return React.createElement('div', { 'data-testid': 'terminal' })
+  })
+  return {
+    focusMock,
+    showSearchMock,
+    scrollToBottomMock,
+    TerminalStub,
+  }
+})
+
 vi.mock('./Terminal', () => ({
-  Terminal: () => <div data-testid="terminal" />, // minimal stub
+  Terminal: terminalMocks.TerminalStub,
 }))
+
+const { focusMock, showSearchMock, scrollToBottomMock } = terminalMocks
 
 function Wrapper({ onRunningStateChange = () => {} }: { onRunningStateChange?: (isRunning: boolean) => void }) {
   const ref = useRef<RunTerminalHandle>(null)
@@ -103,6 +129,39 @@ describe('RunTerminal', () => {
     // Should now show "Ready to run:" again and the process ended message
     expect(screen.getByText('Ready to run:')).toBeInTheDocument()
     expect(screen.getByText('[process has ended]')).toBeInTheDocument()
+  })
+
+  it('scrolls the terminal to bottom when starting a run', async () => {
+    const { invoke } = await import('@tauri-apps/api/core')
+    const mockInvoke = vi.mocked(invoke)
+
+    let terminalCreated = false
+
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      if (cmd === TauriCommands.GetProjectRunScript) {
+        return { command: 'npm run dev', environmentVariables: {} }
+      }
+      if (cmd === TauriCommands.TerminalExists) return terminalCreated
+      if (cmd === TauriCommands.CreateRunTerminal) {
+        terminalCreated = true
+        return 'run-terminal-test'
+      }
+      if (cmd === TauriCommands.GetCurrentDirectory) return '/tmp'
+      if (cmd === TauriCommands.WriteTerminal) return undefined
+      return undefined
+    })
+
+    render(<Wrapper />)
+
+    await screen.findByText('Ready to run:')
+    expect(scrollToBottomMock).not.toHaveBeenCalled()
+
+    await act(async () => {
+      screen.getByText('toggle').click()
+    })
+
+    await screen.findByText('Running:')
+    expect(scrollToBottomMock).toHaveBeenCalled()
   })
 
   it('resets running state when run command exits naturally', async () => {

@@ -1,5 +1,5 @@
 import { useEffect, useState, useImperativeHandle, forwardRef, useCallback, useRef } from 'react'
-import { Terminal } from './Terminal'
+import { Terminal, type TerminalHandle } from './Terminal'
 import { invoke } from '@tauri-apps/api/core'
 import { TauriCommands } from '../../common/tauriCommands'
 import { AnimatedText } from '../common/AnimatedText'
@@ -49,6 +49,9 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const [isRunning, setIsRunning] = useState(() => sessionStorage.getItem(runStateKey) === 'true')
   const runningRef = useRef(isRunning)
   const outputBufferRef = useRef('')
+  const terminalRef = useRef<TerminalHandle | null>(null)
+  const [scrollRequestId, setScrollRequestId] = useState(0)
+  const pendingScrollToBottomRef = useRef(false)
 
   useEffect(() => {
     runningRef.current = isRunning
@@ -258,6 +261,10 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
           if (!terminalExists) {
             logger.info('[RunTerminal] Creating new run terminal')
             setTerminalCreated(true)
+            if (!terminalRef.current && !pendingScrollToBottomRef.current) {
+              pendingScrollToBottomRef.current = true
+              setScrollRequestId(id => id + 1)
+            }
             await invoke(TauriCommands.CreateRunTerminal, {
               id: runTerminalId,
               cwd,
@@ -268,6 +275,12 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             })
           } else {
             setTerminalCreated(true)
+            if (terminalRef.current) {
+              terminalRef.current.scrollToBottom()
+            } else if (!pendingScrollToBottomRef.current) {
+              pendingScrollToBottomRef.current = true
+              setScrollRequestId(id => id + 1)
+            }
           }
 
           await executeRunCommand(script.command)
@@ -278,6 +291,14 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
     },
     isRunning: () => isRunning,
   }), [runScript, workingDirectory, isRunning, runTerminalId, onRunningStateChange, executeRunCommand])
+
+  useEffect(() => {
+    if (!pendingScrollToBottomRef.current) return
+    if (!terminalCreated) return
+    if (!terminalRef.current) return
+    terminalRef.current.scrollToBottom()
+    pendingScrollToBottomRef.current = false
+  }, [terminalCreated, scrollRequestId])
 
   useEffect(() => { return () => {} }, [runTerminalId])
 
@@ -332,6 +353,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             onTerminalClick={onTerminalClick}
             agentType="run"
             inputFilter={allowRunInput}
+            ref={terminalRef}
           />
         ) : (
           <div className="h-full flex items-center justify-center" style={{ backgroundColor: theme.colors.background.secondary }}>
