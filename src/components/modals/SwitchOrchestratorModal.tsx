@@ -15,7 +15,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [switching, setSwitching] = useState(false)
     const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false)
-    const { getOrchestratorAgentType, getOrchestratorSkipPermissions } = useClaudeSession()
+    const { getAgentType, getSkipPermissions } = useClaudeSession()
     const switchRef = useRef<() => void>(() => {})
     
     const handleSwitch = async () => {
@@ -34,7 +34,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     useEffect(() => {
         if (open) {
             setSwitching(false)
-            Promise.all([getOrchestratorAgentType(), getOrchestratorSkipPermissions()])
+            Promise.all([getAgentType(), getSkipPermissions()])
                 .then(([type, skip]) => {
                     const normalized = AGENT_TYPES.includes(type as AgentType) ? (type as AgentType) : 'claude'
                     setAgentType(normalized)
@@ -45,7 +45,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                     logger.warn('[SwitchOrchestratorModal] Failed to load agent configuration:', error)
                 })
         }
-    }, [open, getOrchestratorAgentType, getOrchestratorSkipPermissions])
+    }, [open, getAgentType, getSkipPermissions])
     
     useEffect(() => {
         if (!open) return
