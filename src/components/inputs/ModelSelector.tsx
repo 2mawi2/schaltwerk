@@ -1,8 +1,8 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback, useMemo, useEffect } from 'react'
 import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 import { theme } from '../../common/theme'
 import { Dropdown } from './Dropdown'
-import { AgentType, AGENT_TYPES } from '../../types/session'
+import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
 const MODEL_METADATA: Record<AgentType, { label: string; color: string }> = {
     claude: { label: 'Claude', color: 'blue' },
@@ -15,15 +15,19 @@ interface ModelSelectorProps {
     value: AgentType
     onChange: (value: AgentType) => void
     disabled?: boolean
+    skipPermissions?: boolean
+    onSkipPermissionsChange?: (value: boolean) => void
 }
 
-export function ModelSelector({ value, onChange, disabled = false }: ModelSelectorProps) {
+export function ModelSelector({ value, onChange, disabled = false, skipPermissions, onSkipPermissionsChange }: ModelSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
 
     const models = useMemo(() => AGENT_TYPES.map(value => ({ value, ...MODEL_METADATA[value] })), [])
 
     const selectedModel = models.find(m => m.value === value) || models[0]
+    const selectedSupportsPermissions = AGENT_SUPPORTS_SKIP_PERMISSIONS[selectedModel.value]
+    const canConfigurePermissions = selectedSupportsPermissions && typeof skipPermissions === 'boolean' && typeof onSkipPermissionsChange === 'function'
 
     const handleSelect = useCallback((modelValue: AgentType) => {
         if (!isAvailable(modelValue)) return
@@ -42,6 +46,26 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
 
     const selectedAvailable = isAvailable(selectedModel.value)
     const selectedDisabled = disabled || (!selectedAvailable && !loading)
+
+    useEffect(() => {
+        if (!selectedSupportsPermissions && typeof skipPermissions === 'boolean' && skipPermissions && onSkipPermissionsChange) {
+            onSkipPermissionsChange(false)
+        }
+    }, [selectedSupportsPermissions, skipPermissions, onSkipPermissionsChange])
+
+    const handleRequirePermissions = useCallback(() => {
+        if (!canConfigurePermissions || disabled || !onSkipPermissionsChange) return
+        if (skipPermissions) {
+            onSkipPermissionsChange(false)
+        }
+    }, [canConfigurePermissions, disabled, skipPermissions, onSkipPermissionsChange])
+
+    const handleSkipPermissions = useCallback(() => {
+        if (!canConfigurePermissions || disabled || !onSkipPermissionsChange) return
+        if (!skipPermissions) {
+            onSkipPermissionsChange(true)
+        }
+    }, [canConfigurePermissions, disabled, skipPermissions, onSkipPermissionsChange])
 
     const items = models.map(model => {
         const available = isAvailable(model.value)
@@ -75,6 +99,7 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
     })
 
     return (
+        <div className="space-y-2">
         <Dropdown
             open={isOpen && !disabled}
             onOpenChange={setIsOpen}
@@ -114,5 +139,40 @@ export function ModelSelector({ value, onChange, disabled = false }: ModelSelect
                 </button>
             )}
         </Dropdown>
+        {canConfigurePermissions && (
+            <div className="flex gap-2" role="group" aria-label="Permission handling">
+                <button
+                    type="button"
+                    onClick={handleRequirePermissions}
+                    disabled={disabled}
+                    aria-pressed={!skipPermissions}
+                    className="flex-1 px-3 py-1.5 rounded border text-xs"
+                    style={{
+                        backgroundColor: skipPermissions ? theme.colors.background.elevated : theme.colors.background.active,
+                        borderColor: theme.colors.border.default,
+                        color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.secondary : theme.colors.text.primary)
+                    }}
+                    title="Require macOS permission prompts when starting the agent"
+                >
+                    Require permissions
+                </button>
+                <button
+                    type="button"
+                    onClick={handleSkipPermissions}
+                    disabled={disabled}
+                    aria-pressed={!!skipPermissions}
+                    className="flex-1 px-3 py-1.5 rounded border text-xs"
+                    style={{
+                        backgroundColor: skipPermissions ? theme.colors.background.active : theme.colors.background.elevated,
+                        borderColor: theme.colors.border.default,
+                        color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.primary : theme.colors.text.secondary)
+                    }}
+                    title="Skip macOS permission prompts when starting the agent"
+                >
+                    Skip permissions
+                </button>
+            </div>
+        )}
+        </div>
     )
 }

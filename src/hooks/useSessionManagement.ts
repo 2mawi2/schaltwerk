@@ -19,8 +19,9 @@ export interface SessionManagementHookReturn {
     resettingSelection: SessionSelection | null
     resetSession: (selection: SessionSelection, terminals: TerminalIds) => Promise<void>
     switchModel: (
-        agentType: string, 
-        selection: SessionSelection, 
+        agentType: string,
+        skipPermissions: boolean,
+        selection: SessionSelection,
         terminals: TerminalIds,
         clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
         clearTerminalStartedTracking: (terminalIds: string[]) => void
@@ -211,11 +212,13 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     const switchModel = useCallback(async (
         agentType: string,
+        skipPermissions: boolean,
         selection: SessionSelection,
         terminals: TerminalIds,
         clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
         clearTerminalStartedTracking: (terminalIds: string[]) => void
     ): Promise<void> => {
+        await invoke(TauriCommands.SchaltwerkCoreSetSkipPermissions, { enabled: skipPermissions })
         await updateAgentType(selection, agentType)
         
         const claudeTerminalId = terminals.top

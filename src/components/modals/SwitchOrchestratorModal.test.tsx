@@ -1,12 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { SwitchOrchestratorModal } from './SwitchOrchestratorModal'
 
-// Mock useClaudeSession to control getAgentType behavior and avoid tauri calls
+const mockGetAgentType = vi.fn().mockResolvedValue('opencode')
+const mockGetSkipPermissions = vi.fn().mockResolvedValue(false)
+
+// Mock useClaudeSession to control behavior and avoid tauri calls
 vi.mock('../../hooks/useClaudeSession', () => {
   return {
     useClaudeSession: () => ({
-      getAgentType: vi.fn().mockResolvedValue('opencode'),
+      getAgentType: mockGetAgentType,
+      getSkipPermissions: mockGetSkipPermissions,
     }),
   }
 })
@@ -59,10 +64,14 @@ describe('SwitchOrchestratorModal', () => {
   })
   beforeEach(() => {
     vi.useRealTimers()
+    mockGetAgentType.mockResolvedValue('opencode')
+    mockGetSkipPermissions.mockResolvedValue(false)
   })
 
   afterEach(() => {
     cleanup()
+    mockGetAgentType.mockClear()
+    mockGetSkipPermissions.mockClear()
   })
 
   it('renders nothing when closed, shows content when open', async () => {
@@ -91,7 +100,7 @@ describe('SwitchOrchestratorModal', () => {
 
     // Click Switch Agent -> should call with 'opencode'
     fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
-    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith('opencode'))
+    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith({ agentType: 'opencode', skipPermissions: false }))
 
     // Change selection to Claude via dropdown and switch again
     const selectorButton = screen.getByRole('button', { name: /opencode/i })
@@ -100,7 +109,40 @@ describe('SwitchOrchestratorModal', () => {
     fireEvent.click(claudeOption)
 
     fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
-    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith('claude'))
+    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith({ agentType: 'claude', skipPermissions: false }))
+  })
+
+  it('exposes permission controls for agents that support skipping permissions', async () => {
+    mockGetAgentType.mockResolvedValue('claude')
+    mockGetSkipPermissions.mockResolvedValue(true)
+
+    const { onSwitch } = openModal()
+
+    await waitFor(() => screen.getByRole('button', { name: /claude/i }))
+
+    const skipButton = await screen.findByRole('button', { name: /Skip permissions/i })
+    const requireButton = await screen.findByRole('button', { name: /Require permissions/i })
+
+    expect(skipButton).toHaveAttribute('aria-pressed', 'true')
+    expect(requireButton).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(requireButton)
+
+    fireEvent.click(screen.getByRole('button', { name: /switch agent/i }))
+
+    await waitFor(() => expect(onSwitch).toHaveBeenCalledWith({ agentType: 'claude', skipPermissions: false }))
+  })
+
+  it('hides permission controls for agents without support', async () => {
+    mockGetAgentType.mockResolvedValue('claude')
+    openModal()
+
+    await waitFor(() => screen.getByRole('button', { name: /claude/i }))
+    await userEvent.click(screen.getByRole('button', { name: /claude/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'OpenCode' }))
+
+    expect(screen.queryByRole('button', { name: /Skip permissions/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Require permissions/i })).not.toBeInTheDocument()
   })
 
   it('switches model on click (success path)', async () => {
@@ -110,8 +152,12 @@ describe('SwitchOrchestratorModal', () => {
     openModal({ onSwitch: slowResolve })
     await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
     const switchBtn = screen.getByRole('button', { name: /switch agent/i }) as HTMLButtonElement
-    fireEvent.click(switchBtn)
-    await waitFor(() => expect(slowResolve).toHaveBeenCalledTimes(1))
+
+    await act(async () => {
+      fireEvent.click(switchBtn)
+      // Wait for the async operation to complete
+      await waitFor(() => expect(slowResolve).toHaveBeenCalledTimes(1))
+    })
   })
 
   // Note: component does not synchronously guard against double submit due to async state update
@@ -134,16 +180,16 @@ describe('SwitchOrchestratorModal', () => {
     try {
       await act(async () => {
         fireEvent.click(switchBtn)
+        // Wait until first failure processed
+        await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(1))
       })
-
-      // Wait until first failure processed
-      await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(1))
+      await waitFor(() => expect(switchBtn).not.toBeDisabled())
 
       // Can retry switching again after failure
       await act(async () => {
         fireEvent.click(switchBtn)
+        await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(2))
       })
-      await waitFor(() => expect(rejectOnce).toHaveBeenCalledTimes(2))
     } finally {
       window.removeEventListener('unhandledrejection', handler)
     }

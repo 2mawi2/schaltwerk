@@ -1141,13 +1141,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     setSwitchOrchestratorModal(false)
                     setSwitchModelSessionId(null)
                 }}
-                onSwitch={async (agentType) => {
+                onSwitch={async ({ agentType, skipPermissions }) => {
                     // Determine which session/orchestrator to switch model for
                     const targetSelection = switchModelSessionId 
                         ? { kind: 'session' as const, payload: switchModelSessionId }
                         : selection
                     
-                    await switchModel(agentType, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking)
+                    await switchModel(agentType, skipPermissions, targetSelection, terminals, clearTerminalTracking, clearTerminalStartedTracking)
                     
                     // Reload sessions to show updated agent type
                     await reloadSessionsAndRefreshIdle()

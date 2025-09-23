@@ -5,9 +5,9 @@ import { NewSessionModal } from './NewSessionModal'
 import { ModalProvider } from '../../contexts/ModalContext'
 
 // Expose spies so tests can assert persistence/saves
-const mockGetSkipPermissions = vi.fn().mockResolvedValue(true)
+const mockGetSkipPermissions = vi.fn().mockResolvedValue(false)
 const mockSetSkipPermissions = vi.fn().mockResolvedValue(true)
-const mockGetAgentType = vi.fn().mockResolvedValue('opencode')
+const mockGetAgentType = vi.fn().mockResolvedValue('claude')
 const mockSetAgentType = vi.fn().mockResolvedValue(true)
 
 vi.mock('../../hooks/useClaudeSession', () => ({
@@ -76,8 +76,17 @@ describe('NewSessionModal', () => {
     // Wait until the initial configuration has been applied (Claude by default)
     const agentDropdown = await screen.findByRole('button', { name: /Claude/i })
     expect(agentDropdown).toBeInTheDocument()
-    const skipCheckbox = await screen.findByLabelText('Skip permissions')
-    expect(skipCheckbox).toBeInTheDocument()
+    let skipToggle = screen.queryByRole('button', { name: /Skip permissions/i })
+    if (!skipToggle) {
+      fireEvent.click(agentDropdown)
+      const claudeOption = await screen.findByRole('button', { name: /^claude$/i })
+      fireEvent.click(claudeOption)
+      skipToggle = await screen.findByRole('button', { name: /Skip permissions/i })
+    }
+    expect(skipToggle).toBeInTheDocument()
+    expect(skipToggle).toHaveAttribute('aria-pressed', 'false')
+    const requireToggle = screen.getByRole('button', { name: /Require permissions/i })
+    expect(requireToggle).toHaveAttribute('aria-pressed', 'true')
 
     // Create should submit with current name value
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))

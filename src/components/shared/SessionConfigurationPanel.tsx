@@ -7,7 +7,7 @@ import { useClaudeSession } from '../../hooks/useClaudeSession'
 import { invoke } from '@tauri-apps/api/core'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
-import { AgentType, AGENT_TYPES } from '../../types/session'
+import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
 interface SessionConfigurationPanelProps {
     variant?: 'modal' | 'compact'
@@ -59,6 +59,7 @@ export function SessionConfigurationPanel({
     const getSkipPermissionsRef = useRef(getSkipPermissions)
     const getAgentTypeRef = useRef(getAgentType)
     const saveAgentTypeRef = useRef(saveAgentType)
+    const saveSkipPermissionsRef = useRef(saveSkipPermissions)
     const prevInitialBaseBranchRef = useRef(initialBaseBranch)
 
     useEffect(() => { onBaseBranchChangeRef.current = onBaseBranchChange }, [onBaseBranchChange])
@@ -67,6 +68,7 @@ export function SessionConfigurationPanel({
     useEffect(() => { getSkipPermissionsRef.current = getSkipPermissions }, [getSkipPermissions])
     useEffect(() => { getAgentTypeRef.current = getAgentType }, [getAgentType])
     useEffect(() => { saveAgentTypeRef.current = saveAgentType }, [saveAgentType])
+    useEffect(() => { saveSkipPermissionsRef.current = saveSkipPermissions }, [saveSkipPermissions])
 
     useEffect(() => {
         baseBranchValueRef.current = baseBranch
@@ -95,19 +97,29 @@ export function SessionConfigurationPanel({
                 }
             }
 
+            const storedAgentTypeString = typeof storedAgentType === 'string' ? storedAgentType : null
+            const normalizedType =
+                storedAgentTypeString && AGENT_TYPES.includes(storedAgentTypeString as AgentType)
+                    ? (storedAgentTypeString as AgentType)
+                    : 'claude'
+
+            const supportsSkip = AGENT_SUPPORTS_SKIP_PERMISSIONS[normalizedType]
+            const normalizedSkip = supportsSkip ? storedSkipPerms : false
+
             if (!skipPermissionsTouchedRef.current && !initialSkipPermissionsRef.current) {
-                setSkipPermissions(storedSkipPerms)
-                onSkipPermissionsChangeRef.current?.(storedSkipPerms)
+                setSkipPermissions(normalizedSkip)
+                onSkipPermissionsChangeRef.current?.(normalizedSkip)
+
+                if (!supportsSkip && storedSkipPerms) {
+                    try {
+                        await saveSkipPermissionsRef.current?.(false)
+                    } catch (err) {
+                        logger.warn('Failed to reset skip permissions for unsupported agent:', err)
+                    }
+                }
             }
 
             if (!agentTypeTouchedRef.current && initialAgentTypeRef.current === 'claude') {
-                const storedAgentTypeString =
-                    typeof storedAgentType === 'string' ? storedAgentType : null
-                const normalizedType =
-                    storedAgentTypeString && AGENT_TYPES.includes(storedAgentTypeString as AgentType)
-                        ? (storedAgentTypeString as AgentType)
-                        : 'claude'
-
                 setAgentType(normalizedType)
                 onAgentTypeChangeRef.current?.(normalizedType)
 
@@ -152,19 +164,23 @@ export function SessionConfigurationPanel({
         }
     }, [branches])
 
-    const handleAgentTypeChange = useCallback(async (type: AgentType) => {
-        agentTypeTouchedRef.current = true
-        setAgentType(type)
-        onAgentTypeChangeRef.current?.(type)
-        await saveAgentType(type)
-    }, [saveAgentType])
-
     const handleSkipPermissionsChange = useCallback(async (enabled: boolean) => {
         skipPermissionsTouchedRef.current = true
         setSkipPermissions(enabled)
         onSkipPermissionsChangeRef.current?.(enabled)
         await saveSkipPermissions(enabled)
     }, [saveSkipPermissions])
+
+    const handleAgentTypeChange = useCallback(async (type: AgentType) => {
+        agentTypeTouchedRef.current = true
+        setAgentType(type)
+        onAgentTypeChangeRef.current?.(type)
+        await saveAgentType(type)
+
+        if (!AGENT_SUPPORTS_SKIP_PERMISSIONS[type] && skipPermissions) {
+            await handleSkipPermissionsChange(false)
+        }
+    }, [saveAgentType, skipPermissions, handleSkipPermissionsChange])
 
     // Ensure isValidBranch is considered "used" by TypeScript
     React.useEffect(() => {
@@ -189,9 +205,10 @@ export function SessionConfigurationPanel({
         if (initialSkipPermissions !== undefined && initialSkipPermissions !== skipPermissions) {
             initialSkipPermissionsRef.current = initialSkipPermissions
             skipPermissionsTouchedRef.current = false
-            setSkipPermissions(initialSkipPermissions)
+            const supports = AGENT_SUPPORTS_SKIP_PERMISSIONS[agentType]
+            setSkipPermissions(supports ? initialSkipPermissions : false)
         }
-    }, [initialSkipPermissions, skipPermissions])
+    }, [initialSkipPermissions, skipPermissions, agentType])
 
     useEffect(() => {
         if (initialAgentType && initialAgentType !== agentType) {
@@ -243,35 +260,17 @@ export function SessionConfigurationPanel({
                             value={agentType}
                             onChange={handleAgentTypeChange}
                             disabled={disabled}
+                            skipPermissions={skipPermissions}
+                            onSkipPermissionsChange={handleSkipPermissionsChange}
                         />
                     </div>
                 </div>
-
-                {agentType !== 'opencode' && (
-                    <div className="flex items-center gap-1.5">
-                        <input 
-                            id="session-skip-perms" 
-                            type="checkbox" 
-                            checked={skipPermissions} 
-                            onChange={e => handleSkipPermissionsChange(e.target.checked)}
-                            disabled={disabled}
-                            className="text-blue-600"
-                        />
-                        <label 
-                            htmlFor="session-skip-perms" 
-                            className="text-xs"
-                            style={{ color: theme.colors.text.secondary }}
-                        >
-                            Skip perms
-                        </label>
-                    </div>
-                )}
             </div>
         )
     }
 
     return (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
             <div>
                 <label className="block text-sm mb-1" style={{ color: theme.colors.text.secondary }}>
                     Base branch
@@ -309,30 +308,13 @@ export function SessionConfigurationPanel({
                     value={agentType}
                     onChange={handleAgentTypeChange}
                     disabled={disabled}
+                    skipPermissions={skipPermissions}
+                    onSkipPermissionsChange={handleSkipPermissionsChange}
                 />
                 <p className="text-xs mt-2" style={{ color: theme.colors.text.muted }}>
                     AI agent to use for this session
                 </p>
             </div>
-
-            {agentType !== 'opencode' && (
-                <div className="flex items-center gap-2">
-                    <input 
-                        id="modal-skip-perms" 
-                        type="checkbox" 
-                        checked={skipPermissions} 
-                        onChange={e => handleSkipPermissionsChange(e.target.checked)}
-                        disabled={disabled}
-                    />
-                    <label 
-                        htmlFor="modal-skip-perms" 
-                        className="text-sm"
-                        style={{ color: theme.colors.text.secondary }}
-                    >
-                        Skip permissions
-                    </label>
-                </div>
-            )}
         </div>
     )
 }

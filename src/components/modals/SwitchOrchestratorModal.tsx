@@ -1,29 +1,30 @@
 import { useState, useEffect, useRef } from 'react'
 import { ModelSelector } from '../inputs/ModelSelector'
 import { useClaudeSession } from '../../hooks/useClaudeSession'
-import { AgentType, AGENT_TYPES } from '../../types/session'
+import { AgentType, AGENT_TYPES, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
+import { logger } from '../../utils/logger'
 
 interface Props {
     open: boolean
     onClose: () => void
-    onSwitch: (agentType: AgentType) => void | Promise<void>
+    onSwitch: (options: { agentType: AgentType; skipPermissions: boolean }) => void | Promise<void>
 }
 
 export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     const [agentType, setAgentType] = useState<AgentType>('claude')
+    const [skipPermissions, setSkipPermissions] = useState(false)
     const [switching, setSwitching] = useState(false)
-    const { getAgentType } = useClaudeSession()
+    const { getAgentType, getSkipPermissions } = useClaudeSession()
     const switchRef = useRef<() => void>(() => {})
     
     const handleSwitch = async () => {
         if (switching) return
         
+        setSwitching(true)
         try {
-            setSwitching(true)
-            await Promise.resolve(onSwitch(agentType))
-        } catch (e) {
+            await Promise.resolve(onSwitch({ agentType, skipPermissions }))
+        } finally {
             setSwitching(false)
-            throw e
         }
     }
     
@@ -32,12 +33,18 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     useEffect(() => {
         if (open) {
             setSwitching(false)
-            getAgentType().then(type => {
-                const normalized = AGENT_TYPES.includes(type as AgentType) ? (type as AgentType) : 'claude'
-                setAgentType(normalized)
-            })
+            Promise.all([getAgentType(), getSkipPermissions()])
+                .then(([type, skip]) => {
+                    const normalized = AGENT_TYPES.includes(type as AgentType) ? (type as AgentType) : 'claude'
+                    setAgentType(normalized)
+                    const supports = AGENT_SUPPORTS_SKIP_PERMISSIONS[normalized]
+                    setSkipPermissions(supports ? Boolean(skip) : false)
+                })
+                .catch(error => {
+                    logger.warn('[SwitchOrchestratorModal] Failed to load agent configuration:', error)
+                })
         }
-    }, [open, getAgentType])
+    }, [open, getAgentType, getSkipPermissions])
     
     useEffect(() => {
         if (!open) return
@@ -85,6 +92,8 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                             value={agentType}
                             onChange={setAgentType}
                             disabled={switching}
+                            skipPermissions={skipPermissions}
+                            onSkipPermissionsChange={(value) => setSkipPermissions(value)}
                         />
                         <p className="text-xs text-slate-400 mt-2">
                             Choose the AI agent to use for the orchestrator terminal

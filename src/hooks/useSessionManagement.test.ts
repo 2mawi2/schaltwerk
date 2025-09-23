@@ -190,6 +190,7 @@ describe('useSessionManagement', () => {
             const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockImplementationOnce(async () => { // close_terminal
@@ -207,7 +208,8 @@ describe('useSessionManagement', () => {
             
             await act(async () => {
                 await result.current!.switchModel(
-                    'gemini', 
+                    'gemini',
+                    true,
                     selection, 
                     mockTerminals,
                     mockClearTerminalTracking,
@@ -215,6 +217,9 @@ describe('useSessionManagement', () => {
                 )
             })
 
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, {
+                enabled: true
+            })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, {
                 agentType: 'gemini'
             })
@@ -234,6 +239,7 @@ describe('useSessionManagement', () => {
             }
 
             mockInvoke
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_session_agent_type
                 .mockResolvedValueOnce(true) // terminal_exists
                 .mockImplementationOnce(async () => { // close_terminal
@@ -249,7 +255,8 @@ describe('useSessionManagement', () => {
 
             await act(async () => {
                 await result.current!.switchModel(
-                    'opencode', 
+                    'opencode',
+                    false,
                     selection, 
                     mockTerminals,
                     mockClearTerminalTracking,
@@ -257,6 +264,9 @@ describe('useSessionManagement', () => {
                 )
             })
 
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, {
+                enabled: false
+            })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSessionAgentType, {
                 sessionName: 'test-session',
                 agentType: 'opencode'
@@ -275,13 +285,15 @@ describe('useSessionManagement', () => {
             const selection = { kind: 'orchestrator' as const }
 
             mockInvoke
+                .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                 .mockResolvedValueOnce(false) // terminal_exists returns false
                 .mockResolvedValueOnce(undefined) // schaltwerk_core_start_claude_orchestrator
 
             await act(async () => {
                 await result.current!.switchModel(
-                    'claude', 
+                    'claude',
+                    false,
                     selection, 
                     mockTerminals,
                     mockClearTerminalTracking,
@@ -290,6 +302,9 @@ describe('useSessionManagement', () => {
             })
 
             expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CloseTerminal, expect.any(Object))
+            expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, {
+                enabled: false
+            })
             expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreStartClaudeOrchestrator, {
                 terminalId: 'test-terminal-top'
             })
@@ -302,7 +317,8 @@ describe('useSessionManagement', () => {
 
             await act(async () => {
                 await result.current!.switchModel(
-                    'opencode', 
+                    'opencode',
+                    false,
                     selection, 
                     mockTerminals,
                     mockClearTerminalTracking,
@@ -347,6 +363,7 @@ describe('useSessionManagement', () => {
                 await expect(
                     result.current!.switchModel(
                         'claude',
+                        false,
                         selection,
                         mockTerminals,
                         mockClearTerminalTracking,
@@ -505,12 +522,15 @@ describe('useSessionManagement', () => {
 
                 const selection = { kind: 'orchestrator' as const }
 
-                mockInvoke.mockRejectedValueOnce(new Error('Agent type update failed'))
+                mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
+                    .mockRejectedValueOnce(new Error('Agent type update failed'))
 
                 await act(async () => {
                     await expect(
                         result.current.switchModel(
                             'claude',
+                            false,
                             selection,
                             mockTerminals,
                             mockClearTerminalTracking,
@@ -526,6 +546,7 @@ describe('useSessionManagement', () => {
                 const selection = { kind: 'orchestrator' as const }
 
                 mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                     .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                     .mockRejectedValueOnce(new Error('Terminal check failed')) // terminal_exists fails
 
@@ -533,6 +554,7 @@ describe('useSessionManagement', () => {
                     await expect(
                         result.current.switchModel(
                             'claude',
+                            false,
                             selection,
                             mockTerminals,
                             mockClearTerminalTracking,
@@ -548,6 +570,7 @@ describe('useSessionManagement', () => {
                 const selection = { kind: 'orchestrator' as const }
 
                 mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                     .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                     .mockResolvedValueOnce(true) // terminal_exists
                     .mockRejectedValueOnce(new Error('Close terminal failed')) // close_terminal fails
@@ -556,6 +579,7 @@ describe('useSessionManagement', () => {
                     await expect(
                         result.current.switchModel(
                             'claude',
+                            false,
                             selection,
                             mockTerminals,
                             mockClearTerminalTracking,
@@ -573,6 +597,7 @@ describe('useSessionManagement', () => {
                 mockClearTerminalTracking.mockRejectedValueOnce(new Error('Clear tracking failed'))
 
                 mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                     .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                     .mockResolvedValueOnce(true) // terminal_exists
                     .mockResolvedValueOnce(undefined) // close_terminal
@@ -581,6 +606,7 @@ describe('useSessionManagement', () => {
                     await expect(
                         result.current.switchModel(
                             'claude',
+                            false,
                             selection,
                             mockTerminals,
                             mockClearTerminalTracking,
@@ -596,6 +622,7 @@ describe('useSessionManagement', () => {
                 const selection = { kind: 'orchestrator' as const }
 
                 mockInvoke
+                    .mockResolvedValueOnce(undefined) // schaltwerk_core_set_skip_permissions
                     .mockResolvedValueOnce(undefined) // schaltwerk_core_set_agent_type
                     .mockResolvedValueOnce(true) // terminal_exists
                     .mockResolvedValueOnce(undefined) // close_terminal
@@ -605,6 +632,7 @@ describe('useSessionManagement', () => {
                     await expect(
                         result.current.switchModel(
                             'claude',
+                            false,
                             selection,
                             mockTerminals,
                             mockClearTerminalTracking,

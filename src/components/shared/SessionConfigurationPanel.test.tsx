@@ -62,25 +62,42 @@ vi.mock('../inputs/ModelSelector', () => ({
     ModelSelector: ({
         value,
         onChange,
-        disabled
+        disabled,
+        skipPermissions,
+        onSkipPermissionsChange
     }: {
         value?: string
         onChange?: (value: string) => void
         disabled?: boolean
-    }) => (
-        <div data-testid="model-selector">
-            <select
-                value={value ?? ''}
-                onChange={(e) => onChange?.(e.target.value)}
-                disabled={disabled}
-            >
-                <option value="claude">Claude</option>
-                <option value="opencode">OpenCode</option>
-                <option value="gemini">Gemini</option>
-                <option value="codex">Codex</option>
-            </select>
-        </div>
-    )
+        skipPermissions?: boolean
+        onSkipPermissionsChange?: (skip: boolean) => void
+    }) => {
+        const supportsPermissions = value !== 'opencode'
+        return (
+            <div data-testid="model-selector">
+                <select
+                    value={value ?? ''}
+                    onChange={(e) => onChange?.(e.target.value)}
+                    disabled={disabled}
+                >
+                    <option value="claude">Claude</option>
+                    <option value="opencode">OpenCode</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="codex">Codex</option>
+                </select>
+                {supportsPermissions && onSkipPermissionsChange ? (
+                    <button
+                        type="button"
+                        data-testid="toggle-skip-permissions"
+                        onClick={() => onSkipPermissionsChange(!skipPermissions)}
+                        disabled={disabled}
+                    >
+                        Toggle Skip
+                    </button>
+                ) : null}
+            </div>
+        )
+    }
 }))
 
 const mockInvoke = invoke as MockedFunction<typeof invoke>
@@ -119,7 +136,7 @@ describe('SessionConfigurationPanel', () => {
         await waitFor(() => {
             expect(screen.getByTestId('branch-autocomplete')).toBeInTheDocument()
             expect(screen.getByTestId('model-selector')).toBeInTheDocument()
-            expect(screen.getByRole('checkbox')).toBeInTheDocument()
+            expect(screen.getByTestId('toggle-skip-permissions')).toBeInTheDocument()
         })
 
         expect(screen.getByText('Base branch')).toBeInTheDocument()
@@ -210,7 +227,7 @@ describe('SessionConfigurationPanel', () => {
         expect(onAgentTypeChange).toHaveBeenCalledWith('opencode')
     })
 
-    test('calls onSkipPermissionsChange when checkbox changes', async () => {
+    test('calls onSkipPermissionsChange when toggle is clicked', async () => {
         const onSkipPermissionsChange = vi.fn()
         
         render(
@@ -223,11 +240,11 @@ describe('SessionConfigurationPanel', () => {
         )
 
         await waitFor(() => {
-            expect(screen.getByRole('checkbox')).toBeInTheDocument()
+            expect(screen.getByTestId('toggle-skip-permissions')).toBeInTheDocument()
         })
 
-        const checkbox = screen.getByRole('checkbox')
-        fireEvent.click(checkbox)
+        const toggle = screen.getByTestId('toggle-skip-permissions')
+        fireEvent.click(toggle)
 
         expect(onSkipPermissionsChange).toHaveBeenCalledWith(true)
     })
@@ -283,10 +300,10 @@ describe('SessionConfigurationPanel', () => {
         })
 
         const input = await screen.findByDisplayValue('main')
-        const checkbox = screen.getByRole('checkbox')
+        const toggle = screen.getByTestId('toggle-skip-permissions') as HTMLButtonElement
         
         expect(input).toBeDisabled()
-        expect(checkbox).toBeDisabled()
+        expect(toggle).toBeDisabled()
     })
 
     test('hides skip permissions for opencode agent', async () => {
@@ -304,7 +321,7 @@ describe('SessionConfigurationPanel', () => {
             expect(screen.getByTestId('model-selector')).toBeInTheDocument()
         })
 
-        expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('toggle-skip-permissions')).not.toBeInTheDocument()
     })
 
     test('loads branches and sets default branch on mount', async () => {

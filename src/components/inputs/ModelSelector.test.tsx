@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react'
+import { useState } from 'react'
 import userEvent from '@testing-library/user-event'
 import { ModelSelector } from './ModelSelector'
-import { AgentType } from '../../types/session'
+import { AgentType, AGENT_SUPPORTS_SKIP_PERMISSIONS } from '../../types/session'
 
 // Mock the useAgentAvailability hook
 vi.mock('../../hooks/useAgentAvailability', () => ({
@@ -25,15 +26,60 @@ vi.mock('../../hooks/useAgentAvailability', () => ({
   }
 }))
 
-function setup(initial: AgentType = 'claude', disabled = false) {
+function setup(options: {
+  initial?: AgentType
+  disabled?: boolean
+  skipPermissions?: boolean
+  onSkipPermissionsChange?: (skip: boolean) => void
+} = {}) {
+  const {
+    initial = 'claude',
+    disabled = false,
+    skipPermissions,
+    onSkipPermissionsChange,
+  } = options
   const onChange = vi.fn()
-  render(<ModelSelector value={initial} onChange={onChange} disabled={disabled} />)
+
+  function Wrapper() {
+    const [value, setValue] = useState<AgentType>(initial)
+    const [skip, setSkip] = useState<boolean | undefined>(skipPermissions)
+
+    const handleChange = (next: AgentType) => {
+      setValue(next)
+      onChange(next)
+      if (skip !== undefined && !AGENT_SUPPORTS_SKIP_PERMISSIONS[next]) {
+        setSkip(false)
+        onSkipPermissionsChange?.(false)
+      }
+    }
+
+    const handleSkipChange = (next: boolean) => {
+      setSkip(next)
+      onSkipPermissionsChange?.(next)
+    }
+
+    return (
+      <ModelSelector
+        value={value}
+        onChange={handleChange}
+        disabled={disabled}
+        skipPermissions={skip}
+        onSkipPermissionsChange={
+          typeof skip === 'boolean' || onSkipPermissionsChange
+            ? handleSkipChange
+            : undefined
+        }
+      />
+    )
+  }
+
+  render(<Wrapper />)
   return { onChange }
 }
 
 describe('ModelSelector', () => {
   test('renders dropdown button with current model label and color indicator', () => {
-    setup('claude')
+    setup()
     const toggle = screen.getByRole('button', { name: /Claude/i })
     expect(toggle).toBeInTheDocument()
 
@@ -43,7 +89,7 @@ describe('ModelSelector', () => {
 
   test('opens menu on click and renders options', async () => {
     const user = userEvent.setup()
-    setup('claude')
+    setup()
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     await user.click(toggle)
@@ -57,7 +103,7 @@ describe('ModelSelector', () => {
 
   test('changes selection on option click and closes menu', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('claude')
+    const { onChange } = setup()
 
     await user.click(screen.getByRole('button', { name: /Claude/i }))
     await user.click(screen.getByRole('button', { name: 'OpenCode' }))
@@ -65,12 +111,12 @@ describe('ModelSelector', () => {
     expect(onChange).toHaveBeenCalledWith('opencode')
 
     // menu should close (options disappear)
-    expect(screen.queryByRole('button', { name: 'OpenCode' })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: 'OpenCode' })).toHaveLength(1)
   })
 
   test('keyboard navigation: Enter opens menu, ArrowDown navigates, Enter selects', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('claude')
+    const { onChange } = setup()
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     toggle.focus()
@@ -85,17 +131,17 @@ describe('ModelSelector', () => {
 
   test('disabled state prevents opening and interaction', async () => {
     const user = userEvent.setup()
-    setup('claude', true)
+    setup({ disabled: true })
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     expect(toggle).toBeDisabled()
 
     await user.click(toggle)
-    expect(screen.queryByRole('button', { name: 'OpenCode' })).not.toBeInTheDocument()
+    expect(screen.queryAllByRole('button', { name: 'OpenCode' })).toHaveLength(0)
   })
 
   test('default model selection reflects initial value', () => {
-    setup('opencode')
+    setup({ initial: 'opencode' })
     const toggle = screen.getByRole('button', { name: /OpenCode/i })
     expect(toggle).toBeInTheDocument()
     expect(toggle.textContent).toContain('OpenCode')
@@ -118,7 +164,7 @@ describe('ModelSelector', () => {
       statusText: 'OK'
     } as Response)
 
-    const { onChange } = setup('claude')
+    const { onChange } = setup()
     await user.click(screen.getByRole('button', { name: /Claude/i }))
     await user.click(screen.getByRole('button', { name: 'OpenCode' }))
 
@@ -130,7 +176,7 @@ describe('ModelSelector', () => {
 
   test('can select Gemini model', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('claude')
+    const { onChange } = setup()
     
     await user.click(screen.getByRole('button', { name: /Claude/i }))
     await user.click(screen.getByRole('button', { name: 'Gemini' }))
@@ -139,7 +185,7 @@ describe('ModelSelector', () => {
   })
 
   test('renders Gemini with orange color indicator', () => {
-    setup('gemini')
+    setup({ initial: 'gemini' })
     const toggle = screen.getByRole('button', { name: /Gemini/i })
     expect(toggle).toBeInTheDocument()
     expect(toggle.textContent).toContain('Gemini')
@@ -147,7 +193,7 @@ describe('ModelSelector', () => {
 
   test('keyboard navigation: ArrowDown moves focus to next option', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('claude')
+    const { onChange } = setup()
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     await user.click(toggle)
@@ -160,7 +206,7 @@ describe('ModelSelector', () => {
 
   test('keyboard navigation: ArrowUp moves focus to previous option', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('opencode')
+    const { onChange } = setup({ initial: 'opencode' })
 
     const toggle = screen.getByRole('button', { name: /OpenCode/i })
     await user.click(toggle)
@@ -173,7 +219,7 @@ describe('ModelSelector', () => {
 
   test('keyboard navigation: wraps around when reaching boundaries', async () => {
     const user = userEvent.setup()
-    const { onChange } = setup('claude')
+    const { onChange } = setup()
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     await user.click(toggle)
@@ -186,7 +232,7 @@ describe('ModelSelector', () => {
 
   test('keyboard navigation: Escape closes dropdown', async () => {
     const user = userEvent.setup()
-    setup('claude')
+    setup()
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     await user.click(toggle)
@@ -200,7 +246,7 @@ describe('ModelSelector', () => {
 
   test('keyboard navigation: highlights focused option visually', async () => {
     const user = userEvent.setup()
-    setup('claude')
+    setup()
 
     const toggle = screen.getByRole('button', { name: /Claude/i })
     await user.click(toggle)
@@ -210,5 +256,34 @@ describe('ModelSelector', () => {
     const opencodeOption = screen.getByRole('button', { name: 'OpenCode' })
     // Check that the option exists and is rendered
     expect(opencodeOption).toBeInTheDocument()
+  })
+
+  test('exposes permission toggle when supported', async () => {
+    const onSkipPermissionsChange = vi.fn()
+    setup({ skipPermissions: false, onSkipPermissionsChange })
+
+    const enableSkip = await screen.findByRole('button', { name: /Skip permissions/i })
+    expect(enableSkip).toHaveAttribute('aria-pressed', 'false')
+
+    await userEvent.click(enableSkip)
+
+    expect(onSkipPermissionsChange).toHaveBeenCalledWith(true)
+  })
+
+  test('hides permission toggle when agent does not support it', () => {
+    setup({ initial: 'opencode', skipPermissions: false, onSkipPermissionsChange: vi.fn() })
+
+    expect(screen.queryByRole('button', { name: /Skip permissions/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Require permissions/i })).not.toBeInTheDocument()
+  })
+
+  test('updates toggle visibility when selecting unsupported agent', async () => {
+    const onSkipPermissionsChange = vi.fn()
+    setup({ skipPermissions: false, onSkipPermissionsChange })
+
+    await userEvent.click(screen.getByRole('button', { name: /Claude/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'OpenCode' }))
+
+    expect(screen.queryByRole('button', { name: /Skip permissions/i })).not.toBeInTheDocument()
   })
 })

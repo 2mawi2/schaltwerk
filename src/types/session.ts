@@ -1,6 +1,13 @@
 export const AGENT_TYPES = ['claude', 'opencode', 'gemini', 'codex'] as const
 export type AgentType = (typeof AGENT_TYPES)[number]
 
+export const AGENT_SUPPORTS_SKIP_PERMISSIONS: Record<AgentType, boolean> = {
+    claude: true,
+    opencode: false,
+    gemini: true,
+    codex: true
+}
+
 export enum SessionState {
     Spec = 'spec',
     Running = 'running',
