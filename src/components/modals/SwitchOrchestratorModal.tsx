@@ -14,6 +14,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
     const [agentType, setAgentType] = useState<AgentType>('claude')
     const [skipPermissions, setSkipPermissions] = useState(false)
     const [switching, setSwitching] = useState(false)
+    const [isModelSelectorOpen, setIsModelSelectorOpen] = useState(false)
     const { getAgentType, getSkipPermissions } = useClaudeSession()
     const switchRef = useRef<() => void>(() => {})
     
@@ -54,14 +55,17 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                 e.preventDefault()
                 onClose()
             } else if (e.key === 'Enter') {
+                if (isModelSelectorOpen) {
+                    return
+                }
                 e.preventDefault()
                 switchRef.current()
             }
         }
-        
+
         window.addEventListener('keydown', handleKeyDown)
         return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [open, onClose])
+    }, [open, onClose, isModelSelectorOpen])
     
     if (!open) return null
     
@@ -94,6 +98,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                             disabled={switching}
                             skipPermissions={skipPermissions}
                             onSkipPermissionsChange={(value) => setSkipPermissions(value)}
+                            onDropdownOpenChange={setIsModelSelectorOpen}
                         />
                         <p className="text-xs text-slate-400 mt-2">
                             Choose the AI agent to use for the orchestrator terminal

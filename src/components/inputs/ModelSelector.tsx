@@ -17,9 +17,10 @@ interface ModelSelectorProps {
     disabled?: boolean
     skipPermissions?: boolean
     onSkipPermissionsChange?: (value: boolean) => void
+    onDropdownOpenChange?: (open: boolean) => void
 }
 
-export function ModelSelector({ value, onChange, disabled = false, skipPermissions, onSkipPermissionsChange }: ModelSelectorProps) {
+export function ModelSelector({ value, onChange, disabled = false, skipPermissions, onSkipPermissionsChange, onDropdownOpenChange }: ModelSelectorProps) {
     const [isOpen, setIsOpen] = useState(false)
     const { isAvailable, getRecommendedPath, getInstallationMethod, loading } = useAgentAvailability()
 
@@ -98,81 +99,95 @@ export function ModelSelector({ value, onChange, disabled = false, skipPermissio
         }
     })
 
+    const dropdownOpen = isOpen && !disabled
+
+    useEffect(() => {
+        if (disabled && isOpen) {
+            setIsOpen(false)
+        }
+    }, [disabled, isOpen])
+
+    useEffect(() => {
+        if (onDropdownOpenChange) {
+            onDropdownOpenChange(dropdownOpen)
+        }
+    }, [dropdownOpen, onDropdownOpenChange])
+
     return (
         <div className="space-y-2">
-        <Dropdown
-            open={isOpen && !disabled}
-            onOpenChange={setIsOpen}
-            items={items}
-            selectedKey={selectedModel.value}
-            align="stretch"
-            onSelect={(key) => handleSelect(key as typeof selectedModel.value)}
-        >
-            {({ open, toggle }) => (
-                <button
-                    type="button"
-                    onClick={() => !disabled && toggle()}
-                    disabled={disabled}
-                    className={`w-full px-3 py-1.5 text-sm rounded border flex items-center justify-between ${
-                        disabled 
-                            ? 'cursor-not-allowed' 
-                            : 'cursor-pointer'
-                    } ${
-                        selectedDisabled && !loading
-                            ? 'opacity-50'
-                            : selectedAvailable || loading
-                            ? 'hover:opacity-80'
-                            : ''
-                    }`}
-                    style={{
-                        backgroundColor: theme.colors.background.elevated,
-                        borderColor: theme.colors.border.default,
-                        color: selectedDisabled && !loading ? theme.colors.text.muted : theme.colors.text.primary
-                    }}
-            title={getTooltipText(selectedModel.value)}
-                    aria-label={selectedModel.label}
-                >
-                    <span>{selectedModel.label}</span>
-                    <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
-                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
-                    </svg>
-                </button>
+            <Dropdown
+                open={dropdownOpen}
+                onOpenChange={setIsOpen}
+                items={items}
+                selectedKey={selectedModel.value}
+                align="stretch"
+                onSelect={(key) => handleSelect(key as typeof selectedModel.value)}
+            >
+                {({ open, toggle }) => (
+                    <button
+                        type="button"
+                        onClick={() => !disabled && toggle()}
+                        disabled={disabled}
+                        className={`w-full px-3 py-1.5 text-sm rounded border flex items-center justify-between ${
+                            disabled
+                                ? 'cursor-not-allowed'
+                                : 'cursor-pointer'
+                        } ${
+                            selectedDisabled && !loading
+                                ? 'opacity-50'
+                                : selectedAvailable || loading
+                                ? 'hover:opacity-80'
+                                : ''
+                        }`}
+                        style={{
+                            backgroundColor: theme.colors.background.elevated,
+                            borderColor: theme.colors.border.default,
+                            color: selectedDisabled && !loading ? theme.colors.text.muted : theme.colors.text.primary
+                        }}
+                        title={getTooltipText(selectedModel.value)}
+                        aria-label={selectedModel.label}
+                    >
+                        <span>{selectedModel.label}</span>
+                        <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 120ms ease' }}>
+                            <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clipRule="evenodd" />
+                        </svg>
+                    </button>
+                )}
+            </Dropdown>
+            {canConfigurePermissions && (
+                <div className="flex gap-2" role="group" aria-label="Permission handling">
+                    <button
+                        type="button"
+                        onClick={handleRequirePermissions}
+                        disabled={disabled}
+                        aria-pressed={!skipPermissions}
+                        className="flex-1 px-3 py-1.5 rounded border text-xs"
+                        style={{
+                            backgroundColor: skipPermissions ? theme.colors.background.elevated : theme.colors.background.active,
+                            borderColor: theme.colors.border.default,
+                            color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.secondary : theme.colors.text.primary)
+                        }}
+                        title="Require macOS permission prompts when starting the agent"
+                    >
+                        Require permissions
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleSkipPermissions}
+                        disabled={disabled}
+                        aria-pressed={!!skipPermissions}
+                        className="flex-1 px-3 py-1.5 rounded border text-xs"
+                        style={{
+                            backgroundColor: skipPermissions ? theme.colors.background.active : theme.colors.background.elevated,
+                            borderColor: theme.colors.border.default,
+                            color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.primary : theme.colors.text.secondary)
+                        }}
+                        title="Skip macOS permission prompts when starting the agent"
+                    >
+                        Skip permissions
+                    </button>
+                </div>
             )}
-        </Dropdown>
-        {canConfigurePermissions && (
-            <div className="flex gap-2" role="group" aria-label="Permission handling">
-                <button
-                    type="button"
-                    onClick={handleRequirePermissions}
-                    disabled={disabled}
-                    aria-pressed={!skipPermissions}
-                    className="flex-1 px-3 py-1.5 rounded border text-xs"
-                    style={{
-                        backgroundColor: skipPermissions ? theme.colors.background.elevated : theme.colors.background.active,
-                        borderColor: theme.colors.border.default,
-                        color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.secondary : theme.colors.text.primary)
-                    }}
-                    title="Require macOS permission prompts when starting the agent"
-                >
-                    Require permissions
-                </button>
-                <button
-                    type="button"
-                    onClick={handleSkipPermissions}
-                    disabled={disabled}
-                    aria-pressed={!!skipPermissions}
-                    className="flex-1 px-3 py-1.5 rounded border text-xs"
-                    style={{
-                        backgroundColor: skipPermissions ? theme.colors.background.active : theme.colors.background.elevated,
-                        borderColor: theme.colors.border.default,
-                        color: disabled ? theme.colors.text.muted : (skipPermissions ? theme.colors.text.primary : theme.colors.text.secondary)
-                    }}
-                    title="Skip macOS permission prompts when starting the agent"
-                >
-                    Skip permissions
-                </button>
-            </div>
-        )}
         </div>
     )
 }

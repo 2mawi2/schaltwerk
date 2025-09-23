@@ -195,7 +195,7 @@ describe('SwitchOrchestratorModal', () => {
     }
   })
 
-  it('keyboard: Escape closes modal, Enter triggers switch', async () => {
+  it('keyboard: Escape closes modal, Enter triggers switch, and respects open dropdown', async () => {
     const { onClose } = openModal()
 
     // Wait until ready
@@ -220,6 +220,33 @@ describe('SwitchOrchestratorModal', () => {
       window.dispatchEvent(enter)
     })
     await waitFor(() => expect(onSwitch2).toHaveBeenCalled())
+
+    // Re-open to ensure Enter is ignored while dropdown is open
+    cleanup()
+    const onClose3 = vi.fn()
+    const onSwitch3 = vi.fn().mockResolvedValue(undefined)
+    render(<SwitchOrchestratorModal open={true} onClose={onClose3} onSwitch={onSwitch3} />)
+
+    await waitFor(() => screen.getByRole('button', { name: /opencode/i }))
+
+    await userEvent.click(screen.getByRole('button', { name: /opencode/i }))
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown' }))
+    })
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
+
+    await waitFor(() => screen.getByRole('button', { name: /gemini/i }))
+    expect(onSwitch3).not.toHaveBeenCalled()
+
+    await act(async () => {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    })
+
+    await waitFor(() => expect(onSwitch3).toHaveBeenCalledWith({ agentType: 'gemini', skipPermissions: false }))
   })
 
   it('cancel button closes the modal', async () => {
