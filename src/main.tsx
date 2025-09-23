@@ -14,6 +14,7 @@ import { ActionButtonsProvider } from './contexts/ActionButtonsContext'
 import { ModalProvider } from './contexts/ModalContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
+import { ToastProvider } from './common/toast/ToastProvider'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -44,9 +45,11 @@ const AppLoader: React.FC = () => {
                       <FocusProvider>
                         <ReviewProvider>
                           <RunProvider>
-                            <div className="h-screen w-screen">
-                              <App />
-                            </div>
+                            <ToastProvider>
+                              <div className="h-screen w-screen">
+                                <App />
+                              </div>
+                            </ToastProvider>
                           </RunProvider>
                         </ReviewProvider>
                       </FocusProvider>

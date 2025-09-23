@@ -2,6 +2,7 @@ pub mod agent_binaries;
 pub mod mcp;
 pub mod mcp_config;
 pub mod project;
+pub mod clipboard;
 pub mod schaltwerk_core;
 pub mod settings;
 pub mod terminal;

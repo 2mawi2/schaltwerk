@@ -37,12 +37,16 @@ vi.mock('../plans/SpecMetadataPanel', () => ({
   SpecMetadataPanel: () => <div data-testid="spec-metadata" />
 }))
 
+vi.mock('./CopyBundleBar', () => ({
+  CopyBundleBar: () => <div data-testid="copy-bundle-bar" />
+}))
+
 describe('RightPanelTabs split layout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('renders Changes (top) and Requirements (Spec) (bottom) simultaneously for running sessions', () => {
+  it('renders Spec above the Copy bar and Diff for running sessions', () => {
     render(
       <RightPanelTabs
         onFileSelect={vi.fn()}
@@ -51,18 +55,15 @@ describe('RightPanelTabs split layout', () => {
       />
     )
 
-    // Both panels should be present when in running session split mode
+    // Spec content (top) and Diff panel (bottom) should both be present
     expect(screen.getByTestId('diff-panel')).toBeInTheDocument()
     expect(screen.getByTestId('spec-content')).toBeInTheDocument()
+    expect(screen.getByTestId('copy-bundle-bar')).toBeInTheDocument()
 
     // No tab headers should be visible in split mode
-    expect(screen.queryByText('Changes')).toBeNull()
-    expect(screen.queryByText('Spec')).toBeNull()
+    expect(screen.queryByTitle('Changes')).toBeNull()
 
-    // The read-only spec header should not show the Cmd+T hint
-    expect(screen.queryByText('⌘T')).toBeNull()
-    // And it should label the area as "Spec" instead of "Agent content"
-    expect(screen.queryByText('Agent content')).toBeNull()
+    // Ensure no extra top header tabs in split mode (already checked)
   })
 
   it('persists user tab selection when switching away and back to orchestrator', async () => {

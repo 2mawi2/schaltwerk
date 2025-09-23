@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
-import { VscCopy } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
@@ -20,7 +19,6 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [copying, setCopying] = useState(false)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
 
@@ -61,16 +59,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
     return () => { if (saveTimerRef.current) clearTimeout(saveTimerRef.current) }
   }, [content, editable, debounceMs, sessionName])
 
-  const handleCopy = async () => {
-    try {
-      setCopying(true)
-      await navigator.clipboard.writeText(content)
-    } catch (err) {
-      logger.error('[DraftContentView] Failed to copy content:', err)
-    } finally {
-      setTimeout(() => setCopying(false), 1000)
-    }
-  }
+  // Local copy button removed
 
   // Handle Cmd+T to focus spec content
   useEffect(() => {
@@ -111,15 +100,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
             </div>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400" title="Focus spec content (⌘T)">⌘T</span>
           </div>
-          <button
-            onClick={handleCopy}
-            disabled={copying || !content}
-            className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Copy spec content"
-          >
-            <VscCopy />
-            {copying ? 'Copied!' : 'Copy'}
-          </button>
+          {/* Copy button removed in favor of Copy Bundle bar in RightPanel */}
         </div>
         <Suspense fallback={
           <div className="flex-1 flex items-center justify-center">
@@ -144,17 +125,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         <div className="flex items-center gap-2">
           <div className="text-xs text-slate-400">Spec</div>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleCopy}
-            disabled={copying || !content}
-            className="px-2 py-1 text-xs rounded bg-blue-700 hover:bg-blue-600 text-white flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Copy spec content"
-          >
-            <VscCopy />
-            {copying ? 'Copied!' : 'Copy'}
-          </button>
-        </div>
+        <div className="flex items-center gap-2" />
       </div>
       <div className="flex-1 overflow-auto">
         <Suspense fallback={

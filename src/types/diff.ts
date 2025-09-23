@@ -1,5 +1,5 @@
 export interface LineInfo {
-  content: string
+  content?: string
   type: 'added' | 'removed' | 'unchanged'
   oldLineNumber?: number
   newLineNumber?: number

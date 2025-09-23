@@ -9,6 +9,7 @@ import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
 import { SpecInfoPanel as SpecInfoPanel } from '../plans/SpecInfoPanel'
 import { SpecMetadataPanel as SpecMetadataPanel } from '../plans/SpecMetadataPanel'
 import Split from 'react-split'
+import { CopyBundleBar } from './CopyBundleBar'
 import { logger } from '../../utils/logger'
 
 interface RightPanelTabsProps {
@@ -179,14 +180,17 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
                 isCommander={effectiveSelection.kind === 'orchestrator'}
               />
             </div>
-            {/* Bottom: Requirements (Spec content, read-only) */}
-            <div className="min-h-[100px] overflow-hidden">
+            {/* Bottom: Spec content with copy bar */}
+            <div className="min-h-[120px] overflow-hidden flex flex-col">
               {effectiveSelection.kind === 'session' && (
-                <SpecContentView
-                  sessionName={effectiveSelection.payload!}
-                  editable={false}
-                  debounceMs={1000}
-                />
+                <>
+                  <CopyBundleBar sessionName={effectiveSelection.payload!} />
+                  <SpecContentView
+                    sessionName={effectiveSelection.payload!}
+                    editable={false}
+                    debounceMs={1000}
+                  />
+                </>
               )}
             </div>
           </Split>
