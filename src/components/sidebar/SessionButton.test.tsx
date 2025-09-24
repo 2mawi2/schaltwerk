@@ -79,3 +79,33 @@ describe('SessionButton dirty indicator', () => {
     expect(screen.queryByRole('button', { name: /has uncommitted changes/i })).toBeNull()
   })
 })
+
+describe('SessionButton running tag', () => {
+  it('shows running tag when session is reviewed but still running', () => {
+    const session: EnrichedSession = {
+      ...baseSession,
+      info: {
+        ...baseSession.info,
+        ready_to_merge: true,
+        session_state: 'running',
+      },
+    }
+
+    render(
+      <SessionButton
+        session={session}
+        index={0}
+        isSelected={false}
+
+        hasFollowUpMessage={false}
+        onSelect={() => {}}
+        onMarkReady={() => {}}
+        onUnmarkReady={() => {}}
+        onCancel={() => {}}
+        isRunning
+      />
+    )
+
+    expect(screen.getByText('Running')).toBeInTheDocument()
+  })
+})

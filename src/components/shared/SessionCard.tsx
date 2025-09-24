@@ -56,7 +56,9 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     const isReadyToMerge = s.ready_to_merge || false
     
     // Determine session state - use the backend session_state directly
-    const sessionState = isReadyToMerge ? 'reviewed' : s.session_state
+    const baseSessionState = s.session_state
+    const sessionState = isReadyToMerge ? 'reviewed' : baseSessionState
+    const isRunningSession = baseSessionState === 'running'
     
     // Get background color based on state
     const getStateBackground = () => {
@@ -81,9 +83,21 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                     <div className="font-medium text-slate-100 truncate flex items-center gap-2">
                         {sessionName}
                         {isReadyToMerge && (
-                            <span className="ml-2 text-xs text-green-400">
-                                ✓ Reviewed
-                            </span>
+                            <>
+                                <span className="ml-2 text-xs text-green-400">
+                                    ✓ Reviewed
+                                </span>
+                                {isRunningSession && (
+                                    <span
+                                        className={clsx(
+                                            'ml-2 text-[10px] px-1.5 py-0.5 rounded border',
+                                            'bg-green-900/30 text-green-300 border-green-700/50'
+                                        )}
+                                    >
+                                        Running
+                                    </span>
+                                )}
+                            </>
                         )}
                         {!isReadyToMerge && (
                             <span
