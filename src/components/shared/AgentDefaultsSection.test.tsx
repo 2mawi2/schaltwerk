@@ -47,7 +47,7 @@ describe('AgentDefaultsSection', () => {
         expect(props.onAddEnvVar).toHaveBeenCalled()
 
         const toggleButton = screen.getByTestId('toggle-env-vars')
-        fireEvent.click(toggleButton)
+        expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
 
         const firstKey = screen.getByTestId('env-var-key-0') as HTMLInputElement
         fireEvent.change(firstKey, { target: { value: 'NEW_KEY' } })
@@ -60,6 +60,9 @@ describe('AgentDefaultsSection', () => {
         const removeButton = screen.getByTestId('env-var-remove-1')
         fireEvent.click(removeButton)
         expect(props.onRemoveEnvVar).toHaveBeenCalledWith(1)
+
+        fireEvent.click(toggleButton)
+        expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
     })
 
     it('shows loading state and disables interactions', () => {

@@ -94,7 +94,7 @@ export function AgentDefaultsSection({
                             type="button"
                             className="px-2 py-1 rounded text-xs border border-slate-700 hover:opacity-80"
                             style={{
-                                backgroundColor: theme.colors.background.surface,
+                                backgroundColor: theme.colors.background.secondary,
                                 color: theme.colors.text.secondary,
                             }}
                             onClick={handleToggleEditor}
@@ -166,7 +166,7 @@ export function AgentDefaultsSection({
                                             onClick={() => onRemoveEnvVar(index)}
                                             className="col-span-1 text-xs px-2 py-1 rounded border border-slate-700 hover:opacity-80"
                                             style={{
-                                                backgroundColor: theme.colors.background.surface,
+                                                backgroundColor: theme.colors.background.secondary,
                                                 color: theme.colors.text.secondary,
                                             }}
                                             disabled={loading}

@@ -67,7 +67,7 @@ const mockInvoke = invoke as MockedFunction<typeof invoke>
 describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        mockInvoke.mockImplementation((command: string, args?: Record<string, unknown>) => {
+        mockInvoke.mockImplementation((command, args) => {
             switch (command) {
                 case TauriCommands.RepositoryIsEmpty:
                     return Promise.resolve(false)
