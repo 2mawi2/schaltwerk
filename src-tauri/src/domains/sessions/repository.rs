@@ -7,7 +7,7 @@ use crate::{
     schaltwerk_core::db_app_config::AppConfigMethods,
     schaltwerk_core::db_project_config::ProjectConfigMethods,
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Result};
 use chrono::Utc;
 use log::warn;
 use std::path::PathBuf;
@@ -40,14 +40,14 @@ impl SessionDbManager {
     pub fn create_session(&self, session: &Session) -> Result<()> {
         self.db
             .create_session(session)
-            .context("Failed to create session in database")
+            .map_err(|e| anyhow!("Failed to create session in database: {e}"))
     }
 
     pub fn get_session_by_name(&self, name: &str) -> Result<Session> {
         let mut session = self
             .db
             .get_session_by_name(&self.repo_path, name)
-            .with_context(|| format!("Failed to get session '{name}'"))?;
+            .map_err(|e| anyhow!("Failed to get session '{name}': {e}"))?;
 
         self.normalize_spec_state(&mut session)?;
         Ok(session)
@@ -57,7 +57,7 @@ impl SessionDbManager {
         let mut session = self
             .db
             .get_session_by_id(id)
-            .with_context(|| format!("Failed to get session with id '{id}'"))?;
+            .map_err(|e| anyhow!("Failed to get session with id '{id}': {e}"))?;
 
         self.normalize_spec_state(&mut session)?;
         Ok(session)
@@ -94,43 +94,43 @@ impl SessionDbManager {
     pub fn update_session_status(&self, session_id: &str, status: SessionStatus) -> Result<()> {
         self.db
             .update_session_status(session_id, status)
-            .context("Failed to update session status")
+            .map_err(|e| anyhow!("Failed to update session status: {e}"))
     }
 
     pub fn update_session_state(&self, session_id: &str, state: SessionState) -> Result<()> {
         self.db
             .update_session_state(session_id, state)
-            .context("Failed to update session state")
+            .map_err(|e| anyhow!("Failed to update session state: {e}"))
     }
 
     pub fn update_session_ready_to_merge(&self, session_id: &str, ready: bool) -> Result<()> {
         self.db
             .update_session_ready_to_merge(session_id, ready)
-            .context("Failed to update session ready_to_merge")
+            .map_err(|e| anyhow!("Failed to update session ready_to_merge: {e}"))
     }
 
     pub fn update_session_initial_prompt(&self, session_id: &str, prompt: &str) -> Result<()> {
         self.db
             .update_session_initial_prompt(session_id, prompt)
-            .context("Failed to update session initial prompt")
+            .map_err(|e| anyhow!("Failed to update session initial prompt: {e}"))
     }
 
     pub fn update_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
         self.db
             .update_spec_content(session_id, content)
-            .context("Failed to update spec content")
+            .map_err(|e| anyhow!("Failed to update spec content: {e}"))
     }
 
     pub fn append_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
         self.db
             .append_spec_content(session_id, content)
-            .context("Failed to append spec content")
+            .map_err(|e| anyhow!("Failed to append spec content: {e}"))
     }
 
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
         self.db
             .get_session_task_content(&self.repo_path, name)
-            .with_context(|| format!("Failed to get session agent content for '{name}'"))
+            .map_err(|e| anyhow!("Failed to get session agent content: {e}"))
     }
 
     pub fn set_session_original_settings(
@@ -141,7 +141,7 @@ impl SessionDbManager {
     ) -> Result<()> {
         self.db
             .set_session_original_settings(session_id, agent_type, skip_permissions)
-            .context("Failed to set session original settings")
+            .map_err(|e| anyhow!("Failed to set session original settings: {e}"))
     }
 
     pub fn set_session_activity(
@@ -151,7 +151,7 @@ impl SessionDbManager {
     ) -> Result<()> {
         self.db
             .set_session_activity(session_id, activity_time)
-            .context("Failed to set session activity")
+            .map_err(|e| anyhow!("Failed to set session activity: {e}"))
     }
 
     pub fn set_session_version_info(
@@ -162,41 +162,37 @@ impl SessionDbManager {
     ) -> Result<()> {
         self.db
             .set_session_version_info(session_id, group_id, version_number)
-            .context("Failed to set session version info")
+            .map_err(|e| anyhow!("Failed to set session version info: {e}"))
     }
 
     pub fn clear_session_run_state(&self, session_id: &str) -> Result<()> {
         self.db
             .clear_session_run_state(session_id)
-            .context("Failed to clear session run state")
+            .map_err(|e| anyhow!("Failed to clear session run state: {e}"))
     }
 
     pub fn set_session_resume_allowed(&self, session_id: &str, allowed: bool) -> Result<()> {
         self.db
             .set_session_resume_allowed(session_id, allowed)
-            .context("Failed to set resume_allowed flag")
+            .map_err(|e| anyhow!("Failed to set resume_allowed: {e}"))
     }
 
     pub fn rename_draft_session(&self, old_name: &str, new_name: &str) -> Result<()> {
         self.db
             .rename_draft_session(&self.repo_path, old_name, new_name)
-            .with_context(|| {
-                format!(
-                    "Failed to rename spec session from '{old_name}' to '{new_name}'"
-                )
-            })
+            .map_err(|e| anyhow!("Failed to rename spec session: {e}"))
     }
 
     pub fn save_git_stats(&self, stats: &GitStats) -> Result<()> {
         self.db
             .save_git_stats(stats)
-            .context("Failed to save git stats")
+            .map_err(|e| anyhow!("Failed to save git stats: {e}"))
     }
 
     pub fn get_git_stats(&self, session_id: &str) -> Result<Option<GitStats>> {
         self.db
             .get_git_stats(session_id)
-            .with_context(|| format!("Failed to get git stats for session '{session_id}'"))
+            .map_err(|e| anyhow!("Failed to get git stats: {e}"))
     }
 
     pub fn update_git_stats(&self, session_id: &str) -> Result<()> {
@@ -211,31 +207,31 @@ impl SessionDbManager {
     pub fn get_project_setup_script(&self) -> Result<Option<String>> {
         self.db
             .get_project_setup_script(&self.repo_path)
-            .context("Failed to get project setup script")
+            .map_err(|e| anyhow!("Failed to get project setup script: {e}"))
     }
 
     pub fn get_agent_type(&self) -> Result<String> {
         self.db
             .get_agent_type()
-            .context("Failed to get agent type")
+            .map_err(|e| anyhow!("Failed to get agent type: {e}"))
     }
 
     pub fn get_skip_permissions(&self) -> Result<bool> {
         self.db
             .get_skip_permissions()
-            .context("Failed to get skip permissions")
+            .map_err(|e| anyhow!("Failed to get skip permissions: {e}"))
     }
 
     pub fn set_skip_permissions(&self, skip: bool) -> Result<()> {
         self.db
             .set_skip_permissions(skip)
-            .context("Failed to set skip permissions")
+            .map_err(|e| anyhow!("Failed to set skip permissions: {e}"))
     }
 
     pub fn set_agent_type(&self, agent_type: &str) -> Result<()> {
         self.db
             .set_agent_type(agent_type)
-            .context("Failed to set agent type")
+            .map_err(|e| anyhow!("Failed to set agent type: {e}"))
     }
 
     pub fn get_enriched_git_stats(&self, session: &Session) -> Result<Option<GitStats>> {
