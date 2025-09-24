@@ -695,6 +695,7 @@ fn main() {
             set_project_environment_variables,
             get_project_action_buttons,
             set_project_action_buttons,
+            reset_project_action_buttons_to_defaults,
             get_project_run_script,
             set_project_run_script,
             get_tutorial_completed,

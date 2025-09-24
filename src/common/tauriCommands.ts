@@ -111,6 +111,7 @@ export const TauriCommands = {
   SetDiffViewPreferences: 'set_diff_view_preferences',
   SetKeyboardShortcuts: 'set_keyboard_shortcuts',
   SetProjectActionButtons: 'set_project_action_buttons',
+  ResetProjectActionButtonsToDefaults: 'reset_project_action_buttons_to_defaults',
   SetProjectDefaultBaseBranch: 'set_project_default_base_branch',
   SetProjectEnvironmentVariables: 'set_project_environment_variables',
   SetProjectRunScript: 'set_project_run_script',
