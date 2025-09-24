@@ -24,9 +24,25 @@ pub struct TerminalUIPreferences {
     pub divider_position: Option<f64>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiffViewPreferences {
+    #[serde(default)]
     pub continuous_scroll: bool,
+    #[serde(default = "default_true")]
+    pub compact_diffs: bool,
+}
+
+impl Default for DiffViewPreferences {
+    fn default() -> Self {
+        Self {
+            continuous_scroll: false,
+            compact_diffs: true,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

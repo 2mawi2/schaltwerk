@@ -48,6 +48,8 @@ describe('UnifiedDiffModal orchestrator review submit', () => {
           return 'main'
         case TauriCommands.GetCommitComparisonInfo:
           return ['abc1234', 'def5678']
+        case TauriCommands.GetDiffViewPreferences:
+          return { continuous_scroll: false, compact_diffs: true }
         case TauriCommands.GetFileDiffFromMain:
           return ['fn main() {}\n', 'fn main() {}\n']
         case TauriCommands.PasteAndSubmitTerminal:

@@ -62,6 +62,8 @@ const baseInvoke = async (cmd: string, _args?: Record<string, unknown>): Promise
       return 'main'
     case TauriCommands.GetCommitComparisonInfo:
       return ['abc', 'def']
+    case TauriCommands.GetDiffViewPreferences:
+      return { continuous_scroll: false, compact_diffs: true }
     case TauriCommands.SchaltwerkCoreListEnrichedSessions:
       return []
     case TauriCommands.SchaltwerkCoreListSessionsByState:
@@ -170,6 +172,33 @@ describe('UnifiedDiffModal mark reviewed button', () => {
     await waitFor(() => expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument())
 
     expect(screen.queryByRole('button', { name: /mark as reviewed/i })).toBeNull()
+  })
+
+  it('persists compact diff preference when toggled', async () => {
+    const onClose = vi.fn()
+
+    render(
+      <TestProviders>
+        <UnifiedDiffModal filePath={null} isOpen={true} onClose={onClose} />
+      </TestProviders>
+    )
+
+    await waitFor(() => expect(screen.getByText('Git Diff Viewer')).toBeInTheDocument())
+
+    const compactToggle = await screen.findByRole('button', { name: /show full context/i })
+    fireEvent.click(compactToggle)
+
+    await waitFor(() => {
+      expect(invokeMock).toHaveBeenCalledWith(
+        TauriCommands.SetDiffViewPreferences,
+        expect.objectContaining({
+          preferences: expect.objectContaining({
+            continuous_scroll: false,
+            compact_diffs: false
+          })
+        })
+      )
+    })
   })
 })
 

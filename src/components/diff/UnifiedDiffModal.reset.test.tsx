@@ -25,6 +25,7 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === TauriCommands.GetCurrentBranchName) return 'schaltwerk/feature'
     if (cmd === TauriCommands.GetBaseBranchName) return 'main'
     if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+    if (cmd === TauriCommands.GetDiffViewPreferences) return { continuous_scroll: false, compact_diffs: true }
     if (cmd === TauriCommands.SchaltwerkCoreResetSessionWorktree) return undefined
     return null
   }),

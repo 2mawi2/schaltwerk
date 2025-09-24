@@ -44,6 +44,8 @@ describe('UnifiedDiffModal orchestrator auto-start review', () => {
           return 'main'
         case TauriCommands.GetCommitComparisonInfo:
           return ['abc1234', 'def5678']
+        case TauriCommands.GetDiffViewPreferences:
+          return { continuous_scroll: false, compact_diffs: true }
         default:
           return undefined
       }
