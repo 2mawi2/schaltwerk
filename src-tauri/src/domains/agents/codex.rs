@@ -633,13 +633,16 @@ pub fn build_codex_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use filetime::{set_file_mtime, FileTime};
+    use once_cell::sync::Lazy;
     use std::env;
     use std::fs;
     use std::io::Write;
     use std::path::Path;
-    use std::thread;
-    use std::time::Duration;
+    use std::sync::Mutex;
     use tempfile::tempdir;
+
+    static HOME_ENV_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
     #[test]
     fn test_new_session_with_prompt() {
@@ -903,8 +906,7 @@ mod tests {
         )
         .unwrap();
         drop(handle);
-
-        thread::sleep(Duration::from_millis(5));
+        set_file_mtime(&target_file, FileTime::from_unix_time(100, 0)).unwrap();
 
         let other_file = target_dir.join("session-b.jsonl");
         let mut handle = fs::File::create(&other_file).unwrap();
@@ -914,7 +916,9 @@ mod tests {
         )
         .unwrap();
         drop(handle);
+        set_file_mtime(&other_file, FileTime::from_unix_time(200, 0)).unwrap();
 
+        let _home_guard = HOME_ENV_LOCK.lock().unwrap();
         let original_home = env::var("HOME").ok();
         env::set_var("HOME", temp_home.path());
         CODEX_SESSION_INDEX.reset_for_tests();
@@ -1018,7 +1022,7 @@ mod tests {
         let cwd = "/repo/worktree-a";
         let newest = sessions.join("rollout-2025-09-14T10-00-00-uuid.jsonl");
         write_jsonl_with_cwd(&newest, cwd);
-        std::thread::sleep(std::time::Duration::from_millis(10));
+        set_file_mtime(&newest, FileTime::from_unix_time(200, 0)).unwrap();
 
         let newest_match =
             find_newest_session_for_cwd(tmp.path().join(".codex/sessions").as_path(), cwd).unwrap();
@@ -1039,9 +1043,11 @@ mod tests {
         let cwd = "/repo/worktree-a";
         let old_match = day_old.join("rollout-2025-08-22T10-00-00-uuid.jsonl");
         write_jsonl_with_cwd(&old_match, cwd);
+        set_file_mtime(&old_match, FileTime::from_unix_time(100, 0)).unwrap();
         // Create a newer non-matching session
         let new_other = day_new.join("rollout-2025-09-14T10-00-00-uuid.jsonl");
         write_jsonl_without_cwd(&new_other);
+        set_file_mtime(&new_other, FileTime::from_unix_time(200, 0)).unwrap();
 
         let newest_match =
             find_newest_session_for_cwd(tmp.path().join(".codex/sessions").as_path(), cwd).unwrap();
