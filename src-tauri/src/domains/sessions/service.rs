@@ -2322,6 +2322,14 @@ impl SessionManager {
         self.db_manager.set_skip_permissions(skip)
     }
 
+    pub fn set_orchestrator_agent_type(&self, agent_type: &str) -> Result<()> {
+        self.db_manager.set_orchestrator_agent_type(agent_type)
+    }
+
+    pub fn set_orchestrator_skip_permissions(&self, skip: bool) -> Result<()> {
+        self.db_manager.set_orchestrator_skip_permissions(skip)
+    }
+
     pub fn update_spec_content(&self, session_name: &str, content: &str) -> Result<()> {
         info!(
             "SessionCore: Updating spec content for session '{}', content length: {}",

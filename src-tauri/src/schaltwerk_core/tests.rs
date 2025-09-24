@@ -1520,8 +1520,12 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
     let manager = env.get_session_manager().unwrap();
 
     // Configure orchestrator to use Codex
-    manager.set_global_agent_type("codex").unwrap();
-    manager.set_global_skip_permissions(false).unwrap();
+    manager
+        .set_orchestrator_agent_type("codex")
+        .unwrap();
+    manager
+        .set_orchestrator_skip_permissions(false)
+        .unwrap();
 
     // Prepare a fake Codex sessions directory matching the orchestrator repo path
     let home_dir = tempfile::TempDir::new().unwrap();
