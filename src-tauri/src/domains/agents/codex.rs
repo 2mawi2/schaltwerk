@@ -480,13 +480,10 @@ fn build_snapshot(sessions_dir: &Path) -> Result<Snapshot, std::io::Error> {
             }
 
             for cwd in extract_session_cwds(&path) {
-                per_cwd
-                    .entry(cwd)
-                    .or_default()
-                    .push(SessionFileInfo {
-                        path: path.clone(),
-                        modified_millis,
-                    });
+                per_cwd.entry(cwd).or_default().push(SessionFileInfo {
+                    path: path.clone(),
+                    modified_millis,
+                });
             }
         }
     }

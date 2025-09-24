@@ -12,7 +12,7 @@ import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
 import { DiffViewer } from './DiffViewer'
 import {
-  VscClose, VscSend, VscListFlat, VscListSelection
+  VscClose, VscSend, VscListFlat, VscListSelection, VscCollapseAll, VscExpandAll
 } from 'react-icons/vsc'
 import hljs from 'highlight.js'
 import { SearchBox } from '../common/SearchBox'
@@ -33,6 +33,11 @@ interface UnifiedDiffModalProps {
   filePath: string | null
   isOpen: boolean
   onClose: () => void
+}
+
+interface DiffViewPreferences {
+  continuous_scroll: boolean
+  compact_diffs: boolean
 }
 
 // FileDiffData type moved to loadDiffs
@@ -74,19 +79,21 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   // Always use unified view mode - split view removed for performance
   const [visibleFilePath, setVisibleFilePath] = useState<string | null>(null)
   const [showCommentForm, setShowCommentForm] = useState(false)
-  const [expandedSections, setExpandedSections] = useState<Set<string | number>>(new Set())
+  const [expandedSections, setExpandedSections] = useState<Map<string, Set<number>>>(new Map())
   const [commentFormPosition, setCommentFormPosition] = useState<{ x: number, y: number } | null>(null)
   const [isDraggingSelection, setIsDraggingSelection] = useState(false)
   const [continuousScroll, setContinuousScroll] = useState(false)
+  const [compactDiffs, setCompactDiffs] = useState(true)
   const [isSearchVisible, setIsSearchVisible] = useState(false)
+  const fileBodyHeightsRef = useRef<Map<string, number>>(new Map())
+  const [, setFileHeightsVersion] = useState(0)
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set())
   const observerRef = useRef<IntersectionObserver | null>(null)
-  const visibilityUpdateTimerRef = useRef<NodeJS.Timeout | null>(null)
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map())
-  const idleCallbackIdRef = useRef<number | null>(null)
+  const visibilityFrameRef = useRef<number | NodeJS.Timeout | null>(null)
 
   // Use single file view mode when continuousScroll is disabled
   const isLargeDiffMode = useMemo(() => {
@@ -188,13 +195,27 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
     
     try {
-      await invoke(TauriCommands.SetDiffViewPreferences, { 
-        preferences: { continuous_scroll: newValue } 
+      await invoke(TauriCommands.SetDiffViewPreferences, {
+        preferences: { continuous_scroll: newValue, compact_diffs: compactDiffs }
       })
     } catch (err) {
       logger.error('Failed to save diff view preference:', err)
     }
-  }, [continuousScroll, selectedFile, files, sessionName])
+  }, [continuousScroll, selectedFile, files, sessionName, compactDiffs])
+
+
+  const toggleCompactDiffs = useCallback(async () => {
+    const newValue = !compactDiffs
+    setCompactDiffs(newValue)
+
+    try {
+      await invoke(TauriCommands.SetDiffViewPreferences, {
+        preferences: { continuous_scroll: continuousScroll, compact_diffs: newValue }
+      })
+    } catch (err) {
+      logger.error('Failed to save diff view preference:', err)
+    }
+  }, [compactDiffs, continuousScroll])
 
 
    const getChangedFilesForContext = useCallback(async () => {
@@ -306,82 +327,92 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
 
   // Set up Intersection Observer for virtual scrolling in continuous mode
   useEffect(() => {
+    const pendingUpdates = pendingVisibilityUpdatesRef.current
+
+    const clearPendingFrame = () => {
+      if (visibilityFrameRef.current != null) {
+        if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(visibilityFrameRef.current as number)
+        } else {
+          clearTimeout(visibilityFrameRef.current as NodeJS.Timeout)
+        }
+        visibilityFrameRef.current = null
+      }
+    }
+
     if (!isOpen || isLargeDiffMode) {
-      // Clean up observer if not needed
       if (observerRef.current) {
         observerRef.current.disconnect()
         observerRef.current = null
       }
+      pendingUpdates.clear()
+      clearPendingFrame()
+      setVisibleFileSet(prev => (prev.size === 0 ? prev : new Set<string>()))
       return
     }
 
-    // Create observer for continuous scroll mode with debouncing
+    const flushPendingVisibility = () => {
+      visibilityFrameRef.current = null
+      if (pendingUpdates.size === 0) return
+      const updates = new Map(pendingUpdates)
+      pendingUpdates.clear()
+      setVisibleFileSet(prev => {
+        let mutated = false
+        const next = new Set(prev)
+        updates.forEach((isVisible, path) => {
+          if (isVisible) {
+            if (!next.has(path)) {
+              next.add(path)
+              mutated = true
+            }
+          } else if (next.delete(path)) {
+            mutated = true
+          }
+        })
+        return mutated ? next : prev
+      })
+    }
+
+    const scheduleFlush = () => {
+      if (visibilityFrameRef.current != null) return
+      const frameCallback = () => flushPendingVisibility()
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        visibilityFrameRef.current = window.requestAnimationFrame(frameCallback)
+      } else {
+        const timeoutId = setTimeout(() => frameCallback(), 16)
+        visibilityFrameRef.current = timeoutId
+      }
+    }
+
     const observer = new IntersectionObserver(
-      (entries) => {
-        // Collect updates without immediately applying them
+      entries => {
         entries.forEach(entry => {
           const filePath = entry.target.getAttribute('data-file-path')
           if (filePath) {
-            pendingVisibilityUpdatesRef.current.set(filePath, entry.isIntersecting)
+            pendingUpdates.set(filePath, entry.isIntersecting)
           }
         })
-        
-        // Debounce visibility updates to avoid stuttering
-        if (visibilityUpdateTimerRef.current) {
-          clearTimeout(visibilityUpdateTimerRef.current)
-        }
-        
-        visibilityUpdateTimerRef.current = setTimeout(() => {
-          // Apply all pending updates at once
-          const updates = new Map(pendingVisibilityUpdatesRef.current)
-          pendingVisibilityUpdatesRef.current.clear()
-          
-          // Use requestIdleCallback for non-blocking update
-          const updateVisibility = () => {
-            setVisibleFileSet(prev => {
-              const next = new Set(prev)
-              updates.forEach((isVisible, path) => {
-                if (isVisible) {
-                  next.add(path)
-                } else {
-                  next.delete(path)
-                }
-              })
-              return next
-            })
-          }
-          
-          if ('requestIdleCallback' in window) {
-            idleCallbackIdRef.current = requestIdleCallback(updateVisibility, { timeout: 50 })
-          } else {
-            updateVisibility()
-          }
-        }, 100) // 100ms debounce
+        scheduleFlush()
       },
       {
         root: scrollContainerRef.current,
-        rootMargin: '500px 0px', // Load files 500px before they come into view
+        rootMargin: '600px 0px',
         threshold: 0
       }
     )
 
     observerRef.current = observer
 
-    // Defer observing to next tick to ensure DOM is ready
-    setTimeout(() => {
-      const fileElements = document.querySelectorAll('[data-file-path]')
-      fileElements.forEach(el => observer.observe(el))
-    }, 0)
+    fileRefs.current.forEach(element => {
+      if (element) observer.observe(element)
+    })
 
     return () => {
       observer.disconnect()
-      if (visibilityUpdateTimerRef.current) {
-        clearTimeout(visibilityUpdateTimerRef.current)
-        visibilityUpdateTimerRef.current = null
-      }
-      if (idleCallbackIdRef.current) {
-        cancelIdleCallback(idleCallbackIdRef.current)
-        idleCallbackIdRef.current = null
+      pendingUpdates.clear()
+      clearPendingFrame()
+      if (observerRef.current === observer) {
+        observerRef.current = null
       }
     }
   }, [isOpen, isLargeDiffMode, files])
@@ -476,13 +507,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       })
     }
     
-    // Use requestIdleCallback to load without blocking UI
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => loadNextBatch(), { timeout: 200 })
-    } else {
-      setTimeout(loadNextBatch, 0)
-    }
-    
+    void loadNextBatch()
+
   }, [visibleFileSet, files, allFileDiffs, loadingFiles, isLargeDiffMode, isOpen, sessionName])
 
   // Separate memory management into its own effect with less frequent runs
@@ -589,9 +615,10 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     if (isOpen) {
       loadChangedFiles()
       // Load user's diff view preference
-      invoke<{ continuous_scroll: boolean }>(TauriCommands.GetDiffViewPreferences)
+      invoke<DiffViewPreferences>(TauriCommands.GetDiffViewPreferences)
         .then(prefs => {
           setContinuousScroll(prefs.continuous_scroll)
+          setCompactDiffs(prefs.compact_diffs ?? true)
           // If continuous scroll is enabled, load all diffs
           // No need to load all diffs - using lazy loading with viewport detection
         })
@@ -607,14 +634,14 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       didInitialScrollRef.current = false
       lastInitialFilePathRef.current = null
       
-      // Clean up any remaining timers when modal closes
-      if (visibilityUpdateTimerRef.current) {
-        clearTimeout(visibilityUpdateTimerRef.current)
-        visibilityUpdateTimerRef.current = null
-      }
-      if (idleCallbackIdRef.current) {
-        cancelIdleCallback(idleCallbackIdRef.current)
-        idleCallbackIdRef.current = null
+      pendingVisibilityUpdatesRef.current.clear()
+      if (visibilityFrameRef.current != null) {
+        if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function') {
+          window.cancelAnimationFrame(visibilityFrameRef.current as number)
+        } else {
+          clearTimeout(visibilityFrameRef.current as NodeJS.Timeout)
+        }
+        visibilityFrameRef.current = null
       }
       
       return
@@ -791,18 +818,104 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
     }
   }, [isDraggingSelection, lineSelection.selection])
 
-  const toggleCollapsed = useCallback((idx: string | number) => {
+  const registerFileBodyHeight = useCallback((filePath: string, height: number) => {
+    const normalizedHeight = Math.max(0, Math.round(height))
+    const previous = fileBodyHeightsRef.current.get(filePath)
+    if (previous !== undefined && Math.abs(previous - normalizedHeight) < 2) {
+      return
+    }
+    fileBodyHeightsRef.current.set(filePath, normalizedHeight)
+    setFileHeightsVersion(version => version + 1)
+  }, [])
+
+  useEffect(() => {
+    const validPaths = new Set(files.map(f => f.path))
+    let didDelete = false
+    const heights = fileBodyHeightsRef.current
+    heights.forEach((_height, path) => {
+      if (!validPaths.has(path)) {
+        heights.delete(path)
+        didDelete = true
+      }
+    })
+    if (didDelete) {
+      setFileHeightsVersion(version => version + 1)
+    }
+  }, [files])
+
+  useEffect(() => {
     setExpandedSections(prev => {
-      const next = new Set(prev)
-      const key = typeof idx === 'string' ? idx : idx
-      if (next.has(key)) {
-        next.delete(key)
+      if (prev.size === 0) {
+        return prev
+      }
+      const validPaths = new Set(files.map(f => f.path))
+      let mutated = false
+      const next = new Map(prev)
+      next.forEach((_set, path) => {
+        if (!validPaths.has(path)) {
+          next.delete(path)
+          mutated = true
+        }
+      })
+      return mutated ? next : prev
+    })
+  }, [files])
+
+  const toggleCollapsed = useCallback((filePath: string, index: number) => {
+    setExpandedSections(prev => {
+      const next = new Map(prev)
+      const current = next.get(filePath)
+      const updated = new Set(current ?? [])
+      if (updated.has(index)) {
+        updated.delete(index)
       } else {
-        next.add(key)
+        updated.add(index)
+      }
+      if (updated.size === 0) {
+        next.delete(filePath)
+      } else {
+        next.set(filePath, updated)
       }
       return next
     })
   }, [])
+
+
+  useEffect(() => {
+    if (!compactDiffs) {
+      setExpandedSections(prev => {
+        let mutated = false
+        const next = new Map(prev)
+        allFileDiffs.forEach((fileDiff, path) => {
+          if (!('diffResult' in fileDiff)) {
+            return
+          }
+          const previousSet = next.get(path)
+          let workingSet = previousSet ?? new Set<number>()
+          let localMutated = false
+          fileDiff.diffResult.forEach((line, index) => {
+            if (line.isCollapsible && !workingSet.has(index)) {
+              if (!localMutated) {
+                workingSet = new Set(workingSet)
+                localMutated = true
+              }
+              workingSet.add(index)
+            }
+          })
+          if (localMutated) {
+            next.set(path, workingSet)
+            mutated = true
+          } else if (!previousSet && workingSet.size > 0) {
+            next.set(path, workingSet)
+            mutated = true
+          }
+        })
+        return mutated ? next : prev
+      })
+    } else {
+      setExpandedSections(new Map())
+    }
+  }, [compactDiffs, allFileDiffs])
 
 
   const handleSubmitComment = useCallback(async (text: string) => {
@@ -978,6 +1091,18 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                 <div className="flex items-center gap-2">
                   {headerActions}
                   <button
+                    onClick={toggleCompactDiffs}
+                    className="p-1.5 hover:bg-slate-800 rounded-lg"
+                    title={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
+                    aria-label={compactDiffs ? "Show full context" : "Collapse unchanged lines"}
+                  >
+                    {compactDiffs ? (
+                      <VscExpandAll className="text-xl" />
+                    ) : (
+                      <VscCollapseAll className="text-xl" />
+                    )}
+                  </button>
+                  <button
                     onClick={toggleContinuousScroll}
                     className="p-1.5 hover:bg-slate-800 rounded-lg"
                     title={continuousScroll ? "Switch to single file view" : "Switch to continuous scroll"}
@@ -1021,13 +1146,15 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                     allFileDiffs={allFileDiffs}
                     fileError={fileError}
                     branchInfo={branchInfo}
-                    expandedSections={expandedSections as Set<string>}
+                    expandedSectionsByFile={expandedSections}
                     isLargeDiffMode={isLargeDiffMode}
                     visibleFileSet={visibleFileSet}
                     loadingFiles={loadingFiles}
                     observerRef={observerRef}
                     scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
                     fileRefs={fileRefs}
+                    fileBodyHeights={fileBodyHeightsRef.current}
+                    onFileBodyHeightChange={registerFileBodyHeight}
                     getCommentsForFile={getCommentsForFile}
                     getCommentForLine={getCommentForLine}
                     highlightCode={highlightCode}

@@ -1,14 +1,16 @@
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::SystemTime;
 
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeConfig {
     pub binary_path: Option<String>,
 }
 
-/// Fast-path session detection: Only checks if ANY session files exist in the project directory
-/// Returns a special marker "__continue__" if sessions exist, which tells Claude to use --continue flag
-/// This avoids expensive file reading and parsing operations
+/// Fast-path session detection: scans for Claude JSONL transcripts in the project directory
+/// Returns the most recently modified session ID so callers can resume deterministically
+/// Falls back to `None` when no usable conversation files are present
 pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
     // Prefer explicit HOME (tests set this), then dirs::home_dir()
     let home = std::env::var("HOME")
@@ -29,45 +31,125 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
     let alt_project_dir = alt_sanitized.as_ref().map(|s| projects_dir.join(s));
 
     log::info!(
-        "Claude session detection (fast-path): Looking for any sessions in project dir: {}",
+        "Claude session detection (fast-path): Looking for sessions in primary dir: {}",
         project_dir.display()
     );
 
     // Try primary dir first, then alternate if different
-    let mut candidates: Vec<PathBuf> = vec![project_dir.clone()];
+    let mut visited = HashSet::new();
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if visited.insert(project_dir.clone()) {
+        candidates.push(project_dir.clone());
+    }
     if let Some(a) = alt_project_dir {
-        if a != project_dir {
+        if visited.insert(a.clone()) {
+            log::info!(
+                "Claude session detection (fast-path): Adding canonical candidate dir: {}",
+                a.display()
+            );
             candidates.push(a);
         }
     }
 
-    // Fast check: Just see if ANY .jsonl files exist
-    for candidate in candidates.iter() {
-        match fs::read_dir(candidate) {
+    let mut newest: Option<(SystemTime, String, PathBuf)> = None;
+
+    for candidate in candidates {
+        match fs::read_dir(&candidate) {
             Ok(entries) => {
-                // Return special marker as soon as we find ANY session file
                 for entry in entries.flatten() {
-                    if entry
-                        .path()
+                    let entry_path = entry.path();
+                    if !entry_path
                         .extension()
                         .map(|ext| ext == "jsonl")
                         .unwrap_or(false)
                     {
-                        log::info!("Claude session detection (fast-path): Found session files in {}, returning __continue__ marker", 
-                                 candidate.display());
-                        return Some("__continue__".to_string());
+                        continue;
+                    }
+
+                    let metadata = match entry.metadata() {
+                        Ok(meta) => meta,
+                        Err(err) => {
+                            log::debug!(
+                                "Claude session detection (fast-path): Failed to read metadata for {}: {err}",
+                                entry_path.display()
+                            );
+                            continue;
+                        }
+                    };
+
+                    if metadata.len() == 0 {
+                        log::debug!(
+                            "Claude session detection (fast-path): Skipping zero-length session file {}",
+                            entry_path.display()
+                        );
+                        continue;
+                    }
+
+                    let modified = metadata
+                        .modified()
+                        .or_else(|_| metadata.created())
+                        .unwrap_or(SystemTime::UNIX_EPOCH);
+
+                    let session_id = match entry_path
+                        .file_stem()
+                        .and_then(|stem| stem.to_str())
+                        .map(|s| s.to_string())
+                    {
+                        Some(id) if !id.is_empty() => id,
+                        _ => {
+                            log::debug!(
+                                "Claude session detection (fast-path): Could not derive session id from file {}",
+                                entry_path.display()
+                            );
+                            continue;
+                        }
+                    };
+
+                    // Prefer the most recently modified file, fall back to lexicographic order for stability
+                    let is_newer = match &newest {
+                        Some((existing_time, existing_id, _)) => {
+                            modified > *existing_time
+                                || (modified == *existing_time
+                                    && session_id.as_str() > existing_id.as_str())
+                        }
+                        None => true,
+                    };
+
+                    if is_newer {
+                        log::debug!(
+                            "Claude session detection (fast-path): Candidate session '{}' from {} (mtime={:?})",
+                            session_id,
+                            entry_path.display(),
+                            modified
+                        );
+                        newest = Some((modified, session_id, entry_path.clone()));
                     }
                 }
             }
-            Err(_) => continue,
+            Err(err) => {
+                log::debug!(
+                    "Claude session detection (fast-path): Failed to read candidate dir {}: {err}",
+                    candidate.display()
+                );
+            }
         }
     }
 
-    log::info!(
-        "Claude session detection (fast-path): No session files found for path: {}",
-        path.display()
-    );
-    None
+    if let Some((modified, session_id, origin_path)) = newest {
+        log::info!(
+            "Claude session detection (fast-path): Selected session '{}' from {} (mtime={:?})",
+            session_id,
+            origin_path.display(),
+            modified
+        );
+        Some(session_id)
+    } else {
+        log::info!(
+            "Claude session detection (fast-path): No session files found for path: {}",
+            path.display()
+        );
+        None
+    }
 }
 
 fn sanitize_path_for_claude(path: &Path) -> String {
@@ -139,6 +221,7 @@ pub fn build_claude_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use filetime::{set_file_mtime, FileTime};
     use std::fs::{self, File};
     use std::io::Write as _;
     use std::path::Path;
@@ -229,6 +312,12 @@ mod tests {
         let mut f_new = File::create(&newer).unwrap();
         f_new.write_all(b"test content").unwrap();
 
+        // Ensure deterministic modification ordering (newer file has later mtime)
+        let older_time = FileTime::from_unix_time(100, 0);
+        let newer_time = FileTime::from_unix_time(200, 0);
+        set_file_mtime(&older, older_time).unwrap();
+        set_file_mtime(&newer, newer_time).unwrap();
+
         // Sanity: directory exists and visible to reader
         assert!(projects.exists(), "projects dir should exist");
         let jsonl_count = fs::read_dir(&projects)
@@ -246,13 +335,9 @@ mod tests {
             "should see 2 jsonl files in the project dir"
         );
 
-        // Test the fast-path function - it should return "__continue__" when sessions exist
+        // Test the fast-path function - it should return the newest session id
         let found = find_resumable_claude_session_fast(worktree);
-        assert_eq!(
-            found,
-            Some("__continue__".to_string()),
-            "should find sessions and return __continue__ marker"
-        );
+        assert_eq!(found.as_deref(), Some("ses_new"));
 
         // Restore HOME
         if let Some(h) = prev_home {

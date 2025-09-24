@@ -222,6 +222,18 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to get skip permissions: {}", e))
     }
 
+    pub fn get_orchestrator_agent_type(&self) -> Result<String> {
+        self.db
+            .get_orchestrator_agent_type()
+            .map_err(|e| anyhow!("Failed to get orchestrator agent type: {}", e))
+    }
+
+    pub fn get_orchestrator_skip_permissions(&self) -> Result<bool> {
+        self.db
+            .get_orchestrator_skip_permissions()
+            .map_err(|e| anyhow!("Failed to get orchestrator skip permissions: {}", e))
+    }
+
     pub fn set_skip_permissions(&self, skip: bool) -> Result<()> {
         self.db
             .set_skip_permissions(skip)
@@ -232,6 +244,18 @@ impl SessionDbManager {
         self.db
             .set_agent_type(agent_type)
             .map_err(|e| anyhow!("Failed to set agent type: {}", e))
+    }
+
+    pub fn set_orchestrator_skip_permissions(&self, skip: bool) -> Result<()> {
+        self.db
+            .set_orchestrator_skip_permissions(skip)
+            .map_err(|e| anyhow!("Failed to set orchestrator skip permissions: {}", e))
+    }
+
+    pub fn set_orchestrator_agent_type(&self, agent_type: &str) -> Result<()> {
+        self.db
+            .set_orchestrator_agent_type(agent_type)
+            .map_err(|e| anyhow!("Failed to set orchestrator agent type: {}", e))
     }
 
     pub fn get_enriched_git_stats(&self, session: &Session) -> Result<Option<GitStats>> {

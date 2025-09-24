@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useCallback, useEffect, useRef } from 'react'
 import clsx from 'clsx'
 import { VscComment } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
@@ -20,17 +20,19 @@ export interface DiffViewerProps {
     baseCommit: string
     headCommit: string
   } | null
-  expandedSections: Set<string>
+  expandedSectionsByFile: Map<string, Set<number>>
   isLargeDiffMode: boolean
   visibleFileSet: Set<string>
   loadingFiles: Set<string>
   observerRef: React.MutableRefObject<IntersectionObserver | null>
   scrollContainerRef: React.RefObject<HTMLDivElement>
   fileRefs: React.MutableRefObject<Map<string, HTMLDivElement>>
+  fileBodyHeights: Map<string, number>
+  onFileBodyHeightChange: (filePath: string, height: number) => void
   getCommentsForFile: (filePath: string) => ReviewComment[]
   getCommentForLine: (lineNum: number | undefined, side: 'old' | 'new') => ReviewComment | undefined
   highlightCode: (code: string) => string
-  toggleCollapsed: (idx: string | number) => void
+  toggleCollapsed: (filePath: string, index: number) => void
   handleLineMouseDown: (lineNum: number, side: 'old' | 'new', event: React.MouseEvent) => void
   handleLineMouseEnter: (lineNum: number, side: 'old' | 'new') => void
   handleLineMouseLeave: () => void
@@ -47,13 +49,15 @@ export function DiffViewer({
   allFileDiffs,
   fileError,
   branchInfo,
-  expandedSections,
+  expandedSectionsByFile,
   isLargeDiffMode,
   visibleFileSet,
   loadingFiles,
   observerRef,
   scrollContainerRef,
   fileRefs,
+  fileBodyHeights,
+  onFileBodyHeightChange,
   getCommentsForFile,
   getCommentForLine,
   highlightCode,
@@ -64,6 +68,56 @@ export function DiffViewer({
   handleLineMouseUp,
   lineSelection
 }: DiffViewerProps) {
+  const resizeObserversRef = useRef<Map<string, ResizeObserver>>(new Map())
+  const bodyRefCallbacksRef = useRef<Map<string, (node: HTMLDivElement | null) => void>>(new Map())
+
+  useEffect(() => {
+    const observers = resizeObserversRef.current
+    const callbacks = bodyRefCallbacksRef.current
+    return () => {
+      observers.forEach(observer => observer.disconnect())
+      observers.clear()
+      callbacks.clear()
+    }
+  }, [])
+
+  const attachDiffBodyRef = useCallback((filePath: string, node: HTMLDivElement | null) => {
+    const observers = resizeObserversRef.current
+    const existingObserver = observers.get(filePath)
+    if (existingObserver) {
+      existingObserver.disconnect()
+      observers.delete(filePath)
+    }
+
+    if (!node) {
+      return
+    }
+
+    const handleHeightChange = (height: number) => {
+      onFileBodyHeightChange(filePath, Math.max(0, Math.round(height)))
+    }
+
+    if (typeof window !== 'undefined' && 'ResizeObserver' in window) {
+      const observer = new ResizeObserver(entries => {
+        for (const entry of entries) {
+          handleHeightChange(entry.contentRect.height)
+        }
+      })
+      observer.observe(node)
+      observers.set(filePath, observer)
+    } else {
+      // Fallback for test environments without ResizeObserver support
+      handleHeightChange(node.getBoundingClientRect().height)
+    }
+  }, [onFileBodyHeightChange])
+
+  const getDiffBodyRef = useCallback((filePath: string) => {
+    const callbacks = bodyRefCallbacksRef.current
+    if (!callbacks.has(filePath)) {
+      callbacks.set(filePath, (node) => attachDiffBodyRef(filePath, node))
+    }
+    return callbacks.get(filePath)!
+  }, [attachDiffBodyRef])
   
   if (!selectedFile && files.length === 0) {
     return (
@@ -125,10 +179,11 @@ export function DiffViewer({
             const fileDiff = allFileDiffs.get(file.path)
             const commentCount = getCommentsForFile(file.path).length
             const isCurrentFile = true
-            
+            const expandedSet = expandedSectionsByFile.get(file.path)
+
             return (
-              <div 
-                key={file.path} 
+              <div
+                key={file.path}
                 ref={(el) => {
                   if (el) fileRefs.current.set(file.path, el)
                 }}
@@ -167,15 +222,15 @@ export function DiffViewer({
                     <AnimatedText text="loading" size="sm" />
                   </div>
                 ) : (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto" ref={getDiffBodyRef(file.path)}>
                     <table className="w-full min-w-max">
                       <tbody>
                     {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
                       const globalIdx = `${file.path}-${idx}`
-                      const isExpanded = expandedSections.has(globalIdx)
+                      const isExpanded = expandedSet?.has(idx) ?? false
                       const lineNum = line.oldLineNumber || line.newLineNumber
                       const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
-                      
+
                       if (line.isCollapsible) {
                         const rows = []
                         rows.push(
@@ -188,7 +243,7 @@ export function DiffViewer({
                             onLineMouseEnter={handleLineMouseEnter}
                             onLineMouseLeave={handleLineMouseLeave}
                             onLineMouseUp={handleLineMouseUp}
-                            onToggleCollapse={() => toggleCollapsed(globalIdx)}
+                            onToggleCollapse={() => toggleCollapsed(file.path, idx)}
                             isCollapsed={!isExpanded}
                             highlightedContent={undefined}
                             filePath={file.path}
@@ -248,152 +303,163 @@ export function DiffViewer({
             )
           })
         ) : (
-          /* For continuous scroll mode, render all files with placeholders */
+          /* For continuous scroll mode, render all files with virtualization */
           files.map((file) => {
             const fileDiff = allFileDiffs.get(file.path)
             const commentCount = getCommentsForFile(file.path).length
             const isCurrentFile = file.path === selectedFile
             const isLoading = loadingFiles.has(file.path)
             const isVisible = visibleFileSet.has(file.path)
-            // Only highlight syntax for visible files to avoid blocking
-            const shouldHighlight = isVisible || isCurrentFile
-          
-          return (
-            <div 
-              key={file.path} 
-              data-file-path={file.path}
-              ref={(el) => {
-                if (el) {
-                  fileRefs.current.set(file.path, el)
-                  // Observe element for intersection if observer exists
-                  if (observerRef.current && !isLargeDiffMode) {
-                    observerRef.current.observe(el)
+            const expandedSet = expandedSectionsByFile.get(file.path)
+            const storedHeight = fileBodyHeights.get(file.path)
+            const shouldRenderContent = !!fileDiff && (isCurrentFile || isVisible)
+
+            return (
+              <div
+                key={file.path}
+                data-file-path={file.path}
+                ref={(el) => {
+                  if (el) {
+                    fileRefs.current.set(file.path, el)
+                    if (observerRef.current) {
+                      observerRef.current.observe(el)
+                    }
                   }
-                }
-              }}
-              className="border-b border-slate-800 last:border-b-0"
-              style={{ minHeight: '200px' }}
-            >
-              {/* File header */}
-              <div 
-                className={clsx(
-                  "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
-                  isCurrentFile && "bg-slate-900"
-                )}
+                }}
+                className="border-b border-slate-800 last:border-b-0"
               >
-                <div className="flex items-center gap-3">
-                  {getFileIcon(file.change_type, file.path)}
-                  <div>
-                    <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                    <div className="text-xs text-slate-400">
-                      {file.change_type === 'added' && 'New file'}
-                      {file.change_type === 'deleted' && 'Deleted file'}
-                      {file.change_type === 'modified' && 'Modified'}
-                      {file.change_type === 'renamed' && 'Renamed'}
+                {/* File header */}
+                <div
+                  className={clsx(
+                    "sticky top-0 z-10 bg-slate-950 border-b border-slate-700 px-4 py-3 flex items-center justify-between",
+                    isCurrentFile && "bg-slate-900"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    {getFileIcon(file.change_type, file.path)}
+                    <div>
+                      <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                      <div className="text-xs text-slate-400">
+                        {file.change_type === 'added' && 'New file'}
+                        {file.change_type === 'deleted' && 'Deleted file'}
+                        {file.change_type === 'modified' && 'Modified'}
+                        {file.change_type === 'renamed' && 'Renamed'}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {commentCount > 0 && (
-                  <div className="flex items-center gap-1 text-sm text-blue-400">
-                    <VscComment />
-                    <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                  </div>
-                )}
-              </div>
-              
-              {/* File diff content with smart loading */}
-              {!fileDiff ? (
-                <div className="px-4 py-8 text-center text-slate-500">
-                  {isLoading ? (
-                    <AnimatedText text="loading" size="sm" />
-                  ) : (
-                    <div className="text-slate-600">
-                      {/* Placeholder maintains scroll position */}
-                      <div className="h-20" />
+                  {commentCount > 0 && (
+                    <div className="flex items-center gap-1 text-sm text-blue-400">
+                      <VscComment />
+                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                     </div>
                   )}
                 </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-max">
-                    <tbody>
-                  {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
-                    const globalIdx = `${file.path}-${idx}`
-                    const isExpanded = expandedSections.has(globalIdx)
-                    const lineNum = line.oldLineNumber || line.newLineNumber
-                    const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
-                    
-                    if (line.isCollapsible) {
-                      const rows = []
-                      rows.push(
-                        <DiffLineRow
-                          key={globalIdx}
-                          line={line}
-                          index={globalIdx}
-                          isSelected={false}
-                          onLineMouseDown={handleLineMouseDown}
-                          onLineMouseEnter={handleLineMouseEnter}
-                          onLineMouseLeave={handleLineMouseLeave}
-                          onLineMouseUp={handleLineMouseUp}
-                          onToggleCollapse={() => toggleCollapsed(globalIdx)}
-                          isCollapsed={!isExpanded}
-                          highlightedContent={undefined}
-                          filePath={file.path}
-                        />
-                      )
-                      
-                      if (isExpanded && line.collapsedLines) {
-                        line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
-                          const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
-                          const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
-                          const collapsedComment = getCommentForLine(collapsedLineNum, collapsedSide)
-                           rows.push(
+
+                {/* File diff content with virtualization */}
+                {!fileDiff ? (
+                  <div className="px-4 py-8 text-center text-slate-500">
+                    {isLoading ? (
+                      <AnimatedText text="loading" size="sm" />
+                    ) : (
+                      <div className="text-slate-600">
+                        <div className="h-20" />
+                      </div>
+                    )}
+                  </div>
+                ) : shouldRenderContent ? (
+                  <div
+                    className="overflow-x-auto"
+                    ref={getDiffBodyRef(file.path)}
+                  >
+                    <table className="w-full min-w-max">
+                      <tbody>
+                        {('diffResult' in fileDiff ? fileDiff.diffResult : []).flatMap((line, idx) => {
+                          const globalIdx = `${file.path}-${idx}`
+                          const isExpanded = expandedSet?.has(idx) ?? false
+                          const lineNum = line.oldLineNumber || line.newLineNumber
+                          const side: 'old' | 'new' = line.type === 'removed' ? 'old' : 'new'
+
+                          if (line.isCollapsible) {
+                            const rows = []
+                            rows.push(
+                              <DiffLineRow
+                                key={globalIdx}
+                                line={line}
+                                index={globalIdx}
+                                isSelected={false}
+                                onLineMouseDown={handleLineMouseDown}
+                                onLineMouseEnter={handleLineMouseEnter}
+                                onLineMouseLeave={handleLineMouseLeave}
+                                onLineMouseUp={handleLineMouseUp}
+                                onToggleCollapse={() => toggleCollapsed(file.path, idx)}
+                                isCollapsed={!isExpanded}
+                                highlightedContent={undefined}
+                                filePath={file.path}
+                              />
+                            )
+
+                            if (isExpanded && line.collapsedLines) {
+                              line.collapsedLines.forEach((collapsedLine, collapsedIdx) => {
+                                const collapsedLineNum = collapsedLine.oldLineNumber || collapsedLine.newLineNumber
+                                const collapsedSide: 'old' | 'new' = collapsedLine.type === 'removed' ? 'old' : 'new'
+                                const collapsedComment = getCommentForLine(collapsedLineNum, collapsedSide)
+                                rows.push(
+                                  <DiffLineRow
+                                    key={`${globalIdx}-expanded-${collapsedIdx}`}
+                                    line={collapsedLine}
+                                    index={`${globalIdx}-${collapsedIdx}`}
+                                    isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
+                                    onLineMouseDown={handleLineMouseDown}
+                                    onLineMouseEnter={handleLineMouseEnter}
+                                    onLineMouseLeave={handleLineMouseLeave}
+                                    onLineMouseUp={handleLineMouseUp}
+                                    highlightedContent={collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
+                                    hasComment={!!collapsedComment}
+                                    commentText={collapsedComment?.comment}
+                                    filePath={file.path}
+                                  />
+                                )
+                              })
+                            }
+
+                            return rows
+                          }
+
+                          const comment = getCommentForLine(lineNum, side)
+                          return (
                             <DiffLineRow
-                              key={`${globalIdx}-expanded-${collapsedIdx}`}
-                              line={collapsedLine}
-                              index={`${globalIdx}-${collapsedIdx}`}
-                              isSelected={collapsedLineNum ? lineSelection.isLineSelected(collapsedLineNum, collapsedSide) : false}
+                              key={globalIdx}
+                              line={line}
+                              index={globalIdx}
+                              isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
                               onLineMouseDown={handleLineMouseDown}
                               onLineMouseEnter={handleLineMouseEnter}
                               onLineMouseLeave={handleLineMouseLeave}
                               onLineMouseUp={handleLineMouseUp}
-                              highlightedContent={shouldHighlight && collapsedLine.content ? highlightCode(collapsedLine.content) : undefined}
-                              hasComment={!!collapsedComment}
-                              commentText={collapsedComment?.comment}
+                              highlightedContent={line.content ? highlightCode(line.content) : undefined}
+                              hasComment={!!comment}
+                              commentText={comment?.comment}
                               filePath={file.path}
                             />
                           )
-                        })
-                      }
-                      
-                      return rows
-                    }
-                    
-                    const comment = getCommentForLine(lineNum, side)
-                    return (
-                      <DiffLineRow
-                        key={globalIdx}
-                        line={line}
-                        index={globalIdx}
-                        isSelected={lineNum ? lineSelection.isLineSelected(lineNum, side) : false}
-                        onLineMouseDown={handleLineMouseDown}
-                        onLineMouseEnter={handleLineMouseEnter}
-                        onLineMouseLeave={handleLineMouseLeave}
-                        onLineMouseUp={handleLineMouseUp}
-                        highlightedContent={shouldHighlight && line.content ? highlightCode(line.content) : undefined}
-                        hasComment={!!comment}
-                        commentText={comment?.comment}
-                        filePath={file.path}
-                      />
-                    )
-                  })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          )
-        })
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="px-4 py-8 text-sm text-slate-600">
+                    <div
+                      data-testid="diff-placeholder"
+                      className="flex items-center justify-center rounded border border-dashed border-slate-700 bg-slate-900/40 text-xs text-slate-500"
+                      style={{ height: Math.max(storedHeight ?? 320, 160) }}
+                    >
+                      Diff hidden to keep scrolling smooth
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })
         )}
       </div>
     </>

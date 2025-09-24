@@ -140,9 +140,7 @@ fn decode_coalesced_bytes(
     terminal_id: &str,
     utf8_streams: &mut HashMap<String, Utf8Stream>,
 ) -> (Option<String>, Option<Vec<u8>>) {
-    let stream = utf8_streams
-        .entry(terminal_id.to_string())
-        .or_default();
+    let stream = utf8_streams.entry(terminal_id.to_string()).or_default();
 
     let (decoded, had_replacements) = stream.decode_chunk(&bytes);
 
@@ -294,7 +292,8 @@ mod tests {
     fn test_decode_coalesced_bytes_preserves_truncated_multibyte() {
         let data = b"Hello \xE2\x94".to_vec();
         let mut utf8_streams = HashMap::new();
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-truncated", &mut utf8_streams);
+        let (payload, remainder) =
+            decode_coalesced_bytes(data, "term-truncated", &mut utf8_streams);
         // With streaming decoder, incomplete sequences at the end are buffered
         // The decoder should return "Hello " and buffer the incomplete sequence
         assert_eq!(payload.as_deref(), Some("Hello "));
@@ -325,7 +324,8 @@ mod tests {
         // Orphan continuation bytes should be silently removed.
         let data = vec![b'f', b'o', b'o', b' ', 0x90, 0x80, b' ', b'b', b'a', b'r'];
         let mut utf8_streams = HashMap::new();
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-tail", &mut utf8_streams);
+        let (payload, remainder) =
+            decode_coalesced_bytes(data, "term-claude-tail", &mut utf8_streams);
         assert_eq!(payload.as_deref(), Some("foo ")); // space after invalid bytes is also removed
         assert!(remainder.is_none());
     }
@@ -337,7 +337,8 @@ mod tests {
         data.extend([0x80, 0xBF]);
         data.extend_from_slice(b"formatted\n");
         let mut utf8_streams = HashMap::new();
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-cont", &mut utf8_streams);
+        let (payload, remainder) =
+            decode_coalesced_bytes(data, "term-claude-cont", &mut utf8_streams);
         assert_eq!(payload.as_deref(), Some("let value = format")); // Invalid continuation bytes removed
         assert!(remainder.is_none());
     }
@@ -349,7 +350,8 @@ mod tests {
         data.extend([0xED, 0xA0, 0x80]);
         data.extend_from_slice(b"println!(\"done\");");
         let mut utf8_streams = HashMap::new();
-        let (payload, remainder) = decode_coalesced_bytes(data, "term-claude-surrogate", &mut utf8_streams);
+        let (payload, remainder) =
+            decode_coalesced_bytes(data, "term-claude-surrogate", &mut utf8_streams);
         assert_eq!(payload.as_deref(), Some("println!(\"start\");println!(\"d")); // Invalid surrogate removed
         assert!(remainder.is_none());
     }

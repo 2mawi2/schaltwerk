@@ -3,7 +3,6 @@ use crate::{
     schaltwerk_core::database::Database,
 };
 
-
 use anyhow::{anyhow, Result};
 use std::path::Path;
 use tokio::process::Command;
@@ -22,8 +21,10 @@ pub struct SessionRenameContext<'a> {
 }
 
 pub fn truncate_prompt(prompt: &str) -> String {
-    let first_lines: String = prompt.lines().take(4).collect::<Vec<_>>().join("
-");
+    let first_lines: String = prompt.lines().take(4).collect::<Vec<_>>().join(
+        "
+",
+    );
     if first_lines.len() > 400 {
         first_lines.chars().take(400).collect::<String>()
     } else {
@@ -260,9 +261,11 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
 
         // Create a minimal file so the directory isn't empty
         let readme_path = unique_temp_dir.join("README.md");
-        if let Err(e) = std::fs::write(&readme_path, "# Temporary workspace for name generation
-")
-        {
+        if let Err(e) = std::fs::write(
+            &readme_path,
+            "# Temporary workspace for name generation
+",
+        ) {
             log::debug!("Failed to create README in temp dir (non-fatal): {e}");
         }
     }
@@ -411,7 +414,7 @@ Respond with JSON: {{"name": "short-kebab-case-name"}}"#
             let stdout = ansi_strip(&String::from_utf8_lossy(&output.stdout));
             log::debug!("opencode stdout: {stdout}");
 
-    let candidate = parse_opencode_output(&stdout);
+            let candidate = parse_opencode_output(&stdout);
 
             if let Some(result) = candidate {
                 log::info!("opencode returned name candidate: {result}");
@@ -842,10 +845,13 @@ Line 4
 Line 5
 Line 6";
         let result = truncate_prompt(many_lines);
-        assert_eq!(result, "Line 1
+        assert_eq!(
+            result,
+            "Line 1
 Line 2
 Line 3
-Line 4");
+Line 4"
+        );
     }
 
     #[test]
@@ -1086,8 +1092,10 @@ Line 4");
             "test-session",
             &worktree_path,
             "claude",
-            Some("   
-\t  "),
+            Some(
+                "   
+\t  ",
+            ),
             None,
             &[],
             None,

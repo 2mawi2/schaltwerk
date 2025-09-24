@@ -810,8 +810,7 @@ mod tests {
                 vec![
                     "-c".to_string(),
                     // Generate ~4MB of 'A' via dd + tr, then exit immediately
-                    "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'A'"
-                        .to_string(),
+                    "dd if=/dev/zero bs=1024 count=4096 2>/dev/null | tr '\\0' 'A'".to_string(),
                 ],
                 vec![],
             )

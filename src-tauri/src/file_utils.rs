@@ -156,6 +156,8 @@ mod tests {
     use super::*;
     use std::fs;
     use tempfile::TempDir;
+    #[cfg(unix)]
+    use libc;
 
     #[test]
     fn test_text_file_is_diffable() {
@@ -653,6 +655,11 @@ mod tests {
         // Remove read permission (Unix-like systems)
         #[cfg(unix)]
         {
+            if unsafe { libc::geteuid() } == 0 {
+                eprintln!("Skipping read-permission test when running as root");
+                return;
+            }
+
             use std::os::unix::fs::PermissionsExt;
             let mut perms = fs::metadata(&file_path).unwrap().permissions();
             perms.set_mode(0o200); // write only

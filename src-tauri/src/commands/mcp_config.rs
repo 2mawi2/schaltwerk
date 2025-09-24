@@ -231,7 +231,10 @@ mod client {
         Ok((global_config, !exists))
     }
 
-    pub fn configure_mcp_opencode(project_path: &str, mcp_server_path: &str) -> Result<String, String> {
+    pub fn configure_mcp_opencode(
+        project_path: &str,
+        mcp_server_path: &str,
+    ) -> Result<String, String> {
         let (config_path, created_dir) = opencode_config_path(project_path)?;
 
         if created_dir {
@@ -442,9 +445,7 @@ fn check_mcp_configuration_status(project_path: &str, client: client::McpClient)
                 false
             }
         }
-        client::McpClient::OpenCode => {
-            check_opencode_config_status(project_path)
-        }
+        client::McpClient::OpenCode => check_opencode_config_status(project_path),
     }
 }
 

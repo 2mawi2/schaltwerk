@@ -1,5 +1,6 @@
 use crate::schaltwerk_core::db_app_config::AppConfigMethods;
 use std::collections::HashSet;
+use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -36,6 +37,11 @@ fn detect_available_apps() -> Vec<OpenApp> {
             kind: "editor".into(),
         },
         OpenApp {
+            id: "ghostty".into(),
+            name: "Ghostty".into(),
+            kind: "terminal".into(),
+        },
+        OpenApp {
             id: "warp".into(),
             name: "Warp".into(),
             kind: "terminal".into(),
@@ -49,36 +55,51 @@ fn detect_available_apps() -> Vec<OpenApp> {
 }
 
 fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
+    let working_dir = resolve_working_directory(path)?;
+
+    if app_id == "ghostty" {
+        return open_path_in_ghostty(working_dir.as_str());
+    }
+
     let result = match app_id {
-        "finder" => Command::new("open").arg(path).status(),
+        "finder" => Command::new("open").arg(working_dir.as_str()).status(),
         "cursor" => {
             // Try CLI first, fall back to open -a
             if which::which("cursor").is_ok() {
-                Command::new("cursor").arg(path).status()
+                Command::new("cursor").arg(working_dir.as_str()).status()
             } else {
-                Command::new("open").args(["-a", "Cursor", path]).status()
+                Command::new("open")
+                    .args(["-a", "Cursor", working_dir.as_str()])
+                    .status()
             }
         }
-        "intellij" => return open_path_in_intellij(path),
+        "intellij" => return open_path_in_intellij(working_dir.as_str()),
         "vscode" => {
             // Try CLI first, fall back to open -a
             if which::which("code").is_ok() {
-                Command::new("code").arg(path).status()
+                Command::new("code").arg(working_dir.as_str()).status()
             } else {
                 Command::new("open")
-                    .args(["-a", "Visual Studio Code", path])
+                    .args(["-a", "Visual Studio Code", working_dir.as_str()])
                     .status()
             }
         }
         "warp" => {
             // Try CLI first, fall back to open -a
             if which::which("warp").is_ok() {
-                Command::new("warp").arg("--cwd").arg(path).status()
+                Command::new("warp")
+                    .arg("--cwd")
+                    .arg(working_dir.as_str())
+                    .status()
             } else {
-                Command::new("open").args(["-a", "Warp", path]).status()
+                Command::new("open")
+                    .args(["-a", "Warp", working_dir.as_str()])
+                    .status()
             }
         }
-        "terminal" => Command::new("open").args(["-a", "Terminal", path]).status(),
+        "terminal" => Command::new("open")
+            .args(["-a", "Terminal", working_dir.as_str()])
+            .status(),
         other => return Err(format!("Unsupported app id: {other}")),
     };
 
@@ -91,6 +112,7 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                 "vscode" => "VS Code",
                 "warp" => "Warp",
                 "terminal" => "Terminal",
+                "ghostty" => "Ghostty",
                 _ => app_id,
             };
             Err(format!("{app_name} is not installed. Please install it from the official website or choose a different application."))
@@ -103,11 +125,83 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                 "warp" => "Warp",
                 "terminal" => "Terminal",
                 "finder" => "Finder",
+                "ghostty" => "Ghostty",
                 _ => app_id,
             };
             Err(format!("Failed to open in {app_name}: {e}"))
         }
     }
+}
+
+fn resolve_working_directory(path: &str) -> Result<String, String> {
+    let candidate = Path::new(path);
+    if candidate.is_absolute() {
+        return candidate
+            .to_str()
+            .map(|s| s.to_string())
+            .ok_or_else(|| "Working directory path contains invalid UTF-8".to_string());
+    }
+
+    let cwd = env::current_dir()
+        .map_err(|e| format!("Failed to resolve current working directory: {e}"))?;
+    let joined = cwd.join(candidate);
+    joined
+        .to_str()
+        .map(|s| s.to_string())
+        .ok_or_else(|| "Working directory path contains invalid UTF-8".to_string())
+}
+
+fn open_path_in_ghostty(working_dir: &str) -> Result<(), String> {
+    let working_dir_flag = format!("--working-directory={working_dir}");
+
+    #[cfg(target_os = "macos")]
+    {
+        let open_status = Command::new("open")
+            .args([
+                "-na",
+                "Ghostty",
+                "--args",
+                working_dir_flag.as_str(),
+            ])
+            .status();
+        match open_status {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(_) => {
+                // Fall through to CLI fallback below.
+            }
+            Err(e) => {
+                // If the macOS bundle fails entirely, provide context but still fall back to CLI.
+                log::warn!("failed to launch Ghostty via open: {e}");
+            }
+        }
+    }
+
+    if which::which("ghostty").is_ok() {
+        let cli_status = Command::new("ghostty")
+            .arg(working_dir_flag.as_str())
+            .status();
+        match cli_status {
+            Ok(status) if status.success() => return Ok(()),
+            Ok(_) => {
+                let shim_status = Command::new("ghostty")
+                    .args(["+open", working_dir_flag.as_str()])
+                    .status();
+                match shim_status {
+                    Ok(status) if status.success() => return Ok(()),
+                    Ok(_) => {}
+                    Err(e) => {
+                        return Err(format!("Failed to launch Ghostty via CLI shim: {e}"));
+                    }
+                }
+            }
+            Err(e) => {
+                return Err(format!("Failed to execute ghostty CLI: {e}"));
+            }
+        }
+        return Err("Ghostty CLI is installed but refused the launch command. Ensure the Ghostty CLI supports --working-directory or use the app bundle launch setting.".into());
+    }
+
+    Err("Ghostty is not installed. Please install Ghostty or choose a different terminal.".into())
 }
 
 fn open_path_in_intellij(path: &str) -> Result<(), String> {
@@ -263,7 +357,8 @@ mod tests {
         assert!(apps.iter().any(|a| a.id == "finder"));
         assert!(apps.iter().any(|a| a.id == "terminal"));
         assert!(apps.iter().any(|a| a.id == "intellij"));
-        assert_eq!(apps.len(), 6); // Should have all 6 apps
+        assert!(apps.iter().any(|a| a.id == "ghostty"));
+        assert_eq!(apps.len(), 7); // Should have all 7 apps
     }
 
     #[test]

@@ -32,13 +32,15 @@ const mockProps: Partial<DiffViewerProps> = {
     baseCommit: 'abc1234',
     headCommit: 'def5678'
   },
-  expandedSections: new Set<string>(),
+  expandedSectionsByFile: new Map<string, Set<number>>(),
   isLargeDiffMode: true,
   visibleFileSet: new Set(['src/file1.ts']),
   loadingFiles: new Set<string>(),
   observerRef: { current: null },
    scrollContainerRef: { current: null } as unknown as React.RefObject<HTMLDivElement>,
   fileRefs: { current: new Map() },
+  fileBodyHeights: new Map<string, number>(),
+  onFileBodyHeightChange: vi.fn(),
   getCommentsForFile: vi.fn(() => []),
   getCommentForLine: vi.fn(() => undefined),
   highlightCode: vi.fn((code: string) => code),
@@ -188,6 +190,30 @@ describe('DiffViewer', () => {
 
     // Should call highlight function for visible content
     expect(highlightCode).toHaveBeenCalled()
+  })
+
+  it('renders a placeholder for non-visible diffs in continuous mode', () => {
+    const file2Diff = {
+      ...mockFileDiff,
+      file: { path: 'src/file2.tsx', change_type: 'modified' as const }
+    }
+    const props = {
+      ...mockProps,
+      isLargeDiffMode: false,
+      files: mockFiles,
+      selectedFile: 'src/file2.tsx',
+      visibleFileSet: new Set<string>(),
+      allFileDiffs: new Map([
+        ['src/file1.ts', mockFileDiff],
+        ['src/file2.tsx', file2Diff]
+      ]),
+      fileBodyHeights: new Map<string, number>([['src/file1.ts', 400]])
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    const placeholders = screen.getAllByTestId('diff-placeholder')
+    expect(placeholders.length).toBeGreaterThan(0)
   })
 
   it('applies horizontal scrolling at the file level instead of per line', () => {

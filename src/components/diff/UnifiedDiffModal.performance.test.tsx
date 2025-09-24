@@ -44,6 +44,7 @@ describe('UnifiedDiffModal performance', () => {
       if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
       if (cmd === TauriCommands.GetBaseBranchName) return 'main'
       if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc1234', 'def5678']
+      if (cmd === TauriCommands.GetDiffViewPreferences) return { continuous_scroll: false, compact_diffs: true }
       if (cmd === TauriCommands.GetFileDiffFromMain) {
         const base = Array.from({ length: 4000 }, (_, i) => `line ${i}`).join('\n') + '\n'
         const head = base

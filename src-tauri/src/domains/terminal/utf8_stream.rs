@@ -63,8 +63,6 @@ impl Utf8Stream {
         (out, had_replacements)
     }
 
-
-
     /// Flush pending state at stream end (optional).
     pub fn finish(&mut self) -> Option<String> {
         let mut out = String::new();
@@ -72,7 +70,11 @@ impl Utf8Stream {
         if had_replacements && matches!(self.invalid_policy, InvalidPolicy::Remove) {
             out.retain(|ch| ch != '\u{FFFD}');
         }
-        if out.is_empty() { None } else { Some(out) }
+        if out.is_empty() {
+            None
+        } else {
+            Some(out)
+        }
     }
 
     pub fn maybe_warn(&mut self, terminal_id: &str, had_replacements: bool) {
@@ -122,7 +124,7 @@ impl Utf8Stream {
 
 #[cfg(test)]
 mod tests {
-    use super::{Utf8Stream, InvalidPolicy};
+    use super::{InvalidPolicy, Utf8Stream};
 
     #[test]
     fn preserves_multichunk_utf8() {

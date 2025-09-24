@@ -139,8 +139,6 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
     Ok(watcher_manager.get_active_watchers().await)
 }
 
-
-
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
@@ -611,12 +609,16 @@ fn main() {
             schaltwerk_core_discard_file_in_orchestrator,
             schaltwerk_core_set_skip_permissions,
             schaltwerk_core_get_skip_permissions,
+            schaltwerk_core_set_orchestrator_skip_permissions,
+            schaltwerk_core_get_orchestrator_skip_permissions,
             schaltwerk_core_mark_session_ready,
             schaltwerk_core_has_uncommitted_changes,
             schaltwerk_core_unmark_session_ready,
             schaltwerk_core_set_agent_type,
             schaltwerk_core_set_session_agent_type,
             schaltwerk_core_get_agent_type,
+            schaltwerk_core_set_orchestrator_agent_type,
+            schaltwerk_core_get_orchestrator_agent_type,
             schaltwerk_core_get_font_sizes,
             schaltwerk_core_set_font_sizes,
             schaltwerk_core_create_spec_session,
