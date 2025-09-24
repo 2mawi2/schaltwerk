@@ -6,10 +6,12 @@ import { invoke } from '@tauri-apps/api/core'
 import { listenEvent } from '../../common/eventSystem'
 import { TauriCommands } from '../../common/tauriCommands'
 
+const countTokensMock = vi.hoisted(() => vi.fn<(text: string) => number>())
+
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
 
 vi.mock('gpt-tokenizer', () => ({
-  countTokens: (text: string) => text.length,
+  countTokens: (text: string) => countTokensMock(text),
 }))
 
 vi.mock('../../contexts/ProjectContext', () => ({
@@ -55,6 +57,9 @@ describe('CopyBundleBar', () => {
     mockClipboard()
 
     mockListenEvent.mockResolvedValue(() => {})
+
+    countTokensMock.mockReset()
+    countTokensMock.mockImplementation((text: string) => text.length)
 
     mockInvoke.mockImplementation(async (cmd: string) => {
       switch (cmd) {
@@ -165,5 +170,82 @@ describe('CopyBundleBar', () => {
     await waitFor(() => {
       expect(pushToastMock).toHaveBeenCalledWith(expect.objectContaining({ title: 'Copied to clipboard' }))
     })
+  })
+
+  it('produces smaller token bundles for diffs by skipping collapsed unchanged lines', async () => {
+    const collapsedLines = Array.from({ length: 40 }, (_, index) => ({
+      content: `unchanged ${index}`,
+      type: 'unchanged' as const,
+    }))
+
+    mockInvoke.mockImplementation(async (cmd: string) => {
+      switch (cmd) {
+        case TauriCommands.SchaltwerkCoreGetSessionAgentContent:
+          return ['# Spec content', null]
+        case TauriCommands.GetChangedFilesFromMain:
+          return [{ path: 'file1.txt', change_type: 'modified' }]
+        case TauriCommands.ComputeUnifiedDiffBackend:
+          return {
+            lines: [
+              { content: 'context start', type: 'unchanged' as const },
+              {
+                content: '',
+                type: 'unchanged' as const,
+                isCollapsible: true,
+                collapsedCount: collapsedLines.length,
+                collapsedLines,
+              },
+              { content: 'old value', type: 'removed' as const },
+              { content: 'new value', type: 'added' as const },
+            ],
+            isBinary: false,
+          }
+        case TauriCommands.GetFileDiffFromMain:
+          return [
+            collapsedLines.map(line => line.content).join('\n'),
+            [...collapsedLines.map(line => line.content), 'new value'].join('\n'),
+          ]
+        case TauriCommands.ClipboardWriteText:
+          return undefined
+        default:
+          return undefined
+      }
+    })
+
+    render(<CopyBundleBar sessionName="s-diff-tokens" />)
+
+    const specToggle = await screen.findByRole('checkbox', { name: /spec/i })
+    const diffToggle = await screen.findByRole('checkbox', { name: /diff/i })
+    const filesToggle = await screen.findByRole('checkbox', { name: /files/i })
+
+    await waitFor(() => {
+      expect(specToggle).toBeChecked()
+    })
+
+    countTokensMock.mockClear()
+
+    await user.click(specToggle)
+    await user.click(diffToggle)
+
+    await waitFor(() => {
+      expect(countTokensMock).toHaveBeenCalled()
+      const latestText = countTokensMock.mock.calls.at(-1)?.[0] ?? ''
+      expect(latestText).toContain('## Diff')
+    })
+    const diffTokens = countTokensMock.mock.results.at(-1)?.value as number
+
+    countTokensMock.mockClear()
+
+    await user.click(filesToggle)
+    await user.click(diffToggle)
+
+    await waitFor(() => {
+      expect(countTokensMock).toHaveBeenCalled()
+      const latestText = countTokensMock.mock.calls.at(-1)?.[0] ?? ''
+      expect(latestText).toContain('## Touched files')
+    })
+    const fileTokens = countTokensMock.mock.results.at(-1)?.value as number
+
+    expect(fileTokens).toBeGreaterThan(diffTokens)
   })
 })

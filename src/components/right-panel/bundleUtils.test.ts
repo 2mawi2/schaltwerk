@@ -79,13 +79,14 @@ describe('bundleUtils', () => {
           content: 'line 1',
           isCollapsible: true,
           collapsedLines: [
-            { type: 'added', content: 'nested 1' },
-            { type: 'removed', content: 'nested 2' }
-          ]
+            { type: 'unchanged', content: 'nested 1' },
+            { type: 'unchanged', content: 'nested 2' }
+          ],
+          collapsedCount: 2
         }
       ]
       const result = flattenDiffLines(lines)
-      expect(result).toEqual(['+nested 1', '-nested 2'])
+      expect(result).toEqual([' [unchanged lines omitted: 2]'])
     })
 
     it('handles null content', () => {

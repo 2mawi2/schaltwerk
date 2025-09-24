@@ -30,8 +30,20 @@ export function flattenDiffLines(lines: LineInfo[]): string[] {
   const result: string[] = []
   for (const line of lines) {
     if (line.isCollapsible && Array.isArray(line.collapsedLines)) {
-      for (const nested of line.collapsedLines) {
-        result.push(`${prefixForDiffLine(nested)}${nested.content ?? ''}`)
+      const nestedLines = line.collapsedLines
+      const hasNonUnchanged = nestedLines.some(nested => nested.type !== 'unchanged')
+      if (hasNonUnchanged) {
+        for (const nested of nestedLines) {
+          result.push(`${prefixForDiffLine(nested)}${nested.content ?? ''}`)
+        }
+      } else {
+        const collapsedCount = typeof line.collapsedCount === 'number' && line.collapsedCount > 0
+          ? line.collapsedCount
+          : nestedLines.length
+        const summary = collapsedCount > 0
+          ? `[unchanged lines omitted: ${collapsedCount}]`
+          : '[unchanged lines omitted]'
+        result.push(` ${summary}`)
       }
     } else {
       result.push(`${prefixForDiffLine(line)}${line.content ?? ''}`)
