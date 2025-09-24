@@ -8,8 +8,16 @@ import { getPersistedSessionDefaults } from '../../utils/sessionConfig'
 import { Dropdown } from '../inputs/Dropdown'
 import { logger } from '../../utils/logger'
 import { useModal } from '../../contexts/ModalContext'
-import { AgentType } from '../../types/session'
+import { AgentType, AGENT_TYPES } from '../../types/session'
 import { UiEvent, listenUiEvent, NewSessionPrefillDetail } from '../../common/uiEvents'
+import {
+    AgentCliArgsState,
+    AgentEnvVar,
+    AgentEnvVarState,
+    createEmptyCliArgsState,
+    createEmptyEnvVarState,
+} from '../shared/agentDefaults'
+import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
 
 interface Props {
     open: boolean
@@ -46,6 +54,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [isPrefillPending, setIsPrefillPending] = useState(false)
     const [hasPrefillData, setHasPrefillData] = useState(false)
     const [originalSpecName, setOriginalSpecName] = useState<string>('')
+    const [agentEnvVars, setAgentEnvVars] = useState<AgentEnvVarState>(createEmptyEnvVarState)
+    const [agentCliArgs, setAgentCliArgs] = useState<AgentCliArgsState>(createEmptyCliArgsState)
+    const [agentConfigLoading, setAgentConfigLoading] = useState(false)
     const nameInputRef = useRef<HTMLInputElement>(null)
     const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
     const wasEditedRef = useRef(false)
@@ -67,6 +78,76 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const handleSkipPermissionsChange = (enabled: boolean) => {
         setSkipPermissions(enabled)
     }
+
+    const persistAgentCliArgs = useCallback(async (agent: AgentType, value: string) => {
+        try {
+            await invoke(TauriCommands.SetAgentCliArgs, { agentType: agent, cliArgs: value })
+        } catch (error) {
+            logger.warn('[NewSessionModal] Failed to persist CLI args for agent', agent, error)
+        }
+    }, [])
+
+    const persistAgentEnvVars = useCallback(async (agent: AgentType, vars: AgentEnvVar[]) => {
+        const envVarPayload = vars.reduce<Record<string, string>>((acc, item) => {
+            const trimmedKey = item.key.trim()
+            if (trimmedKey) {
+                acc[trimmedKey] = item.value
+            }
+            return acc
+        }, {})
+
+        try {
+            await invoke(TauriCommands.SetAgentEnvVars, { agentType: agent, envVars: envVarPayload })
+        } catch (error) {
+            logger.warn('[NewSessionModal] Failed to persist env vars for agent', agent, error)
+        }
+    }, [])
+
+    const updateEnvVarsForAgent = useCallback(
+        (updater: (vars: AgentEnvVar[]) => AgentEnvVar[]) => {
+            setAgentEnvVars(prev => {
+                const currentList = prev[agentType] || []
+                const updatedList = updater(currentList)
+                const next = { ...prev, [agentType]: updatedList }
+                void persistAgentEnvVars(agentType, updatedList)
+                return next
+            })
+        },
+        [agentType, persistAgentEnvVars]
+    )
+
+    const handleCliArgsChange = useCallback(
+        (value: string) => {
+            setAgentCliArgs(prev => {
+                if (prev[agentType] === value) {
+                    return prev
+                }
+                return { ...prev, [agentType]: value }
+            })
+            void persistAgentCliArgs(agentType, value)
+        },
+        [agentType, persistAgentCliArgs]
+    )
+
+    const handleEnvVarChange = useCallback(
+        (index: number, field: 'key' | 'value', value: string) => {
+            updateEnvVarsForAgent(current =>
+                current.map((item, idx) => (idx === index ? { ...item, [field]: value } : item))
+            )
+        },
+        [updateEnvVarsForAgent]
+    )
+
+    const handleAddEnvVar = useCallback(() => {
+        updateEnvVarsForAgent(current => [...current, { key: '', value: '' }])
+    }, [updateEnvVarsForAgent])
+
+    const handleRemoveEnvVar = useCallback(
+        (index: number) => {
+            updateEnvVarsForAgent(current => current.filter((_, idx) => idx !== index))
+        },
+        [updateEnvVarsForAgent]
+    )
 
     const validateSessionName = useCallback((sessionName: string): string | null => {
         if (!sessionName.trim()) {
@@ -161,6 +242,79 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     // Track if the modal was previously open and with what initialIsDraft value
     const wasOpenRef = useRef(false)
     const lastInitialIsDraftRef = useRef<boolean | undefined>(undefined)
+
+    useEffect(() => {
+        if (!open) return
+
+        let cancelled = false
+
+        const loadAgentDefaults = async () => {
+            setAgentConfigLoading(true)
+            try {
+                const envResults = await Promise.all(
+                    AGENT_TYPES.map(async agent => {
+                        try {
+                            const result = await invoke<Record<string, string>>(TauriCommands.GetAgentEnvVars, { agentType: agent })
+                            return result || {}
+                        } catch (error) {
+                            logger.warn('[NewSessionModal] Failed to load env vars for agent', agent, error)
+                            return {}
+                        }
+                    })
+                )
+
+                const cliResults = await Promise.all(
+                    AGENT_TYPES.map(async agent => {
+                        try {
+                            const result = await invoke<string>(TauriCommands.GetAgentCliArgs, { agentType: agent })
+                            return result || ''
+                        } catch (error) {
+                            logger.warn('[NewSessionModal] Failed to load CLI args for agent', agent, error)
+                            return ''
+                        }
+                    })
+                )
+
+                if (cancelled) {
+                    return
+                }
+
+                setAgentEnvVars(() => {
+                    const next = createEmptyEnvVarState()
+                    AGENT_TYPES.forEach((agent, index) => {
+                        const raw = envResults[index] || {}
+                        next[agent] = Object.entries(raw).map(([key, value]) => ({ key, value }))
+                    })
+                    return next
+                })
+
+                setAgentCliArgs(() => {
+                    const next = createEmptyCliArgsState()
+                    AGENT_TYPES.forEach((agent, index) => {
+                        const result = cliResults[index]
+                        next[agent] = typeof result === 'string' ? result : ''
+                    })
+                    return next
+                })
+            } catch (error) {
+                if (!cancelled) {
+                    logger.warn('[NewSessionModal] Failed to load agent defaults', error)
+                    setAgentEnvVars(createEmptyEnvVarState())
+                    setAgentCliArgs(createEmptyCliArgsState())
+                }
+            } finally {
+                if (!cancelled) {
+                    setAgentConfigLoading(false)
+                }
+            }
+        }
+
+        void loadAgentDefaults()
+
+        return () => {
+            cancelled = true
+        }
+    }, [open])
 
     // Register/unregister modal with context using layout effect to minimize timing gaps
     useLayoutEffect(() => {
@@ -262,6 +416,9 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             setSkipPermissions(false)
             setVersionCount(1)
             setShowVersionMenu(false)
+            setAgentEnvVars(createEmptyEnvVarState())
+            setAgentCliArgs(createEmptyCliArgsState())
+            setAgentConfigLoading(false)
             wasOpenRef.current = false
             lastInitialIsDraftRef.current = undefined
         }
@@ -481,15 +638,27 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     )}
 
                     {!createAsDraft && (
-                        <SessionConfigurationPanel
-                            variant="modal"
-                            onBaseBranchChange={handleBranchChange}
-                            onAgentTypeChange={handleAgentTypeChange}
-                            onSkipPermissionsChange={handleSkipPermissionsChange}
-                            initialBaseBranch={baseBranch}
-                            initialAgentType={agentType}
-                            initialSkipPermissions={skipPermissions}
-                        />
+                        <>
+                            <SessionConfigurationPanel
+                                variant="modal"
+                                onBaseBranchChange={handleBranchChange}
+                                onAgentTypeChange={handleAgentTypeChange}
+                                onSkipPermissionsChange={handleSkipPermissionsChange}
+                                initialBaseBranch={baseBranch}
+                                initialAgentType={agentType}
+                                initialSkipPermissions={skipPermissions}
+                            />
+                            <AgentDefaultsSection
+                                agentType={agentType}
+                                cliArgs={agentCliArgs[agentType] || ''}
+                                onCliArgsChange={handleCliArgsChange}
+                                envVars={agentEnvVars[agentType]}
+                                onEnvVarChange={handleEnvVarChange}
+                                onAddEnvVar={handleAddEnvVar}
+                                onRemoveEnvVar={handleRemoveEnvVar}
+                                loading={agentConfigLoading}
+                            />
+                        </>
                     )}
                 </div>
                 <div className="px-4 py-3 border-t border-slate-800 flex justify-end gap-2 relative">
