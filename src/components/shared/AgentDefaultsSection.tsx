@@ -196,7 +196,7 @@ export function AgentDefaultsSection({
                                         envVars.map((item, index) => (
                                             <div
                                                 className="grid grid-cols-12 gap-2 p-2"
-                                                key={`env-var-${agentType}-${index}-${item.key}`}
+                                                key={`env-var-${agentType}-${index}`}
                                                 data-testid={`env-var-row-${index}`}
                                             >
                                                 <input

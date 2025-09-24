@@ -61,12 +61,16 @@ describe('AgentDefaultsSection', () => {
         expect(toggleButton).toHaveAttribute('aria-expanded', 'true')
 
         const firstKey = screen.getByTestId('env-var-key-0') as HTMLInputElement
+        firstKey.focus()
         fireEvent.change(firstKey, { target: { value: 'NEW_KEY' } })
         expect(props.onEnvVarChange).toHaveBeenCalledWith(0, 'key', 'NEW_KEY')
+        expect(document.activeElement).toBe(firstKey)
 
         const firstValue = screen.getByTestId('env-var-value-0') as HTMLInputElement
+        firstValue.focus()
         fireEvent.change(firstValue, { target: { value: '999' } })
         expect(props.onEnvVarChange).toHaveBeenCalledWith(0, 'value', '999')
+        expect(document.activeElement).toBe(firstValue)
 
         const removeButton = screen.getByTestId('env-var-remove-1')
         fireEvent.click(removeButton)
