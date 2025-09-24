@@ -782,7 +782,7 @@ impl SessionManager {
             );
             git::create_initial_commit(&self.repo_path).map_err(|e| {
                 self.cache_manager.unreserve_name(&unique_name);
-                anyhow!("Failed to create initial commit: {}", e)
+                anyhow!("Failed to create initial commit: {e}")
             })?;
         }
 
@@ -795,7 +795,7 @@ impl SessionManager {
 
         if let Err(e) = create_result {
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to create worktree: {}", e));
+            return Err(anyhow!("Failed to create worktree: {e}"));
         }
 
         // Verify the worktree was created successfully and is valid
@@ -833,7 +833,7 @@ impl SessionManager {
             let _ = git::remove_worktree(&self.repo_path, &worktree_path);
             let _ = git::delete_branch(&self.repo_path, &branch);
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save session to database: {}", e));
+            return Err(anyhow!("Failed to save session to database: {e}"));
         }
         let global_agent = default_agent_type;
         let global_skip = self.db_manager.get_skip_permissions().unwrap_or(false);
@@ -931,7 +931,7 @@ impl SessionManager {
 
         if session.worktree_path.exists() {
             if let Err(e) = git::remove_worktree(&self.repo_path, &session.worktree_path) {
-                return Err(anyhow!("Failed to remove worktree: {}", e));
+                return Err(anyhow!("Failed to remove worktree: {e}"));
             }
             log::debug!("Cancel {name}: Removed worktree");
         } else {
@@ -1013,7 +1013,7 @@ impl SessionManager {
                 match res {
                     Ok(Ok(())) => Ok(()),
                     Ok(Err(e)) => Err(e),
-                    Err(e) => Err(anyhow::anyhow!("Task join error: {}", e)),
+                    Err(e) => Err(anyhow::anyhow!("Task join error: {e}")),
                 }
             }))
         } else {
@@ -1092,7 +1092,7 @@ impl SessionManager {
         let session = self.db_manager.get_session_by_name(name)?;
 
         if session.session_state != SessionState::Running {
-            return Err(anyhow!("Session '{}' is not in running state", name));
+            return Err(anyhow!("Session '{name}' is not in running state"));
         }
 
         log::info!("Converting session '{name}' from running to spec");
@@ -1607,9 +1607,7 @@ impl SessionManager {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
             let supported = registry.supported_agents().join(", ");
             Err(anyhow!(
-                "Unsupported agent type: {}. Supported types are: {}",
-                agent_type,
-                supported
+                "Unsupported agent type: {agent_type}. Supported types are: {supported}"
             ))
         }
     }
@@ -1644,7 +1642,10 @@ impl SessionManager {
 
         if !self.repo_path.join(".git").exists() {
             log::error!("Not a git repository: {}", self.repo_path.display());
-            return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
+            let repo_path = self.repo_path.display();
+            return Err(anyhow!(
+                "The folder '{repo_path}' is not a git repository. The orchestrator requires a git repository to function."
+            ));
         }
 
         let skip_permissions = self.db_manager.get_skip_permissions()?;
@@ -1682,17 +1683,13 @@ impl SessionManager {
         );
 
         if !self.repo_path.exists() {
-            return Err(anyhow!(
-                "Repository path does not exist: {}",
-                self.repo_path.display()
-            ));
+            let repo_path = self.repo_path.display();
+            return Err(anyhow!("Repository path does not exist: {repo_path}"));
         }
 
         if !self.repo_path.join(".git").exists() {
-            return Err(anyhow!(
-                "Not a git repository: {}",
-                self.repo_path.display()
-            ));
+            let repo_path = self.repo_path.display();
+            return Err(anyhow!("Not a git repository: {repo_path}"));
         }
 
         let skip_permissions = self.db_manager.get_skip_permissions()?;
@@ -1772,9 +1769,7 @@ impl SessionManager {
             log::error!("Unknown agent type '{agent_type}' for orchestrator");
             let supported = registry.supported_agents().join(", ");
             Err(anyhow!(
-                "Unsupported agent type: {}. Supported types are: {}",
-                agent_type,
-                supported
+                "Unsupported agent type: {agent_type}. Supported types are: {supported}"
             ))
         }
     }
@@ -1789,10 +1784,7 @@ impl SessionManager {
         }
 
         if session.ready_to_merge {
-            return Err(anyhow!(
-                "Session '{}' is already marked as reviewed",
-                session_name
-            ));
+            return Err(anyhow!("Session '{session_name}' is already marked as reviewed"));
         }
 
         // Use existing mark_session_ready logic (with auto_commit=false)
@@ -2050,7 +2042,7 @@ impl SessionManager {
 
         if let Err(e) = self.db_manager.create_session(&session) {
             self.cache_manager.unreserve_name(&unique_name);
-            return Err(anyhow!("Failed to save spec session to database: {}", e));
+            return Err(anyhow!("Failed to save spec session to database: {e}"));
         }
 
         self.cache_manager.unreserve_name(&unique_name);
@@ -2065,7 +2057,7 @@ impl SessionManager {
         );
 
         if let Err(e) = create_result {
-            return Err(anyhow!("Failed to create worktree: {}", e));
+            return Err(anyhow!("Failed to create worktree: {e}"));
         }
 
         // Verify the worktree was created successfully and is valid
@@ -2201,7 +2193,7 @@ impl SessionManager {
         }
 
         if session.session_state != SessionState::Spec {
-            return Err(anyhow!("Session '{}' is not in spec state", session_name));
+            return Err(anyhow!("Session '{session_name}' is not in spec state"));
         }
 
         let parent_branch = if let Some(base) = base_branch {
@@ -2215,7 +2207,9 @@ impl SessionManager {
                 }
                 Err(e) => {
                     log::error!("Failed to detect default branch: {e}");
-                    return Err(anyhow!("Failed to detect default branch: {}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')", e));
+                    return Err(anyhow!(
+                        "Failed to detect default branch: {e}. Please ensure the repository has at least one branch (e.g., 'main' or 'master')"
+                    ));
                 }
             }
         };
@@ -2231,7 +2225,7 @@ impl SessionManager {
         );
 
         if let Err(e) = create_result {
-            return Err(anyhow!("Failed to create worktree: {}", e));
+            return Err(anyhow!("Failed to create worktree: {e}"));
         }
 
         // Verify the worktree was created successfully and is valid
