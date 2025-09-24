@@ -6,6 +6,135 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+const SQUASH_MERGE_MAIN_PROMPT: &str = r#"Task: Squash-merge all reviewed Schaltwerk sessions
+
+Find all reviewed sessions and merge them to main branch with proper validation and fallback handling.
+
+Steps to perform:
+
+1. Check git status: Ensure working tree is clean and on main branch
+2. Find reviewed sessions: Use schaltwerk MCP to list all sessions with status="reviewed"
+3. For each reviewed session:
+  - IMPORTANT: First merge main INTO the session branch to resolve conflicts
+  - Check if session branch exists and has valid changes (not regressions)
+  - Switch to session branch (or use worktree if exists)
+  - Check if there are any uncommited changes and commit them if needed (ensure to not commit any development artifacts like debug scripts etc that should not be in the changeset of the session)
+  - Run git merge main to bring branch up to date with latest changes
+  - Resolve any merge conflicts that occur
+  - Switch back to main branch
+  - Validate session before merge:
+      - CRITICAL: Use git log --oneline main..schaltwerk/session_name to see what commits the session actually adds
+      - CRITICAL: If the session only has a "Mark session as reviewed" commit and NO actual feature commits, check for uncommitted changes in the worktree
+      - CRITICAL: After merging main into the session, the diff will show the session "removing" files that were added to main after the session was created - THIS IS NORMAL and not the session actually removing anything
+      - Focus on what the session ADDS (new files, modifications to existing files at the time of branch creation)
+  - Attempt squash-merge: git merge --squash <branch>
+  - Create descriptive commit message based on the session's changes
+  - Run tests: Execute npm run test after merge attempt
+  - Decision point:
+      - ✅ If merge succeeds AND tests pass: Cancel session immediately with force: true
+      - ❌ If merge fails OR tests fail OR changes don't make sense: Send follow-up message and NEVER cancel session
+
+Understanding Git Diffs After Merging Main:
+
+CRITICAL: When you merge main into an old session branch and then diff:
+- Files that appear to be "removed" by the session are actually files added to main AFTER the session was created
+- The session is NOT removing these files - they simply didn't exist when the session branched off
+- Focus on:
+  - Files the session ADDS (new files created by the session)
+  - Files the session MODIFIES (changes to files that existed when the session was created)
+  - Ignore apparent "deletions" of files that were added to main after the session's branch point
+
+Example: If session branched from commit A, and main has since added files X and Y:
+- After merging main into session, git diff main..session will show files X and Y as "deleted"
+- This is NORMAL - the session isn't deleting them, it just shows the difference
+- When you squash-merge back to main, files X and Y will remain intact
+
+Validation Criteria:
+
+✅ PROCEED WITH MERGE when:
+- Small merge conflicts that can be resolved mechanically
+- Integration issues between 2 features that need coordination (agent can't solve alone)
+- Clean diff that makes logical sense (ignoring false "deletions" from main's newer files)
+- Tests pass after merge
+- No obvious regressions or broken functionality
+
+❌ SEND FOLLOW-UP MESSAGE when:
+- Code compilation fails (linting errors, missing imports, dead code warnings)
+- Tests fail after merge due to integration issues between the new feature and existing functionality
+- Large/complex merge conflicts that require domain knowledge
+- Diff doesn't make sense (random changes, unrelated modifications, broken logic)
+- Obvious regressions (reverting recent improvements that existed when the session was created)
+- Missing proper integration (changes that should work together but don't)
+
+❓ ASK USER FOR GUIDANCE when:
+- Content duplication (session duplicates work from another session)
+- Unclear session purpose (session name doesn't match actual changes)
+- Strategic decisions needed (which of multiple similar sessions should be kept)
+
+Follow-up Message Strategy:
+
+For technical issues that agents can fix, send a descriptive follow-up message explaining:
+- Specific issue encountered (compilation error, test failures, merge conflicts)
+- What needs to be fixed (resolve dead code, fix integration, handle conflicts)
+- Why it couldn't be auto-merged (requires agent knowledge/context)
+
+Example messages:
+"The session has compilation conflicts when merged to main. Please resolve the dead code issues with parse_numstat_line function and ensure all exports are properly scoped with #[cfg(test)]."
+
+"Tests fail after merge due to integration issues between the new feature and existing functionality. Please ensure proper integration and test compatibility."
+
+"The diff contains complex merge conflicts that require domain knowledge to resolve properly. Please rebase against main and resolve conflicts."
+
+For strategic/content issues, ask the user for guidance at the end of the merge process:
+- Leave the session as-is (don't send messages to agents for issues they can't solve)
+- Present the issue to the user with context and options
+- Let the user decide how to handle duplication, unclear purpose, etc.
+
+Requirements:
+
+- Working tree must be clean before starting
+- Must be on main branch
+- Only merge sessions that pass all validation criteria
+- Send follow-up messages for problematic sessions (don't force merge)
+- CRITICAL: Sessions cancelled immediately ONLY after successful merge and test validation
+- NEVER cancel/delete sessions that failed to merge - preserve all Git state for manual review
+- When you are done with everything, check again if there are new reviewed sessions and then also repeat this whole process from the beginning if there are any new reviewed sessions that you did not consider before
+- When you had to send a follow-up message, you can continue with the other tasks in the meantime to be merged, so that the agent has time to actually process the follow-up message you sent it to him. Because if you do not wait, then there might not be changes immediately.
+
+⚠️ Decision Making Philosophy:
+
+- We handle: Simple conflicts, integration coordination, mechanical merges
+- Agent handles: Complex conflicts, code logic issues, feature-specific problems
+- User handles: Content duplication decisions, strategic choices, session purpose clarification
+- When in doubt: Send follow-up message for technical issues, ask user for strategic issues
+- Git State Protection: NEVER delete/cancel sessions unless they were successfully merged - all failed merges preserve their Git state
+
+Commit message format:
+
+Use the session's changes to create a meaningful commit message that describes what was implemented or fixed.
+
+Please proceed with finding and validating all reviewed sessions systematically.
+
+Git Recovery & Session Safety
+
+🚨 CRITICAL: Never cancel sessions without merging first!
+
+Prevention:
+- Always run git merge --squash <branch> AND npm run test before cancelling
+- Only cancel after successful merge + green tests
+
+Recovery (if commits exist):
+# Check if commits still exist in git database
+git cat-file -t <commit-hash> 2>/dev/null && echo "Recoverable!"
+
+# Recover from commit hash
+git checkout -b recover-session <commit-hash>
+
+# Merge to main
+git checkout main && git merge --squash recover-session
+git commit -m "Recover lost session: <description>"
+
+⚠️ Remember: Uncommitted changes in worktrees are permanently lost when cancelled - commits in git database can be recovered."#;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProjectSelection {
     pub kind: String,
@@ -364,24 +493,28 @@ impl ProjectConfigMethods for Database {
 impl Database {
     fn get_default_action_buttons() -> Vec<HeaderActionConfig> {
         vec![
-                HeaderActionConfig {
-                    id: "merge-reviewed".to_string(),
-                    label: "Merge".to_string(),
-                    prompt: "Find all reviewed sessions and merge them to the main branch with proper commit messages.".to_string(),
-                    color: None,
-                },
-                HeaderActionConfig {
-                    id: "create-pr".to_string(),
-                    label: "PR".to_string(),
-                    prompt: "Create a pull request for the current branch with a comprehensive description of changes.".to_string(),
-                    color: None,
-                },
-                HeaderActionConfig {
-                    id: "run-tests".to_string(),
-                    label: "Test".to_string(),
-                    prompt: "Run all tests and fix any failures that occur.".to_string(),
-                    color: None,
-                },
-            ]
+            HeaderActionConfig {
+                id: "squash-merge-main".to_string(),
+                label: "Squash Merge Main".to_string(),
+                prompt: SQUASH_MERGE_MAIN_PROMPT.to_string(),
+                color: Some("green".to_string()),
+            },
+            HeaderActionConfig {
+                id: "create-pr".to_string(),
+                label: "PR".to_string(),
+                prompt: "Create a pull request for the current branch with a comprehensive description of changes.".to_string(),
+                color: Some("blue".to_string()),
+            },
+            HeaderActionConfig {
+                id: "run-tests".to_string(),
+                label: "Test".to_string(),
+                prompt: "Run all tests and fix any failures that occur.".to_string(),
+                color: Some("amber".to_string()),
+            },
+        ]
     }
+}
+
+pub fn default_action_buttons() -> Vec<HeaderActionConfig> {
+    Database::get_default_action_buttons()
 }

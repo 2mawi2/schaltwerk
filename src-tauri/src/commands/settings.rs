@@ -6,7 +6,8 @@ use schaltwerk::domains::settings::{
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
-    HeaderActionConfig, ProjectConfigMethods, ProjectSelection, ProjectSessionsSettings, RunScript,
+    default_action_buttons, HeaderActionConfig, ProjectConfigMethods, ProjectSelection,
+    ProjectSessionsSettings, RunScript,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -477,6 +478,32 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
 
     db.set_project_action_buttons(&project.path, &actions)
         .map_err(|e| format!("Failed to set project action buttons: {e}"))
+}
+
+#[tauri::command]
+pub async fn reset_project_action_buttons_to_defaults(
+) -> Result<Vec<HeaderActionConfig>, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.schaltwerk_core.lock().await;
+    let db = core.database();
+
+    let defaults = default_action_buttons();
+
+    db.set_project_action_buttons(&project.path, &defaults)
+        .map_err(|e| format!("Failed to set project action buttons: {e}"))?;
+
+    log::info!(
+        "Reset project {} action buttons to defaults", 
+        project.path.display()
+    );
+
+    Ok(defaults)
 }
 
 #[tauri::command]
@@ -989,6 +1016,17 @@ mod tests {
             color: None,
         }];
         let result = set_project_action_buttons(actions).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_reset_project_action_buttons_to_defaults_uninitialized_manager() {
+        let result = reset_project_action_buttons_to_defaults().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
         assert!(

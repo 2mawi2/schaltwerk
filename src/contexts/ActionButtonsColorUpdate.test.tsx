@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'
 import { render, waitFor, fireEvent } from '@testing-library/react'
 import { ProjectProvider, useProject } from './ProjectContext'
 import { ActionButtonsProvider, useActionButtons } from './ActionButtonsContext'
+import { TauriCommands } from '../common/tauriCommands'
 import { getActionButtonColorClasses } from '../constants/actionButtonColors'
 
 const mockInvoke = vi.hoisted(() => vi.fn())
@@ -12,7 +13,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 function TestComponent() {
-  const { actionButtons, saveActionButtons } = useActionButtons()
+  const { actionButtons, saveActionButtons, resetToDefaults } = useActionButtons()
   const first = actionButtons[0]
   const classes = first ? getActionButtonColorClasses(first.color) : ''
 
@@ -27,6 +28,11 @@ function TestComponent() {
           void saveActionButtons(updated)
         }}
       >save-green</button>
+      <button
+        onClick={() => {
+          void resetToDefaults()
+        }}
+      >reset-defaults</button>
     </div>
   )
 }
@@ -59,19 +65,29 @@ describe('Action buttons color updates reflect in UI after save', () => {
 
   it('applies updated color after saving', async () => {
     const initial = [
-      { id: 'merge-reviewed', label: 'Merge', prompt: 'do merge', color: 'blue' }
+      { id: 'squash-merge-main', label: 'Squash Merge Main', prompt: 'do merge', color: 'blue' }
     ]
     const updated = [
-      { id: 'merge-reviewed', label: 'Merge', prompt: 'do merge', color: 'green' }
+      { id: 'squash-merge-main', label: 'Squash Merge Main', prompt: 'do merge', color: 'green' }
     ]
 
-    ;(mockInvoke as Mock)
-      // initial load
-      .mockResolvedValueOnce(initial)
-      // set_project_action_buttons
-      .mockResolvedValueOnce(undefined)
-      // reload after save
-      .mockResolvedValueOnce(updated)
+    const getResponses = [initial, updated]
+
+    ;(mockInvoke as Mock).mockImplementation((command: string, args?: unknown) => {
+      switch (command) {
+        case TauriCommands.GetProjectActionButtons: {
+          const response = getResponses.shift()
+          if (!response) throw new Error('No mock response available for GetProjectActionButtons')
+          return Promise.resolve(response)
+        }
+        case TauriCommands.SetProjectActionButtons: {
+          expect(args).toEqual({ actions: updated })
+          return Promise.resolve(undefined)
+        }
+        default:
+          throw new Error(`Unexpected command invoked: ${command}`)
+      }
+    })
 
     const { getByTestId, getByText } = render(
       <TestWrapper>
@@ -81,7 +97,7 @@ describe('Action buttons color updates reflect in UI after save', () => {
 
     // initial classes reflect blue
     await waitFor(() => {
-      expect(getByTestId('btn-label')).toHaveTextContent('Merge')
+      expect(getByTestId('btn-label')).toHaveTextContent('Squash Merge Main')
       expect(getByTestId('btn-classes').textContent || '').toContain('text-blue-200')
     })
 
@@ -96,5 +112,45 @@ describe('Action buttons color updates reflect in UI after save', () => {
     // Calls: get -> set -> get
     expect(mockInvoke).toHaveBeenCalledTimes(3)
   })
-})
 
+  it('resetToDefaults seeds Squash Merge Main default action via backend', async () => {
+    const backendDefaults = [
+      {
+        id: 'squash-merge-main',
+        label: 'Squash Merge Main',
+        prompt: 'Task: Squash-merge all reviewed Schaltwerk sessions',
+        color: 'green'
+      }
+    ]
+
+    const getResponses = [[], backendDefaults]
+
+    ;(mockInvoke as Mock).mockImplementation((command: string, args?: unknown) => {
+      switch (command) {
+        case TauriCommands.GetProjectActionButtons: {
+          const response = getResponses.shift()
+          if (response === undefined) throw new Error('No mock response available for GetProjectActionButtons')
+          return Promise.resolve(response)
+        }
+        case TauriCommands.ResetProjectActionButtonsToDefaults: {
+          expect(args).toBeUndefined()
+          return Promise.resolve(backendDefaults)
+        }
+        default:
+          throw new Error(`Unexpected command invoked: ${command}`)
+      }
+    })
+
+    const { getByText } = render(
+      <TestWrapper>
+        <TestComponent />
+      </TestWrapper>
+    )
+
+    fireEvent.click(getByText('reset-defaults'))
+
+    await waitFor(() => {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.ResetProjectActionButtonsToDefaults)
+    })
+  })
+})

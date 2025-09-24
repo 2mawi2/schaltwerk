@@ -62,28 +62,16 @@ export function ActionButtonsProvider({ children }: { children: ReactNode }) {
   }
 
   const resetToDefaults = async () => {
-    const defaultButtons: HeaderActionConfig[] = [
-      {
-        id: "merge-reviewed",
-        label: "Merge",
-        prompt: "Find all reviewed sessions and merge them to the main branch with proper commit messages.",
-        color: "green",
-      },
-      {
-        id: "create-pr",
-        label: "PR", 
-        prompt: "Create a pull request for the current branch with a comprehensive description of changes.",
-        color: "blue",
-      },
-      {
-        id: "run-tests",
-        label: "Test",
-        prompt: "Run all tests and fix any failures that occur.",
-        color: "amber",
-      },
-    ]
-    
-    return saveActionButtons(defaultButtons)
+    try {
+      logger.info('Resetting action buttons to backend defaults')
+      await invoke<HeaderActionConfig[]>(TauriCommands.ResetProjectActionButtonsToDefaults)
+      await loadActionButtons()
+      return true
+    } catch (err) {
+      logger.error('Failed to reset action buttons to defaults:', err)
+      setError(err instanceof Error ? err.message : 'Failed to reset action buttons to defaults')
+      return false
+    }
   }
 
   useEffect(() => {
