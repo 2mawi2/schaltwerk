@@ -141,6 +141,9 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
             </TestProviders>
         )
 
+        const advancedToggle = await screen.findByTestId('advanced-agent-settings-toggle')
+        fireEvent.click(advancedToggle)
+
         const cliInput = await screen.findByTestId('agent-cli-args-input') as HTMLTextAreaElement
         await waitFor(() => {
             expect(cliInput.value).toBe('--persisted-claude')

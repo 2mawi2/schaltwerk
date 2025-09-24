@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { type ComponentProps } from 'react'
 import { AgentDefaultsSection } from './AgentDefaultsSection'
 import { AgentEnvVar } from './agentDefaults'
@@ -27,18 +27,29 @@ describe('AgentDefaultsSection', () => {
         return props
     }
 
-    it('renders CLI args input and forwards changes', () => {
+    it('renders CLI args input and forwards changes', async () => {
         const props = renderComponent()
 
+        fireEvent.click(screen.getByTestId('advanced-agent-settings-toggle'))
+
         const textarea = screen.getByTestId('agent-cli-args-input') as HTMLTextAreaElement
+        await waitFor(() => {
+            expect(document.activeElement).toBe(textarea)
+        })
         expect(textarea.value).toBe('--max-tokens 4000')
 
         fireEvent.change(textarea, { target: { value: '--debug' } })
         expect(props.onCliArgsChange).toHaveBeenCalledWith('--debug')
     })
 
-    it('renders environment variables and handles interactions', () => {
+    it('renders environment variables and handles interactions', async () => {
         const props = renderComponent()
+
+        const advancedToggle = screen.getByTestId('advanced-agent-settings-toggle')
+        expect(advancedToggle).toHaveAttribute('aria-expanded', 'false')
+
+        fireEvent.click(advancedToggle)
+        expect(advancedToggle).toHaveAttribute('aria-expanded', 'true')
 
         expect(screen.getByTestId('env-summary').textContent).toContain('API_KEY')
 
@@ -63,14 +74,20 @@ describe('AgentDefaultsSection', () => {
 
         fireEvent.click(toggleButton)
         expect(toggleButton).toHaveAttribute('aria-expanded', 'false')
+
+        fireEvent.click(advancedToggle)
+        await waitFor(() => {
+            expect(advancedToggle).toHaveAttribute('aria-expanded', 'false')
+        })
     })
 
     it('shows loading state and disables interactions', () => {
         renderComponent({ envVars: [], loading: true })
 
-        expect(screen.getByText('Loading agent defaults…')).toBeInTheDocument()
-        expect(screen.getByTestId('agent-cli-args-input')).toBeDisabled()
-        expect(screen.getByTestId('add-env-var')).toBeDisabled()
-        expect(screen.getByTestId('toggle-env-vars')).toBeDisabled()
+        const advancedToggle = screen.getByTestId('advanced-agent-settings-toggle')
+        expect(advancedToggle).toBeDisabled()
+        expect(screen.queryByTestId('agent-cli-args-input')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('add-env-var')).not.toBeInTheDocument()
+        expect(screen.queryByTestId('toggle-env-vars')).not.toBeInTheDocument()
     })
 })

@@ -425,6 +425,9 @@ describe('NewSessionModal', () => {
   it('allows editing default CLI args and environment variables', async () => {
     openModal()
 
+    const advancedToggle = await screen.findByTestId('advanced-agent-settings-toggle')
+    fireEvent.click(advancedToggle)
+
     const cliInput = await screen.findByTestId('agent-cli-args-input') as HTMLTextAreaElement
     await waitFor(() => expect(cliInput.disabled).toBe(false))
 
