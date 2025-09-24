@@ -161,8 +161,8 @@ export function useSessionManagement(): SessionManagementHookReturn {
         await invoke(TauriCommands.SchaltwerkCoreSetSessionAgentType, { sessionName, agentType })
     }, [])
 
-    const updateGlobalAgentType = useCallback(async (agentType: string): Promise<void> => {
-        await invoke(TauriCommands.SchaltwerkCoreSetAgentType, { agentType })
+    const updateOrchestratorAgentType = useCallback(async (agentType: string): Promise<void> => {
+        await invoke(TauriCommands.SchaltwerkCoreSetOrchestratorAgentType, { agentType })
     }, [])
 
     const updateAgentType = useCallback(async (
@@ -172,9 +172,20 @@ export function useSessionManagement(): SessionManagementHookReturn {
         if (selection.kind === 'session' && selection.payload) {
             await updateAgentTypeForSession(selection.payload, agentType)
         } else {
-            await updateGlobalAgentType(agentType)
+            await updateOrchestratorAgentType(agentType)
         }
-    }, [updateAgentTypeForSession, updateGlobalAgentType])
+    }, [updateAgentTypeForSession, updateOrchestratorAgentType])
+
+    const setSkipPermissionsForSelection = useCallback(async (
+        selection: SessionSelection,
+        skipPermissions: boolean
+    ): Promise<void> => {
+        if (selection.kind === 'orchestrator') {
+            await invoke(TauriCommands.SchaltwerkCoreSetOrchestratorSkipPermissions, { enabled: skipPermissions })
+        } else {
+            await invoke(TauriCommands.SchaltwerkCoreSetSkipPermissions, { enabled: skipPermissions })
+        }
+    }, [])
 
     const clearTerminalState = useCallback(async (
         terminalId: string,
@@ -218,7 +229,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         clearTerminalTracking: (terminalIds: string[]) => Promise<void>,
         clearTerminalStartedTracking: (terminalIds: string[]) => void
     ): Promise<void> => {
-        await invoke(TauriCommands.SchaltwerkCoreSetSkipPermissions, { enabled: skipPermissions })
+        await setSkipPermissionsForSelection(selection, skipPermissions)
         await updateAgentType(selection, agentType)
         
         const claudeTerminalId = terminals.top
@@ -237,7 +248,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
             : { kind: 'orchestrator' }
 
         notifyTerminalsReset(resetDetail)
-    }, [updateAgentType, clearTerminalState, restartWithNewModel, notifyTerminalsReset])
+    }, [setSkipPermissionsForSelection, updateAgentType, clearTerminalState, restartWithNewModel, notifyTerminalsReset])
 
     return {
         isResetting,

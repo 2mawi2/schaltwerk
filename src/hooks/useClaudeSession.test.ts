@@ -50,6 +50,19 @@ describe('useClaudeSession', () => {
     expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetSkipPermissions, { enabled: false })
   })
 
+  it('gets and sets orchestrator skip permissions', async () => {
+    mockInvoke.mockResolvedValueOnce(true)
+    mockInvoke.mockResolvedValueOnce(undefined)
+
+    const { result } = renderHook(() => useClaudeSession())
+    const val = await result.current.getOrchestratorSkipPermissions()
+    expect(val).toBe(true)
+
+    const setOk = await result.current.setOrchestratorSkipPermissions(true)
+    expect(setOk).toBe(true)
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetOrchestratorSkipPermissions, { enabled: true })
+  })
+
   it('gets and sets agent type with defaults on error', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     
@@ -67,7 +80,28 @@ describe('useClaudeSession', () => {
     const setOk = await result.current.setAgentType('opencode')
     expect(setOk).toBe(true)
     expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetAgentType, { agentType: 'opencode' })
-    
+
+    consoleErrorSpy.mockRestore()
+  })
+
+  it('gets and sets orchestrator agent type with defaults on error', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    mockInvoke.mockResolvedValueOnce('gemini')
+    const { result } = renderHook(() => useClaudeSession())
+
+    const agent = await result.current.getOrchestratorAgentType()
+    expect(agent).toBe('gemini')
+
+    mockInvoke.mockRejectedValueOnce(new Error('kapow'))
+    const agentOnError = await result.current.getOrchestratorAgentType()
+    expect(agentOnError).toBe('claude')
+
+    mockInvoke.mockResolvedValueOnce(undefined)
+    const setOk = await result.current.setOrchestratorAgentType('opencode')
+    expect(setOk).toBe(true)
+    expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SchaltwerkCoreSetOrchestratorAgentType, { agentType: 'opencode' })
+
     consoleErrorSpy.mockRestore()
   })
 })

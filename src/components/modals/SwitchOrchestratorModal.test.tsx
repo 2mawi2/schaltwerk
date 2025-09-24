@@ -3,15 +3,15 @@ import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-libra
 import userEvent from '@testing-library/user-event'
 import { SwitchOrchestratorModal } from './SwitchOrchestratorModal'
 
-const mockGetAgentType = vi.fn().mockResolvedValue('opencode')
-const mockGetSkipPermissions = vi.fn().mockResolvedValue(false)
+const mockGetOrchestratorAgentType = vi.fn().mockResolvedValue('opencode')
+const mockGetOrchestratorSkipPermissions = vi.fn().mockResolvedValue(false)
 
 // Mock useClaudeSession to control behavior and avoid tauri calls
 vi.mock('../../hooks/useClaudeSession', () => {
   return {
     useClaudeSession: () => ({
-      getAgentType: mockGetAgentType,
-      getSkipPermissions: mockGetSkipPermissions,
+      getOrchestratorAgentType: mockGetOrchestratorAgentType,
+      getOrchestratorSkipPermissions: mockGetOrchestratorSkipPermissions,
     }),
   }
 })
@@ -64,14 +64,14 @@ describe('SwitchOrchestratorModal', () => {
   })
   beforeEach(() => {
     vi.useRealTimers()
-    mockGetAgentType.mockResolvedValue('opencode')
-    mockGetSkipPermissions.mockResolvedValue(false)
+    mockGetOrchestratorAgentType.mockResolvedValue('opencode')
+    mockGetOrchestratorSkipPermissions.mockResolvedValue(false)
   })
 
   afterEach(() => {
     cleanup()
-    mockGetAgentType.mockClear()
-    mockGetSkipPermissions.mockClear()
+    mockGetOrchestratorAgentType.mockClear()
+    mockGetOrchestratorSkipPermissions.mockClear()
   })
 
   it('renders nothing when closed, shows content when open', async () => {
@@ -113,8 +113,8 @@ describe('SwitchOrchestratorModal', () => {
   })
 
   it('exposes permission controls for agents that support skipping permissions', async () => {
-    mockGetAgentType.mockResolvedValue('claude')
-    mockGetSkipPermissions.mockResolvedValue(true)
+    mockGetOrchestratorAgentType.mockResolvedValue('claude')
+    mockGetOrchestratorSkipPermissions.mockResolvedValue(true)
 
     const { onSwitch } = openModal()
 
@@ -134,7 +134,7 @@ describe('SwitchOrchestratorModal', () => {
   })
 
   it('hides permission controls for agents without support', async () => {
-    mockGetAgentType.mockResolvedValue('claude')
+    mockGetOrchestratorAgentType.mockResolvedValue('claude')
     openModal()
 
     await waitFor(() => screen.getByRole('button', { name: /claude/i }))

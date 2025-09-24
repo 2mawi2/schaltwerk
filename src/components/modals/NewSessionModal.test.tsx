@@ -17,6 +17,10 @@ vi.mock('../../hooks/useClaudeSession', () => ({
     setSkipPermissions: mockSetSkipPermissions,
     getAgentType: mockGetAgentType,
     setAgentType: mockSetAgentType,
+    getOrchestratorSkipPermissions: vi.fn().mockResolvedValue(false),
+    setOrchestratorSkipPermissions: vi.fn().mockResolvedValue(true),
+    getOrchestratorAgentType: vi.fn().mockResolvedValue('claude'),
+    setOrchestratorAgentType: vi.fn().mockResolvedValue(true),
   })
 }))
 

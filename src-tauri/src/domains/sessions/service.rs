@@ -1647,8 +1647,8 @@ impl SessionManager {
             return Err(anyhow!("The folder '{}' is not a git repository. The orchestrator requires a git repository to function.", self.repo_path.display()));
         }
 
-        let skip_permissions = self.db_manager.get_skip_permissions()?;
-        let agent_type = self.db_manager.get_agent_type()?;
+        let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
+        let agent_type = self.db_manager.get_orchestrator_agent_type()?;
 
         log::info!(
             "Fresh orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}"
@@ -1695,8 +1695,8 @@ impl SessionManager {
             ));
         }
 
-        let skip_permissions = self.db_manager.get_skip_permissions()?;
-        let agent_type = self.db_manager.get_agent_type()?;
+        let skip_permissions = self.db_manager.get_orchestrator_skip_permissions()?;
+        let agent_type = self.db_manager.get_orchestrator_agent_type()?;
 
         log::info!("Orchestrator agent type: {agent_type}, skip_permissions: {skip_permissions}");
 
@@ -2320,6 +2320,14 @@ impl SessionManager {
 
     pub fn set_global_skip_permissions(&self, skip: bool) -> Result<()> {
         self.db_manager.set_skip_permissions(skip)
+    }
+
+    pub fn set_orchestrator_agent_type(&self, agent_type: &str) -> Result<()> {
+        self.db_manager.set_orchestrator_agent_type(agent_type)
+    }
+
+    pub fn set_orchestrator_skip_permissions(&self, skip: bool) -> Result<()> {
+        self.db_manager.set_orchestrator_skip_permissions(skip)
     }
 
     pub fn update_spec_content(&self, session_name: &str, content: &str) -> Result<()> {

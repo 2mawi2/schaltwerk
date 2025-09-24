@@ -66,6 +66,8 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             id INTEGER PRIMARY KEY CHECK (id = 1),
             skip_permissions BOOLEAN DEFAULT FALSE,
             agent_type TEXT DEFAULT 'claude',
+            orchestrator_skip_permissions BOOLEAN DEFAULT FALSE,
+            orchestrator_agent_type TEXT DEFAULT 'claude',
             default_open_app TEXT DEFAULT 'finder',
             default_base_branch TEXT,
             terminal_font_size INTEGER DEFAULT 13,
@@ -78,7 +80,17 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
     apply_app_config_migrations(&conn)?;
 
     conn.execute(
-        "INSERT OR IGNORE INTO app_config (id, skip_permissions, agent_type, default_open_app, terminal_font_size, ui_font_size, tutorial_completed) VALUES (1, FALSE, 'claude', 'finder', 13, 12, FALSE)",
+        "INSERT OR IGNORE INTO app_config (
+            id,
+            skip_permissions,
+            agent_type,
+            orchestrator_skip_permissions,
+            orchestrator_agent_type,
+            default_open_app,
+            terminal_font_size,
+            ui_font_size,
+            tutorial_completed
+        ) VALUES (1, FALSE, 'claude', FALSE, 'claude', 'finder', 13, 12, FALSE)",
         [],
     )?;
 
@@ -148,6 +160,14 @@ fn apply_app_config_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()
     );
     let _ = conn.execute(
         "ALTER TABLE app_config ADD COLUMN default_open_app TEXT DEFAULT 'finder'",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE app_config ADD COLUMN orchestrator_skip_permissions BOOLEAN DEFAULT FALSE",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE app_config ADD COLUMN orchestrator_agent_type TEXT DEFAULT 'claude'",
         [],
     );
     let _ = conn.execute(

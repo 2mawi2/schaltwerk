@@ -1219,6 +1219,26 @@ pub async fn schaltwerk_core_get_skip_permissions() -> Result<bool, String> {
 }
 
 #[tauri::command]
+pub async fn schaltwerk_core_set_orchestrator_skip_permissions(enabled: bool) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+
+    core.db
+        .set_orchestrator_skip_permissions(enabled)
+        .map_err(|e| format!("Failed to set orchestrator skip permissions: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_get_orchestrator_skip_permissions() -> Result<bool, String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+
+    core.db
+        .get_orchestrator_skip_permissions()
+        .map_err(|e| format!("Failed to get orchestrator skip permissions: {e}"))
+}
+
+#[tauri::command]
 pub async fn schaltwerk_core_set_agent_type(agent_type: String) -> Result<(), String> {
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
@@ -1276,6 +1296,26 @@ pub async fn schaltwerk_core_get_agent_type() -> Result<String, String> {
     core.db
         .get_agent_type()
         .map_err(|e| format!("Failed to get agent type: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_set_orchestrator_agent_type(agent_type: String) -> Result<(), String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+
+    core.db
+        .set_orchestrator_agent_type(&agent_type)
+        .map_err(|e| format!("Failed to set orchestrator agent type: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_get_orchestrator_agent_type() -> Result<String, String> {
+    let core = get_schaltwerk_core().await?;
+    let core = core.lock().await;
+
+    core.db
+        .get_orchestrator_agent_type()
+        .map_err(|e| format!("Failed to get orchestrator agent type: {e}"))
 }
 
 #[tauri::command]
