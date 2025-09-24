@@ -55,7 +55,7 @@
     "@xterm/xterm": "^5.5.0",
     "autoprefixer": "^10.4.21",
     "clsx": "^2.1.1",
-    "gpt-tokenizer": "^2.9.0",
+    "gpt-tokenizer": "^3.0.1",
     "highlight.js": "^11.11.1",
     "postcss": "^8.5.6",
     "react": "^19.1.1",
