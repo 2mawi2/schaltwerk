@@ -67,7 +67,7 @@ const mockInvoke = invoke as MockedFunction<typeof invoke>
 describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        mockInvoke.mockImplementation((command: string) => {
+        mockInvoke.mockImplementation((command, args) => {
             switch (command) {
                 case TauriCommands.RepositoryIsEmpty:
                     return Promise.resolve(false)
@@ -75,12 +75,32 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                     return Promise.resolve(['main', 'develop'])
                 case TauriCommands.GetProjectDefaultBaseBranch:
                     return Promise.resolve(null) // No saved default
-                case TauriCommands.GetProjectDefaultBranch: 
+                case TauriCommands.GetProjectDefaultBranch:
                     return Promise.resolve('main')
                 case TauriCommands.SchaltwerkCoreGetSkipPermissions:
                     return Promise.resolve(false)
                 case TauriCommands.SchaltwerkCoreGetAgentType:
                     return Promise.resolve('claude')
+                case TauriCommands.GetAgentEnvVars:
+                    if (args && typeof args === 'object' && 'agentType' in args) {
+                        if (args.agentType === 'claude') {
+                            return Promise.resolve({ API_KEY: 'abc123' })
+                        }
+                    }
+                    return Promise.resolve({})
+                case TauriCommands.GetAgentCliArgs:
+                    if (args && typeof args === 'object' && 'agentType' in args) {
+                        if (args.agentType === 'claude') {
+                            return Promise.resolve('--persisted-claude')
+                        }
+                        if (args.agentType === 'opencode') {
+                            return Promise.resolve('--persisted-opencode')
+                        }
+                    }
+                    return Promise.resolve('')
+                case TauriCommands.SetAgentEnvVars:
+                case TauriCommands.SetAgentCliArgs:
+                    return Promise.resolve()
                 default:
                     return Promise.resolve()
             }
@@ -112,6 +132,33 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         expect(screen.getByTestId('initial-branch')).toHaveTextContent('main')
         expect(screen.getByTestId('initial-agent')).toHaveTextContent('claude')
         expect(screen.getByTestId('initial-skip-perms')).toHaveTextContent('false')
+    })
+
+    test('populates agent defaults from saved configuration', async () => {
+        render(
+            <TestProviders>
+                <NewSessionModal open={true} onClose={vi.fn()} onCreate={vi.fn()} />
+            </TestProviders>
+        )
+
+        const advancedToggle = await screen.findByTestId('advanced-agent-settings-toggle')
+        fireEvent.click(advancedToggle)
+
+        const cliInput = await screen.findByTestId('agent-cli-args-input') as HTMLTextAreaElement
+        await waitFor(() => {
+            expect(cliInput.value).toBe('--persisted-claude')
+        })
+
+        const summary = await screen.findByTestId('env-summary')
+        expect(summary.textContent).toContain('API_KEY')
+
+        const toggle = await screen.findByTestId('toggle-env-vars')
+        fireEvent.click(toggle)
+
+        const keyInput = await screen.findByTestId('env-var-key-0') as HTMLInputElement
+        const valueInput = await screen.findByTestId('env-var-value-0') as HTMLInputElement
+        expect(keyInput.value).toBe('API_KEY')
+        expect(valueInput.value).toBe('abc123')
     })
 
     test('hides SessionConfigurationPanel when creating as draft', async () => {

@@ -39,16 +39,29 @@ vi.mock('../../utils/dockerNames', () => ({
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn().mockImplementation((cmd: string) => {
-    if (cmd === TauriCommands.ListProjectBranches) {
-      return Promise.resolve(['main', 'develop', 'feature/test'])
+    switch (cmd) {
+      case TauriCommands.ListProjectBranches:
+        return Promise.resolve(['main', 'develop', 'feature/test'])
+      case TauriCommands.GetProjectDefaultBaseBranch:
+        return Promise.resolve(null)
+      case TauriCommands.GetProjectDefaultBranch:
+        return Promise.resolve('main')
+      case TauriCommands.RepositoryIsEmpty:
+        return Promise.resolve(false)
+      case TauriCommands.GetAgentEnvVars:
+        return Promise.resolve({})
+      case TauriCommands.GetAgentCliArgs:
+        return Promise.resolve('')
+      case TauriCommands.SetAgentEnvVars:
+      case TauriCommands.SetAgentCliArgs:
+        return Promise.resolve()
+      case TauriCommands.SchaltwerkCoreGetSkipPermissions:
+        return Promise.resolve(false)
+      case TauriCommands.SchaltwerkCoreGetAgentType:
+        return Promise.resolve('claude')
+      default:
+        return Promise.resolve(null)
     }
-    if (cmd === TauriCommands.GetProjectDefaultBaseBranch) {
-      return Promise.resolve(null)
-    }
-    if (cmd === TauriCommands.GetProjectDefaultBranch) {
-      return Promise.resolve('main')
-    }
-    return Promise.resolve('main')
   })
 }))
 import { invoke } from '@tauri-apps/api/core'
@@ -63,6 +76,7 @@ function openModal() {
 describe('NewSessionModal', () => {
   beforeEach(() => {
     vi.useRealTimers()
+    vi.mocked(invoke).mockClear()
   })
 
   afterEach(() => {
@@ -397,15 +411,62 @@ describe('NewSessionModal', () => {
     const onCreate = vi.fn()
     render(<ModalProvider><NewSessionModal open={true} onClose={vi.fn()} onCreate={onCreate} /></ModalProvider>)
     const input = await screen.findByPlaceholderText('eager_cosmos') as HTMLInputElement
-    
+
     // Actually edit the field by changing its value
     fireEvent.change(input, { target: { value: 'my_custom_name' } })
-    
+
     fireEvent.click(screen.getByTitle('Start agent (Cmd+Enter)'))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
-    
+
     expect(onCreate.mock.calls[0][0].name).toBe('my_custom_name')
     expect(onCreate.mock.calls[0][0].userEditedName).toBe(true)
+  })
+
+  it('allows editing default CLI args and environment variables', async () => {
+    openModal()
+
+    const advancedToggle = await screen.findByTestId('advanced-agent-settings-toggle')
+    fireEvent.click(advancedToggle)
+
+    const cliInput = await screen.findByTestId('agent-cli-args-input') as HTMLTextAreaElement
+    await waitFor(() => expect(cliInput.disabled).toBe(false))
+
+    fireEvent.change(cliInput, { target: { value: '--debug' } })
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SetAgentCliArgs, {
+        agentType: 'claude',
+        cliArgs: '--debug',
+      })
+    })
+
+    const addButton = await screen.findByTestId('add-env-var') as HTMLButtonElement
+    await waitFor(() => expect(addButton.disabled).toBe(false))
+    fireEvent.click(addButton)
+
+    const keyInput = await screen.findByTestId('env-var-key-0') as HTMLInputElement
+    fireEvent.change(keyInput, { target: { value: 'API_KEY' } })
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
+        agentType: 'claude',
+        envVars: { API_KEY: '' },
+      })
+    })
+
+    const valueInput = await screen.findByTestId('env-var-value-0') as HTMLInputElement
+    fireEvent.change(valueInput, { target: { value: '123' } })
+
+    await waitFor(() => {
+      expect(invoke).toHaveBeenCalledWith(TauriCommands.SetAgentEnvVars, {
+        agentType: 'claude',
+        envVars: { API_KEY: '123' },
+      })
+    })
+
+    const scrollContainer = await screen.findByTestId('env-vars-scroll')
+    expect(scrollContainer.classList.contains('overflow-y-auto')).toBe(true)
+    expect(scrollContainer.className).toContain('max-h-')
   })
 
   it('loads base branch via tauri invoke and falls back on error', async () => {
