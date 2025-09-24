@@ -67,10 +67,6 @@ export function AgentDefaultsSection({
     }
 
     const handleToggleAdvanced = () => {
-        if (loading) {
-            return
-        }
-
         setAdvancedOpen(prev => {
             const next = !prev
             if (!next) {
@@ -116,7 +112,6 @@ export function AgentDefaultsSection({
                     className={buttonClasses}
                     style={buttonStyleVars}
                     onClick={handleToggleAdvanced}
-                    disabled={loading}
                     data-testid="advanced-agent-settings-toggle"
                     aria-expanded={advancedOpen}
                 >

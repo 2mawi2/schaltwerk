@@ -85,13 +85,24 @@ describe('AgentDefaultsSection', () => {
         })
     })
 
-    it('shows loading state and disables interactions', () => {
+    it('allows opening advanced settings while loading but keeps inputs disabled', () => {
         renderComponent({ envVars: [], loading: true })
 
         const advancedToggle = screen.getByTestId('advanced-agent-settings-toggle')
-        expect(advancedToggle).toBeDisabled()
-        expect(screen.queryByTestId('agent-cli-args-input')).not.toBeInTheDocument()
-        expect(screen.queryByTestId('add-env-var')).not.toBeInTheDocument()
-        expect(screen.queryByTestId('toggle-env-vars')).not.toBeInTheDocument()
+        expect(advancedToggle).not.toBeDisabled()
+        expect(advancedToggle).toHaveAttribute('aria-expanded', 'false')
+
+        fireEvent.click(advancedToggle)
+
+        expect(advancedToggle).toHaveAttribute('aria-expanded', 'true')
+
+        const cliInput = screen.getByTestId('agent-cli-args-input') as HTMLTextAreaElement
+        expect(cliInput).toBeDisabled()
+
+        const addButton = screen.getByTestId('add-env-var') as HTMLButtonElement
+        expect(addButton).toBeDisabled()
+
+        const toggleButton = screen.getByTestId('toggle-env-vars') as HTMLButtonElement
+        expect(toggleButton).toBeDisabled()
     })
 })
