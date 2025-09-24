@@ -222,6 +222,7 @@ jobs:
             --window-pos 200 120 \
             --window-size 600 400 \
             --icon-size 100 \
+            --skip-jenkins \
             --icon "Schaltwerk.app" 150 150 \
             --app-drop-link 450 150 \
             --hide-extension "Schaltwerk.app" \
