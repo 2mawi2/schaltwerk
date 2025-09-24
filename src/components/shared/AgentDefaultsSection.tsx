@@ -94,7 +94,7 @@ export function AgentDefaultsSection({
 
     return (
         <div className="space-y-3" data-testid="agent-defaults-section">
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex items-center justify-between gap-4">
                 <div>
                     <p className="text-sm text-slate-300">Advanced agent settings</p>
                     <p className="text-xs text-slate-400 mt-1">
@@ -103,10 +103,11 @@ export function AgentDefaultsSection({
                 </div>
                 <button
                     type="button"
-                    className="px-2 py-1 rounded text-xs border border-slate-700 hover:opacity-80"
+                    className="px-3 h-8 rounded text-xs border hover:opacity-90 inline-flex items-center"
                     style={{
-                        backgroundColor: theme.colors.background.secondary,
-                        color: theme.colors.text.secondary,
+                        backgroundColor: theme.colors.background.elevated,
+                        color: theme.colors.text.primary,
+                        borderColor: theme.colors.border.subtle,
                     }}
                     onClick={handleToggleAdvanced}
                     disabled={loading}
@@ -146,10 +147,11 @@ export function AgentDefaultsSection({
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
-                                    className="px-2 py-1 rounded text-xs border border-slate-700 hover:opacity-80"
+                                    className="px-3 h-8 rounded text-xs border hover:opacity-90 inline-flex items-center"
                                     style={{
                                         backgroundColor: theme.colors.background.secondary,
                                         color: theme.colors.text.secondary,
+                                        borderColor: theme.colors.border.subtle,
                                     }}
                                     onClick={handleToggleEditor}
                                     disabled={loading}
@@ -160,10 +162,11 @@ export function AgentDefaultsSection({
                                 </button>
                                 <button
                                     type="button"
-                                    className="px-2 py-1 rounded text-xs border border-slate-700 hover:opacity-80"
+                                    className="px-3 h-8 rounded text-xs border hover:opacity-90 inline-flex items-center"
                                     style={{
                                         backgroundColor: theme.colors.background.elevated,
                                         color: theme.colors.text.primary,
+                                        borderColor: theme.colors.border.subtle,
                                     }}
                                     onClick={handleAddVariable}
                                     disabled={loading}
@@ -218,10 +221,11 @@ export function AgentDefaultsSection({
                                                     type="button"
                                                     data-testid={`env-var-remove-${index}`}
                                                     onClick={() => onRemoveEnvVar(index)}
-                                                    className="col-span-1 text-xs px-2 py-1 rounded border border-slate-700 hover:opacity-80"
+                                                    className="col-span-1 text-xs px-3 h-8 rounded border hover:opacity-90 inline-flex items-center justify-center"
                                                     style={{
                                                         backgroundColor: theme.colors.background.secondary,
                                                         color: theme.colors.text.secondary,
+                                                        borderColor: theme.colors.border.subtle,
                                                     }}
                                                     disabled={loading}
                                                     title="Remove variable"
