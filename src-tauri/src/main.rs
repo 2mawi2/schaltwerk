@@ -139,8 +139,6 @@ async fn get_active_file_watchers() -> Result<Vec<String>, String> {
     Ok(watcher_manager.get_active_watchers().await)
 }
 
-
-
 use http_body_util::BodyExt;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;

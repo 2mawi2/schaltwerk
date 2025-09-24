@@ -503,7 +503,7 @@ impl TerminalManager {
     pub async fn get_terminal_activity_status(&self, id: String) -> Result<(bool, u64), String> {
         self.backend.get_activity_status(&id).await
     }
-    
+
     pub async fn get_all_terminal_activity(&self) -> Vec<(String, u64)> {
         self.backend.get_all_terminal_activity().await
     }

@@ -370,7 +370,8 @@ impl LocalPtyAdapter {
                         let terminals_clone = Arc::clone(&reader_state.terminals);
                         let coalescing_state_clone = reader_state.coalescing_state.clone();
                         let suspended_clone = Arc::clone(&reader_state.suspended);
-                        let output_event_sender_clone = Arc::clone(&reader_state.output_event_sender);
+                        let output_event_sender_clone =
+                            Arc::clone(&reader_state.output_event_sender);
 
                         runtime.block_on(async move {
                             let mut terminals = terminals_clone.write().await;
@@ -410,15 +411,15 @@ impl LocalPtyAdapter {
                                     return;
                                 }
 
-                                 // All terminals now use UTF-8 stream for consistent malformed byte handling
-                                 handle_coalesced_output(
-                                     &coalescing_state_clone,
-                                     CoalescingParams {
-                                         terminal_id: &id_clone,
-                                         data: &sanitized,
-                                     },
-                                 )
-                                 .await;
+                                // All terminals now use UTF-8 stream for consistent malformed byte handling
+                                handle_coalesced_output(
+                                    &coalescing_state_clone,
+                                    CoalescingParams {
+                                        terminal_id: &id_clone,
+                                        data: &sanitized,
+                                    },
+                                )
+                                .await;
                             }
                         });
                     }
@@ -881,8 +882,6 @@ impl LocalPtyAdapter {
             && (terminal_id.contains("session-") || terminal_id.contains("orchestrator-"))
     }
 
-
-
     /// Determines the agent type from terminal ID
     fn get_agent_type_from_terminal(terminal_id: &str) -> Option<&'static str> {
         if terminal_id.contains("codex") {
@@ -1068,7 +1067,7 @@ impl LocalPtyAdapter {
             Err(format!("Terminal {id} not found"))
         }
     }
-    
+
     pub async fn get_all_terminal_activity(&self) -> Vec<(String, u64)> {
         let terminals = self.terminals.read().await;
         let mut results = Vec::new();
@@ -1285,7 +1284,8 @@ impl LocalPtyAdapter {
                 }
             }
             Err("Event channel closed".to_string())
-        }).await;
+        })
+        .await;
 
         match timeout_result {
             Ok(result) => result,
@@ -1419,24 +1419,30 @@ mod tests {
         adapter.write(id, command).await?;
 
         // Simple polling with short intervals - more reliable than broadcast channels in test environment
-        for _attempt in 0..50 { // 50 attempts * 100ms = 5 second max wait
+        for _attempt in 0..50 {
+            // 50 attempts * 100ms = 5 second max wait
             tokio::time::sleep(Duration::from_millis(100)).await;
 
             let terminals = adapter.terminals.read().await;
             if let Some(state) = terminals.get(id) {
                 if state.seq > initial_seq {
                     drop(terminals);
-                    let snapshot = adapter.snapshot(id, None).await.map_err(|e| format!("Failed to get snapshot: {e}"))?;
+                    let snapshot = adapter
+                        .snapshot(id, None)
+                        .await
+                        .map_err(|e| format!("Failed to get snapshot: {e}"))?;
                     return Ok(String::from_utf8_lossy(&snapshot.data).to_string());
                 }
             }
         }
 
         // If we get here, return whatever we have
-        let snapshot = adapter.snapshot(id, None).await.map_err(|e| format!("Failed to get snapshot: {e}"))?;
+        let snapshot = adapter
+            .snapshot(id, None)
+            .await
+            .map_err(|e| format!("Failed to get snapshot: {e}"))?;
         Ok(String::from_utf8_lossy(&snapshot.data).to_string())
     }
-
 
     fn unique_id(prefix: &str) -> String {
         format!(

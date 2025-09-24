@@ -145,7 +145,7 @@ mod service_unified_tests {
         };
         let projects = projects_root.join(sanitized);
         std::fs::create_dir_all(&projects).unwrap();
-        std::fs::write(projects.join("history.jsonl"), b"dummy").unwrap();
+        std::fs::write(projects.join("resume-session-id.jsonl"), b"dummy").unwrap();
 
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
@@ -160,8 +160,8 @@ mod service_unified_tests {
             .start_claude_in_session_with_restart_and_binary(spec_name, false, &HashMap::new())
             .unwrap();
         assert!(
-            cmd2.contains("--continue"),
-            "Expected resume via --continue on second start"
+            cmd2.contains(" -r resume-session-id"),
+            "Expected resume via explicit -r <session> on second start"
         );
 
         // Cleanup HOME
@@ -1712,7 +1712,7 @@ impl SessionManager {
     ) -> Result<String> {
         let registry = crate::domains::agents::unified::AgentRegistry::new();
 
-        // Special handling for Claude's --continue flag in orchestrator mode
+        // Special handling for Claude orchestrator resumes (deterministic session lookup)
         if agent_type == "claude" {
             let binary_path = self.utils.get_effective_binary_path_with_override(
                 "claude",
@@ -1722,29 +1722,33 @@ impl SessionManager {
                 // Check if we have any existing orchestrator sessions to resume
                 // The orchestrator runs in the main repo path, so we check for sessions there
                 let session_id_to_use = if resume_session {
-                    // Check for existing Claude sessions in the main repository (orchestrator sessions)
-                    let has_orchestrator_sessions =
-                        crate::domains::agents::claude::find_resumable_claude_session_fast(
-                            &self.repo_path,
-                        );
-                    if has_orchestrator_sessions.is_some() {
-                        log::info!("Orchestrator: Found existing Claude orchestrator sessions in main repo, using --continue flag");
-                        Some("__continue__") // Special value to trigger --continue flag
-                    } else {
-                        log::info!("Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh");
-                        None
+                    match crate::domains::agents::claude::find_resumable_claude_session_fast(
+                        &self.repo_path,
+                    ) {
+                        Some(session_id) => {
+                            log::info!(
+                                "Orchestrator: Resuming Claude orchestrator session '{session_id}'",
+                            );
+                            Some(session_id)
+                        }
+                        None => {
+                            log::info!("Orchestrator: No existing Claude orchestrator sessions found in main repo, starting fresh");
+                            None
+                        }
                     }
                 } else {
                     None
                 };
 
-                return Ok(agent.build_command(
+                let command = agent.build_command(
                     &self.repo_path,
-                    session_id_to_use,
+                    session_id_to_use.as_deref(),
                     None,
                     skip_permissions,
                     Some(&binary_path),
-                ));
+                );
+
+                return Ok(command);
             }
         }
 
