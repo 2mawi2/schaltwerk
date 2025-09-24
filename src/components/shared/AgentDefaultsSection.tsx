@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef } from 'react'
+import type { CSSProperties } from 'react'
 import { theme } from '../../common/theme'
 import { AgentType } from '../../types/session'
 import { AgentEnvVar, displayNameForAgent } from './agentDefaults'
@@ -28,6 +29,15 @@ export function AgentDefaultsSection({
     const [envEditorOpen, setEnvEditorOpen] = useState(false)
     const [advancedOpen, setAdvancedOpen] = useState(false)
     const cliArgsRef = useRef<HTMLTextAreaElement | null>(null)
+    const buttonStyleVars = useMemo(() => ({
+        '--agent-advanced-btn-bg': theme.colors.background.elevated,
+        '--agent-advanced-btn-hover': theme.colors.background.hover,
+        '--agent-advanced-btn-text': theme.colors.text.secondary,
+        '--agent-advanced-btn-text-hover': theme.colors.text.primary,
+        '--agent-advanced-btn-border': theme.colors.border.subtle,
+    }) as CSSProperties, [])
+
+    const buttonClasses = 'inline-flex items-center justify-center h-8 px-3 rounded-md border text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-[color:var(--agent-advanced-btn-bg)] text-[color:var(--agent-advanced-btn-text)] border-[color:var(--agent-advanced-btn-border)] hover:bg-[color:var(--agent-advanced-btn-hover)] hover:text-[color:var(--agent-advanced-btn-text-hover)] focus:outline-none focus:ring-1 focus:ring-[color:var(--agent-advanced-btn-border)] focus:ring-offset-0'
 
     const summaryText = useMemo(() => {
         if (loading) {
@@ -94,8 +104,8 @@ export function AgentDefaultsSection({
 
     return (
         <div className="space-y-3" data-testid="agent-defaults-section">
-            <div className="flex items-center justify-between gap-4">
-                <div>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
                     <p className="text-sm text-slate-300">Advanced agent settings</p>
                     <p className="text-xs text-slate-400 mt-1">
                         Configure optional arguments and environment variables for {agentDisplayName}.
@@ -103,12 +113,8 @@ export function AgentDefaultsSection({
                 </div>
                 <button
                     type="button"
-                    className="px-3 h-8 rounded text-xs border hover:opacity-90 inline-flex items-center"
-                    style={{
-                        backgroundColor: theme.colors.background.elevated,
-                        color: theme.colors.text.primary,
-                        borderColor: theme.colors.border.subtle,
-                    }}
+                    className={buttonClasses}
+                    style={buttonStyleVars}
                     onClick={handleToggleAdvanced}
                     disabled={loading}
                     data-testid="advanced-agent-settings-toggle"
@@ -137,8 +143,8 @@ export function AgentDefaultsSection({
                         </p>
                     </div>
                     <div>
-                        <div className="flex items-start justify-between gap-3">
-                            <div>
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="min-w-0">
                                 <label className="block text-sm text-slate-300">Environment variables</label>
                                 <p className="text-xs text-slate-400 mt-1" data-testid="env-summary">
                                     {summaryText}
@@ -147,12 +153,8 @@ export function AgentDefaultsSection({
                             <div className="flex items-center gap-2">
                                 <button
                                     type="button"
-                                    className="px-3 h-8 rounded text-xs border hover:opacity-90 inline-flex items-center"
-                                    style={{
-                                        backgroundColor: theme.colors.background.secondary,
-                                        color: theme.colors.text.secondary,
-                                        borderColor: theme.colors.border.subtle,
-                                    }}
+                                    className={buttonClasses}
+                                    style={buttonStyleVars}
                                     onClick={handleToggleEditor}
                                     disabled={loading}
                                     data-testid="toggle-env-vars"
@@ -162,12 +164,8 @@ export function AgentDefaultsSection({
                                 </button>
                                 <button
                                     type="button"
-                                    className="px-3 h-8 rounded text-xs border hover:opacity-90 inline-flex items-center"
-                                    style={{
-                                        backgroundColor: theme.colors.background.elevated,
-                                        color: theme.colors.text.primary,
-                                        borderColor: theme.colors.border.subtle,
-                                    }}
+                                    className={buttonClasses}
+                                    style={buttonStyleVars}
                                     onClick={handleAddVariable}
                                     disabled={loading}
                                     data-testid="add-env-var"
@@ -221,12 +219,8 @@ export function AgentDefaultsSection({
                                                     type="button"
                                                     data-testid={`env-var-remove-${index}`}
                                                     onClick={() => onRemoveEnvVar(index)}
-                                                    className="col-span-1 text-xs px-3 h-8 rounded border hover:opacity-90 inline-flex items-center justify-center"
-                                                    style={{
-                                                        backgroundColor: theme.colors.background.secondary,
-                                                        color: theme.colors.text.secondary,
-                                                        borderColor: theme.colors.border.subtle,
-                                                    }}
+                                                    className={`col-span-1 ${buttonClasses} !px-0`}
+                                                    style={buttonStyleVars}
                                                     disabled={loading}
                                                     title="Remove variable"
                                                 >
