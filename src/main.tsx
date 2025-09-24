@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import ReactDOM from 'react-dom/client'
 import './index.css'
 import App from './App'
@@ -18,9 +18,6 @@ import { ToastProvider } from './common/toast/ToastProvider'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
-  // Start with isLoading=false to begin animation immediately
-  const [isLoading] = useState(false)
-
   useEffect(() => {
     // Remove initial HTML loader if it exists
     const initialLoader = document.getElementById('initial-loader')
@@ -33,7 +30,7 @@ const AppLoader: React.FC = () => {
   }, [])
 
   return (
-    <EntryAnimation isLoading={isLoading}>
+    <EntryAnimation>
       <ErrorBoundary name="Root">
         <FontSizeProvider>
           <KeyboardShortcutsProvider>
