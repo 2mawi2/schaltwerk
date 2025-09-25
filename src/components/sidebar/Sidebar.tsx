@@ -18,6 +18,8 @@ import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { VscRefresh, VscCode } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
@@ -68,6 +70,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         reloadSessions 
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
+
+    // Get dynamic shortcut for Orchestrator
+    const orchestratorShortcut = useShortcutDisplay(KeyboardShortcutAction.SwitchToOrchestrator)
+
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
@@ -816,7 +822,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     disabled={orchestratorResetting}
                                 />
                             </div>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                                {orchestratorShortcut || '⌘1'}
+                            </span>
                             <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
                         </div>
                     </div>

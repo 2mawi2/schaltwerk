@@ -3,13 +3,15 @@ import { VscChevronDown, VscChevronUp } from 'react-icons/vsc'
 import { UnifiedTab } from '../UnifiedTab'
 import { theme } from '../../common/theme'
 import { TabInfo } from '../../types/terminalTabs'
-import { 
-    canCloseTab, 
+import {
+    canCloseTab,
     isRunTab,
     getRunButtonIcon,
     getRunButtonLabel,
     getRunButtonTooltip
 } from './UnifiedBottomBar.logic'
+import { useMultipleShortcutDisplays } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 
 export interface UnifiedBottomBarProps {
   isCollapsed: boolean
@@ -43,6 +45,12 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
   isRunning = false,
   onRunScript
 }, ref) => {
+  // Get dynamic shortcut displays
+  const shortcuts = useMultipleShortcutDisplays([
+    KeyboardShortcutAction.FocusTerminal,
+    KeyboardShortcutAction.ToggleRunMode
+  ])
+
   return (
     <div
       ref={ref}
@@ -144,7 +152,9 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
           >
             <span className="text-[11px]">{getRunButtonIcon(isRunning)}</span>
             <span className="text-[11px] font-medium">{getRunButtonLabel(isRunning)}</span>
-            <span className="text-[9px] opacity-60 ml-0.5">⌘E</span>
+            <span className="text-[9px] opacity-60 ml-0.5">
+              {shortcuts[KeyboardShortcutAction.ToggleRunMode] || '⌘E'}
+            </span>
           </button>
         )}
         
@@ -154,9 +164,10 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
               ? 'bg-blue-600/40 text-blue-200'
               : 'bg-slate-700/50 text-slate-400'
           }`} 
-          title="Focus Terminal (⌘/)"
+          title={`Focus Terminal (${shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'})`}
         >
-          ⌘/
+          {shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'}
+
         </span>
         
         <button
