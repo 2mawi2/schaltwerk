@@ -221,6 +221,39 @@ pub fn find_codex_session_fast(path: &Path) -> Option<String> {
     }
 }
 
+fn sort_by_name_desc(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut items: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .collect();
+    items.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
+    Ok(items)
+}
+
+fn sort_session_files_desc(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut files: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.extension().is_some_and(|ext| ext == "jsonl"))
+        .collect();
+
+    files.sort_by(|a, b| {
+        let a_meta = a
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+        let b_meta = b
+            .metadata()
+            .and_then(|m| m.modified())
+            .unwrap_or(std::time::SystemTime::UNIX_EPOCH);
+
+        match b_meta.cmp(&a_meta) {
+            std::cmp::Ordering::Equal => b.file_name().cmp(&a.file_name()),
+            other => other,
+        }
+    });
+
+    Ok(files)
+}
+
 // Efficiently finds the newest matching session for a given CWD by scanning
 // date-partitioned subdirectories from newest to oldest and exiting on first match.
 fn find_newest_session_for_cwd(
@@ -229,15 +262,6 @@ fn find_newest_session_for_cwd(
 ) -> Result<Option<PathBuf>, std::io::Error> {
     if !sessions_dir.exists() {
         return Ok(None);
-    }
-
-    // Helper to read and sort directory entries by name descending (YYYY/MM/DD)
-    fn sort_by_name_desc(dir: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
-        let mut items: Vec<PathBuf> = fs::read_dir(dir)?
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .collect();
-        items.sort_by(|a, b| b.file_name().cmp(&a.file_name()));
-        Ok(items)
     }
 
     // Iterate years → months → days (names are ISO-like so lexical desc works)
@@ -253,19 +277,7 @@ fn find_newest_session_for_cwd(
                 if !day.is_dir() {
                     continue;
                 }
-                // Within a day, sort files by modified time desc for accuracy
-                let mut files: Vec<PathBuf> = fs::read_dir(&day)?
-                    .filter_map(|e| e.ok().map(|e| e.path()))
-                    .filter(|p| p.extension().is_some_and(|ext| ext == "jsonl"))
-                    .collect();
-                files.sort_by_key(|p| {
-                    p.metadata()
-                        .and_then(|m| m.modified())
-                        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-                });
-                files.reverse();
-
-                for file in files {
+                for file in sort_session_files_desc(&day)? {
                     log::trace!("🔍 Fast scan check file: {}", file.display());
                     if session_matches_cwd(&file, target_cwd) {
                         log::debug!("✅ Newest matching session found: {}", file.display());
@@ -320,39 +332,28 @@ fn legacy_match_for_cwd(sessions_dir: &Path, target_cwd: &str) -> Option<MatchRe
 }
 
 fn find_newest_session(sessions_dir: &Path) -> Result<Option<PathBuf>, std::io::Error> {
-    let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
-    fn scan(
-        dir: &Path,
-        newest: &mut Option<(std::time::SystemTime, PathBuf)>,
-    ) -> Result<(), std::io::Error> {
-        for entry in fs::read_dir(dir)? {
-            let entry = entry?;
-            let path = entry.path();
-            if path.is_dir() {
-                scan(&path, newest)?;
-            } else if path.extension().is_some_and(|ext| ext == "jsonl") {
-                if let Ok(meta) = path.metadata() {
-                    if let Ok(modified) = meta.modified() {
-                        match newest {
-                            Some((ts, _)) if &modified > ts => {
-                                *newest = Some((modified, path.clone()));
-                            }
-                            None => {
-                                *newest = Some((modified, path.clone()));
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-            }
-        }
-        Ok(())
-    }
     if !sessions_dir.exists() {
         return Ok(None);
     }
-    scan(sessions_dir, &mut newest)?;
-    Ok(newest.map(|(_, p)| p))
+    for year in sort_by_name_desc(sessions_dir)? {
+        if !year.is_dir() {
+            continue;
+        }
+        for month in sort_by_name_desc(&year)? {
+            if !month.is_dir() {
+                continue;
+            }
+            for day in sort_by_name_desc(&month)? {
+                if !day.is_dir() {
+                    continue;
+                }
+                if let Some(first) = sort_session_files_desc(&day)?.into_iter().next() {
+                    return Ok(Some(first));
+                }
+            }
+        }
+    }
+    Ok(None)
 }
 
 fn session_matches_cwd(session_file: &Path, target_cwd: &str) -> bool {
@@ -630,6 +631,7 @@ pub fn build_codex_command_with_config(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use filetime::{set_file_mtime, FileTime};
     use std::env;
     use std::fs;
     use std::io::Write;
@@ -1046,5 +1048,27 @@ mod tests {
             find_newest_session(tmp.path().join(".codex/sessions").as_path()).unwrap();
         assert!(newest_match.is_some());
         assert_ne!(newest_match, global_newest);
+    }
+
+    #[test]
+    fn test_find_newest_session_prefers_newer_partition_on_mtime_tie() {
+        let tmp = tempdir().unwrap();
+        let sessions_root = tmp.path().join(".codex/sessions");
+        let day_old = sessions_root.join("2025/08/22");
+        let day_new = sessions_root.join("2025/09/14");
+        fs::create_dir_all(&day_old).unwrap();
+        fs::create_dir_all(&day_new).unwrap();
+
+        let old_session = day_old.join("rollout-2025-08-22T10-00-00-uuid.jsonl");
+        let new_session = day_new.join("rollout-2025-09-14T10-00-00-uuid.jsonl");
+        write_jsonl_with_cwd(&old_session, "/repo/worktree-a");
+        write_jsonl_without_cwd(&new_session);
+
+        let tie_time = FileTime::from_unix_time(1_726_782_400, 0);
+        set_file_mtime(&old_session, tie_time).unwrap();
+        set_file_mtime(&new_session, tie_time).unwrap();
+
+        let global_newest = find_newest_session(sessions_root.as_path()).unwrap();
+        assert_eq!(global_newest, Some(new_session));
     }
 }
