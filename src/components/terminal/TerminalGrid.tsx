@@ -826,13 +826,13 @@ export function TerminalGrid() {
                 }}
             >
                 <div
-                    className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+                    className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'border-cyan-400/60 shadow-lg shadow-cyan-400/20' : 'border-slate-800/50'}`}
                 >
                     <div
                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
-                            localFocus === 'claude'
-                                ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
-                                : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                                localFocus === 'claude'
+                                    ? 'bg-cyan-900/30 text-cyan-200 border-cyan-800/50 hover:bg-cyan-900/40'
+                                    : 'text-slate-400 border-slate-800 hover:bg-slate-800'
                         }`}
                         onClick={handleClaudeSessionClick}
                     >
@@ -894,14 +894,14 @@ export function TerminalGrid() {
                             </button>
                         )}
                         <span className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded ${
-                            localFocus === 'claude' 
-                                ? 'bg-blue-600/40 text-blue-200' 
+                            localFocus === 'claude'
+                                ? 'bg-cyan-600/40 text-cyan-200' 
                                 : 'bg-slate-700/50 text-slate-400'
                         }`} title="Focus Claude (⌘T)">⌘T</span>
                     </div>
                     <div className={`h-[2px] flex-shrink-0 ${
                         localFocus === 'claude' && !isDraggingSplit
-                            ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
+                            ? 'bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent'
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`}>
@@ -921,7 +921,7 @@ export function TerminalGrid() {
                         )}
                     </div>
                 </div>
-                <div className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${localFocus === 'terminal' ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
+                <div className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${localFocus === 'terminal' ? 'border-cyan-400/60 shadow-lg shadow-cyan-400/20' : 'border-slate-800/50'}`}>
                     <UnifiedBottomBar
                         isCollapsed={isBottomCollapsed}
                         onToggleCollapse={toggleTerminalCollapsed}
@@ -1018,7 +1018,7 @@ export function TerminalGrid() {
                     />
                     <div className={`h-[2px] flex-shrink-0 ${
                         localFocus === 'terminal' && !isDraggingSplit
-                            ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent'
+                            ? 'bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent'
                             : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
                     }`} />
                     <div className={`flex-1 min-h-0 overflow-hidden ${isBottomCollapsed ? 'hidden' : ''}`}>

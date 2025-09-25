@@ -309,6 +309,16 @@ body.is-split-dragging {
   background-color: var(--color-accent-violet-bg) !important;
 }
 
+.session-ring-purple {
+  box-shadow: 0 0 0 2px var(--color-accent-purple), 0 0 0 4px var(--color-accent-purple-bg);
+  background-color: var(--color-accent-purple-bg) !important;
+}
+
+.session-ring-magenta {
+  box-shadow: 0 0 0 2px var(--color-accent-magenta), 0 0 0 4px var(--color-accent-magenta-bg);
+  background-color: var(--color-accent-magenta-bg) !important;
+}
+
 .session-ring-amber {
   box-shadow: 0 0 0 2px var(--color-accent-amber), 0 0 0 4px var(--color-accent-amber-bg);
   background-color: var(--color-accent-amber-bg) !important;

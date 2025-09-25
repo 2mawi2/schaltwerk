@@ -731,7 +731,7 @@ export function AsciiBuilderLogo({
 
   // Styling helpers (optional gradient & glow)
   const gradientClasses = useGradientText
-    ? 'bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-400 bg-clip-text text-transparent'
+    ? 'bg-gradient-to-r from-cyan-400 via-sky-400 to-cyan-400 bg-clip-text text-transparent'
     : colorClassName
 
   const primaryGlow = theme.colors.accent.blue.DEFAULT

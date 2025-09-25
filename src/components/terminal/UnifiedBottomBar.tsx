@@ -49,7 +49,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
       data-bottom-header
       className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
         isFocused
-          ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
+          ? 'bg-cyan-900/30 text-cyan-200 border-cyan-800/50 hover:bg-cyan-900/40'
           : 'text-slate-400 border-slate-800 hover:bg-slate-800'
       }`}
       onClick={onBarClick}
@@ -151,7 +151,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
         <span 
           className={`text-[10px] px-1.5 py-0.5 rounded ${
             isFocused
-              ? 'bg-blue-600/40 text-blue-200'
+              ? 'bg-cyan-600/40 text-cyan-200'
               : 'bg-slate-700/50 text-slate-400'
           }`} 
           title="Focus Terminal (⌘/)"
@@ -167,7 +167,7 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
           title={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
           className={`w-7 h-7 flex items-center justify-center rounded ${
             isFocused
-              ? 'hover:bg-blue-600/50 text-blue-200 hover:text-blue-100'
+              ? 'hover:bg-cyan-600/50 text-cyan-200 hover:text-cyan-100'
               : 'hover:bg-slate-700/50 text-slate-300 hover:text-slate-100'
           }`}
           aria-label={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}

@@ -63,7 +63,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     // Get background color based on state
     const getStateBackground = () => {
         if (isDragging) return 'opacity-50'
-        if (isFocused) return 'session-ring session-ring-blue border-transparent ring-2 ring-blue-500 ring-opacity-60'
+        if (isFocused) return 'session-ring session-ring-blue border-transparent ring-2 ring-cyan-400 ring-opacity-60'
         if (isSelected) return 'session-ring session-ring-blue border-transparent'
         if (isReadyToMerge) return 'session-ring session-ring-green border-transparent opacity-90'
         if (sessionState === 'running') return 'border-slate-700 bg-slate-800/50 hover:bg-slate-800/60'
@@ -99,18 +99,18 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                 )}
                             </>
                         )}
-                        {!isReadyToMerge && (
-                            <span
-                                className={clsx(
-                                    'text-[10px] px-1.5 py-0.5 rounded border',
-                                    sessionState === 'running'
-                                        ? 'bg-green-900/30 text-green-300 border-green-700/50'
-                                        : 'bg-amber-900/30 text-amber-300 border-amber-700/50'
-                                )}
-                            >
-                                {sessionState === 'running' ? 'Running' : 'Spec'}
-                            </span>
-                        )}
+                         {!isReadyToMerge && (
+                             <span
+                                 className={clsx(
+                                     'text-[10px] px-1.5 py-0.5 rounded border',
+                                     sessionState === 'running'
+                                         ? 'bg-pink-900/30 text-pink-300 border-pink-700/50'
+                                         : 'bg-amber-900/30 text-amber-300 border-amber-700/50'
+                                 )}
+                             >
+                                 {sessionState === 'running' ? 'Running' : 'Spec'}
+                             </span>
+                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
                     </div>
                 </div>
@@ -197,7 +197,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         <span
                             className={clsx(
                                 'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
-                                agentColor === 'blue' && 'bg-blue-900/30 text-blue-300 border-blue-700/50',
+                                agentColor === 'blue' && 'bg-cyan-900/30 text-cyan-300 border-cyan-700/50',
                                 agentColor === 'green' && 'bg-green-900/30 text-green-300 border-green-700/50',
                                 agentColor === 'orange' && 'bg-orange-900/30 text-orange-300 border-orange-700/50',
                                 agentColor === 'red' && 'bg-red-900/30 text-red-300 border-red-700/50'
@@ -206,7 +206,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         >
                             <span className={clsx(
                                 'w-1 h-1 rounded-full',
-                                agentColor === 'blue' && 'bg-blue-500',
+                                agentColor === 'blue' && 'bg-cyan-400',
                                 agentColor === 'green' && 'bg-green-500',
                                 agentColor === 'orange' && 'bg-orange-500',
                                 agentColor === 'red' && 'bg-red-500'

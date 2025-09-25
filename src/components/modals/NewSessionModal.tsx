@@ -589,7 +589,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                                     setValidationError('')
                                 }
                             }} 
-                            className="text-blue-600"
+                            className="text-cyan-600"
                         />
                         <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
                     </div>

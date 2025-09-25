@@ -1870,7 +1870,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                          <span className="text-sm text-slate-300">Agent stopped</span>
                          <button
                              onClick={(e) => { e.stopPropagation(); restartAgent(); }}
-                             className="text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
+                             className="text-sm px-3 py-1 rounded bg-cyan-600 hover:bg-cyan-400 text-white font-medium"
                          >
                              Restart
                          </button>

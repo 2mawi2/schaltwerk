@@ -80,8 +80,8 @@ export function ModelSelector({ value, onChange, disabled = false, skipPermissio
                         <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
                     ) : (
                         <span className={`w-2 h-2 rounded-full ${
-                            model.color === 'blue' ? 'bg-blue-500' : 
-                            model.color === 'green' ? 'bg-green-500' : 
+                            model.color === 'blue' ? 'bg-cyan-400' :
+                            model.color === 'green' ? 'bg-green-500' :
                             model.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
                         } ${!available && !loading ? 'opacity-50' : ''}`} />
                     )}

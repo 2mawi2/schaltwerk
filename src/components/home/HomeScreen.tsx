@@ -147,13 +147,13 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
             <VscNewFolder className="text-2xl" />
             <span className="text-lg font-medium">New Project</span>
           </button>
-          <button
-            onClick={handleSelectDirectory}
-            className="bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/50 text-cyan-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
-          >
-            <VscFolderOpened className="text-2xl" />
-            <span className="text-lg font-medium">Open Repository</span>
-          </button>
+           <button
+             onClick={handleSelectDirectory}
+             className="bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/50 text-cyan-400 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
+           >
+             <VscFolderOpened className="text-2xl" />
+             <span className="text-lg font-medium">Open Repository</span>
+           </button>
         </div>
 
         {recentProjects.length > 0 && (

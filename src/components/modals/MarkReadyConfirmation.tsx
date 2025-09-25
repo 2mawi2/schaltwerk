@@ -85,7 +85,7 @@ export function MarkReadyConfirmation({
   const body = (
     <div>
       <p className="text-slate-300 mb-4">
-        Marking <span className="font-mono text-blue-400">{sessionName}</span> as reviewed.
+        Marking <span className="font-mono text-cyan-400">{sessionName}</span> as reviewed.
       </p>
       {effectiveHasUncommitted && (
         <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">
@@ -95,7 +95,7 @@ export function MarkReadyConfirmation({
               type="checkbox"
               checked={autoCommit}
               onChange={(e) => setAutoCommit(e.target.checked)}
-              className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500"
+              className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
             />
             <span className="text-sm text-slate-300">
               Automatically commit all changes with message "Complete development work for {sessionName}"

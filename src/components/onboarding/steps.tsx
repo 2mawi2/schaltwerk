@@ -40,16 +40,16 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                     <li><strong>Bottom Terminals:</strong> Command-line access for development agents</li>
                     <li><strong>Right Panel:</strong> Diff viewer for changes or Agents/Specs overview</li>
                 </ul>
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
+                <div className="bg-cyan-900/30 border border-cyan-700/50 rounded p-3">
                     <div className="flex items-start gap-2">
-                        <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <svg className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                         </svg>
                         <div>
-                            <p className="text-blue-200 text-body">
+                            <p className="text-cyan-200 text-body">
                                 <strong>Keyboard-First:</strong> Schaltwerk is fully controllable via keyboard shortcuts for rapid context switching.
                             </p>
-                            <p className="text-blue-300/80 text-body mt-1">
+                            <p className="text-cyan-300/80 text-body mt-1">
                                 Use <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘↑/↓</kbd> to switch agents, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘T</kbd> for AI agent, <kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘/</kbd> for terminals.
                             </p>
                         </div>
@@ -86,7 +86,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </p>
                 <div className="space-y-3 mb-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-blue-400 font-medium mb-2">Running Agents</h4>
+                        <h4 className="text-cyan-400 font-medium mb-2">Running Agents</h4>
                         <p className="text-body text-slate-300 mb-2">Start immediately with an AI agent working on your agent.</p>
                         <kbd className="px-2 py-1 bg-slate-700 rounded text-caption">⌘N</kbd>
                     </div>
@@ -129,7 +129,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
 
                  <div className="grid grid-cols-1 gap-3">
                      <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
-                         <h4 className="text-blue-400 font-medium mb-2">Lifecycle at a Glance</h4>
+                         <h4 className="text-cyan-400 font-medium mb-2">Lifecycle at a Glance</h4>
                          <LifecycleDiagram />
                      </div>
                      <div className="bg-slate-800/50 border border-slate-700 rounded p-3 min-w-0">
@@ -188,16 +188,16 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                       MCP integration enables natural language control of Schaltwerk from your AI agents. Here's how to set it up:
                   </p>
 
-                  <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                  <div className="bg-cyan-900/30 border border-cyan-700/50 rounded p-3 mb-4">
                       <div className="flex items-start gap-2">
-                          <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <svg className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                           </svg>
                           <div>
-                              <p className="text-blue-200 text-body font-medium mb-2">
+                              <p className="text-cyan-200 text-body font-medium mb-2">
                                   Quick Setup Steps
                               </p>
-                              <ol className="text-caption text-blue-300/70 space-y-1 list-decimal list-inside">
+                              <ol className="text-caption text-cyan-300/70 space-y-1 list-decimal list-inside">
                                   <li>Go to Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>) → Agent Configuration</li>
                                   <li>Select your preferred AI agent (Claude, Gemini, OpenCode, etc.)</li>
                                   <li>Enable "MCP Server Configuration"</li>
@@ -254,14 +254,14 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                  <p className="mb-4">
                      Action buttons provide instant access to common AI prompts. They appear in the terminal header for both orchestrator and session views.
                  </p>
-                 <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
-                     <p className="text-blue-200 text-body font-medium mb-2">Default Action Button Presets</p>
-                     <ul className="text-caption text-blue-300/80 space-y-2 list-disc list-inside">
+                 <div className="bg-cyan-900/30 border border-cyan-700/50 rounded p-3 mb-4">
+                     <p className="text-cyan-200 text-body font-medium mb-2">Default Action Button Presets</p>
+                     <ul className="text-caption text-cyan-300/80 space-y-2 list-disc list-inside">
                          <li><strong>Merge Reviewed to Main:</strong> Find reviewed sessions → run tests → squash-merge into main</li>
                          <li><strong>PR All Running:</strong> Push sessions and create pull requests</li>
                          <li><strong>Review Queue:</strong> List sessions and choose merge, PR, or skip</li>
                      </ul>
-                     <p className="text-caption text-blue-300/70 mt-2">Configure in Settings → Action Buttons. Trigger via F1–F6 or click in the terminal header.</p>
+                     <p className="text-caption text-cyan-300/70 mt-2">Configure in Settings → Action Buttons. Trigger via F1–F6 or click in the terminal header.</p>
                  </div>
 
                  <div className="bg-slate-800/50 border border-slate-700 rounded p-3 mb-4">
@@ -303,19 +303,19 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                      </div>
                  </div>
 
-                 <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3 mb-4">
+                 <div className="bg-cyan-900/30 border border-cyan-700/50 rounded p-3 mb-4">
                      <div className="flex items-start gap-2">
-                         <svg className="w-5 h-5 text-blue-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                         <svg className="w-5 h-5 text-cyan-400 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                          </svg>
                          <div>
-                             <p className="text-blue-200 text-body font-medium mb-2">
+                             <p className="text-cyan-200 text-body font-medium mb-2">
                                  Quick Setup (Recommended)
                              </p>
-                             <p className="text-blue-300/80 text-body mb-2">
+                             <p className="text-cyan-300/80 text-body mb-2">
                                  Configure MCP to use natural language commands immediately:
                              </p>
-                             <ol className="text-caption text-blue-300/70 space-y-1 list-decimal list-inside">
+                             <ol className="text-caption text-cyan-300/70 space-y-1 list-decimal list-inside">
                                  <li>Go to Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>) → Agent Configuration</li>
                                  <li>Select your preferred AI agent (Claude, Gemini, OpenCode, etc.)</li>
                                  <li>Enable "MCP Server Configuration"</li>
@@ -421,7 +421,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </div>
                 <div className="space-y-3 mb-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-blue-400 font-medium mb-2">Customization</h4>
+                        <h4 className="text-cyan-400 font-medium mb-2">Customization</h4>
                         <p className="text-body text-slate-300 mb-2">
                             Configure up to 6 custom buttons in Settings → Action Buttons with prompts specific to your workflow:
                         </p>
@@ -460,7 +460,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                 </p>
                 <div className="grid grid-cols-2 gap-3 mb-4">
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-2">
-                        <div className="text-blue-400 font-medium text-body">Claude</div>
+                        <div className="text-cyan-400 font-medium text-body">Claude</div>
                         <div className="text-caption text-slate-400">Anthropic's AI assistant</div>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-2">
@@ -512,7 +512,7 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                         </p>
                     </div>
                     <div className="bg-slate-800/50 border border-slate-700 rounded p-3">
-                        <h4 className="text-blue-400 font-medium mb-2">Changes Tab - AI Code Review</h4>
+                        <h4 className="text-cyan-400 font-medium mb-2">Changes Tab - AI Code Review</h4>
                         <p className="text-body text-slate-300 mb-2">
                             Review AI-generated changes with the diff viewer (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘G</kbd>).
                         </p>
@@ -520,12 +520,12 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                             Add comments directly on code changes - when you finish the review, all comments and their corresponding files are automatically pasted into the AI session's chat for fixes.
                         </p>
                     </div>
-                </div>
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
-                    <p className="text-blue-200 text-body">
-                        <strong>Review workflow:</strong> Open diff → Add comments → Finish review → Comments sent to AI → AI addresses feedback
-                    </p>
-                </div>
+                 </div>
+                 <div className="bg-cyan-900/30 border border-cyan-700/50 rounded p-3">
+                     <p className="text-cyan-200 text-body">
+                         <strong>Review workflow:</strong> Open diff → Add comments → Finish review → Comments sent to AI → AI addresses feedback
+                     </p>
+                 </div>
             </div>
         ),
         highlight: 'section',
@@ -560,8 +560,8 @@ export const ONBOARDING_STEPS: OnboardingStep[] = [
                         </div>
                     </div>
                 </div>
-                <div className="bg-blue-900/30 border border-blue-700/50 rounded p-3">
-                    <p className="text-blue-200 text-body">
+                <div className="bg-cyan-900/30 border border-cyan-700/50 rounded p-3">
+                    <p className="text-cyan-200 text-body">
                         <strong>Tip:</strong> Open Settings (<kbd className="px-1 py-0.5 bg-slate-700 rounded text-caption">⌘,</kbd>) to configure AI agents, keyboard shortcuts, and terminal preferences.
                     </p>
                 </div>

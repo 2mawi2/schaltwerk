@@ -286,7 +286,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       case 'added': return <VscDiffAdded className="text-green-500" />
       case 'modified': return <VscDiffModified className="text-yellow-500" />
       case 'deleted': return <VscDiffRemoved className="text-red-500" />
-      default: return <VscFile className="text-blue-500" />
+      default: return <VscFile className="text-cyan-400" />
     }
   }
 

@@ -100,8 +100,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
       {/* Version group container with subtle background */}
       <div className={clsx(
         'rounded-lg border transition-all duration-200',
-        hasSelectedVersion 
-          ? 'border-blue-600/30 bg-blue-950/10' 
+        hasSelectedVersion
+          ? 'border-cyan-600/30 bg-cyan-950/10' 
           : 'border-slate-700/50 bg-slate-900/20'
       )}>
         {/* Group header */}
@@ -110,7 +110,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
           className={clsx(
             'w-full text-left px-3 py-2 rounded-t-md border-b transition-all duration-200',
             hasSelectedVersion
-              ? 'border-blue-600/20 bg-blue-950/20'
+              ? 'border-cyan-600/20 bg-cyan-950/20'
               : 'border-slate-700/30 bg-slate-800/30 hover:bg-slate-700/40'
           )}
           title={`${group.baseName} (${group.versions.length} versions) - Click to expand/collapse`}
@@ -130,7 +130,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               className={clsx(
                 "text-xs px-2 py-0.5 rounded-full font-medium ml-2",
                 hasSelectedVersion
-                  ? "bg-blue-600/30 text-blue-300 border border-blue-600/50"
+                  ? "bg-cyan-600/30 text-cyan-300 border border-cyan-600/50"
                   : "bg-slate-700/50 text-slate-300 border border-slate-600/50"
               )}
             >
@@ -157,7 +157,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       <span
                         className={clsx(
                           'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
-                          agentColor === 'blue' && 'bg-blue-900/30 text-blue-300 border-blue-700/50',
+                          agentColor === 'blue' && 'bg-cyan-900/30 text-cyan-300 border-cyan-700/50',
                           agentColor === 'green' && 'bg-green-900/30 text-green-300 border-green-700/50',
                           agentColor === 'orange' && 'bg-orange-900/30 text-orange-300 border-orange-700/50',
                           agentColor === 'red' && 'bg-red-900/30 text-red-300 border-red-700/50'
@@ -166,7 +166,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       >
                         <span className={clsx(
                           'w-1 h-1 rounded-full',
-                          agentColor === 'blue' && 'bg-blue-500',
+                          agentColor === 'blue' && 'bg-cyan-400',
                           agentColor === 'green' && 'bg-green-500',
                           agentColor === 'orange' && 'bg-orange-500',
                           agentColor === 'red' && 'bg-red-500'
@@ -214,8 +214,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       {/* Dot on the vertical line */}
                       <div className={clsx(
                         "absolute top-7 w-2 h-2 rounded-full border",
-                        isSelected 
-                          ? "bg-blue-500 border-blue-400" 
+                        isSelected
+                          ? "bg-cyan-400 border-cyan-300"
                           : "bg-slate-700 border-slate-600"
                       )} style={{ left: '-14px', transform: 'translate(-50%, -50%)' }} />
                       

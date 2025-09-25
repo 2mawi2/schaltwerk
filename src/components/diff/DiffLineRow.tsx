@@ -83,8 +83,8 @@ function DiffLineRowComponent({
         line.type === 'added' && "bg-green-900/30 hover:bg-green-900/40",
         line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40", 
         line.type === 'unchanged' && "hover:bg-slate-800/50",
-        isSelected && "!bg-blue-500/30 hover:!bg-blue-500/40",
-        isHovered && "ring-1 ring-blue-400/50"
+        isSelected && "!bg-cyan-400/30 hover:!bg-cyan-400/40",
+        isHovered && "ring-1 ring-cyan-300/50"
       )}
       data-line-num={lineNum}
       data-side={side}
@@ -100,8 +100,8 @@ function DiffLineRowComponent({
             onMouseUp={(e) => onLineMouseUp?.(e)}
             className={clsx(
               "p-1 rounded",
-              isSelected 
-                ? "text-blue-400 bg-blue-500/20 hover:bg-blue-500/30" 
+              isSelected
+                ? "text-cyan-300 bg-cyan-400/20 hover:bg-cyan-400/30"
                 : "text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-300 hover:bg-slate-800"
             )}
             aria-label={`Select line ${lineNum}`}
@@ -148,7 +148,7 @@ function DiffLineRowComponent({
           )}
           <div className="flex items-center gap-2">
             {hasComment && (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 rounded text-xs text-blue-400" title={commentText}>
+              <div className="flex items-center gap-1 px-2 py-0.5 bg-cyan-400/20 rounded text-xs text-cyan-300" title={commentText}>
                 <VscComment />
                 <span>Comment</span>
               </div>

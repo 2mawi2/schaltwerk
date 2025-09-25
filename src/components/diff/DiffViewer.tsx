@@ -207,16 +207,16 @@ export function DiffViewer({
                         {file.change_type === 'renamed' && 'Renamed'}
                       </div>
                     </div>
-                  </div>
-                  {commentCount > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-blue-400">
-                      <VscComment />
-                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                </div>
-                
-                {/* File diff content or loading placeholder */}
+                   </div>
+                   {commentCount > 0 && (
+                     <div className="flex items-center gap-1 text-sm text-cyan-400">
+                       <VscComment />
+                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                     </div>
+                   )}
+                 </div>
+
+                 {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
                   <div className="px-4 py-8 text-center text-slate-500">
                     <AnimatedText text="loading" size="sm" />
@@ -347,15 +347,15 @@ export function DiffViewer({
                       </div>
                     </div>
                   </div>
-                  {commentCount > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-blue-400">
-                      <VscComment />
-                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                </div>
+                   {commentCount > 0 && (
+                     <div className="flex items-center gap-1 text-sm text-cyan-400">
+                       <VscComment />
+                       <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
+                     </div>
+                   )}
+                 </div>
 
-                {/* File diff content with virtualization */}
+                 {/* File diff content with virtualization */}
                 {!fileDiff ? (
                   <div className="px-4 py-8 text-center text-slate-500">
                     {isLoading ? (

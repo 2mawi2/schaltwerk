@@ -122,7 +122,7 @@ export function SwitchOrchestratorModal({ open, onClose, onSwitch }: Props) {
                     <button
                         onClick={handleSwitch}
                         disabled={switching}
-                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2"
+                        className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-400 disabled:bg-slate-600 disabled:cursor-not-allowed rounded text-white group relative inline-flex items-center gap-2"
                         title="Switch Agent (Enter)"
                     >
                         {switching && (

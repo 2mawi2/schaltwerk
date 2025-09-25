@@ -1251,7 +1251,7 @@ function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
         value={text}
         onChange={(e) => setText(e.target.value)}
         placeholder="Write your comment..."
-        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm focus:outline-none focus:border-blue-500 resize-none"
+        className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm focus:outline-none focus:border-cyan-400 resize-none"
         rows={4}
         autoFocus
         onKeyDown={(e) => {
@@ -1273,7 +1273,7 @@ function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
         <button
           onClick={handleSubmit}
           disabled={!text.trim()}
-          className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm font-medium flex items-center gap-2"
+          className="px-3 py-1.5 bg-cyan-600 hover:bg-cyan-700 disabled:opacity-50 rounded text-sm font-medium flex items-center gap-2"
         >
           <VscSend />
           Submit
