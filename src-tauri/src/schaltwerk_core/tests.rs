@@ -145,6 +145,32 @@ fn test_create_session() {
 }
 
 #[test]
+fn test_create_session_with_custom_branch_prefix() {
+    let env = TestEnvironment::new().unwrap();
+    let db = env.get_database().unwrap();
+
+    db.set_project_branch_prefix(&env.repo_path, "custom")
+        .unwrap();
+
+    let manager = SessionManager::new(db.clone(), env.repo_path.clone());
+
+    let session = manager
+        .create_session("prefixed-feature", Some("Test prompt"), None)
+        .unwrap();
+
+    assert_eq!(session.branch, "custom/prefixed-feature");
+
+    let branches_output = Command::new("git")
+        .args(["branch", "--list", "custom/prefixed-feature"])
+        .current_dir(&env.repo_path)
+        .output()
+        .unwrap();
+
+    let branches = String::from_utf8_lossy(&branches_output.stdout);
+    assert!(branches.contains("custom/prefixed-feature"));
+}
+
+#[test]
 fn test_create_multiple_sessions() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();
@@ -1520,12 +1546,8 @@ fn test_orchestrator_codex_prefers_explicit_resume_path() {
     let manager = env.get_session_manager().unwrap();
 
     // Configure orchestrator to use Codex
-    manager
-        .set_orchestrator_agent_type("codex")
-        .unwrap();
-    manager
-        .set_orchestrator_skip_permissions(false)
-        .unwrap();
+    manager.set_orchestrator_agent_type("codex").unwrap();
+    manager.set_orchestrator_skip_permissions(false).unwrap();
 
     // Prepare a fake Codex sessions directory matching the orchestrator repo path
     let home_dir = tempfile::TempDir::new().unwrap();

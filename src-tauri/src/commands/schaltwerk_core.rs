@@ -6,7 +6,7 @@ use schaltwerk::domains::sessions::entity::{
 };
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
-use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
 mod agent_ctx;
 mod agent_launcher;
 mod events;
@@ -552,7 +552,6 @@ pub async fn schaltwerk_core_rename_version_group(
     let db = core_lock.db.clone();
     let worktree_path = first_session.worktree_path.clone();
     let repo_path = first_session.repository_path.clone();
-    let current_branch = first_session.branch.clone();
     let agent_type = first_session
         .original_agent_type
         .clone()
@@ -604,11 +603,18 @@ pub async fn schaltwerk_core_rename_version_group(
     let core = get_schaltwerk_core().await?;
     let core_lock = core.lock().await;
 
+    let branch_prefix = db
+        .get_project_branch_prefix(&repo_path)
+        .unwrap_or_else(|err| {
+            log::warn!("Falling back to default branch prefix while renaming sessions: {err}");
+            DEFAULT_BRANCH_PREFIX.to_string()
+        });
+
     for session in version_sessions {
         // Extract version suffix
         let version_suffix = session.name.strip_prefix(&base_name).unwrap_or("");
         let new_session_name = format!("{generated_name}{version_suffix}");
-        let new_branch_name = format!("schaltwerk/{new_session_name}");
+        let new_branch_name = format!("{branch_prefix}/{new_session_name}");
 
         log::info!(
             "Renaming session '{}' to '{new_session_name}'",
@@ -624,7 +630,7 @@ pub async fn schaltwerk_core_rename_version_group(
         }
 
         // Rename the git branch
-        if current_branch != new_branch_name {
+        if session.branch != new_branch_name {
             match schaltwerk::domains::git::branches::rename_branch(
                 &repo_path,
                 &session.branch,
@@ -1219,7 +1225,9 @@ pub async fn schaltwerk_core_get_skip_permissions() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_set_orchestrator_skip_permissions(enabled: bool) -> Result<(), String> {
+pub async fn schaltwerk_core_set_orchestrator_skip_permissions(
+    enabled: bool,
+) -> Result<(), String> {
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
 

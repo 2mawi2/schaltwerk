@@ -6,6 +6,19 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 
+pub const DEFAULT_BRANCH_PREFIX: &str = "schaltwerk";
+
+fn normalize_branch_prefix(input: &str) -> String {
+    let trimmed = input.trim();
+    let trimmed = trimmed.trim_matches('/');
+    let normalized = trimmed.trim();
+    if normalized.is_empty() {
+        DEFAULT_BRANCH_PREFIX.to_string()
+    } else {
+        normalized.to_string()
+    }
+}
+
 const SQUASH_MERGE_MAIN_PROMPT: &str = r#"Task: Squash-merge all reviewed Schaltwerk sessions
 
 Find all reviewed sessions and merge them to main branch with proper validation and fallback handling.
@@ -178,6 +191,8 @@ pub trait ProjectConfigMethods {
         repo_path: &Path,
         settings: &ProjectSessionsSettings,
     ) -> Result<()>;
+    fn get_project_branch_prefix(&self, repo_path: &Path) -> Result<String>;
+    fn set_project_branch_prefix(&self, repo_path: &Path, branch_prefix: &str) -> Result<()>;
     fn get_project_environment_variables(
         &self,
         repo_path: &Path,
@@ -227,9 +242,9 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at) 
+            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4)
-                ON CONFLICT(repository_path) DO UPDATE SET 
+                ON CONFLICT(repository_path) DO UPDATE SET
                     setup_script = excluded.setup_script,
                     updated_at = excluded.updated_at",
             params![canonical_path.to_string_lossy(), setup_script, now, now],
@@ -268,17 +283,17 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-                "INSERT INTO project_config (repository_path, last_selection_kind, last_selection_payload, created_at, updated_at) 
+                "INSERT INTO project_config (repository_path, last_selection_kind, last_selection_payload, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5)
-                ON CONFLICT(repository_path) DO UPDATE SET 
+                ON CONFLICT(repository_path) DO UPDATE SET
                     last_selection_kind = excluded.last_selection_kind,
                     last_selection_payload = excluded.last_selection_payload,
                     updated_at = excluded.updated_at",
                 params![
-                    canonical_path.to_string_lossy(), 
+                    canonical_path.to_string_lossy(),
                     selection.kind,
                     selection.payload,
-                    now, 
+                    now,
                     now
                 ],
             )?;
@@ -339,6 +354,48 @@ impl ProjectConfigMethods for Database {
                 now,
                 now,
             ],
+        )?;
+
+        Ok(())
+    }
+
+    fn get_project_branch_prefix(&self, repo_path: &Path) -> Result<String> {
+        let conn = self.conn.lock().unwrap();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let result: rusqlite::Result<Option<String>> = conn.query_row(
+            "SELECT branch_prefix FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| row.get(0),
+        );
+
+        match result {
+            Ok(Some(value)) => Ok(normalize_branch_prefix(&value)),
+            Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => {
+                Ok(DEFAULT_BRANCH_PREFIX.to_string())
+            }
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn set_project_branch_prefix(&self, repo_path: &Path, branch_prefix: &str) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let normalized = normalize_branch_prefix(branch_prefix);
+
+        conn.execute(
+            "INSERT INTO project_config (repository_path, branch_prefix, created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4)
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    branch_prefix = excluded.branch_prefix,
+                    updated_at    = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), normalized, now, now,],
         )?;
 
         Ok(())
