@@ -19,7 +19,9 @@ export enum SchaltEvent {
   OpenHome = 'schaltwerk:open-home',
   FileChanges = 'schaltwerk:file-changes',
   FollowUpMessage = 'schaltwerk:follow-up-message',
-  Selection = 'schaltwerk:selection'
+  Selection = 'schaltwerk:selection',
+  GitHubPublishCompleted = 'schaltwerk:github-publish-completed',
+  GitHubPublishFailed = 'schaltwerk:github-publish-failed'
 }
 
 
@@ -63,6 +65,10 @@ export interface BranchInfo {
 }
 
 import { EnrichedSession } from '../types/session'
+import type {
+  GitHubPublishCompletedPayload as GitHubPublishCompletedPayloadType,
+  GitHubPublishFailedPayload as GitHubPublishFailedPayloadType,
+} from '../types/github'
 
 export interface SelectionPayload {
   kind: 'session' | 'orchestrator'
@@ -70,6 +76,9 @@ export interface SelectionPayload {
   worktreePath?: string
   sessionState?: 'spec' | 'running' | 'reviewed'
 }
+
+export type GitHubPublishCompletedPayload = GitHubPublishCompletedPayloadType
+export type GitHubPublishFailedPayload = GitHubPublishFailedPayloadType
 
 export type EventPayloadMap = {
   [SchaltEvent.SessionsRefreshed]: EnrichedSession[]
@@ -104,4 +113,6 @@ export type EventPayloadMap = {
   }
   [SchaltEvent.FollowUpMessage]: FollowUpMessagePayload
   [SchaltEvent.Selection]: SelectionPayload
+  [SchaltEvent.GitHubPublishCompleted]: GitHubPublishCompletedPayload
+  [SchaltEvent.GitHubPublishFailed]: GitHubPublishFailedPayload
 }

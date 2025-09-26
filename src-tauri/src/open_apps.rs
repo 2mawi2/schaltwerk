@@ -157,12 +157,7 @@ fn open_path_in_ghostty(working_dir: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let open_status = Command::new("open")
-            .args([
-                "-na",
-                "Ghostty",
-                "--args",
-                working_dir_flag.as_str(),
-            ])
+            .args(["-na", "Ghostty", "--args", working_dir_flag.as_str()])
             .status();
         match open_status {
             Ok(status) if status.success() => return Ok(()),

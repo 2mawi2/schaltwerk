@@ -260,5 +260,26 @@ fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Resul
         [],
     );
     let _ = conn.execute("ALTER TABLE project_config ADD COLUMN run_script TEXT", []);
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_owner TEXT",
+        [],
+    );
+    let _ = conn.execute("ALTER TABLE project_config ADD COLUMN github_repo TEXT", []);
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_remote_name TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_last_branch_prefix TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_last_base_branch TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_last_publish_mode TEXT",
+        [],
+    );
     Ok(())
 }

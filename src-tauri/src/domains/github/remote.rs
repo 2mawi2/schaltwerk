@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GitHubRemote {
     pub remote_name: String,
     pub owner: String,
@@ -58,7 +59,11 @@ pub fn parse_github_remote(remote_name: &str, url: &str) -> Option<GitHubRemote>
     }
 
     let owner = owner.trim().to_string();
-    let repo = repo.trim_end_matches(".git").trim_end_matches('/').trim().to_string();
+    let repo = repo
+        .trim_end_matches(".git")
+        .trim_end_matches('/')
+        .trim()
+        .to_string();
 
     if repo.is_empty() || owner.is_empty() {
         return None;

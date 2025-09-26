@@ -274,7 +274,8 @@ mod tests {
                 tutorial_completed
             ) VALUES (1, FALSE, 'claude', FALSE, 'claude', 'finder', 13, 12, FALSE)",
             [],
-        ).expect("Failed to initialize app_config");
+        )
+        .expect("Failed to initialize app_config");
         drop(conn);
         db
     }

@@ -7,7 +7,8 @@ import {
   VscArchive,
   VscStarFull,
   VscRefresh,
-  VscCode
+  VscCode,
+  VscGitPullRequest,
 } from 'react-icons/vsc';
 import { IconButton } from '../common/IconButton';
 
@@ -28,6 +29,7 @@ interface SessionActionsProps {
   onPromoteVersionHoverEnd?: () => void;
   onReset?: (sessionId: string) => void;
   onSwitchModel?: (sessionId: string) => void;
+  onOpenPublish?: (sessionId: string) => void;
   isResetting?: boolean;
 }
 
@@ -47,6 +49,7 @@ export function SessionActions({
   onPromoteVersionHoverEnd,
   onReset,
   onSwitchModel,
+  onOpenPublish,
   isResetting = false,
 }: SessionActionsProps) {
   // Use moderate spacing for medium-sized buttons
@@ -145,6 +148,14 @@ export function SessionActions({
       {/* Reviewed state actions */}
       {sessionState === 'reviewed' && (
         <>
+          {onOpenPublish && (
+            <IconButton
+              icon={<VscGitPullRequest />}
+              onClick={() => onOpenPublish(sessionId)}
+              ariaLabel="Create pull request"
+              tooltip="Create pull request"
+            />
+          )}
           {onUnmarkReviewed && (
             <IconButton
               icon={<VscDiscard />}

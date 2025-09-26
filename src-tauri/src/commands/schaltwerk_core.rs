@@ -1,5 +1,9 @@
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER};
 use schaltwerk::domains::agents::{naming, parse_agent_command};
+use schaltwerk::domains::github::{
+    service::{GitHubPublishService, PublishMode, PublishRequest},
+    GitHubRemote,
+};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
     EnrichedSession, FilterMode, Session, SessionState, SortMode,
@@ -7,11 +11,88 @@ use schaltwerk::domains::sessions::entity::{
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
+use serde::Serialize;
+use std::process::Command;
 mod agent_ctx;
 mod agent_launcher;
 mod events;
 mod schaltwerk_core_cli;
 mod terminals;
+
+#[derive(Debug, Serialize)]
+pub struct GitHubPublishContextResponse {
+    pub remotes: Vec<GitHubRemote>,
+    pub linked: Option<GitHubLinkedRepository>,
+    pub session_branch: String,
+    pub session_display_name: Option<String>,
+    pub session_base_branch: String,
+    pub default_base_branch: String,
+    pub suggested_target_branch: String,
+    pub available_branches: Vec<String>,
+    pub last_publish_mode: Option<String>,
+    pub has_uncommitted_changes: bool,
+    pub commit_message_suggestion: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GitHubLinkedRepository {
+    pub owner: String,
+    pub repo: String,
+    pub remote_name: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct GitHubPublishResponse {
+    pub compare_url: String,
+    pub pushed_branch: String,
+    pub mode: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct GitHubPublishEventPayload {
+    session_name: String,
+    compare_url: String,
+    branch: String,
+    mode: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct GitHubPublishErrorPayload {
+    session_name: String,
+    error: String,
+}
+
+fn compute_branch_suggestion(
+    prefix: Option<&String>,
+    fallback_slug: &str,
+    session_branch: &str,
+) -> String {
+    let slug = fallback_slug.trim();
+    match prefix {
+        Some(prefix) if !prefix.trim().is_empty() => {
+            let trimmed = prefix.trim_end_matches('/');
+            if slug.is_empty() {
+                trimmed.to_string()
+            } else {
+                format!("{trimmed}/{slug}")
+            }
+        }
+        _ => {
+            if slug.is_empty() {
+                session_branch.to_string()
+            } else {
+                slug.to_string()
+            }
+        }
+    }
+}
+
+fn normalize_branch_prefix(branch: &str) -> Option<String> {
+    branch
+        .rsplit_once('/')
+        .map(|(prefix, _)| prefix.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
 
 // Simple POSIX sh single-quote helper for safe argument joining in one-liners
 fn sh_quote_string(s: &str) -> String {
@@ -1219,7 +1300,9 @@ pub async fn schaltwerk_core_get_skip_permissions() -> Result<bool, String> {
 }
 
 #[tauri::command]
-pub async fn schaltwerk_core_set_orchestrator_skip_permissions(enabled: bool) -> Result<(), String> {
+pub async fn schaltwerk_core_set_orchestrator_skip_permissions(
+    enabled: bool,
+) -> Result<(), String> {
     let core = get_schaltwerk_core().await?;
     let core = core.lock().await;
 
@@ -2155,6 +2238,215 @@ pub async fn schaltwerk_core_discard_file_in_orchestrator(file_path: String) -> 
         std::path::Path::new(&file_path),
     )
     .map_err(|e| format!("Failed to discard file changes: {e}"))
+}
+
+#[tauri::command]
+pub async fn github_publish_get_context(
+    session_name: String,
+) -> Result<GitHubPublishContextResponse, String> {
+    let core_handle = get_schaltwerk_core().await?;
+    let core = core_handle.lock().await;
+    let repo_path = core.repo_path.clone();
+    let manager = core.session_manager();
+
+    let session = manager
+        .get_session(&session_name)
+        .map_err(|e| format!("Failed to load session '{session_name}': {e}"))?;
+
+    let project_settings = core
+        .db
+        .get_github_project_settings(&repo_path)
+        .map_err(|e| format!("Failed to read GitHub project settings: {e}"))?;
+
+    let available_branches = schaltwerk::domains::git::list_branches(&repo_path)
+        .map_err(|e| format!("Failed to list branches: {e}"))?;
+
+    drop(core);
+
+    let service = GitHubPublishService::new(repo_path.clone());
+    let remotes = service
+        .list_github_remotes()
+        .map_err(|e| format!("Failed to detect GitHub remotes: {e}"))?;
+
+    let has_uncommitted = schaltwerk::domains::git::has_uncommitted_changes(&session.worktree_path)
+        .map_err(|e| format!("Failed to inspect session worktree: {e}"))?;
+
+    let display_name = session.display_name.clone();
+    let slug_source = display_name.as_deref().unwrap_or(session.name.as_str());
+    let sanitized = naming::sanitize_name(slug_source);
+    let fallback_slug = if sanitized.is_empty() {
+        let sanitized_name = naming::sanitize_name(&session.name);
+        if sanitized_name.is_empty() {
+            session.name.replace(' ', "-")
+        } else {
+            sanitized_name
+        }
+    } else {
+        sanitized
+    };
+
+    let default_base_branch = project_settings
+        .last_base_branch
+        .clone()
+        .unwrap_or_else(|| session.parent_branch.clone());
+
+    let suggested_target_branch = compute_branch_suggestion(
+        project_settings.last_branch_prefix.as_ref(),
+        &fallback_slug,
+        &session.branch,
+    );
+
+    let commit_message_suggestion = display_name.clone().unwrap_or_else(|| session.name.clone());
+
+    let linked = if project_settings.owner.is_some()
+        && project_settings.repo.is_some()
+        && project_settings.remote_name.is_some()
+    {
+        Some(GitHubLinkedRepository {
+            owner: project_settings.owner.clone().unwrap(),
+            repo: project_settings.repo.clone().unwrap(),
+            remote_name: project_settings.remote_name.clone().unwrap(),
+        })
+    } else {
+        None
+    };
+
+    Ok(GitHubPublishContextResponse {
+        remotes,
+        linked,
+        session_branch: session.branch.clone(),
+        session_display_name: display_name,
+        session_base_branch: session.parent_branch.clone(),
+        default_base_branch,
+        suggested_target_branch,
+        available_branches,
+        last_publish_mode: project_settings.last_publish_mode.clone(),
+        has_uncommitted_changes: has_uncommitted,
+        commit_message_suggestion,
+    })
+}
+
+#[tauri::command]
+pub async fn github_publish_prepare(
+    app: tauri::AppHandle,
+    session_name: String,
+    remote_name: String,
+    target_branch: String,
+    base_branch: String,
+    mode: String,
+    commit_message: Option<String>,
+) -> Result<GitHubPublishResponse, String> {
+    if target_branch.trim().is_empty() {
+        return Err("Target branch name cannot be empty".to_string());
+    }
+
+    let mode_normalized = mode.to_lowercase();
+    let publish_mode = match mode_normalized.as_str() {
+        "squash" => PublishMode::Squash,
+        "keep" | "keep_commits" => PublishMode::KeepCommits,
+        other => return Err(format!("Unsupported publish mode: {other}")),
+    };
+
+    let core_handle = get_schaltwerk_core().await?;
+    let core = core_handle.lock().await;
+    let repo_path = core.repo_path.clone();
+    let manager = core.session_manager();
+
+    let session = manager
+        .get_session(&session_name)
+        .map_err(|e| format!("Failed to load session '{session_name}': {e}"))?;
+
+    let mut project_settings = core
+        .db
+        .get_github_project_settings(&repo_path)
+        .map_err(|e| format!("Failed to read GitHub project settings: {e}"))?;
+
+    drop(core);
+
+    let service = GitHubPublishService::new(repo_path.clone());
+    let remotes = service
+        .list_github_remotes()
+        .map_err(|e| format!("Failed to detect GitHub remotes: {e}"))?;
+
+    let remote = remotes
+        .into_iter()
+        .find(|r| r.remote_name == remote_name)
+        .ok_or_else(|| format!("Remote '{remote_name}' not found or not a GitHub remote"))?;
+
+    let effective_commit_message = commit_message
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or_else(|| {
+            session
+                .display_name
+                .clone()
+                .unwrap_or_else(|| session.name.clone())
+        });
+
+    let request = PublishRequest {
+        remote: remote.clone(),
+        base_branch: base_branch.clone(),
+        target_branch: target_branch.clone(),
+        session_branch: session.branch.clone(),
+        session_worktree_path: session.worktree_path.clone(),
+        commit_message: effective_commit_message.clone(),
+        mode: publish_mode,
+    };
+
+    let result = match service.prepare_publish(request) {
+        Ok(res) => res,
+        Err(err) => {
+            let message = format!("Failed to prepare publish: {err}");
+            let _ = emit_event(
+                &app,
+                SchaltEvent::GitHubPublishFailed,
+                &GitHubPublishErrorPayload {
+                    session_name: session_name.clone(),
+                    error: message.clone(),
+                },
+            );
+            return Err(message);
+        }
+    };
+
+    project_settings.owner = Some(remote.owner.clone());
+    project_settings.repo = Some(remote.repo.clone());
+    project_settings.remote_name = Some(remote.remote_name.clone());
+    project_settings.last_base_branch = Some(base_branch.clone());
+    project_settings.last_publish_mode = Some(mode_normalized.clone());
+    project_settings.last_branch_prefix = normalize_branch_prefix(&target_branch);
+
+    {
+        let core = core_handle.lock().await;
+        if let Err(err) = core
+            .db
+            .set_github_project_settings(&repo_path, &project_settings)
+        {
+            log::warn!("Failed to persist GitHub publish settings: {err}");
+        }
+    }
+
+    let response = GitHubPublishResponse {
+        compare_url: result.compare_url.clone(),
+        pushed_branch: result.pushed_branch.clone(),
+        mode: mode_normalized.clone(),
+    };
+
+    if let Err(err) = Command::new("open").arg(&result.compare_url).status() {
+        log::warn!("Failed to open compare URL {}: {}", result.compare_url, err);
+    }
+
+    let _ = emit_event(
+        &app,
+        SchaltEvent::GitHubPublishCompleted,
+        &GitHubPublishEventPayload {
+            session_name,
+            compare_url: response.compare_url.clone(),
+            branch: response.pushed_branch.clone(),
+            mode: response.mode.clone(),
+        },
+    );
+
+    Ok(response)
 }
 
 #[cfg(test)]

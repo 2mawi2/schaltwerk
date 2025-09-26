@@ -147,6 +147,26 @@ pub struct ProjectSessionsSettings {
     pub sort_mode: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubProjectSettings {
+    pub owner: Option<String>,
+    pub repo: Option<String>,
+    pub remote_name: Option<String>,
+    pub last_branch_prefix: Option<String>,
+    pub last_base_branch: Option<String>,
+    pub last_publish_mode: Option<String>,
+}
+
+type GitHubSettingsRow = (
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+);
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct HeaderActionConfig {
@@ -195,6 +215,12 @@ pub trait ProjectConfigMethods {
     ) -> Result<()>;
     fn get_project_run_script(&self, repo_path: &Path) -> Result<Option<RunScript>>;
     fn set_project_run_script(&self, repo_path: &Path, run_script: &RunScript) -> Result<()>;
+    fn get_github_project_settings(&self, repo_path: &Path) -> Result<GitHubProjectSettings>;
+    fn set_github_project_settings(
+        &self,
+        repo_path: &Path,
+        settings: &GitHubProjectSettings,
+    ) -> Result<()>;
 }
 
 impl ProjectConfigMethods for Database {
@@ -227,9 +253,9 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at) 
+            "INSERT INTO project_config (repository_path, setup_script, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4)
-                ON CONFLICT(repository_path) DO UPDATE SET 
+                ON CONFLICT(repository_path) DO UPDATE SET
                     setup_script = excluded.setup_script,
                     updated_at = excluded.updated_at",
             params![canonical_path.to_string_lossy(), setup_script, now, now],
@@ -268,17 +294,17 @@ impl ProjectConfigMethods for Database {
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
 
         conn.execute(
-                "INSERT INTO project_config (repository_path, last_selection_kind, last_selection_payload, created_at, updated_at) 
+                "INSERT INTO project_config (repository_path, last_selection_kind, last_selection_payload, created_at, updated_at)
                 VALUES (?1, ?2, ?3, ?4, ?5)
-                ON CONFLICT(repository_path) DO UPDATE SET 
+                ON CONFLICT(repository_path) DO UPDATE SET
                     last_selection_kind = excluded.last_selection_kind,
                     last_selection_payload = excluded.last_selection_payload,
                     updated_at = excluded.updated_at",
                 params![
-                    canonical_path.to_string_lossy(), 
+                    canonical_path.to_string_lossy(),
                     selection.kind,
                     selection.payload,
-                    now, 
+                    now,
                     now
                 ],
             )?;
@@ -484,6 +510,88 @@ impl ProjectConfigMethods for Database {
                     run_script = excluded.run_script,
                     updated_at = excluded.updated_at",
             params![canonical_path.to_string_lossy(), json_str, now, now],
+        )?;
+
+        Ok(())
+    }
+
+    fn get_github_project_settings(&self, repo_path: &Path) -> Result<GitHubProjectSettings> {
+        let conn = self.conn.lock().unwrap();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let query_res: rusqlite::Result<GitHubSettingsRow> = conn.query_row(
+            "SELECT github_owner, github_repo, github_remote_name, github_last_branch_prefix, github_last_base_branch, github_last_publish_mode FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        );
+
+        match query_res {
+            Ok(settings) => Ok(GitHubProjectSettings {
+                owner: settings.0,
+                repo: settings.1,
+                remote_name: settings.2,
+                last_branch_prefix: settings.3,
+                last_base_branch: settings.4,
+                last_publish_mode: settings.5,
+            }),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(GitHubProjectSettings::default()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn set_github_project_settings(
+        &self,
+        repo_path: &Path,
+        settings: &GitHubProjectSettings,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        conn.execute(
+            "INSERT INTO project_config (
+                repository_path,
+                github_owner,
+                github_repo,
+                github_remote_name,
+                github_last_branch_prefix,
+                github_last_base_branch,
+                github_last_publish_mode,
+                created_at,
+                updated_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+            ON CONFLICT(repository_path) DO UPDATE SET
+                github_owner = excluded.github_owner,
+                github_repo = excluded.github_repo,
+                github_remote_name = excluded.github_remote_name,
+                github_last_branch_prefix = excluded.github_last_branch_prefix,
+                github_last_base_branch = excluded.github_last_base_branch,
+                github_last_publish_mode = excluded.github_last_publish_mode,
+                updated_at = excluded.updated_at",
+            params![
+                canonical_path.to_string_lossy(),
+                settings.owner.as_deref(),
+                settings.repo.as_deref(),
+                settings.remote_name.as_deref(),
+                settings.last_branch_prefix.as_deref(),
+                settings.last_base_branch.as_deref(),
+                settings.last_publish_mode.as_deref(),
+                now,
+                now
+            ],
         )?;
 
         Ok(())

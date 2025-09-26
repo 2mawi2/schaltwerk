@@ -43,6 +43,8 @@ export const TauriCommands = {
   GetProjectSettings: 'get_project_settings',
   GetRecentProjects: 'get_recent_projects',
   GetSessionPreferences: 'get_session_preferences',
+  GitHubPublishGetContext: 'github_publish_get_context',
+  GitHubPublishPrepare: 'github_publish_prepare',
   GetTerminalBuffer: 'get_terminal_buffer',
   GetTerminalBacklog: 'get_terminal_backlog',
   GetTerminalSettings: 'get_terminal_settings',

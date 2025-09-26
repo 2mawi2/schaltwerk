@@ -1308,13 +1308,18 @@ impl SessionManager {
         }
 
         let total_elapsed = start_time.elapsed();
-        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)", 
-            enriched.len(), 
+        log::info!(
+            "list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)",
+            enriched.len(),
             total_elapsed.as_millis(),
             db_time.as_millis(),
             git_stats_total_time.as_millis(),
             worktree_check_time.as_millis(),
-            if session_count > 0 { total_elapsed.as_millis() / session_count as u128 } else { 0 }
+            if session_count > 0 {
+                total_elapsed.as_millis() / session_count as u128
+            } else {
+                0
+            }
         );
 
         if total_elapsed.as_millis() > 500 {
