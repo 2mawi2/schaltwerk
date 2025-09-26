@@ -1,17 +1,15 @@
-import { useEffect, useRef, useState, lazy, Suspense, useMemo } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense, useMemo, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
-import { useCallback } from 'react'
-import { SchaltEvent, listenEvent } from '../../common/eventSystem'
 import { invoke } from '@tauri-apps/api/core'
 import { VscCopy, VscPlay } from 'react-icons/vsc'
 import { AnimatedText } from '../common/AnimatedText'
-import { EnrichedSession } from '../../types/session'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
 import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
+import { useSpecContent } from '../../hooks/useSpecContent'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -30,7 +28,6 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const [hasLocalChanges, setHasLocalChanges] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const lastSessionNameRef = useRef<string>(sessionName)
   const lastServerContentRef = useRef<string>('')
   const contentRef = useRef<string>('')
   const hasLocalChangesRef = useRef<boolean>(false)
@@ -39,60 +36,124 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const platform = useMemo(() => detectPlatformSafe(), [])
   const projectFileIndex = useProjectFileIndex()
 
-  // Load initial content and session info
+  const { content: cachedContent, displayName: cachedDisplayName, hasData: hasCachedData } = useSpecContent(sessionName)
+  const lastSyncedSessionRef = useRef<string | null>(null)
+
   useEffect(() => {
-    let mounted = true
-    lastSessionNameRef.current = sessionName
-    setLoading(true)
-    setError(null)
+    hasLocalChangesRef.current = false
     setHasLocalChanges(false)
-    
-    // Load both content and session info
-    Promise.all([
-      invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName }),
-      invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
-    ])
-      .then(([[draftContent, initialPrompt], sessions]) => {
-        if (!mounted) return
-        const text: string = draftContent ?? initialPrompt ?? ''
+    setError(null)
+  }, [sessionName])
+
+  useEffect(() => {
+    if (!sessionName || hasCachedData) return
+
+    let cancelled = false
+    setLoading(true)
+
+    ;(async () => {
+      try {
+        const [draftContent, initialPrompt] = await invoke<[string | null, string | null]>(
+          TauriCommands.SchaltwerkCoreGetSessionAgentContent,
+          { name: sessionName }
+        )
+
+        if (cancelled) return
+
+        const text = draftContent ?? initialPrompt ?? ''
         setContent(text)
+        contentRef.current = text
         lastServerContentRef.current = text
-        
-        // Find and set display name
-        const session = sessions.find(s => s.info.session_id === sessionName || s.info.branch === sessionName)
-        if (session && session.info.display_name) {
-          setDisplayName(session.info.display_name)
-        }
-      })
-      .catch((e) => {
-        if (!mounted) return
+        lastSyncedSessionRef.current = sessionName
+        setDisplayName(sessionName)
+        setLoading(false)
+      } catch (e) {
+        if (cancelled) return
         logger.error('Failed to load spec content:', e)
         setError(String(e))
-      })
-      .finally(() => mounted && setLoading(false))
-    return () => { mounted = false }
-  }, [sessionName])
-  
-  // Listen for session updates to refresh display name
+        setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [sessionName, hasCachedData])
+
   useEffect(() => {
-    const handleSessionsRefresh = async () => {
+    if (hasCachedData) {
+      setLoading(false)
+      setDisplayName(cachedDisplayName ?? sessionName)
+    }
+  }, [cachedDisplayName, hasCachedData, sessionName])
+
+  useEffect(() => {
+    if (!hasCachedData) return
+
+    const sessionChanged = lastSyncedSessionRef.current !== sessionName
+    const serverContent = cachedContent ?? ''
+
+    if (!sessionChanged && hasLocalChangesRef.current) {
+      logger.info('[SpecEditor] Skipping cached content update - local changes pending')
+      return
+    }
+
+    if (!sessionChanged && serverContent === lastServerContentRef.current) {
+      return
+    }
+
+    const activeElement = document.activeElement
+    const isEditorFocused = activeElement?.closest('.markdown-editor-container') !== null
+    let cursorPosition: number | null = null
+
+    if (isEditorFocused && activeElement) {
       try {
-        const sessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
-        const session = sessions.find(s => s.info.session_id === sessionName || s.info.branch === sessionName)
-        if (session && session.info.display_name) {
-          setDisplayName(session.info.display_name)
+        const cmEditor = activeElement.closest('.cm-editor') as HTMLElement & {
+          cmView?: { state?: { selection?: { main?: { head?: number } } } }
+        }
+        if (cmEditor) {
+          const cmView = cmEditor.cmView
+          if (cmView && cmView.state) {
+            cursorPosition = cmView.state.selection?.main?.head ?? null
+          }
         }
       } catch (e) {
-        logger.error('Failed to refresh session display name:', e)
+        logger.warn('[SpecEditor] Could not get cursor position:', e)
       }
     }
-    
-    const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, handleSessionsRefresh)
-    
-    return () => {
-      unlistenPromise.then(unlisten => unlisten())
+
+    setContent(serverContent)
+    lastServerContentRef.current = serverContent
+    lastSyncedSessionRef.current = sessionName
+    setHasLocalChanges(false)
+    hasLocalChangesRef.current = false
+
+    if (isEditorFocused) {
+      requestAnimationFrame(() => {
+        const editorElement = document.querySelector('.markdown-editor-container .cm-editor') as HTMLElement
+        if (editorElement) {
+          editorElement.focus()
+
+          if (cursorPosition !== null) {
+            try {
+              const cmView = (editorElement as HTMLElement & {
+                cmView?: { state?: { doc?: { length?: number } }, dispatch?: (transaction: unknown) => void }
+              }).cmView
+              if (cmView && cmView.state) {
+                const maxPos = cmView.state.doc?.length ?? 0
+                const safePos = Math.min(cursorPosition, maxPos)
+                cmView.dispatch?.({
+                  selection: { anchor: safePos, head: safePos }
+                })
+              }
+            } catch (e) {
+              logger.warn('[SpecEditor] Could not restore cursor position:', e)
+            }
+          }
+        }
+      })
     }
-  }, [sessionName])
+  }, [cachedContent, hasCachedData, sessionName])
 
   // Auto-save content only when there are local changes
   useEffect(() => {
@@ -159,104 +220,6 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     }
   }, [onStart])
 
-  // Listen for sessions refreshed events (e.g., from MCP updates)
-  useEffect(() => {
-    logger.info('[SpecEditor] Setting up sessions-refreshed listener for session:', sessionName)
-    
-    const unlistenPromise = listenEvent(SchaltEvent.SessionsRefreshed, async (event) => {
-      logger.info('[SpecEditor] Received sessions-refreshed event')
-      const sessions = event as EnrichedSession[]
-
-      const specSession = sessions.find((s: EnrichedSession) =>
-        s.info?.session_id === sessionName &&
-        (s.info?.session_state === 'spec' || s.info?.status === 'spec')
-      )
-
-      if (!specSession || specSession.info?.spec_content === undefined) {
-        return
-      }
-
-      const serverContent = specSession.info.spec_content || ''
-      
-      // Skip update if we have local changes pending save - let the user finish typing
-      // Use ref to get current value without causing re-render
-      if (hasLocalChangesRef.current) {
-        logger.info('[SpecEditor] Skipping refresh - local changes pending')
-        return
-      }
-      
-      // Only update if the server content actually changed from what we last knew
-      // This prevents unnecessary flashing when sessions refresh but content hasn't changed
-      if (serverContent === lastServerContentRef.current) {
-        logger.info('[SpecEditor] Server content unchanged, skipping update')
-        return
-      }
-      
-      // Also skip if current content matches server content (user hasn't made changes)
-      // Use ref to get current content without causing dependency issues
-      if (serverContent === contentRef.current) {
-        logger.info('[SpecEditor] Content already matches server, updating reference only')
-        lastServerContentRef.current = serverContent
-        return
-      }
-      
-      logger.info('[SpecEditor] Server content changed, updating from', contentRef.current.length, 'to', serverContent.length, 'chars')
-      
-      // Store current focus and cursor state for restoration
-      const activeElement = document.activeElement
-      const isEditorFocused = activeElement?.closest('.markdown-editor-container') !== null
-      let cursorPosition: number | null = null
-      
-      if (isEditorFocused && activeElement) {
-          try {
-            const cmEditor = activeElement.closest('.cm-editor') as HTMLElement & { cmView?: { state?: { selection?: { main?: { head?: number } } } } }
-            if (cmEditor) {
-              const cmView = cmEditor.cmView
-              if (cmView && cmView.state) {
-                cursorPosition = cmView.state.selection?.main?.head ?? null
-              }
-            }
-          } catch (e) {
-            logger.warn('[SpecEditor] Could not get cursor position:', e)
-          }
-      }
-      
-      setContent(serverContent)
-      lastServerContentRef.current = serverContent
-      setHasLocalChanges(false)
-      
-      // Restore focus and cursor position if editor was focused
-      if (isEditorFocused) {
-        requestAnimationFrame(() => {
-          const editorElement = document.querySelector('.markdown-editor-container .cm-editor') as HTMLElement
-          if (editorElement) {
-            editorElement.focus()
-            
-            // Try to restore cursor position
-            if (cursorPosition !== null) {
-              try {
-                const cmView = (editorElement as HTMLElement & { cmView?: { state?: { doc?: { length?: number } }, dispatch?: (transaction: unknown) => void } }).cmView
-                if (cmView && cmView.state) {
-                  const maxPos = cmView.state.doc?.length ?? 0
-                  const safePos = Math.min(cursorPosition, maxPos)
-                  cmView.dispatch?.({
-                    selection: { anchor: safePos, head: safePos }
-                  })
-                }
-              } catch (e) {
-                logger.warn('[SpecEditor] Could not restore cursor position:', e)
-              }
-            }
-          }
-        })
-      }
-    })
-    
-    return () => {
-      logger.info('[SpecEditor] Cleaning up sessions-refreshed listener for:', sessionName)
-      unlistenPromise.then(unlisten => unlisten())
-    }
-  }, [sessionName]) // Only re-register listener when sessionName changes
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
