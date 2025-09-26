@@ -29,6 +29,7 @@ const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
 const AGENT_SCROLLBACK_LINES = 200000
 const RIGHT_EDGE_GUARD_COLUMNS = 2
+const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 // Track last effective size we told the PTY (after guard), for SIGWINCH nudging
 const lastEffectiveRefInit = { cols: 80, rows: 24 }
 
@@ -886,6 +887,22 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         terminal.current.attachCustomKeyEventHandler((event: KeyboardEvent) => {
             const isMac = navigator.userAgent.includes('Mac')
             const modifierKey = isMac ? event.metaKey : event.ctrlKey
+            const shouldHandleClaudeShiftEnter = (
+                agentType === 'claude' &&
+                isAgentTopTerminal &&
+                event.key === 'Enter' &&
+                event.type === 'keydown' &&
+                event.shiftKey &&
+                !modifierKey &&
+                !event.altKey &&
+                !readOnly
+            )
+
+            if (shouldHandleClaudeShiftEnter) {
+                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: CLAUDE_SHIFT_ENTER_SEQUENCE })
+                    .catch(err => logger.debug('[Terminal] quick-escape prefix ignored (backend not ready yet)', err));
+                return true
+            }
             
             // Cmd+Enter for new line (like Claude Code)
             if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {

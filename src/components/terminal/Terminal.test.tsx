@@ -5,6 +5,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
 
+const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
+
 // Type definitions for mocks
 interface MockTauriCore {
   invoke: ReturnType<typeof vi.fn>
@@ -560,6 +562,40 @@ describe('Terminal component', () => {
     expect(resReady).toBe(false)
     expect(newSessionSpy).toHaveBeenCalledTimes(1)
     expect(markReadySpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('sends escape-prefixed newline for Shift+Enter on Claude terminals', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    const invokeSpy = core.invoke as unknown as { mock: { calls: unknown[][] } }
+
+    renderTerminal({ terminalId: 'session-claude-shift-top', sessionName: 'claude-shift', agentType: 'claude' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const result = xterm.__triggerKey({ key: 'Enter', shiftKey: true, metaKey: false, ctrlKey: false, altKey: false, type: 'keydown' } as KeyboardEvent)
+
+    expect(result).toBe(false)
+    const callData = invokeSpy.mock.calls
+      .filter((call) => call[0] === TauriCommands.WriteTerminal)
+      .map((call) => call[1] as { data?: string; id?: string })
+
+    expect(callData).toContainEqual({ id: 'session-claude-shift-top', data: CLAUDE_SHIFT_ENTER_SEQUENCE })
+  })
+
+  it('does not intercept Shift+Enter for non-Claude terminals', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    const invokeSpy = core.invoke as unknown as { mock: { calls: unknown[][] } }
+
+    renderTerminal({ terminalId: 'session-run-shift-top', sessionName: 'run-shift', agentType: 'run' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const beforeCalls = invokeSpy.mock.calls.length
+    const result = xterm.__triggerKey({ key: 'Enter', shiftKey: true, metaKey: false, ctrlKey: false, altKey: false, type: 'keydown' } as KeyboardEvent)
+
+    expect(result).toBe(true)
+    const afterCalls = invokeSpy.mock.calls.slice(beforeCalls)
+    expect(afterCalls.some((call) => call[0] === TauriCommands.WriteTerminal)).toBe(false)
   })
 
   
