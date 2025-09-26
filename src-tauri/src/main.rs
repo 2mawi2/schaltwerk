@@ -677,8 +677,8 @@ fn main() {
             github_publish_get_context,
             github_publish_prepare,
             // Open apps commands (from module)
-            schaltwerk::open_apps::get_default_open_app,
-            schaltwerk::open_apps::set_default_open_app,
+            get_default_open_app,
+            set_default_open_app,
             schaltwerk::open_apps::list_available_open_apps,
             schaltwerk::open_apps::open_in_app,
             // Diff commands (from module)
