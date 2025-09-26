@@ -578,18 +578,18 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                     </div>
 
                     <div className="flex items-center gap-2 mb-2">
-                        <input 
-                            id="createAsDraft" 
-                            type="checkbox" 
-                            checked={createAsDraft} 
+                        <input
+                            id="createAsDraft"
+                            type="checkbox"
+                            checked={createAsDraft}
                             onChange={e => {
                                 setCreateAsDraft(e.target.checked)
                                 // Clear validation error when switching modes to prevent stale errors
                                 if (validationError) {
                                     setValidationError('')
                                 }
-                            }} 
-                            className="text-blue-600"
+                            }}
+                            style={{ color: theme.colors.accent.cyan.DEFAULT }}
                         />
                         <label htmlFor="createAsDraft" className="text-sm text-slate-300">Create as spec (no agent will start)</label>
                     </div>

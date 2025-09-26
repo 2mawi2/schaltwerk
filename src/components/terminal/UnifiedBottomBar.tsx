@@ -50,20 +50,32 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
     KeyboardShortcutAction.FocusTerminal,
     KeyboardShortcutAction.ToggleRunMode
   ])
+  const runButtonColors = isRunning
+    ? {
+        background: isFocused ? theme.colors.accent.red.bg : theme.colors.accent.red.DEFAULT,
+        text: isFocused ? theme.colors.accent.red.light : theme.colors.text.inverse,
+      }
+    : {
+        background: isFocused ? theme.colors.accent.blue.dark : theme.colors.accent.blue.DEFAULT,
+        text: isFocused ? theme.colors.accent.blue.light : theme.colors.text.inverse,
+      };
 
   return (
     <div
       ref={ref}
       data-bottom-header
+      style={{
+        backgroundColor: isFocused ? theme.colors.accent.blue.bg : undefined,
+        color: isFocused ? theme.colors.accent.blue.light : undefined,
+        borderBottomColor: isFocused ? theme.colors.accent.blue.border : undefined,
+        fontSize: theme.fontSize.body,
+      }}
       className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
         isFocused
-          ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
+          ? 'hover:bg-opacity-60'
           : 'text-slate-400 border-slate-800 hover:bg-slate-800'
       }`}
       onClick={onBarClick}
-      style={{
-        fontSize: theme.fontSize.body,
-      }}
     >
       {/* Left: Terminal tabs - only show when not collapsed */}
       {!isCollapsed && (
@@ -140,14 +152,18 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
               onRunScript?.()
             }}
             title={getRunButtonTooltip(isRunning)}
+            style={{
+              backgroundColor: runButtonColors.background,
+              color: runButtonColors.text,
+            }}
             className={`px-1.5 py-1 flex items-center gap-0.5 rounded text-xs ${
               isRunning
                 ? isFocused
-                  ? 'bg-red-600/60 hover:bg-red-600/80 text-red-100'
-                  : 'bg-red-700/50 hover:bg-red-700/70 text-red-200'
+                  ? 'hover:opacity-80'
+                  : 'hover:opacity-70'
                 : isFocused
-                  ? 'bg-cyan-600/60 hover:bg-cyan-600/80 text-cyan-100'
-                  : 'bg-cyan-700/50 hover:bg-cyan-700/70 text-cyan-200'
+                  ? 'hover:opacity-80'
+                  : 'hover:opacity-70'
             }`}
           >
             <span className="text-[11px]">{getRunButtonIcon(isRunning)}</span>
@@ -158,12 +174,12 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
           </button>
         )}
         
-        <span 
-          className={`text-[10px] px-1.5 py-0.5 rounded ${
-            isFocused
-              ? 'bg-blue-600/40 text-blue-200'
-              : 'bg-slate-700/50 text-slate-400'
-          }`} 
+        <span
+          style={{
+            backgroundColor: isFocused ? theme.colors.accent.blue.bg : theme.colors.background.hover,
+            color: isFocused ? theme.colors.accent.blue.light : theme.colors.text.tertiary,
+          }}
+          className="text-[10px] px-1.5 py-0.5 rounded"
           title={`Focus Terminal (${shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'})`}
         >
           {shortcuts[KeyboardShortcutAction.FocusTerminal] || '⌘/'}
@@ -176,10 +192,13 @@ export const UnifiedBottomBar = forwardRef<HTMLDivElement, UnifiedBottomBarProps
             onToggleCollapse()
           }}
           title={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
+          style={{
+            color: isFocused ? theme.colors.accent.blue.light : theme.colors.text.secondary,
+          }}
           className={`w-7 h-7 flex items-center justify-center rounded ${
             isFocused
-              ? 'hover:bg-blue-600/50 text-blue-200 hover:text-blue-100'
-              : 'hover:bg-slate-700/50 text-slate-300 hover:text-slate-100'
+              ? 'hover:bg-opacity-60 hover:text-white'
+              : 'hover:bg-slate-700/50 hover:text-slate-100'
           }`}
           aria-label={isCollapsed ? 'Expand terminal panel' : 'Collapse terminal panel'}
         >

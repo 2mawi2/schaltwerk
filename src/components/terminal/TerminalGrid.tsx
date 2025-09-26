@@ -21,6 +21,7 @@ import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { mapSessionUiState } from '../../utils/sessionFilters'
+import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
 import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
@@ -831,13 +832,22 @@ export function TerminalGrid() {
                 }}
             >
                 <div
-                    className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+                    style={{
+                        borderColor: localFocus === 'claude' ? theme.colors.accent.blue.border : theme.colors.border.subtle,
+                        boxShadow: localFocus === 'claude' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
+                    }}
+                    className={`bg-panel rounded overflow-hidden min-h-0 flex flex-col border-2 ${localFocus === 'claude' ? 'shadow-lg' : ''}`}
                 >
                     <div
+                        style={{
+                            backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : undefined,
+                            color: localFocus === 'claude' ? theme.colors.accent.blue.light : undefined,
+                            borderBottomColor: localFocus === 'claude' ? theme.colors.accent.blue.border : undefined,
+                        }}
                         className={`h-10 px-4 text-xs border-b cursor-pointer flex-shrink-0 flex items-center ${
-                            localFocus === 'claude'
-                                ? 'bg-blue-900/30 text-blue-200 border-blue-800/50 hover:bg-blue-900/40'
-                                : 'text-slate-400 border-slate-800 hover:bg-slate-800'
+                                localFocus === 'claude'
+                                    ? 'hover:bg-opacity-60'
+                                    : 'text-slate-400 border-slate-800 hover:bg-slate-800'
                         }`}
                         onClick={handleClaudeSessionClick}
                     >
@@ -898,19 +908,23 @@ export function TerminalGrid() {
                                 <VscDiscard className="text-base" />
                             </button>
                         )}
-                        <span className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded ${
-                            localFocus === 'claude' 
-                                ? 'bg-blue-600/40 text-blue-200' 
-                                : 'bg-slate-700/50 text-slate-400'
-                        }`} title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}>
-                            {focusClaudeShortcut || '⌘T'}
-                        </span>
+                        <span
+                            style={{
+                                backgroundColor: localFocus === 'claude' ? theme.colors.accent.blue.bg : theme.colors.background.hover,
+                                color: localFocus === 'claude' ? theme.colors.accent.blue.light : theme.colors.text.tertiary,
+                            }}
+                            className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded`}
+                            title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}
+                        >{focusClaudeShortcut || '⌘T'}</span>
                     </div>
-                    <div className={`h-[2px] flex-shrink-0 ${
-                        localFocus === 'claude' && !isDraggingSplit
-                            ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
-                            : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
-                    }`} />
+                    <div
+                        style={{
+                            background: localFocus === 'claude' && !isDraggingSplit
+                                ? `linear-gradient(to right, transparent, ${theme.colors.accent.blue.border}, transparent)`
+                                : `linear-gradient(to right, transparent, ${theme.colors.border.strong}4D, transparent)`
+                        }}
+                        className="h-[2px] flex-shrink-0"
+                    ></div>
                     <div className={`flex-1 min-h-0 ${localFocus === 'claude' ? 'terminal-focused-claude' : ''}`}>
                         {shouldRenderTerminals && (
                         <TerminalErrorBoundary terminalId={terminals.top}>
@@ -928,7 +942,13 @@ export function TerminalGrid() {
                         )}
                     </div>
                 </div>
-                <div className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${localFocus === 'terminal' ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}>
+                <div
+                    style={{
+                        borderColor: localFocus === 'terminal' ? theme.colors.accent.blue.border : theme.colors.border.subtle,
+                        boxShadow: localFocus === 'terminal' ? `0 10px 15px -3px ${theme.colors.accent.blue.DEFAULT}33, 0 4px 6px -2px ${theme.colors.accent.blue.DEFAULT}33` : undefined,
+                    }}
+                    className={`bg-panel rounded ${isBottomCollapsed ? 'overflow-visible' : 'overflow-hidden'} min-h-0 flex flex-col border-2 ${localFocus === 'terminal' ? 'shadow-lg' : ''}`}
+                >
                     <UnifiedBottomBar
                         isCollapsed={isBottomCollapsed}
                         onToggleCollapse={toggleTerminalCollapsed}
@@ -1023,11 +1043,14 @@ export function TerminalGrid() {
                             }
                         }}
                     />
-                    <div className={`h-[2px] flex-shrink-0 ${
-                        localFocus === 'terminal' && !isDraggingSplit
-                            ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent'
-                            : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
-                    }`} />
+                    <div
+                        style={{
+                            background: localFocus === 'terminal' && !isDraggingSplit
+                                ? `linear-gradient(to right, transparent, ${theme.colors.accent.blue.border}, transparent)`
+                                : `linear-gradient(to right, transparent, ${theme.colors.border.strong}4D, transparent)`
+                        }}
+                        className="h-[2px] flex-shrink-0"
+                    />
                     <div className={`flex-1 min-h-0 overflow-hidden ${isBottomCollapsed ? 'hidden' : ''}`}>
                         {/* Render only the active RunTerminal; never mount for specs */}
                         {hasRunScripts && (

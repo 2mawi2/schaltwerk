@@ -2,6 +2,7 @@ import { memo, useState } from 'react'
 import { VscAdd, VscChevronDown, VscChevronRight, VscComment } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { LineInfo } from '../../types/diff'
+import { theme } from '../../common/theme'
 
 interface DiffLineRowProps {
   line: LineInfo
@@ -81,10 +82,10 @@ function DiffLineRowComponent({
       className={clsx(
         "group relative",
         line.type === 'added' && "bg-green-900/30 hover:bg-green-900/40",
-        line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40", 
+        line.type === 'removed' && "bg-red-900/30 hover:bg-red-900/40",
         line.type === 'unchanged' && "hover:bg-slate-800/50",
-        isSelected && "!bg-blue-500/30 hover:!bg-blue-500/40",
-        isHovered && "ring-1 ring-blue-400/50"
+        isSelected && "!bg-cyan-400/30 hover:!bg-cyan-400/40",
+        isHovered && "ring-1 ring-cyan-300/50"
       )}
       data-line-num={lineNum}
       data-side={side}
@@ -96,14 +97,28 @@ function DiffLineRowComponent({
         {lineNum && onLineMouseDown && (
           <button
             onMouseDown={(e) => onLineMouseDown(lineNum, side, e)}
-            onMouseEnter={() => onLineMouseEnter?.(lineNum, side)}
+            onMouseEnter={(e) => {
+              onLineMouseEnter?.(lineNum, side);
+              if (!isSelected) {
+                e.currentTarget.style.color = 'rgb(203, 213, 225)'; // slate-300
+                e.currentTarget.style.backgroundColor = 'rgb(30, 41, 59)'; // slate-800
+              }
+            }}
             onMouseUp={(e) => onLineMouseUp?.(e)}
-            className={clsx(
-              "p-1 rounded",
-              isSelected 
-                ? "text-blue-400 bg-blue-500/20 hover:bg-blue-500/30" 
-                : "text-slate-600 opacity-0 group-hover:opacity-100 hover:text-slate-300 hover:bg-slate-800"
-            )}
+            className="p-1 rounded opacity-0 group-hover:opacity-100"
+            style={isSelected ? {
+              color: theme.colors.accent.blue.light,
+              backgroundColor: theme.colors.accent.blue.bg,
+              opacity: 1,
+            } : {
+              color: 'rgb(71, 85, 105)', // slate-600
+            }}
+            onMouseLeave={(e) => {
+              if (!isSelected) {
+                e.currentTarget.style.color = 'rgb(71, 85, 105)'; // slate-600
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }
+            }}
             aria-label={`Select line ${lineNum}`}
             title="Click to select line, drag to select range"
           >
@@ -148,7 +163,11 @@ function DiffLineRowComponent({
           )}
           <div className="flex items-center gap-2">
             {hasComment && (
-              <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/20 rounded text-xs text-blue-400" title={commentText}>
+              <div className="flex items-center gap-1 px-2 py-0.5 rounded text-xs" title={commentText}
+                   style={{
+                     backgroundColor: theme.colors.accent.blue.bg,
+                     color: theme.colors.accent.blue.light
+                   }}>
                 <VscComment />
                 <span>Comment</span>
               </div>

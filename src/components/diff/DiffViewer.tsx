@@ -8,6 +8,7 @@ import { FileDiffData } from './loadDiffs'
 import { AnimatedText } from '../common/AnimatedText'
 import { ReviewComment } from '../../types/review'
 import { LineSelection } from '../../hooks/useLineSelection'
+import { theme } from '../../common/theme'
 
 export interface DiffViewerProps {
   files: ChangedFile[]
@@ -198,25 +199,25 @@ export function DiffViewer({
                 >
                   <div className="flex items-center gap-3">
                     {getFileIcon(file.change_type, file.path)}
-                    <div>
-                      <div className="font-medium text-sm text-slate-100">{file.path}</div>
-                      <div className="text-xs text-slate-400">
-                        {file.change_type === 'added' && 'New file'}
-                        {file.change_type === 'deleted' && 'Deleted file'}
-                        {file.change_type === 'modified' && 'Modified'}
-                        {file.change_type === 'renamed' && 'Renamed'}
+                     <div>
+                       <div className="font-medium text-sm text-slate-100">{file.path}</div>
+                       <div className="text-xs text-slate-400">
+                         {file.change_type === 'added' && 'New file'}
+                         {file.change_type === 'deleted' && 'Deleted file'}
+                         {file.change_type === 'modified' && 'Modified'}
+                         {file.change_type === 'renamed' && 'Renamed'}
+                       </div>
+                     </div>
+                    </div>
+                    {commentCount > 0 && (
+                      <div className={`flex items-center gap-1 text-sm ${theme.colors.accent.blue.DEFAULT}`}>
+                        <VscComment />
+                        <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                       </div>
-                    </div>
-                  </div>
-                  {commentCount > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-blue-400">
-                      <VscComment />
-                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                </div>
-                
-                {/* File diff content or loading placeholder */}
+                    )}
+                 </div>
+
+                 {/* File diff content or loading placeholder */}
                 {!fileDiff ? (
                   <div className="px-4 py-8 text-center text-slate-500">
                     <AnimatedText text="loading" size="sm" />
@@ -343,19 +344,19 @@ export function DiffViewer({
                         {file.change_type === 'added' && 'New file'}
                         {file.change_type === 'deleted' && 'Deleted file'}
                         {file.change_type === 'modified' && 'Modified'}
-                        {file.change_type === 'renamed' && 'Renamed'}
+                         {file.change_type === 'renamed' && 'Renamed'}
+                       </div>
+                     </div>
+                   </div>
+                    {commentCount > 0 && (
+                      <div className={`flex items-center gap-1 text-sm ${theme.colors.accent.blue.DEFAULT}`}>
+                        <VscComment />
+                        <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
                       </div>
-                    </div>
-                  </div>
-                  {commentCount > 0 && (
-                    <div className="flex items-center gap-1 text-sm text-blue-400">
-                      <VscComment />
-                      <span>{commentCount} comment{commentCount > 1 ? 's' : ''}</span>
-                    </div>
-                  )}
-                </div>
+                    )}
+                 </div>
 
-                {/* File diff content with virtualization */}
+                 {/* File diff content with virtualization */}
                 {!fileDiff ? (
                   <div className="px-4 py-8 text-center text-slate-500">
                     {isLoading ? (
