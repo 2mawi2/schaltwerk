@@ -19,7 +19,8 @@ export enum SchaltEvent {
   OpenHome = 'schaltwerk:open-home',
   FileChanges = 'schaltwerk:file-changes',
   FollowUpMessage = 'schaltwerk:follow-up-message',
-  Selection = 'schaltwerk:selection'
+  Selection = 'schaltwerk:selection',
+  ProjectFilesUpdated = 'schaltwerk:project-files-updated'
 }
 
 
@@ -104,4 +105,5 @@ export type EventPayloadMap = {
   }
   [SchaltEvent.FollowUpMessage]: FollowUpMessagePayload
   [SchaltEvent.Selection]: SelectionPayload
+  [SchaltEvent.ProjectFilesUpdated]: string[]
 }

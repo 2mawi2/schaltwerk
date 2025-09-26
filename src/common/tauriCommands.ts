@@ -79,6 +79,7 @@ export const TauriCommands = {
   SchaltwerkCoreListArchivedSpecs: 'schaltwerk_core_list_archived_specs',
   SchaltwerkCoreListEnrichedSessions: 'schaltwerk_core_list_enriched_sessions',
   SchaltwerkCoreListEnrichedSessionsSorted: 'schaltwerk_core_list_enriched_sessions_sorted',
+  SchaltwerkCoreListProjectFiles: 'schaltwerk_core_list_project_files',
   SchaltwerkCoreListSessionsByState: 'schaltwerk_core_list_sessions_by_state',
   SchaltwerkCoreLogFrontendMessage: 'schaltwerk_core_log_frontend_message',
   SchaltwerkCoreMarkReady: 'schaltwerk_core_mark_ready',

@@ -55,6 +55,8 @@ vi.mock('@tauri-apps/api/core', () => ({
       case TauriCommands.SetAgentEnvVars:
       case TauriCommands.SetAgentCliArgs:
         return Promise.resolve()
+      case TauriCommands.SchaltwerkCoreListProjectFiles:
+        return Promise.resolve(['README.md', 'src/index.ts'])
       case TauriCommands.SchaltwerkCoreGetSkipPermissions:
         return Promise.resolve(false)
       case TauriCommands.SchaltwerkCoreGetAgentType:
@@ -71,6 +73,24 @@ function openModal() {
   const onCreate = vi.fn()
   render(<ModalProvider><NewSessionModal open={true} onClose={onClose} onCreate={onCreate} /></ModalProvider>)
   return { onClose, onCreate }
+}
+
+function getTaskEditorContent(): string {
+  const editor = screen.queryByTestId('session-task-editor')
+  if (!editor) {
+    return ''
+  }
+  const content = editor.querySelector('.cm-content') as HTMLElement | null
+  if (!content) {
+    return ''
+  }
+  if (content.querySelector('.cm-placeholder')) {
+    const hasLine = content.querySelector('.cm-line')
+    if (!hasLine) {
+      return ''
+    }
+  }
+  return content?.innerText ?? ''
 }
 
 describe('NewSessionModal', () => {
@@ -150,9 +170,9 @@ describe('NewSessionModal', () => {
     const { act } = await import('@testing-library/react')
     render(<ModalProvider><NewSessionModal open={true} onClose={() => {}} onCreate={vi.fn()} /></ModalProvider>)
     
-    // Initially the agent content textarea should be empty
-    const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
-    expect(taskTextarea.value).toBe('')
+    // Initially the agent content editor should be empty (ignoring placeholder text)
+    const initialContent = getTaskEditorContent()
+    expect(initialContent === '' || initialContent === 'Describe the agent for the Claude session').toBe(true)
     
     // Dispatch the prefill event with spec content
     const draftContent = '# My Spec\n\nThis is the spec content that should be prefilled.'
@@ -170,7 +190,9 @@ describe('NewSessionModal', () => {
     
     // Wait for the content to be prefilled
     await waitFor(() => {
-      expect(taskTextarea.value).toBe(draftContent)
+      const content = getTaskEditorContent()
+      expect(content).toContain('# My Spec')
+      expect(content).toContain('This is the spec content that should be prefilled.')
     })
     
     // Also check that the name was prefilled
@@ -208,8 +230,9 @@ describe('NewSessionModal', () => {
     await new Promise(resolve => setTimeout(resolve, 100))
     
     // Check if the content was prefilled
-    const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
-    expect(taskTextarea.value).toBe(draftContent)
+    const content = getTaskEditorContent()
+    expect(content).toContain('# My Spec')
+    expect(content).toContain('This is the spec content that should be prefilled.')
     
     // Also check that the name was prefilled
     const nameInput = screen.getByPlaceholderText('eager_cosmos') as HTMLInputElement
@@ -370,9 +393,10 @@ describe('NewSessionModal', () => {
     // Check that the label is "Initial prompt (optional)" when starting agent from spec
     expect(screen.getByText('Initial prompt (optional)')).toBeInTheDocument()
     
-    // Check that the textarea contains the spec content
-    const taskTextarea = screen.getByPlaceholderText('Describe the agent for the Claude session') as HTMLTextAreaElement
-    expect(taskTextarea.value).toBe(draftContent)
+    // Check that the editor contains the spec content
+    const content = getTaskEditorContent()
+    expect(content).toContain('# My Spec')
+    expect(content).toContain('This is the spec content.')
     
     // Check that "Create as spec" checkbox is unchecked
     const checkbox = screen.getByLabelText(/Create as spec/i) as HTMLInputElement
@@ -496,6 +520,9 @@ describe('NewSessionModal', () => {
     ;(invoke as unknown as ReturnType<typeof vi.fn>).mockImplementation((cmd: string) => {
       if (cmd === TauriCommands.ListProjectBranches) {
         return Promise.reject(new Error('no tauri'))
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreListProjectFiles) {
+        return Promise.resolve([])
       }
       return Promise.reject(new Error('no tauri'))
     })

@@ -25,6 +25,7 @@ pub enum SchaltEvent {
     FileChanges,
     FollowUpMessage,
     Selection,
+    ProjectFilesUpdated,
 }
 
 impl SchaltEvent {
@@ -52,6 +53,7 @@ impl SchaltEvent {
             SchaltEvent::FileChanges => "schaltwerk:file-changes",
             SchaltEvent::FollowUpMessage => "schaltwerk:follow-up-message",
             SchaltEvent::Selection => "schaltwerk:selection",
+            SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
         }
     }
 }

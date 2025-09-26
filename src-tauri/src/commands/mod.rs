@@ -27,7 +27,7 @@ pub use schaltwerk_core::{
     schaltwerk_core_get_archive_max_entries, schaltwerk_core_get_font_sizes,
     schaltwerk_core_get_session, schaltwerk_core_get_session_agent_content,
     schaltwerk_core_get_skip_permissions, schaltwerk_core_get_orchestrator_skip_permissions,
-    schaltwerk_core_has_uncommitted_changes,
+    schaltwerk_core_has_uncommitted_changes, schaltwerk_core_list_project_files,
     schaltwerk_core_list_archived_specs, schaltwerk_core_list_enriched_sessions,
     schaltwerk_core_list_enriched_sessions_sorted, schaltwerk_core_list_sessions,
     schaltwerk_core_list_sessions_by_state, schaltwerk_core_mark_session_ready,

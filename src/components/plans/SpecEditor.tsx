@@ -8,6 +8,7 @@ import { AnimatedText } from '../common/AnimatedText'
 import { EnrichedSession } from '../../types/session'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
+import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
@@ -36,6 +37,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
   const { config: keyboardShortcutConfig } = useKeyboardShortcutsConfig()
   const platform = useMemo(() => detectPlatformSafe(), [])
+  const projectFileIndex = useProjectFileIndex()
 
   // Load initial content and session info
   useEffect(() => {
@@ -120,6 +122,10 @@ export function SpecEditor({ sessionName, onStart }: Props) {
   useEffect(() => {
     hasLocalChangesRef.current = hasLocalChanges
   }, [hasLocalChanges])
+
+  useEffect(() => {
+    void projectFileIndex.ensureIndex()
+  }, [projectFileIndex.ensureIndex])
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
@@ -336,6 +342,7 @@ export function SpecEditor({ sessionName, onStart }: Props) {
             onChange={handleContentChange}
             placeholder="Enter agent description in markdown…"
             className="h-full"
+            fileReferenceProvider={projectFileIndex}
           />
         </Suspense>
       </div>
