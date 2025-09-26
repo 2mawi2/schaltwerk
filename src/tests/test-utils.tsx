@@ -9,28 +9,31 @@ import { SessionsProvider } from '../contexts/SessionsContext'
 import { ActionButtonsProvider } from '../contexts/ActionButtonsContext'
 import { RunProvider } from '../contexts/RunContext'
 import { ModalProvider } from '../contexts/ModalContext'
+import { ToastProvider } from '../common/toast/ToastProvider'
 
 export function renderWithProviders(ui: React.ReactElement) {
   return render(
-    <ModalProvider>
-      <FontSizeProvider>
-        <ProjectProvider>
-          <SessionsProvider>
-            <ActionButtonsProvider>
-              <SelectionProvider>
-                <FocusProvider>
-                  <ReviewProvider>
-                    <RunProvider>
-                      {ui}
-                    </RunProvider>
-                  </ReviewProvider>
-                </FocusProvider>
-              </SelectionProvider>
-            </ActionButtonsProvider>
-          </SessionsProvider>
-        </ProjectProvider>
-      </FontSizeProvider>
-    </ModalProvider>
+    <ToastProvider>
+      <ModalProvider>
+        <FontSizeProvider>
+          <ProjectProvider>
+            <SessionsProvider>
+              <ActionButtonsProvider>
+                <SelectionProvider>
+                  <FocusProvider>
+                    <ReviewProvider>
+                      <RunProvider>
+                        {ui}
+                      </RunProvider>
+                    </ReviewProvider>
+                  </FocusProvider>
+                </SelectionProvider>
+              </ActionButtonsProvider>
+            </SessionsProvider>
+          </ProjectProvider>
+        </FontSizeProvider>
+      </ModalProvider>
+    </ToastProvider>
   )
 }
 
@@ -48,26 +51,28 @@ function TestProjectInitializer({ children }: { children: React.ReactNode }) {
 
 export function TestProviders({ children }: { children: React.ReactNode }) {
   return (
-    <ModalProvider>
-      <FontSizeProvider>
-        <ProjectProvider>
-          <TestProjectInitializer>
-            <SessionsProvider>
-              <ActionButtonsProvider>
-                <SelectionProvider>
-                  <FocusProvider>
-                    <ReviewProvider>
-                      <RunProvider>
-                        {children}
-                      </RunProvider>
-                    </ReviewProvider>
-                  </FocusProvider>
-                </SelectionProvider>
-              </ActionButtonsProvider>
-            </SessionsProvider>
-          </TestProjectInitializer>
-        </ProjectProvider>
-      </FontSizeProvider>
-    </ModalProvider>
+    <ToastProvider>
+      <ModalProvider>
+        <FontSizeProvider>
+          <ProjectProvider>
+            <TestProjectInitializer>
+              <SessionsProvider>
+                <ActionButtonsProvider>
+                  <SelectionProvider>
+                    <FocusProvider>
+                      <ReviewProvider>
+                        <RunProvider>
+                          {children}
+                        </RunProvider>
+                      </ReviewProvider>
+                    </FocusProvider>
+                  </SelectionProvider>
+                </ActionButtonsProvider>
+              </SessionsProvider>
+            </TestProjectInitializer>
+          </ProjectProvider>
+        </FontSizeProvider>
+      </ModalProvider>
+    </ToastProvider>
   )
 }

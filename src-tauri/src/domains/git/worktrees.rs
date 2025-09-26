@@ -286,9 +286,7 @@ pub fn update_worktree_branch(worktree_path: &Path, new_branch: &str) -> Result<
     // Find the new branch
     let branch = repo
         .find_branch(new_branch, BranchType::Local)
-        .map_err(|e| {
-            anyhow!("Failed to update worktree: branch {new_branch} not found: {e}")
-        })?;
+        .map_err(|e| anyhow!("Failed to update worktree: branch {new_branch} not found: {e}"))?;
 
     // Get the reference to the branch
     let branch_ref = branch.into_reference();

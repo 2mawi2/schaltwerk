@@ -1,15 +1,19 @@
-import { 
-  VscPlay, 
-  VscTrash, 
-  VscCheck, 
-  VscClose, 
-  VscDiscard, 
+import {
+  VscPlay,
+  VscTrash,
+  VscCheck,
+  VscClose,
+  VscDiscard,
   VscArchive,
   VscStarFull,
   VscRefresh,
-  VscCode
+  VscCode,
+  VscGitMerge,
+  VscWarning
 } from 'react-icons/vsc';
 import { IconButton } from '../common/IconButton';
+import { theme } from '../../common/theme';
+import type { MergeStatus } from '../../contexts/SessionsContext';
 
 interface SessionActionsProps {
   sessionState: 'spec' | 'running' | 'reviewed';
@@ -29,6 +33,9 @@ interface SessionActionsProps {
   onReset?: (sessionId: string) => void;
   onSwitchModel?: (sessionId: string) => void;
   isResetting?: boolean;
+  onMerge?: (sessionId: string) => void;
+  disableMerge?: boolean;
+  mergeStatus?: MergeStatus;
 }
 
 export function SessionActions({
@@ -47,7 +54,10 @@ export function SessionActions({
   onPromoteVersionHoverEnd,
   onReset,
   onSwitchModel,
+  onMerge,
   isResetting = false,
+  disableMerge = false,
+  mergeStatus = 'idle'
 }: SessionActionsProps) {
   // Use moderate spacing for medium-sized buttons
   const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
@@ -145,6 +155,49 @@ export function SessionActions({
       {/* Reviewed state actions */}
       {sessionState === 'reviewed' && (
         <>
+          {onMerge && (
+            mergeStatus === 'merged' ? (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border"
+                style={{
+                  backgroundColor: theme.colors.accent.green.bg,
+                  borderColor: theme.colors.accent.green.border,
+                  color: theme.colors.accent.green.light,
+                }}
+                title="Session already merged"
+              >
+                <VscCheck />
+                Merged
+              </span>
+            ) : mergeStatus === 'conflict' ? (
+              <button
+                type="button"
+                onClick={() => onMerge(sessionId)}
+                disabled={disableMerge}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border"
+                style={{
+                  backgroundColor: theme.colors.accent.red.bg,
+                  borderColor: theme.colors.accent.red.border,
+                  color: theme.colors.accent.red.light,
+                  cursor: disableMerge ? 'not-allowed' : 'pointer',
+                  opacity: disableMerge ? 0.6 : 1,
+                }}
+                title="Resolve conflicts (⌘⇧M)"
+                aria-label="Resolve merge conflicts"
+              >
+                <VscWarning />
+                Resolve conflicts
+              </button>
+            ) : (
+              <IconButton
+                icon={<VscGitMerge />}
+                onClick={() => onMerge(sessionId)}
+                ariaLabel="Merge session"
+                tooltip="Merge session (⌘⇧M)"
+                disabled={disableMerge}
+              />
+            )
+          )}
           {onUnmarkReviewed && (
             <IconButton
               icon={<VscDiscard />}

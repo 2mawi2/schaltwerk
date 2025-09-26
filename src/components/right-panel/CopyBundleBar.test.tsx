@@ -21,7 +21,8 @@ vi.mock('../../contexts/ProjectContext', () => ({
 const pushToastMock = vi.fn()
 
 vi.mock('../../common/toast/ToastProvider', () => ({
-  useToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() })
+  useToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() }),
+  useOptionalToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() })
 }))
 
 vi.mock('../../common/eventSystem', async (importOriginal) => {

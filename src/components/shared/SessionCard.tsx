@@ -26,6 +26,8 @@ export interface SessionCardProps {
     onDeleteSpec?: (sessionId: string) => void
     className?: string
     index?: number
+    onMerge?: (sessionId: string) => void
+    disableMerge?: boolean
 }
 
 export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
@@ -43,7 +45,9 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     onRunDraft,
     onDeleteSpec,
     className,
-    index
+    index,
+    onMerge,
+    disableMerge = false
 }, ref) => {
     const s = session.info
     const sessionName = s.display_name || s.session_id
@@ -140,12 +144,14 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                 onUnmarkReviewed={onUnmarkReady}
                                 onCancel={onCancel}
                                 onConvertToSpec={onConvertToSpec}
+                                onMerge={onMerge}
+                                disableMerge={disableMerge}
                             />
                         </div>
                     )}
                 </div>
             )}
-            
+
             {sessionState === 'spec' && !hideActions && (
                 <div className="flex items-center justify-end -mt-0.5">
                     <SessionActions
@@ -159,6 +165,8 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         onUnmarkReviewed={onUnmarkReady}
                         onCancel={onCancel}
                         onConvertToSpec={onConvertToSpec}
+                        onMerge={onMerge}
+                        disableMerge={disableMerge}
                     />
                 </div>
             )}

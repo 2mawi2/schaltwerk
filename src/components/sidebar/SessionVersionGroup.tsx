@@ -5,6 +5,7 @@ import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sess
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
 import { theme } from '../../common/theme'
+import type { MergeStatus } from '../../contexts/SessionsContext'
 
 interface SessionVersionGroupProps {
   group: SessionVersionGroupType
@@ -29,6 +30,9 @@ interface SessionVersionGroupProps {
   isInSpecMode?: boolean  // Optional: whether we're in spec mode
   currentSpecId?: string | null  // Optional: current spec selected in spec mode
   isSessionRunning?: (sessionId: string) => boolean  // Function to check if a session is running
+  onMerge?: (sessionId: string) => void
+  isMergeDisabled?: (sessionId: string) => boolean
+  getMergeStatus?: (sessionId: string) => MergeStatus
 }
 
 export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
@@ -50,7 +54,10 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   resettingSelection,
   isInSpecMode,
   currentSpecId,
-  isSessionRunning
+  isSessionRunning,
+    onMerge,
+    isMergeDisabled,
+    getMergeStatus
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPreviewingDeletion, setIsPreviewingDeletion] = useState(false)
@@ -85,6 +92,9 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         onSwitchModel={onSwitchModel}
         isResetting={isResettingForSession}
         isRunning={isSessionRunning?.(session.session.info.session_id) || false}
+        onMerge={onMerge}
+        disableMerge={isMergeDisabled?.(session.session.info.session_id) || false}
+        mergeStatus={getMergeStatus?.(session.session.info.session_id) ?? 'idle'}
       />
     )
   }
@@ -250,41 +260,44 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                           : "bg-slate-700 border-slate-600"
                       )} style={{ left: '-14px', transform: 'translate(-50%, -50%)' }} />
                       
-                      <SessionButton
-                  session={{
-                    ...version.session,
-                    info: {
-                      ...version.session.info,
-                      display_name: displayName
-                    }
-                  }}
-                  index={startIndex + versionIndex}
-                  isSelected={isSelected}
+                  <SessionButton
+              session={{
+                ...version.session,
+                info: {
+                  ...version.session.info,
+                  display_name: displayName
+                }
+              }}
+              index={startIndex + versionIndex}
+              isSelected={isSelected}
 
-                  hasFollowUpMessage={hasFollowUpMessage(version.session.info.session_id)}
-                  isWithinVersionGroup={true}
-                  showPromoteIcon={isSelected}
-                  willBeDeleted={willBeDeleted}
-                  isPromotionPreview={isPreviewingDeletion && isSelected}
-                  onSelect={onSelect}
-                  onMarkReady={onMarkReady}
-                  onUnmarkReady={onUnmarkReady}
-                  onCancel={onCancel}
-                  onConvertToSpec={onConvertToSpec}
-                  onRunDraft={onRunDraft}
-                  onDeleteSpec={onDeleteSpec}
-                  onPromoteVersion={() => {
-                    if (onSelectBestVersion) {
-                      onSelectBestVersion(group.baseName, version.session.info.session_id)
-                    }
-                  }}
-                  onPromoteVersionHover={() => setIsPreviewingDeletion(true)}
-                  onPromoteVersionHoverEnd={() => setIsPreviewingDeletion(false)}
-                  onReset={onReset}
-                  onSwitchModel={onSwitchModel}
-                  isResetting={resettingSelection?.kind === 'session'
-                    && resettingSelection.payload === version.session.info.session_id}
-                  isRunning={isSessionRunning?.(version.session.info.session_id) || false}
+              hasFollowUpMessage={hasFollowUpMessage(version.session.info.session_id)}
+              isWithinVersionGroup={true}
+              showPromoteIcon={isSelected}
+              willBeDeleted={willBeDeleted}
+              isPromotionPreview={isPreviewingDeletion && isSelected}
+              onSelect={onSelect}
+              onMarkReady={onMarkReady}
+              onUnmarkReady={onUnmarkReady}
+              onCancel={onCancel}
+              onConvertToSpec={onConvertToSpec}
+              onRunDraft={onRunDraft}
+              onDeleteSpec={onDeleteSpec}
+              onPromoteVersion={() => {
+                if (onSelectBestVersion) {
+                  onSelectBestVersion(group.baseName, version.session.info.session_id)
+                }
+              }}
+              onPromoteVersionHover={() => setIsPreviewingDeletion(true)}
+              onPromoteVersionHoverEnd={() => setIsPreviewingDeletion(false)}
+              onReset={onReset}
+              onSwitchModel={onSwitchModel}
+              isResetting={resettingSelection?.kind === 'session'
+                && resettingSelection.payload === version.session.info.session_id}
+              isRunning={isSessionRunning?.(version.session.info.session_id) || false}
+              onMerge={onMerge}
+              disableMerge={isMergeDisabled?.(version.session.info.session_id) || false}
+              mergeStatus={getMergeStatus?.(version.session.info.session_id) ?? 'idle'}
                       />
                     </div>
                   )

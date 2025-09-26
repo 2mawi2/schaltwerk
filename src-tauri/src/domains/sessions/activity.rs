@@ -1,3 +1,5 @@
+use crate::domains::merge::service::{compute_merge_state, resolve_branch_oid};
+use crate::domains::merge::types::MergeStateSnapshot;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use crate::{
     domains::git::db_git_stats::GitStatsMethods, domains::git::service as git,
@@ -7,6 +9,7 @@ use anyhow::Result;
 #[cfg(test)]
 use chrono::DateTime;
 use chrono::{TimeZone, Utc};
+use git2::Repository;
 use serde::Serialize;
 #[cfg(test)]
 use std::path::Path;
@@ -81,6 +84,44 @@ impl<E: EventEmitter> ActivityTracker<E> {
 
                     // Update DB stats periodically as before
                     if self.db.should_update_stats(&session.id)? {
+                        let has_conflicts = match git::has_conflicts(&session.worktree_path) {
+                            Ok(value) => value,
+                            Err(err) => {
+                                log::warn!(
+                                    "Failed to detect conflicts for {}: {err}",
+                                    session.name
+                                );
+                                false
+                            }
+                        };
+
+                        let merge_state =
+                            Repository::open(&session.repository_path)
+                                .ok()
+                                .and_then(|repo| {
+                                    let session_oid =
+                                        resolve_branch_oid(&repo, &session.branch).ok()?;
+                                    let parent_oid =
+                                        resolve_branch_oid(&repo, &session.parent_branch).ok()?;
+                                    compute_merge_state(
+                                        &repo,
+                                        session_oid,
+                                        parent_oid,
+                                        &session.branch,
+                                        &session.parent_branch,
+                                    )
+                                    .map_err(|err| {
+                                        log::warn!(
+                                            "Merge assessment failed for session '{}': {}",
+                                            session.name,
+                                            err
+                                        );
+                                    })
+                                    .ok()
+                                });
+
+                        let merge_snapshot = MergeStateSnapshot::from_state(merge_state);
+
                         if let Err(e) = self.db.save_git_stats(&stats) {
                             log::warn!("Failed to save git stats for {}: {}", session.name, e);
                         } else {
@@ -92,7 +133,11 @@ impl<E: EventEmitter> ActivityTracker<E> {
                                 lines_added: stats.lines_added,
                                 lines_removed: stats.lines_removed,
                                 has_uncommitted: stats.has_uncommitted,
+                                has_conflicts,
                                 top_uncommitted_paths: None,
+                                merge_has_conflicts: merge_snapshot.merge_has_conflicts,
+                                merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
+                                merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
                             };
                             let _ = self.emitter.emit_session_git_stats(payload);
                         }
@@ -193,8 +238,15 @@ pub struct SessionGitStatsUpdated {
     pub lines_added: u32,
     pub lines_removed: u32,
     pub has_uncommitted: bool,
+    pub has_conflicts: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub top_uncommitted_paths: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merge_has_conflicts: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merge_conflicting_paths: Option<Vec<String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub merge_is_up_to_date: Option<bool>,
 }
 
 pub fn start_activity_tracking_with_app(db: Arc<Database>, app: AppHandle) {
@@ -290,7 +342,11 @@ mod tests {
             lines_added: 100,
             lines_removed: 20,
             has_uncommitted: true,
+            has_conflicts: false,
             top_uncommitted_paths: None,
+            merge_has_conflicts: None,
+            merge_conflicting_paths: None,
+            merge_is_up_to_date: None,
         };
 
         mock_emitter
@@ -319,7 +375,11 @@ mod tests {
             lines_added: 45,
             lines_removed: 12,
             has_uncommitted: false,
+            has_conflicts: false,
             top_uncommitted_paths: None,
+            merge_has_conflicts: Some(false),
+            merge_conflicting_paths: None,
+            merge_is_up_to_date: Some(true),
         };
 
         assert_eq!(payload.session_id, "session-456");

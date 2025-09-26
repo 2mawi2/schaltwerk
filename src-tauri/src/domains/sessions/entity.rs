@@ -231,6 +231,10 @@ pub struct SessionInfo {
     pub created_at: Option<DateTime<Utc>>,
     pub last_modified: Option<DateTime<Utc>>,
     pub has_uncommitted_changes: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Merge conflict status derived from git when available. None indicates the
+    /// backend could not determine the state yet (e.g. worktree missing or repo call failed).
+    pub has_conflicts: Option<bool>,
     pub is_current: bool,
     pub session_type: SessionType,
     pub container_status: Option<String>,
