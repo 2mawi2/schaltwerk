@@ -98,7 +98,7 @@ describe('Action buttons color updates reflect in UI after save', () => {
     // initial classes reflect blue
     await waitFor(() => {
       expect(getByTestId('btn-label')).toHaveTextContent('Squash Merge Main')
-      expect(getByTestId('btn-classes').textContent || '').toContain('text-cyan-200')
+      expect(getByTestId('btn-classes').textContent || '').toContain('text-blue-200')
     })
 
     // trigger save to green

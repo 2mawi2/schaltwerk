@@ -222,39 +222,33 @@ impl LocalPtyAdapter {
         }
     }
 
-    fn setup_environment(cmd: &mut CommandBuilder, cols: u16, rows: u16) {
-        // Minimal environment - only essentials
-        cmd.env("TERM", "xterm-256color");
-        cmd.env("LINES", rows.to_string());
-        cmd.env("COLUMNS", cols.to_string());
+    fn build_environment(cols: u16, rows: u16) -> Vec<(String, String)> {
+        let mut envs = vec![
+            ("TERM".to_string(), "xterm-256color".to_string()),
+            ("LINES".to_string(), rows.to_string()),
+            ("COLUMNS".to_string(), cols.to_string()),
+        ];
 
-        if let Ok(home) = std::env::var("HOME") {
-            cmd.env("HOME", home.clone());
+        let path_value = if let Ok(home) = std::env::var("HOME") {
+            envs.push(("HOME".to_string(), home.clone()));
 
-            let mut path_components = vec![];
+            let mut path_components = vec![
+                format!("{home}/.local/bin"),
+                format!("{home}/.cargo/bin"),
+                format!("{home}/.pyenv/shims"),
+                format!("{home}/bin"),
+                format!("{home}/.nvm/current/bin"),
+                format!("{home}/.volta/bin"),
+                format!("{home}/.fnm"),
+                "/opt/homebrew/bin".to_string(),
+                "/usr/local/bin".to_string(),
+                "/usr/bin".to_string(),
+                "/bin".to_string(),
+                "/usr/sbin".to_string(),
+                "/sbin".to_string(),
+            ];
 
-            // User-specific paths first (highest priority)
-            path_components.push(format!("{home}/.local/bin"));
-            path_components.push(format!("{home}/.cargo/bin"));
-            path_components.push(format!("{home}/.pyenv/shims"));
-            path_components.push(format!("{home}/bin"));
-
-            // Common Node.js version manager paths
-            path_components.push(format!("{home}/.nvm/current/bin"));
-            path_components.push(format!("{home}/.volta/bin"));
-            path_components.push(format!("{home}/.fnm"));
-
-            // System paths
-            path_components.push("/opt/homebrew/bin".to_string());
-            path_components.push("/usr/local/bin".to_string());
-            path_components.push("/usr/bin".to_string());
-            path_components.push("/bin".to_string());
-            path_components.push("/usr/sbin".to_string());
-            path_components.push("/sbin".to_string());
-
-            // Also preserve existing PATH to catch any paths we might have missed
             if let Ok(existing_path) = std::env::var("PATH") {
-                // Split existing PATH and add any components not already included
                 for component in existing_path.split(':') {
                     let component = component.trim();
                     if !component.is_empty() && !path_components.contains(&component.to_string()) {
@@ -263,29 +257,32 @@ impl LocalPtyAdapter {
                 }
             }
 
-            let path = path_components.join(":");
-            cmd.env("PATH", path);
+            path_components.join(":")
         } else {
-            let path = std::env::var("PATH").unwrap_or_else(|_| {
+            std::env::var("PATH").unwrap_or_else(|_| {
                 "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin".to_string()
-            });
-            cmd.env("PATH", path);
-        }
+            })
+        };
 
-        // Preserve other important environment variables for colors
-        if let Ok(lang) = std::env::var("LANG") {
-            cmd.env("LANG", lang);
-        } else {
-            cmd.env("LANG", "en_US.UTF-8");
-        }
+        envs.push(("PATH".to_string(), path_value));
+
+        let lang_value = std::env::var("LANG").unwrap_or_else(|_| "en_US.UTF-8".to_string());
+        envs.push(("LANG".to_string(), lang_value));
 
         if let Ok(lc_all) = std::env::var("LC_ALL") {
-            cmd.env("LC_ALL", lc_all);
+            envs.push(("LC_ALL".to_string(), lc_all));
         }
 
-        // Ensure color support for common tools
-        cmd.env("CLICOLOR", "1");
-        cmd.env("CLICOLOR_FORCE", "1");
+        envs.push(("CLICOLOR".to_string(), "1".to_string()));
+        envs.push(("CLICOLOR_FORCE".to_string(), "1".to_string()));
+
+        envs
+    }
+
+    fn setup_environment(cmd: &mut CommandBuilder, cols: u16, rows: u16) {
+        for (key, value) in Self::build_environment(cols, rows) {
+            cmd.env(key, value);
+        }
     }
 
     fn start_reader(
@@ -1391,6 +1388,7 @@ mod tests {
     use super::super::ApplicationSpec;
     use super::*;
     use futures;
+    use std::collections::HashMap;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, SystemTime};
@@ -2008,46 +2006,23 @@ mod tests {
     // ENVIRONMENT AND SHELL CONFIGURATION TESTS
     // ============================================================================
 
-    #[tokio::test]
-    async fn test_environment_variables_setup() {
-        let adapter = LocalPtyAdapter::new();
-        let id = unique_id("env-setup");
+    #[test]
+    fn test_environment_variables_setup() {
+        let envs = LocalPtyAdapter::build_environment(150, 50);
+        let env_map: HashMap<_, _> = envs.into_iter().collect();
 
-        let params = CreateParams {
-            id: id.clone(),
-            cwd: "/tmp".to_string(),
-            app: None,
-        };
+        assert_eq!(env_map.get("LINES"), Some(&"50".to_string()));
+        assert_eq!(env_map.get("COLUMNS"), Some(&"150".to_string()));
+        assert_eq!(env_map.get("TERM"), Some(&"xterm-256color".to_string()));
 
-        adapter.create_with_size(params, 150, 50).await.unwrap();
-
-        // Execute command and wait for output deterministically
-        let output = execute_command_and_wait(
-            &adapter,
-            &id,
-            b"echo LINES=$LINES COLUMNS=$COLUMNS TERM=$TERM\n",
-        )
-        .await
-        .expect("Failed to execute environment check command");
-
-        // Check that environment variables were set correctly
+        let path_value = env_map.get("PATH").expect("PATH should be set");
         assert!(
-            output.contains("LINES=50"),
-            "LINES not set correctly: {}",
-            output
-        );
-        assert!(
-            output.contains("COLUMNS=150"),
-            "COLUMNS not set correctly: {}",
-            output
-        );
-        assert!(
-            output.contains("TERM=xterm-256color"),
-            "TERM not set correctly: {}",
-            output
+            path_value.contains("/usr/bin"),
+            "PATH should include /usr/bin: {path_value}"
         );
 
-        safe_close(&adapter, &id).await;
+        assert_eq!(env_map.get("CLICOLOR"), Some(&"1".to_string()));
+        assert_eq!(env_map.get("CLICOLOR_FORCE"), Some(&"1".to_string()));
     }
 
     #[tokio::test]

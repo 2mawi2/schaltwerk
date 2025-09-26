@@ -18,6 +18,8 @@ import { getActionButtonColorClasses } from '../../constants/actionButtonColors'
 import { ConfirmResetDialog } from '../common/ConfirmResetDialog'
 import { VscDiscard } from 'react-icons/vsc'
 import { useRef, useEffect, useState, useMemo, useCallback } from 'react'
+import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { mapSessionUiState } from '../../utils/sessionFilters'
 import { theme } from '../../common/theme'
 import { logger } from '../../utils/logger'
@@ -53,7 +55,10 @@ export function TerminalGrid() {
     const { actionButtons } = useActionButtons()
     const { sessions } = useSessions()
     const { isAnyModalOpen } = useModal()
-    
+
+    // Get dynamic shortcut for Focus Claude
+    const focusClaudeShortcut = useShortcutDisplay(KeyboardShortcutAction.FocusClaude)
+
     // Show action buttons for both orchestrator and sessions
     const shouldShowActionButtons = (selection.kind === 'orchestrator' || selection.kind === 'session') && actionButtons.length > 0
     
@@ -909,8 +914,8 @@ export function TerminalGrid() {
                                 color: localFocus === 'claude' ? theme.colors.accent.blue.light : theme.colors.text.tertiary,
                             }}
                             className={`${selection.kind === 'session' ? '' : 'ml-auto'} text-[10px] px-1.5 py-0.5 rounded`}
-                            title="Focus Claude (⌘T)"
-                        >⌘T</span>
+                            title={`Focus Claude (${focusClaudeShortcut || '⌘T'})`}
+                        >{focusClaudeShortcut || '⌘T'}</span>
                     </div>
                     <div
                         style={{

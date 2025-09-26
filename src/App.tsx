@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { SchaltEvent, listenEvent } from './common/eventSystem'
+import { useMultipleShortcutDisplays } from './keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from './keyboardShortcuts/config'
 import { Sidebar } from './components/sidebar/Sidebar'
 import { TerminalGrid } from './components/terminal/TerminalGrid'
 import { RightPanelTabs } from './components/right-panel/RightPanelTabs'
@@ -41,7 +43,6 @@ import { startSessionTop, computeProjectOrchestratorId } from './common/agentSpa
 import { logger } from './utils/logger'
 import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
-import { KeyboardShortcutAction } from './keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 
@@ -58,6 +59,13 @@ export default function App() {
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
+
+  // Get dynamic shortcut displays
+  const shortcuts = useMultipleShortcutDisplays([
+    KeyboardShortcutAction.NewSession,
+    KeyboardShortcutAction.NewSpec
+  ])
+
   const [newSessionOpen, setNewSessionOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [cancelModalOpen, setCancelModalOpen] = useState(false)
@@ -965,10 +973,12 @@ export default function App() {
                     }}
                     onMouseEnter={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.hover}99`}
                     onMouseLeave={(e) => e.currentTarget.style.backgroundColor = `${theme.colors.background.elevated}99`}
-                    title="Start agent (⌘N)"
+                    title={`Start agent (${shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'})`}
                   >
                     <span>Start Agent</span>
-                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⌘N</span>
+                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">
+                      {shortcuts[KeyboardShortcutAction.NewSession] || '⌘N'}
+                    </span>
                   </button>
                   <button
                     onClick={() => {
@@ -988,10 +998,12 @@ export default function App() {
                     onMouseLeave={(e) => {
                       e.currentTarget.style.backgroundColor = theme.colors.accent.amber.bg
                     }}
-                    title="Create spec (⇧⌘N)"
+                    title={`Create spec (${shortcuts[KeyboardShortcutAction.NewSpec] || '⇧⌘N'})`}
                   >
                     <span>Create Spec</span>
-                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">⇧⌘N</span>
+                    <span className="text-xs opacity-60 group-hover:opacity-100 transition-opacity">
+                      {shortcuts[KeyboardShortcutAction.NewSpec] || '⇧⌘N'}
+                    </span>
                   </button>
                 </div>
               </div>
