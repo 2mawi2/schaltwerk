@@ -429,10 +429,12 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft])
 
+    const ensureProjectFiles = projectFileIndex.ensureIndex
+
     useEffect(() => {
         if (!open) return
-        void projectFileIndex.ensureIndex()
-    }, [open, projectFileIndex.ensureIndex])
+        void ensureProjectFiles()
+    }, [open, ensureProjectFiles])
 
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens

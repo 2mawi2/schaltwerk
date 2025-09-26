@@ -5,11 +5,14 @@ import type { Extension } from '@codemirror/state'
 import { MarkdownEditor } from './MarkdownEditor'
 import type { ProjectFileIndexApi } from '../../hooks/useProjectFileIndex'
 
-const codeMirrorMock = vi.fn(() => null)
+const codeMirrorMock = vi.fn((props: unknown) => props)
 
 vi.mock('@uiw/react-codemirror', () => ({
   __esModule: true,
-  default: (props: any) => codeMirrorMock(props),
+  default: (props: unknown) => {
+    codeMirrorMock(props)
+    return null
+  },
 }))
 
 function captureExtensions(extraProps: Partial<ComponentProps<typeof MarkdownEditor>> = {}): Extension[] {
@@ -22,11 +25,12 @@ function captureExtensions(extraProps: Partial<ComponentProps<typeof MarkdownEdi
     />
   )
   unmount()
-  const call = codeMirrorMock.mock.calls.at(-1)
-  if (!call) {
+  const lastCall = codeMirrorMock.mock.calls[codeMirrorMock.mock.calls.length - 1]
+  if (!lastCall) {
     throw new Error('CodeMirror was not rendered')
   }
-  return call[0].extensions as Extension[]
+  const [props] = lastCall as [Record<string, unknown>]
+  return (props.extensions as Extension[]) ?? []
 }
 
 describe('MarkdownEditor', () => {

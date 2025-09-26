@@ -6,14 +6,16 @@ import { TauriCommands } from '../common/tauriCommands'
 const unlistenMock = vi.fn()
 const eventHandlers: Array<(payload: string[]) => void> = []
 
+const listenEventMock = vi.fn(async (_event: string, handler: (payload: string[]) => void) => {
+  eventHandlers.push(handler)
+  return unlistenMock
+})
+
 vi.mock('../common/eventSystem', () => ({
   SchaltEvent: {
     ProjectFilesUpdated: 'schaltwerk:project-files-updated'
   },
-  listenEvent: vi.fn(async (_event: string, handler: (payload: string[]) => void) => {
-    eventHandlers.push(handler)
-    return unlistenMock
-  })
+  listenEvent: listenEventMock
 }))
 
 vi.mock('@tauri-apps/api/core', () => ({
@@ -21,7 +23,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 }))
 
 const { invoke } = await import('@tauri-apps/api/core')
-const { listenEvent } = await import('../common/eventSystem')
 
 describe('useProjectFileIndex', () => {
   beforeEach(() => {

@@ -123,9 +123,11 @@ export function SpecEditor({ sessionName, onStart }: Props) {
     hasLocalChangesRef.current = hasLocalChanges
   }, [hasLocalChanges])
 
+  const ensureProjectFiles = projectFileIndex.ensureIndex
+
   useEffect(() => {
-    void projectFileIndex.ensureIndex()
-  }, [projectFileIndex.ensureIndex])
+    void ensureProjectFiles()
+  }, [ensureProjectFiles])
 
   const handleContentChange = (newContent: string) => {
     setContent(newContent)
