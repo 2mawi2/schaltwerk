@@ -1906,7 +1906,27 @@ fi`}
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                 className={`px-4 py-2 ${theme.colors.accent.cyan.dark} hover:${theme.colors.accent.cyan.DEFAULT} text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+                                className="px-4 py-2 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                style={{
+                                    backgroundColor: theme.colors.accent.blue.DEFAULT,
+                                    border: `1px solid ${theme.colors.accent.blue.border}`,
+                                    color: theme.colors.text.inverse,
+                                }}
+                                onMouseEnter={event => {
+                                    if (saving) return
+                                    event.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+                                }}
+                                onMouseLeave={event => {
+                                    event.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+                                }}
+                                onFocus={event => {
+                                    event.currentTarget.style.outline = `2px solid ${theme.colors.border.focus}`
+                                    event.currentTarget.style.outlineOffset = '2px'
+                                }}
+                                onBlur={event => {
+                                    event.currentTarget.style.outline = 'none'
+                                    event.currentTarget.style.outlineOffset = '0'
+                                }}
                             >
                                 {saving ? (
                                     <span className="text-button text-white/80">Saving...</span>
