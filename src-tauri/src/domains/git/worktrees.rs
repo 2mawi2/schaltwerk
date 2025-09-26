@@ -107,11 +107,7 @@ pub fn create_worktree_from_base(
     base_branch: &str,
 ) -> Result<()> {
     let base_commit_hash = get_commit_hash(repo_path, base_branch).map_err(|e| {
-        anyhow!(
-            "Base branch '{}' does not exist in the repository: {}",
-            base_branch,
-            e
-        )
+        anyhow!("Base branch '{base_branch}' does not exist in the repository: {e}")
     })?;
 
     log::info!("Creating worktree from commit {base_commit_hash} ({base_branch})");
@@ -176,7 +172,7 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
                 // First remove the directory (this makes the worktree invalid)
                 if worktree_path.exists() {
                     if let Err(e) = std::fs::remove_dir_all(worktree_path) {
-                        return Err(anyhow!("Failed to remove worktree directory: {}", e));
+                        return Err(anyhow!("Failed to remove worktree directory: {e}"));
                     }
                 }
 
@@ -194,7 +190,7 @@ pub fn remove_worktree(repo_path: &Path, worktree_path: &Path) -> Result<()> {
         std::fs::remove_dir_all(worktree_path)?;
         Ok(())
     } else {
-        Err(anyhow!("Worktree not found: {:?}", worktree_path))
+        Err(anyhow!("Worktree not found: {worktree_path:?}"))
     }
 }
 
@@ -291,11 +287,7 @@ pub fn update_worktree_branch(worktree_path: &Path, new_branch: &str) -> Result<
     let branch = repo
         .find_branch(new_branch, BranchType::Local)
         .map_err(|e| {
-            anyhow!(
-                "Failed to update worktree: branch {} not found: {}",
-                new_branch,
-                e
-            )
+            anyhow!("Failed to update worktree: branch {new_branch} not found: {e}")
         })?;
 
     // Get the reference to the branch
@@ -395,10 +387,7 @@ pub fn reset_worktree_to_base(worktree_path: &Path, base_branch: &str) -> Result
     }
 
     let target_obj = target_obj.ok_or_else(|| {
-        anyhow!(
-            "Base reference not found: {} (tried local and origin)",
-            base_branch
-        )
+        anyhow!("Base reference not found: {base_branch} (tried local and origin)")
     })?;
 
     // Hard reset the index and working tree to the base

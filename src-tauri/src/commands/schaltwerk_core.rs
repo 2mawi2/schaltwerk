@@ -4,6 +4,7 @@ use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
     EnrichedSession, FilterMode, Session, SessionState, SortMode,
 };
+use schaltwerk::domains::workspace::get_project_files_with_status;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX};
@@ -195,6 +196,29 @@ pub async fn schaltwerk_core_set_archive_max_entries(limit: i32) -> Result<(), S
     manager
         .set_archive_max_entries(limit)
         .map_err(|e| format!("Failed to set archive limit: {e}"))
+}
+
+#[tauri::command]
+pub async fn schaltwerk_core_list_project_files(
+    app: tauri::AppHandle,
+    force_refresh: Option<bool>,
+) -> Result<Vec<String>, String> {
+    let force_refresh = force_refresh.unwrap_or(false);
+
+    let core = get_schaltwerk_core().await?;
+    let repo_path = {
+        let core = core.lock().await;
+        core.repo_path.clone()
+    };
+
+    let (files, refreshed) = get_project_files_with_status(&repo_path, force_refresh)
+        .map_err(|e| format!("Failed to list project files: {e}"))?;
+
+    if refreshed {
+        let _ = emit_event(&app, SchaltEvent::ProjectFilesUpdated, &files);
+    }
+
+    Ok(files)
 }
 
 #[tauri::command]

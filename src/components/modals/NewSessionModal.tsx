@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react'
+import { useState, useEffect, useCallback, useRef, useLayoutEffect, lazy, Suspense } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { generateDockerStyleName } from '../../utils/dockerNames'
 import { invoke } from '@tauri-apps/api/core'
@@ -18,6 +18,10 @@ import {
     createEmptyEnvVarState,
 } from '../shared/agentDefaults'
 import { AgentDefaultsSection } from '../shared/AgentDefaultsSection'
+import { useProjectFileIndex } from '../../hooks/useProjectFileIndex'
+import type { MarkdownEditorRef } from '../plans/MarkdownEditor'
+
+const MarkdownEditor = lazy(() => import('../plans/MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
 interface Props {
     open: boolean
@@ -58,7 +62,8 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
     const [agentCliArgs, setAgentCliArgs] = useState<AgentCliArgsState>(createEmptyCliArgsState)
     const [agentConfigLoading, setAgentConfigLoading] = useState(false)
     const nameInputRef = useRef<HTMLInputElement>(null)
-    const promptTextareaRef = useRef<HTMLTextAreaElement>(null)
+    const markdownEditorRef = useRef<MarkdownEditorRef>(null)
+    const projectFileIndex = useProjectFileIndex()
     const wasEditedRef = useRef(false)
     const createRef = useRef<() => void>(() => {})
     const initialGeneratedNameRef = useRef<string>('')
@@ -397,7 +402,7 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             
             // Focus the prompt textarea when modal opens
             setTimeout(() => {
-                promptTextareaRef.current?.focus()
+                markdownEditorRef.current?.focus()
             }, 100)
         } else {
             // Reset ALL state when modal closes to prevent stale state
@@ -423,6 +428,13 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
             lastInitialIsDraftRef.current = undefined
         }
     }, [open, initialIsDraft, isPrefillPending, hasPrefillData, createAsDraft])
+
+    const ensureProjectFiles = projectFileIndex.ensureIndex
+
+    useEffect(() => {
+        if (!open) return
+        void ensureProjectFiles()
+    }, [open, ensureProjectFiles])
 
     // Register prefill event listener immediately, not dependent on open state
     // This ensures we can catch events that are dispatched right when the modal opens
@@ -598,19 +610,23 @@ export function NewSessionModal({ open, initialIsDraft = false, onClose, onCreat
                         <label className="block text-sm text-slate-300 mb-1">
                             {createAsDraft ? 'Spec content' : 'Initial prompt (optional)'}
                         </label>
-                        <textarea 
-                            ref={promptTextareaRef}
-                            value={taskContent} 
-                            onChange={e => {
-                                setTaskContent(e.target.value)
-                                // Clear validation error when user starts typing
-                                if (validationError) {
-                                    setValidationError('')
-                                }
-                            }} 
-                            className="w-full h-32 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 font-mono text-sm" 
-                            placeholder={createAsDraft ? "Enter spec content in markdown..." : "Describe the agent for the Claude session"} 
-                        />
+                        <Suspense fallback={<div className="h-40 rounded border border-slate-700" style={{ backgroundColor: theme.colors.background.elevated }} /> }>
+                            <div className="h-40" data-testid="session-task-editor">
+                                <MarkdownEditor
+                                    ref={markdownEditorRef}
+                                    value={taskContent}
+                                    onChange={value => {
+                                        setTaskContent(value)
+                                        if (validationError) {
+                                            setValidationError('')
+                                        }
+                                    }}
+                                    placeholder={createAsDraft ? 'Enter spec content in markdown...' : 'Describe the agent for the Claude session'}
+                                    className="h-full"
+                                    fileReferenceProvider={projectFileIndex}
+                                />
+                            </div>
+                        </Suspense>
                         <p className="text-xs text-slate-400 mt-1">
                             {createAsDraft && (
                                 <>

@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { NewSessionModal } from './NewSessionModal'
 import { TestProviders } from '../../tests/test-utils'
@@ -64,6 +64,24 @@ vi.mock('../shared/SessionConfigurationPanel', () => ({
 
 const mockInvoke = invoke as MockedFunction<typeof invoke>
 
+function getTaskEditorContent(): string {
+    const editor = screen.queryByTestId('session-task-editor')
+    if (!editor) {
+        return ''
+    }
+    const content = editor.querySelector('.cm-content') as HTMLElement | null
+    if (!content) {
+        return ''
+    }
+    if (content.querySelector('.cm-placeholder')) {
+        const hasLine = content.querySelector('.cm-line')
+        if (!hasLine) {
+            return ''
+        }
+    }
+    return content.innerText ?? ''
+}
+
 describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
     beforeEach(() => {
         vi.clearAllMocks()
@@ -101,6 +119,8 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
                 case TauriCommands.SetAgentEnvVars:
                 case TauriCommands.SetAgentCliArgs:
                     return Promise.resolve()
+                case TauriCommands.SchaltwerkCoreListProjectFiles:
+                    return Promise.resolve(['README.md'])
                 default:
                     return Promise.resolve()
             }
@@ -408,8 +428,15 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         const nameInput = screen.getByDisplayValue('test_session')
         fireEvent.change(nameInput, { target: { value: 'configured_session' } })
 
-        const promptTextarea = screen.getByPlaceholderText(/Describe the agent/)
-        fireEvent.change(promptTextarea, { target: { value: 'Test prompt' } })
+        const editor = await screen.findByTestId('session-task-editor')
+        expect(editor).toBeInTheDocument()
+        await act(async () => {
+            emitUiEvent(UiEvent.NewSessionPrefill, {
+                taskContent: 'Test prompt',
+                fromDraft: false,
+            })
+        })
+        expect(getTaskEditorContent()).toContain('Test prompt')
 
         const submitButton = screen.getByText('Start Agent')
         fireEvent.click(submitButton)

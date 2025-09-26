@@ -56,12 +56,12 @@ pub fn delete_branch(repo_path: &Path, branch_name: &str) -> Result<()> {
     // Find the branch
     let mut branch = repo
         .find_branch(branch_name, BranchType::Local)
-        .map_err(|e| anyhow!("Failed to delete branch {}: {}", branch_name, e))?;
+        .map_err(|e| anyhow!("Failed to delete branch {branch_name}: {e}"))?;
 
     // Delete the branch (force delete)
     branch
         .delete()
-        .map_err(|e| anyhow!("Failed to delete branch {}: {}", branch_name, e))?;
+        .map_err(|e| anyhow!("Failed to delete branch {branch_name}: {e}"))?;
 
     Ok(())
 }
@@ -80,18 +80,18 @@ pub fn branch_exists(repo_path: &Path, branch_name: &str) -> Result<bool> {
         {
             Ok(false)
         }
-        Err(e) => Err(anyhow!("Error checking branch existence: {}", e)),
+        Err(e) => Err(anyhow!("Error checking branch existence: {e}")),
     };
     result
 }
 
 pub fn rename_branch(repo_path: &Path, old_branch: &str, new_branch: &str) -> Result<()> {
     if !branch_exists(repo_path, old_branch)? {
-        return Err(anyhow!("Branch '{}' does not exist", old_branch));
+        return Err(anyhow!("Branch '{old_branch}' does not exist"));
     }
 
     if branch_exists(repo_path, new_branch)? {
-        return Err(anyhow!("Branch '{}' already exists", new_branch));
+        return Err(anyhow!("Branch '{new_branch}' already exists"));
     }
 
     let repo = Repository::open(repo_path)?;
@@ -99,12 +99,12 @@ pub fn rename_branch(repo_path: &Path, old_branch: &str, new_branch: &str) -> Re
     // Find the branch to rename
     let mut branch = repo
         .find_branch(old_branch, BranchType::Local)
-        .map_err(|e| anyhow!("Failed to find branch {}: {}", old_branch, e))?;
+        .map_err(|e| anyhow!("Failed to find branch {old_branch}: {e}"))?;
 
     // Rename the branch (force=false to prevent overwriting)
     branch
         .rename(new_branch, false)
-        .map_err(|e| anyhow!("Failed to rename branch: {}", e))?;
+        .map_err(|e| anyhow!("Failed to rename branch: {e}"))?;
 
     Ok(())
 }
@@ -130,12 +130,12 @@ pub fn archive_branch(repo_path: &Path, branch_name: &str, session_name: &str) -
     // Find the branch to archive
     let mut branch = repo
         .find_branch(branch_name, BranchType::Local)
-        .map_err(|e| anyhow!("Failed to archive branch {}: {}", branch_name, e))?;
+        .map_err(|e| anyhow!("Failed to archive branch {branch_name}: {e}"))?;
 
     // Rename to archive location (force=false to prevent overwriting)
     branch
         .rename(&archived_branch, false)
-        .map_err(|e| anyhow!("Failed to archive branch {}: {}", branch_name, e))?;
+        .map_err(|e| anyhow!("Failed to archive branch {branch_name}: {e}"))?;
 
     Ok(archived_branch)
 }

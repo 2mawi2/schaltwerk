@@ -264,7 +264,7 @@ impl SessionUtils {
 
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
-            return Err(anyhow!("Setup script failed: {}", stderr));
+            return Err(anyhow!("Setup script failed: {stderr}"));
         }
 
         log::info!("Setup script completed successfully for session {session_name}");
