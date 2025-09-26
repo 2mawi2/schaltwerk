@@ -1235,21 +1235,6 @@ impl SessionManager {
                 false
             };
 
-            let has_conflicts = if worktree_exists {
-                match git::has_conflicts(&session.worktree_path) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        log::warn!(
-                            "Conflict detection failed for session '{}': {err}",
-                            session.name
-                        );
-                        false
-                    }
-                }
-            } else {
-                false
-            };
-
             let diff_stats = git_stats.as_ref().map(|stats| DiffStats {
                 files_changed: stats.files_changed as usize,
                 additions: stats.lines_added as usize,
@@ -1290,7 +1275,6 @@ impl SessionManager {
                 created_at: Some(session.created_at),
                 last_modified: session.last_activity,
                 has_uncommitted_changes: Some(has_uncommitted),
-                has_conflicts: Some(has_conflicts),
                 is_current: false,
                 session_type: SessionType::Worktree,
                 container_status: None,
@@ -1324,8 +1308,8 @@ impl SessionManager {
         }
 
         let total_elapsed = start_time.elapsed();
-        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)",
-            enriched.len(),
+        log::info!("list_enriched_sessions: Returning {} enriched sessions (total: {}ms, db: {}ms, git_stats: {}ms, worktree_checks: {}ms, avg per session: {}ms)", 
+            enriched.len(), 
             total_elapsed.as_millis(),
             db_time.as_millis(),
             git_stats_total_time.as_millis(),
@@ -1622,9 +1606,7 @@ impl SessionManager {
         } else {
             log::error!("Unknown agent type '{agent_type}' for session '{session_name}'");
             let supported = registry.supported_agents().join(", ");
-            Err(anyhow!(
-                "Unsupported agent type: {agent_type}. Supported types are: {supported}"
-            ))
+            Err(anyhow!("Unsupported agent type: {agent_type}. Supported types are: {supported}"))
         }
     }
 
@@ -1789,9 +1771,7 @@ impl SessionManager {
         } else {
             log::error!("Unknown agent type '{agent_type}' for orchestrator");
             let supported = registry.supported_agents().join(", ");
-            Err(anyhow!(
-                "Unsupported agent type: {agent_type}. Supported types are: {supported}"
-            ))
+            Err(anyhow!("Unsupported agent type: {agent_type}. Supported types are: {supported}"))
         }
     }
 
@@ -1805,9 +1785,7 @@ impl SessionManager {
         }
 
         if session.ready_to_merge {
-            return Err(anyhow!(
-                "Session '{session_name}' is already marked as reviewed"
-            ));
+            return Err(anyhow!("Session '{session_name}' is already marked as reviewed"));
         }
 
         // Use existing mark_session_ready logic (with auto_commit=false)

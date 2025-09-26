@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use git2::{IndexAddOption, Repository, Status, StatusOptions};
+use git2::{IndexAddOption, Repository, StatusOptions};
 use std::path::Path;
 
 #[inline]
@@ -39,33 +39,6 @@ pub fn has_uncommitted_changes(worktree_path: &Path) -> Result<bool> {
         offending
     );
     Ok(any)
-}
-
-pub fn has_conflicts(worktree_path: &Path) -> Result<bool> {
-    let repo = Repository::open(worktree_path)?;
-
-    let mut opts = StatusOptions::new();
-    opts.include_untracked(true).recurse_untracked_dirs(true);
-    let statuses = repo.statuses(Some(&mut opts))?;
-
-    for entry in statuses.iter() {
-        if !entry.status().contains(Status::CONFLICTED) {
-            continue;
-        }
-        if let Some(path) = entry.path() {
-            if is_internal_tooling_path(path) {
-                continue;
-            }
-        }
-        log::debug!(
-            "has_conflicts: path={} conflict at {:?}",
-            worktree_path.display(),
-            entry.path()
-        );
-        return Ok(true);
-    }
-
-    Ok(false)
 }
 
 pub fn uncommitted_sample_paths(worktree_path: &Path, limit: usize) -> Result<Vec<String>> {
@@ -160,31 +133,7 @@ mod tests {
     use git2::{Repository, Signature};
     use std::fs;
     use std::io::Write;
-    use std::path::Path;
-    use std::process::{Command, ExitStatus};
     use tempfile::TempDir;
-
-    fn run_git(path: &Path, args: &[&str]) {
-        let status = Command::new("git")
-            .current_dir(path)
-            .args(args)
-            .status()
-            .expect("failed to execute git command");
-        assert!(
-            status.success(),
-            "git {:?} failed with status {:?}",
-            args,
-            status
-        );
-    }
-
-    fn run_git_allow_failure(path: &Path, args: &[&str]) -> ExitStatus {
-        Command::new("git")
-            .current_dir(path)
-            .args(args)
-            .status()
-            .expect("failed to execute git command")
-    }
 
     #[test]
     fn test_is_valid_session_name() {
@@ -445,39 +394,5 @@ mod tests {
             0,
             "First commit should have no parents"
         );
-    }
-
-    #[test]
-    fn test_has_conflicts_detects_merge_conflict() {
-        let temp_dir = TempDir::new().expect("Failed to create temp dir");
-
-        run_git(temp_dir.path(), &["init"]);
-        run_git(
-            temp_dir.path(),
-            &["config", "user.email", "test@example.com"],
-        );
-        run_git(temp_dir.path(), &["config", "user.name", "Test User"]);
-
-        fs::write(temp_dir.path().join("conflict.txt"), "base\n").unwrap();
-        run_git(temp_dir.path(), &["add", "conflict.txt"]);
-        run_git(temp_dir.path(), &["commit", "-m", "initial"]);
-        run_git(temp_dir.path(), &["branch", "-m", "main"]);
-
-        run_git(temp_dir.path(), &["checkout", "-b", "feature"]);
-        fs::write(temp_dir.path().join("conflict.txt"), "feature change\n").unwrap();
-        run_git(temp_dir.path(), &["commit", "-am", "feature edit"]);
-
-        run_git(temp_dir.path(), &["checkout", "main"]);
-        fs::write(temp_dir.path().join("conflict.txt"), "main change\n").unwrap();
-        run_git(temp_dir.path(), &["commit", "-am", "main edit"]);
-
-        let status = run_git_allow_failure(temp_dir.path(), &["merge", "feature"]);
-        assert!(
-            !status.success(),
-            "Merge should surface a conflict to exercise detection"
-        );
-
-        let detected = has_conflicts(temp_dir.path()).expect("Conflict detection should succeed");
-        assert!(detected, "Conflict must be reported");
     }
 }

@@ -9,91 +9,9 @@ import { SortMode, FilterMode, getDefaultSortMode, getDefaultFilterMode, isValid
 import { mapSessionUiState, searchSessions as searchSessionsUtil } from '../utils/sessionFilters'
 import { EnrichedSession, SessionInfo, SessionState, RawSession } from '../types/session'
 import { logger } from '../utils/logger'
-import { useOptionalToast } from '../common/toast/ToastProvider'
 import { hasBackgroundStart, emitUiEvent, UiEvent } from '../common/uiEvents'
 import { hasInflight } from '../utils/singleflight'
 import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSpawn'
-import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from '../common/events'
-
-type MergeModeOption = 'squash' | 'reapply'
-
-interface MergePreviewResponse {
-    sessionBranch: string
-    parentBranch: string
-    squashCommands: string[]
-    reapplyCommands: string[]
-    defaultCommitMessage: string
-    hasConflicts: boolean
-    conflictingPaths: string[]
-    isUpToDate: boolean
-}
-
-type MergeDialogStatus = 'idle' | 'loading' | 'ready' | 'running'
-
-interface MergeDialogState {
-    isOpen: boolean
-    status: MergeDialogStatus
-    sessionName: string | null
-    preview: MergePreviewResponse | null
-    error?: string | null
-}
-
-function getErrorMessage(value: unknown): string {
-    if (typeof value === 'string') {
-        return value
-    }
-    if (value && typeof value === 'object' && 'message' in value) {
-        const message = (value as { message?: unknown }).message
-        if (typeof message === 'string' && message.trim().length > 0) {
-            return message
-        }
-    }
-    return 'Unknown error'
-}
-
-function useLatest<T>(value: T) {
-    const ref = useRef(value)
-    useEffect(() => {
-        ref.current = value
-    }, [value])
-    return ref
-}
-
-function isDiffClean(info: SessionInfo): boolean {
-    if (info.has_uncommitted_changes === true) {
-        return false
-    }
-
-    const diff = info.diff_stats
-    if (!diff) {
-        return false
-    }
-
-    const filesChanged = diff.files_changed ?? 0
-    const additions = (diff.additions ?? diff.insertions) ?? 0
-    const deletions = diff.deletions ?? 0
-    const insertions = diff.insertions ?? diff.additions ?? 0
-
-    return filesChanged === 0 && additions === 0 && deletions === 0 && insertions === 0
-}
-
-function deriveMergeStatusFromSession(session: EnrichedSession): MergeStatus | undefined {
-    const { info } = session
-
-    if (!info.ready_to_merge) {
-        return undefined
-    }
-
-    if (info.has_conflicts === true) {
-        return 'conflict'
-    }
-
-    if (isDiffClean(info)) {
-        return 'merged'
-    }
-
-    return undefined
-}
 
 interface SessionsContextValue {
     sessions: EnrichedSession[]
@@ -113,25 +31,13 @@ interface SessionsContextValue {
     reloadSessions: () => Promise<void>
     updateSessionStatus: (sessionId: string, newStatus: string) => Promise<void>
     createDraft: (name: string, content: string) => Promise<void>
-    mergeDialogState: MergeDialogState
-    openMergeDialog: (sessionId: string) => Promise<void>
-    closeMergeDialog: () => void
-    confirmMerge: (sessionId: string, mode: MergeModeOption, commitMessage?: string) => Promise<void>
-    isMergeInFlight: (sessionId: string) => boolean
-    getMergeStatus: (sessionId: string) => MergeStatus
 }
 
 const SessionsContext = createContext<SessionsContextValue | undefined>(undefined)
 
-export type MergeStatus = 'idle' | 'merged' | 'conflict'
-
-const noopToast = () => {}
-
 export function SessionsProvider({ children }: { children: ReactNode }) {
     const { projectPath } = useProject()
     const { addCleanup } = useCleanupRegistry()
-    const toast = useOptionalToast()
-    const pushToast = toast?.pushToast ?? noopToast
     const [allSessions, setAllSessions] = useState<EnrichedSession[]>([])
     const [loading, setLoading] = useState(true)
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
@@ -143,212 +49,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const hasInitialLoadCompleted = useRef(false)
     const currentSelectionRef = useRef<string | null>(null)
     const [settingsLoaded, setSettingsLoaded] = useState(false)
-    const [mergeDialogState, setMergeDialogState] = useState<MergeDialogState>({
-        isOpen: false,
-        status: 'idle',
-        sessionName: null,
-        preview: null,
-        error: null,
-    })
-    const [mergeInFlight, setMergeInFlight] = useState<Map<string, boolean>>(new Map())
-    const mergeErrorCacheRef = useRef(new Map<string, string>())
-    const [mergeStatuses, setMergeStatuses] = useState<Map<string, MergeStatus>>(new Map())
-
-    const updateMergeInFlight = useCallback((sessionId: string, running: boolean) => {
-        setMergeInFlight(prev => {
-            const next = new Map(prev)
-            if (running) {
-                next.set(sessionId, true)
-            } else {
-                next.delete(sessionId)
-            }
-            return next
-        })
-    }, [])
-
-    const isMergeInFlight = useCallback(
-        (sessionId: string) => mergeInFlight.has(sessionId),
-        [mergeInFlight]
-    )
-
-    const getMergeStatus = useCallback(
-        (sessionId: string) => mergeStatuses.get(sessionId) ?? 'idle',
-        [mergeStatuses]
-    )
-
-    const pushToastRef = useLatest(pushToast)
-    const updateMergeInFlightRef = useLatest(updateMergeInFlight)
-    const mergeDialogStateRef = useLatest(mergeDialogState)
-
-    const syncMergeStatuses = useCallback((sessions: EnrichedSession[]) => {
-        setMergeStatuses(prev => {
-            const next = new Map(prev)
-            let changed = false
-            const seenIds = new Set<string>()
-
-            for (const session of sessions) {
-                const sessionId = session.info.session_id
-                seenIds.add(sessionId)
-                const derived = deriveMergeStatusFromSession(session)
-                const previous = next.get(sessionId)
-
-                if (derived) {
-                    if (previous !== derived) {
-                        next.set(sessionId, derived)
-                        changed = true
-                    }
-                } else if (previous) {
-                    next.delete(sessionId)
-                    changed = true
-                }
-            }
-
-            for (const key of Array.from(next.keys())) {
-                if (!seenIds.has(key)) {
-                    next.delete(key)
-                    changed = true
-                }
-            }
-
-            return changed ? next : prev
-        })
-    }, [])
-
-    const openMergeDialog = useCallback(async (sessionId: string) => {
-        mergeErrorCacheRef.current.delete(sessionId)
-        setMergeDialogState(prev => ({
-            isOpen: true,
-            status: 'loading',
-            sessionName: sessionId,
-            preview: prev.preview && prev.sessionName === sessionId ? prev.preview : null,
-            error: null,
-        }))
-
-        try {
-            const preview = await invoke<MergePreviewResponse>(
-                TauriCommands.SchaltwerkCoreGetMergePreview,
-                { name: sessionId }
-            )
-            setMergeStatuses(prev => {
-                const next = new Map(prev)
-                if (preview.hasConflicts) {
-                    next.set(sessionId, 'conflict')
-                } else if (preview.isUpToDate) {
-                    next.set(sessionId, 'merged')
-                } else {
-                    next.delete(sessionId)
-                }
-                return next
-            })
-            setMergeDialogState({
-                isOpen: true,
-                status: 'ready',
-                sessionName: sessionId,
-                preview,
-                error: null,
-            })
-        } catch (error) {
-            const message = getErrorMessage(error)
-            logger.error('[SessionsContext] Failed to load merge preview:', error)
-            setMergeDialogState({
-                isOpen: true,
-                status: 'ready',
-                sessionName: sessionId,
-                preview: null,
-                error: message,
-            })
-        }
-    }, [])
-
-    const closeMergeDialog = useCallback(() => {
-        setMergeDialogState({
-            isOpen: false,
-            status: 'idle',
-            sessionName: null,
-            preview: null,
-            error: null,
-        })
-    }, [])
-
-    const confirmMerge = useCallback(
-        async (sessionId: string, mode: MergeModeOption, commitMessage?: string) => {
-            const preview = mergeDialogStateRef.current.preview
-
-            if (preview?.hasConflicts) {
-                setMergeDialogState(prev => {
-                    if (!prev.isOpen || prev.sessionName !== sessionId) {
-                        return prev
-                    }
-                    return {
-                        ...prev,
-                        status: 'ready',
-                        error: 'Resolve merge conflicts in the session worktree before merging.',
-                    }
-                })
-                setMergeStatuses(prev => {
-                    const next = new Map(prev)
-                    next.set(sessionId, 'conflict')
-                    return next
-                })
-                return
-            }
-
-            if (preview?.isUpToDate) {
-                setMergeDialogState(prev => {
-                    if (!prev.isOpen || prev.sessionName !== sessionId) {
-                        return prev
-                    }
-                    return {
-                        ...prev,
-                        status: 'ready',
-                        error: 'Session branch has no commits to merge into the parent branch.',
-                    }
-                })
-                setMergeStatuses(prev => {
-                    const next = new Map(prev)
-                    next.set(sessionId, 'merged')
-                    return next
-                })
-                return
-            }
-
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== sessionId) {
-                    return prev
-                }
-                return {
-                    ...prev,
-                    status: 'running',
-                    error: null,
-                }
-            })
-
-            updateMergeInFlight(sessionId, true)
-
-            try {
-                await invoke(TauriCommands.SchaltwerkCoreMergeSessionToMain, {
-                    name: sessionId,
-                    mode,
-                    commitMessage: commitMessage ?? null,
-                })
-            } catch (error) {
-                const message = getErrorMessage(error)
-                logger.error('[SessionsContext] Merge command failed:', error)
-                updateMergeInFlight(sessionId, false)
-                setMergeDialogState(prev => {
-                    if (!prev.isOpen || prev.sessionName !== sessionId) {
-                        return prev
-                    }
-                    return {
-                        ...prev,
-                        status: 'ready',
-                        error: message,
-                    }
-                })
-            }
-        },
-        [updateMergeInFlight, mergeDialogStateRef]
-    )
 
     // Note: mapSessionUiState function moved to utils/sessionFilters.ts
 
@@ -459,7 +159,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             // If enriched already contains specs, use it as-is
             if (hasSpecSessions(enriched)) {
                 setAllSessions(enriched)
-                syncMergeStatuses(enriched)
                 const nextStates = new Map<string, string>()
                 for (const s of enriched) {
                     nextStates.set(s.info.session_id, mapSessionUiState(s.info))
@@ -507,7 +206,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     logger.warn('Failed to fetch draft sessions, continuing with enriched sessions only:', error)
                 }
                 setAllSessions(all)
-                syncMergeStatuses(all)
                 const nextStates = new Map<string, string>()
                 for (const s of all) {
                     nextStates.set(s.info.session_id, mapSessionUiState(s.info))
@@ -521,7 +219,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, syncMergeStatuses])
+    }, [projectPath])
 
     // Ensure a backend watcher is active for each running session so git stats update instantly
     // Note: file watchers are managed per active selection in SelectionContext to
@@ -643,9 +341,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 setLoading(false)
             }
         }
-    }, [projectPath, lastProjectPath, reloadSessions])
 
-    useEffect(() => {
         // Previous listeners will be cleaned up automatically by useCleanupRegistry
 
         const setupListeners = async () => {
@@ -700,13 +396,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             return updated
                         })
 
-                        const nextStates = new Map<string, string>()
-                        for (const session of event) {
-                            nextStates.set(session.info.session_id, mapSessionUiState(session.info))
-                        }
-                        prevStatesRef.current = nextStates
-
-                        syncMergeStatuses(event)
+                        const next = new Map<string, string>()
+                        for (const s of event) next.set(s.info.session_id, mapSessionUiState(s.info))
+                        prevStatesRef.current = next
                     } else {
                         // Don't call reloadSessions() here to avoid circular dependency
                         // The SessionsRefreshed event should contain the full session list
@@ -739,17 +431,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             // Git stats updates
             addListener(listenEvent(SchaltEvent.SessionGitStats, (event) => {
                 logger.debug('[SessionsContext] SessionGitStats event', event)
-                const {
-                    session_name,
-                    files_changed,
-                    lines_added,
-                    lines_removed,
-                    has_uncommitted,
-                    has_conflicts = false,
-                    top_uncommitted_paths,
-                    merge_has_conflicts,
-                    merge_is_up_to_date,
-                } = event
+                const { session_name, files_changed, lines_added, lines_removed, has_uncommitted, top_uncommitted_paths } = event
                 setAllSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     const diff = {
@@ -758,53 +440,17 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         deletions: lines_removed || 0,
                         insertions: lines_added || 0,
                     }
-                    logger.debug('[SessionsContext] Applying git stats', { session: session_name, diff, has_uncommitted, has_conflicts })
+                    logger.debug('[SessionsContext] Applying git stats', { session: session_name, diff, has_uncommitted })
                     return {
                         ...s,
                         info: {
                             ...s.info,
                             diff_stats: diff,
                             has_uncommitted_changes: has_uncommitted,
-                            has_conflicts,
                             top_uncommitted_paths: top_uncommitted_paths && top_uncommitted_paths.length ? top_uncommitted_paths : undefined,
                         }
                     }
                 }))
-
-                const mergeConflictFlag = typeof merge_has_conflicts === 'boolean' ? merge_has_conflicts : undefined
-                const mergeUpToDateFlag = typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : undefined
-
-                setMergeStatuses(prev => {
-                    const next = new Map(prev)
-                    if (mergeConflictFlag === true || (mergeConflictFlag === undefined && has_conflicts)) {
-                        next.set(session_name, 'conflict')
-                    } else if (mergeConflictFlag === false || (!has_conflicts && mergeConflictFlag === undefined)) {
-                        if (next.get(session_name) === 'conflict') {
-                            next.delete(session_name)
-                        }
-                    }
-
-                    if (mergeUpToDateFlag === true) {
-                        const current = next.get(session_name)
-                        if (current !== 'merged') {
-                            next.set(session_name, 'merged')
-                        }
-                    } else if (mergeUpToDateFlag === false) {
-                        if (next.get(session_name) === 'merged') {
-                            next.delete(session_name)
-                        }
-                    } else if (mergeConflictFlag === undefined) {
-                        // Fallback to diff-based heuristic when backend flag is absent
-                        const noDiff = (files_changed || 0) === 0 && !has_uncommitted && !has_conflicts
-                        if (noDiff) {
-                            next.set(session_name, 'merged')
-                        } else if (next.get(session_name) === 'merged' && !noDiff) {
-                            next.delete(session_name)
-                        }
-                    }
-
-                    return next
-                })
             }))
 
             // Session added
@@ -824,7 +470,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         created_at: createdAt,
                         last_modified: lastModified,
                         has_uncommitted_changes: false,
-                        has_conflicts: false,
                         is_current: false,
                         session_type: 'worktree',
                         container_status: undefined,
@@ -892,134 +537,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
 
         setupListeners()
-    }, [projectPath, addListener, syncMergeStatuses])
-
-    useEffect(() => {
-        let disposed = false
-        const cleanups: Array<() => void> = []
-
-        const register = <E extends SchaltEvent>(event: E, handler: (payload: EventPayloadMap[E]) => void) => {
-            listenEvent(event, (payload) => {
-                if (!disposed) {
-                    handler(payload)
-                }
-            })
-                .then(unlisten => {
-                    if (disposed) {
-                        unlisten()
-                        return
-                    }
-                    cleanups.push(unlisten)
-                })
-                .catch(error => {
-                    logger.error(`[SessionsContext] Failed to register listener for ${event}:`, error)
-                })
-        }
-
-        const handleStarted = (event: GitOperationPayload) => {
-            mergeErrorCacheRef.current.delete(event.session_name)
-            updateMergeInFlightRef.current(event.session_name, true)
-            setMergeStatuses(prev => {
-                if (!prev.has(event.session_name)) {
-                    return prev
-                }
-                const next = new Map(prev)
-                next.delete(event.session_name)
-                return next
-            })
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== event.session_name) {
-                    return prev
-                }
-                return {
-                    ...prev,
-                    status: 'running',
-                    error: null,
-                }
-            })
-        }
-
-        const handleCompleted = (event: GitOperationPayload) => {
-            updateMergeInFlightRef.current(event.session_name, false)
-            mergeErrorCacheRef.current.delete(event.session_name)
-            setMergeStatuses(prev => {
-                const next = new Map(prev)
-                next.set(event.session_name, 'merged')
-                return next
-            })
-
-            const shortCommit = event.commit ? event.commit.slice(0, 7) : undefined
-            const description = shortCommit
-                ? `Fast-forwarded ${event.parent_branch} to ${shortCommit}`
-                : `Fast-forwarded ${event.parent_branch}`
-
-            pushToastRef.current({
-                tone: 'success',
-                title: `Merged ${event.session_name}`,
-                description,
-            })
-
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== event.session_name) {
-                    return prev
-                }
-                return {
-                    isOpen: false,
-                    status: 'idle',
-                    sessionName: null,
-                    preview: null,
-                    error: null,
-                }
-            })
-        }
-
-        const handleFailed = (event: GitOperationFailedPayload) => {
-            updateMergeInFlightRef.current(event.session_name, false)
-            const previousError = mergeErrorCacheRef.current.get(event.session_name)
-            if (!previousError || previousError !== event.error) {
-                mergeErrorCacheRef.current.set(event.session_name, event.error)
-                pushToastRef.current({
-                    tone: 'error',
-                    title: `Merge failed for ${event.session_name}`,
-                    description: event.error,
-                })
-            }
-
-            if (event.status === 'conflict') {
-                setMergeStatuses(prev => {
-                    const next = new Map(prev)
-                    next.set(event.session_name, 'conflict')
-                    return next
-                })
-            }
-
-            setMergeDialogState(prev => {
-                if (!prev.isOpen || prev.sessionName !== event.session_name) {
-                    return prev
-                }
-                return {
-                    ...prev,
-                    status: 'ready',
-                    error: event.error ?? 'Merge failed',
-                }
-            })
-        }
-
-        register(SchaltEvent.GitOperationStarted, handleStarted)
-        register(SchaltEvent.GitOperationCompleted, handleCompleted)
-        register(SchaltEvent.GitOperationFailed, handleFailed)
-
-        return () => {
-            disposed = true
-            cleanups.forEach(cleanup => {
-                try {
-                    cleanup()
-                } catch (error) {
-                    logger.error('[SessionsContext] Failed to cleanup Git operation listener:', error)
-                }
-            })
-        }
-    }, [pushToastRef, updateMergeInFlightRef])
+    }, [projectPath, reloadSessions, lastProjectPath, addListener])
 
     return (
         <SessionsContext.Provider value={{
@@ -1039,13 +557,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setCurrentSelection,
             reloadSessions,
             updateSessionStatus,
-            createDraft,
-            mergeDialogState,
-            openMergeDialog,
-            closeMergeDialog,
-            confirmMerge,
-            isMergeInFlight,
-            getMergeStatus,
+            createDraft
         }}>
             {children}
         </SessionsContext.Provider>

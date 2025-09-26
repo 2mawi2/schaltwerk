@@ -4,9 +4,8 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { ReactNode, useEffect } from 'react'
 import { SessionsProvider, useSessions } from './SessionsContext'
 import { ProjectProvider, useProject } from './ProjectContext'
-import { SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
-import { SchaltEvent } from '../common/eventSystem'
+import { SortMode } from '../types/sessionFilters'
 
 // Mock Tauri API
 vi.mock('@tauri-apps/api/core', () => ({
@@ -15,13 +14,6 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('@tauri-apps/api/event', () => ({
     listen: vi.fn(() => Promise.resolve(() => {})),
-}))
-
-const pushToastMock = vi.fn()
-
-vi.mock('../common/toast/ToastProvider', () => ({
-    useToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() }),
-    useOptionalToast: () => ({ pushToast: pushToastMock, dismissToast: vi.fn() })
 }))
 
 const mockSessions = [
@@ -37,9 +29,7 @@ const mockSessions = [
             created_at: '2024-01-01T00:00:00.000Z',
             is_current: false,
             session_type: 'worktree',
-            ready_to_merge: false,
-            has_uncommitted_changes: false,
-            has_conflicts: false,
+            ready_to_merge: false
         },
         terminals: []
     },
@@ -55,15 +45,7 @@ const mockSessions = [
             created_at: '2024-01-02T00:00:00.000Z',
             is_current: true,
             session_type: 'worktree',
-            ready_to_merge: false,
-            has_uncommitted_changes: true,
-            has_conflicts: false,
-            diff_stats: {
-                files_changed: 2,
-                additions: 10,
-                deletions: 3,
-                insertions: 10,
-            }
+            ready_to_merge: false
         },
         terminals: ['session-test-active-top', 'session-test-active-bottom']
     },
@@ -79,15 +61,7 @@ const mockSessions = [
             created_at: '2023-12-31T00:00:00.000Z',
             is_current: false,
             session_type: 'worktree',
-            ready_to_merge: true,
-            has_uncommitted_changes: false,
-            has_conflicts: false,
-            diff_stats: {
-                files_changed: 0,
-                additions: 0,
-                deletions: 0,
-                insertions: 0,
-            }
+            ready_to_merge: true
         },
         terminals: ['session-test-ready-top', 'session-test-ready-bottom']
     }
@@ -104,7 +78,6 @@ const ProjectSetter = ({ path }: { path: string }) => {
 describe('SessionsContext', () => {
     beforeEach(() => {
         vi.clearAllMocks()
-        pushToastMock.mockReset()
     })
 
     const wrapper = ({ children }: { children: ReactNode }) => (
@@ -151,25 +124,6 @@ describe('SessionsContext', () => {
         const reviewed = mockSessions.filter(s => s.info.ready_to_merge).sort((a, b) => a.info.session_id.localeCompare(b.info.session_id))
         const expectedSessions = [...unreviewed, ...reviewed]
         expect(result.current.sessions).toEqual(expectedSessions)
-    })
-
-    it('derives merge status from reviewed session metadata during initial load', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(result.current.loading).toBe(false)
-        })
-
-        expect(result.current.getMergeStatus('test-ready')).toBe('merged')
-        expect(result.current.getMergeStatus('test-active')).toBe('idle')
     })
 
     it('should update session status from spec to active', async () => {
@@ -251,50 +205,6 @@ describe('SessionsContext', () => {
             name: 'new-spec',
             specContent: '# New Spec'
         })
-    })
-
-    it('should mark merge status as conflict when git stats report conflicts', async () => {
-        const { listen } = await import('@tauri-apps/api/event')
-        const listeners: Record<string, (event: Event<unknown>) => void> = {}
-        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
-            listeners[event] = handler
-            return () => {}
-        })
-
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(listeners[SchaltEvent.SessionGitStats]).toBeTruthy()
-        })
-
-        const emit = listeners[SchaltEvent.SessionGitStats]
-        expect(emit).toBeDefined()
-
-        act(() => {
-            emit?.({
-                event: SchaltEvent.SessionGitStats,
-                id: 99,
-                payload: {
-                    session_id: 'test-ready',
-                    session_name: 'test-ready',
-                    files_changed: 2,
-                    lines_added: 4,
-                    lines_removed: 1,
-                    has_uncommitted: true,
-                    has_conflicts: true,
-                }
-            } as Event<unknown>)
-        })
-
-        expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
     })
 
     it('should handle session refresh events', async () => {
@@ -402,159 +312,6 @@ describe('SessionsContext', () => {
 
         const occurrences = result.current.sessions.filter(s => s.info.session_id === 'dupe-session')
         expect(occurrences).toHaveLength(1)
-    })
-
-    it('marks merge status as conflict when preview reports conflicts', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
-                return {
-                    sessionBranch: 'feature/test-ready',
-                    parentBranch: 'main',
-                    squashCommands: ['git reset --soft main', 'git commit -m "message"'],
-                    reapplyCommands: ['git rebase main'],
-                    defaultCommitMessage: 'Merge session test-ready into main',
-                    hasConflicts: true,
-                    conflictingPaths: ['conflict.txt'],
-                    isUpToDate: false,
-                }
-            }
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(result.current.loading).toBe(false)
-        })
-
-        await act(async () => {
-            await result.current.openMergeDialog('test-ready')
-        })
-
-        expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
-    })
-
-    it('marks merge status as merged when preview reports no commits', async () => {
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
-                return {
-                    sessionBranch: 'feature/test-ready',
-                    parentBranch: 'main',
-                    squashCommands: ['git reset --soft main', 'git commit -m "message"'],
-                    reapplyCommands: ['git rebase main'],
-                    defaultCommitMessage: 'Merge session test-ready into main',
-                    hasConflicts: false,
-                    conflictingPaths: [],
-                    isUpToDate: true,
-                }
-            }
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(result.current.loading).toBe(false)
-        })
-
-        await act(async () => {
-            await result.current.openMergeDialog('test-ready')
-        })
-
-        expect(result.current.getMergeStatus('test-ready')).toBe('merged')
-    })
-
-    it('marks merge status as conflict when git stats event signals merge conflict', async () => {
-        const { listen } = await import('@tauri-apps/api/event')
-        const listeners: Record<string, (event: Event<unknown>) => void> = {}
-        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
-            listeners[event] = handler
-            return () => {}
-        })
-
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(listeners[SchaltEvent.SessionGitStats]).toBeTruthy()
-        })
-
-        act(() => {
-            listeners[SchaltEvent.SessionGitStats]?.({
-                event: SchaltEvent.SessionGitStats,
-                id: 1,
-                payload: {
-                    session_id: 'test-ready',
-                    session_name: 'test-ready',
-                    files_changed: 0,
-                    lines_added: 0,
-                    lines_removed: 0,
-                    has_uncommitted: false,
-                    has_conflicts: false,
-                    merge_has_conflicts: true,
-                },
-            } as unknown as Event<unknown>)
-        })
-
-        expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
-    })
-
-    it('marks merge status as merged when git stats event signals up to date', async () => {
-        const { listen } = await import('@tauri-apps/api/event')
-        const listeners: Record<string, (event: Event<unknown>) => void> = {}
-        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
-            listeners[event] = handler
-            return () => {}
-        })
-
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
-
-        await waitFor(() => {
-            expect(listeners[SchaltEvent.SessionGitStats]).toBeTruthy()
-        })
-
-        act(() => {
-            listeners[SchaltEvent.SessionGitStats]?.({
-                event: SchaltEvent.SessionGitStats,
-                id: 2,
-                payload: {
-                    session_id: 'test-ready',
-                    session_name: 'test-ready',
-                    files_changed: 1,
-                    lines_added: 2,
-                    lines_removed: 1,
-                    has_uncommitted: true,
-                    has_conflicts: false,
-                    merge_has_conflicts: false,
-                    merge_is_up_to_date: true,
-                },
-            } as unknown as Event<unknown>)
-        })
-
-        expect(result.current.getMergeStatus('test-ready')).toBe('merged')
     })
 
     it('should handle session removal events', async () => {
@@ -766,126 +523,5 @@ describe('SessionsContext', () => {
           ([cmd, args]) => cmd === TauriCommands.SchaltwerkCoreStartClaude && (args as { sessionName?: string })?.sessionName === sessionName
         )
         expect(calls.length).toBe(0)
-    })
-
-    it('deduplicates merge failure toasts per session', async () => {
-        const { listen } = await import('@tauri-apps/api/event')
-        const listeners: Record<string, (event: Event<unknown>) => void> = {}
-        vi.mocked(listen).mockImplementation(async (event, handler) => {
-            listeners[event] = handler
-            return () => {}
-        })
-
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper })
-
-        await waitFor(() => {
-            expect(listeners['schaltwerk:git-operation-failed']).toBeTruthy()
-        })
-
-        const failurePayload = {
-            session_name: 'test-ready',
-            session_branch: 'feature/test-ready',
-            parent_branch: 'main',
-            mode: 'squash',
-            operation: 'merge',
-            commit: null,
-            status: 'conflict' as const,
-            error: 'conflicts detected'
-        }
-
-        act(() => {
-            listeners['schaltwerk:git-operation-failed']?.({
-                event: 'schaltwerk:git-operation-failed',
-                id: 1,
-                payload: failurePayload
-            } as Event<unknown>)
-        })
-
-        expect(pushToastMock).toHaveBeenCalledTimes(1)
-        expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
-
-        act(() => {
-            listeners['schaltwerk:git-operation-failed']?.({
-                event: 'schaltwerk:git-operation-failed',
-                id: 2,
-                payload: failurePayload
-            } as Event<unknown>)
-        })
-
-        expect(pushToastMock).toHaveBeenCalledTimes(1)
-        expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
-    })
-
-    it('emits success toast and resets merge error cache', async () => {
-        const { listen } = await import('@tauri-apps/api/event')
-        const listeners: Record<string, (event: Event<unknown>) => void> = {}
-        vi.mocked(listen).mockImplementation(async (event, handler) => {
-            listeners[event] = handler
-            return () => {}
-        })
-
-        const { invoke } = await import('@tauri-apps/api/core')
-        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
-            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
-            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
-            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-            return undefined
-        })
-
-        const { result } = renderHook(() => useSessions(), { wrapper })
-
-        await waitFor(() => {
-            expect(listeners['schaltwerk:git-operation-completed']).toBeTruthy()
-            expect(listeners['schaltwerk:git-operation-failed']).toBeTruthy()
-        })
-
-        act(() => {
-            listeners['schaltwerk:git-operation-completed']?.({
-                event: 'schaltwerk:git-operation-completed',
-                id: 11,
-                payload: {
-                    session_name: 'test-ready',
-                    session_branch: 'feature/test-ready',
-                parent_branch: 'main',
-                mode: 'reapply',
-                operation: 'merge',
-                commit: 'abcdef123456',
-                status: 'success' as const
-            }
-        } as Event<unknown>)
-        })
-
-        expect(pushToastMock).toHaveBeenCalledTimes(1)
-        expect(pushToastMock.mock.calls[0][0]).toMatchObject({ tone: 'success' })
-        expect(result.current.getMergeStatus('test-ready')).toBe('merged')
-
-        act(() => {
-            listeners['schaltwerk:git-operation-failed']?.({
-                event: 'schaltwerk:git-operation-failed',
-                id: 12,
-                payload: {
-                    session_name: 'test-ready',
-                    session_branch: 'feature/test-ready',
-                    parent_branch: 'main',
-                    mode: 'squash',
-                    operation: 'merge',
-                    commit: null,
-                    status: 'conflict' as const,
-                    error: 'merge failed'
-                }
-            } as Event<unknown>)
-        })
-
-        expect(pushToastMock).toHaveBeenCalledTimes(2)
-        expect(pushToastMock.mock.calls[1][0]).toMatchObject({ tone: 'error' })
-        expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
     })
 })

@@ -28,7 +28,6 @@ import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
-import { MergeSessionModal } from '../modals/MergeSessionModal'
 import { useProject } from '../../contexts/ProjectContext'
 
 // Normalize backend states to UI categories
@@ -57,24 +56,18 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { isSessionRunning } = useRun()
     const { isAnyModalOpen } = useModal()
     const { 
-        sessions,
-        allSessions,
-        loading,
-        sortMode,
+        sessions, 
+        allSessions, 
+        loading, 
+        sortMode, 
         filterMode,
         searchQuery,
         isSearchVisible,
-        setSortMode,
+        setSortMode, 
         setFilterMode,
         setSearchQuery,
         setIsSearchVisible,
-        reloadSessions,
-        mergeDialogState,
-        openMergeDialog,
-        closeMergeDialog,
-        confirmMerge,
-        isMergeInFlight,
-        getMergeStatus,
+        reloadSessions 
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
 
@@ -97,22 +90,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
     const orchestratorResetting = resettingSelection?.kind === 'orchestrator'
-
-    const isSessionMergeInFlight = useCallback(
-        (sessionId: string) =>
-            isMergeInFlight(sessionId) ||
-            (mergeDialogState.status === 'running' && mergeDialogState.sessionName === sessionId),
-        [isMergeInFlight, mergeDialogState]
-    )
-
-    const handleMergeSession = useCallback(
-        (sessionId: string) => {
-            if (isSessionMergeInFlight(sessionId)) return
-            openMergeDialog(sessionId)
-        },
-        [isSessionMergeInFlight, openMergeDialog]
-    )
-
+    
     const [markReadyModal, setMarkReadyModal] = useState<{ open: boolean; sessionName: string; hasUncommitted: boolean }>({
         open: false,
         sessionName: '',
@@ -675,15 +653,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         setSwitchOrchestratorModal(true)
     }, [isAnyModalOpen, selection, getSelectedSessionState, setSwitchModelSessionId, setSwitchOrchestratorModal])
 
-    const handleOpenMergeShortcut = useCallback(() => {
-        if (isAnyModalOpen()) return
-        if (selection.kind !== 'session' || !selection.payload) return
-        const session = sessions.find(s => s.info.session_id === selection.payload)
-        if (!session || !session.info.ready_to_merge) return
-        if (isSessionMergeInFlight(selection.payload)) return
-        openMergeDialog(selection.payload)
-    }, [isAnyModalOpen, selection, sessions, openMergeDialog, isSessionMergeInFlight])
-
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
         onSelectSession: handleSelectSession,
@@ -734,7 +703,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onNavigateToNextFilter: handleNavigateToNextFilter,
         onResetSelection: handleResetSelectionShortcut,
         onOpenSwitchModel: handleOpenSwitchModelShortcut,
-        onOpenMergeModal: handleOpenMergeShortcut,
         isDiffViewerOpen
     })
 
@@ -1155,9 +1123,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     }}
                                     resettingSelection={resettingSelection}
                                     isSessionRunning={isSessionRunning}
-                                    onMerge={handleMergeSession}
-                                    isMergeDisabled={isSessionMergeInFlight}
-                                    getMergeStatus={getMergeStatus}
                                 />
                             )
                         })
@@ -1196,19 +1161,6 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     setPromoteVersionModal({ open: false, versionGroup: null, selectedSessionId: '' })
                     if (versionGroup) {
                         executeVersionPromotion(versionGroup, selectedSessionId)
-                    }
-                }}
-            />
-            <MergeSessionModal
-                open={mergeDialogState.isOpen}
-                sessionName={mergeDialogState.sessionName}
-                status={mergeDialogState.status}
-                preview={mergeDialogState.preview}
-                error={mergeDialogState.error ?? undefined}
-                onClose={closeMergeDialog}
-                onConfirm={(mode, commitMessage) => {
-                    if (mergeDialogState.sessionName) {
-                        void confirmMerge(mergeDialogState.sessionName, mode, commitMessage)
                     }
                 }}
             />

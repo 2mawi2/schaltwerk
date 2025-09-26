@@ -41,11 +41,6 @@ struct StatsCacheKey {
 }
 
 type StatsCacheMap = HashMap<(std::path::PathBuf, String), (StatsCacheKey, GitStats)>;
-/// Process-wide memoization of the most recent stats per (worktree, parent branch).
-///
-/// The mutex protects concurrent refreshes within a single Schaltwerk process. The key
-/// includes the absolute worktree path, so concurrent projects do not collide.
-/// This keeps the cache safe even when multiple projects are active.
 static STATS_CACHE: OnceLock<Mutex<StatsCacheMap>> = OnceLock::new();
 
 #[cfg(test)]
@@ -385,9 +380,9 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
 
     let total_time = start_time.elapsed();
     if total_time.as_millis() > 100 {
-        log::warn!("Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})",
-            total_time.as_millis(),
-            worktree_path.display(),
+        log::warn!("Git stats calculation took {}ms for {} (repo_discover: {}ms, insertions: {}, deletions: {})", 
+            total_time.as_millis(), 
+            worktree_path.display(), 
             repo_discover_time.as_millis(),
             insertions,
             deletions

@@ -106,9 +106,7 @@ pub fn create_new_project(name: &str, parent_path: &str) -> Result<PathBuf> {
     let parent = Path::new(parent_path);
 
     if !parent.exists() || !parent.is_dir() {
-        return Err(anyhow::anyhow!(
-            "Parent directory does not exist: {parent_path}"
-        ));
+        return Err(anyhow::anyhow!("Parent directory does not exist: {parent_path}"));
     }
 
     let project_path = parent.join(name);

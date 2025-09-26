@@ -154,10 +154,10 @@ fn determine_non_diffable_reason(path: &Path) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(unix)]
-    use libc;
     use std::fs;
     use tempfile::TempDir;
+    #[cfg(unix)]
+    use libc;
 
     #[test]
     fn test_text_file_is_diffable() {

@@ -14,9 +14,7 @@ pub use super::worktrees::{
     update_worktree_branch,
 };
 
-pub use super::operations::{
-    commit_all_changes, has_conflicts, has_uncommitted_changes, is_valid_session_name,
-};
+pub use super::operations::{commit_all_changes, has_uncommitted_changes, is_valid_session_name};
 pub use super::stats::{calculate_git_stats_fast, get_changed_files};
 #[cfg(test)]
 pub use super::worktrees::is_worktree_registered;

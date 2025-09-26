@@ -1,7 +1,5 @@
 use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER};
 use schaltwerk::domains::agents::{naming, parse_agent_command};
-use schaltwerk::domains::merge::types::MergeStateSnapshot;
-use schaltwerk::domains::merge::{MergeMode, MergePreview, MergeService};
 use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
     EnrichedSession, FilterMode, Session, SessionState, SortMode,
@@ -49,23 +47,6 @@ fn matches_version_pattern(name: &str, base_name: &str) -> bool {
     } else {
         false
     }
-}
-
-fn is_conflict_error(message: &str) -> bool {
-    let lowercase = message.to_lowercase();
-    lowercase.contains("conflict")
-        || lowercase.contains("could not apply")
-        || lowercase.contains("merge failed")
-        || lowercase.contains("patch failed")
-}
-
-fn summarize_error(message: &str) -> String {
-    message
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .unwrap_or(message)
-        .trim()
-        .to_string()
 }
 
 fn get_agent_env_and_cli_args(agent_type: &str) -> (Vec<(String, String)>, String, Option<String>) {
@@ -122,82 +103,6 @@ pub async fn schaltwerk_core_list_enriched_sessions() -> Result<Vec<EnrichedSess
         Err(e) => {
             log::error!("Failed to list enriched sessions: {e}");
             Err(format!("Failed to get sessions: {e}"))
-        }
-    }
-}
-
-#[tauri::command]
-pub async fn schaltwerk_core_get_merge_preview(name: String) -> Result<MergePreview, String> {
-    let core = get_schaltwerk_core().await?;
-    let (db, repo_path) = {
-        let core = core.lock().await;
-        (core.db.clone(), core.repo_path.clone())
-    };
-
-    let service = MergeService::new(db, repo_path);
-    service.preview(&name).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-pub async fn schaltwerk_core_merge_session_to_main(
-    app: tauri::AppHandle,
-    name: String,
-    mode: MergeMode,
-    commit_message: Option<String>,
-) -> Result<(), String> {
-    let core = get_schaltwerk_core().await?;
-    let (db, repo_path) = {
-        let core = core.lock().await;
-        (core.db.clone(), core.repo_path.clone())
-    };
-
-    let service = MergeService::new(db, repo_path);
-    let preview = service.preview(&name).map_err(|e| e.to_string())?;
-
-    events::emit_git_operation_started(
-        &app,
-        &name,
-        &preview.session_branch,
-        &preview.parent_branch,
-        mode.as_str(),
-    );
-
-    match service.merge(&name, mode, commit_message).await {
-        Ok(outcome) => {
-            events::emit_git_operation_completed(
-                &app,
-                &name,
-                &outcome.session_branch,
-                &outcome.parent_branch,
-                outcome.mode.as_str(),
-                &outcome.new_commit,
-            );
-            events::emit_sessions_refreshed(&app, &Vec::<EnrichedSession>::new());
-            Ok(())
-        }
-        Err(err) => {
-            let raw_message = err.to_string();
-            let conflict = is_conflict_error(&raw_message);
-            let summary = summarize_error(&raw_message);
-            let message = if conflict {
-                format!(
-                    "Merge conflicts detected while updating '{}'. Resolve the conflicts in the session worktree and try again.\n{}",
-                    preview.parent_branch,
-                    summary
-                )
-            } else {
-                summary.clone()
-            };
-            events::emit_git_operation_failed(
-                &app,
-                &name,
-                &preview.session_branch,
-                &preview.parent_branch,
-                mode.as_str(),
-                if conflict { "conflict" } else { "error" },
-                &message,
-            );
-            Err(message)
         }
     }
 }
@@ -1497,46 +1402,6 @@ pub async fn schaltwerk_core_mark_session_ready(
     let result = manager
         .mark_session_ready(&name, effective_auto_commit)
         .map_err(|e| format!("Failed to mark session as reviewed: {e}"))?;
-
-    if let Ok(session) = manager.get_session(&name) {
-        if session.worktree_path.exists() {
-            if let Ok(stats) = schaltwerk::domains::git::service::calculate_git_stats_fast(
-                &session.worktree_path,
-                &session.parent_branch,
-            ) {
-                let has_conflicts =
-                    schaltwerk::domains::git::operations::has_conflicts(&session.worktree_path)
-                        .unwrap_or(false);
-
-                let merge_service = MergeService::new(core.db.clone(), core.repo_path.clone());
-                let merge_preview = merge_service.preview(&name).ok();
-
-                let merge_snapshot = MergeStateSnapshot::from_preview(merge_preview.as_ref());
-
-                let payload = schaltwerk::domains::sessions::activity::SessionGitStatsUpdated {
-                    session_id: session.id.clone(),
-                    session_name: session.name.clone(),
-                    files_changed: stats.files_changed,
-                    lines_added: stats.lines_added,
-                    lines_removed: stats.lines_removed,
-                    has_uncommitted: stats.has_uncommitted,
-                    has_conflicts,
-                    top_uncommitted_paths: None,
-                    merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                    merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                    merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
-                };
-
-                if let Err(err) = emit_event(&app, SchaltEvent::SessionGitStats, &payload) {
-                    log::debug!(
-                        "Failed to emit SessionGitStats after marking ready for {}: {}",
-                        session.name,
-                        err
-                    );
-                }
-            }
-        }
-    }
 
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event

@@ -22,9 +22,6 @@ pub enum SchaltEvent {
     FileChanges,
     FollowUpMessage,
     Selection,
-    GitOperationStarted,
-    GitOperationCompleted,
-    GitOperationFailed,
     ProjectFilesUpdated,
 }
 
@@ -50,9 +47,6 @@ impl SchaltEvent {
             SchaltEvent::FileChanges => "schaltwerk:file-changes",
             SchaltEvent::FollowUpMessage => "schaltwerk:follow-up-message",
             SchaltEvent::Selection => "schaltwerk:selection",
-            SchaltEvent::GitOperationStarted => "schaltwerk:git-operation-started",
-            SchaltEvent::GitOperationCompleted => "schaltwerk:git-operation-completed",
-            SchaltEvent::GitOperationFailed => "schaltwerk:git-operation-failed",
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
         }
     }

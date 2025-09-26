@@ -64,7 +64,9 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
     }
 
     let result = match app_id {
-        "finder" => Command::new(OPEN_BIN).arg(working_dir.as_str()).status(),
+        "finder" => Command::new(OPEN_BIN)
+            .arg(working_dir.as_str())
+            .status(),
         "cursor" => {
             // Try CLI first, fall back to open -a
             if which::which("cursor").is_ok() {
@@ -159,7 +161,12 @@ fn open_path_in_ghostty(working_dir: &str) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
         let open_status = Command::new(OPEN_BIN)
-            .args(["-na", "Ghostty", "--args", working_dir_flag.as_str()])
+            .args([
+                "-na",
+                "Ghostty",
+                "--args",
+                working_dir_flag.as_str(),
+            ])
             .status();
         match open_status {
             Ok(status) if status.success() => return Ok(()),
@@ -398,13 +405,15 @@ mod tests {
         let db = crate::schaltwerk_core::Database::new_in_memory()
             .expect("failed to create in-memory db");
 
-        let default = get_default_open_app_from_db(&db).expect("failed to read default open app");
+        let default = get_default_open_app_from_db(&db)
+            .expect("failed to read default open app");
         assert_eq!(default, "finder");
 
-        set_default_open_app_in_db(&db, "vscode").expect("failed to persist default open app");
+        set_default_open_app_in_db(&db, "vscode")
+            .expect("failed to persist default open app");
 
-        let updated =
-            get_default_open_app_from_db(&db).expect("failed to read updated default open app");
+        let updated = get_default_open_app_from_db(&db)
+            .expect("failed to read updated default open app");
         assert_eq!(updated, "vscode");
     }
 }

@@ -5,7 +5,6 @@ import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
 import { theme } from '../../common/theme'
-import type { MergeStatus } from '../../contexts/SessionsContext'
 
 interface SessionButtonProps {
     session: {
@@ -35,9 +34,6 @@ interface SessionButtonProps {
     onSwitchModel?: (sessionId: string) => void
     isResetting?: boolean
     isRunning?: boolean
-    onMerge?: (sessionId: string) => void
-    disableMerge?: boolean
-    mergeStatus?: MergeStatus
 }
 
 function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
@@ -73,10 +69,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     onReset,
     onSwitchModel,
     isResetting = false,
-    isRunning = false,
-    onMerge,
-    disableMerge = false,
-    mergeStatus = 'idle'
+    isRunning = false
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
@@ -205,7 +198,7 @@ export const SessionButton = memo<SessionButtonProps>(({
             {sessionState !== 'spec' && (
                 <div className="flex items-center justify-between gap-2 -mt-0.5">
                     <div className="text-[11px] text-slate-400 truncate max-w-[50%]">{s.branch}</div>
-                    <div className="flex items-center gap-2">
+                    <div>
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                             sessionId={s.session_id}
@@ -224,9 +217,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                             onReset={onReset}
                             onSwitchModel={onSwitchModel}
                             isResetting={isResetting}
-                            onMerge={onMerge}
-                            disableMerge={disableMerge}
-                            mergeStatus={mergeStatus}
                         />
                     </div>
                 </div>
@@ -251,9 +241,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                         onReset={onReset}
                         onSwitchModel={onSwitchModel}
                         isResetting={isResetting}
-                        onMerge={onMerge}
-                        disableMerge={disableMerge}
-                        mergeStatus={mergeStatus}
                     />
                 </div>
             )}

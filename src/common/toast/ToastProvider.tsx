@@ -2,7 +2,6 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, Reac
 import { createPortal } from 'react-dom'
 import { theme } from '../theme'
 import { makeId, calculateToastOverflow } from './toastUtils'
-import { logger } from '../../utils/logger'
 
 export interface ToastOptions {
   tone: 'success' | 'warning' | 'error'
@@ -40,11 +39,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const entry: ToastEntry = { ...options, id }
     const duration = options.durationMs ?? 4000
 
-    logger.info(
-      '[ToastProvider] enqueue toast',
-      JSON.stringify({ id, tone: entry.tone, title: entry.title, hasDescription: Boolean(entry.description) })
-    )
-
     const removedIds: string[] = []
     setToasts((prev) => {
       const next = [...prev, entry]
@@ -52,13 +46,6 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       removedIds.push(...result.removedIds)
       return result.toasts as ToastEntry[]
     })
-
-    if (removedIds.length > 0) {
-      logger.debug(
-        '[ToastProvider] dropped overflowing toasts',
-        JSON.stringify({ count: removedIds.length, removedIds })
-      )
-    }
 
     removedIds.forEach((removedId) => {
       const timeoutId = timersRef.current.get(removedId)
@@ -141,8 +128,4 @@ export function useToast() {
     throw new Error('useToast must be used within a ToastProvider')
   }
   return context
-}
-
-export function useOptionalToast() {
-  return useContext(ToastContext)
 }

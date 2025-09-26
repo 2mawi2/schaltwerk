@@ -32,31 +32,31 @@ const AppLoader: React.FC = () => {
   return (
     <EntryAnimation>
       <ErrorBoundary name="Root">
-        <ToastProvider>
-          <FontSizeProvider>
-            <KeyboardShortcutsProvider>
-              <ProjectProvider>
-                <SessionsProvider>
-                  <ActionButtonsProvider>
-                    <ModalProvider>
-                      <SelectionProvider>
-                        <FocusProvider>
-                          <ReviewProvider>
-                            <RunProvider>
+        <FontSizeProvider>
+          <KeyboardShortcutsProvider>
+            <ProjectProvider>
+              <SessionsProvider>
+                <ActionButtonsProvider>
+                  <ModalProvider>
+                    <SelectionProvider>
+                      <FocusProvider>
+                        <ReviewProvider>
+                          <RunProvider>
+                            <ToastProvider>
                               <div className="h-screen w-screen">
                                 <App />
                               </div>
-                            </RunProvider>
-                          </ReviewProvider>
-                        </FocusProvider>
-                      </SelectionProvider>
-                    </ModalProvider>
-                  </ActionButtonsProvider>
-                </SessionsProvider>
-              </ProjectProvider>
-            </KeyboardShortcutsProvider>
-          </FontSizeProvider>
-        </ToastProvider>
+                            </ToastProvider>
+                          </RunProvider>
+                        </ReviewProvider>
+                      </FocusProvider>
+                    </SelectionProvider>
+                  </ModalProvider>
+                </ActionButtonsProvider>
+              </SessionsProvider>
+            </ProjectProvider>
+          </KeyboardShortcutsProvider>
+        </FontSizeProvider>
       </ErrorBoundary>
     </EntryAnimation>
   )

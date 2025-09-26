@@ -3,8 +3,6 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::domains::merge::service::compute_merge_state;
-use crate::domains::merge::types::MergeStateSnapshot;
 use crate::domains::sessions::activity::SessionGitStatsUpdated;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
@@ -16,7 +14,6 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::domains::git::service as git;
 use crate::domains::sessions::entity::ChangedFile;
-use git2::Repository;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileChangeEvent {
@@ -231,7 +228,6 @@ impl FileWatcher {
             Self::compute_change_summary(&changed_files, worktree_path, base_branch).await?;
 
         let branch_info = Self::get_branch_info(worktree_path, base_branch).await?;
-        let session_branch_name = branch_info.current_branch.clone();
 
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -258,30 +254,6 @@ impl FileWatcher {
         // Also emit fresh git stats immediately so the session list updates without waiting for polling
         match git::calculate_git_stats_fast(worktree_path, base_branch) {
             Ok(stats) => {
-                let has_conflicts = match git::has_conflicts(worktree_path) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        log::warn!("Watcher conflict detection failed for {session_name}: {err}");
-                        false
-                    }
-                };
-                let merge_state = Repository::open(worktree_path).ok().and_then(|repo| {
-                    let session_oid = repo.head().ok().and_then(|h| h.target());
-                    let parent_obj = repo.revparse_single(base_branch).ok()?;
-                    let parent_oid = parent_obj.peel_to_commit().ok()?.id();
-                    let branch_name = session_branch_name.clone();
-
-                    session_oid.and_then(|oid| {
-                        compute_merge_state(&repo, oid, parent_oid, &branch_name, base_branch)
-                            .map_err(|err| {
-                                log::debug!(
-                                    "Watcher merge assessment failed for {session_name}: {err}"
-                                );
-                            })
-                            .ok()
-                    })
-                });
-                let merge_snapshot = MergeStateSnapshot::from_state(merge_state);
                 // Collect a small sample of uncommitted paths to help frontend tooltips
                 let sample = match crate::domains::git::operations::uncommitted_sample_paths(
                     worktree_path,
@@ -297,11 +269,7 @@ impl FileWatcher {
                     lines_added: stats.lines_added,
                     lines_removed: stats.lines_removed,
                     has_uncommitted: stats.has_uncommitted,
-                    has_conflicts,
                     top_uncommitted_paths: sample,
-                    merge_has_conflicts: merge_snapshot.merge_has_conflicts,
-                    merge_conflicting_paths: merge_snapshot.merge_conflicting_paths,
-                    merge_is_up_to_date: merge_snapshot.merge_is_up_to_date,
                 };
                 let _ = emit_event(app_handle, SchaltEvent::SessionGitStats, &payload);
                 debug!(
