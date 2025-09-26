@@ -406,6 +406,26 @@ pub async fn set_auto_commit_on_review(auto_commit: bool) -> Result<(), String> 
 }
 
 #[tauri::command]
+pub async fn get_keyboard_shortcuts() -> Result<HashMap<String, Vec<String>>, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_keyboard_shortcuts())
+}
+
+#[tauri::command]
+pub async fn set_keyboard_shortcuts(shortcuts: HashMap<String, Vec<String>>) -> Result<(), String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager.set_keyboard_shortcuts(shortcuts)
+}
+
+#[tauri::command]
 pub async fn get_project_action_buttons() -> Result<Vec<HeaderActionConfig>, String> {
     let project = PROJECT_MANAGER
         .get()
