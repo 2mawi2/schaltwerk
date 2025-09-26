@@ -1029,6 +1029,8 @@ mod tests {
 
     #[test]
     fn test_find_codex_session_fast_resume_when_old_match_exists() {
+        use filetime::{set_file_mtime, FileTime};
+
         let tmp = tempdir().unwrap();
         let day_old = tmp.path().join(".codex/sessions/2025/08/22");
         let day_new = tmp.path().join(".codex/sessions/2025/09/14");
@@ -1041,6 +1043,10 @@ mod tests {
         // Create a newer non-matching session
         let new_other = day_new.join("rollout-2025-09-14T10-00-00-uuid.jsonl");
         write_jsonl_without_cwd(&new_other);
+
+        // Ensure deterministic ordering even on filesystems with coarse mod-time resolution.
+        set_file_mtime(&old_match, FileTime::from_unix_time(1, 0)).unwrap();
+        set_file_mtime(&new_other, FileTime::from_unix_time(2, 0)).unwrap();
 
         let newest_match =
             find_newest_session_for_cwd(tmp.path().join(".codex/sessions").as_path(), cwd).unwrap();

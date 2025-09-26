@@ -77,6 +77,15 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
+    const fetchOrchestratorBranch = useCallback(async () => {
+        try {
+            const branch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
+            setOrchestratorBranch(branch || "main")
+        } catch (error) {
+            logger.warn('Failed to get current branch, defaulting to main:', error)
+            setOrchestratorBranch("main")
+        }
+    }, [])
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
@@ -236,14 +245,32 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [sessions, selection, filterMode, ensureProjectMemory, allSessions, setSelection])
 
     // Fetch current branch for orchestrator
+    useEffect(() => { void fetchOrchestratorBranch() }, [fetchOrchestratorBranch])
+
     useEffect(() => {
-        invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
-            .then(branch => setOrchestratorBranch(branch))
-            .catch(error => {
-                logger.warn('Failed to get current branch, defaulting to main:', error)
-                setOrchestratorBranch("main")
-            })
-    }, [])
+        if (selection.kind !== 'orchestrator') return
+        void fetchOrchestratorBranch()
+    }, [selection, fetchOrchestratorBranch])
+
+    useEffect(() => {
+        let unlisten: UnlistenFn | null = null
+
+        const attach = async () => {
+            try {
+                unlisten = await listenEvent(SchaltEvent.ProjectReady, () => { void fetchOrchestratorBranch() })
+            } catch (error) {
+                logger.warn('Failed to listen for project ready events:', error)
+            }
+        }
+
+        void attach()
+
+        return () => {
+            if (unlisten) {
+                unlisten()
+            }
+        }
+    }, [fetchOrchestratorBranch])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
