@@ -159,6 +159,7 @@ const CATEGORIES: CategoryConfig[] = [
 
 interface ProjectSettings {
     setupScript: string
+    branchPrefix: string
     environmentVariables: Array<{key: string, value: string}>
 }
 
@@ -187,6 +188,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     const [projectPath, setProjectPath] = useState<string>('')
     const [projectSettings, setProjectSettings] = useState<ProjectSettings>({
         setupScript: '',
+        branchPrefix: 'schaltwerk',
         environmentVariables: []
     })
     const [terminalSettings, setTerminalSettings] = useState<TerminalSettings>({
@@ -396,7 +398,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         ])
         
         // Load project-specific settings (may fail if no project is open)
-        let loadedProjectSettings: ProjectSettings = { setupScript: '', environmentVariables: [] }
+        let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
         
@@ -1045,6 +1047,23 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
+                        <div className="text-body text-slate-400 mb-3">
+                            Configure the default Git branch prefix used when creating new Schaltwerk sessions. Use slashes to nest groups (for example <code className={theme.colors.accent.blue.DEFAULT}>team/frontend</code>). Spaces will be converted to hyphens automatically.
+                        </div>
+                        <input
+                            type="text"
+                            value={projectSettings.branchPrefix}
+                            onChange={(e) => {
+                                const sanitized = e.target.value.replace(/\s+/g, '-');
+                                setProjectSettings(prev => ({ ...prev, branchPrefix: sanitized }));
+                            }}
+                            placeholder="schaltwerk"
+                            className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                            spellCheck={false}
+                        />
+                    </div>
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
                         <div className="text-body text-slate-400 mb-4">

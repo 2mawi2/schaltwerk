@@ -1,4 +1,5 @@
 use super::repository::{get_unborn_head_branch, repository_has_commits};
+use crate::schaltwerk_core::db_project_config::DEFAULT_BRANCH_PREFIX;
 use anyhow::{anyhow, Result};
 use git2::{BranchType, Repository};
 use std::path::Path;
@@ -115,7 +116,14 @@ pub fn archive_branch(repo_path: &Path, branch_name: &str, session_name: &str) -
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
-    let archived_branch = format!("schaltwerk/archived/{timestamp}/{session_name}");
+    let prefix = branch_name
+        .strip_suffix(session_name)
+        .and_then(|base| base.strip_suffix('/'))
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string())
+        .unwrap_or_else(|| DEFAULT_BRANCH_PREFIX.to_string());
+
+    let archived_branch = format!("{prefix}/archived/{timestamp}/{session_name}");
 
     let repo = Repository::open(repo_path)?;
 

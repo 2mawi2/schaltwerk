@@ -104,6 +104,7 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             setup_script TEXT,
             last_selection_kind TEXT,
             last_selection_payload TEXT,
+            branch_prefix TEXT DEFAULT 'schaltwerk',
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
@@ -260,5 +261,13 @@ fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Resul
         [],
     );
     let _ = conn.execute("ALTER TABLE project_config ADD COLUMN run_script TEXT", []);
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN branch_prefix TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "UPDATE project_config SET branch_prefix = 'schaltwerk' WHERE branch_prefix IS NULL",
+        [],
+    );
     Ok(())
 }

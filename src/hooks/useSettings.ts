@@ -16,8 +16,11 @@ type EnvVars = Record<string, string>
 
 interface ProjectSettings {
     setupScript: string
+    branchPrefix: string
     environmentVariables: Array<{key: string, value: string}>
 }
+
+const DEFAULT_BRANCH_PREFIX = 'schaltwerk'
 
 interface TerminalSettings {
     shell: string | null
@@ -59,7 +62,12 @@ export const useSettings = () => {
     }, [])
     
     const saveProjectSettings = useCallback(async (projectSettings: ProjectSettings): Promise<void> => {
-        await invoke(TauriCommands.SetProjectSettings, { settings: { setupScript: projectSettings.setupScript } })
+        const trimmed = projectSettings.branchPrefix.trim()
+        const withoutWhitespace = trimmed.replace(/\s+/g, '-')
+        const normalized = withoutWhitespace.replace(/^\/+|\/+$/g, '')
+        const branchPrefix = normalized || DEFAULT_BRANCH_PREFIX
+
+        await invoke(TauriCommands.SetProjectSettings, { settings: { setupScript: projectSettings.setupScript, branchPrefix } })
         
         const projectEnvVarsObject = projectSettings.environmentVariables.reduce((acc, { key, value }) => {
             if (key) acc[key] = value
@@ -183,11 +191,12 @@ export const useSettings = () => {
             
             return {
                 setupScript: settings?.setupScript || '',
+                branchPrefix: settings?.branchPrefix || DEFAULT_BRANCH_PREFIX,
                 environmentVariables: envVarArray
             }
         } catch (error) {
             logger.error('Failed to load project settings:', error)
-            return { setupScript: '', environmentVariables: [] }
+            return { setupScript: '', branchPrefix: DEFAULT_BRANCH_PREFIX, environmentVariables: [] }
         }
     }, [])
     

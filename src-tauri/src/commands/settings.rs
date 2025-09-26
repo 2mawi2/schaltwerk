@@ -178,6 +178,7 @@ pub async fn set_project_default_base_branch(branch: Option<String>) -> Result<(
 #[serde(rename_all = "camelCase")]
 pub struct ProjectSettings {
     pub setup_script: String,
+    pub branch_prefix: String,
 }
 
 #[tauri::command]
@@ -197,7 +198,14 @@ pub async fn get_project_settings() -> Result<ProjectSettings, String> {
         .map_err(|e| format!("Failed to get project setup script: {e}"))?
         .unwrap_or_default();
 
-    Ok(ProjectSettings { setup_script })
+    let branch_prefix = db
+        .get_project_branch_prefix(&project.path)
+        .map_err(|e| format!("Failed to get project branch prefix: {e}"))?;
+
+    Ok(ProjectSettings {
+        setup_script,
+        branch_prefix,
+    })
 }
 
 #[tauri::command]
@@ -214,6 +222,8 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
 
     db.set_project_setup_script(&project.path, &settings.setup_script)
         .map_err(|e| format!("Failed to set project setup script: {e}"))?;
+    db.set_project_branch_prefix(&project.path, &settings.branch_prefix)
+        .map_err(|e| format!("Failed to set project branch prefix: {e}"))?;
 
     Ok(())
 }
@@ -481,8 +491,7 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
 }
 
 #[tauri::command]
-pub async fn reset_project_action_buttons_to_defaults(
-) -> Result<Vec<HeaderActionConfig>, String> {
+pub async fn reset_project_action_buttons_to_defaults() -> Result<Vec<HeaderActionConfig>, String> {
     let project = PROJECT_MANAGER
         .get()
         .ok_or_else(|| "Project manager not initialized".to_string())?
@@ -499,7 +508,7 @@ pub async fn reset_project_action_buttons_to_defaults(
         .map_err(|e| format!("Failed to set project action buttons: {e}"))?;
 
     log::info!(
-        "Reset project {} action buttons to defaults", 
+        "Reset project {} action buttons to defaults",
         project.path.display()
     );
 
@@ -565,6 +574,7 @@ mod tests {
     fn test_project_settings_serialization() {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho test".to_string(),
+            branch_prefix: "team".to_string(),
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -572,14 +582,16 @@ mod tests {
             json.contains("setupScript"),
             "Should use camelCase field name"
         );
+        assert!(json.contains("branchPrefix"));
         assert!(
             !json.contains("setup_script"),
             "Should not use snake_case field name"
         );
 
-        let json_input = r#"{"setupScript":"echo hello"}"#;
+        let json_input = r#"{"setupScript":"echo hello","branchPrefix":"feature"}"#;
         let deserialized: ProjectSettings = serde_json::from_str(json_input).unwrap();
         assert_eq!(deserialized.setup_script, "echo hello");
+        assert_eq!(deserialized.branch_prefix, "feature");
     }
 
     #[test]
@@ -922,6 +934,7 @@ mod tests {
     async fn test_set_project_settings_uninitialized_manager() {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho test".to_string(),
+            branch_prefix: "team".to_string(),
         };
         let result = set_project_settings(settings).await;
         assert!(result.is_err());
@@ -1054,9 +1067,11 @@ mod tests {
         let setup_script = "#!/bin/bash\necho 'Hello World'";
         let settings = ProjectSettings {
             setup_script: setup_script.to_string(),
+            branch_prefix: "team".to_string(),
         };
 
         assert_eq!(settings.setup_script, setup_script);
+        assert_eq!(settings.branch_prefix, "team");
     }
 
     #[test]
@@ -1094,6 +1109,7 @@ mod tests {
         let original = ProjectSettings {
             setup_script: "#!/bin/bash\necho 'test script'\nexport PATH=/usr/local/bin:$PATH"
                 .to_string(),
+            branch_prefix: "team".to_string(),
         };
 
         let json = serde_json::to_string(&original).unwrap();
@@ -1167,6 +1183,7 @@ mod tests {
     fn test_project_settings_with_special_characters() {
         let settings = ProjectSettings {
             setup_script: "#!/bin/bash\necho 'special chars: @#$%^&*()'\nexport PATH=/usr/local/bin:$PATH\ncd /some/path".to_string(),
+            branch_prefix: "team".to_string(),
         };
 
         let json = serde_json::to_string(&settings).unwrap();
@@ -1194,6 +1211,7 @@ mod tests {
     fn test_empty_project_settings() {
         let settings = ProjectSettings {
             setup_script: String::new(),
+            branch_prefix: "schaltwerk".to_string(),
         };
 
         let json = serde_json::to_string(&settings).unwrap();

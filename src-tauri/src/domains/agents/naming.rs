@@ -1,6 +1,10 @@
 use crate::{
-    domains::git, domains::sessions::db_sessions::SessionMethods,
-    schaltwerk_core::database::Database,
+    domains::git,
+    domains::sessions::db_sessions::SessionMethods,
+    schaltwerk_core::{
+        database::Database,
+        db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX},
+    },
 };
 
 use anyhow::{anyhow, Result};
@@ -106,8 +110,14 @@ pub async fn generate_display_name_and_rename_branch(
     .await?;
 
     if let Some(ref new_name) = result {
+        let branch_prefix = db
+            .get_project_branch_prefix(repo_path)
+            .unwrap_or_else(|err| {
+                log::warn!("Falling back to default branch prefix during agent rename: {err}");
+                DEFAULT_BRANCH_PREFIX.to_string()
+            });
         // Generate new branch name based on the display name
-        let new_branch = format!("schaltwerk/{new_name}");
+        let new_branch = format!("{branch_prefix}/{new_name}");
 
         // Only rename if the branch name would actually change
         if current_branch != new_branch {
