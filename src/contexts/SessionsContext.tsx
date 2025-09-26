@@ -84,7 +84,19 @@ function deriveMergeStatusFromSession(session: EnrichedSession): MergeStatus | u
         return undefined
     }
 
+    if (info.merge_has_conflicts === true) {
+        return 'conflict'
+    }
+
     if (info.has_conflicts === true) {
+        return 'conflict'
+    }
+
+    if (info.merge_is_up_to_date === true) {
+        return 'merged'
+    }
+
+    if (Array.isArray(info.merge_conflicting_paths) && info.merge_conflicting_paths.length > 0) {
         return 'conflict'
     }
 
@@ -153,6 +165,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [mergeInFlight, setMergeInFlight] = useState<Map<string, boolean>>(new Map())
     const mergeErrorCacheRef = useRef(new Map<string, string>())
     const [mergeStatuses, setMergeStatuses] = useState<Map<string, MergeStatus>>(new Map())
+    const mergePreviewCacheRef = useRef(new Map<string, MergePreviewResponse | null>())
+    const pendingMergePreviewRef = useRef(new Set<string>())
 
     const updateMergeInFlight = useCallback((sessionId: string, running: boolean) => {
         setMergeInFlight(prev => {
@@ -229,6 +243,21 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 TauriCommands.SchaltwerkCoreGetMergePreview,
                 { name: sessionId }
             )
+            mergePreviewCacheRef.current.set(sessionId, preview)
+            setAllSessions(prev => prev.map(session => {
+                if (session.info.session_id !== sessionId) {
+                    return session
+                }
+                return {
+                    ...session,
+                    info: {
+                        ...session.info,
+                        merge_has_conflicts: preview.hasConflicts,
+                        merge_conflicting_paths: preview.conflictingPaths.length ? preview.conflictingPaths : undefined,
+                        merge_is_up_to_date: preview.isUpToDate,
+                    }
+                }
+            }))
             setMergeStatuses(prev => {
                 const next = new Map(prev)
                 if (preview.hasConflicts) {
@@ -452,25 +481,58 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
             const enrichedSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
             const enriched = enrichedSessions || []
+            const previousSessions = new Map(allSessions.map(session => [session.info.session_id, session]))
+
+            const attachMergeSnapshot = (session: EnrichedSession): EnrichedSession => {
+                const previous = previousSessions.get(session.info.session_id)
+                const cached = mergePreviewCacheRef.current.get(session.info.session_id) ?? null
+                const mergeHasConflicts = session.info.merge_has_conflicts
+                    ?? previous?.info.merge_has_conflicts
+                    ?? (cached ? cached.hasConflicts : undefined)
+                const mergeIsUpToDate = session.info.merge_is_up_to_date
+                    ?? previous?.info.merge_is_up_to_date
+                    ?? (cached ? cached.isUpToDate : undefined)
+                const mergeConflictingPaths = session.info.merge_conflicting_paths
+                    ?? previous?.info.merge_conflicting_paths
+                    ?? (cached && cached.conflictingPaths.length ? cached.conflictingPaths : undefined)
+
+                if (
+                    mergeHasConflicts === session.info.merge_has_conflicts &&
+                    mergeIsUpToDate === session.info.merge_is_up_to_date &&
+                    mergeConflictingPaths === session.info.merge_conflicting_paths
+                ) {
+                    return session
+                }
+
+                return {
+                    ...session,
+                    info: {
+                        ...session.info,
+                        merge_has_conflicts: mergeHasConflicts,
+                        merge_is_up_to_date: mergeIsUpToDate,
+                        merge_conflicting_paths: mergeConflictingPaths,
+                    },
+                }
+            }
+
             const hasSpecSessions = (sessions: EnrichedSession[]) => {
                 return sessions.some(s => mapSessionUiState(s.info) === 'spec')
             }
 
-            // If enriched already contains specs, use it as-is
             if (hasSpecSessions(enriched)) {
-                setAllSessions(enriched)
-                syncMergeStatuses(enriched)
+                const normalized = enriched.map(attachMergeSnapshot)
+                setAllSessions(normalized)
+                syncMergeStatuses(normalized)
                 const nextStates = new Map<string, string>()
-                for (const s of enriched) {
+                for (const s of normalized) {
                     nextStates.set(s.info.session_id, mapSessionUiState(s.info))
                 }
                 prevStatesRef.current = nextStates
             } else {
-                // Try to fetch explicit specs; if shape is unexpected, ignore
-                let all = enriched
+                let all = enriched.map(attachMergeSnapshot)
                 try {
                     const draftSessions = await invoke<RawSession[]>(TauriCommands.SchaltwerkCoreListSessionsByState, { state: SessionState.Spec })
-                    
+
                     const hasValidDraftSessions = (drafts: RawSession[]): boolean => {
                         return Array.isArray(drafts) && drafts.some(d => d && (d.name || d.id))
                     }
@@ -478,34 +540,34 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     if (hasValidDraftSessions(draftSessions)) {
                         const enrichDraftSessions = (drafts: RawSession[]): EnrichedSession[] => {
                             return drafts.map(spec => ({
-                            id: spec.id,
-                            info: {
-                                session_id: spec.name,
-                                display_name: spec.display_name || spec.name,
-                                branch: spec.branch,
-                                worktree_path: spec.worktree_path || '',
-                                base_branch: spec.parent_branch,
-                                status: 'spec',
-                                session_state: SessionState.Spec,
-                                created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
-                                last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
-                                has_uncommitted_changes: false,
-                                ready_to_merge: false,
-                                diff_stats: undefined,
-                                is_current: false,
-                                session_type: 'worktree',
-                            },
-                            terminals: []
-                        }))
+                                id: spec.id,
+                                info: {
+                                    session_id: spec.name,
+                                    display_name: spec.display_name || spec.name,
+                                    branch: spec.branch,
+                                    worktree_path: spec.worktree_path || '',
+                                    base_branch: spec.parent_branch,
+                                    status: 'spec',
+                                    session_state: SessionState.Spec,
+                                    created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
+                                    last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
+                                    has_uncommitted_changes: false,
+                                    ready_to_merge: false,
+                                    diff_stats: undefined,
+                                    is_current: false,
+                                    session_type: 'worktree',
+                                },
+                                terminals: []
+                            }))
                         }
-                        
-                        const enrichedDrafts = enrichDraftSessions(draftSessions)
-                        all = mergeSessionsPreferDraft(enriched, enrichedDrafts)
+
+                        const enrichedDrafts = enrichDraftSessions(draftSessions).map(attachMergeSnapshot)
+                        all = mergeSessionsPreferDraft(all, enrichedDrafts)
                     }
                 } catch (error) {
-                    // Failed to fetch draft sessions, continue with enriched only
                     logger.warn('Failed to fetch draft sessions, continuing with enriched sessions only:', error)
                 }
+
                 setAllSessions(all)
                 syncMergeStatuses(all)
                 const nextStates = new Map<string, string>()
@@ -521,7 +583,78 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, syncMergeStatuses])
+    }, [projectPath, allSessions, syncMergeStatuses])
+
+    useEffect(() => {
+        if (!projectPath) {
+            return
+        }
+
+        const readySessions = allSessions.filter(session => session.info.ready_to_merge)
+        readySessions.forEach(session => {
+            const sessionId = session.info.session_id
+            if (pendingMergePreviewRef.current.has(sessionId)) {
+                return
+            }
+
+            const cachedPreview = mergePreviewCacheRef.current.get(sessionId)
+            const hasSnapshot = typeof session.info.merge_has_conflicts === 'boolean'
+                || typeof session.info.merge_is_up_to_date === 'boolean'
+                || (Array.isArray(session.info.merge_conflicting_paths) && session.info.merge_conflicting_paths.length > 0)
+                || Boolean(cachedPreview)
+
+            if (hasSnapshot) {
+                return
+            }
+
+            pendingMergePreviewRef.current.add(sessionId)
+
+            Promise.resolve(
+                invoke<MergePreviewResponse | null | undefined>(
+                    TauriCommands.SchaltwerkCoreGetMergePreview,
+                    { name: sessionId }
+                )
+            ).then(preview => {
+                    mergePreviewCacheRef.current.set(sessionId, preview ?? null)
+
+                    if (!preview) {
+                        return
+                    }
+
+                    setAllSessions(prev => prev.map(existing => {
+                        if (existing.info.session_id !== sessionId) {
+                            return existing
+                        }
+                        return {
+                            ...existing,
+                            info: {
+                                ...existing.info,
+                                merge_has_conflicts: preview.hasConflicts,
+                                merge_conflicting_paths: preview.conflictingPaths.length ? preview.conflictingPaths : existing.info.merge_conflicting_paths,
+                                merge_is_up_to_date: preview.isUpToDate,
+                            },
+                        }
+                    }))
+                    setMergeStatuses(prev => {
+                        const next = new Map(prev)
+                        if (preview.hasConflicts) {
+                            next.set(sessionId, 'conflict')
+                        } else if (preview.isUpToDate) {
+                            next.set(sessionId, 'merged')
+                        } else {
+                            next.delete(sessionId)
+                        }
+                        return next
+                    })
+                })
+                .catch(error => {
+                    logger.warn('[SessionsContext] Failed to prefetch merge preview:', error)
+                })
+                .finally(() => {
+                    pendingMergePreviewRef.current.delete(sessionId)
+                })
+        })
+    }, [allSessions, projectPath])
 
     // Ensure a backend watcher is active for each running session so git stats update instantly
     // Note: file watchers are managed per active selection in SelectionContext to
@@ -749,6 +882,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     top_uncommitted_paths,
                     merge_has_conflicts,
                     merge_is_up_to_date,
+                    merge_conflicting_paths,
                 } = event
                 setAllSessions(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
@@ -767,6 +901,9 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             has_uncommitted_changes: has_uncommitted,
                             has_conflicts,
                             top_uncommitted_paths: top_uncommitted_paths && top_uncommitted_paths.length ? top_uncommitted_paths : undefined,
+                            merge_has_conflicts: merge_has_conflicts ?? s.info.merge_has_conflicts,
+                            merge_conflicting_paths: merge_conflicting_paths && merge_conflicting_paths.length ? merge_conflicting_paths : s.info.merge_conflicting_paths,
+                            merge_is_up_to_date: typeof merge_is_up_to_date === 'boolean' ? merge_is_up_to_date : s.info.merge_is_up_to_date,
                         }
                     }
                 }))

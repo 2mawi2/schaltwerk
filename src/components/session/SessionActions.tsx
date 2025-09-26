@@ -37,6 +37,7 @@ interface SessionActionsProps {
   disableMerge?: boolean;
   mergeStatus?: MergeStatus;
   isMarkReadyDisabled?: boolean;
+  mergeConflictingPaths?: string[];
 }
 
 export function SessionActions({
@@ -59,10 +60,17 @@ export function SessionActions({
   isResetting = false,
   disableMerge = false,
   mergeStatus = 'idle',
-  isMarkReadyDisabled = false
+  isMarkReadyDisabled = false,
+  mergeConflictingPaths,
 }: SessionActionsProps) {
   // Use moderate spacing for medium-sized buttons
   const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
+
+  const conflictCount = mergeConflictingPaths?.length ?? 0
+  const conflictLabel = conflictCount > 0 ? `Resolve conflicts (${conflictCount})` : 'Resolve conflicts'
+  const conflictTooltip = conflictCount > 0
+    ? `Resolve conflicts (⌘⇧M)${mergeConflictingPaths?.length ? ` • ${mergeConflictingPaths.slice(0, 3).join(', ')}${mergeConflictingPaths.length > 3 ? '…' : ''}` : ''}`
+    : 'Resolve conflicts (⌘⇧M)'
   
   return (
     <div className={`flex items-center ${spacing}`}>
@@ -185,11 +193,11 @@ export function SessionActions({
                   cursor: disableMerge ? 'not-allowed' : 'pointer',
                   opacity: disableMerge ? 0.6 : 1,
                 }}
-                title="Resolve conflicts (⌘⇧M)"
+                title={conflictTooltip}
                 aria-label="Resolve merge conflicts"
               >
                 <VscWarning />
-                Resolve conflicts
+                {conflictLabel}
               </button>
             ) : (
               <IconButton

@@ -28,6 +28,9 @@ export interface SessionInfo {
     last_modified_ts?: number
     has_uncommitted_changes?: boolean
     has_conflicts?: boolean
+    merge_has_conflicts?: boolean
+    merge_conflicting_paths?: string[]
+    merge_is_up_to_date?: boolean
     is_current: boolean
     session_type: 'worktree' | 'container'
     container_status?: string

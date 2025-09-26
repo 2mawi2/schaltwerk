@@ -557,6 +557,108 @@ describe('SessionsContext', () => {
         expect(result.current.getMergeStatus('test-ready')).toBe('merged')
     })
 
+    it('prefetches merge preview for ready sessions on initial load', async () => {
+        const previewResponse = {
+            sessionBranch: 'feature/test-ready',
+            parentBranch: 'main',
+            squashCommands: [],
+            reapplyCommands: [],
+            defaultCommitMessage: 'Merge feature/test-ready',
+            hasConflicts: true,
+            conflictingPaths: ['src/foo.ts'],
+            isUpToDate: false,
+        }
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
+                expect(args).toEqual({ name: 'test-ready' })
+                return previewResponse
+            }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
+        })
+
+        expect(invoke).toHaveBeenCalledWith(
+            TauriCommands.SchaltwerkCoreGetMergePreview,
+            { name: 'test-ready' }
+        )
+    })
+
+    it('prefetches merge preview when session becomes ready to merge after refresh', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const previewResponse = {
+            sessionBranch: 'feature/test-active',
+            parentBranch: 'main',
+            squashCommands: [],
+            reapplyCommands: [],
+            defaultCommitMessage: 'Merge feature/test-active',
+            hasConflicts: true,
+            conflictingPaths: ['src/bar.ts'],
+            isUpToDate: false,
+        }
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: unknown) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.SchaltwerkCoreGetMergePreview) {
+                expect(args).toEqual({ name: 'test-active' })
+                return previewResponse
+            }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
+        })
+
+        act(() => {
+            listeners[SchaltEvent.SessionsRefreshed]?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 3,
+                payload: [
+                    mockSessions[0],
+                    {
+                        ...mockSessions[1],
+                        info: {
+                            ...mockSessions[1].info,
+                            ready_to_merge: true,
+                            session_state: 'reviewed',
+                        }
+                    },
+                    mockSessions[2],
+                ],
+            } as unknown as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            expect(result.current.getMergeStatus('test-active')).toBe('conflict')
+        })
+
+        expect(invoke).toHaveBeenCalledWith(
+            TauriCommands.SchaltwerkCoreGetMergePreview,
+            { name: 'test-active' }
+        )
+    })
+
     it('should handle session removal events', async () => {
         const { listen } = await import('@tauri-apps/api/event')
         const listeners: Record<string, (event: Event<unknown>) => void> = {}

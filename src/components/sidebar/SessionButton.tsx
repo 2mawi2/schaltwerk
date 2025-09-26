@@ -229,6 +229,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                             onMerge={onMerge}
                             disableMerge={disableMerge}
                             mergeStatus={mergeStatus}
+                            mergeConflictingPaths={s.merge_conflicting_paths}
                             isMarkReadyDisabled={isMarkReadyDisabled}
                         />
                     </div>
@@ -257,6 +258,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                         onMerge={onMerge}
                         disableMerge={disableMerge}
                         mergeStatus={mergeStatus}
+                        mergeConflictingPaths={s.merge_conflicting_paths}
                         isMarkReadyDisabled={isMarkReadyDisabled}
                     />
                 </div>

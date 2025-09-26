@@ -149,6 +149,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                             onMerge={onMerge}
                             disableMerge={disableMerge}
                             isMarkReadyDisabled={isMarkReadyDisabled}
+                            mergeConflictingPaths={s.merge_conflicting_paths}
                         />
                     </div>
                 )}
@@ -171,6 +172,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         onMerge={onMerge}
                         disableMerge={disableMerge}
                         isMarkReadyDisabled={isMarkReadyDisabled}
+                        mergeConflictingPaths={s.merge_conflicting_paths}
                     />
                 </div>
             )}
