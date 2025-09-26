@@ -674,6 +674,7 @@ fn main() {
             schaltwerk_core_delete_archived_spec,
             schaltwerk_core_get_archive_max_entries,
             schaltwerk_core_set_archive_max_entries,
+            schaltwerk_core_list_project_files,
             // Open apps commands
             get_default_open_app,
             set_default_open_app,

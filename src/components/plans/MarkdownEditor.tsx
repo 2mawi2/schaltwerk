@@ -2,8 +2,10 @@ import { useMemo, useCallback, memo, useRef, useEffect, useState, forwardRef, us
 import CodeMirror from '@uiw/react-codemirror'
 import { markdown } from '@codemirror/lang-markdown'
 import { EditorView } from '@codemirror/view'
-import { EditorState } from '@codemirror/state'
+import { EditorState, type Extension } from '@codemirror/state'
 import { theme } from '../../common/theme'
+import type { ProjectFileIndexApi } from '../../hooks/useProjectFileIndex'
+import { createFileReferenceAutocomplete } from './fileReferenceAutocomplete'
 
 interface MarkdownEditorProps {
   value: string
@@ -11,6 +13,7 @@ interface MarkdownEditorProps {
   placeholder?: string
   readOnly?: boolean
   className?: string
+  fileReferenceProvider?: ProjectFileIndexApi
 }
 
 export interface MarkdownEditorRef {
@@ -181,11 +184,19 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
   placeholder = 'Enter agent description in markdown…',
   readOnly = false,
   className = '',
+  fileReferenceProvider,
 }, ref) {
   const editorConfig = useMemo(() => EditorState.tabSize.of(2), [])
   const lastValueRef = useRef(value)
   const [internalValue, setInternalValue] = useState(value)
   const editorViewRef = useRef<EditorView | null>(null)
+
+  const fileReferenceExtensions = useMemo<Extension[]>(() => {
+    if (!fileReferenceProvider) {
+      return []
+    }
+    return [createFileReferenceAutocomplete(fileReferenceProvider)]
+  }, [fileReferenceProvider])
 
   const extensions = useMemo(() => [
     markdown(),
@@ -193,7 +204,8 @@ export const MarkdownEditor = memo(forwardRef<MarkdownEditorRef, MarkdownEditorP
     syntaxHighlighting,
     EditorView.lineWrapping,
     editorConfig,
-  ], [editorConfig])
+    ...fileReferenceExtensions,
+  ], [editorConfig, fileReferenceExtensions])
 
   // Only update internal value if the prop value actually changed
   useEffect(() => {

@@ -42,6 +42,7 @@
   "overrides": {},
   "dependencies": {
     "@codemirror/lang-markdown": "^6.3.4",
+    "@codemirror/autocomplete": "^6.10.2",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.3",
     "@tailwindcss/postcss": "^4.1.13",
