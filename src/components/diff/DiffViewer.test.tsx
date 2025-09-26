@@ -35,6 +35,7 @@ const mockProps: Partial<DiffViewerProps> = {
   expandedSectionsByFile: new Map<string, Set<number>>(),
   isLargeDiffMode: true,
   visibleFileSet: new Set(['src/file1.ts']),
+  renderedFileSet: new Set(['src/file1.ts']),
   loadingFiles: new Set<string>(),
   observerRef: { current: null },
    scrollContainerRef: { current: null } as unknown as React.RefObject<HTMLDivElement>,
@@ -203,6 +204,7 @@ describe('DiffViewer', () => {
       files: mockFiles,
       selectedFile: 'src/file2.tsx',
       visibleFileSet: new Set<string>(),
+      renderedFileSet: new Set<string>(),
       allFileDiffs: new Map([
         ['src/file1.ts', mockFileDiff],
         ['src/file2.tsx', file2Diff]
@@ -214,6 +216,24 @@ describe('DiffViewer', () => {
 
     const placeholders = screen.getAllByTestId('diff-placeholder')
     expect(placeholders.length).toBeGreaterThan(0)
+  })
+
+  it('keeps diff content rendered while file remains in the rendered set', () => {
+    const props = {
+      ...mockProps,
+      isLargeDiffMode: false,
+      files: [{ path: 'src/file1.ts', change_type: 'modified' as const }],
+      selectedFile: null,
+      visibleFileSet: new Set<string>(),
+      renderedFileSet: new Set<string>(['src/file1.ts']),
+      allFileDiffs: new Map([
+        ['src/file1.ts', mockFileDiff]
+      ])
+    }
+
+    render(<DiffViewer {...props as DiffViewerProps} />)
+
+    expect(screen.queryByTestId('diff-placeholder')).not.toBeInTheDocument()
   })
 
   it('applies horizontal scrolling at the file level instead of per line', () => {

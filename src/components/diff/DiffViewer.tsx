@@ -24,6 +24,7 @@ export interface DiffViewerProps {
   expandedSectionsByFile: Map<string, Set<number>>
   isLargeDiffMode: boolean
   visibleFileSet: Set<string>
+  renderedFileSet: Set<string>
   loadingFiles: Set<string>
   observerRef: React.MutableRefObject<IntersectionObserver | null>
   scrollContainerRef: React.RefObject<HTMLDivElement>
@@ -53,6 +54,7 @@ export function DiffViewer({
   expandedSectionsByFile,
   isLargeDiffMode,
   visibleFileSet,
+  renderedFileSet,
   loadingFiles,
   observerRef,
   scrollContainerRef,
@@ -310,10 +312,11 @@ export function DiffViewer({
             const commentCount = getCommentsForFile(file.path).length
             const isCurrentFile = file.path === selectedFile
             const isLoading = loadingFiles.has(file.path)
-            const isVisible = visibleFileSet.has(file.path)
             const expandedSet = expandedSectionsByFile.get(file.path)
             const storedHeight = fileBodyHeights.get(file.path)
-            const shouldRenderContent = !!fileDiff && (isCurrentFile || isVisible)
+            const isVisible = visibleFileSet.has(file.path)
+            const isRendered = isVisible || renderedFileSet.has(file.path)
+            const shouldRenderContent = !!fileDiff && (isCurrentFile || isRendered)
 
             return (
               <div

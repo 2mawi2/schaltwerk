@@ -90,10 +90,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   
   // Virtual scrolling state for continuous mode
   const [visibleFileSet, setVisibleFileSet] = useState<Set<string>>(new Set())
+  const [renderedFileSet, setRenderedFileSet] = useState<Set<string>>(new Set())
   const [loadingFiles, setLoadingFiles] = useState<Set<string>>(new Set())
   const observerRef = useRef<IntersectionObserver | null>(null)
   const pendingVisibilityUpdatesRef = useRef<Map<string, boolean>>(new Map())
   const visibilityFrameRef = useRef<number | NodeJS.Timeout | null>(null)
+  const recentlyVisibleRef = useRef<string[]>([])
 
   // Use single file view mode when continuousScroll is disabled
   const isLargeDiffMode = useMemo(() => {
@@ -348,6 +350,8 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       pendingUpdates.clear()
       clearPendingFrame()
       setVisibleFileSet(prev => (prev.size === 0 ? prev : new Set<string>()))
+      recentlyVisibleRef.current = []
+      setRenderedFileSet(prev => (prev.size === 0 ? prev : new Set<string>()))
       return
     }
 
@@ -416,6 +420,19 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       }
     }
   }, [isOpen, isLargeDiffMode, files])
+
+  useEffect(() => {
+    if (visibleFileSet.size === 0) {
+      return
+    }
+
+    const maxRecent = 4
+    const visibleList = Array.from(visibleFileSet)
+    const historical = recentlyVisibleRef.current.filter(path => !visibleFileSet.has(path))
+    const combined = [...visibleList, ...historical].slice(0, maxRecent)
+    recentlyVisibleRef.current = combined
+    setRenderedFileSet(new Set(combined))
+  }, [visibleFileSet])
 
   // Load diffs for visible files with buffer zones
   useEffect(() => {
@@ -844,6 +861,28 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [files])
 
   useEffect(() => {
+    const validPaths = new Set(files.map(f => f.path))
+    setRenderedFileSet(prev => {
+      if (prev.size === 0) {
+        return prev
+      }
+      let mutated = false
+      const next = new Set<string>()
+      prev.forEach(path => {
+        if (validPaths.has(path)) {
+          next.add(path)
+        } else {
+          mutated = true
+        }
+      })
+      if (mutated) {
+        recentlyVisibleRef.current = recentlyVisibleRef.current.filter(path => validPaths.has(path))
+      }
+      return mutated ? next : prev
+    })
+  }, [files])
+
+  useEffect(() => {
     setExpandedSections(prev => {
       if (prev.size === 0) {
         return prev
@@ -1149,6 +1188,7 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
                     expandedSectionsByFile={expandedSections}
                     isLargeDiffMode={isLargeDiffMode}
                     visibleFileSet={visibleFileSet}
+                    renderedFileSet={renderedFileSet}
                     loadingFiles={loadingFiles}
                     observerRef={observerRef}
                     scrollContainerRef={scrollContainerRef as React.RefObject<HTMLDivElement>}
