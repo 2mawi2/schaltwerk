@@ -111,7 +111,7 @@ const createDefaultUseSettingsValue = () => ({
   saveAllSettings: vi.fn().mockResolvedValue({ success: true, savedSettings: [], failedSettings: [] }),
   loadEnvVars: vi.fn().mockResolvedValue(createEmptyEnvVars()),
   loadCliArgs: vi.fn().mockResolvedValue(createEmptyCliArgs()),
-  loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', environmentVariables: [] }),
+  loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
   loadSessionPreferences: vi.fn().mockResolvedValue({ auto_commit_on_review: false, skip_confirmation_modals: false }),
   loadKeyboardShortcuts: vi.fn().mockResolvedValue(defaultShortcutConfig),

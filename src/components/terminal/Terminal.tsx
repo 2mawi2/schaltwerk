@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, forwardRef, useImperativeHandle, useCallback, useMemo } from 'react';
 import { TauriCommands } from '../../common/tauriCommands'
 import { SchaltEvent, listenEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { UiEvent, emitUiEvent, listenUiEvent, hasBackgroundStart, clearBackgroundStarts } from '../../common/uiEvents'
@@ -1768,18 +1768,16 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     }, [resolvedFontFamily, terminalId, applySizeUpdate])
 
     // Force scroll to bottom when switching sessions
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (previousTerminalId.current !== terminalId) {
             // Terminal ID changed - this is a session switch
             snapshotCursorRef.current = null
             if (terminal.current) {
-                requestAnimationFrame(() => {
-                    try {
-                        terminal.current?.scrollToBottom();
-                    } catch (error) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
-                    }
-                });
+                try {
+                    terminal.current.scrollToBottom();
+                } catch (error) {
+                    logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
+                }
             }
             previousTerminalId.current = terminalId;
         }

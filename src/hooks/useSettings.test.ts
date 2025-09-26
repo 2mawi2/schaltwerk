@@ -103,6 +103,7 @@ describe('useSettings', () => {
       
       const projectSettings = {
         setupScript: 'npm install && npm run build',
+        branchPrefix: 'feature',
         environmentVariables: [
           { key: 'NODE_ENV', value: 'production' },
           { key: 'PORT', value: '3000' }
@@ -114,7 +115,7 @@ describe('useSettings', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectSettings, {
-        settings: { setupScript: 'npm install && npm run build' }
+        settings: { setupScript: 'npm install && npm run build', branchPrefix: 'feature' }
       })
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectEnvironmentVariables, {
         envVars: {
@@ -129,6 +130,7 @@ describe('useSettings', () => {
       
       const projectSettings = {
         setupScript: '',
+        branchPrefix: 'feature',
         environmentVariables: [
           { key: 'VALID', value: 'yes' },
           { key: '', value: 'no-key' }
@@ -223,7 +225,8 @@ describe('useSettings', () => {
       
       const projectSettings = {
         setupScript: '',
-        environmentVariables: []
+        environmentVariables: [],
+        branchPrefix: 'feature'
       }
       
       const terminalSettings = {
@@ -281,7 +284,8 @@ describe('useSettings', () => {
       
       const projectSettings = {
         setupScript: '',
-        environmentVariables: []
+        environmentVariables: [],
+        branchPrefix: 'feature'
       }
       
       const terminalSettings = {
@@ -413,7 +417,7 @@ describe('useSettings', () => {
     it('loads project settings and environment variables', async () => {
       mockInvoke.mockImplementation((command: string) => {
         if (command === TauriCommands.GetProjectSettings) {
-          return Promise.resolve({ setupScript: 'npm install' })
+          return Promise.resolve({ setupScript: 'npm install', branchPrefix: 'team' })
         }
         if (command === 'get_project_environment_variables') {
           return Promise.resolve({ NODE_ENV: 'test', DEBUG: 'true' })
@@ -429,6 +433,7 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         setupScript: 'npm install',
+        branchPrefix: 'team',
         environmentVariables: [
           { key: 'NODE_ENV', value: 'test' },
           { key: 'DEBUG', value: 'true' }
@@ -447,6 +452,7 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         setupScript: '',
+        branchPrefix: 'schaltwerk',
         environmentVariables: []
       })
     })
@@ -470,6 +476,7 @@ describe('useSettings', () => {
 
       expect(settings).toEqual({
         setupScript: '',
+        branchPrefix: 'schaltwerk',
         environmentVariables: []
       })
     })

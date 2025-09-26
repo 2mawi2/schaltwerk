@@ -396,6 +396,36 @@ describe('Terminal component', () => {
     expect(allWrites).toContain('A')
   })
 
+  it('scrolls to bottom synchronously on session switch', async () => {
+    const originalRaf = globalThis.requestAnimationFrame
+    const rafStub = vi.fn().mockReturnValue(0)
+    // Prevent queued callbacks from running automatically so we can detect synchronous behavior
+    globalThis.requestAnimationFrame = rafStub as unknown as typeof globalThis.requestAnimationFrame
+
+    const utils = renderTerminal({ terminalId: 'session-alpha-top', sessionName: 'alpha' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+
+    // Reset any calls from initial hydration
+    scrollSpy.mockClear()
+
+    try {
+      utils.rerender(
+        <TestProviders>
+          <Terminal terminalId="session-beta-top" sessionName="beta" />
+        </TestProviders>
+      )
+
+      // Expect synchronous scroll without relying on requestAnimationFrame callbacks
+      expect(scrollSpy).toHaveBeenCalled()
+    } finally {
+      scrollSpy.mockRestore()
+      globalThis.requestAnimationFrame = originalRaf
+    }
+  })
+
   it('defers initial resize until container becomes measurable', async () => {
     const { container } = renderTerminal({ terminalId: 'session-defer-top', sessionName: 'defer' })
     await flushAll()

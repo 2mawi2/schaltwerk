@@ -3,6 +3,7 @@ use crate::{
     domains::sessions::cache::SessionCacheManager,
     domains::sessions::entity::{EnrichedSession, FilterMode, SessionState, SortMode},
     domains::sessions::repository::SessionDbManager,
+    schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX},
 };
 use anyhow::{anyhow, Result};
 use rand::Rng;
@@ -16,6 +17,32 @@ pub struct SessionUtils {
 }
 
 impl SessionUtils {
+    fn branch_prefix(&self) -> String {
+        self.db_manager
+            .db
+            .get_project_branch_prefix(&self.repo_path)
+            .unwrap_or_else(|err| {
+                log::warn!("Falling back to default branch prefix due to error: {err}");
+                DEFAULT_BRANCH_PREFIX.to_string()
+            })
+    }
+
+    fn check_name_availability_with_prefix(&self, name: &str, branch_prefix: &str) -> Result<bool> {
+        let branch = format!("{branch_prefix}/{name}");
+        let worktree_path = self
+            .repo_path
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join(name);
+
+        let worktree_exists = worktree_path.exists();
+        let session_exists = self.db_manager.session_exists(name);
+        let reserved_exists = self.cache_manager.is_reserved(name);
+        let branch_exists = git::branch_exists(&self.repo_path, &branch)?;
+
+        Ok(!worktree_exists && !session_exists && !reserved_exists && !branch_exists)
+    }
+
     pub fn new(
         repo_path: PathBuf,
         cache_manager: SessionCacheManager,
@@ -48,23 +75,15 @@ impl SessionUtils {
     }
 
     pub fn check_name_availability(&self, name: &str) -> Result<bool> {
-        let _branch = format!("schaltwerk/{name}");
-        let worktree_path = self
-            .repo_path
-            .join(".schaltwerk")
-            .join("worktrees")
-            .join(name);
-
-        let worktree_exists = worktree_path.exists();
-        let session_exists = self.db_manager.session_exists(name);
-        let reserved_exists = self.cache_manager.is_reserved(name);
-
-        Ok(!worktree_exists && !session_exists && !reserved_exists)
+        let branch_prefix = self.branch_prefix();
+        self.check_name_availability_with_prefix(name, &branch_prefix)
     }
 
     pub fn find_unique_session_paths(&self, base_name: &str) -> Result<(String, String, PathBuf)> {
-        if self.check_name_availability(base_name)? {
-            let branch = format!("schaltwerk/{base_name}");
+        let branch_prefix = self.branch_prefix();
+
+        if self.check_name_availability_with_prefix(base_name, &branch_prefix)? {
+            let branch = format!("{branch_prefix}/{base_name}");
             let worktree_path = self
                 .repo_path
                 .join(".schaltwerk")
@@ -79,8 +98,8 @@ impl SessionUtils {
             let suffix = Self::generate_random_suffix(2);
             let candidate = format!("{base_name}-{suffix}");
 
-            if self.check_name_availability(&candidate)? {
-                let branch = format!("schaltwerk/{candidate}");
+            if self.check_name_availability_with_prefix(&candidate, &branch_prefix)? {
+                let branch = format!("{branch_prefix}/{candidate}");
                 let worktree_path = self
                     .repo_path
                     .join(".schaltwerk")
@@ -95,8 +114,8 @@ impl SessionUtils {
         for i in 1..=100 {
             let candidate = format!("{base_name}-{i}");
 
-            if self.check_name_availability(&candidate)? {
-                let branch = format!("schaltwerk/{candidate}");
+            if self.check_name_availability_with_prefix(&candidate, &branch_prefix)? {
+                let branch = format!("{branch_prefix}/{candidate}");
                 let worktree_path = self
                     .repo_path
                     .join(".schaltwerk")
