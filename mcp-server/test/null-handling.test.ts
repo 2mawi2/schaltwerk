@@ -1,10 +1,14 @@
 describe('MCP Server Null Handling', () => {
   describe('Date formatting with null values', () => {
-    it('should throw when formatting null dates directly', () => {
-      expect(() => new Date(null as any).toISOString()).toThrow()
-      expect(() => new Date(undefined as any).toISOString()).toThrow()
-      expect(() => new Date(null as any).toLocaleString()).toThrow()
-      expect(() => new Date(undefined as any).toLocaleDateString()).toThrow()
+    it('should surface native Date coercion behavior for nullish inputs', () => {
+      expect(() => new Date(null as any).toISOString()).not.toThrow()
+      expect(() => new Date(null as any).toLocaleString()).not.toThrow()
+      expect(new Date(null as any).getTime()).toBe(0)
+
+      expect(() => new Date(undefined as any).toISOString()).toThrow(RangeError)
+      expect(() => new Date(undefined as any).toLocaleString()).not.toThrow()
+      expect(new Date(undefined as any).toLocaleString()).toBe('Invalid Date')
+      expect(Number.isFinite(new Date(undefined as any).getTime())).toBe(false)
     })
 
     it('should handle null dates in text formatting', () => {

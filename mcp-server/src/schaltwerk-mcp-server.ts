@@ -43,7 +43,7 @@ interface SchaltwerkSendMessageArgs {
   message: string
 }
 
-interface SchaltwerkDraftCreateArgs {
+interface SchaltwerkSpecCreateArgs {
   name?: string
   content?: string
   base_branch?: string
@@ -384,15 +384,15 @@ REQUIREMENTS: Target session must exist and be active.`,
         }
       },
       {
-        name: "schaltwerk_draft_create",
+        name: "schaltwerk_spec_create",
         description: `Create a new spec session for later refinement and execution.
 
 🎯 PURPOSE: Create spec sessions to collaborate on agent descriptions before starting agents.
 
 📋 USAGE:
-- Basic: schaltwerk_draft_create(name: "auth-feature", content: "# Authentication\\n\\nImplement user login")
-- Without content: schaltwerk_draft_create(name: "bug-fix")
-- With base branch: schaltwerk_draft_create(name: "hotfix", content: "Fix critical bug", base_branch: "production")
+- Basic: schaltwerk_spec_create(name: "auth-feature", content: "# Authentication\\n\\nImplement user login")
+- Without content: schaltwerk_spec_create(name: "bug-fix")
+- With base branch: schaltwerk_spec_create(name: "hotfix", content: "Fix critical bug", base_branch: "production")
 
 ✏️ PLANS:
 - Specs are lightweight specning sessions
@@ -917,15 +917,15 @@ ${session.initial_prompt ? `- Initial Prompt: ${session.initial_prompt}` : ''}`
         break
       }
 
-      case "schaltwerk_draft_create": {
-        const draftCreateArgs = args as SchaltwerkDraftCreateArgs
-        
+      case "schaltwerk_spec_create": {
+        const specCreateArgs = args as SchaltwerkSpecCreateArgs
+
         const session = await bridge.createSpecSession(
-          draftCreateArgs.name || `draft_${Date.now()}`,
-          draftCreateArgs.content,
-          draftCreateArgs.base_branch
+          specCreateArgs.name || `spec_${Date.now()}`,
+          specCreateArgs.content,
+          specCreateArgs.base_branch
         )
-        
+
         result = `Spec session created successfully:
 - Name: ${session.name}
 - Branch: ${session.branch} (will be created when started)
