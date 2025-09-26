@@ -12,7 +12,6 @@ use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::ProjectConfigMethods;
 use serde::Serialize;
-use std::process::Command;
 mod agent_ctx;
 mod agent_launcher;
 mod events;
@@ -2430,10 +2429,6 @@ pub async fn github_publish_prepare(
         pushed_branch: result.pushed_branch.clone(),
         mode: mode_normalized.clone(),
     };
-
-    if let Err(err) = Command::new("open").arg(&result.compare_url).status() {
-        log::warn!("Failed to open compare URL {}: {}", result.compare_url, err);
-    }
 
     let _ = emit_event(
         &app,

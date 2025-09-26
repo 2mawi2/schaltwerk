@@ -73,6 +73,7 @@ const sampleSession: SessionInfo = {
 function renderModal() {
   const onClose = vi.fn()
   const onCancelSession = vi.fn()
+  vi.spyOn(window, 'open').mockImplementation(() => null)
   render(
     <ModalProvider>
       <GitHubPublishModal
@@ -91,9 +92,10 @@ describe('GitHubPublishModal', () => {
     vi.useRealTimers()
   })
 
-  afterEach(() => {
-    cleanup()
-  })
+afterEach(() => {
+  cleanup()
+  vi.restoreAllMocks()
+})
 
   it('loads context, allows configuration, and triggers publish', async () => {
     const { onCancelSession } = renderModal()
@@ -129,6 +131,11 @@ describe('GitHubPublishModal', () => {
     await waitFor(() => {
       expect(screen.getByText(/Branch pushed successfully/i)).toBeInTheDocument()
     })
+
+    const link = screen.getByRole('link', { name: /Open compare view/i }) as HTMLAnchorElement
+    expect(link.href).toBe('https://github.com/acme/widgets/compare/develop...feature%2Fcustom?expand=1&quick_pull=1')
+
+    expect(window.open).toHaveBeenCalledWith('https://github.com/acme/widgets/compare/develop...feature%2Fcustom?expand=1&quick_pull=1', '_blank', 'noopener,noreferrer')
 
     const cancelButton = screen.getByRole('button', { name: /PR created – cancel session/i })
     fireEvent.click(cancelButton)

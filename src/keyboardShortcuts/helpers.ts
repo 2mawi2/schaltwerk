@@ -26,6 +26,7 @@ export const detectPlatformSafe = detectPlatform
 
 const MAC_CMD_SYMBOL = '⌘'
 const MAC_ALT_SYMBOL = '⌥'
+const SHIFT_SYMBOL = '⇧'
 
 export const getDisplayLabelForSegment = (segment: string, platform: Platform): string => {
   switch (segment) {
@@ -38,7 +39,7 @@ export const getDisplayLabelForSegment = (segment: string, platform: Platform): 
     case 'Alt':
       return platform === 'mac' ? MAC_ALT_SYMBOL : 'Alt'
     case 'Shift':
-      return 'Shift'
+      return SHIFT_SYMBOL
     default:
       return segment
   }

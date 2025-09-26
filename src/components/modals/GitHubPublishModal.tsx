@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react'
 import { SessionInfo } from '../../types/session'
 import { useModal } from '../../contexts/ModalContext'
 import { invoke } from '@tauri-apps/api/core'
@@ -39,6 +39,7 @@ export function GitHubPublishModal({
   const [acknowledged, setAcknowledged] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [publishResult, setPublishResult] = useState<GitHubPublishResponse | null>(null)
+  const compareOpenedRef = useRef(false)
 
   useEffect(() => {
     if (open) {
@@ -59,6 +60,7 @@ export function GitHubPublishModal({
     setError(null)
     setPublishResult(null)
     setAcknowledged(false)
+    compareOpenedRef.current = false
 
     invoke<GitHubPublishContextResponse>(TauriCommands.GitHubPublishGetContext, {
       sessionName: session.session_id,
@@ -93,6 +95,22 @@ export function GitHubPublishModal({
       active = false
     }
   }, [open, session.session_id])
+
+  useEffect(() => {
+    if (!open) {
+      compareOpenedRef.current = false
+      return
+    }
+
+    if (publishResult && !compareOpenedRef.current) {
+      compareOpenedRef.current = true
+      try {
+        window.open(publishResult.compare_url, '_blank', 'noopener,noreferrer')
+      } catch (err) {
+        logger.warn('Failed to open compare URL in browser', err)
+      }
+    }
+  }, [open, publishResult])
 
   useEffect(() => {
     if (!open) return
@@ -417,8 +435,20 @@ export function GitHubPublishModal({
             <div className="text-sm text-green-400" role="status">
               Branch pushed successfully. Finish creating the PR in your browser.
             </div>
-            <div className="text-sm text-slate-300">
-              Remote branch <span className="text-slate-100">{publishResult.pushed_branch}</span> is ready against base <span className="text-slate-100">{baseBranch}</span>.
+            <div className="text-sm text-slate-300 space-y-2">
+              <div>
+                Remote branch <span className="text-slate-100">{publishResult.pushed_branch}</span> is ready against base <span className="text-slate-100">{baseBranch}</span>.
+              </div>
+              <div>
+                <a
+                  href={publishResult.compare_url}
+                  className="text-blue-400 hover:text-blue-300 underline"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open compare view ({publishResult.compare_url})
+                </a>
+              </div>
             </div>
             <div className="flex justify-end gap-2">
               <button

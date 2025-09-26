@@ -14,6 +14,11 @@ describe('getDisplayLabelForSegment', () => {
     expect(getDisplayLabelForSegment('Alt', 'mac')).toBe('⌥')
   })
 
+  it('converts Shift to shift symbol on all platforms', () => {
+    expect(getDisplayLabelForSegment('Shift', 'mac')).toBe('⇧')
+    expect(getDisplayLabelForSegment('Shift', 'windows')).toBe('⇧')
+  })
+
   it('keeps literal keys unchanged', () => {
     expect(getDisplayLabelForSegment('Enter', 'mac')).toBe('Enter')
     expect(getDisplayLabelForSegment('K', 'windows')).toBe('K')
