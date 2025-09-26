@@ -73,12 +73,9 @@ impl MergeService {
         // Compose human-readable commands for the UI preview only. The merge implementation
         // uses libgit2 directly; these commands are never executed by the backend.
         let squash_commands = vec![
+            format!("git rebase {}", context.parent_branch),
             format!("git reset --soft {}", context.parent_branch),
             "git commit -m \"<your message>\"".to_string(),
-            format!(
-                "git update-ref refs/heads/{} $(git rev-parse HEAD)",
-                context.parent_branch
-            ),
         ];
 
         let reapply_commands = vec![
@@ -333,6 +330,17 @@ fn perform_squash(
     info!(
         "{OPERATION_LABEL}: performing squash merge for branch '{session_branch}' into '{parent_branch}'"
     );
+
+    if let Err(err) = run_git(
+        worktree_path,
+        vec![OsString::from("rebase"), OsString::from(parent_branch)],
+    ) {
+        let _ = run_git(
+            worktree_path,
+            vec![OsString::from("rebase"), OsString::from("--abort")],
+        );
+        return Err(err);
+    }
 
     run_git(
         worktree_path,
@@ -685,6 +693,10 @@ mod tests {
         assert!(preview
             .squash_commands
             .iter()
+            .any(|cmd| cmd.starts_with("git rebase")));
+        assert!(preview
+            .squash_commands
+            .iter()
             .any(|cmd| cmd.starts_with("git reset --soft")));
         assert!(preview
             .reapply_commands
@@ -942,6 +954,78 @@ mod tests {
         let session_after = manager.get_session(&session.name).unwrap();
         assert!(!session_after.ready_to_merge);
         assert_eq!(session_after.session_state, SessionState::Running);
+    }
+
+    #[tokio::test]
+    async fn squash_merge_preserves_parent_tree_files() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "preserve-parent",
+            prompt: Some("do work"),
+            base_branch: Some("main"),
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Add a file on parent branch after the session started.
+        std::fs::write(repo_path.join("parent-only.txt"), "parent data\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("parent-only.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("add parent file"),
+            ],
+        )
+        .unwrap();
+
+        // Session introduces its own change while still based on the old parent commit.
+        write_session_file(&session.worktree_path, "src/session.rs", "pub fn change() {}\n");
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let outcome = service
+            .merge(
+                &session.name,
+                MergeMode::Squash,
+                Some("Squash merge".into()),
+            )
+            .await
+            .unwrap();
+
+        let repo = Repository::open(&repo_path).unwrap();
+        let parent_oid = resolve_branch_oid(&repo, &outcome.parent_branch).unwrap();
+        let parent_tree = repo.find_commit(parent_oid).unwrap().tree().unwrap();
+
+        assert!(
+            parent_tree.get_name("parent-only.txt").is_some(),
+            "parent-only file must remain after squash merge"
+        );
+
+        let src_tree = parent_tree
+            .get_name("src")
+            .and_then(|entry| entry.to_object(&repo).ok())
+            .and_then(|obj| obj.into_tree().ok())
+            .expect("src tree to exist");
+        assert!(
+            src_tree.get_name("session.rs").is_some(),
+            "session change should be included in merge commit"
+        );
+
+        let parent_file_contents = std::fs::read_to_string(repo_path.join("parent-only.txt")).unwrap();
+        assert_eq!(parent_file_contents, "parent data\n");
     }
 
     #[tokio::test]
