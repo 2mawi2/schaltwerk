@@ -16,6 +16,7 @@ import { calculateFilterCounts } from '../../utils/sessionFilters'
 import { groupSessionsByVersion, selectBestVersionAndCleanup, SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
+import { GitHubPublishModal } from '../modals/GitHubPublishModal'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
@@ -115,6 +116,10 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         open: false,
         versionGroup: null,
         selectedSessionId: ''
+    })
+    const [publishModal, setPublishModal] = useState<{ open: boolean; session: SessionInfo | null }>({
+        open: false,
+        session: null
     })
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
@@ -473,6 +478,23 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             }
         }
     }
+
+    const requestCancel = useCallback(
+        (sessionId: string, hasUncommitted: boolean) => {
+            const session = sessions.find(s => s.info.session_id === sessionId)
+            if (!session) return
+
+            emitUiEvent(UiEvent.SessionAction, {
+                action: 'cancel',
+                sessionId,
+                sessionName: sessionId,
+                sessionDisplayName: session.info.display_name || session.info.session_id,
+                branch: session.info.branch,
+                hasUncommittedChanges: hasUncommitted,
+            })
+        },
+        [sessions]
+    )
 
     const handleSelectBestVersion = (groupBaseName: string, selectedSessionId: string) => {
         const sessionGroups = groupSessionsByVersion(sessions)
@@ -1060,19 +1082,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             logger.error('Failed to unmark reviewed session:', err)
                                         }
                                     }}
-                                    onCancel={(sessionId, hasUncommitted) => {
-                                        const session = sessions.find(s => s.info.session_id === sessionId)
-                                        if (session) {
-                                            emitUiEvent(UiEvent.SessionAction, {
-                                                action: 'cancel',
-                                                sessionId,
-                                                sessionName: sessionId,
-                                                sessionDisplayName: session.info.display_name || session.info.session_id,
-                                                branch: session.info.branch,
-                                                hasUncommittedChanges: hasUncommitted,
-                                            })
-                                        }
-                                    }}
+                                    onCancel={requestCancel}
                                     onConvertToSpec={(sessionId) => {
                                         const session = sessions.find(s => s.info.session_id === sessionId)
                                         if (session) {
@@ -1109,6 +1119,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         } catch (err) {
                                             logger.error('Failed to delete spec:', err)
                                         }
+                                    }}
+                                    onOpenPublish={(sessionId) => {
+                                        const sessionMatch = sessions.find(s => s.info.session_id === sessionId)
+                                        if (!sessionMatch) return
+                                        setPublishModal({ open: true, session: sessionMatch.info })
                                     }}
                                     onSelectBestVersion={handleSelectBestVersion}
                                     onReset={async (sessionId) => {
@@ -1164,6 +1179,20 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                     }
                 }}
             />
+            {publishModal.open && publishModal.session && (
+                <GitHubPublishModal
+                    open={publishModal.open}
+                    session={publishModal.session}
+                    onClose={() => setPublishModal({ open: false, session: null })}
+                    onCancelSession={(sessionId) => {
+                        requestCancel(
+                            sessionId,
+                            publishModal.session?.has_uncommitted_changes || false,
+                        )
+                        setPublishModal({ open: false, session: null })
+                    }}
+                />
+            )}
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal}
                 onClose={() => {

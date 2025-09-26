@@ -674,7 +674,9 @@ fn main() {
             schaltwerk_core_delete_archived_spec,
             schaltwerk_core_get_archive_max_entries,
             schaltwerk_core_set_archive_max_entries,
-            // Open apps commands
+            github_publish_get_context,
+            github_publish_prepare,
+            // Open apps commands (from module)
             get_default_open_app,
             set_default_open_app,
             schaltwerk::open_apps::list_available_open_apps,
@@ -782,7 +784,7 @@ fn main() {
                     }
                 }
             });
-            
+
             // Check git status and initialize project in background
             if let Some((dir, _)) = initial_directory.clone() {
                 let dir_path = std::path::PathBuf::from(&dir);
@@ -799,7 +801,7 @@ fn main() {
                             false
                         }
                     };
-                    
+
                     if is_git {
                         let manager = get_project_manager().await;
                         if let Err(e) = manager.switch_to_project(dir_path.clone()).await {
@@ -811,7 +813,7 @@ fn main() {
                                 log::error!("Failed to emit project-ready event: {e}");
                             }
                         }
-                        
+
                         // Emit event to open the Git repository
                         if let Err(e) = emit_event(&app_handle, SchaltEvent::OpenDirectory, &dir) {
                             log::error!("Failed to emit open-directory event: {e}");
@@ -825,7 +827,7 @@ fn main() {
                 });
             }
 
-            
+
             // Initialize settings manager asynchronously
             let settings_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
@@ -851,22 +853,22 @@ fn main() {
                     }
                 }
             });
-            
+
             // Initialize file watcher manager
             let file_watcher_handle = app.handle().clone();
             let _ = FILE_WATCHER_MANAGER.set(Arc::new(schaltwerk::domains::workspace::FileWatcherManager::new(file_watcher_handle)));
-            
+
             // Defer non-critical services to improve startup performance
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 use tokio::time::{sleep, Duration};
-                
+
                 // Small delay to let UI appear first
                 sleep(Duration::from_millis(50)).await;
-                
+
                 // Start terminal monitoring
 
-                
+
                 // Start activity tracking
                 let activity_handle = app_handle.clone();
                 tokio::spawn(async move {
@@ -888,7 +890,7 @@ fn main() {
                         }
                     }
                 });
-                
+
                 // Start webhook server for MCP notifications
                 let webhook_handle = app_handle.clone();
                 tokio::spawn(async move {
@@ -897,10 +899,10 @@ fn main() {
                     }
                 });
             });
-            
+
             // MCP server is now managed by Claude Code via .mcp.json configuration
             // No need to start it from Schaltwerk
-            
+
             Ok(())
         })
         .on_window_event(|_window, event| {
@@ -910,14 +912,14 @@ fn main() {
                     let manager = get_project_manager().await;
                     manager.cleanup_all().await;
                 });
-                
+
                 // Stop all file watchers
                 tauri::async_runtime::block_on(async {
                     if let Ok(watcher_manager) = get_file_watcher_manager().await {
                         watcher_manager.stop_all_watchers().await;
                     }
                 });
-                
+
                 // Stop MCP server if running
                 if let Some(process_mutex) = commands::mcp::get_mcp_server_process().get() {
                     if let Ok(mut guard) = process_mutex.try_lock() {

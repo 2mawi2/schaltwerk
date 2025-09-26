@@ -22,6 +22,8 @@ pub enum SchaltEvent {
     FileChanges,
     FollowUpMessage,
     Selection,
+    GitHubPublishCompleted,
+    GitHubPublishFailed,
 }
 
 impl SchaltEvent {
@@ -46,6 +48,8 @@ impl SchaltEvent {
             SchaltEvent::FileChanges => "schaltwerk:file-changes",
             SchaltEvent::FollowUpMessage => "schaltwerk:follow-up-message",
             SchaltEvent::Selection => "schaltwerk:selection",
+            SchaltEvent::GitHubPublishCompleted => "schaltwerk:github-publish-completed",
+            SchaltEvent::GitHubPublishFailed => "schaltwerk:github-publish-failed",
         }
     }
 }

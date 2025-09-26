@@ -34,6 +34,7 @@ interface SessionButtonProps {
     onSwitchModel?: (sessionId: string) => void
     isResetting?: boolean
     isRunning?: boolean
+    onOpenPublish?: (sessionId: string) => void
 }
 
 function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
@@ -69,7 +70,8 @@ export const SessionButton = memo<SessionButtonProps>(({
     onReset,
     onSwitchModel,
     isResetting = false,
-    isRunning = false
+    isRunning = false,
+    onOpenPublish,
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
@@ -216,6 +218,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                             onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
                             onReset={onReset}
                             onSwitchModel={onSwitchModel}
+                            onOpenPublish={onOpenPublish}
                             isResetting={isResetting}
                         />
                     </div>
@@ -240,6 +243,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                         onPromoteVersionHoverEnd={onPromoteVersionHoverEnd}
                         onReset={onReset}
                         onSwitchModel={onSwitchModel}
+                        onOpenPublish={onOpenPublish}
                         isResetting={isResetting}
                     />
                 </div>

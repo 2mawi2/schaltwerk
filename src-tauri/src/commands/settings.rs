@@ -481,8 +481,7 @@ pub async fn set_project_action_buttons(actions: Vec<HeaderActionConfig>) -> Res
 }
 
 #[tauri::command]
-pub async fn reset_project_action_buttons_to_defaults(
-) -> Result<Vec<HeaderActionConfig>, String> {
+pub async fn reset_project_action_buttons_to_defaults() -> Result<Vec<HeaderActionConfig>, String> {
     let project = PROJECT_MANAGER
         .get()
         .ok_or_else(|| "Project manager not initialized".to_string())?
@@ -498,10 +497,7 @@ pub async fn reset_project_action_buttons_to_defaults(
     db.set_project_action_buttons(&project.path, &defaults)
         .map_err(|e| format!("Failed to set project action buttons: {e}"))?;
 
-    log::info!(
-        "Reset project {} action buttons to defaults", 
-        project.path.display()
-    );
+    log::info!("Reset project {} action buttons to defaults", project.path.display());
 
     Ok(defaults)
 }
