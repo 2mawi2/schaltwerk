@@ -497,10 +497,7 @@ pub async fn reset_project_action_buttons_to_defaults() -> Result<Vec<HeaderActi
     db.set_project_action_buttons(&project.path, &defaults)
         .map_err(|e| format!("Failed to set project action buttons: {e}"))?;
 
-    log::info!(
-        "Reset project {} action buttons to defaults",
-        project.path.display()
-    );
+    log::info!("Reset project {} action buttons to defaults", project.path.display());
 
     Ok(defaults)
 }

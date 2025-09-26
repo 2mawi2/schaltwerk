@@ -22,6 +22,7 @@ mod projects;
 
 use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
@@ -55,6 +56,44 @@ fn get_development_info() -> Result<serde_json::Value, String> {
             "branch": null
         }))
     }
+}
+
+fn open_global_app_config_db() -> Result<schaltwerk::schaltwerk_core::Database, String> {
+    if let Ok(path) = std::env::var("SCHALTWERK_APP_CONFIG_DB_PATH") {
+        let db_path = PathBuf::from(path);
+        schaltwerk::schaltwerk_core::Database::new(Some(db_path))
+            .map_err(|e| format!("Failed to open override app config database: {e}"))
+    } else {
+        schaltwerk::schaltwerk_core::Database::new(None)
+            .map_err(|e| format!("Failed to open app config database: {e}"))
+    }
+}
+
+#[tauri::command]
+async fn get_default_open_app() -> Result<String, String> {
+    match open_global_app_config_db() {
+        Ok(db) => schaltwerk::open_apps::get_default_open_app_from_db(&db)
+            .map_err(|e| format!("Failed to load default open app: {e}"))
+            .or_else(|e| {
+                log::warn!(
+                    "Failed to load default open app from database: {e}. Falling back to Finder"
+                );
+                Ok("finder".into())
+            }),
+        Err(e) => {
+            log::warn!(
+                "Failed to access app config database: {e}. Falling back to Finder"
+            );
+            Ok("finder".into())
+        }
+    }
+}
+
+#[tauri::command]
+async fn set_default_open_app(app_id: String) -> Result<(), String> {
+    let db = open_global_app_config_db()?;
+    schaltwerk::open_apps::set_default_open_app_in_db(&db, &app_id)
+        .map_err(|e| format!("Failed to store default open app: {e}"))
 }
 
 pub static PROJECT_MANAGER: OnceCell<Arc<ProjectManager>> = OnceCell::const_new();
@@ -893,4 +932,36 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    #[tokio::test]
+    #[serial]
+    async fn test_default_open_app_command_flow() {
+        let temp_dir = tempfile::tempdir().expect("failed to create temp dir");
+        let override_path = temp_dir.path().join("sessions.db");
+        std::env::set_var(
+            "SCHALTWERK_APP_CONFIG_DB_PATH",
+            override_path.to_string_lossy().as_ref(),
+        );
+
+        let fallback = super::get_default_open_app()
+            .await
+            .expect("expected fallback default app");
+        assert_eq!(fallback, "finder");
+
+        super::set_default_open_app("vscode".into())
+            .await
+            .expect("failed to set default app");
+
+        let updated = super::get_default_open_app()
+            .await
+            .expect("expected updated default app");
+        assert_eq!(updated, "vscode");
+
+        std::env::remove_var("SCHALTWERK_APP_CONFIG_DB_PATH");
+    }
 }
