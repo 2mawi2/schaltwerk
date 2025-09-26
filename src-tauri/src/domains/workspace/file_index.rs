@@ -106,20 +106,12 @@ mod tests {
     use tempfile::TempDir;
 
     fn git(args: &[&str], cwd: &Path) {
-        let output = Command::new("git")
+        let status = Command::new("git")
             .args(args)
             .current_dir(cwd)
-            .output()
+            .status()
             .expect("failed to run git");
-
-        if !output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            panic!(
-                "git command failed: {:?}\nstdout: {}\nstderr: {}",
-                args, stdout.trim(), stderr.trim()
-            );
-        }
+        assert!(status.success(), "git command failed: {:?}", args);
     }
 
     #[test]
