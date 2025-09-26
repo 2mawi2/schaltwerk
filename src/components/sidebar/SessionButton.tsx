@@ -98,6 +98,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     
     // Determine session state - use the backend session_state directly
     const sessionState = isReadyToMerge ? 'reviewed' : s.session_state
+    const showReviewedDirtyBadge = isReadyToMerge && !isRunning && !!s.has_uncommitted_changes
     
     // State icon removed - no longer using emojis
 
@@ -176,14 +177,14 @@ export const SessionButton = memo<SessionButtonProps>(({
                         )}
                         {isBlocked && <span className="ml-2 text-xs text-red-400">⚠ blocked</span>}
 
-                        {/* Uncommitted changes indicator */}
-                        {s.has_uncommitted_changes && !isReadyToMerge && (
+                        {showReviewedDirtyBadge && (
                             <UncommittedIndicator
                                 className="ml-2"
                                 sessionName={sessionName}
                                 samplePaths={s.top_uncommitted_paths}
                             />
                         )}
+
                         {hasFollowUpMessage && !isReadyToMerge && (
                             <span className="ml-2 inline-flex items-center gap-1" title="New follow-up message received">
                                 <span className="flex h-4 w-4 relative">
@@ -211,7 +212,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                             sessionId={s.session_id}
-                            hasUncommittedChanges={s.has_uncommitted_changes}
                             branch={s.branch}
                             showPromoteIcon={showPromoteIcon}
                             onRunSpec={onRunDraft}
@@ -240,7 +240,6 @@ export const SessionButton = memo<SessionButtonProps>(({
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                         sessionId={s.session_id}
-                        hasUncommittedChanges={s.has_uncommitted_changes}
                         branch={s.branch}
                         showPromoteIcon={showPromoteIcon}
                         onRunSpec={onRunDraft}

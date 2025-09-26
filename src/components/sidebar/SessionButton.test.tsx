@@ -31,12 +31,14 @@ const baseSession: EnrichedSession = {
 }
 
 describe('SessionButton dirty indicator', () => {
-  it('shows dirty indicator when has_uncommitted_changes is true', () => {
+  it('shows dirty indicator for reviewed sessions with uncommitted changes', () => {
     const session: EnrichedSession = { 
       ...baseSession, 
       info: { 
         ...baseSession.info, 
         has_uncommitted_changes: true,
+        ready_to_merge: true,
+        status: 'dirty',
         top_uncommitted_paths: ['src/main.rs', 'README.md']
       } 
     }
@@ -60,10 +62,46 @@ describe('SessionButton dirty indicator', () => {
     expect(indicator).toHaveAttribute('title')
   })
 
-  it('does not show dirty indicator when has_uncommitted_changes is false', () => {
+  it('does not show dirty indicator for running sessions even when dirty', () => {
+    const session: EnrichedSession = {
+      ...baseSession,
+      info: {
+        ...baseSession.info,
+        has_uncommitted_changes: true,
+        ready_to_merge: false,
+        status: 'dirty',
+      },
+    }
+
     render(
       <SessionButton
-        session={baseSession}
+        session={session}
+        index={0}
+        isSelected={false}
+
+        hasFollowUpMessage={false}
+        onSelect={() => {}}
+        onMarkReady={() => {}}
+        onUnmarkReady={() => {}}
+        onCancel={() => {}}
+        isRunning={false}
+      />
+    )
+
+    expect(screen.queryByRole('button', { name: /has uncommitted changes/i })).toBeNull()
+  })
+
+  it('does not show dirty indicator when has_uncommitted_changes is false for reviewed session', () => {
+    render(
+      <SessionButton
+        session={{
+          ...baseSession,
+          info: {
+            ...baseSession.info,
+            ready_to_merge: true,
+            status: 'active',
+          },
+        }}
         index={0}
         isSelected={false}
 
