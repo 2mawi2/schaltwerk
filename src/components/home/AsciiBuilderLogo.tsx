@@ -57,7 +57,7 @@ const DEFAULT_ASCII = `╔═══╗╔═══╗╔╗ ╔╗╔═══�
 
 export function AsciiBuilderLogo({
   asciiArt = DEFAULT_ASCII,
-  colorClassName = 'text-cyan-400',
+  colorClassName = '',
   paused = false,
   // Assembly
   settleDurationMs = 900,
@@ -731,8 +731,14 @@ export function AsciiBuilderLogo({
 
   // Styling helpers (optional gradient & glow)
   const gradientClasses = useGradientText
-    ? 'bg-gradient-to-r from-cyan-400 via-sky-400 to-blue-400 bg-clip-text text-transparent'
+    ? 'bg-gradient-to-r bg-clip-text text-transparent'
     : colorClassName
+
+  const colorStyle = useGradientText ? {
+    backgroundImage: `linear-gradient(to right, ${theme.colors.accent.cyan.DEFAULT}, ${theme.colors.accent.blue.DEFAULT}, ${theme.colors.accent.cyan.DEFAULT})`
+  } : {
+    color: theme.colors.accent.cyan.DEFAULT
+  }
 
   const primaryGlow = theme.colors.accent.blue.DEFAULT
   const textShadow =
@@ -746,7 +752,7 @@ export function AsciiBuilderLogo({
     <pre
       ref={preRef}
       className={`${gradientClasses} ascii-logo block leading-[1.05] text-[10px] sm:text-xs md:text-sm lg:text-base xl:text-lg 2xl:text-xl font-mono select-none ${className}`}
-      style={{ textShadow }}
+      style={{ textShadow, ...colorStyle }}
       aria-label="SCHALTWERK 3D assembled logo"
       role="img"
     />

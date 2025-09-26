@@ -130,7 +130,7 @@ export function PromoteVersionConfirmation({
               id="dont-ask-again"
               checked={dontAskAgain}
               onChange={(e) => setDontAskAgain(e.target.checked)}
-              className="rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
+              className="rounded border-slate-600 bg-slate-700 text-cyan-400 focus:ring-cyan-400 focus:ring-offset-0"
             />
             <label htmlFor="dont-ask-again" className="text-xs text-slate-400">
               Don't ask again

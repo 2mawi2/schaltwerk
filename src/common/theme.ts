@@ -23,16 +23,16 @@ export const theme = {
       default: '#1e293b',    // slate-800
       subtle: '#334155',     // slate-700
       strong: '#475569',     // slate-600
-      focus: '#3b82f6',      // blue-500
+      focus: '#06b6d4',      // cyan-500 (less neon)
     },
     
     accent: {
       blue: {
-        DEFAULT: '#3b82f6',  // blue-500
-        light: '#60a5fa',    // blue-400
-        dark: '#2563eb',     // blue-600
-        bg: withOpacity('#3b82f6', 0.1),
-        border: withOpacity('#3b82f6', 0.5),
+        DEFAULT: '#22d3ee',  // cyan-400 (logo color - now primary blue)
+        light: '#22d3ee',    // cyan-400 (logo color)
+        dark: '#0891b2',     // cyan-600
+        bg: withOpacity('#22d3ee', 0.1),
+        border: withOpacity('#22d3ee', 0.5),
       },
       green: {
         DEFAULT: '#22c55e',  // green-500
@@ -69,6 +69,13 @@ export const theme = {
         bg: withOpacity('#a855f7', 0.1),
         border: withOpacity('#a855f7', 0.5),
       },
+      magenta: {
+        DEFAULT: '#ec4899',  // magenta-500 (pink-500)
+        light: '#f472b6',    // magenta-400 (pink-400)
+        dark: '#db2777',     // magenta-600 (pink-600)
+        bg: withOpacity('#ec4899', 0.1),
+        border: withOpacity('#ec4899', 0.5),
+      },
       yellow: {
         DEFAULT: '#eab308',  // yellow-500
         light: '#fde047',    // yellow-300
@@ -86,7 +93,7 @@ export const theme = {
     },
     
     status: {
-      info: '#3b82f6',       // blue-500
+      info: '#06b6d4',       // cyan-500 (less neon)
       success: '#22c55e',    // green-500
       warning: '#f59e0b',    // amber-500
       error: '#ef4444',      // red-500
@@ -133,7 +140,7 @@ export const theme = {
     },
     
     selection: {
-      bg: 'rgba(59, 130, 246, 0.5)',
+      bg: 'rgba(6, 182, 212, 0.5)',
     },
     
     overlay: {
@@ -159,24 +166,24 @@ export const theme = {
       blockquoteBorder: '#404040',
       lineRule: '#404040',
       strikethrough: '#808080',
-      selection: withOpacity('#3b82f6', 0.3),
-      focusedSelection: withOpacity('#3b82f6', 0.4),
+      selection: withOpacity('#06b6d4', 0.3),
+      focusedSelection: withOpacity('#06b6d4', 0.4),
       selectionAlt: withOpacity('#ffffff', 0.04),
     },
 
     palette: {
       blue: {
-        50: '#eff6ff',
-        100: '#dbeafe',
-        200: '#bfdbfe',
-        300: '#93c5fd',
-        400: '#60a5fa',
-        500: '#3b82f6',
-        600: '#2563eb',
-        700: '#1d4ed8',
-        800: '#1e40af',
-        900: '#1e3a8a',
-        950: '#172554',
+        50: '#ecfeff',   // cyan-50
+        100: '#cffafe',  // cyan-100
+        200: '#a5f3fc',  // cyan-200
+        300: '#67e8f9',  // cyan-300
+        400: '#22d3ee',  // logo color (cyan-400)
+        500: '#06b6d4',  // cyan-500
+        600: '#0891b2',  // cyan-600
+        700: '#0e7490',  // cyan-700
+        800: '#155e75',  // cyan-800
+        900: '#164e63',  // cyan-900
+        950: '#083344',  // cyan-950
       },
       green: {
         50: '#f0fdf4',
@@ -334,7 +341,7 @@ export const theme = {
 export const getSessionColor = (status: string) => {
   switch (status) {
     case 'running':
-      return theme.colors.accent.blue
+      return theme.colors.accent.magenta
     case 'completed':
       return theme.colors.accent.green
     case 'spec':

@@ -1868,10 +1868,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                  <div className="absolute inset-0 flex items-center justify-center z-30">
                      <div className="flex items-center gap-2 bg-slate-800/90 border border-slate-700 rounded px-3 py-2 shadow-lg">
                          <span className="text-sm text-slate-300">Agent stopped</span>
-                         <button
-                             onClick={(e) => { e.stopPropagation(); restartAgent(); }}
-                             className="text-sm px-3 py-1 rounded bg-blue-600 hover:bg-blue-500 text-white font-medium"
-                         >
+                          <button
+                              onClick={(e) => { e.stopPropagation(); restartAgent(); }}
+                              className="text-sm px-3 py-1 rounded text-white font-medium"
+                              style={{
+                                  backgroundColor: theme.colors.accent.blue.dark,
+                              }}
+                              onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT;
+                              }}
+                              onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark;
+                              }}
+                          >
                              Restart
                          </button>
                      </div>

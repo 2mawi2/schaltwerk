@@ -3,6 +3,7 @@ import { VscComment, VscCheck } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { ReviewComment } from '../../types/review'
+import { theme } from '../../common/theme'
 
 export interface ChangedFile {
   path: string
@@ -66,12 +67,12 @@ export function DiffFileExplorer({
                   {file.path.substring(0, file.path.lastIndexOf('/')) || ''}
                 </div>
               </div>
-              {commentCount > 0 && (
-                <div className="flex items-center gap-1 text-xs text-blue-400">
-                  <VscComment />
-                  <span>{commentCount}</span>
-                </div>
-              )}
+               {commentCount > 0 && (
+                 <div className={`flex items-center gap-1 text-xs ${theme.colors.accent.blue.DEFAULT}`}>
+                   <VscComment />
+                   <span>{commentCount}</span>
+                 </div>
+               )}
             </div>
           )
         })}
@@ -87,10 +88,10 @@ export function DiffFileExplorer({
             />
           </div>
           <div className="space-y-2">
-            <button
-              onClick={onFinishReview}
-              className="w-full px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
-            >
+             <button
+               onClick={onFinishReview}
+               className={`w-full px-3 py-2 ${theme.colors.accent.cyan.dark} hover:${theme.colors.accent.cyan.DEFAULT} rounded-lg text-sm font-medium flex items-center justify-center gap-2`}
+             >
               <VscCheck />
               <span>
                 Finish Review ({currentReview.comments.length} comment{currentReview.comments.length > 1 ? 's' : ''})

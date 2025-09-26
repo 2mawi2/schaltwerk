@@ -79,11 +79,13 @@ export function ModelSelector({ value, onChange, disabled = false, skipPermissio
                     {loading ? (
                         <span className="inline-block h-2 w-2 animate-spin rounded-full border border-current border-t-transparent" />
                     ) : (
-                        <span className={`w-2 h-2 rounded-full ${
-                            model.color === 'blue' ? 'bg-blue-500' : 
-                            model.color === 'green' ? 'bg-green-500' : 
-                            model.color === 'orange' ? 'bg-orange-500' : 'bg-red-500'
-                        } ${!available && !loading ? 'opacity-50' : ''}`} />
+                        <span className={`w-2 h-2 rounded-full ${!available && !loading ? 'opacity-50' : ''}`}
+                              style={{
+                                  backgroundColor: model.color === 'blue' ? theme.colors.accent.blue.DEFAULT :
+                                                  model.color === 'green' ? theme.colors.accent.green.DEFAULT :
+                                                  model.color === 'orange' ? theme.colors.accent.amber.DEFAULT :
+                                                  theme.colors.accent.red.DEFAULT
+                              }} />
                     )}
                     <span className="flex items-center gap-1">
                         {model.label}

@@ -39,16 +39,16 @@
   --color-border-subtle-rgb: 51 65 85;
   --color-border-strong: #475569;
   --color-border-strong-rgb: 71 85 105;
-  --color-border-focus: #3b82f6;
-  --color-border-focus-rgb: 59 130 246;
+    --color-border-focus: #22d3ee;
+    --color-border-focus-rgb: 34 211 238;
 
-  /* Accent Colors */
-  --color-accent-blue: #3b82f6;
-  --color-accent-blue-rgb: 59 130 246;
-  --color-accent-blue-light: #60a5fa;
-  --color-accent-blue-dark: #2563eb;
-  --color-accent-blue-bg: rgba(59, 130, 246, 0.1);
-  --color-accent-blue-border: rgba(59, 130, 246, 0.5);
+   /* Accent Colors */
+    --color-accent-blue: #22d3ee;
+    --color-accent-blue-rgb: 34 211 238;
+    --color-accent-blue-light: #22d3ee;
+    --color-accent-blue-dark: #0891b2;
+    --color-accent-blue-bg: rgba(34, 211, 238, 0.1);
+    --color-accent-blue-border: rgba(34, 211, 238, 0.5);
 
   --color-accent-green: #22c55e;
   --color-accent-green-rgb: 34 197 94;
@@ -78,14 +78,21 @@
   --color-accent-violet-bg: rgba(139, 92, 246, 0.1);
   --color-accent-violet-border: rgba(139, 92, 246, 0.5);
 
-  --color-accent-purple: #a855f7;
-  --color-accent-purple-rgb: 168 85 247;
-  --color-accent-purple-light: #c084fc;
-  --color-accent-purple-dark: #9333ea;
-  --color-accent-purple-bg: rgba(168, 85, 247, 0.1);
-  --color-accent-purple-border: rgba(168, 85, 247, 0.5);
+   --color-accent-purple: #a855f7;
+   --color-accent-purple-rgb: 168 85 247;
+   --color-accent-purple-light: #c084fc;
+   --color-accent-purple-dark: #9333ea;
+   --color-accent-purple-bg: rgba(168, 85, 247, 0.1);
+   --color-accent-purple-border: rgba(168, 85, 247, 0.5);
 
-  --color-accent-yellow: #eab308;
+   --color-accent-magenta: #ec4899;
+   --color-accent-magenta-rgb: 236 72 153;
+   --color-accent-magenta-light: #f472b6;
+   --color-accent-magenta-dark: #db2777;
+   --color-accent-magenta-bg: rgba(236, 72, 153, 0.1);
+   --color-accent-magenta-border: rgba(236, 72, 153, 0.5);
+
+   --color-accent-yellow: #eab308;
   --color-accent-yellow-rgb: 234 179 8;
   --color-accent-yellow-light: #fde047;
   --color-accent-yellow-dark: #ca8a04;
@@ -100,28 +107,28 @@
   --color-accent-cyan-border: rgba(6, 182, 212, 0.5);
 
   /* Extended Tailwind-Compatible Palettes */
-  --color-blue-50: #eff6ff;
-  --color-blue-50-rgb: 239 246 255;
-  --color-blue-100: #dbeafe;
-  --color-blue-100-rgb: 219 234 254;
-  --color-blue-200: #bfdbfe;
-  --color-blue-200-rgb: 191 219 254;
-  --color-blue-300: #93c5fd;
-  --color-blue-300-rgb: 147 197 253;
-  --color-blue-400: #60a5fa;
-  --color-blue-400-rgb: 96 165 250;
-  --color-blue-500: #3b82f6;
-  --color-blue-500-rgb: 59 130 246;
-  --color-blue-600: #2563eb;
-  --color-blue-600-rgb: 37 99 235;
-  --color-blue-700: #1d4ed8;
-  --color-blue-700-rgb: 29 78 216;
-  --color-blue-800: #1e40af;
-  --color-blue-800-rgb: 30 64 175;
-  --color-blue-900: #1e3a8a;
-  --color-blue-900-rgb: 30 58 138;
-  --color-blue-950: #172554;
-  --color-blue-950-rgb: 23 37 84;
+  --color-blue-50: #ecfeff;
+  --color-blue-50-rgb: 236 254 255;
+  --color-blue-100: #cffafe;
+  --color-blue-100-rgb: 207 250 254;
+  --color-blue-200: #a5f3fc;
+  --color-blue-200-rgb: 165 243 252;
+  --color-blue-300: #67e8f9;
+  --color-blue-300-rgb: 103 232 249;
+  --color-blue-400: #22d3ee;
+  --color-blue-400-rgb: 34 211 238;
+  --color-blue-500: #06b6d4;
+  --color-blue-500-rgb: 6 182 212;
+  --color-blue-600: #0891b2;
+  --color-blue-600-rgb: 8 145 178;
+  --color-blue-700: #0e7490;
+  --color-blue-700-rgb: 14 116 144;
+  --color-blue-800: #155e75;
+  --color-blue-800-rgb: 21 94 117;
+  --color-blue-900: #164e63;
+  --color-blue-900-rgb: 22 78 99;
+  --color-blue-950: #083344;
+  --color-blue-950-rgb: 8 51 68;
 
   --color-green-50: #f0fdf4;
   --color-green-50-rgb: 240 253 244;
@@ -304,8 +311,8 @@
   --color-scrollbar-thumb: rgba(71, 85, 105, 0.8);
   --color-scrollbar-thumb-hover: rgba(100, 116, 139, 0.9);
 
-  /* Selection Colors */
-  --color-selection-bg: rgba(59, 130, 246, 0.5);
+   /* Selection Colors */
+    --color-selection-bg: rgba(34, 211, 238, 0.5);
 
   /* Overlay Colors */
   --color-overlay-backdrop: rgba(0, 0, 0, 0.6);
@@ -330,8 +337,8 @@
   --color-editor-blockquote-border: #404040;
   --color-editor-line-rule: #404040;
   --color-editor-strikethrough: #808080;
-  --color-editor-selection: rgba(59, 130, 246, 0.3);
-  --color-editor-selection-focused: rgba(59, 130, 246, 0.4);
+    --color-editor-selection: rgba(34, 211, 238, 0.3);
+    --color-editor-selection-focused: rgba(34, 211, 238, 0.4);
   --color-editor-selection-alt: rgba(255, 255, 255, 0.04);
 
   /* Syntax Colors */

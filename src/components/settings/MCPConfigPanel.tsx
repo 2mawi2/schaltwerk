@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { TauriCommands } from '../../common/tauriCommands'
 import { logger } from '../../utils/logger'
+import { theme } from '../../common/theme'
 
 interface MCPStatus {
   mcp_server_path: string
@@ -108,7 +109,10 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                   removeMCP()
                 }
               }}
-              className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-blue-600 focus:ring-blue-500 focus:ring-offset-0"
+              className="w-4 h-4 rounded border-slate-600 bg-slate-800 focus:ring-cyan-400 focus:ring-offset-0"
+              style={{
+                color: theme.colors.accent.blue.dark,
+              }}
             />
              <span className="text-xs text-slate-400">
                {agent === 'codex' ? 'Enable MCP (global)' : agent === 'opencode' ? 'Enable MCP' : 'Enable MCP'}
@@ -150,7 +154,12 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                 {success}
               </div>
               
-              <div className="p-3 bg-blue-900/20 border border-blue-800 rounded text-blue-400 text-xs">
+              <div className="p-3 rounded text-xs"
+                   style={{
+                     backgroundColor: theme.colors.accent.blue.bg,
+                     borderColor: theme.colors.accent.blue.border,
+                     color: theme.colors.accent.blue.DEFAULT,
+                   }}>
                 <div className="flex items-start gap-2">
                   <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -216,7 +225,18 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                      <button
                        onClick={configureMCP}
                        disabled={loading}
-                       className="px-3 py-1 bg-blue-800 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed border border-blue-700 rounded text-sm transition-colors text-blue-200"
+                         className="px-3 py-1 disabled:opacity-50 disabled:cursor-not-allowed rounded text-sm transition-colors"
+                         style={{
+                           backgroundColor: '#155e75', // cyan-800
+                           borderColor: theme.colors.accent.blue.border,
+                           color: theme.colors.accent.blue.light,
+                         }}
+                         onMouseEnter={(e) => {
+                           e.currentTarget.style.backgroundColor = '#0e7490'; // cyan-700
+                         }}
+                         onMouseLeave={(e) => {
+                           e.currentTarget.style.backgroundColor = '#155e75'; // cyan-800
+                         }}
                      >
                        {agent === 'codex' ? 'Enable MCP (global)' : agent === 'opencode' ? 'Configure MCP' : 'Configure MCP for This Project'}
                      </button>
@@ -224,12 +244,23 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                 ) : (
                   <>
                      {agent === 'claude' ? (
-                       <a
-                         href="https://claude.ai/download"
-                         target="_blank"
-                         rel="noopener noreferrer"
-                         className="px-3 py-1 bg-blue-800 hover:bg-blue-700 border border-blue-700 rounded text-sm transition-colors text-blue-200 inline-block"
-                       >
+                         <a
+                           href="https://claude.ai/download"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="px-3 py-1 border rounded text-sm transition-colors inline-block"
+                           style={{
+                             backgroundColor: '#155e75', // cyan-800
+                             borderColor: theme.colors.accent.blue.border,
+                             color: theme.colors.accent.blue.light,
+                           }}
+                           onMouseEnter={(e) => {
+                             (e.target as HTMLElement).style.backgroundColor = '#0e7490'; // cyan-700
+                           }}
+                           onMouseLeave={(e) => {
+                             (e.target as HTMLElement).style.backgroundColor = '#155e75'; // cyan-800
+                           }}
+                        >
                          Install Claude Code First
                        </a>
                      ) : agent === 'codex' ? (
@@ -237,11 +268,11 @@ export function MCPConfigPanel({ projectPath, agent }: Props) {
                          Install Codex CLI first
                        </div>
                      ) : (
-                       <a
-                         href="https://opencode.ai"
-                         target="_blank"
-                         rel="noopener noreferrer"
-                         className="px-3 py-1 bg-blue-800 hover:bg-blue-700 border border-blue-700 rounded text-sm transition-colors text-blue-200 inline-block"
+                        <a
+                          href="https://opencode.ai"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3 py-1 bg-cyan-800 hover:bg-cyan-700 border border-cyan-700 rounded text-sm transition-colors text-cyan-200 inline-block"
                        >
                          Install OpenCode First
                        </a>

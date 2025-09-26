@@ -726,11 +726,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                         <button
                             key={agent}
                             onClick={() => setActiveAgentTab(agent)}
-                            className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
-                                activeAgentTab === agent
-                                    ? 'text-slate-200 border-b-2 border-blue-500'
-                                    : 'text-slate-400 hover:text-slate-300'
-                            }`}
+                             className={`px-6 py-3 text-body font-medium transition-colors capitalize ${
+                                 activeAgentTab === agent
+                                     ? `text-slate-200 border-b-2 ${theme.colors.border.focus}`
+                                     : 'text-slate-400 hover:text-slate-300'
+                             }`}
                         >
                             {displayNameForAgent(agent)}
                         </button>
@@ -764,7 +764,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                 <span className="text-caption text-slate-400">Current Binary</span>
                                 <button
                                     onClick={() => handleRefreshBinaryDetection(activeAgentTab)}
-                                    className="text-caption text-blue-400 hover:text-blue-300 transition-colors"
+                                     className={`text-caption ${theme.colors.accent.blue.DEFAULT} hover:${theme.colors.accent.cyan.light} transition-colors`}
                                     title="Refresh detection"
                                 >
                                     <svg className="w-4 h-4 inline mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -870,7 +870,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                                         {binary.is_symlink && binary.symlink_target && (
                                                             <>
                                                                 <span className="text-slate-500">•</span>
-                                                                <span className="text-blue-400">→ {binary.symlink_target}</span>
+                                                                 <span className={theme.colors.accent.blue.DEFAULT}>→ {binary.symlink_target}</span>
                                                             </>
                                                         )}
                                                     </div>
@@ -902,7 +902,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             style={{ fontVariantLigatures: 'none' }}
                         />
                         <div className="mt-2 text-caption text-slate-500">
-                            Examples: <code className="text-blue-400">--profile test</code>, <code className="text-blue-400">-d</code>, <code className="text-blue-400">--model gpt-4</code>
+                             Examples: <code className={theme.colors.accent.blue.DEFAULT}>--profile test</code>, <code className={theme.colors.accent.blue.DEFAULT}>-d</code>, <code className={theme.colors.accent.blue.DEFAULT}>--model gpt-4</code>
                         </div>
                     </div>
 
@@ -1057,10 +1057,10 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                                 <strong>Available variables:</strong>
                             </div>
                             <ul className="text-caption text-slate-500 space-y-1 list-disc list-inside">
-                                <li><code className="text-blue-400">$WORKTREE_PATH</code> - Path to the new worktree</li>
-                                <li><code className="text-blue-400">$REPO_PATH</code> - Path to the main repository</li>
-                                <li><code className="text-blue-400">$SESSION_NAME</code> - Name of the agent</li>
-                                <li><code className="text-blue-400">$BRANCH_NAME</code> - Name of the new branch</li>
+                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$WORKTREE_PATH</code> - Path to the new worktree</li>
+                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$REPO_PATH</code> - Path to the main repository</li>
+                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$SESSION_NAME</code> - Name of the agent</li>
+                                 <li><code className={theme.colors.accent.blue.DEFAULT}>$BRANCH_NAME</code> - Name of the new branch</li>
                             </ul>
                         </div>
 
@@ -1074,7 +1074,7 @@ if [ -f "$REPO_PATH/.env" ]; then
     cp "$REPO_PATH/.env" "$WORKTREE_PATH/.env"
     echo "✓ Copied .env file to worktree"
 fi`}
-                                className="w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body resize-none overflow-auto focus:outline-none focus:border-blue-500 transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800"
+                                 className={`w-full h-48 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body resize-none overflow-auto focus:outline-none focus:${theme.colors.border.focus} transition-colors scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800`}
                                 spellCheck={false}
                                 style={{ 
                                     scrollbarWidth: 'thin',
@@ -1083,8 +1083,8 @@ fi`}
                             />
                         </div>
                         
-                        <div className="mt-4 p-3 bg-blue-900/20 border border-blue-800/50 rounded">
-                            <div className="text-caption text-blue-300 mb-2">
+                         <div className={`mt-4 p-3 ${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded`}>
+                             <div className={`text-caption ${theme.colors.accent.cyan.light} mb-2`}>
                                 <strong>Example use cases:</strong>
                             </div>
                             <ul className="text-caption text-slate-400 space-y-1 list-disc list-inside">
@@ -1105,43 +1105,43 @@ fi`}
                         <div className="space-y-3">
                             <div>
                                 <label className="block text-caption text-slate-400 mb-1">Command</label>
-                                <input
-                                    type="text"
-                                    value={runScript.command}
-                                    onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
-                                    placeholder="e.g., npm run dev"
-                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                />
+                                 <input
+                                     type="text"
+                                     value={runScript.command}
+                                     onChange={(e) => setRunScript(prev => ({ ...prev, command: e.target.value }))}
+                                     placeholder="e.g., npm run dev"
+                                     className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                 />
                             </div>
                             <div>
                                 <label className="block text-caption text-slate-400 mb-1">Working Directory (optional)</label>
-                                <input
-                                    type="text"
-                                    value={runScript.workingDirectory || ''}
-                                    onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
-                                    placeholder="Defaults to active project folder"
-                                    className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                />
+                                 <input
+                                     type="text"
+                                     value={runScript.workingDirectory || ''}
+                                     onChange={(e) => setRunScript(prev => ({ ...prev, workingDirectory: e.target.value }))}
+                                     placeholder="Defaults to active project folder"
+                                     className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                 />
                             </div>
                             <div>
                                 <label className="block text-caption text-slate-400 mb-2">Environment Variables</label>
                                 <div className="space-y-2">
                                     {Object.entries(runScript.environmentVariables || {}).map(([k, v], index) => (
                                         <div key={index} className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={k}
-                                                onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
-                                                placeholder="KEY"
-                                                className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                            />
-                                            <input
-                                                type="text"
-                                                value={v}
-                                                onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
-                                                placeholder="value"
-                                                className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                            />
+                                             <input
+                                                 type="text"
+                                                 value={k}
+                                                 onChange={(e) => handleRunEnvVarChange(index, 'key', e.target.value)}
+                                                 placeholder="KEY"
+                                                 className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                             />
+                                             <input
+                                                 type="text"
+                                                 value={v}
+                                                 onChange={(e) => handleRunEnvVarChange(index, 'value', e.target.value)}
+                                                 placeholder="value"
+                                                 className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                             />
                                             <button
                                                 onClick={() => handleRemoveRunEnvVar(index)}
                                                 className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
@@ -1179,20 +1179,20 @@ fi`}
                         <div className="space-y-2">
                             {projectSettings.environmentVariables.map((envVar, index) => (
                                 <div key={index} className="flex gap-2">
-                                    <input
-                                        type="text"
-                                        value={envVar.key}
-                                        onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
-                                        placeholder="KEY"
-                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                    />
-                                    <input
-                                        type="text"
-                                        value={envVar.value}
-                                        onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
-                                        placeholder="value"
-                                        className="flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
-                                    />
+                                     <input
+                                         type="text"
+                                         value={envVar.key}
+                                         onChange={(e) => handleProjectEnvVarChange(index, 'key', e.target.value)}
+                                         placeholder="KEY"
+                                         className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                     />
+                                     <input
+                                         type="text"
+                                         value={envVar.value}
+                                         onChange={(e) => handleProjectEnvVarChange(index, 'value', e.target.value)}
+                                         placeholder="value"
+                                         className={`flex-1 bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
+                                     />
                                     <button
                                         onClick={() => handleRemoveProjectEnvVar(index)}
                                         className="px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-700 rounded transition-colors text-red-400"
@@ -1374,16 +1374,16 @@ fi`}
                                                 value={currentValue}
                                                 onChange={(e) => handleShortcutInputChange(item.action, e.target.value)}
                                                 placeholder="Type shortcut (e.g. Mod+Shift+S)"
-                                                className="w-48 bg-slate-900/40 text-slate-100 border border-slate-700/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:border-blue-500/80 disabled:opacity-60"
+                                                 className={`w-48 bg-slate-900/40 text-slate-100 border border-slate-700/70 rounded px-2.5 py-1.5 text-caption focus:outline-none focus:${theme.colors.border.focus}/80 disabled:opacity-60`}
                                                 disabled={isRecording}
                                             />
                                             <button
                                                 onClick={() => handleShortcutRecord(item.action)}
-                                                className={`px-2.5 py-1.5 text-caption rounded-lg border transition-colors ${
-                                                    isRecording
-                                                        ? 'border-blue-400 text-blue-200 bg-blue-500/15'
-                                                        : 'border-slate-600/70 text-slate-200 hover:border-slate-500 hover:bg-slate-800/50'
-                                                }`}
+                                                 className={`px-2.5 py-1.5 text-caption rounded-lg border transition-colors ${
+                                                     isRecording
+                                                         ? `border-${theme.colors.accent.cyan.light} ${theme.colors.accent.cyan.light} ${theme.colors.accent.cyan.bg}`
+                                                         : 'border-slate-600/70 text-slate-200 hover:border-slate-500 hover:bg-slate-800/50'
+                                                 }`}
                                             >
                                                 {isRecording ? 'Listening…' : 'Record'}
                                             </button>
@@ -1446,7 +1446,7 @@ fi`}
                                     className="w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 font-mono text-body"
                                 />
                                 <div className="mt-2 text-caption text-slate-500">
-                                    Examples: <code className="text-blue-400">/usr/local/bin/nu</code>, <code className="text-blue-400">/opt/homebrew/bin/fish</code>, <code className="text-blue-400">/bin/zsh</code>
+                                     Examples: <code className={theme.colors.accent.blue.DEFAULT}>/usr/local/bin/nu</code>, <code className={theme.colors.accent.blue.DEFAULT}>/opt/homebrew/bin/fish</code>, <code className={theme.colors.accent.blue.DEFAULT}>/bin/zsh</code>
                                 </div>
                             </div>
                             
@@ -1473,29 +1473,29 @@ fi`}
                             <div className="text-caption text-slate-400">
                                 <strong className="text-slate-300">Popular Shell Configurations:</strong>
                                 <ul className="mt-3 space-y-2">
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-blue-400">Nushell:</span>
-                                        <div>
-                                            <div>Path: <code>/usr/local/bin/nu</code> or <code>/opt/homebrew/bin/nu</code></div>
-                                            <div>Args: (leave empty, Nushell doesn't need -i)</div>
-                                        </div>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-blue-400">Fish:</span>
-                                        <div>
-                                            <div>Path: <code>/usr/local/bin/fish</code> or <code>/opt/homebrew/bin/fish</code></div>
-                                            <div>Args: <code>-i</code></div>
-                                        </div>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-blue-400">Zsh:</span>
-                                        <div>
-                                            <div>Path: <code>/bin/zsh</code> or <code>/usr/bin/zsh</code></div>
-                                            <div>Args: <code>-i</code></div>
-                                        </div>
-                                    </li>
-                                    <li className="flex items-start gap-2">
-                                        <span className="text-blue-400">Bash:</span>
+                                     <li className="flex items-start gap-2">
+                                         <span className={theme.colors.accent.blue.DEFAULT}>Nushell:</span>
+                                         <div>
+                                             <div>Path: <code>/usr/local/bin/nu</code> or <code>/opt/homebrew/bin/nu</code></div>
+                                             <div>Args: (leave empty, Nushell doesn't need -i)</div>
+                                         </div>
+                                     </li>
+                                     <li className="flex items-start gap-2">
+                                         <span className={theme.colors.accent.blue.DEFAULT}>Fish:</span>
+                                         <div>
+                                             <div>Path: <code>/usr/local/bin/fish</code> or <code>/opt/homebrew/bin/fish</code></div>
+                                             <div>Args: <code>-i</code></div>
+                                         </div>
+                                     </li>
+                                     <li className="flex items-start gap-2">
+                                         <span className={theme.colors.accent.blue.DEFAULT}>Zsh:</span>
+                                         <div>
+                                             <div>Path: <code>/bin/zsh</code> or <code>/usr/bin/zsh</code></div>
+                                             <div>Args: <code>-i</code></div>
+                                         </div>
+                                     </li>
+                                     <li className="flex items-start gap-2">
+                                         <span className={theme.colors.accent.blue.DEFAULT}>Bash:</span>
                                         <div>
                                             <div>Path: <code>/bin/bash</code> or <code>/usr/bin/bash</code></div>
                                             <div>Args: <code>-i</code></div>
@@ -1525,10 +1525,10 @@ fi`}
                             These buttons provide quick access to common AI prompts that will be pasted directly into Claude.
                         </p>
                         
-                        <div className="bg-blue-900/20 border border-blue-700/50 rounded p-3 mb-6">
-                            <div className="text-caption text-blue-300">
-                                <strong>💡 How it works:</strong>
-                                <ul className="mt-2 space-y-1 list-disc list-inside text-blue-200">
+                         <div className={`${theme.colors.accent.cyan.bg} border ${theme.colors.accent.cyan.border} rounded p-3 mb-6`}>
+                             <div className={`text-caption ${theme.colors.accent.cyan.light}`}>
+                                 <strong>💡 How it works:</strong>
+                                 <ul className={`mt-2 space-y-1 list-disc list-inside ${theme.colors.accent.cyan.DEFAULT}`}>
                                     <li>Click any action button to instantly paste its prompt into Claude</li>
                                     <li>Use keyboard shortcuts F1-F6 for even faster access</li>
                                     <li>Buttons appear next to "Agent" and "Reset" in the terminal header</li>
@@ -1671,15 +1671,15 @@ fi`}
                         
                         <div className="space-y-4">
                             <label className="flex items-center gap-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={sessionPreferences.auto_commit_on_review}
-                                    onChange={(e) => setSessionPreferences({
-                                        ...sessionPreferences,
-                                        auto_commit_on_review: e.target.checked
-                                    })}
-                                    className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
-                                />
+                                  <input
+                                      type="checkbox"
+                                      checked={sessionPreferences.auto_commit_on_review}
+                                       onChange={(e) => setSessionPreferences({
+                                           ...sessionPreferences,
+                                           auto_commit_on_review: e.target.checked
+                                       })}
+                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                 />
                                 <div className="flex-1">
                                     <div className="text-body font-medium text-slate-200">
                                         Auto-commit on Review
@@ -1692,15 +1692,15 @@ fi`}
                             </label>
                             
                             <label className="flex items-center gap-3 cursor-pointer">
-                                <input
-                                    type="checkbox"
-                                    checked={sessionPreferences.skip_confirmation_modals}
-                                    onChange={(e) => setSessionPreferences({
-                                        ...sessionPreferences,
-                                        skip_confirmation_modals: e.target.checked
-                                    })}
-                                    className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
-                                />
+                                  <input
+                                      type="checkbox"
+                                      checked={sessionPreferences.skip_confirmation_modals}
+                                       onChange={(e) => setSessionPreferences({
+                                           ...sessionPreferences,
+                                           skip_confirmation_modals: e.target.checked
+                                       })}
+                                       className={`w-4 h-4 ${theme.colors.accent.cyan.dark} bg-slate-800 border-slate-600 rounded focus:ring-${theme.colors.accent.cyan.DEFAULT} focus:ring-2`}
+                                 />
                                 <div className="flex-1">
                                     <div className="text-body font-medium text-slate-200">
                                         Skip Confirmation Dialogs
@@ -1798,10 +1798,10 @@ fi`}
                 />
             )}
             {notification.visible && (
-                <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
-                    notification.type === 'error' ? 'bg-red-900' : 
-                    notification.type === 'success' ? 'bg-green-900' : 'bg-blue-900'
-                }`}>
+                 <div className={`fixed top-4 right-4 z-[60] px-4 py-3 rounded-lg shadow-lg transition-opacity duration-300 ${
+                     notification.type === 'error' ? 'bg-red-900' :
+                     notification.type === 'success' ? 'bg-green-900' : 'bg-slate-800'
+                 }`} style={notification.type === 'info' ? { backgroundColor: theme.colors.status.info } : {}}>
                     <div className="text-white text-body">{notification.message}</div>
                 </div>
             )}
@@ -1887,7 +1887,7 @@ fi`}
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                 className={`px-4 py-2 ${theme.colors.accent.cyan.dark} hover:${theme.colors.accent.cyan.DEFAULT} text-white rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
                             >
                                 {saving ? (
                                     <span className="text-button text-white/80">Saving...</span>

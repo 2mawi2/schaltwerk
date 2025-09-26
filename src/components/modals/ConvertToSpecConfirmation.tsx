@@ -3,6 +3,7 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { ConfirmModal } from './ConfirmModal'
 import { logger } from '../../utils/logger'
+import { theme } from '../../common/theme'
 
 interface ConvertToDraftConfirmationProps {
   open: boolean
@@ -49,7 +50,7 @@ export function ConvertToSpecConfirmation({
   const body = (
     <div>
       <p className="text-slate-300 mb-4">
-        Convert <span className="font-mono text-blue-400">{displayName}</span> back to a spec agent?
+        Convert <span className="font-mono" style={{ color: theme.colors.accent.cyan.DEFAULT }}>{displayName}</span> back to a spec agent?
       </p>
       {hasUncommittedChanges && (
         <div className="bg-amber-950/50 border border-amber-800 rounded p-3 mb-4">

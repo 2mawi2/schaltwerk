@@ -7,6 +7,7 @@ import { AsciiBuilderLogo } from './AsciiBuilderLogo'
 import { NewProjectDialog } from './NewProjectDialog'
 import { getHomeLogoPositionStyles, getContentAreaStyles } from '../../constants/layout'
 import { logger } from '../../utils/logger'
+import { theme } from '../../common/theme'
 
 interface RecentProject {
   path: string
@@ -122,9 +123,9 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     <div className="h-screen w-screen bg-slate-950 relative">
       {/* Logo positioned higher for HomeScreen layout */}
       <div style={getHomeLogoPositionStyles()}>
-        <div className="inline-flex items-center gap-3">
-          <AsciiBuilderLogo colorClassName="text-cyan-400" idleMode="artifact" />
-        </div>
+         <div className="inline-flex items-center gap-3">
+            <AsciiBuilderLogo idleMode="artifact" />
+         </div>
       </div>
 
       {/* Content area positioned using layout constants for perfect centering */}
@@ -147,13 +148,18 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
             <VscNewFolder className="text-2xl" />
             <span className="text-lg font-medium">New Project</span>
           </button>
-          <button
-            onClick={handleSelectDirectory}
-            className="bg-cyan-900/30 hover:bg-cyan-800/40 border border-cyan-700/50 text-cyan-300 py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
-          >
-            <VscFolderOpened className="text-2xl" />
-            <span className="text-lg font-medium">Open Repository</span>
-          </button>
+           <button
+             onClick={handleSelectDirectory}
+             className="py-4 px-6 rounded-lg flex items-center justify-center gap-3 group"
+             style={{
+               backgroundColor: theme.colors.accent.blue.bg,
+               border: `1px solid ${theme.colors.accent.blue.border}`,
+               color: theme.colors.accent.blue.DEFAULT
+             }}
+           >
+             <VscFolderOpened className="text-2xl" />
+             <span className="text-lg font-medium">Open Repository</span>
+           </button>
         </div>
 
         {recentProjects.length > 0 && (
@@ -174,7 +180,14 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
                     className="w-full text-left"
                   >
                     <div className="flex items-start gap-3">
-                      <VscFolderOpened className="text-slate-500 group-hover:text-cyan-400 transition-colors text-lg flex-shrink-0 mt-0.5" />
+                       <VscFolderOpened
+                         className="transition-colors text-lg flex-shrink-0 mt-0.5"
+                         style={{
+                           color: theme.colors.text.muted,
+                         }}
+                         onMouseEnter={(e) => e.currentTarget.style.color = theme.colors.accent.blue.DEFAULT}
+                         onMouseLeave={(e) => e.currentTarget.style.color = theme.colors.text.muted}
+                       />
                       <div className="flex-1 min-w-0 pr-8">
                         <h3 className="text-slate-200 font-medium truncate text-sm">
                           {project.name}
