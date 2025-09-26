@@ -160,6 +160,11 @@ pub struct ProjectSessionsSettings {
     pub sort_mode: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ProjectMergePreferences {
+    pub auto_cancel_after_merge: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct HeaderActionConfig {
@@ -201,6 +206,15 @@ pub trait ProjectConfigMethods {
         &self,
         repo_path: &Path,
         env_vars: &HashMap<String, String>,
+    ) -> Result<()>;
+    fn get_project_merge_preferences(
+        &self,
+        repo_path: &Path,
+    ) -> Result<ProjectMergePreferences>;
+    fn set_project_merge_preferences(
+        &self,
+        repo_path: &Path,
+        preferences: &ProjectMergePreferences,
     ) -> Result<()>;
     fn get_project_action_buttons(&self, repo_path: &Path) -> Result<Vec<HeaderActionConfig>>;
     fn set_project_action_buttons(
@@ -449,6 +463,57 @@ impl ProjectConfigMethods for Database {
                     environment_variables = excluded.environment_variables,
                     updated_at            = excluded.updated_at",
             params![canonical_path.to_string_lossy(), json_str, now, now],
+        )?;
+
+        Ok(())
+    }
+
+    fn get_project_merge_preferences(
+        &self,
+        repo_path: &Path,
+    ) -> Result<ProjectMergePreferences> {
+        let conn = self.conn.lock().unwrap();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let query_res: rusqlite::Result<Option<i64>> = conn.query_row(
+            "SELECT auto_cancel_after_merge FROM project_config WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| row.get(0),
+        );
+
+        let auto_cancel = match query_res {
+            Ok(Some(value)) => value != 0,
+            Ok(None) | Err(rusqlite::Error::QueryReturnedNoRows) => false,
+            Err(e) => return Err(e.into()),
+        };
+
+        Ok(ProjectMergePreferences {
+            auto_cancel_after_merge: auto_cancel,
+        })
+    }
+
+    fn set_project_merge_preferences(
+        &self,
+        repo_path: &Path,
+        preferences: &ProjectMergePreferences,
+    ) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+        let value = if preferences.auto_cancel_after_merge { 1 } else { 0 };
+
+        conn.execute(
+            "INSERT INTO project_config (repository_path, auto_cancel_after_merge,
+                                            created_at, updated_at)
+                VALUES (?1, ?2, ?3, ?4)
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    auto_cancel_after_merge = excluded.auto_cancel_after_merge,
+                    updated_at              = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), value, now, now],
         )?;
 
         Ok(())

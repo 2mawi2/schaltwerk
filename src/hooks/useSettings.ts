@@ -33,6 +33,10 @@ interface SessionPreferences {
     skip_confirmation_modals: boolean
 }
 
+export interface ProjectMergePreferences {
+    autoCancelAfterMerge: boolean
+}
+
 export interface SettingsSaveResult {
     success: boolean
     savedSettings: string[]
@@ -92,16 +96,25 @@ export const useSettings = () => {
     const saveSessionPreferences = useCallback(async (sessionPreferences: SessionPreferences): Promise<void> => {
         await invoke(TauriCommands.SetSessionPreferences, { preferences: sessionPreferences })
     }, [])
-    
+
+    const saveMergePreferences = useCallback(async (mergePreferences: ProjectMergePreferences): Promise<void> => {
+        await invoke(TauriCommands.SetProjectMergePreferences, {
+            preferences: {
+                auto_cancel_after_merge: mergePreferences.autoCancelAfterMerge
+            }
+        })
+    }, [])
+
     const saveAllSettings = useCallback(async (
         envVars: Record<AgentType, Array<{key: string, value: string}>>,
         cliArgs: Record<AgentType, string>,
         projectSettings: ProjectSettings,
         terminalSettings: TerminalSettings,
-        sessionPreferences: SessionPreferences
+        sessionPreferences: SessionPreferences,
+        mergePreferences: ProjectMergePreferences
     ): Promise<SettingsSaveResult> => {
         setSaving(true)
-        
+
         const savedSettings: string[] = []
         const failedSettings: string[] = []
         
@@ -134,15 +147,23 @@ export const useSettings = () => {
             logger.error('Failed to save session preferences:', error)
             failedSettings.push('session preferences')
         }
-        
+
+        try {
+            await saveMergePreferences(mergePreferences)
+            savedSettings.push('merge preferences')
+        } catch (error) {
+            logger.error('Failed to save project merge preferences:', error)
+            failedSettings.push('merge preferences')
+        }
+
         setSaving(false)
-        
+
         return {
             success: failedSettings.length === 0,
             savedSettings,
             failedSettings
         }
-    }, [saveAgentSettings, saveProjectSettings, saveTerminalSettings, saveSessionPreferences])
+    }, [saveAgentSettings, saveProjectSettings, saveTerminalSettings, saveSessionPreferences, saveMergePreferences])
     
     const loadEnvVars = useCallback(async (): Promise<Record<AgentType, Array<{key: string, value: string}>>> => {
         setLoading(true)
@@ -223,7 +244,21 @@ export const useSettings = () => {
             return { auto_commit_on_review: false, skip_confirmation_modals: false }
         }
     }, [])
-    
+
+    const loadMergePreferences = useCallback(async (): Promise<ProjectMergePreferences> => {
+        try {
+            const preferences = await invoke<{ auto_cancel_after_merge: boolean }>(
+                TauriCommands.GetProjectMergePreferences
+            )
+            return {
+                autoCancelAfterMerge: Boolean(preferences?.auto_cancel_after_merge)
+            }
+        } catch (error) {
+            logger.error('Failed to load project merge preferences:', error)
+            return { autoCancelAfterMerge: false }
+        }
+    }, [])
+
     const loadInstalledFonts = useCallback(async (): Promise<Array<{ family: string, monospace: boolean }>> => {
         try {
             const items = await invoke<Array<{ family: string, monospace: boolean }>>('list_installed_fonts')
@@ -263,6 +298,7 @@ export const useSettings = () => {
         loadProjectSettings,
         loadTerminalSettings,
         loadSessionPreferences,
+        loadMergePreferences,
         loadKeyboardShortcuts,
         loadInstalledFonts,
     }

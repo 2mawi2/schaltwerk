@@ -24,6 +24,8 @@ interface MergeSessionModalProps {
   error?: string | null
   onClose: () => void
   onConfirm: (mode: MergeModeOption, commitMessage?: string) => void
+  autoCancelEnabled: boolean
+  onToggleAutoCancel: (next: boolean) => void
 }
 
 const modalBackdropStyle: React.CSSProperties = {
@@ -49,6 +51,8 @@ export function MergeSessionModal({
   error,
   onClose,
   onConfirm,
+  autoCancelEnabled,
+  onToggleAutoCancel,
 }: MergeSessionModalProps) {
   const { registerModal, unregisterModal } = useModal()
   const [mode, setMode] = useState<MergeModeOption>('squash')
@@ -103,6 +107,10 @@ export function MergeSessionModal({
     ? 'Merging…'
     : 'Merge session (Enter)'
 
+  const handleToggleAutoCancel = useCallback(() => {
+    onToggleAutoCancel(!autoCancelEnabled)
+  }, [onToggleAutoCancel, autoCancelEnabled])
+
   const handleConfirm = useCallback(() => {
     if (status === 'loading' || status === 'running' || hasConflicts || isUpToDate) return
     if (mode === 'squash') {
@@ -153,7 +161,7 @@ export function MergeSessionModal({
         aria-modal="true"
         aria-labelledby="merge-session-title"
       >
-        <div className="flex justify-between items-start gap-4 border-b px-6 py-4" style={{ borderColor: theme.colors.border.subtle }}>
+          <div className="flex justify-between items-start gap-4 border-b px-6 py-4" style={{ borderColor: theme.colors.border.subtle }}>
           <div>
             <h2 id="merge-session-title" className="text-lg font-semibold" style={{ color: theme.colors.text.primary }}>
               Merge Session
@@ -162,15 +170,27 @@ export function MergeSessionModal({
               {sessionName} → {parentBranch}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-sm"
-            style={{ color: theme.colors.text.secondary }}
-            aria-label="Close merge dialog"
-            title="Close (Esc)"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-4">
+            <label className="flex items-center gap-2 text-sm" style={{ color: theme.colors.text.secondary }}>
+              <input
+                type="checkbox"
+                checked={autoCancelEnabled}
+                onChange={handleToggleAutoCancel}
+                className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                aria-label="Auto-cancel after merge"
+              />
+              <span>Auto-cancel after merge</span>
+            </label>
+            <button
+              onClick={onClose}
+              className="text-sm"
+              style={{ color: theme.colors.text.secondary }}
+              aria-label="Close merge dialog"
+              title="Close (Esc)"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         <div className="px-6 py-4 space-y-4">
@@ -182,6 +202,18 @@ export function MergeSessionModal({
 
           {status !== 'loading' && preview && (
             <>
+              <div
+                className="flex items-center gap-3 rounded px-4 py-3"
+                style={{
+                  backgroundColor: theme.colors.background.tertiary,
+                  border: `1px solid ${theme.colors.border.subtle}`,
+                }}
+              >
+                <span className="text-sm" style={{ color: theme.colors.text.secondary }}>
+                  Auto-cancel after a successful merge is currently {autoCancelEnabled ? 'enabled' : 'disabled'}. This preference is stored per project and can also be adjusted in Settings → Project.
+                </span>
+              </div>
+
               <div>
                 <span style={fieldLabelStyle}>Session branch</span>
                 <div className="text-sm" style={{ color: theme.colors.text.primary }}>{sessionBranch}</div>

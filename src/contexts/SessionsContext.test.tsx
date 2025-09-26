@@ -137,6 +137,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -159,6 +160,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -180,6 +182,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreStartSpecSession) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -200,6 +203,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreConvertSessionToDraft) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -219,6 +223,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreMarkReady) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -238,6 +243,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) return mockSessions
             if (cmd === TauriCommands.SchaltwerkCoreCreateSpecSession) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -266,6 +272,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -311,6 +318,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -364,6 +372,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -422,6 +431,7 @@ describe('SessionsContext', () => {
                     isUpToDate: false,
                 }
             }
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -456,6 +466,7 @@ describe('SessionsContext', () => {
                     isUpToDate: true,
                 }
             }
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -485,6 +496,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -527,6 +539,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -673,6 +686,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -716,6 +730,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'created' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -773,6 +788,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -821,6 +837,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
             if (cmd === TauriCommands.SchaltwerkCoreStartClaude) return 'started'
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -883,6 +900,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -939,6 +957,7 @@ describe('SessionsContext', () => {
             if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
             if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
             if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
             return undefined
         })
 
@@ -989,5 +1008,51 @@ describe('SessionsContext', () => {
         expect(pushToastMock).toHaveBeenCalledTimes(2)
         expect(pushToastMock.mock.calls[1][0]).toMatchObject({ tone: 'error' })
         expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
+    })
+
+    it('auto-cancels session after successful merge when preference enabled', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+        vi.mocked(listen).mockImplementation(async (event, handler) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: true }
+            if (cmd === TauriCommands.SchaltwerkCoreCancelSession) return undefined
+            return undefined
+        })
+
+        renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(listeners['schaltwerk:git-operation-completed']).toBeTruthy()
+        })
+
+        act(() => {
+            listeners['schaltwerk:git-operation-completed']?.({
+                event: 'schaltwerk:git-operation-completed',
+                id: 21,
+                payload: {
+                    session_name: 'test-ready',
+                    session_branch: 'feature/test-ready',
+                    parent_branch: 'main',
+                    mode: 'squash',
+                    operation: 'merge',
+                    commit: 'dcba987',
+                    status: 'success' as const,
+                }
+            } as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            const cancelCalls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === TauriCommands.SchaltwerkCoreCancelSession)
+            expect(cancelCalls.some(([, payload]) => (payload as { name?: string })?.name === 'test-ready')).toBe(true)
+        })
     })
 })

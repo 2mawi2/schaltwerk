@@ -269,5 +269,9 @@ fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Resul
         "UPDATE project_config SET branch_prefix = 'schaltwerk' WHERE branch_prefix IS NULL",
         [],
     );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN auto_cancel_after_merge INTEGER DEFAULT 0",
+        [],
+    );
     Ok(())
 }

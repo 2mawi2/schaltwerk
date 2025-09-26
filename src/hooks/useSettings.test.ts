@@ -240,22 +240,30 @@ describe('useSettings', () => {
         skip_confirmation_modals: false
       }
 
+      const mergePreferences = {
+        autoCancelAfterMerge: true
+      }
+
       const saveResult = await act(async () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
           projectSettings,
           terminalSettings,
-          sessionPreferences
+          sessionPreferences,
+          mergePreferences
         )
       })
 
       expect(saveResult).toEqual({
         success: true,
-        savedSettings: ['agent configurations', 'project settings', 'terminal settings', 'session preferences'],
+        savedSettings: ['agent configurations', 'project settings', 'terminal settings', 'session preferences', 'merge preferences'],
         failedSettings: []
       })
       expect(result.current.saving).toBe(false)
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.SetProjectMergePreferences, {
+        preferences: { auto_cancel_after_merge: true }
+      })
     })
 
     it('handles partial failures gracefully', async () => {
@@ -298,21 +306,45 @@ describe('useSettings', () => {
         skip_confirmation_modals: false
       }
 
+      const mergePreferences = {
+        autoCancelAfterMerge: false
+      }
+
       const saveResult = await act(async () => {
         return await result.current.saveAllSettings(
           envVars,
           cliArgs,
           projectSettings,
           terminalSettings,
-          sessionPreferences
+          sessionPreferences,
+          mergePreferences
         )
       })
 
       expect(saveResult).toEqual({
         success: false,
-        savedSettings: ['project settings', 'terminal settings', 'session preferences'],
+        savedSettings: ['project settings', 'terminal settings', 'session preferences', 'merge preferences'],
         failedSettings: ['agent configurations']
       })
+    })
+  })
+
+  describe('merge preferences', () => {
+    it('loads merge preferences from backend', async () => {
+      mockInvoke.mockImplementation(async (command: string) => {
+        if (command === TauriCommands.GetProjectMergePreferences) {
+          return { auto_cancel_after_merge: true }
+        }
+        return null
+      })
+
+      const { result } = renderHook(() => useSettings())
+
+      const prefs = await act(async () => {
+        return await result.current.loadMergePreferences()
+      })
+
+      expect(prefs).toEqual({ autoCancelAfterMerge: true })
     })
   })
 

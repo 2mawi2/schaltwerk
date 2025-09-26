@@ -19,6 +19,12 @@ function renderModal(
 ) {
   const onConfirm = vi.fn()
   const onClose = vi.fn()
+  const {
+    autoCancelEnabled = false,
+    onToggleAutoCancel = vi.fn(),
+    ...rest
+  } = props
+
   render(
     <ModalProvider>
       <MergeSessionModal
@@ -28,11 +34,14 @@ function renderModal(
         preview={preview}
         onClose={onClose}
         onConfirm={onConfirm}
-        {...props}
+        autoCancelEnabled={autoCancelEnabled}
+        onToggleAutoCancel={onToggleAutoCancel}
+        {...rest}
       />
     </ModalProvider>
   )
-  return { onConfirm, onClose }
+
+  return { onConfirm, onClose, onToggleAutoCancel }
 }
 
 describe('MergeSessionModal', () => {
@@ -58,5 +67,25 @@ describe('MergeSessionModal', () => {
     expect(confirm).not.toBeDisabled()
     fireEvent.click(confirm)
     expect(onConfirm).toHaveBeenCalledWith('reapply' as MergeModeOption)
+  })
+
+  it('renders auto-cancel toggle reflecting disabled state', () => {
+    renderModal({ autoCancelEnabled: false })
+    const toggle = screen.getByRole('checkbox', { name: 'Auto-cancel after merge' }) as HTMLInputElement
+    expect(toggle.checked).toBe(false)
+  })
+
+  it('invokes toggle handler with next state', () => {
+    const onToggleAutoCancel = vi.fn()
+    renderModal({ autoCancelEnabled: false, onToggleAutoCancel })
+    const toggle = screen.getByRole('checkbox', { name: 'Auto-cancel after merge' })
+    fireEvent.click(toggle)
+    expect(onToggleAutoCancel).toHaveBeenCalledWith(true)
+  })
+
+  it('marks toggle as pressed when enabled', () => {
+    renderModal({ autoCancelEnabled: true })
+    const toggle = screen.getByRole('checkbox', { name: 'Auto-cancel after merge' }) as HTMLInputElement
+    expect(toggle.checked).toBe(true)
   })
 })

@@ -75,6 +75,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         confirmMerge,
         isMergeInFlight,
         getMergeStatus,
+        autoCancelAfterMerge,
+        updateAutoCancelAfterMerge,
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
 
@@ -1297,6 +1299,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         void confirmMerge(mergeDialogState.sessionName, mode, commitMessage)
                     }
                 }}
+                autoCancelEnabled={autoCancelAfterMerge}
+                onToggleAutoCancel={(next) => { void updateAutoCancelAfterMerge(next) }}
             />
             <SwitchOrchestratorModal
                 open={switchOrchestratorModal}

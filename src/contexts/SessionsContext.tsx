@@ -131,6 +131,8 @@ interface SessionsContextValue {
     confirmMerge: (sessionId: string, mode: MergeModeOption, commitMessage?: string) => Promise<void>
     isMergeInFlight: (sessionId: string) => boolean
     getMergeStatus: (sessionId: string) => MergeStatus
+    autoCancelAfterMerge: boolean
+    updateAutoCancelAfterMerge: (next: boolean, persist?: boolean) => Promise<void>
 }
 
 const SessionsContext = createContext<SessionsContextValue | undefined>(undefined)
@@ -167,6 +169,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [mergeStatuses, setMergeStatuses] = useState<Map<string, MergeStatus>>(new Map())
     const mergePreviewCacheRef = useRef(new Map<string, MergePreviewResponse | null>())
     const pendingMergePreviewRef = useRef(new Set<string>())
+    const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(false)
+    const autoCancelAfterMergeRef = useLatest(autoCancelAfterMerge)
 
     const updateMergeInFlight = useCallback((sessionId: string, running: boolean) => {
         setMergeInFlight(prev => {
@@ -378,6 +382,27 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         },
         [updateMergeInFlight, mergeDialogStateRef]
     )
+
+    const updateAutoCancelAfterMerge = useCallback(async (next: boolean, persist: boolean = true) => {
+        const previous = autoCancelAfterMergeRef.current
+        setAutoCancelAfterMerge(next)
+        if (!persist) {
+            return
+        }
+        try {
+            await invoke(TauriCommands.SetProjectMergePreferences, {
+                preferences: { auto_cancel_after_merge: next }
+            })
+        } catch (error) {
+            logger.error('[SessionsContext] Failed to update merge preferences:', error)
+            setAutoCancelAfterMerge(previous)
+            pushToastRef.current({
+                tone: 'error',
+                title: 'Failed to update auto-cancel preference',
+                description: getErrorMessage(error),
+            })
+        }
+    }, [autoCancelAfterMergeRef, pushToastRef])
 
     // Note: mapSessionUiState function moved to utils/sessionFilters.ts
 
@@ -655,6 +680,35 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 })
         })
     }, [allSessions, projectPath])
+
+    useEffect(() => {
+        let cancelled = false
+
+        if (!projectPath) {
+            setAutoCancelAfterMerge(false)
+            return
+        }
+
+        ;(async () => {
+            try {
+                const preferences = await invoke<{ auto_cancel_after_merge: boolean }>(
+                    TauriCommands.GetProjectMergePreferences
+                )
+                if (!cancelled) {
+                    setAutoCancelAfterMerge(Boolean(preferences?.auto_cancel_after_merge))
+                }
+            } catch (error) {
+                logger.error('[SessionsContext] Failed to load merge preferences:', error)
+                if (!cancelled) {
+                    setAutoCancelAfterMerge(false)
+                }
+            }
+        })()
+
+        return () => {
+            cancelled = true
+        }
+    }, [projectPath])
 
     // Ensure a backend watcher is active for each running session so git stats update instantly
     // Note: file watchers are managed per active selection in SelectionContext to
@@ -1096,6 +1150,21 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 description,
             })
 
+            if ((event.status === 'success' || event.status === undefined) && event.operation === 'merge' && autoCancelAfterMergeRef.current) {
+                void (async () => {
+                    try {
+                        await invoke(TauriCommands.SchaltwerkCoreCancelSession, { name: event.session_name })
+                    } catch (error) {
+                        logger.error('[SessionsContext] Auto-cancel after merge failed:', error)
+                        pushToastRef.current({
+                            tone: 'error',
+                            title: `Failed to cancel ${event.session_name}`,
+                            description: getErrorMessage(error),
+                        })
+                    }
+                })()
+            }
+
             setMergeDialogState(prev => {
                 if (!prev.isOpen || prev.sessionName !== event.session_name) {
                     return prev
@@ -1156,7 +1225,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 }
             })
         }
-    }, [pushToastRef, updateMergeInFlightRef])
+    }, [pushToastRef, updateMergeInFlightRef, autoCancelAfterMergeRef])
 
     return (
         <SessionsContext.Provider value={{
@@ -1183,6 +1252,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             confirmMerge,
             isMergeInFlight,
             getMergeStatus,
+            autoCancelAfterMerge,
+            updateAutoCancelAfterMerge,
         }}>
             {children}
         </SessionsContext.Provider>

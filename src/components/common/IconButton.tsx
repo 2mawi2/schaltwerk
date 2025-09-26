@@ -11,6 +11,7 @@ interface IconButtonProps {
   className?: string;
   variant?: 'default' | 'danger' | 'success' | 'warning';
   stopPropagation?: boolean;
+  ariaPressed?: boolean;
 }
 
 export function IconButton({
@@ -22,6 +23,7 @@ export function IconButton({
   className,
   variant = 'default',
   stopPropagation = true,
+  ariaPressed,
 }: IconButtonProps) {
   const [showTooltip, setShowTooltip] = useState(false);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
@@ -92,6 +94,7 @@ export function IconButton({
         onMouseLeave={handleMouseLeave}
         disabled={disabled}
         aria-label={ariaLabel}
+        aria-pressed={ariaPressed}
         className={clsx(
           'inline-flex items-center justify-center',
           'px-1.5 py-1 rounded',

@@ -6,8 +6,8 @@ use schaltwerk::domains::settings::{
 };
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
-    default_action_buttons, HeaderActionConfig, ProjectConfigMethods, ProjectSelection,
-    ProjectSessionsSettings, RunScript,
+    default_action_buttons, HeaderActionConfig, ProjectConfigMethods, ProjectMergePreferences,
+    ProjectSelection, ProjectSessionsSettings, RunScript,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -327,6 +327,40 @@ pub async fn set_project_environment_variables(
 
     db.set_project_environment_variables(&project.path, &env_vars)
         .map_err(|e| format!("Failed to set project environment variables: {e}"))
+}
+
+#[tauri::command]
+pub async fn get_project_merge_preferences() -> Result<ProjectMergePreferences, String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.schaltwerk_core.lock().await;
+    let db = core.database();
+
+    db.get_project_merge_preferences(&project.path)
+        .map_err(|e| format!("Failed to get project merge preferences: {e}"))
+}
+
+#[tauri::command]
+pub async fn set_project_merge_preferences(
+    preferences: ProjectMergePreferences,
+) -> Result<(), String> {
+    let project = PROJECT_MANAGER
+        .get()
+        .ok_or_else(|| "Project manager not initialized".to_string())?
+        .current_project()
+        .await
+        .map_err(|e| format!("Failed to get current project: {e}"))?;
+
+    let core = project.schaltwerk_core.lock().await;
+    let db = core.database();
+
+    db.set_project_merge_preferences(&project.path, &preferences)
+        .map_err(|e| format!("Failed to set project merge preferences: {e}"))
 }
 
 #[tauri::command]
@@ -937,6 +971,31 @@ mod tests {
             branch_prefix: "team".to_string(),
         };
         let result = set_project_settings(settings).await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_project_merge_preferences_uninitialized_manager() {
+        let result = get_project_merge_preferences().await;
+        assert!(result.is_err());
+        let error_msg = result.unwrap_err();
+        assert!(
+            error_msg.contains("Failed to get current project")
+                || error_msg.contains("Project manager not initialized")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_set_project_merge_preferences_uninitialized_manager() {
+        let preferences = ProjectMergePreferences {
+            auto_cancel_after_merge: true,
+        };
+        let result = set_project_merge_preferences(preferences).await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
         assert!(

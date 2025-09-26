@@ -735,6 +735,8 @@ fn main() {
             set_project_sessions_settings,
             get_project_environment_variables,
             set_project_environment_variables,
+            get_project_merge_preferences,
+            set_project_merge_preferences,
             get_project_action_buttons,
             set_project_action_buttons,
             reset_project_action_buttons_to_defaults,

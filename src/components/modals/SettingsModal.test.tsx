@@ -114,6 +114,7 @@ const createDefaultUseSettingsValue = () => ({
   loadProjectSettings: vi.fn().mockResolvedValue({ setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }),
   loadTerminalSettings: vi.fn().mockResolvedValue({ shell: null, shellArgs: [], fontFamily: null }),
   loadSessionPreferences: vi.fn().mockResolvedValue({ auto_commit_on_review: false, skip_confirmation_modals: false }),
+  loadMergePreferences: vi.fn().mockResolvedValue({ autoCancelAfterMerge: false }),
   loadKeyboardShortcuts: vi.fn().mockResolvedValue(defaultShortcutConfig),
   saveKeyboardShortcuts: vi.fn().mockResolvedValue(undefined),
   loadInstalledFonts: vi.fn().mockResolvedValue([]),
@@ -121,14 +122,26 @@ const createDefaultUseSettingsValue = () => ({
 
 const useSettingsMock = vi.fn(createDefaultUseSettingsValue)
 
+const createDefaultUseSessionsValue = () => ({
+  autoCancelAfterMerge: false,
+  updateAutoCancelAfterMerge: vi.fn().mockResolvedValue(undefined),
+})
+
+const useSessionsMock = vi.fn(createDefaultUseSessionsValue)
+
 vi.mock('../../hooks/useSettings', () => ({
   useSettings: () => useSettingsMock(),
   AgentType: undefined,
 }))
 
+vi.mock('../../contexts/SessionsContext', () => ({
+  useSessions: () => useSessionsMock(),
+}))
+
 describe('SettingsModal loading indicators', () => {
   beforeEach(() => {
     useSettingsMock.mockReset()
+    useSessionsMock.mockReset()
     invokeMock.mockClear()
   })
 

@@ -3,7 +3,8 @@ import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { open as openDialog } from '@tauri-apps/plugin-dialog'
 import { useFontSize } from '../../contexts/FontSizeContext'
-import { useSettings, AgentType } from '../../hooks/useSettings'
+import { useSettings, AgentType, ProjectMergePreferences } from '../../hooks/useSettings'
+import { useSessions } from '../../contexts/SessionsContext'
 import { useActionButtons } from '../../contexts/ActionButtonsContext'
 import type { HeaderActionConfig } from '../ActionButton'
 // macOS-native smart dash/quote substitution is disabled at app startup.
@@ -200,6 +201,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         auto_commit_on_review: false,
         skip_confirmation_modals: false
     })
+    const [mergePreferences, setMergePreferences] = useState<ProjectMergePreferences>({
+        autoCancelAfterMerge: false
+    })
     const platform = useMemo(() => detectPlatformSafe(), [])
 
     const [keyboardShortcutsState, setKeyboardShortcutsState] = useState<KeyboardShortcutConfig>(() => mergeShortcutConfig(defaultShortcutConfig))
@@ -286,6 +290,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         loadProjectSettings,
         loadTerminalSettings,
         loadSessionPreferences,
+        loadMergePreferences,
         loadKeyboardShortcuts,
         saveKeyboardShortcuts,
         loadInstalledFonts
@@ -296,6 +301,11 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         saveActionButtons,
         resetToDefaults
     } = useActionButtons()
+
+    const {
+        autoCancelAfterMerge: contextAutoCancelAfterMerge,
+        updateAutoCancelAfterMerge,
+    } = useSessions()
     
     const [editableActionButtons, setEditableActionButtons] = useState<HeaderActionConfig[]>([])
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -401,12 +411,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         let loadedProjectSettings: ProjectSettings = { setupScript: '', branchPrefix: 'schaltwerk', environmentVariables: [] }
         let loadedTerminalSettings: TerminalSettings = { shell: null, shellArgs: [], fontFamily: null }
         let loadedRunScript: RunScript = { command: '', workingDirectory: '', environmentVariables: {} }
+        let loadedMergePreferences: ProjectMergePreferences = { autoCancelAfterMerge: false }
         
         try {
             const results = await Promise.allSettled([
                 loadProjectSettings(),
                 loadTerminalSettings(),
-                loadRunScript()
+                loadRunScript(),
+                loadMergePreferences()
             ])
             
             if (results[0].status === 'fulfilled') {
@@ -418,6 +430,9 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             if (results[2].status === 'fulfilled') {
                 loadedRunScript = results[2].value
             }
+            if (results[3].status === 'fulfilled') {
+                loadedMergePreferences = results[3].value
+            }
         } catch (error) {
             // Project settings not available (likely no project open) - use defaults
             logger.info('Project settings not available (no active project):', error)
@@ -428,6 +443,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         setProjectSettings(loadedProjectSettings)
         setTerminalSettings(loadedTerminalSettings)
         setSessionPreferences(loadedSessionPreferences)
+        setMergePreferences(loadedMergePreferences)
         setRunScript(loadedRunScript)
         const normalizedShortcuts = mergeShortcutConfig(loadedShortcuts)
         setKeyboardShortcutsState(normalizedShortcuts)
@@ -436,7 +452,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         applyShortcutOverrides(normalizedShortcuts)
         
         loadBinaryConfigs()
-    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadBinaryConfigs, applyShortcutOverrides])
+    }, [loadEnvVars, loadCliArgs, loadSessionPreferences, loadKeyboardShortcuts, loadProjectSettings, loadTerminalSettings, loadRunScript, loadMergePreferences, loadBinaryConfigs, applyShortcutOverrides])
 
     useEffect(() => {
         if (open) {
@@ -447,6 +463,12 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
             })
         }
     }, [open, loadAllSettings])
+
+    useEffect(() => {
+        if (!hasUnsavedChanges) {
+            setMergePreferences({ autoCancelAfterMerge: contextAutoCancelAfterMerge })
+        }
+    }, [contextAutoCancelAfterMerge, hasUnsavedChanges])
 
     useEffect(() => {
         if (!shortcutRecording) return
@@ -593,7 +615,7 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
     }
 
     const handleSave = async () => {
-        const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences)
+        const result = await saveAllSettings(envVars, cliArgs, projectSettings, terminalSettings, sessionPreferences, mergePreferences)
         
         // Save run script
         try {
@@ -642,12 +664,14 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         
         if (result.failedSettings.length > 0) {
             showNotification(`Failed to save: ${result.failedSettings.join(', ')}`, 'error')
-        } else if (result.savedSettings.length > 0 || hasUnsavedChanges) {
-            showNotification(`Settings saved successfully`, 'success')
+        } else {
+            if (result.savedSettings.length > 0 || hasUnsavedChanges) {
+                showNotification(`Settings saved successfully`, 'success')
+            }
             setHasUnsavedChanges(false)
+            await updateAutoCancelAfterMerge(mergePreferences.autoCancelAfterMerge, false)
+            onClose()
         }
-        
-        onClose()
     }
 
     const renderArchivesSettings = () => (
@@ -1063,6 +1087,27 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
                             className={`w-full bg-slate-800 text-slate-100 rounded px-3 py-2 border border-slate-700 placeholder-slate-500 text-body focus:outline-none focus:${theme.colors.border.focus} transition-colors`}
                             spellCheck={false}
                         />
+                    </div>
+                    <div>
+                        <h3 className="text-body font-medium text-slate-200 mb-2">Merge Defaults</h3>
+                        <div className="text-body text-slate-400 mb-3">
+                            Control what happens after a successful merge from the sidebar. When enabled, Schaltwerk will immediately cancel the merged session for this project.
+                        </div>
+                        <label className="flex items-center gap-3 text-sm text-slate-200">
+                            <input
+                                type="checkbox"
+                                checked={mergePreferences.autoCancelAfterMerge}
+                                onChange={(event) => {
+                                    setMergePreferences({ autoCancelAfterMerge: event.target.checked })
+                                    setHasUnsavedChanges(true)
+                                }}
+                                className="rounded border-slate-600 bg-slate-800 text-cyan-400 focus:ring-cyan-400"
+                            />
+                            <span>Auto-cancel sessions after successful merge</span>
+                        </label>
+                        <p className="text-caption text-slate-500 mt-2">
+                            You can also toggle this from the merge dialog&apos;s toolbar. The preference is stored per project.
+                        </p>
                     </div>
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Worktree Setup Script</h3>
