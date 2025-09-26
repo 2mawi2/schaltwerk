@@ -106,10 +106,7 @@ pub fn create_new_project(name: &str, parent_path: &str) -> Result<PathBuf> {
     let parent = Path::new(parent_path);
 
     if !parent.exists() || !parent.is_dir() {
-        return Err(anyhow::anyhow!(
-            "Parent directory does not exist: {}",
-            parent_path
-        ));
+        return Err(anyhow::anyhow!("Parent directory does not exist: {parent_path}"));
     }
 
     let project_path = parent.join(name);
@@ -122,7 +119,7 @@ pub fn create_new_project(name: &str, parent_path: &str) -> Result<PathBuf> {
     }
 
     fs::create_dir(&project_path)
-        .map_err(|e| anyhow::anyhow!("Failed to create project directory: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to create project directory: {e}"))?;
 
     if let Err(e) = schaltwerk::domains::git::init_repository(&project_path) {
         fs::remove_dir(&project_path).ok();

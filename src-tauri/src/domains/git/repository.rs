@@ -173,7 +173,7 @@ pub fn get_commit_hash(repo_path: &Path, branch_or_ref: &str) -> Result<String> 
     // Try to parse the reference
     let obj = repo
         .revparse_single(branch_or_ref)
-        .map_err(|e| anyhow!("Failed to get commit hash for '{}': {}", branch_or_ref, e))?;
+        .map_err(|e| anyhow!("Failed to get commit hash for '{branch_or_ref}': {e}"))?;
 
     // Get the commit's OID
     let oid = obj.id();
@@ -188,7 +188,7 @@ pub fn init_repository(path: &Path) -> Result<()> {
 
     log::info!("Initializing git repository at: {}", path.display());
 
-    let _repo = Repository::init(path).map_err(|e| anyhow!("Git init failed: {}", e))?;
+    let _repo = Repository::init(path).map_err(|e| anyhow!("Git init failed: {e}"))?;
 
     Ok(())
 }
@@ -203,7 +203,7 @@ pub fn create_initial_commit(repo_path: &Path) -> Result<()> {
 
     // Get the default signature from git config
     let sig = repo.signature()
-        .map_err(|e| anyhow!("Failed to get signature from git config: {}. Please configure git user.name and user.email", e))?;
+        .map_err(|e| anyhow!("Failed to get signature from git config: {e}. Please configure git user.name and user.email"))?;
 
     // Create an empty tree for the initial commit
     let tree_id = {
@@ -222,7 +222,7 @@ pub fn create_initial_commit(repo_path: &Path) -> Result<()> {
             &tree,
             &[], // No parent commits
         )
-        .map_err(|e| anyhow!("Failed to create initial commit: {}", e))?;
+        .map_err(|e| anyhow!("Failed to create initial commit: {e}"))?;
 
     log::info!("Successfully created initial commit");
     Ok(())
