@@ -25,6 +25,9 @@ pub enum SchaltEvent {
     FileChanges,
     FollowUpMessage,
     Selection,
+    GitOperationStarted,
+    GitOperationCompleted,
+    GitOperationFailed,
     ProjectFilesUpdated,
 }
 
@@ -53,6 +56,9 @@ impl SchaltEvent {
             SchaltEvent::FileChanges => "schaltwerk:file-changes",
             SchaltEvent::FollowUpMessage => "schaltwerk:follow-up-message",
             SchaltEvent::Selection => "schaltwerk:selection",
+            SchaltEvent::GitOperationStarted => "schaltwerk:git-operation-started",
+            SchaltEvent::GitOperationCompleted => "schaltwerk:git-operation-completed",
+            SchaltEvent::GitOperationFailed => "schaltwerk:git-operation-failed",
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
         }
     }
@@ -79,6 +85,22 @@ mod tests {
         assert_eq!(
             SchaltEvent::TerminalAgentStarted.as_str(),
             "schaltwerk:terminal-agent-started"
+        );
+        assert_eq!(
+            SchaltEvent::GitOperationStarted.as_str(),
+            "schaltwerk:git-operation-started"
+        );
+        assert_eq!(
+            SchaltEvent::GitOperationCompleted.as_str(),
+            "schaltwerk:git-operation-completed"
+        );
+        assert_eq!(
+            SchaltEvent::GitOperationFailed.as_str(),
+            "schaltwerk:git-operation-failed"
+        );
+        assert_eq!(
+            SchaltEvent::ProjectFilesUpdated.as_str(),
+            "schaltwerk:project-files-updated"
         );
     }
 }
