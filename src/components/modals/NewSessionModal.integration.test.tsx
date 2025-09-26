@@ -428,7 +428,7 @@ describe('NewSessionModal Integration with SessionConfigurationPanel', () => {
         const nameInput = screen.getByDisplayValue('test_session')
         fireEvent.change(nameInput, { target: { value: 'configured_session' } })
 
-        const editor = screen.getByTestId('session-task-editor')
+        const editor = await screen.findByTestId('session-task-editor')
         expect(editor).toBeInTheDocument()
         await act(async () => {
             emitUiEvent(UiEvent.NewSessionPrefill, {
