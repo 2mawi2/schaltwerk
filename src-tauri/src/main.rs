@@ -685,6 +685,8 @@ fn main() {
             set_session_preferences,
             get_auto_commit_on_review,
             set_auto_commit_on_review,
+            get_keyboard_shortcuts,
+            set_keyboard_shortcuts,
             get_project_settings,
             set_project_settings,
             get_project_selection,

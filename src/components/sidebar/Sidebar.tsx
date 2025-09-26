@@ -18,6 +18,8 @@ import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
+import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { VscRefresh, VscCode } from 'react-icons/vsc'
 import { IconButton } from '../common/IconButton'
 import { clearTerminalStartedTracking } from '../terminal/Terminal'
@@ -68,9 +70,22 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         reloadSessions 
     } = useSessions()
     const { isResetting, resettingSelection, resetSession, switchModel } = useSessionManagement()
+
+    // Get dynamic shortcut for Orchestrator
+    const orchestratorShortcut = useShortcutDisplay(KeyboardShortcutAction.SwitchToOrchestrator)
+
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
+    const fetchOrchestratorBranch = useCallback(async () => {
+        try {
+            const branch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
+            setOrchestratorBranch(branch || "main")
+        } catch (error) {
+            logger.warn('Failed to get current branch, defaulting to main:', error)
+            setOrchestratorBranch("main")
+        }
+    }, [])
     const [keyboardNavigatedFilter, setKeyboardNavigatedFilter] = useState<FilterMode | null>(null)
     const [switchOrchestratorModal, setSwitchOrchestratorModal] = useState(false)
     const [switchModelSessionId, setSwitchModelSessionId] = useState<string | null>(null)
@@ -230,14 +245,32 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     }, [sessions, selection, filterMode, ensureProjectMemory, allSessions, setSelection])
 
     // Fetch current branch for orchestrator
+    useEffect(() => { void fetchOrchestratorBranch() }, [fetchOrchestratorBranch])
+
     useEffect(() => {
-        invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
-            .then(branch => setOrchestratorBranch(branch))
-            .catch(error => {
-                logger.warn('Failed to get current branch, defaulting to main:', error)
-                setOrchestratorBranch("main")
-            })
-    }, [])
+        if (selection.kind !== 'orchestrator') return
+        void fetchOrchestratorBranch()
+    }, [selection, fetchOrchestratorBranch])
+
+    useEffect(() => {
+        let unlisten: UnlistenFn | null = null
+
+        const attach = async () => {
+            try {
+                unlisten = await listenEvent(SchaltEvent.ProjectReady, () => { void fetchOrchestratorBranch() })
+            } catch (error) {
+                logger.warn('Failed to listen for project ready events:', error)
+            }
+        }
+
+        void attach()
+
+        return () => {
+            if (unlisten) {
+                unlisten()
+            }
+        }
+    }, [fetchOrchestratorBranch])
 
     const handleSelectOrchestrator = async () => {
         await setSelection({ kind: 'orchestrator' }, false, true) // User clicked - intentional
@@ -816,7 +849,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     disabled={orchestratorResetting}
                                 />
                             </div>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                                {orchestratorShortcut || '⌘1'}
+                            </span>
                             <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
                         </div>
                     </div>

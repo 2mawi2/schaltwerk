@@ -272,6 +272,37 @@ vi.mock('../../utils/runScriptLoader', () => ({
   loadRunScriptConfiguration: loadRunScriptConfigurationMock,
 }))
 
+// Mock platform detection to return mac for consistent symbols
+vi.mock('../../keyboardShortcuts/helpers', async (importOriginal) => {
+  const actual = await importOriginal() as Record<string, unknown>
+  return {
+    ...actual,
+    detectPlatformSafe: () => 'mac'
+  }
+})
+
+// Mock the useShortcutDisplay hook to return Mac shortcuts
+vi.mock('../../keyboardShortcuts/useShortcutDisplay', () => ({
+  useShortcutDisplay: (action: string) => {
+    const shortcuts: Record<string, string> = {
+      'FocusTerminal': '⌘/',
+      'ToggleRunMode': '⌘E',
+    }
+    return shortcuts[action] || ''
+  },
+  useMultipleShortcutDisplays: (actions: string[]) => {
+    const shortcuts: Record<string, string> = {
+      'FocusTerminal': '⌘/',
+      'ToggleRunMode': '⌘E',
+    }
+    const result: Record<string, string> = {}
+    for (const action of actions) {
+      result[action] = shortcuts[action] || ''
+    }
+    return result
+  }
+}))
+
 // Mock Tauri core invoke used by SelectionContext (providers in tests)
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
