@@ -97,7 +97,7 @@ pub fn commit_all_changes(worktree_path: &Path, message: &str) -> Result<()> {
 
     // Get the signature from git config
     let signature = repo.signature()
-        .map_err(|e| anyhow!("Failed to get signature from git config: {}. Please configure git user.name and user.email", e))?;
+        .map_err(|e| anyhow!("Failed to get signature from git config: {e}. Please configure git user.name and user.email"))?;
 
     // Create the commit
     let parent_commits = if let Some(ref parent) = parent_commit {
