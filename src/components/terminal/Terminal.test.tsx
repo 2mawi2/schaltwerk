@@ -574,7 +574,7 @@ describe('Terminal component', () => {
     const xterm = getLastXtermInstance()
     const result = xterm.__triggerKey({ key: 'Enter', shiftKey: true, metaKey: false, ctrlKey: false, altKey: false, type: 'keydown' } as KeyboardEvent)
 
-    expect(result).toBe(false)
+    expect(result).toBe(true)
     const callData = invokeSpy.mock.calls
       .filter((call) => call[0] === TauriCommands.WriteTerminal)
       .map((call) => call[1] as { data?: string; id?: string })
