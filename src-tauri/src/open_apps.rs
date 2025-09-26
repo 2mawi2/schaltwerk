@@ -5,6 +5,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+const OPEN_BIN: &str = "/usr/bin/open";
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct OpenApp {
     pub id: String,   // e.g., "finder", "cursor", "vscode", "ghostty", "warp", "terminal"
@@ -62,13 +64,15 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
     }
 
     let result = match app_id {
-        "finder" => Command::new("open").arg(working_dir.as_str()).status(),
+        "finder" => Command::new(OPEN_BIN)
+            .arg(working_dir.as_str())
+            .status(),
         "cursor" => {
             // Try CLI first, fall back to open -a
             if which::which("cursor").is_ok() {
                 Command::new("cursor").arg(working_dir.as_str()).status()
             } else {
-                Command::new("open")
+                Command::new(OPEN_BIN)
                     .args(["-a", "Cursor", working_dir.as_str()])
                     .status()
             }
@@ -79,7 +83,7 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
             if which::which("code").is_ok() {
                 Command::new("code").arg(working_dir.as_str()).status()
             } else {
-                Command::new("open")
+                Command::new(OPEN_BIN)
                     .args(["-a", "Visual Studio Code", working_dir.as_str()])
                     .status()
             }
@@ -92,12 +96,12 @@ fn open_path_in(app_id: &str, path: &str) -> Result<(), String> {
                     .arg(working_dir.as_str())
                     .status()
             } else {
-                Command::new("open")
+                Command::new(OPEN_BIN)
                     .args(["-a", "Warp", working_dir.as_str()])
                     .status()
             }
         }
-        "terminal" => Command::new("open")
+        "terminal" => Command::new(OPEN_BIN)
             .args(["-a", "Terminal", working_dir.as_str()])
             .status(),
         other => return Err(format!("Unsupported app id: {other}")),
@@ -156,7 +160,7 @@ fn open_path_in_ghostty(working_dir: &str) -> Result<(), String> {
 
     #[cfg(target_os = "macos")]
     {
-        let open_status = Command::new("open")
+        let open_status = Command::new(OPEN_BIN)
             .args([
                 "-na",
                 "Ghostty",
@@ -226,7 +230,7 @@ fn open_path_in_intellij(path: &str) -> Result<(), String> {
     }
 
     if let Some(bundle) = find_existing_intellij_bundle() {
-        match Command::new("open")
+        match Command::new(OPEN_BIN)
             .arg("-a")
             .arg(&bundle)
             .arg(path)
@@ -248,7 +252,7 @@ fn open_path_in_intellij(path: &str) -> Result<(), String> {
         "IntelliJ IDEA CE",
         "IntelliJ IDEA Ultimate",
     ] {
-        match Command::new("open")
+        match Command::new(OPEN_BIN)
             .args(["-a", fallback_name, path])
             .status()
         {
@@ -390,6 +394,28 @@ mod tests {
             .to_string_lossy()
             .contains("Library/Application Support/JetBrains/Toolbox/apps/IDEA-C")));
     }
+
+    #[test]
+    fn test_open_bin_is_absolute() {
+        assert_eq!(OPEN_BIN, "/usr/bin/open");
+    }
+
+    #[test]
+    fn test_default_open_app_roundtrip_in_db() {
+        let db = crate::schaltwerk_core::Database::new_in_memory()
+            .expect("failed to create in-memory db");
+
+        let default = get_default_open_app_from_db(&db)
+            .expect("failed to read default open app");
+        assert_eq!(default, "finder");
+
+        set_default_open_app_in_db(&db, "vscode")
+            .expect("failed to persist default open app");
+
+        let updated = get_default_open_app_from_db(&db)
+            .expect("failed to read updated default open app");
+        assert_eq!(updated, "vscode");
+    }
 }
 
 #[tauri::command]
@@ -397,23 +423,17 @@ pub async fn list_available_open_apps() -> Result<Vec<OpenApp>, String> {
     Ok(detect_available_apps())
 }
 
-#[tauri::command]
-pub async fn get_default_open_app() -> Result<String, String> {
-    let core = crate::schaltwerk_core::SchaltwerkCore::new(None)
-        .map_err(|e| format!("Failed to init core: {e}"))?;
-    Ok(core
-        .db
-        .get_default_open_app()
-        .unwrap_or_else(|_| "finder".to_string()))
+pub fn get_default_open_app_from_db(
+    db: &crate::schaltwerk_core::Database,
+) -> anyhow::Result<String> {
+    db.get_default_open_app()
 }
 
-#[tauri::command]
-pub async fn set_default_open_app(app_id: String) -> Result<(), String> {
-    let core = crate::schaltwerk_core::SchaltwerkCore::new(None)
-        .map_err(|e| format!("Failed to init core: {e}"))?;
-    core.db
-        .set_default_open_app(&app_id)
-        .map_err(|e| e.to_string())
+pub fn set_default_open_app_in_db(
+    db: &crate::schaltwerk_core::Database,
+    app_id: &str,
+) -> anyhow::Result<()> {
+    db.set_default_open_app(app_id)
 }
 
 #[tauri::command]
