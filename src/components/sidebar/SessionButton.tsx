@@ -38,6 +38,7 @@ interface SessionButtonProps {
     onMerge?: (sessionId: string) => void
     disableMerge?: boolean
     mergeStatus?: MergeStatus
+    isMarkReadyDisabled?: boolean
 }
 
 function getSessionStateColor(state?: string): 'green' | 'violet' | 'gray' {
@@ -76,7 +77,8 @@ export const SessionButton = memo<SessionButtonProps>(({
     isRunning = false,
     onMerge,
     disableMerge = false,
-    mergeStatus = 'idle'
+    mergeStatus = 'idle',
+    isMarkReadyDisabled = false
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
@@ -227,6 +229,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                             onMerge={onMerge}
                             disableMerge={disableMerge}
                             mergeStatus={mergeStatus}
+                            isMarkReadyDisabled={isMarkReadyDisabled}
                         />
                     </div>
                 </div>
@@ -254,6 +257,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                         onMerge={onMerge}
                         disableMerge={disableMerge}
                         mergeStatus={mergeStatus}
+                        isMarkReadyDisabled={isMarkReadyDisabled}
                     />
                 </div>
             )}

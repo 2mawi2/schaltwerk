@@ -109,3 +109,26 @@ describe('SessionButton running tag', () => {
     expect(screen.getByText('Running')).toBeInTheDocument()
   })
 })
+
+describe('SessionButton review cooldown', () => {
+  it('disables the mark reviewed action when mark ready is temporarily blocked', () => {
+    render(
+      <SessionButton
+        session={baseSession}
+        index={0}
+        isSelected={false}
+
+        hasFollowUpMessage={false}
+        onSelect={() => {}}
+        onMarkReady={() => {}}
+        onUnmarkReady={() => {}}
+        onCancel={() => {}}
+        isRunning
+        isMarkReadyDisabled
+      />
+    )
+
+    const markReviewedButton = screen.getByRole('button', { name: 'Mark as reviewed' })
+    expect(markReviewedButton).toBeDisabled()
+  })
+})

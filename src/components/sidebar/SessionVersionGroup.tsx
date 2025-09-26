@@ -33,6 +33,7 @@ interface SessionVersionGroupProps {
   onMerge?: (sessionId: string) => void
   isMergeDisabled?: (sessionId: string) => boolean
   getMergeStatus?: (sessionId: string) => MergeStatus
+  isMarkReadyDisabled?: boolean
 }
 
 export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
@@ -55,9 +56,10 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
   isInSpecMode,
   currentSpecId,
   isSessionRunning,
-    onMerge,
-    isMergeDisabled,
-    getMergeStatus
+  onMerge,
+  isMergeDisabled,
+  getMergeStatus,
+  isMarkReadyDisabled = false
 }) => {
   const [isExpanded, setIsExpanded] = useState(true)
   const [isPreviewingDeletion, setIsPreviewingDeletion] = useState(false)
@@ -95,6 +97,7 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
         onMerge={onMerge}
         disableMerge={isMergeDisabled?.(session.session.info.session_id) || false}
         mergeStatus={getMergeStatus?.(session.session.info.session_id) ?? 'idle'}
+        isMarkReadyDisabled={isMarkReadyDisabled}
       />
     )
   }
@@ -271,33 +274,34 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               index={startIndex + versionIndex}
               isSelected={isSelected}
 
-              hasFollowUpMessage={hasFollowUpMessage(version.session.info.session_id)}
-              isWithinVersionGroup={true}
-              showPromoteIcon={isSelected}
-              willBeDeleted={willBeDeleted}
-              isPromotionPreview={isPreviewingDeletion && isSelected}
-              onSelect={onSelect}
-              onMarkReady={onMarkReady}
-              onUnmarkReady={onUnmarkReady}
-              onCancel={onCancel}
-              onConvertToSpec={onConvertToSpec}
-              onRunDraft={onRunDraft}
-              onDeleteSpec={onDeleteSpec}
-              onPromoteVersion={() => {
-                if (onSelectBestVersion) {
-                  onSelectBestVersion(group.baseName, version.session.info.session_id)
-                }
-              }}
-              onPromoteVersionHover={() => setIsPreviewingDeletion(true)}
-              onPromoteVersionHoverEnd={() => setIsPreviewingDeletion(false)}
-              onReset={onReset}
-              onSwitchModel={onSwitchModel}
-              isResetting={resettingSelection?.kind === 'session'
-                && resettingSelection.payload === version.session.info.session_id}
-              isRunning={isSessionRunning?.(version.session.info.session_id) || false}
-              onMerge={onMerge}
-              disableMerge={isMergeDisabled?.(version.session.info.session_id) || false}
-              mergeStatus={getMergeStatus?.(version.session.info.session_id) ?? 'idle'}
+                      hasFollowUpMessage={hasFollowUpMessage(version.session.info.session_id)}
+                      isWithinVersionGroup={true}
+                      showPromoteIcon={isSelected}
+                      willBeDeleted={willBeDeleted}
+                      isPromotionPreview={isPreviewingDeletion && isSelected}
+                      onSelect={onSelect}
+                      onMarkReady={onMarkReady}
+                      onUnmarkReady={onUnmarkReady}
+                      onCancel={onCancel}
+                      onConvertToSpec={onConvertToSpec}
+                      onRunDraft={onRunDraft}
+                      onDeleteSpec={onDeleteSpec}
+                      onPromoteVersion={() => {
+                        if (onSelectBestVersion) {
+                          onSelectBestVersion(group.baseName, version.session.info.session_id)
+                        }
+                      }}
+                      onPromoteVersionHover={() => setIsPreviewingDeletion(true)}
+                      onPromoteVersionHoverEnd={() => setIsPreviewingDeletion(false)}
+                      onReset={onReset}
+                      onSwitchModel={onSwitchModel}
+                      isResetting={resettingSelection?.kind === 'session'
+                        && resettingSelection.payload === version.session.info.session_id}
+                      isRunning={isSessionRunning?.(version.session.info.session_id) || false}
+                      onMerge={onMerge}
+                      disableMerge={isMergeDisabled?.(version.session.info.session_id) || false}
+                      mergeStatus={getMergeStatus?.(version.session.info.session_id) ?? 'idle'}
+                      isMarkReadyDisabled={isMarkReadyDisabled}
                       />
                     </div>
                   )

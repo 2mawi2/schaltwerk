@@ -18,6 +18,7 @@ import { SessionVersionGroup } from './SessionVersionGroup'
 import { PromoteVersionConfirmation } from '../modals/PromoteVersionConfirmation'
 import { useSessionManagement } from '../../hooks/useSessionManagement'
 import { SwitchOrchestratorModal } from '../modals/SwitchOrchestratorModal'
+import { MergeSessionModal } from '../modals/MergeSessionModal'
 import { useShortcutDisplay } from '../../keyboardShortcuts/useShortcutDisplay'
 import { KeyboardShortcutAction } from '../../keyboardShortcuts/config'
 import { VscRefresh, VscCode } from 'react-icons/vsc'
@@ -28,7 +29,6 @@ import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
-import { MergeSessionModal } from '../modals/MergeSessionModal'
 import { useProject } from '../../contexts/ProjectContext'
 
 // Normalize backend states to UI categories
@@ -84,6 +84,48 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Removed: stuckTerminals; idle is computed from last edit timestamps
     const [sessionsWithNotifications, setSessionsWithNotifications] = useState<Set<string>>(new Set())
     const [orchestratorBranch, setOrchestratorBranch] = useState<string>("main")
+    const [isMarkReadyCoolingDown, setIsMarkReadyCoolingDown] = useState(false)
+    const markReadyCooldownRef = useRef(false)
+    const markReadyCooldownTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+    const MARK_READY_COOLDOWN_MS = 250
+
+    const engageMarkReadyCooldown = useCallback((reason: string) => {
+        if (!markReadyCooldownRef.current) {
+            logger.debug(`[Sidebar] Entering mark-ready cooldown (reason: ${reason})`)
+        } else {
+            logger.debug(`[Sidebar] Mark-ready cooldown refreshed (reason: ${reason})`)
+        }
+        markReadyCooldownRef.current = true
+        setIsMarkReadyCoolingDown(true)
+        if (markReadyCooldownTimerRef.current) {
+            clearTimeout(markReadyCooldownTimerRef.current)
+            markReadyCooldownTimerRef.current = null
+        }
+    }, [])
+
+    const scheduleMarkReadyCooldownRelease = useCallback((source: string) => {
+        if (markReadyCooldownTimerRef.current) {
+            clearTimeout(markReadyCooldownTimerRef.current)
+        }
+        markReadyCooldownTimerRef.current = setTimeout(() => {
+            markReadyCooldownRef.current = false
+            setIsMarkReadyCoolingDown(false)
+            markReadyCooldownTimerRef.current = null
+            logger.debug(`[Sidebar] Mark-ready cooldown released (source: ${source})`)
+        }, MARK_READY_COOLDOWN_MS)
+    }, [])
+
+    const cancelMarkReadyCooldown = useCallback(() => {
+        if (markReadyCooldownTimerRef.current) {
+            clearTimeout(markReadyCooldownTimerRef.current)
+            markReadyCooldownTimerRef.current = null
+        }
+        if (markReadyCooldownRef.current) {
+            logger.debug('[Sidebar] Mark-ready cooldown cancelled (cleanup)')
+        }
+        markReadyCooldownRef.current = false
+        setIsMarkReadyCoolingDown(false)
+    }, [])
     const fetchOrchestratorBranch = useCallback(async () => {
         try {
             const branch = await invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
@@ -453,33 +495,64 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
     }, [reloadSessionsAndRefreshIdle, setMarkReadyModal])
 
-    const handleMarkSelectedSessionReady = useCallback(() => {
-        if (selection.kind === 'session') {
-            const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
-            if (!selectedSession) return
-
-            // If already reviewed, Cmd+R should unmark (back to running)
-            if (selectedSession.info.ready_to_merge) {
-                invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: selectedSession.info.session_id })
-                    .then(async () => {
-                        await reloadSessionsAndRefreshIdle()
-                    })
-                    .catch(err => {
-                        logger.error('Failed to unmark reviewed session via keyboard:', err)
-                    })
-                return
-            }
-
-            // Prevent marking specs as reviewed
-            if (isSpec(selectedSession.info)) {
-                logger.warn(`Cannot mark spec "${selectedSession.info.session_id}" as reviewed. Specs must be started as agents first.`)
-                return
-            }
-
-            // Running session → mark as reviewed flow
-            handleMarkReady(selectedSession.info.session_id, selectedSession.info.has_uncommitted_changes || false)
+    const triggerMarkReady = useCallback(async (sessionId: string, hasUncommitted: boolean) => {
+        if (markReadyCooldownRef.current) {
+            logger.debug(`[Sidebar] Skipping mark-ready for ${sessionId} (cooldown active)`)
+            return
         }
-    }, [selection, sessions, handleMarkReady, reloadSessionsAndRefreshIdle])
+
+        logger.debug(`[Sidebar] Triggering mark-ready for ${sessionId} (hasUncommitted=${hasUncommitted})`)
+        engageMarkReadyCooldown('mark-ready-trigger')
+        try {
+            await handleMarkReady(sessionId, hasUncommitted)
+        } catch (error) {
+            logger.error('Failed to mark session ready during cooldown window:', error)
+        } finally {
+            scheduleMarkReadyCooldownRelease('mark-ready-complete')
+        }
+    }, [engageMarkReadyCooldown, scheduleMarkReadyCooldownRelease, handleMarkReady])
+
+    const handleMarkSelectedSessionReady = useCallback(async () => {
+        if (selection.kind !== 'session') return
+
+        const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
+        if (!selectedSession) return
+
+        const sessionInfo = selectedSession.info
+
+        if (sessionInfo.ready_to_merge) {
+            if (markReadyCooldownRef.current) {
+                logger.debug(`[Sidebar] Skipping unmark-ready for ${sessionInfo.session_id} (cooldown active)`)
+                return
+            }
+
+            logger.debug(`[Sidebar] Triggering unmark-ready for ${sessionInfo.session_id}`)
+            engageMarkReadyCooldown('unmark-ready-trigger')
+            try {
+                await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionInfo.session_id })
+                await reloadSessionsAndRefreshIdle()
+            } catch (error) {
+                logger.error('Failed to unmark reviewed session via keyboard:', error)
+            } finally {
+                scheduleMarkReadyCooldownRelease('unmark-ready-complete')
+            }
+            return
+        }
+
+        if (isSpec(sessionInfo)) {
+            logger.warn(`Cannot mark spec "${sessionInfo.session_id}" as reviewed. Specs must be started as agents first.`)
+            return
+        }
+
+        await triggerMarkReady(sessionInfo.session_id, sessionInfo.has_uncommitted_changes || false)
+    }, [
+        selection,
+        sessions,
+        triggerMarkReady,
+        reloadSessionsAndRefreshIdle,
+        engageMarkReadyCooldown,
+        scheduleMarkReadyCooldownRelease
+    ])
 
     const handleSpecSelectedSession = () => {
         if (selection.kind === 'session') {
@@ -843,6 +916,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Attach once on mount; use refs above for latest values inside handlers
     }, [setCurrentFocus, setFocusForSession, setSelection])
 
+    useEffect(() => () => cancelMarkReadyCooldown(), [cancelMarkReadyCooldown])
+
     // Calculate counts based on all sessions (unaffected by search)
     const { allCount, specsCount, runningCount, reviewedCount } = calculateFilterCounts(allSessions)
 
@@ -1077,9 +1152,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                         void handleSelectSession(index)
                                     }}
                                     onMarkReady={(sessionId, hasUncommitted) => {
-                                        handleMarkReady(sessionId, hasUncommitted)
+                                        if (markReadyCooldownRef.current) {
+                                            return
+                                        }
+                                        void triggerMarkReady(sessionId, hasUncommitted)
                                     }}
                                     onUnmarkReady={async (sessionId) => {
+                                        if (markReadyCooldownRef.current) {
+                                            return
+                                        }
+
+                                        engageMarkReadyCooldown('unmark-ready-click')
                                         try {
                                             await invoke(TauriCommands.SchaltwerkCoreUnmarkSessionReady, { name: sessionId })
                                             // Reload both regular and spec sessions to avoid dropping specs
@@ -1090,6 +1173,8 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             await reloadSessionsAndRefreshIdle()
                                         } catch (err) {
                                             logger.error('Failed to unmark reviewed session:', err)
+                                        } finally {
+                                            scheduleMarkReadyCooldownRelease('unmark-ready-click-complete')
                                         }
                                     }}
                                     onCancel={(sessionId, hasUncommitted) => {
@@ -1158,6 +1243,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     onMerge={handleMergeSession}
                                     isMergeDisabled={isSessionMergeInFlight}
                                     getMergeStatus={getMergeStatus}
+                                    isMarkReadyDisabled={isMarkReadyCoolingDown}
                                 />
                             )
                         })

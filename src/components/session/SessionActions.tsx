@@ -36,6 +36,7 @@ interface SessionActionsProps {
   onMerge?: (sessionId: string) => void;
   disableMerge?: boolean;
   mergeStatus?: MergeStatus;
+  isMarkReadyDisabled?: boolean;
 }
 
 export function SessionActions({
@@ -57,7 +58,8 @@ export function SessionActions({
   onMerge,
   isResetting = false,
   disableMerge = false,
-  mergeStatus = 'idle'
+  mergeStatus = 'idle',
+  isMarkReadyDisabled = false
 }: SessionActionsProps) {
   // Use moderate spacing for medium-sized buttons
   const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
@@ -130,6 +132,7 @@ export function SessionActions({
               ariaLabel="Mark as reviewed"
               tooltip="Mark as reviewed (⌘R)"
               variant="success"
+              disabled={isMarkReadyDisabled}
             />
           )}
           {onConvertToSpec && (
@@ -204,6 +207,7 @@ export function SessionActions({
               onClick={() => onUnmarkReviewed(sessionId)}
               ariaLabel="Unmark as reviewed"
               tooltip="Unmark as reviewed (⌘R)"
+              disabled={isMarkReadyDisabled}
             />
           )}
           {onCancel && (

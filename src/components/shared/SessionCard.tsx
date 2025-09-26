@@ -28,6 +28,7 @@ export interface SessionCardProps {
     index?: number
     onMerge?: (sessionId: string) => void
     disableMerge?: boolean
+    isMarkReadyDisabled?: boolean
 }
 
 export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
@@ -47,7 +48,8 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     className,
     index,
     onMerge,
-    disableMerge = false
+    disableMerge = false,
+    isMarkReadyDisabled = false
 }, ref) => {
     const s = session.info
     const sessionName = s.display_name || s.session_id
@@ -143,14 +145,15 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                                 onMarkReviewed={onMarkReady}
                                 onUnmarkReviewed={onUnmarkReady}
                                 onCancel={onCancel}
-                                onConvertToSpec={onConvertToSpec}
-                                onMerge={onMerge}
-                                disableMerge={disableMerge}
-                            />
-                        </div>
-                    )}
-                </div>
-            )}
+                            onConvertToSpec={onConvertToSpec}
+                            onMerge={onMerge}
+                            disableMerge={disableMerge}
+                            isMarkReadyDisabled={isMarkReadyDisabled}
+                        />
+                    </div>
+                )}
+            </div>
+        )}
 
             {sessionState === 'spec' && !hideActions && (
                 <div className="flex items-center justify-end -mt-0.5">
@@ -167,6 +170,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         onConvertToSpec={onConvertToSpec}
                         onMerge={onMerge}
                         disableMerge={disableMerge}
+                        isMarkReadyDisabled={isMarkReadyDisabled}
                     />
                 </div>
             )}
