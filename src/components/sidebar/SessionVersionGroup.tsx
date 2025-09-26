@@ -4,6 +4,7 @@ import { SessionButton } from './SessionButton'
 import { SessionVersionGroup as SessionVersionGroupType } from '../../utils/sessionVersions'
 import { isSpec } from '../../utils/sessionFilters'
 import { SessionSelection } from '../../hooks/useSessionManagement'
+import { theme } from '../../common/theme'
 
 interface SessionVersionGroupProps {
   group: SessionVersionGroupType
@@ -99,20 +100,38 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
     <div className="mb-3 relative">
       {/* Version group container with subtle background */}
       <div className={clsx(
-        'rounded-lg border transition-all duration-200',
-        hasSelectedVersion 
-          ? 'border-blue-600/30 bg-blue-950/10' 
-          : 'border-slate-700/50 bg-slate-900/20'
-      )}>
+        'rounded-lg border transition-all duration-200'
+      )}
+      style={hasSelectedVersion ? {
+        borderColor: theme.colors.accent.blue.border,
+        backgroundColor: theme.colors.accent.blue.bg
+      } : {
+        borderColor: 'rgba(71, 85, 105, 0.5)', // slate-700/50
+        backgroundColor: 'rgba(15, 23, 42, 0.2)' // slate-900/20
+      }}>
         {/* Group header */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
           className={clsx(
-            'w-full text-left px-3 py-2 rounded-t-md border-b transition-all duration-200',
-            hasSelectedVersion
-              ? 'border-blue-600/20 bg-blue-950/20'
-              : 'border-slate-700/30 bg-slate-800/30 hover:bg-slate-700/40'
+            'w-full text-left px-3 py-2 rounded-t-md border-b transition-all duration-200'
           )}
+          style={hasSelectedVersion ? {
+            borderBottomColor: theme.colors.accent.blue.border,
+            backgroundColor: theme.colors.accent.blue.bg
+          } : {
+            borderBottomColor: 'rgba(71, 85, 105, 0.3)', // slate-700/30
+            backgroundColor: 'rgba(30, 41, 59, 0.3)' // slate-800/30
+          }}
+          onMouseEnter={(e) => {
+            if (!hasSelectedVersion) {
+              e.currentTarget.style.backgroundColor = 'rgba(51, 65, 85, 0.4)'; // slate-700/40
+            }
+          }}
+          onMouseLeave={(e) => {
+            if (!hasSelectedVersion) {
+              e.currentTarget.style.backgroundColor = 'rgba(30, 41, 59, 0.3)'; // slate-800/30
+            }
+          }}
           title={`${group.baseName} (${group.versions.length} versions) - Click to expand/collapse`}
         >
         <div className="flex items-center justify-between">
@@ -126,13 +145,17 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 111.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
             <span className="font-medium text-slate-100">{group.baseName}</span>
-            <span 
-              className={clsx(
-                "text-xs px-2 py-0.5 rounded-full font-medium ml-2",
-                hasSelectedVersion
-                  ? "bg-blue-600/30 text-blue-300 border border-blue-600/50"
-                  : "bg-slate-700/50 text-slate-300 border border-slate-600/50"
-              )}
+            <span
+              className="text-xs px-2 py-0.5 rounded-full font-medium ml-2"
+              style={hasSelectedVersion ? {
+                backgroundColor: theme.colors.accent.blue.bg,
+                color: theme.colors.accent.blue.light,
+                borderColor: theme.colors.accent.blue.border
+              } : {
+                backgroundColor: 'rgba(51, 65, 85, 0.5)', // slate-700/50
+                color: 'rgb(203, 213, 225)', // slate-300
+                borderColor: 'rgba(71, 85, 105, 0.5)' // slate-600/50
+              }}
             >
               {group.versions.length}x
             </span>
@@ -155,22 +178,30 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                     <>
                       <span className="text-slate-400 text-xs">|</span>
                       <span
-                        className={clsx(
-                          'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
-                          agentColor === 'blue' && 'bg-blue-900/30 text-blue-300 border-blue-700/50',
-                          agentColor === 'green' && 'bg-green-900/30 text-green-300 border-green-700/50',
-                          agentColor === 'orange' && 'bg-orange-900/30 text-orange-300 border-orange-700/50',
-                          agentColor === 'red' && 'bg-red-900/30 text-red-300 border-red-700/50'
-                        )}
+                        className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none"
+                        style={{
+                          backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.bg :
+                                          agentColor === 'green' ? theme.colors.accent.green.bg :
+                                          agentColor === 'orange' ? theme.colors.accent.amber.bg :
+                                          theme.colors.accent.red.bg,
+                          color: agentColor === 'blue' ? theme.colors.accent.blue.light :
+                                agentColor === 'green' ? theme.colors.accent.green.light :
+                                agentColor === 'orange' ? theme.colors.accent.amber.light :
+                                theme.colors.accent.red.light,
+                          borderColor: agentColor === 'blue' ? theme.colors.accent.blue.border :
+                                     agentColor === 'green' ? theme.colors.accent.green.border :
+                                     agentColor === 'orange' ? theme.colors.accent.amber.border :
+                                     theme.colors.accent.red.border
+                        }}
                         title={`Agent: ${agentType}`}
                       >
-                        <span className={clsx(
-                          'w-1 h-1 rounded-full',
-                          agentColor === 'blue' && 'bg-blue-500',
-                          agentColor === 'green' && 'bg-green-500',
-                          agentColor === 'orange' && 'bg-orange-500',
-                          agentColor === 'red' && 'bg-red-500'
-                        )} />
+                        <span className="w-1 h-1 rounded-full"
+                              style={{
+                                backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.DEFAULT :
+                                                agentColor === 'green' ? theme.colors.accent.green.DEFAULT :
+                                                agentColor === 'orange' ? theme.colors.accent.amber.DEFAULT :
+                                                theme.colors.accent.red.DEFAULT
+                              }} />
                         {agentType}
                       </span>
                     </>
@@ -214,8 +245,8 @@ export const SessionVersionGroup = memo<SessionVersionGroupProps>(({
                       {/* Dot on the vertical line */}
                       <div className={clsx(
                         "absolute top-7 w-2 h-2 rounded-full border",
-                        isSelected 
-                          ? "bg-blue-500 border-blue-400" 
+                        isSelected
+                          ? "bg-cyan-400 border-cyan-300"
                           : "bg-slate-700 border-slate-600"
                       )} style={{ left: '-14px', transform: 'translate(-50%, -50%)' }} />
                       

@@ -4,6 +4,7 @@ import { formatLastActivity } from '../../utils/time'
 import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
+import { theme } from '../../common/theme'
 
 interface SessionButtonProps {
     session: {
@@ -126,9 +127,9 @@ export const SessionButton = memo<SessionButtonProps>(({
                 getStateBackground(),
 
                 hasFollowUpMessage && !isSelected &&
-                    'ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20',
-                isRunning && !isSelected &&
-                    'ring-2 ring-cyan-500/50 shadow-lg shadow-cyan-500/20 bg-cyan-950/20'
+                     'ring-2 ring-blue-400/50 shadow-lg shadow-blue-400/20 bg-blue-950/20',
+                 isRunning && !isSelected &&
+                     'ring-2 ring-pink-500/50 shadow-lg shadow-pink-500/20 bg-pink-950/20'
             )}
             title={isSelected 
                 ? `Selected session • Diff: ⌘G • Cancel: ⌘D (⇧⌘D force) • Mark Reviewed: ⌘R` 
@@ -146,15 +147,19 @@ export const SessionButton = memo<SessionButtonProps>(({
                             </span>
                         )}
                         {/* State pill */}
-                        {isRunning && (
-                            <span className={clsx(
-                                'text-[10px] px-1.5 py-0.5 rounded border bg-cyan-900/30 text-cyan-300 border-cyan-700/50',
-                                'ml-2'
-                            )}
-                            >
-                                Running
-                            </span>
-                        )}
+                         {isRunning && (
+                             <span className={clsx(
+                                 'text-[10px] px-1.5 py-0.5 rounded border ml-2'
+                             )}
+                             style={{
+                                 backgroundColor: theme.colors.accent.magenta.bg,
+                                 color: theme.colors.accent.magenta.DEFAULT,
+                                 borderColor: theme.colors.accent.magenta.border
+                             }}
+                             >
+                                 Running
+                             </span>
+                         )}
                         {!isReadyToMerge && !isRunning && sessionState === 'spec' && (
                             <span className="text-[10px] px-1.5 py-0.5 rounded border bg-amber-900/30 text-amber-300 border-amber-700/50">
                                 Spec
@@ -173,8 +178,10 @@ export const SessionButton = memo<SessionButtonProps>(({
                         {hasFollowUpMessage && !isReadyToMerge && (
                             <span className="ml-2 inline-flex items-center gap-1" title="New follow-up message received">
                                 <span className="flex h-4 w-4 relative">
-                                    <span className="absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                                    <span className="relative inline-flex rounded-full h-4 w-4 bg-blue-500 text-white text-[9px] items-center justify-center font-bold">!</span>
+                                    <span className="absolute inline-flex h-full w-full rounded-full opacity-75"
+                                          style={{ backgroundColor: theme.colors.accent.blue.light }}></span>
+                                    <span className="relative inline-flex rounded-full h-4 w-4 text-white text-[9px] items-center justify-center font-bold"
+                                          style={{ backgroundColor: theme.colors.accent.blue.DEFAULT }}>!</span>
                                 </span>
                             </span>
                         )}
@@ -264,22 +271,30 @@ export const SessionButton = memo<SessionButtonProps>(({
                 <div className="flex items-center gap-2">
                     {agentType && sessionState !== 'spec' && !isWithinVersionGroup && (
                         <span
-                            className={clsx(
-                                'inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none',
-                                agentColor === 'blue' && 'bg-blue-900/30 text-blue-300 border-blue-700/50',
-                                agentColor === 'green' && 'bg-green-900/30 text-green-300 border-green-700/50',
-                                agentColor === 'orange' && 'bg-orange-900/30 text-orange-300 border-orange-700/50',
-                                agentColor === 'red' && 'bg-red-900/30 text-red-300 border-red-700/50'
-                            )}
+                             className="inline-flex items-center gap-1 px-1.5 py-[1px] rounded text-[10px] border leading-none"
+                             style={{
+                               backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.bg :
+                                               agentColor === 'green' ? theme.colors.accent.green.bg :
+                                               agentColor === 'orange' ? theme.colors.accent.amber.bg :
+                                               theme.colors.accent.red.bg,
+                               color: agentColor === 'blue' ? theme.colors.accent.blue.light :
+                                     agentColor === 'green' ? theme.colors.accent.green.light :
+                                     agentColor === 'orange' ? theme.colors.accent.amber.light :
+                                     theme.colors.accent.red.light,
+                               borderColor: agentColor === 'blue' ? theme.colors.accent.blue.border :
+                                           agentColor === 'green' ? theme.colors.accent.green.border :
+                                           agentColor === 'orange' ? theme.colors.accent.amber.border :
+                                           theme.colors.accent.red.border
+                             }}
                             title={`Agent: ${agentLabel}`}
                         >
-                            <span className={clsx(
-                                'w-1 h-1 rounded-full',
-                                agentColor === 'blue' && 'bg-blue-500',
-                                agentColor === 'green' && 'bg-green-500',
-                                agentColor === 'orange' && 'bg-orange-500',
-                                agentColor === 'red' && 'bg-red-500'
-                            )} />
+                             <span className="w-1 h-1 rounded-full"
+                               style={{
+                                 backgroundColor: agentColor === 'blue' ? theme.colors.accent.blue.DEFAULT :
+                                                 agentColor === 'green' ? theme.colors.accent.green.DEFAULT :
+                                                 agentColor === 'orange' ? theme.colors.accent.amber.DEFAULT :
+                                                 theme.colors.accent.red.DEFAULT
+                               }} />
                             {agentLabel}
                         </span>
                     )}

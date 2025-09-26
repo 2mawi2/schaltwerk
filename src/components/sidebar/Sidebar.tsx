@@ -817,7 +817,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                 />
                             </div>
                             <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">⌘1</span>
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-blue-600/20 text-blue-400">{orchestratorBranch}</span>
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-cyan-600/20 text-cyan-400">{orchestratorBranch}</span>
                         </div>
                     </div>
                     <div className="text-xs text-slate-500">Original repository from which agents are created</div>

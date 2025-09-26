@@ -39,7 +39,7 @@ export function LifecycleDiagram() {
 
         {/* Stage dots */}
         {[100, 240, 380, 520, 640].map((x) => (
-          <circle key={x} cx={x} cy={80} r={6} className="fill-blue-400" />
+          <circle key={x} cx={x} cy={80} r={6} className="fill-cyan-400" />
         ))}
 
         {/* Integrate branches */}

@@ -86,7 +86,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
   return (
     <div 
-      className={`h-full flex flex-col bg-panel border-2 rounded ${localFocus ? 'border-blue-500/60 shadow-lg shadow-blue-500/20' : 'border-slate-800/50'}`}
+      className={`h-full flex flex-col bg-panel border-2 rounded ${localFocus ? 'border-cyan-400/60 shadow-lg shadow-cyan-400/20' : 'border-slate-800/50'}`}
       onClick={handlePanelClick}
     >
       {/* Header: hide tabs when split mode is active */}
@@ -117,12 +117,12 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
               onClick={() => setUserSelectedTab('info')}
               className={clsx(
                 'h-full flex-1 px-3 text-xs font-medium flex items-center justify-center gap-1.5',
-                activeTab === 'info' 
-                  ? localFocus 
-                    ? 'text-blue-200 bg-blue-800/30' 
+                activeTab === 'info'
+                  ? localFocus
+                    ? 'text-cyan-200 bg-cyan-800/30'
                     : 'text-slate-200 bg-slate-800/50'
                   : localFocus
-                    ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
               )}
               data-active={activeTab === 'info' || undefined}
@@ -139,10 +139,10 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
                 'h-full flex-1 px-3 text-xs font-medium flex items center justify-center gap-1.5',
                 activeTab === 'agent'
                   ? localFocus
-                    ? 'text-blue-200 bg-blue-800/30'
+                    ? 'text-cyan-200 bg-cyan-800/30'
                     : 'text-slate-200 bg-slate-800/50'
                   : localFocus
-                    ? 'text-blue-300 hover:text-blue-200 hover:bg-blue-800/20'
+                    ? 'text-cyan-300 hover:text-cyan-200 hover:bg-cyan-800/20'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/30'
               )}
               data-active={activeTab === 'agent' || undefined}
@@ -157,7 +157,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
       <div className={`h-[2px] flex-shrink-0 ${
         localFocus && !isDragging
-          ? 'bg-gradient-to-r from-transparent via-blue-500/50 to-transparent' 
+          ? 'bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent'
           : 'bg-gradient-to-r from-transparent via-slate-600/30 to-transparent'
       }`} />
 
