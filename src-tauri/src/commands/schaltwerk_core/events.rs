@@ -19,6 +19,24 @@ pub struct SelectionPayload {
     pub session_state: &'static str,
 }
 
+#[derive(serde::Serialize, Clone)]
+pub struct GitOperationPayload {
+    pub session_name: String,
+    pub session_branch: String,
+    pub parent_branch: String,
+    pub mode: String,
+    pub operation: &'static str,
+    pub commit: Option<String>,
+    pub status: &'static str,
+}
+
+#[derive(serde::Serialize, Clone)]
+pub struct GitOperationFailedPayload {
+    #[serde(flatten)]
+    pub base: GitOperationPayload,
+    pub error: String,
+}
+
 pub fn emit_session_removed(app: &AppHandle, name: &str) {
     let _ = emit_event(
         app,
@@ -63,4 +81,67 @@ pub fn emit_archive_updated(app: &AppHandle, repo: &str, count: usize) {
 
 pub fn emit_sessions_refreshed(app: &AppHandle, sessions: &Vec<EnrichedSession>) {
     let _ = emit_event(app, SchaltEvent::SessionsRefreshed, sessions);
+}
+
+pub fn emit_git_operation_started(
+    app: &AppHandle,
+    session_name: &str,
+    session_branch: &str,
+    parent_branch: &str,
+    mode: &str,
+) {
+    let payload = GitOperationPayload {
+        session_name: session_name.to_string(),
+        session_branch: session_branch.to_string(),
+        parent_branch: parent_branch.to_string(),
+        mode: mode.to_string(),
+        operation: "merge",
+        commit: None,
+        status: "started",
+    };
+    let _ = emit_event(app, SchaltEvent::GitOperationStarted, &payload);
+}
+
+pub fn emit_git_operation_completed(
+    app: &AppHandle,
+    session_name: &str,
+    session_branch: &str,
+    parent_branch: &str,
+    mode: &str,
+    commit: &str,
+) {
+    let payload = GitOperationPayload {
+        session_name: session_name.to_string(),
+        session_branch: session_branch.to_string(),
+        parent_branch: parent_branch.to_string(),
+        mode: mode.to_string(),
+        operation: "merge",
+        commit: Some(commit.to_string()),
+        status: "success",
+    };
+    let _ = emit_event(app, SchaltEvent::GitOperationCompleted, &payload);
+}
+
+pub fn emit_git_operation_failed(
+    app: &AppHandle,
+    session_name: &str,
+    session_branch: &str,
+    parent_branch: &str,
+    mode: &str,
+    status: &'static str,
+    error: &str,
+) {
+    let payload = GitOperationFailedPayload {
+        base: GitOperationPayload {
+            session_name: session_name.to_string(),
+            session_branch: session_branch.to_string(),
+            parent_branch: parent_branch.to_string(),
+            mode: mode.to_string(),
+            operation: "merge",
+            commit: None,
+            status,
+        },
+        error: error.to_string(),
+    };
+    let _ = emit_event(app, SchaltEvent::GitOperationFailed, &payload);
 }

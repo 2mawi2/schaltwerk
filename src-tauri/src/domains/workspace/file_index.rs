@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 
-static FILE_CACHE: Lazy<Mutex<HashMap<PathBuf, Vec<String>>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static FILE_CACHE: Lazy<Mutex<HashMap<PathBuf, Vec<String>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 fn cache_key(repo_path: &Path) -> PathBuf {
     repo_path
@@ -26,7 +27,12 @@ pub fn list_project_files(repo_path: &Path) -> Result<Vec<String>> {
         .args(["ls-files"])
         .current_dir(repo_path)
         .output()
-        .with_context(|| format!("Failed to execute git ls-files in '{}'", repo_path.display()))?;
+        .with_context(|| {
+            format!(
+                "Failed to execute git ls-files in '{}'",
+                repo_path.display()
+            )
+        })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -37,8 +43,8 @@ pub fn list_project_files(repo_path: &Path) -> Result<Vec<String>> {
         ));
     }
 
-    let stdout = String::from_utf8(output.stdout)
-        .context("git ls-files output contained invalid UTF-8")?;
+    let stdout =
+        String::from_utf8(output.stdout).context("git ls-files output contained invalid UTF-8")?;
 
     let mut files: Vec<String> = stdout
         .lines()
@@ -73,9 +79,7 @@ pub fn get_project_files_with_status(
 
     if !force_refresh {
         if let Some(cached) = {
-            let guard = FILE_CACHE
-                .lock()
-                .expect("file cache mutex poisoned");
+            let guard = FILE_CACHE.lock().expect("file cache mutex poisoned");
             guard.get(&key).cloned()
         } {
             return Ok((cached, false));
@@ -161,7 +165,10 @@ mod tests {
         git(&["commit", "-m", "init"], repo_path);
 
         let files = list_project_files(repo_path).expect("list_project_files should succeed");
-        assert_eq!(files, vec![".gitignore".to_string(), "keep.txt".to_string()]);
+        assert_eq!(
+            files,
+            vec![".gitignore".to_string(), "keep.txt".to_string()]
+        );
     }
 
     #[test]
@@ -189,6 +196,9 @@ mod tests {
         assert_eq!(cached, vec!["one.txt".to_string()]);
 
         let refreshed = get_project_files(repo_path, true).expect("refreshed list");
-        assert_eq!(refreshed, vec!["one.txt".to_string(), "two.txt".to_string()]);
+        assert_eq!(
+            refreshed,
+            vec!["one.txt".to_string(), "two.txt".to_string()]
+        );
     }
 }

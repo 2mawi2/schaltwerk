@@ -590,7 +590,9 @@ impl SessionMethods for Database {
 
         // Check if the new name is already taken
         if self.get_session_by_name(repo_path, new_name).is_ok() {
-            return Err(anyhow::anyhow!("Session with name '{new_name}' already exists"));
+            return Err(anyhow::anyhow!(
+                "Session with name '{new_name}' already exists"
+            ));
         }
 
         // Calculate new worktree path based on new session name
