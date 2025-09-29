@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { theme } from '../../common/theme'
 import { useModal } from '../../contexts/ModalContext'
 import { LoadingSpinner } from '../common/LoadingSpinner'
@@ -57,6 +57,19 @@ export function MergeSessionModal({
   const { registerModal, unregisterModal } = useModal()
   const [mode, setMode] = useState<MergeModeOption>('squash')
   const [commitMessage, setCommitMessage] = useState('')
+  const commitMessageInputRef = useRef<HTMLInputElement | null>(null)
+
+  const focusCommitMessage = useCallback(() => {
+    if (mode !== 'squash') return
+    const input = commitMessageInputRef.current
+    if (!input) return
+    input.focus({ preventScroll: true })
+    Promise.resolve().then(() => {
+      if (document.activeElement !== input) {
+        input.focus({ preventScroll: true })
+      }
+    })
+  }, [mode])
 
   const modalId = useMemo(() => (sessionName ? `merge-${sessionName}` : 'merge'), [sessionName])
 
@@ -66,30 +79,30 @@ export function MergeSessionModal({
     return () => unregisterModal(modalId)
   }, [open, modalId, registerModal, unregisterModal])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open) {
       setMode('squash')
       setCommitMessage('')
       return
     }
-    if (mode === 'squash' && preview?.defaultCommitMessage) {
-      setCommitMessage(prev => (prev.trim().length > 0 ? prev : preview.defaultCommitMessage))
-    }
-  }, [open, mode, preview?.defaultCommitMessage])
+
+    focusCommitMessage()
+  }, [open, mode, focusCommitMessage])
 
   const handleModeChange = (nextMode: MergeModeOption) => {
     setMode(nextMode)
-    if (nextMode === 'squash' && preview?.defaultCommitMessage) {
-      setCommitMessage(prev => (prev.trim().length > 0 ? prev : preview.defaultCommitMessage))
+    if (nextMode === 'squash') {
+      focusCommitMessage()
     }
   }
 
-  const commands = mode === 'squash' ? preview?.squashCommands : preview?.reapplyCommands
   const parentBranch = preview?.parentBranch ?? '—'
   const sessionBranch = preview?.sessionBranch ?? '—'
   const hasConflicts = preview?.hasConflicts ?? false
   const conflictingPaths = preview?.conflictingPaths ?? []
   const isUpToDate = preview?.isUpToDate ?? false
+
+  const isCommitMessageMissing = mode === 'squash' && commitMessage.trim().length === 0
 
   const confirmDisabled =
     status === 'loading' ||
@@ -97,7 +110,7 @@ export function MergeSessionModal({
     !preview ||
     hasConflicts ||
     isUpToDate ||
-    (mode === 'squash' && commitMessage.trim().length === 0)
+    isCommitMessageMissing
 
   const confirmTitle = hasConflicts
     ? 'Resolve merge conflicts before merging.'
@@ -105,7 +118,9 @@ export function MergeSessionModal({
     ? 'Session has no commits to merge into the parent branch.'
     : status === 'running'
     ? 'Merging…'
-    : 'Merge session (Enter)'
+    : isCommitMessageMissing
+    ? 'Enter a commit message to enable merge.'
+    : 'Merge session (⌘↵)'
 
   const handleToggleAutoCancel = useCallback(() => {
     onToggleAutoCancel(!autoCancelEnabled)
@@ -113,17 +128,18 @@ export function MergeSessionModal({
 
   const handleConfirm = useCallback(() => {
     if (status === 'loading' || status === 'running' || hasConflicts || isUpToDate) return
-    if (mode === 'squash') {
-      const trimmed = commitMessage.trim()
-      if (!trimmed) {
-        setCommitMessage('')
+      if (mode === 'squash') {
+        const trimmed = commitMessage.trim()
+        if (!trimmed) {
+          setCommitMessage('')
+        focusCommitMessage()
         return
       }
       onConfirm(mode, trimmed)
     } else {
       onConfirm(mode)
     }
-  }, [commitMessage, mode, onConfirm, status, hasConflicts, isUpToDate])
+  }, [commitMessage, mode, onConfirm, status, hasConflicts, isUpToDate, focusCommitMessage])
 
   useEffect(() => {
     if (!open) return
@@ -261,6 +277,8 @@ export function MergeSessionModal({
                   </label>
                   <input
                     id="merge-commit-message"
+                    ref={commitMessageInputRef}
+                    autoFocus={mode === 'squash'}
                     value={commitMessage}
                     onChange={(event) => setCommitMessage(event.target.value)}
                     className="mt-1 w-full rounded px-3 py-2 text-sm"
@@ -307,23 +325,6 @@ export function MergeSessionModal({
                 </div>
               )}
 
-              <div>
-                <span style={fieldLabelStyle}>Commands</span>
-                <div
-                  className="mt-2 rounded-md border px-3 py-2 text-sm space-y-1"
-                  style={{
-                    backgroundColor: theme.colors.editor.codeBlockBg,
-                    borderColor: theme.colors.border.subtle,
-                    color: theme.colors.syntax.default,
-                  }}
-                >
-                  {commands?.map((command, index) => (
-                    <code key={index} className="block whitespace-pre-wrap">
-                      {command}
-                    </code>
-                  )) || <span>No commands available.</span>}
-                </div>
-              </div>
             </>
           )}
 
@@ -349,20 +350,22 @@ export function MergeSessionModal({
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm rounded border"
+              className="px-4 py-2 text-sm rounded border group inline-flex items-center gap-2"
               style={{
                 backgroundColor: theme.colors.background.tertiary,
                 borderColor: theme.colors.border.subtle,
                 color: theme.colors.text.secondary,
               }}
+              title="Cancel (Esc)"
             >
-              Cancel
+              <span>Cancel</span>
+              <span className="text-xs opacity-60 group-hover:opacity-100">Esc</span>
             </button>
               <button
                 type="button"
                 onClick={handleConfirm}
                 disabled={confirmDisabled}
-                className="px-4 py-2 text-sm font-medium rounded"
+                className="px-4 py-2 text-sm font-medium rounded group inline-flex items-center gap-2"
                 title={confirmTitle}
                 style={{
                   backgroundColor: confirmDisabled
@@ -374,7 +377,8 @@ export function MergeSessionModal({
                 opacity: confirmDisabled ? 0.6 : 1,
               }}
             >
-              {status === 'running' ? 'Merging…' : 'Merge session'}
+              <span>{status === 'running' ? 'Merging…' : 'Merge session'}</span>
+              <span className="text-xs opacity-60 group-hover:opacity-100">⌘↵</span>
             </button>
           </div>
         </div>

@@ -44,18 +44,32 @@ function renderModal(
   return { onConfirm, onClose, onToggleAutoCancel }
 }
 
+function findConfirmButton(): HTMLButtonElement {
+  const button = screen.getAllByRole('button').find(el => el.textContent?.includes('Merge session'))
+  if (!button) {
+    throw new Error('Confirm button not found')
+  }
+  return button as HTMLButtonElement
+}
+
 describe('MergeSessionModal', () => {
-  it('prefills the commit message for squash mode', () => {
+  it('renders an empty, focused commit message field even when a default is provided', () => {
     renderModal()
     const input = screen.getByLabelText('Commit message') as HTMLInputElement
-    expect(input.value).toBe('Merge test session')
+    expect(input.value).toBe('')
+    expect(document.activeElement).toBe(input)
+  })
+
+  it('hides the command preview list', () => {
+    renderModal()
+    expect(screen.queryByText('Commands')).toBeNull()
   })
 
   it('requires commit message in squash mode', () => {
     renderModal()
     const input = screen.getByLabelText('Commit message') as HTMLInputElement
     fireEvent.change(input, { target: { value: '   ' } })
-    const confirm = screen.getByRole('button', { name: 'Merge session' })
+    const confirm = findConfirmButton()
     expect(confirm).toBeDisabled()
   })
 
@@ -63,7 +77,7 @@ describe('MergeSessionModal', () => {
     const { onConfirm } = renderModal()
     const reapplyButton = screen.getByRole('button', { name: 'Reapply commits' })
     fireEvent.click(reapplyButton)
-    const confirm = screen.getByRole('button', { name: 'Merge session' })
+    const confirm = findConfirmButton()
     expect(confirm).not.toBeDisabled()
     fireEvent.click(confirm)
     expect(onConfirm).toHaveBeenCalledWith('reapply' as MergeModeOption)
@@ -87,5 +101,14 @@ describe('MergeSessionModal', () => {
     renderModal({ autoCancelEnabled: true })
     const toggle = screen.getByRole('checkbox', { name: 'Auto-cancel after merge' }) as HTMLInputElement
     expect(toggle.checked).toBe(true)
+  })
+
+  it('surfaces keyboard hints for cancel and confirm actions', () => {
+    renderModal()
+    const cancel = screen.getAllByRole('button').find(button => button.textContent?.includes('Cancel'))
+    expect(cancel).toBeDefined()
+    expect(cancel!.textContent).toMatch(/Esc/)
+    const confirm = findConfirmButton()
+    expect(confirm.textContent).toMatch(/⌘↵/)
   })
 })
