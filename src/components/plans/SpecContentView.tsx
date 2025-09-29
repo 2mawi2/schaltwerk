@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, lazy, Suspense } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
@@ -21,23 +21,45 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   const [error, setError] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
+  const sessionCacheRef = useRef<Map<string, string>>(new Map())
+  const loadTokenRef = useRef(0)
+
+  const updateContent = useCallback((value: string) => {
+    setContent(value)
+    sessionCacheRef.current.set(sessionName, value)
+  }, [sessionName])
 
   useEffect(() => {
     let mounted = true
-    setLoading(true)
+    const token = ++loadTokenRef.current
+
+    const cachedContent = sessionCacheRef.current.get(sessionName)
+    if (cachedContent !== undefined) {
+      setContent(cachedContent)
+      setLoading(false)
+    } else {
+      setContent('')
+      setLoading(true)
+    }
+
     setError(null)
+
     invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName })
       .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
+        if (loadTokenRef.current !== token) return
         const text: string = draftContent ?? initialPrompt ?? ''
+        sessionCacheRef.current.set(sessionName, text)
         setContent(text)
+        setLoading(false)
       })
       .catch((e) => {
         if (!mounted) return
+        if (loadTokenRef.current !== token) return
         logger.error('Failed to get spec content:', e)
         setError(String(e))
+        setLoading(false)
       })
-      .finally(() => mounted && setLoading(false))
     return () => { mounted = false }
   }, [sessionName])
 
@@ -110,7 +132,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
           <MarkdownEditor
             ref={markdownEditorRef}
             value={content}
-            onChange={setContent}
+            onChange={updateContent}
             placeholder="Enter agent description in markdown…"
             className="flex-1"
           />

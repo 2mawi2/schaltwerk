@@ -7,6 +7,8 @@ import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { TestProviders } from '../../tests/test-utils'
 
+type MockChangedFile = { path: string; change_type: 'modified' | 'added' | 'deleted' | 'renamed' | 'copied' | 'unknown' }
+
 // Mock Tauri invoke
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(async (cmd: string, args?: Record<string, unknown>) => {
@@ -458,6 +460,211 @@ describe('DiffFileList', () => {
       await waitFor(() => {
         expect(apiCallCount).toBe(2)
       }, { timeout: 1000 })
+    })
+
+    it('should not reuse cache when session names overlap', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
+          const sessionName = args?.sessionName
+          if (sessionName === 'latest') {
+            return [{ path: 'latest-only.ts', change_type: 'modified' }]
+          }
+          if (sessionName === 'test') {
+            return [{ path: 'test-only.ts', change_type: 'modified' }]
+          }
+          return []
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'feature/x'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc', 'def']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      const { rerender } = render(<TestWrapper sessionName="latest" />)
+
+      await screen.findByText('latest-only.ts')
+
+      rerender(<TestWrapper sessionName="test" />)
+
+      await waitFor(() => {
+        expect(screen.queryByText('latest-only.ts')).not.toBeInTheDocument()
+      }, { timeout: 1000 })
+
+      await screen.findByText('test-only.ts', undefined, { timeout: 1000 })
+    })
+
+    it('restores cached data immediately when switching back to a session', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      const deferred = () => {
+        let resolve: (value: MockChangedFile[]) => void
+        const promise = new Promise<MockChangedFile[]>((res) => {
+          resolve = res
+        })
+        return { promise, resolve: resolve! }
+      }
+
+      let sessionOneCalls = 0
+      const secondSessionOneLoad = deferred()
+
+      mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
+          const sessionName = args?.sessionName as string | undefined
+          if (sessionName === 'alpha') {
+            sessionOneCalls++
+            if (sessionOneCalls === 1) {
+              return [{ path: 'alpha-file.ts', change_type: 'modified' }]
+            }
+            if (sessionOneCalls === 2) {
+              return secondSessionOneLoad.promise
+            }
+          }
+          if (sessionName === 'beta') {
+            return [{ path: 'beta-file.ts', change_type: 'modified' }]
+          }
+          return []
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      const { rerender } = render(<TestWrapper sessionName="alpha" />)
+
+      await screen.findByText('alpha-file.ts')
+
+      rerender(<TestWrapper sessionName="beta" />)
+      await screen.findByText('beta-file.ts')
+
+      rerender(<TestWrapper sessionName="alpha" />)
+
+      await waitFor(() => {
+        expect(screen.getByText('alpha-file.ts')).toBeInTheDocument()
+      }, { timeout: 200 })
+
+      // Ensure the second load has been requested but not resolved yet
+      expect(sessionOneCalls).toBe(2)
+
+      // Verify the deferred promise is still pending by resolving now and waiting for stabilization
+      secondSessionOneLoad.resolve([{ path: 'alpha-file.ts', change_type: 'modified' }])
+      await screen.findByText('alpha-file.ts')
+    })
+
+    it('ignores late responses from previously selected sessions', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      const createDeferred = () => {
+        let resolve: (value: MockChangedFile[]) => void
+        const promise = new Promise<MockChangedFile[]>((res) => {
+          resolve = res
+        })
+        return { promise, resolve: resolve! }
+      }
+
+      const alphaDeferred = createDeferred()
+
+      mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
+          const sessionName = args?.sessionName as string | undefined
+          if (sessionName === 'alpha') {
+            return alphaDeferred.promise
+          }
+          if (sessionName === 'beta') {
+            return [{ path: 'beta-live.ts', change_type: 'modified' }]
+          }
+          return []
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      const { rerender } = render(<TestWrapper sessionName="alpha" />)
+
+      rerender(<TestWrapper sessionName="beta" />)
+      await screen.findByText('beta-live.ts')
+
+      alphaDeferred.resolve([{ path: 'alpha-late.ts', change_type: 'modified' }])
+
+      await waitFor(() => {
+        expect(screen.queryByText('alpha-late.ts')).not.toBeInTheDocument()
+        expect(screen.getByText('beta-live.ts')).toBeInTheDocument()
+      })
+    })
+
+    it('ignores late rejections from previously selected sessions', async () => {
+      const { invoke } = await import('@tauri-apps/api/core')
+      const mockInvoke = invoke as ReturnType<typeof vi.fn>
+
+      const createRejectDeferred = () => {
+        let reject: (reason?: unknown) => void
+        const promise = new Promise<MockChangedFile[]>((_, rej) => {
+          reject = rej
+        })
+        return { promise, reject: reject! }
+      }
+
+      const alphaDeferred = createRejectDeferred()
+
+      mockInvoke.mockImplementation(async (cmd: string, args?: Record<string, unknown>) => {
+        if (cmd === TauriCommands.GetChangedFilesFromMain) {
+          const sessionName = args?.sessionName as string | undefined
+          if (sessionName === 'alpha') {
+            return alphaDeferred.promise
+          }
+          if (sessionName === 'beta') {
+            return [{ path: 'beta-stable.ts', change_type: 'modified' }]
+          }
+          return []
+        }
+        if (cmd === TauriCommands.GetCurrentBranchName) return 'main'
+        if (cmd === TauriCommands.GetBaseBranchName) return 'main'
+        if (cmd === TauriCommands.GetCommitComparisonInfo) return ['abc123', 'def456']
+        return undefined
+      })
+
+      const TestWrapper = ({ sessionName }: { sessionName: string }) => (
+        <Wrapper sessionName={sessionName}>
+          <DiffFileList onFileSelect={() => {}} sessionNameOverride={sessionName} />
+        </Wrapper>
+      )
+
+      const { rerender } = render(<TestWrapper sessionName="alpha" />)
+
+      rerender(<TestWrapper sessionName="beta" />)
+      await screen.findByText('beta-stable.ts')
+
+      alphaDeferred.reject(new Error('session not found'))
+
+      await waitFor(() => {
+        expect(screen.getByText('beta-stable.ts')).toBeInTheDocument()
+        expect(screen.queryByText('session not found')).not.toBeInTheDocument()
+      })
     })
   })
 })

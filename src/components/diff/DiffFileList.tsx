@@ -44,6 +44,19 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const [discardBusy, setDiscardBusy] = useState(false)
   const [pendingDiscardFile, setPendingDiscardFile] = useState<string | null>(null)
   const lastResultRef = useRef<string>('')
+  const lastSessionKeyRef = useRef<string | null>(null)
+  const sessionDataCacheRef = useRef<Map<string, {
+    files: ChangedFile[]
+    branchInfo: {
+      currentBranch: string
+      baseBranch: string
+      baseCommit: string
+      headCommit: string
+    } | null
+    signature: string
+  }>>(new Map())
+  const loadTokenRef = useRef(0)
+  const inFlightSessionKeyRef = useRef<string | null>(null)
   
   // Use refs to track current values without triggering effect recreations
   const currentPropsRef = useRef({ sessionNameOverride, selection, isCommander })
@@ -53,48 +66,79 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
   const loadChangedFilesRef = useRef<() => Promise<void>>(() => Promise.resolve())
   const cancelledSessionsRef = useRef<Set<string>>(new Set())
   
+  const getSessionKey = (session: string | null | undefined, commander: boolean | undefined) => {
+    if (commander && !session) return 'orchestrator'
+    if (!session) return 'no-session'
+    return `session:${session}`
+  }
+
   loadChangedFilesRef.current = async () => {
-    if (isLoading) return // Prevent concurrent loads
-    
+    const { sessionNameOverride: overrideSnapshot, selection: selectionSnapshot, isCommander: commanderSnapshot } = currentPropsRef.current
+    const targetSession = overrideSnapshot ?? (selectionSnapshot.kind === 'session' ? selectionSnapshot.payload : null)
+    const sessionKey = getSessionKey(targetSession, commanderSnapshot)
+
+    if (isLoading && inFlightSessionKeyRef.current === sessionKey) {
+      return
+    }
+
+    const token = ++loadTokenRef.current
+    inFlightSessionKeyRef.current = sessionKey
     setIsLoading(true)
-    
+
+    const shouldApply = () => {
+      if (loadTokenRef.current !== token) return false
+      const { sessionNameOverride: latestOverride, selection: latestSelection, isCommander: latestCommander } = currentPropsRef.current
+      const latestSession = latestOverride ?? (latestSelection.kind === 'session' ? latestSelection.payload : null)
+      const latestKey = getSessionKey(latestSession, latestCommander)
+      return latestKey === sessionKey
+    }
+
     try {
-      // CRITICAL: Get current values from ref to avoid stale closures
       const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
       const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
-      
+
       // Don't try to load files for cancelled sessions
       if (currentSession && cancelledSessionsRef.current.has(currentSession)) {
         return
       }
-      
+
       // For orchestrator mode (no session), get working changes
       if (currentIsCommander && !currentSession) {
         const [changedFiles, currentBranch] = await Promise.all([
           invoke<ChangedFile[]>(TauriCommands.GetOrchestratorWorkingChanges),
           invoke<string>(TauriCommands.GetCurrentBranchName, { sessionName: null })
         ])
-        
+
         // Check if results actually changed to avoid unnecessary re-renders
         const resultSignature = `orchestrator-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}`
-        if (resultSignature !== lastResultRef.current) {
-          lastResultRef.current = resultSignature
-          setFiles(changedFiles)
-          setBranchInfo({
+        const cachedPayload = {
+          files: changedFiles,
+          branchInfo: {
             currentBranch,
             baseBranch: 'Working Directory',
             baseCommit: 'HEAD',
             headCommit: 'Working'
-          })
+          },
+          signature: resultSignature
+        }
+
+        sessionDataCacheRef.current.set(sessionKey, cachedPayload)
+
+        if (shouldApply()) {
+          lastResultRef.current = resultSignature
+          lastSessionKeyRef.current = sessionKey
+          setFiles(cachedPayload.files)
+          setBranchInfo(cachedPayload.branchInfo)
         }
         return
       }
-      
+
       // Regular session mode
       if (!currentSession) {
         // Clear data when no session selected to prevent stale data
         if (lastResultRef.current !== 'no-session') {
           lastResultRef.current = 'no-session'
+          lastSessionKeyRef.current = getSessionKey(null, false)
           setFiles([])
           setBranchInfo(null)
         }
@@ -111,26 +155,50 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
       // Check if results actually changed to avoid unnecessary re-renders
       // Include session name in signature to ensure different sessions don't share cached results
       const resultSignature = `session-${currentSession}-${changedFiles.length}-${changedFiles.map(f => `${f.path}:${f.change_type}`).join(',')}-${currentBranch}-${baseBranch}`
-      if (resultSignature !== lastResultRef.current) {
-        lastResultRef.current = resultSignature
-        setFiles(changedFiles)
-        setBranchInfo({
+
+      const cachedPayload = {
+        files: changedFiles,
+        branchInfo: {
           currentBranch,
           baseBranch,
           baseCommit,
           headCommit
-        })
+        },
+        signature: resultSignature
+      }
+
+      sessionDataCacheRef.current.set(sessionKey, cachedPayload)
+
+      if (shouldApply()) {
+        lastResultRef.current = resultSignature
+        lastSessionKeyRef.current = sessionKey
+        setFiles(cachedPayload.files)
+        setBranchInfo(cachedPayload.branchInfo)
       }
     } catch (error: unknown) {
-      // Only log error if it's not a "session not found" error (which is expected after cancellation)
       if (!error?.toString()?.includes('not found')) {
         logger.error(`Failed to load changed files:`, error)
       }
-      // Clear data on error to prevent showing stale data from previous session
+
+      if (!shouldApply()) {
+        if (sessionKey !== 'no-session') {
+          sessionDataCacheRef.current.delete(sessionKey)
+        }
+        return
+      }
+
       setFiles([])
       setBranchInfo(null)
+      lastResultRef.current = ''
+      lastSessionKeyRef.current = sessionKey
+      if (sessionKey !== 'no-session') {
+        sessionDataCacheRef.current.delete(sessionKey)
+      }
     } finally {
-      setIsLoading(false)
+      if (loadTokenRef.current === token) {
+        setIsLoading(false)
+        inFlightSessionKeyRef.current = null
+      }
     }
   }
   
@@ -146,26 +214,37 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
     const { sessionNameOverride: currentOverride, selection: currentSelection, isCommander: currentIsCommander } = currentPropsRef.current
     const currentSession = currentOverride ?? (currentSelection.kind === 'session' ? currentSelection.payload : null)
     
+    const newSessionKey = getSessionKey(currentSession, currentIsCommander)
+    const previousSessionKey = lastSessionKeyRef.current
+
     if (!currentSession && !currentIsCommander) {
       // Clear files when no session and not orchestrator
       setFiles([])
       setBranchInfo(null)
       lastResultRef.current = 'no-session'
+      lastSessionKeyRef.current = getSessionKey(null, false)
       return
     }
 
     // CRITICAL: Clear stale data immediately when session changes
     // This prevents showing old session data while new session data loads
-    const newSessionKey = currentIsCommander ? 'orchestrator' : currentSession
-    const needsDataClear = lastResultRef.current && !lastResultRef.current.includes(newSessionKey || 'no-session')
-    if (needsDataClear) {
+    const cachedData = sessionDataCacheRef.current.get(newSessionKey)
+    const needsDataClear = previousSessionKey !== null && previousSessionKey !== newSessionKey
+
+    if (cachedData) {
+      setFiles(cachedData.files)
+      setBranchInfo(cachedData.branchInfo)
+      lastResultRef.current = cachedData.signature
+      lastSessionKeyRef.current = newSessionKey
+    } else if (needsDataClear) {
       setFiles([])
       setBranchInfo(null)
       lastResultRef.current = ''
+      lastSessionKeyRef.current = newSessionKey
     }
 
     // Only load if we don't already have data for this session or if we just cleared stale data
-    const hasDataForCurrentSession = lastResultRef.current && lastResultRef.current.includes(newSessionKey || 'no-session')
+    const hasDataForCurrentSession = lastResultRef.current !== '' && lastSessionKeyRef.current === newSessionKey
     if (!hasDataForCurrentSession || needsDataClear) {
       loadChangedFiles()
     }
@@ -188,6 +267,7 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
             // Clear data immediately
             setFiles([])
             setBranchInfo(null)
+            sessionDataCacheRef.current.delete(getSessionKey(currentSession, false))
             // Stop polling
             if (pollInterval) {
               clearInterval(pollInterval)
@@ -235,10 +315,22 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
               baseCommit: event.branch_info.base_commit,
               headCommit: event.branch_info.head_commit
             })
-            
+
             // Update signature to match current session
             lastResultRef.current = `session-${currentlySelectedSession}-${event.changed_files.length}-${event.changed_files.map((f: ChangedFile) => `${f.path}:${f.change_type}`).join(',')}-${event.branch_info.current_branch}-${event.branch_info.base_branch}`
-            
+            const key = getSessionKey(currentlySelectedSession, false)
+            lastSessionKeyRef.current = key
+            sessionDataCacheRef.current.set(key, {
+              files: event.changed_files,
+              branchInfo: {
+                currentBranch: event.branch_info.current_branch,
+                baseBranch: event.branch_info.base_branch,
+                baseCommit: event.branch_info.base_commit,
+                headCommit: event.branch_info.head_commit
+              },
+              signature: lastResultRef.current
+            })
+
             // If we receive events, we can stop polling
             if (pollInterval) {
               clearInterval(pollInterval)
@@ -250,9 +342,9 @@ export function DiffFileList({ onFileSelect, sessionNameOverride, isCommander }:
         logger.error('Failed to set up event listener:', error)
       }
     }
-    
+
     setup()
-    
+
     return () => {
       // Stop file watcher
       if (currentSession) {
