@@ -1,8 +1,8 @@
-export interface SessionInfo {
-    session_id: string
-    session_state: 'spec' | 'running' | 'reviewed'
-    ready_to_merge?: boolean
-}
+import type { SessionInfo as CoreSessionInfo } from '../types/session'
+import { SessionState } from '../types/session'
+import { mapSessionUiState } from './sessionState'
+
+export type SessionInfo = Pick<CoreSessionInfo, 'session_id' | 'session_state' | 'ready_to_merge' | 'status'>
 
 export interface Session {
     info: SessionInfo
@@ -24,13 +24,19 @@ export function organizeSessionsByColumn<T extends Session>(sessions: T[]): Sess
     }
     
     sessions.forEach(session => {
-        if (session.info.session_state === 'spec') {
+        const state = mapSessionUiState(session.info)
+
+        if (state === SessionState.Spec) {
             columns[0].push(session)
-        } else if (session.info.session_state === 'running' && !session.info.ready_to_merge) {
-            columns[1].push(session)
-        } else if (session.info.ready_to_merge) {
-            columns[2].push(session)
+            return
         }
+
+        if (state === SessionState.Reviewed) {
+            columns[2].push(session)
+            return
+        }
+
+        columns[1].push(session)
     })
     
     return columns
@@ -40,14 +46,16 @@ export function organizeSessionsByColumn<T extends Session>(sessions: T[]): Sess
  * Determines which column a session belongs to
  */
 export function getSessionColumn(session: Session): 0 | 1 | 2 {
-    if (session.info.session_state === 'spec') {
+    const state = mapSessionUiState(session.info)
+
+    if (state === SessionState.Spec) {
         return 0
-    } else if (session.info.session_state === 'running' && !session.info.ready_to_merge) {
-        return 1
-    } else if (session.info.ready_to_merge) {
+    }
+
+    if (state === SessionState.Reviewed) {
         return 2
     }
-    // Default to running column for any edge cases
+
     return 1
 }
 

@@ -1,25 +1,7 @@
-import { EnrichedSession, SessionInfo } from '../types/session'
+import { EnrichedSession } from '../types/session'
+import { isReviewed, isRunning, isSpec, mapSessionUiState } from './sessionState'
 
-// These types are now imported from the centralized types/session.ts file
-
-// Normalize backend states to UI categories
-export function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
-    if (info.session_state === 'spec' || info.status === 'spec') return 'spec'
-    if (info.ready_to_merge) return 'reviewed'
-    return 'running'
-}
-
-export function isSpec(info: SessionInfo): boolean { 
-    return mapSessionUiState(info) === 'spec' 
-}
-
-export function isReviewed(info: SessionInfo): boolean { 
-    return mapSessionUiState(info) === 'reviewed' 
-}
-
-export function isRunning(info: SessionInfo): boolean {
-    return !isReviewed(info) && !isSpec(info)
-}
+export { mapSessionUiState, isSpec, isReviewed, isRunning }
 
 /**
  * Calculate filter counts for sessions
