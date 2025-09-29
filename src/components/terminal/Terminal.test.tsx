@@ -1230,6 +1230,9 @@ describe('Terminal component', () => {
       data: 'RESUMED'
     }))
 
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-resume-top' })
+    await advanceAndFlush(100)
+
     ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-top' })
     await advanceAndFlush(400)
 
