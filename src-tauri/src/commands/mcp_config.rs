@@ -8,8 +8,14 @@ const MCP_SERVER_PATH: &str = "mcp-server/build/schaltwerk-mcp-server.js";
 // Client-specific configuration logic (Claude, Codex)
 mod client {
     use super::*;
+    use schaltwerk::binary_detector::BinaryDetector;
+    use schaltwerk::domains::settings::AgentBinaryConfig;
+    use schaltwerk::utils::binary_utils::DetectedBinary;
+    use std::collections::HashSet;
     use std::fs;
     use std::io::Write;
+    use std::path::{Path, PathBuf};
+    use which::which;
 
     #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
     pub enum McpClient {
@@ -31,12 +37,161 @@ mod client {
         }
     }
 
+    fn select_cli_path(
+        config: Option<AgentBinaryConfig>,
+        detected: &[DetectedBinary],
+    ) -> Option<PathBuf> {
+        let mut candidates = Vec::new();
+
+        if let Some(mut cfg) = config {
+            if let Some(custom) = cfg.custom_path.take() {
+                candidates.push(PathBuf::from(custom));
+            }
+
+            if let Some(recommended) = cfg
+                .detected_binaries
+                .iter()
+                .find(|binary| binary.is_recommended)
+                .map(|binary| binary.path.clone())
+            {
+                candidates.push(PathBuf::from(recommended));
+            }
+
+            for binary in cfg.detected_binaries.into_iter() {
+                candidates.push(PathBuf::from(binary.path));
+            }
+        }
+
+        for binary in detected {
+            candidates.push(PathBuf::from(&binary.path));
+        }
+
+        let mut seen = HashSet::new();
+        candidates.retain(|path| seen.insert(path.clone()));
+
+        candidates.into_iter().find(|path| is_executable(path))
+    }
+
+    fn is_executable(path: &Path) -> bool {
+        if !path.exists() {
+            return false;
+        }
+
+        let Ok(metadata) = fs::metadata(path) else {
+            return false;
+        };
+
+        if !metadata.is_file() {
+            return false;
+        }
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            metadata.permissions().mode() & 0o111 != 0
+        }
+
+        #[cfg(not(unix))]
+        {
+            true
+        }
+    }
+
+    fn resolve_cli_path(client: McpClient) -> Option<PathBuf> {
+        let config = load_agent_binary_config(client);
+        let detected = BinaryDetector::detect_agent_binaries(client.as_str());
+
+        if let Some(path) = select_cli_path(config, &detected) {
+            return Some(path);
+        }
+
+        which(client.as_str()).ok()
+    }
+
+    fn load_agent_binary_config(client: McpClient) -> Option<AgentBinaryConfig> {
+        crate::SETTINGS_MANAGER.get().and_then(|manager| {
+            tauri::async_runtime::block_on(async {
+                let guard = manager.lock().await;
+                guard.get_agent_binary_config(client.as_str())
+            })
+        })
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use schaltwerk::domains::settings::AgentBinaryConfig;
+        use schaltwerk::utils::binary_utils::{DetectedBinary, InstallationMethod};
+        use std::fs;
+        use std::os::unix::fs::PermissionsExt;
+        use tempfile::TempDir;
+
+        fn make_executable(temp_dir: &TempDir, name: &str) -> PathBuf {
+            let path = temp_dir.path().join(name);
+            fs::write(&path, "#!/bin/sh\nexit 0\n").unwrap();
+            let mut perms = fs::metadata(&path).unwrap().permissions();
+            perms.set_mode(0o755);
+            fs::set_permissions(&path, perms).unwrap();
+            path
+        }
+
+        fn detected(path: &PathBuf) -> DetectedBinary {
+            DetectedBinary {
+                path: path.to_string_lossy().to_string(),
+                version: None,
+                installation_method: InstallationMethod::Homebrew,
+                is_recommended: true,
+                is_symlink: false,
+                symlink_target: None,
+            }
+        }
+
+        #[test]
+        fn select_cli_path_prefers_custom_path() {
+            let temp_dir = TempDir::new().unwrap();
+            let custom = make_executable(&temp_dir, "claude");
+
+            let config = AgentBinaryConfig {
+                agent_name: "claude".into(),
+                custom_path: Some(custom.to_string_lossy().to_string()),
+                auto_detect: false,
+                detected_binaries: vec![],
+            };
+
+            let result = select_cli_path(Some(config), &[]).expect("cli path");
+            assert_eq!(result, custom);
+        }
+
+        #[test]
+        fn select_cli_path_prefers_recommended_detected() {
+            let temp_dir = TempDir::new().unwrap();
+            let detected_path = make_executable(&temp_dir, "claude");
+
+            let config = AgentBinaryConfig {
+                agent_name: "claude".into(),
+                custom_path: None,
+                auto_detect: true,
+                detected_binaries: vec![detected(&detected_path)],
+            };
+
+            let result = select_cli_path(Some(config), &[]).expect("cli path");
+            assert_eq!(result, detected_path);
+        }
+
+        #[test]
+        fn select_cli_path_uses_detected_when_no_config() {
+            let temp_dir = TempDir::new().unwrap();
+            let detected_path = make_executable(&temp_dir, "claude");
+
+            let detection = vec![detected(&detected_path)];
+
+            let result = select_cli_path(None, &detection).expect("cli path");
+            assert_eq!(result, detected_path);
+        }
+    }
+
     pub fn check_cli_availability(client: McpClient) -> bool {
-        Command::new("which")
-            .arg(client.as_str())
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
+        resolve_cli_path(client).is_some()
     }
 
     pub fn configure_mcp(
@@ -52,7 +207,13 @@ mod client {
     }
 
     fn configure_mcp_claude(project_path: &str, mcp_server_path: &str) -> Result<String, String> {
-        let output = Command::new("claude")
+        let cli_path = resolve_cli_path(McpClient::Claude).ok_or_else(|| {
+            "Claude CLI not found. Install the claude command or set a custom path in Settings → Agent Configuration.".to_string()
+        })?;
+
+        log::info!("Configuring Claude MCP using CLI at {}", cli_path.display());
+
+        let output = Command::new(&cli_path)
             .args([
                 "mcp",
                 "add",
@@ -66,7 +227,7 @@ mod client {
             ])
             .current_dir(project_path)
             .output()
-            .map_err(|e| format!("Failed to run claude CLI: {e}"))?;
+            .map_err(|e| format!("Failed to run claude CLI at {}: {e}", cli_path.display()))?;
 
         if !output.status.success() {
             let mut stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -130,11 +291,15 @@ mod client {
     }
 
     fn remove_mcp_claude(project_path: &str) -> Result<String, String> {
-        let output = Command::new("claude")
+        let cli_path = resolve_cli_path(McpClient::Claude).ok_or_else(|| {
+            "Claude CLI not found. Install the claude command or set a custom path in Settings → Agent Configuration.".to_string()
+        })?;
+
+        let output = Command::new(&cli_path)
             .args(["mcp", "remove", "schaltwerk"])
             .current_dir(project_path)
             .output()
-            .map_err(|e| format!("Failed to run claude CLI: {e}"))?;
+            .map_err(|e| format!("Failed to run claude CLI at {}: {e}", cli_path.display()))?;
         if !output.status.success() {
             let mut stderr = String::from_utf8_lossy(&output.stderr).to_string();
             stderr = strip_ansi(&stderr);

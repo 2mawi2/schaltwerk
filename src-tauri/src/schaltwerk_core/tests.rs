@@ -351,7 +351,8 @@ fn test_restore_archived_spec_included_in_enriched_sessions() {
     assert!(
         enriched
             .iter()
-            .any(|session| session.info.session_id == restored.name && session.info.session_state == SessionState::Spec),
+            .any(|session| session.info.session_id == restored.name
+                && session.info.session_state == SessionState::Spec),
         "restored spec should appear in enriched sessions snapshot"
     );
 }
