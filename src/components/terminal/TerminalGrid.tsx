@@ -1133,6 +1133,7 @@ export function TerminalGrid() {
                                     agentType={agentType}
                                     onTerminalClick={handleTerminalClick}
                                     headless={true}
+                                    bootstrapTopTerminalId={terminals.top}
                                 />
                             </TerminalErrorBoundary>
                         </div>

@@ -10,8 +10,7 @@ export const TauriCommands = {
   CreateNewProject: 'create_new_project',
   CreateRunTerminal: 'create_run_terminal',
   CreateTerminal: 'create_terminal',
-  // Map size-aware create to legacy command name for compatibility in tests
-  CreateTerminalWithSize: 'create_terminal',
+  CreateTerminalWithSize: 'create_terminal_with_size',
   DirectoryExists: 'directory_exists',
   EnsureFolderPermission: 'ensure_folder_permission',
   EnsureMcpGitignored: 'ensure_mcp_gitignored',

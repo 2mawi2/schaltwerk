@@ -5,6 +5,7 @@ import { logger } from '../utils/logger'
 import { TabInfo } from '../types/terminalTabs'
 import { useProject } from '../contexts/ProjectContext'
 import { UiEvent, TerminalResetDetail, emitUiEvent, listenUiEvent } from '../common/uiEvents'
+import { bestBootstrapSize } from '../common/terminalSizeCache'
 
 interface SessionTabState {
   activeTab: number
@@ -17,6 +18,7 @@ interface UseTerminalTabsProps {
   workingDirectory: string
   maxTabs?: number
   sessionName?: string | null
+  bootstrapTopTerminalId?: string
 }
 
 const DEFAULT_MAX_TABS = 6
@@ -25,11 +27,12 @@ const DEFAULT_MAX_TABS = 6
 const globalTabState = new Map<string, SessionTabState>()
 const globalTerminalCreated = new Set<string>()
 
-export function useTerminalTabs({ 
-  baseTerminalId, 
+export function useTerminalTabs({
+  baseTerminalId,
   workingDirectory,
   maxTabs = DEFAULT_MAX_TABS,
   sessionName = null,
+  bootstrapTopTerminalId,
 }: UseTerminalTabsProps) {
   // Use baseTerminalId as session key to maintain separate state per session
   const sessionKey = baseTerminalId
@@ -120,16 +123,38 @@ export function useTerminalTabs({
     }
 
     try {
+      const directoryExists = await invoke<boolean>(TauriCommands.PathExists, { path: sanitizedCwd })
+      if (!directoryExists) {
+        logger.debug(`[useTerminalTabs] Skipping creation of ${terminalId} because ${sanitizedCwd} is not present yet`)
+        return
+      }
+
       const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
       if (!exists) {
-        await invoke(TauriCommands.CreateTerminal, { id: terminalId, cwd: sanitizedCwd })
+        let sizeHint: { cols: number; rows: number } | null = null
+        try {
+          sizeHint = bestBootstrapSize({ topId: bootstrapTopTerminalId ?? terminalId })
+        } catch (error) {
+          logger.debug(`[useTerminalTabs] Failed to compute size hint for ${terminalId}`, error)
+        }
+
+        if (sizeHint) {
+          await invoke(TauriCommands.CreateTerminalWithSize, {
+            id: terminalId,
+            cwd: sanitizedCwd,
+            cols: sizeHint.cols,
+            rows: sizeHint.rows,
+          })
+        } else {
+          await invoke(TauriCommands.CreateTerminal, { id: terminalId, cwd: sanitizedCwd })
+        }
       }
       globalTerminalCreated.add(terminalId)
     } catch (error) {
       logger.error(`Failed to create terminal ${terminalId}:`, error)
       throw error
     }
-  }, [workingDirectory])
+  }, [workingDirectory, bootstrapTopTerminalId])
 
    const addTab = useCallback(async () => {
      if (sessionTabs.tabs.length >= sessionTabs.maxTabs) {

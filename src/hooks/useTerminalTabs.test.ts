@@ -13,6 +13,10 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
 }))
 
+vi.mock('../common/terminalSizeCache', () => ({
+  bestBootstrapSize: vi.fn(() => ({ cols: 120, rows: 32 }))
+}))
+
 describe('useTerminalTabs', () => {
   const mockInvoke = invoke as MockedFunction<typeof invoke>
   let addEventSpy: ReturnType<typeof vi.spyOn>
@@ -21,6 +25,10 @@ describe('useTerminalTabs', () => {
     switch (command) {
       case TauriCommands.TerminalExists:
         return Promise.resolve(false)
+      case TauriCommands.PathExists:
+        return Promise.resolve(true)
+      case TauriCommands.CreateTerminalWithSize:
+        return Promise.resolve()
       case TauriCommands.CreateTerminal:
         return Promise.resolve()
       case TauriCommands.CloseTerminal:
@@ -249,15 +257,20 @@ describe('useTerminalTabs', () => {
         if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-      if (command === TauriCommands.CreateTerminal) {
-        expect(args).toEqual({
-          id: 'test-create-1',
-          cwd: '/test/dir'
-        })
-        return Promise.resolve()
-      }
-      return defaultInvokeImplementation(command, args)
-    })
+        if (command === TauriCommands.PathExists) {
+          return Promise.resolve(true)
+        }
+        if (command === TauriCommands.CreateTerminalWithSize) {
+          expect(args).toEqual({
+            id: 'test-create-1',
+            cwd: '/test/dir',
+            cols: 120,
+            rows: 32
+          })
+          return Promise.resolve()
+        }
+        return defaultInvokeImplementation(command, args)
+      })
 
       const { result } = renderTabsHook({
         baseTerminalId: 'test-create',
@@ -269,10 +282,19 @@ describe('useTerminalTabs', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-create-1' })
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.PathExists, { path: '/test/dir' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminalWithSize, {
         id: 'test-create-1',
-        cwd: '/test/dir'
+        cwd: '/test/dir',
+        cols: 120,
+        rows: 32
       })
+      const fallbackCalls = mockInvoke.mock.calls.filter(([command, args]) => {
+        if (command !== TauriCommands.CreateTerminal) return false
+        const record = args as Record<string, unknown> | undefined
+        return record?.id === 'test-create-1'
+      })
+      expect(fallbackCalls).toHaveLength(0)
     })
 
     it('skips creation when terminal already exists', async () => {
@@ -293,7 +315,18 @@ describe('useTerminalTabs', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-exists-1' })
-      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, expect.any(Object))
+      const sizeCalls = mockInvoke.mock.calls.filter(([command, args]) => {
+        if (command !== TauriCommands.CreateTerminalWithSize) return false
+        const record = args as Record<string, unknown> | undefined
+        return record?.id === 'test-exists-1'
+      })
+      expect(sizeCalls).toHaveLength(0)
+      const fallbackCalls = mockInvoke.mock.calls.filter(([command, args]) => {
+        if (command !== TauriCommands.CreateTerminal) return false
+        const record = args as Record<string, unknown> | undefined
+        return record?.id === 'test-exists-1'
+      })
+      expect(fallbackCalls).toHaveLength(0)
     })
 
     it('handles terminal_exists failure gracefully', async () => {
@@ -328,12 +361,21 @@ describe('useTerminalTabs', () => {
         if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === TauriCommands.CreateTerminal) {
+        if (command === TauriCommands.PathExists) {
+          const pathArg = (args as Record<string, unknown> | undefined)?.path
+          return Promise.resolve(pathArg === '/ready/path')
+        }
+        if (command === TauriCommands.CreateTerminalWithSize) {
           expect(args).toEqual({
             id: 'test-defer-0',
-            cwd: '/ready/path'
+            cwd: '/ready/path',
+            cols: 120,
+            rows: 32
           })
           return Promise.resolve()
+        }
+        if (command === TauriCommands.CreateTerminal) {
+          throw new Error('Should not use fallback create path during defer test')
         }
         return defaultInvokeImplementation(command, args)
       })
@@ -355,7 +397,7 @@ describe('useTerminalTabs', () => {
 
       const createCallsBefore = mockInvoke.mock.calls.filter(call => {
         const [command, params] = call
-        if (command !== TauriCommands.CreateTerminal) return false
+        if (command !== TauriCommands.CreateTerminalWithSize) return false
         const id = (params as { id?: string })?.id
         return id?.startsWith('test-defer')
       })
@@ -368,9 +410,11 @@ describe('useTerminalTabs', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-defer-0' })
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminalWithSize, {
         id: 'test-defer-0',
-        cwd: '/ready/path'
+        cwd: '/ready/path',
+        cols: 120,
+        rows: 32
       })
     })
   })
@@ -454,7 +498,10 @@ describe('useTerminalTabs', () => {
         if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === TauriCommands.CreateTerminal) {
+        if (command === TauriCommands.PathExists) {
+          return Promise.resolve(true)
+        }
+        if (command === TauriCommands.CreateTerminalWithSize) {
           return Promise.reject(new Error('Failed to create terminal'))
         }
         return defaultInvokeImplementation(command, args)
@@ -674,10 +721,15 @@ describe('useTerminalTabs', () => {
         if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === TauriCommands.CreateTerminal) {
+        if (command === TauriCommands.PathExists) {
+          return Promise.resolve(true)
+        }
+        if (command === TauriCommands.CreateTerminalWithSize) {
           expect(args).toEqual({
             id: 'test-initial-0',
-            cwd: '/test/dir'
+            cwd: '/test/dir',
+            cols: 120,
+            rows: 32
           })
           return Promise.resolve()
         }
@@ -695,10 +747,19 @@ describe('useTerminalTabs', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-0' })
-      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminal, {
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.PathExists, { path: '/test/dir' })
+      expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.CreateTerminalWithSize, {
         id: 'test-initial-0',
-        cwd: '/test/dir'
+        cwd: '/test/dir',
+        cols: 120,
+        rows: 32
       })
+      const initialFallbackCalls = mockInvoke.mock.calls.filter(([command, args]) => {
+        if (command !== TauriCommands.CreateTerminal) return false
+        const record = args as Record<string, unknown> | undefined
+        return record?.id === 'test-initial-0'
+      })
+      expect(initialFallbackCalls).toHaveLength(0)
     })
 
     it('skips initial terminal creation when it already exists', async () => {
@@ -719,7 +780,18 @@ describe('useTerminalTabs', () => {
       })
 
       expect(mockInvoke).toHaveBeenCalledWith(TauriCommands.TerminalExists, { id: 'test-initial-exists-0' })
-      expect(mockInvoke).not.toHaveBeenCalledWith(TauriCommands.CreateTerminal, expect.any(Object))
+      const initialSizeCalls = mockInvoke.mock.calls.filter(([command, args]) => {
+        if (command !== TauriCommands.CreateTerminalWithSize) return false
+        const record = args as Record<string, unknown> | undefined
+        return record?.id === 'test-initial-exists-0'
+      })
+      expect(initialSizeCalls).toHaveLength(0)
+      const initialFallbackCalls = mockInvoke.mock.calls.filter(([command, args]) => {
+        if (command !== TauriCommands.CreateTerminal) return false
+        const record = args as Record<string, unknown> | undefined
+        return record?.id === 'test-initial-exists-0'
+      })
+      expect(initialFallbackCalls).toHaveLength(0)
     })
 
     it('handles initial terminal creation failure gracefully', async () => {
@@ -727,7 +799,10 @@ describe('useTerminalTabs', () => {
         if (command === TauriCommands.TerminalExists) {
           return Promise.resolve(false)
         }
-        if (command === TauriCommands.CreateTerminal) {
+        if (command === TauriCommands.PathExists) {
+          return Promise.resolve(true)
+        }
+        if (command === TauriCommands.CreateTerminalWithSize) {
           return Promise.reject(new Error('Failed to create initial terminal'))
         }
         return defaultInvokeImplementation(command, args)

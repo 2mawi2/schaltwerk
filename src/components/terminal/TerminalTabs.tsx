@@ -16,6 +16,7 @@ interface TerminalTabsProps {
   agentType?: string
   onTerminalClick?: () => void
   headless?: boolean
+  bootstrapTopTerminalId?: string
 }
 
 export interface TerminalTabsHandle {
@@ -48,13 +49,15 @@ export const TerminalTabs = forwardRef<TerminalTabsHandle, TerminalTabsProps>(({
   maxTabs = 6,
   agentType,
   onTerminalClick,
-  headless = false
+  headless = false,
+  bootstrapTopTerminalId
 }, ref) => {
   const { tabs, activeTab, canAddTab, addTab, closeTab, setActiveTab } = useTerminalTabs({
     baseTerminalId,
     workingDirectory,
     maxTabs,
-    sessionName: sessionName ?? null
+    sessionName: sessionName ?? null,
+    bootstrapTopTerminalId
   })
 
   const terminalRefs = useRef<Map<number, TerminalHandle>>(new Map())

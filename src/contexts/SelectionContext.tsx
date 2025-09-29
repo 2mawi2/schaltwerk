@@ -230,7 +230,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             // Sanitize session name: replace spaces and special chars with underscores
             const sanitizedSessionName = (sel.payload || 'unknown').replace(/[^a-zA-Z0-9_-]/g, '_')
             const base = `session-${sanitizedSessionName}`
-            const sessionWorkingDir = sel.worktreePath || workingDir
+            const sessionWorkingDir = sel.sessionState === 'running' && sel.worktreePath ? sel.worktreePath : ''
             return {
                 top: `${base}-top`,
                 bottomBase: `${base}-bottom`,

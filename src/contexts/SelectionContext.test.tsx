@@ -193,7 +193,8 @@ describe('SelectionContext', () => {
         await result.current.setSelection({
           kind: 'session',
           payload: 'test-session',
-          worktreePath: '/test/path'
+          worktreePath: '/test/path',
+          sessionState: 'running'
         })
       })
 
@@ -217,7 +218,8 @@ describe('SelectionContext', () => {
         await result.current.setSelection({
           kind: 'session',
           payload: 'my-test_session.123',
-          worktreePath: '/test/path'
+          worktreePath: '/test/path',
+          sessionState: 'running'
         })
       })
 
