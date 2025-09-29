@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { TauriCommands } from '../../common/tauriCommands'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, act } from '@testing-library/react'
 import { Sidebar } from './Sidebar'
 import { TestProviders } from '../../tests/test-utils'
 
@@ -25,9 +25,11 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 
 
-function press(key: string, opts: Partial<KeyboardEvent> = {}) {
-  const ev = new KeyboardEvent('keydown', { key, ...opts })
-  window.dispatchEvent(ev)
+async function press(key: string, opts: KeyboardEventInit = {}) {
+  await act(async () => {
+    const event = new KeyboardEvent('keydown', { key, ...opts })
+    window.dispatchEvent(event)
+  })
 }
 
 describe('Sidebar keyboard navigation basic', () => {
@@ -82,14 +84,14 @@ describe('Sidebar keyboard navigation basic', () => {
     expect(orchestratorBtn.className).toContain('session-ring-blue')
 
     // Move down
-    press('ArrowDown', { metaKey: true })
+    await press('ArrowDown', { metaKey: true })
 
     await waitFor(() => {
       expect(screen.getByTitle(/Selected session/)).toBeInTheDocument()
     })
 
     // Move up to orchestrator
-    press('ArrowUp', { metaKey: true })
+    await press('ArrowUp', { metaKey: true })
 
     await waitFor(() => {
       const orch = screen.getByTitle(/Select orchestrator/i)
@@ -145,7 +147,7 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Try to mark spec as ready with Cmd+R - should log warning and not open modal
-    press('r', { metaKey: true })
+    await press('r', { metaKey: true })
 
     // Verify warning was logged
     expect(consoleWarnSpy).toHaveBeenCalledWith(
@@ -173,7 +175,7 @@ describe('Sidebar keyboard navigation basic', () => {
     consoleWarnSpy.mockClear()
 
     // Try to mark running session as ready with Cmd+R - should open modal (no warning)
-    press('r', { metaKey: true })
+    await press('r', { metaKey: true })
 
     // Verify no warning was logged for running session
     expect(consoleWarnSpy).not.toHaveBeenCalled()
@@ -231,7 +233,7 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Try to convert spec to spec with Cmd+S - should not open modal
-    press('s', { metaKey: true })
+    await press('s', { metaKey: true })
 
     // Modal should not appear
     await waitFor(() => {
@@ -251,7 +253,7 @@ describe('Sidebar keyboard navigation basic', () => {
     })
 
     // Try to convert running session to spec with Cmd+S - should open modal
-    press('s', { metaKey: true })
+    await press('s', { metaKey: true })
 
     // Modal should appear
     await waitFor(() => {
