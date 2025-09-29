@@ -2,6 +2,9 @@
 
 ![Schaltwerk Logo](./ascii_logo.gif)
 
+<img width="1702" height="964" alt="screenshot" src="https://github.com/user-attachments/assets/95e8f5cb-f13e-427c-9257-fc9f13402e5c" />
+
+
 </div>
 
 # Schaltwerk: The IDE Without an Editor
