@@ -252,7 +252,14 @@ pub async fn schaltwerk_core_restore_archived_spec(
     let repo = core.repo_path.to_string_lossy().to_string();
     let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
     events::emit_archive_updated(&app, &repo, count);
-    events::emit_sessions_refreshed(&app, &Vec::<EnrichedSession>::new());
+    let sessions = match manager.list_enriched_sessions() {
+        Ok(list) => list,
+        Err(error) => {
+            log::error!("Failed to load sessions after restoring archived spec: {error}");
+            Vec::new()
+        }
+    };
+    events::emit_sessions_refreshed(&app, &sessions);
     Ok(session)
 }
 

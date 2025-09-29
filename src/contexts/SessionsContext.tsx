@@ -169,6 +169,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const [mergeStatuses, setMergeStatuses] = useState<Map<string, MergeStatus>>(new Map())
     const mergePreviewCacheRef = useRef(new Map<string, MergePreviewResponse | null>())
     const pendingMergePreviewRef = useRef(new Set<string>())
+    const pendingSessionsReloadRef = useRef(false)
     const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(false)
     const autoCancelAfterMergeRef = useLatest(autoCancelAfterMerge)
     const applyAutoCancelPreference = useCallback((next: boolean) => {
@@ -899,9 +900,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
                         syncMergeStatuses(event)
                     } else {
-                        // Don't call reloadSessions() here to avoid circular dependency
-                        // The SessionsRefreshed event should contain the full session list
-                        logger.warn('[SessionsContext] Received empty SessionsRefreshed event, ignoring to prevent circular calls')
+                        if (!pendingSessionsReloadRef.current) {
+                            pendingSessionsReloadRef.current = true
+                            void reloadSessions()
+                                .catch(error => {
+                                    logger.warn('[SessionsContext] Failed to reload after empty SessionsRefreshed payload:', error)
+                                })
+                                .finally(() => {
+                                    pendingSessionsReloadRef.current = false
+                                })
+                        } else {
+                            logger.debug('[SessionsContext] Skipping duplicate reload for empty SessionsRefreshed payload')
+                        }
                     }
                 } catch (e) {
                     logger.error('[SessionsContext] Failed to process SessionsRefreshed event:', e)
@@ -1087,7 +1097,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
 
         setupListeners()
-    }, [projectPath, addListener, syncMergeStatuses])
+    }, [projectPath, addListener, reloadSessions, syncMergeStatuses])
 
     useEffect(() => {
         let disposed = false

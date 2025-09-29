@@ -724,6 +724,73 @@ describe('SessionsContext', () => {
         expect(result.current.sessions.find(s => s.info.session_id === 'test-spec')).toBeUndefined()
     })
 
+    it('reloads sessions when SessionsRefreshed payload is empty', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        const enrichedResponses = [
+            mockSessions.filter(session => session.info.session_id !== 'test-spec'),
+            mockSessions,
+        ]
+        let enrichedCallIndex = 0
+
+        vi.mocked(invoke).mockImplementation(async (cmd: string, args?: unknown) => {
+            void args
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+                const response = enrichedResponses[Math.min(enrichedCallIndex, enrichedResponses.length - 1)]
+                enrichedCallIndex += 1
+                return response
+            }
+            if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) {
+                return []
+            }
+            if (cmd === TauriCommands.GetProjectSessionsSettings) {
+                return { filter_mode: 'all', sort_mode: 'name' }
+            }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) {
+                return undefined
+            }
+            if (cmd === TauriCommands.GetProjectMergePreferences) {
+                return { auto_cancel_after_merge: false }
+            }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        const initialListCalls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions).length
+        expect(initialListCalls).toBe(1)
+        expect(result.current.sessions.some(session => session.info.session_id === 'test-spec')).toBe(false)
+
+        await waitFor(() => {
+            expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
+        })
+
+        act(() => {
+            listeners[SchaltEvent.SessionsRefreshed]?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 999,
+                payload: [],
+            } as unknown as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            const listCalls = vi.mocked(invoke).mock.calls.filter(([cmd]) => cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions).length
+            expect(listCalls).toBeGreaterThan(initialListCalls)
+            expect(result.current.sessions.some(session => session.info.session_id === 'test-spec')).toBe(true)
+        })
+    })
+
     it('should keep creation sort order when SessionAdded fires', async () => {
         const { invoke } = await import('@tauri-apps/api/core')
         vi.mocked(invoke).mockImplementation(async (cmd: string) => {

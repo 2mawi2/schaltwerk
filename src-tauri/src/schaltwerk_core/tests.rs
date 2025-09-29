@@ -330,6 +330,33 @@ fn test_archive_and_restore_spec() {
 }
 
 #[test]
+fn test_restore_archived_spec_included_in_enriched_sessions() {
+    let env = TestEnvironment::new().unwrap();
+    let manager = env.get_session_manager().unwrap();
+
+    let spec = manager
+        .create_spec_session("spec-archive-demo", "Spec content A")
+        .unwrap();
+    manager.archive_spec_session(&spec.name).unwrap();
+
+    let archived = manager.list_archived_specs().unwrap();
+    assert_eq!(archived.len(), 1);
+
+    let restored = manager
+        .restore_archived_spec(&archived[0].id, None)
+        .unwrap();
+    assert_eq!(restored.session_state, SessionState::Spec);
+
+    let enriched = manager.list_enriched_sessions().unwrap();
+    assert!(
+        enriched
+            .iter()
+            .any(|session| session.info.session_id == restored.name && session.info.session_state == SessionState::Spec),
+        "restored spec should appear in enriched sessions snapshot"
+    );
+}
+
+#[test]
 fn test_archive_limit_enforced() {
     let env = TestEnvironment::new().unwrap();
     let db = env.get_database().unwrap();
