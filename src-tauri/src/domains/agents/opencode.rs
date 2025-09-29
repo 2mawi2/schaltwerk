@@ -1,6 +1,8 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
+
 #[derive(Debug, Clone, Default)]
 pub struct OpenCodeConfig {
     pub binary_path: Option<String>,
@@ -11,12 +13,33 @@ pub struct OpenCodeSessionInfo {
     pub has_history: bool,
 }
 
+#[derive(Debug, Deserialize)]
+struct StoredProjectRecord {
+    id: String,
+    #[serde(default)]
+    worktree: String,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct StoredSessionTime {
+    #[serde(default)]
+    updated: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+struct StoredSessionRecord {
+    id: String,
+    directory: String,
+    #[serde(default)]
+    time: StoredSessionTime,
+}
+
 pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
     // Find OpenCode session by looking in the OpenCode data directory
     // OpenCode stores sessions in ~/.local/share/opencode/project/{sanitized_path}/storage/session/info/
 
     let home = std::env::var("HOME").ok()?;
-    let opencode_dir = PathBuf::from(home)
+    let opencode_dir = PathBuf::from(&home)
         .join(".local")
         .join("share")
         .join("opencode");
@@ -29,11 +52,12 @@ pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
     log::debug!("Looking for OpenCode session at: {}", project_dir.display());
 
     if !project_dir.exists() {
-        log::debug!(
-            "Project directory does not exist: {}",
-            project_dir.display()
+        log::info!(
+            "OpenCode resume skipped: sanitized project directory missing (sanitized='{sanitized}', path='{path}')",
+            path = project_dir.display()
         );
-        return None;
+        // Fall back to scanning new hashed storage layout
+        return find_session_in_hashed_storage(path, &home);
     }
 
     // Look for session info files in storage/session/info/
@@ -44,9 +68,9 @@ pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
     );
 
     if !session_info_dir.exists() {
-        log::debug!(
-            "Session info directory does not exist: {}",
-            session_info_dir.display()
+        log::info!(
+            "OpenCode resume skipped: session info directory missing (path='{path}')",
+            path = session_info_dir.display()
         );
         return None;
     }
@@ -66,8 +90,11 @@ pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
     log::debug!("Found {} session files", sessions.len());
 
     if sessions.is_empty() {
-        log::debug!("No session files found");
-        return None;
+        log::info!(
+            "OpenCode resume skipped: no session info json files found at '{path}'",
+            path = session_info_dir.display()
+        );
+        return find_session_in_hashed_storage(path, &home);
     }
 
     // Sort by modification time to get the most recent session
@@ -120,16 +147,200 @@ pub fn find_opencode_session(path: &Path) -> Option<OpenCodeSessionInfo> {
         // Consider it has history only if there are more than 2 messages
         // 2 messages = just the auto-created initial messages, no real history
         // >2 messages = user has actually interacted with the session
-        message_count > 2
+        let has_history = message_count > 2;
+        if !has_history {
+            log::info!(
+                "OpenCode resume gated: session '{session_id}' only has {message_count} message file(s) (need >2 for history)"
+            );
+        }
+        has_history
     } else {
-        log::debug!("No message directory found for session {session_id}");
+        log::info!(
+            "OpenCode resume skipped: message directory missing for session '{session_id}' (path='{path}')",
+            path = message_dir.display()
+        );
         false
     };
+
+    if has_history {
+        log::info!(
+            "OpenCode resume candidate found: session '{session_id}' with persistent history at '{path}'",
+            path = message_dir.display()
+        );
+    }
 
     Some(OpenCodeSessionInfo {
         id: session_id,
         has_history,
     })
+}
+
+fn find_session_in_hashed_storage(path: &Path, home: &str) -> Option<OpenCodeSessionInfo> {
+    let repo_root = extract_repo_root(path).unwrap_or_else(|| path.to_path_buf());
+    let repo_root_str = repo_root.to_string_lossy().to_string();
+
+    let hashed_storage_dir = PathBuf::from(home)
+        .join(".local")
+        .join("share")
+        .join("opencode")
+        .join("storage");
+
+    let project_records_dir = hashed_storage_dir.join("project");
+    if !project_records_dir.exists() {
+        log::info!(
+            "OpenCode resume skipped: hashed project records directory missing (path='{path}')",
+            path = project_records_dir.display()
+        );
+        return None;
+    }
+
+    let mut matched_project_id: Option<String> = None;
+    if let Ok(entries) = fs::read_dir(&project_records_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(contents) = fs::read_to_string(&path) {
+                match serde_json::from_str::<StoredProjectRecord>(&contents) {
+                    Ok(record) => {
+                        if record.worktree == repo_root_str {
+                            let matched_id = record.id;
+                            log::info!(
+                                "OpenCode resume: matched hashed project id '{matched_id}' for root '{repo_root_str}'"
+                            );
+                            matched_project_id = Some(matched_id);
+                            break;
+                        }
+                    }
+                    Err(_) => {
+                        log::debug!(
+                            "OpenCode resume: unable to parse project record at '{}'",
+                            path.display()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    let project_id = match matched_project_id {
+        Some(id) => id,
+        None => {
+            log::info!(
+                "OpenCode resume skipped: no hashed project record matched repo root '{repo_root_str}'"
+            );
+            return None;
+        }
+    };
+
+    let session_dir = hashed_storage_dir.join("session").join(&project_id);
+    if !session_dir.exists() {
+        log::info!(
+            "OpenCode resume skipped: hashed session directory missing for project '{project_id}'"
+        );
+        return None;
+    }
+
+    let mut sessions: Vec<StoredSessionRecord> = Vec::new();
+    if let Ok(entries) = fs::read_dir(&session_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|ext| ext.to_str()) != Some("json") {
+                continue;
+            }
+            if let Ok(contents) = fs::read_to_string(&path) {
+                match serde_json::from_str::<StoredSessionRecord>(&contents) {
+                    Ok(record) => sessions.push(record),
+                    Err(_) => {
+                        log::debug!(
+                            "OpenCode resume: unable to parse session record at '{}'",
+                            path.display()
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    let worktree_str = path.to_string_lossy().to_string();
+    // Filter for sessions whose directory matches the exact worktree path
+    sessions.retain(|record| record.directory == worktree_str);
+
+    if sessions.is_empty() {
+        log::info!(
+            "OpenCode resume skipped: no hashed session records found for worktree '{worktree}'",
+            worktree = path.display()
+        );
+        return None;
+    }
+
+    sessions.sort_by_key(|record| record.time.updated.unwrap_or_default());
+    sessions.reverse();
+
+    for record in &sessions {
+        let message_dir = hashed_storage_dir.join("message").join(&record.id);
+        let message_count = fs::read_dir(&message_dir)
+            .ok()
+            .map(|entries| {
+                entries
+                    .filter_map(|e| e.ok())
+                    .filter(|e| {
+                        e.path()
+                            .extension()
+                            .map(|ext| ext == "json")
+                            .unwrap_or(false)
+                    })
+                    .count()
+            })
+            .unwrap_or(0);
+
+        if message_count > 2 {
+            log::info!(
+                "OpenCode resume candidate found (hashed): session '{session_id}' with {message_count} messages",
+                session_id = record.id
+            );
+            return Some(OpenCodeSessionInfo {
+                id: record.id.clone(),
+                has_history: true,
+            });
+        }
+
+        log::info!(
+            "OpenCode resume gated (hashed): session '{session_id}' only has {message_count} message file(s)",
+            session_id = record.id
+        );
+    }
+
+    // Fallback to most recent session even without history
+    let latest = sessions.first()?;
+    Some(OpenCodeSessionInfo {
+        id: latest.id.clone(),
+        has_history: false,
+    })
+}
+
+fn extract_repo_root(path: &Path) -> Option<PathBuf> {
+    let mut current = path;
+    while let Some(parent) = current.parent() {
+        if parent
+            .file_name()
+            .map(|name| name == "worktrees")
+            .unwrap_or(false)
+        {
+            if let Some(grand) = parent.parent() {
+                if grand
+                    .file_name()
+                    .map(|name| name == ".schaltwerk")
+                    .unwrap_or(false)
+                {
+                    return grand.parent().map(|p| p.to_path_buf());
+                }
+            }
+        }
+        current = parent;
+    }
+    None
 }
 
 fn escape_for_shell(s: &str) -> String {
@@ -411,6 +622,143 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
+    fn test_find_opencode_session_hashed_storage_with_history() {
+        let temp_home = tempfile::tempdir().unwrap();
+        let original_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", temp_home.path());
+
+        let repo_root = temp_home.path().join("repo");
+        let worktree_path = repo_root
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join("session_alpha");
+        fs::create_dir_all(&worktree_path).unwrap();
+
+        let storage_base = temp_home
+            .path()
+            .join(".local")
+            .join("share")
+            .join("opencode")
+            .join("storage");
+        fs::create_dir_all(storage_base.join("project")).unwrap();
+        fs::create_dir_all(storage_base.join("session")).unwrap();
+        fs::create_dir_all(storage_base.join("message")).unwrap();
+
+        let project_id = "proj_hash";
+        let project_record = serde_json::json!({
+            "id": project_id,
+            "worktree": repo_root.display().to_string()
+        });
+        fs::write(
+            storage_base
+                .join("project")
+                .join(format!("{project_id}.json")),
+            project_record.to_string(),
+        )
+        .unwrap();
+
+        let session_dir = storage_base.join("session").join(project_id);
+        fs::create_dir_all(&session_dir).unwrap();
+        let session_id = "ses_history";
+        let session_record = serde_json::json!({
+            "id": session_id,
+            "directory": worktree_path.display().to_string(),
+            "time": { "updated": 123 },
+        });
+        fs::write(
+            session_dir.join(format!("{session_id}.json")),
+            session_record.to_string(),
+        )
+        .unwrap();
+
+        let message_dir = storage_base.join("message").join(session_id);
+        fs::create_dir_all(&message_dir).unwrap();
+        for idx in 0..3 {
+            fs::write(message_dir.join(format!("msg_{idx}.json")), "{}").unwrap();
+        }
+
+        let result = find_opencode_session(&worktree_path).expect("expected session info");
+        assert_eq!(result.id, session_id);
+        assert!(result.has_history);
+
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_find_opencode_session_hashed_storage_without_history() {
+        let temp_home = tempfile::tempdir().unwrap();
+        let original_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", temp_home.path());
+
+        let repo_root = temp_home.path().join("repo_two");
+        let worktree_path = repo_root
+            .join(".schaltwerk")
+            .join("worktrees")
+            .join("session_beta");
+        fs::create_dir_all(&worktree_path).unwrap();
+
+        let storage_base = temp_home
+            .path()
+            .join(".local")
+            .join("share")
+            .join("opencode")
+            .join("storage");
+        fs::create_dir_all(storage_base.join("project")).unwrap();
+        fs::create_dir_all(storage_base.join("session")).unwrap();
+        fs::create_dir_all(storage_base.join("message")).unwrap();
+
+        let project_id = "proj_hash_beta";
+        let project_record = serde_json::json!({
+            "id": project_id,
+            "worktree": repo_root.display().to_string()
+        });
+        fs::write(
+            storage_base
+                .join("project")
+                .join(format!("{project_id}.json")),
+            project_record.to_string(),
+        )
+        .unwrap();
+
+        let session_dir = storage_base.join("session").join(project_id);
+        fs::create_dir_all(&session_dir).unwrap();
+        let session_id = "ses_no_history";
+        let session_record = serde_json::json!({
+            "id": session_id,
+            "directory": worktree_path.display().to_string(),
+            "time": { "updated": 456 },
+        });
+        fs::write(
+            session_dir.join(format!("{session_id}.json")),
+            session_record.to_string(),
+        )
+        .unwrap();
+
+        let message_dir = storage_base.join("message").join(session_id);
+        fs::create_dir_all(&message_dir).unwrap();
+        for idx in 0..2 {
+            fs::write(message_dir.join(format!("msg_{idx}.json")), "{}").unwrap();
+        }
+
+        let result = find_opencode_session(&worktree_path).expect("expected session info");
+        assert_eq!(result.id, session_id);
+        assert!(!result.has_history);
+
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
     fn test_find_opencode_session_integration() {
         // This test checks if the function can find real session files
         // Only run if HOME is set and the test path exists
