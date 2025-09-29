@@ -9,6 +9,7 @@ import { listenEvent, SchaltEvent } from '../../common/eventSystem'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
 import { computeNextSelectedSessionId } from '../../utils/selectionNext'
+import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
@@ -185,8 +186,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const sidebarRef = useRef<HTMLDivElement>(null)
     const isProjectSwitching = useRef(false)
 
-    type FilterMemoryEntry = { lastSelection: string | null; lastSessions: EnrichedSession[] }
-    const selectionMemoryRef = useRef<Map<string, Record<FilterMode, FilterMemoryEntry>>>(new Map())
+    const selectionMemoryRef = useRef<Map<string, Record<FilterMode, SelectionMemoryEntry>>>(new Map())
 
     const ensureProjectMemory = useCallback(() => {
       const key = projectPath || '__default__';
@@ -216,8 +216,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const visibleIds = new Set(visibleSessions.map(s => s.info.session_id))
         const currentSelectionId = selection.kind === 'session' ? (selection.payload ?? null) : null
 
-        const previousSessions = entry.lastSessions
-        entry.lastSessions = visibleSessions
+        const { previousSessions } = captureSelectionSnapshot(entry, visibleSessions)
 
         const removalCandidate = lastRemovedSessionRef.current
 

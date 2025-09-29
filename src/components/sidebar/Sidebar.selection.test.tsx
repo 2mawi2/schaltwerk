@@ -251,6 +251,54 @@ describe('Reviewed session cancellation focus preservation', () => {
     })
   })
 
+  it('selects the next spec after deleting the focused spec in spec filter', async () => {
+    const spec1 = mockEnrichedSession('spec-1', SessionState.Spec, false)
+    const spec2 = mockEnrichedSession('spec-2', SessionState.Spec, false)
+    const spec3 = mockEnrichedSession('spec-3', SessionState.Spec, false)
+
+    currentSessions = [spec1, spec2, spec3]
+    ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
+
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      expect(screen.getByTitle('Show spec agents')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByTitle('Show spec agents'))
+
+    await waitFor(() => {
+      const specButtons = screen.getAllByRole('button').filter(btn => (btn.textContent || '').includes('spec-'))
+      expect(specButtons).toHaveLength(3)
+    })
+
+    await userEvent.click(screen.getByText('spec-2'))
+
+    await waitFor(() => {
+      const selected = screen.getByText('spec-2').closest('[role="button"]')
+      expect(selected).toHaveClass('session-ring-blue')
+    })
+
+    currentSessions = [spec1, spec3]
+    ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
+
+    await emitEvent(SchaltEvent.SessionsRefreshed, currentSessions)
+
+    await waitFor(() => {
+      expect(screen.queryByText('spec-2')).toBeNull()
+    })
+
+    await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'spec-2' })
+
+    await waitFor(() => {
+      const nextButton = screen.getByText('spec-3').closest('[role="button"]')
+      expect(nextButton).toHaveClass('session-ring-blue')
+    })
+
+    const firstButton = screen.getByText('spec-1').closest('[role="button"]')
+    expect(firstButton).not.toHaveClass('session-ring-blue')
+  })
+
 
   it('handles multiple reviewed sessions correctly during cancellation', async () => {
     const currentSession = mockEnrichedSession('current-session', SessionState.Running, false)
