@@ -1,5 +1,6 @@
 import { EnrichedSession } from '../types/session'
 import { isReviewed, isRunning, isSpec, mapSessionUiState } from './sessionState'
+import { getSessionDisplayName } from './sessionDisplayName'
 
 export { mapSessionUiState, isSpec, isReviewed, isRunning }
 
@@ -24,7 +25,7 @@ export function searchSessions(sessions: EnrichedSession[], searchQuery: string)
     const query = searchQuery.toLowerCase().trim()
     return sessions.filter(session => {
         const sessionId = session.info.session_id.toLowerCase()
-        const displayName = (session.info.display_name || '').toLowerCase()
+        const displayName = getSessionDisplayName(session.info).toLowerCase()
         const specContent = (session.info.spec_content || '').toLowerCase()
         
         // Search in combined content
