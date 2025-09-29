@@ -20,6 +20,7 @@ mod permissions;
 mod project_manager;
 mod projects;
 
+use clap::Parser;
 use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
 use std::path::PathBuf;
@@ -540,11 +541,15 @@ use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use tauri::Manager;
 
 fn main() {
-    use clap::Parser;
+    let raw_args: Vec<String> = std::env::args().collect();
+    if let Some(action) = crate::cli::detect_special_cli_action(&raw_args) {
+        crate::cli::perform_special_cli_action(action);
+        return;
+    }
 
     // Parse command line arguments before initializing subsystems so `--help` and
     // `--version` exit cleanly without touching app state.
-    let cli = match crate::cli::Cli::try_parse() {
+    let cli = match crate::cli::Cli::try_parse_from(raw_args.iter().map(|s| s.as_str())) {
         Ok(cli) => cli,
         Err(err) => {
             use clap::error::ErrorKind;

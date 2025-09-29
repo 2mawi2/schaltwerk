@@ -1,7 +1,7 @@
 use clap::Parser;
 use std::path::PathBuf;
 
-const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// Schaltwerk - An orchestrator for your agents
 #[derive(Debug, Parser)]
@@ -29,6 +29,37 @@ pub struct Cli {
     pub dir: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpecialCliAction {
+    ShowHelp,
+    ShowVersion,
+}
+
+fn is_process_serial_number_arg(arg: &str) -> bool {
+    arg.starts_with("-psn_")
+}
+
+/// Detects whether the incoming raw CLI arguments request a global action
+/// like `--help` or `--version` without any other parameters.
+pub fn detect_special_cli_action(raw_args: &[String]) -> Option<SpecialCliAction> {
+    let filtered: Vec<&str> = raw_args
+        .iter()
+        .skip(1)
+        .map(|s| s.as_str())
+        .filter(|arg| !is_process_serial_number_arg(arg))
+        .collect();
+
+    if filtered.len() != 1 {
+        return None;
+    }
+
+    match filtered[0] {
+        "--help" | "-h" => Some(SpecialCliAction::ShowHelp),
+        "--version" | "-V" => Some(SpecialCliAction::ShowVersion),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -53,6 +84,38 @@ mod tests {
     fn parses_positional_dir() {
         let cli = parse_from(["/tmp/repo"]);
         assert_eq!(cli.dir.as_deref(), Some(std::path::Path::new("/tmp/repo")));
+    }
+
+    #[test]
+    fn detects_help_flag_without_other_args() {
+        let args = vec!["schaltwerk".to_string(), "--help".to_string()];
+        assert_eq!(
+            detect_special_cli_action(&args),
+            Some(SpecialCliAction::ShowHelp)
+        );
+    }
+
+    #[test]
+    fn detects_version_flag_even_with_process_serial_arg() {
+        let args = vec![
+            "schaltwerk".to_string(),
+            "-psn_0_12345".to_string(),
+            "--version".to_string(),
+        ];
+        assert_eq!(
+            detect_special_cli_action(&args),
+            Some(SpecialCliAction::ShowVersion)
+        );
+    }
+
+    #[test]
+    fn ignores_flags_when_path_arg_present() {
+        let args = vec![
+            "schaltwerk".to_string(),
+            "--version".to_string(),
+            "/tmp/repo".to_string(),
+        ];
+        assert_eq!(detect_special_cli_action(&args), None);
     }
 
     #[test]
@@ -83,5 +146,12 @@ mod tests {
         assert!(help_string.contains("EXAMPLES:"));
         assert!(help_string.contains("schaltwerk --version, -V"));
         assert!(help_string.contains("schaltwerk --help, -h"));
+    }
+
+    #[test]
+    fn version_flag_triggers_display_version() {
+        use clap::Parser;
+        let err = Cli::try_parse_from(["schaltwerk", "--version"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
     }
 }
