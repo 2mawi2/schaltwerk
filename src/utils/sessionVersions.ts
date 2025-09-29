@@ -1,6 +1,7 @@
 import { EnrichedSession } from '../types/session'
 import { TauriCommands } from '../common/tauriCommands'
 import { logger } from '../utils/logger'
+import { getSessionDisplayName } from './sessionDisplayName'
 
 export { type EnrichedSession }
 
@@ -100,8 +101,10 @@ export function groupSessionsByVersion(sessions: EnrichedSession[]): SessionVers
     // Sort versions by number (1, 2, 3, 4)
     versions.sort((a, b) => a.versionNumber - b.versionNumber)
     
+    const firstSessionInfo = versions[0]?.session.info
+    const defaultBaseName = firstSessionInfo ? getBaseSessionName(getSessionDisplayName(firstSessionInfo)) : ''
     // Use display name base if available, otherwise use session_id base
-    const displayBaseName = displayNameMap.get(groupKey) || getBaseSessionName(versions[0]?.session.info.display_name || versions[0]?.session.info.session_id)
+    const displayBaseName = displayNameMap.get(groupKey) || defaultBaseName
     
     result.push({
       baseName: displayBaseName,
