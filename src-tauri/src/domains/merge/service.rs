@@ -645,6 +645,16 @@ mod tests {
             ],
         )
         .unwrap();
+        // Ensure repositories created for tests use the "main" branch so merge code paths align with production defaults.
+        run_git(
+            path,
+            vec![
+                OsString::from("branch"),
+                OsString::from("-M"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
     }
 
     fn create_session_manager(temp: &TempDir) -> (SessionManager, Database, PathBuf) {
