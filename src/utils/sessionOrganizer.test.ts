@@ -1,10 +1,22 @@
 import { describe, it, expect } from 'vitest'
-import { 
-    organizeSessionsByColumn, 
-    getSessionColumn, 
+import { SessionState } from '../types/session'
+import {
+    organizeSessionsByColumn,
+    getSessionColumn,
     findSessionPosition,
-    type Session 
+    type Session
 } from './sessionOrganizer'
+
+const createSession = (
+    overrides: Partial<Session['info']> & { session_id: string }
+): Session => ({
+    info: {
+        session_state: SessionState.Running,
+        ready_to_merge: false,
+        status: 'active',
+        ...overrides
+    }
+})
 
 describe('sessionOrganizer', () => {
     describe('organizeSessionsByColumn', () => {
@@ -17,8 +29,8 @@ describe('sessionOrganizer', () => {
 
         it('should place spec sessions in column 0', () => {
             const sessions: Session[] = [
-                { info: { session_id: 'spec1', session_state: 'spec' } },
-                { info: { session_id: 'spec2', session_state: 'spec' } }
+                createSession({ session_id: 'spec1', session_state: SessionState.Spec, status: 'spec' }),
+                createSession({ session_id: 'spec2', session_state: SessionState.Spec, status: 'spec' })
             ]
             const result = organizeSessionsByColumn(sessions)
             expect(result[0]).toHaveLength(2)
@@ -30,8 +42,8 @@ describe('sessionOrganizer', () => {
 
         it('should place running sessions without ready_to_merge in column 1', () => {
             const sessions: Session[] = [
-                { info: { session_id: 'run1', session_state: 'running', ready_to_merge: false } },
-                { info: { session_id: 'run2', session_state: 'running' } } // undefined ready_to_merge
+                createSession({ session_id: 'run1' }),
+                createSession({ session_id: 'run2' })
             ]
             const result = organizeSessionsByColumn(sessions)
             expect(result[0]).toHaveLength(0)
@@ -43,8 +55,12 @@ describe('sessionOrganizer', () => {
 
         it('should place ready_to_merge sessions in column 2', () => {
             const sessions: Session[] = [
-                { info: { session_id: 'ready1', session_state: 'running', ready_to_merge: true } },
-                { info: { session_id: 'ready2', session_state: 'reviewed', ready_to_merge: true } }
+                createSession({ session_id: 'ready1', ready_to_merge: true }),
+                createSession({
+                    session_id: 'ready2',
+                    session_state: SessionState.Reviewed,
+                    ready_to_merge: true
+                })
             ]
             const result = organizeSessionsByColumn(sessions)
             expect(result[0]).toHaveLength(0)
@@ -56,12 +72,16 @@ describe('sessionOrganizer', () => {
 
         it('should correctly distribute mixed sessions', () => {
             const sessions: Session[] = [
-                { info: { session_id: 'spec1', session_state: 'spec' } },
-                { info: { session_id: 'run1', session_state: 'running' } },
-                { info: { session_id: 'ready1', session_state: 'running', ready_to_merge: true } },
-                { info: { session_id: 'spec2', session_state: 'spec' } },
-                { info: { session_id: 'run2', session_state: 'running', ready_to_merge: false } },
-                { info: { session_id: 'ready2', session_state: 'reviewed', ready_to_merge: true } }
+                createSession({ session_id: 'spec1', session_state: SessionState.Spec, status: 'spec' }),
+                createSession({ session_id: 'run1' }),
+                createSession({ session_id: 'ready1', ready_to_merge: true }),
+                createSession({ session_id: 'spec2', session_state: SessionState.Spec, status: 'spec' }),
+                createSession({ session_id: 'run2' }),
+                createSession({
+                    session_id: 'ready2',
+                    session_state: SessionState.Reviewed,
+                    ready_to_merge: true
+                })
             ]
             const result = organizeSessionsByColumn(sessions)
             expect(result[0]).toHaveLength(2) // specs
@@ -72,29 +92,29 @@ describe('sessionOrganizer', () => {
 
     describe('getSessionColumn', () => {
         it('should return 0 for spec sessions', () => {
-            const session: Session = { info: { session_id: 'spec1', session_state: 'spec' } }
+            const session = createSession({ session_id: 'spec1', session_state: SessionState.Spec, status: 'spec' })
             expect(getSessionColumn(session)).toBe(0)
         })
 
         it('should return 1 for running sessions without ready_to_merge', () => {
-            const session1: Session = { info: { session_id: 'run1', session_state: 'running' } }
-            const session2: Session = { info: { session_id: 'run2', session_state: 'running', ready_to_merge: false } }
+            const session1 = createSession({ session_id: 'run1' })
+            const session2 = createSession({ session_id: 'run2' })
             expect(getSessionColumn(session1)).toBe(1)
             expect(getSessionColumn(session2)).toBe(1)
         })
 
         it('should return 2 for ready_to_merge sessions', () => {
-            const session: Session = { info: { session_id: 'ready1', session_state: 'running', ready_to_merge: true } }
+            const session = createSession({ session_id: 'ready1', ready_to_merge: true })
             expect(getSessionColumn(session)).toBe(2)
         })
     })
 
     describe('findSessionPosition', () => {
         const sessions: Session[] = [
-            { info: { session_id: 'spec1', session_state: 'spec' } },
-            { info: { session_id: 'spec2', session_state: 'spec' } },
-            { info: { session_id: 'run1', session_state: 'running' } },
-            { info: { session_id: 'ready1', session_state: 'running', ready_to_merge: true } }
+            createSession({ session_id: 'spec1', session_state: SessionState.Spec, status: 'spec' }),
+            createSession({ session_id: 'spec2', session_state: SessionState.Spec, status: 'spec' }),
+            createSession({ session_id: 'run1' }),
+            createSession({ session_id: 'ready1', ready_to_merge: true })
         ]
         const columns = organizeSessionsByColumn(sessions)
 
