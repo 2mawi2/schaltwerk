@@ -84,4 +84,11 @@ mod tests {
         assert!(help_string.contains("schaltwerk --version, -V"));
         assert!(help_string.contains("schaltwerk --help, -h"));
     }
+
+    #[test]
+    fn version_flag_triggers_display_version() {
+        use clap::Parser;
+        let err = Cli::try_parse_from(["schaltwerk", "--version"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::DisplayVersion);
+    }
 }

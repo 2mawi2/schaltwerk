@@ -540,6 +540,26 @@ use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use tauri::Manager;
 
 fn main() {
+    use clap::Parser;
+
+    // Parse command line arguments before initializing subsystems so `--help` and
+    // `--version` exit cleanly without touching app state.
+    let cli = match crate::cli::Cli::try_parse() {
+        Ok(cli) => cli,
+        Err(err) => {
+            use clap::error::ErrorKind;
+            match err.kind() {
+                ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                    if let Err(print_err) = err.print() {
+                        eprintln!("{print_err}");
+                    }
+                    return;
+                }
+                _ => err.exit(),
+            }
+        }
+    };
+
     // Initialize logging
     schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
@@ -547,10 +567,6 @@ fn main() {
     // macOS: disable smart quotes/dashes/text substitutions app-wide
     macos_prefs::disable_smart_substitutions();
     // macOS smart substitutions: handled in frontend for now
-
-    // Parse command line arguments using Clap (positional DIR)
-    use clap::Parser;
-    let cli = crate::cli::Cli::parse();
 
     // Determine effective directory: positional arg, SCHALTWERK_START_DIR env var, or current dir
     let dir_path = match cli.dir {
