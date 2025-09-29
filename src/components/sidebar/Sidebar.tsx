@@ -223,6 +223,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         // Check if the removed session was a reviewed session
         const wasReviewedSession = removalCandidate ?
             allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
+        const shouldPreserveForReviewedRemoval = wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed
 
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
@@ -252,7 +253,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         let candidateId: string | null = null
 
         // If a reviewed session was cancelled, preserve current focus instead of auto-switching
-        if (wasReviewedSession && removalCandidate) {
+        if (shouldPreserveForReviewedRemoval) {
             // Keep current selection or fall back to orchestrator
             if (currentSelectionId && visibleIds.has(currentSelectionId)) {
                 candidateId = currentSelectionId

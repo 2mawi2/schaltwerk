@@ -190,6 +190,55 @@ describe('Reviewed session cancellation focus preservation', () => {
     })
   })
 
+  it('selects next reviewed session when current reviewed session is removed while filtering reviewed', async () => {
+    const reviewedOne = mockEnrichedSession('reviewed-one', SessionState.Reviewed, true)
+    const reviewedTwo = mockEnrichedSession('reviewed-two', SessionState.Reviewed, true)
+
+    currentSessions = [reviewedOne, reviewedTwo]
+    ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) {
+        return (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+        const sessions = (globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions || currentSessions
+        const mode = (args as { filterMode?: string })?.filterMode || 'all'
+        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
+        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
+        return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'reviewed', sort_mode: 'name' }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+      return undefined
+    })
+
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      const sessionButtons = screen.getAllByRole('button').filter(btn => {
+        const text = btn.textContent || ''
+        return text.includes('reviewed-one') || text.includes('reviewed-two')
+      })
+      expect(sessionButtons).toHaveLength(2)
+    })
+
+    await userEvent.click(screen.getByText('reviewed-one'))
+    await waitFor(() => {
+      const firstButton = screen.getByText('reviewed-one').closest('[role="button"]')
+      expect(firstButton).toHaveClass('session-ring-blue')
+    })
+
+    await emitEvent(SchaltEvent.SessionRemoved, { session_name: 'reviewed-one' })
+
+    await waitFor(() => {
+      const remainingButton = screen.getByText('reviewed-two').closest('[role="button"]')
+      expect(remainingButton).toHaveClass('session-ring-blue')
+    })
+  })
+
   it('continues normal auto-selection behavior for non-reviewed session cancellation', async () => {
     const currentSession = mockEnrichedSession('current-session', SessionState.Running, false)
     const runningSession = mockEnrichedSession('running-session', SessionState.Running, false)
