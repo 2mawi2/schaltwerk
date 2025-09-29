@@ -1393,7 +1393,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
-    use tokio::time::sleep;
+    use tokio::time::{sleep, timeout};
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
 
@@ -1853,28 +1853,32 @@ mod tests {
         let adapter_clone = Arc::clone(&adapter);
         let id_clone = id.clone();
         let write_handle = tokio::spawn(async move {
-            for i in 0..10 {
+            for i in 0..6 {
                 adapter_clone
-                    .write(&id_clone, format!("echo 'write {}'\n", i).as_bytes())
+                    .write(&id_clone, format!("input {i}\n").as_bytes())
                     .await
                     .unwrap();
-                sleep(Duration::from_millis(10)).await;
             }
         });
 
         let adapter_clone2 = Arc::clone(&adapter);
         let id_clone2 = id.clone();
         let write_handle2 = tokio::spawn(async move {
-            for i in 10..20 {
+            for i in 6..12 {
                 adapter_clone2
-                    .write(&id_clone2, format!("echo 'write {}'\n", i).as_bytes())
+                    .write(&id_clone2, format!("data {i}\n").as_bytes())
                     .await
                     .unwrap();
-                sleep(Duration::from_millis(10)).await;
             }
         });
 
-        let _ = tokio::join!(write_handle, write_handle2);
+        timeout(Duration::from_secs(10), async {
+            let (res1, res2) = tokio::join!(write_handle, write_handle2);
+            res1.unwrap();
+            res2.unwrap();
+        })
+        .await
+        .expect("concurrent writes to complete promptly");
 
         assert!(adapter.exists(&id).await.unwrap());
 
