@@ -171,6 +171,10 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const pendingMergePreviewRef = useRef(new Set<string>())
     const [autoCancelAfterMerge, setAutoCancelAfterMerge] = useState(false)
     const autoCancelAfterMergeRef = useLatest(autoCancelAfterMerge)
+    const applyAutoCancelPreference = useCallback((next: boolean) => {
+        autoCancelAfterMergeRef.current = next
+        setAutoCancelAfterMerge(next)
+    }, [autoCancelAfterMergeRef])
 
     const updateMergeInFlight = useCallback((sessionId: string, running: boolean) => {
         setMergeInFlight(prev => {
@@ -385,7 +389,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const updateAutoCancelAfterMerge = useCallback(async (next: boolean, persist: boolean = true) => {
         const previous = autoCancelAfterMergeRef.current
-        setAutoCancelAfterMerge(next)
+        applyAutoCancelPreference(next)
         if (!persist) {
             return
         }
@@ -395,14 +399,14 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             })
         } catch (error) {
             logger.error('[SessionsContext] Failed to update merge preferences:', error)
-            setAutoCancelAfterMerge(previous)
+            applyAutoCancelPreference(previous)
             pushToastRef.current({
                 tone: 'error',
                 title: 'Failed to update auto-cancel preference',
                 description: getErrorMessage(error),
             })
         }
-    }, [autoCancelAfterMergeRef, pushToastRef])
+    }, [autoCancelAfterMergeRef, pushToastRef, applyAutoCancelPreference])
 
     // Note: mapSessionUiState function moved to utils/sessionFilters.ts
 
@@ -685,7 +689,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         let cancelled = false
 
         if (!projectPath) {
-            setAutoCancelAfterMerge(false)
+            applyAutoCancelPreference(false)
             return
         }
 
@@ -695,12 +699,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     TauriCommands.GetProjectMergePreferences
                 )
                 if (!cancelled) {
-                    setAutoCancelAfterMerge(Boolean(preferences?.auto_cancel_after_merge))
+                    applyAutoCancelPreference(Boolean(preferences?.auto_cancel_after_merge))
                 }
             } catch (error) {
                 logger.error('[SessionsContext] Failed to load merge preferences:', error)
                 if (!cancelled) {
-                    setAutoCancelAfterMerge(false)
+                    applyAutoCancelPreference(false)
                 }
             }
         })()
@@ -708,7 +712,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         return () => {
             cancelled = true
         }
-    }, [projectPath])
+    }, [projectPath, applyAutoCancelPreference])
 
     // Ensure a backend watcher is active for each running session so git stats update instantly
     // Note: file watchers are managed per active selection in SelectionContext to
