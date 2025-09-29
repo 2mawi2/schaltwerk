@@ -207,10 +207,7 @@ pub trait ProjectConfigMethods {
         repo_path: &Path,
         env_vars: &HashMap<String, String>,
     ) -> Result<()>;
-    fn get_project_merge_preferences(
-        &self,
-        repo_path: &Path,
-    ) -> Result<ProjectMergePreferences>;
+    fn get_project_merge_preferences(&self, repo_path: &Path) -> Result<ProjectMergePreferences>;
     fn set_project_merge_preferences(
         &self,
         repo_path: &Path,
@@ -468,10 +465,7 @@ impl ProjectConfigMethods for Database {
         Ok(())
     }
 
-    fn get_project_merge_preferences(
-        &self,
-        repo_path: &Path,
-    ) -> Result<ProjectMergePreferences> {
+    fn get_project_merge_preferences(&self, repo_path: &Path) -> Result<ProjectMergePreferences> {
         let conn = self.conn.lock().unwrap();
 
         let canonical_path =
@@ -504,7 +498,11 @@ impl ProjectConfigMethods for Database {
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
-        let value = if preferences.auto_cancel_after_merge { 1 } else { 0 };
+        let value = if preferences.auto_cancel_after_merge {
+            1
+        } else {
+            0
+        };
 
         conn.execute(
             "INSERT INTO project_config (repository_path, auto_cancel_after_merge,

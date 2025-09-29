@@ -422,6 +422,7 @@ fn test_list_enriched_sessions() {
 }
 
 #[test]
+#[serial_test::serial]
 fn test_list_enriched_sessions_skips_spec_git_stats() {
     let env = TestEnvironment::new().unwrap();
     let manager = env.get_session_manager().unwrap();

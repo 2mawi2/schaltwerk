@@ -296,63 +296,54 @@ impl MergeService {
         mode: MergeMode,
         commit_message: Option<String>,
     ) -> Result<Result<MergeOutcome>> {
-        let worktree_path = context.worktree_path.clone();
-        let repo_path = context.repo_path.clone();
-        let session_branch = context.session_branch.clone();
-        let parent_branch = context.parent_branch.clone();
+        let mode_copy = mode;
+        let context_for_task = context;
 
-        task::spawn_blocking(move || match mode {
-            MergeMode::Squash => perform_squash(
-                &worktree_path,
-                &repo_path,
-                &session_branch,
-                &parent_branch,
-                commit_message
-                    .as_deref()
-                    .expect("commit message required for squash"),
-            ),
-            MergeMode::Reapply => {
-                perform_reapply(&worktree_path, &repo_path, &session_branch, &parent_branch)
+        task::spawn_blocking(move || match mode_copy {
+            MergeMode::Squash => {
+                let message = commit_message
+                    .clone()
+                    .expect("commit message required for squash merges");
+                perform_squash(context_for_task, message)
             }
+            MergeMode::Reapply => perform_reapply(context_for_task),
         })
         .await
         .map_err(|e| anyhow!("Merge task panicked: {e}"))
     }
 }
 
-fn perform_squash(
-    worktree_path: &Path,
-    repo_path: &Path,
-    session_branch: &str,
-    parent_branch: &str,
-    commit_message: &str,
-) -> Result<MergeOutcome> {
+fn perform_squash(context: SessionMergeContext, commit_message: String) -> Result<MergeOutcome> {
     info!(
-        "{OPERATION_LABEL}: performing squash merge for branch '{session_branch}' into '{parent_branch}'"
+        "{OPERATION_LABEL}: performing squash merge for branch '{branch}' into '{parent}'",
+        branch = context.session_branch.as_str(),
+        parent = context.parent_branch.as_str()
     );
 
-    if let Err(err) = run_git(
-        worktree_path,
-        vec![OsString::from("rebase"), OsString::from(parent_branch)],
-    ) {
-        let _ = run_git(
-            worktree_path,
-            vec![OsString::from("rebase"), OsString::from("--abort")],
+    if needs_rebase(&context)? {
+        if let Err(err) = run_rebase(&context) {
+            let _ = abort_rebase(&context);
+            return Err(err);
+        }
+    } else {
+        debug!(
+            "{OPERATION_LABEL}: skipping rebase for branch '{branch}' because parent '{parent}' is already an ancestor",
+            branch = context.session_branch.as_str(),
+            parent = context.parent_branch.as_str()
         );
-        return Err(err);
     }
 
     run_git(
-        worktree_path,
+        &context.worktree_path,
         vec![
             OsString::from("reset"),
             OsString::from("--soft"),
-            OsString::from(parent_branch),
+            OsString::from(&context.parent_branch),
         ],
     )?;
 
     run_git(
-        worktree_path,
+        &context.worktree_path,
         vec![
             OsString::from("commit"),
             OsString::from("-m"),
@@ -360,55 +351,73 @@ fn perform_squash(
         ],
     )?;
 
-    let repo = Repository::open(repo_path)?;
-    let head_oid = resolve_branch_oid(&repo, session_branch)?;
-    fast_forward_branch(&repo, parent_branch, head_oid)?;
+    let repo = Repository::open(&context.repo_path)?;
+    let head_oid = resolve_branch_oid(&repo, &context.session_branch)?;
+    fast_forward_branch(&repo, &context.parent_branch, head_oid)?;
 
     Ok(MergeOutcome {
-        session_branch: session_branch.to_string(),
-        parent_branch: parent_branch.to_string(),
+        session_branch: context.session_branch,
+        parent_branch: context.parent_branch,
         new_commit: head_oid.to_string(),
         mode: MergeMode::Squash,
     })
 }
 
-fn perform_reapply(
-    worktree_path: &Path,
-    repo_path: &Path,
-    session_branch: &str,
-    parent_branch: &str,
-) -> Result<MergeOutcome> {
+fn perform_reapply(context: SessionMergeContext) -> Result<MergeOutcome> {
     info!(
-        "{OPERATION_LABEL}: performing reapply merge for branch '{session_branch}' into '{parent_branch}'"
+        "{OPERATION_LABEL}: performing reapply merge for branch '{branch}' into '{parent}'",
+        branch = context.session_branch.as_str(),
+        parent = context.parent_branch.as_str()
     );
 
-    match run_git(
-        worktree_path,
-        vec![OsString::from("rebase"), OsString::from(parent_branch)],
-    ) {
-        Ok(_) => {}
-        Err(err) => {
-            let abort_result = run_git(
-                worktree_path,
-                vec![OsString::from("rebase"), OsString::from("--abort")],
-            );
-            if let Err(abort_err) = abort_result {
-                warn!("{OPERATION_LABEL}: failed to abort rebase after error: {abort_err}");
-            }
+    if needs_rebase(&context)? {
+        if let Err(err) = run_rebase(&context) {
+            let _ = abort_rebase(&context);
             return Err(err);
         }
+    } else {
+        debug!(
+            "{OPERATION_LABEL}: skipping rebase for branch '{branch}' because parent '{parent}' is already an ancestor",
+            branch = context.session_branch.as_str(),
+            parent = context.parent_branch.as_str()
+        );
     }
 
-    let repo = Repository::open(repo_path)?;
-    let head_oid = resolve_branch_oid(&repo, session_branch)?;
-    fast_forward_branch(&repo, parent_branch, head_oid)?;
+    let repo = Repository::open(&context.repo_path)?;
+    let head_oid = resolve_branch_oid(&repo, &context.session_branch)?;
+    fast_forward_branch(&repo, &context.parent_branch, head_oid)?;
 
     Ok(MergeOutcome {
-        session_branch: session_branch.to_string(),
-        parent_branch: parent_branch.to_string(),
+        session_branch: context.session_branch,
+        parent_branch: context.parent_branch,
         new_commit: head_oid.to_string(),
         mode: MergeMode::Reapply,
     })
+}
+
+fn needs_rebase(context: &SessionMergeContext) -> Result<bool> {
+    let repo = Repository::open(&context.repo_path)?;
+    let latest_parent_oid = resolve_branch_oid(&repo, &context.parent_branch)?;
+    let latest_session_oid = resolve_branch_oid(&repo, &context.session_branch)?;
+    let merge_base = repo.merge_base(latest_session_oid, latest_parent_oid)?;
+    Ok(merge_base != latest_parent_oid)
+}
+
+fn run_rebase(context: &SessionMergeContext) -> Result<()> {
+    run_git(
+        &context.worktree_path,
+        vec![
+            OsString::from("rebase"),
+            OsString::from(&context.parent_branch),
+        ],
+    )
+}
+
+fn abort_rebase(context: &SessionMergeContext) -> Result<()> {
+    run_git(
+        &context.worktree_path,
+        vec![OsString::from("rebase"), OsString::from("--abort")],
+    )
 }
 
 pub fn compute_merge_state(
@@ -992,7 +1001,11 @@ mod tests {
         .unwrap();
 
         // Session introduces its own change while still based on the old parent commit.
-        write_session_file(&session.worktree_path, "src/session.rs", "pub fn change() {}\n");
+        write_session_file(
+            &session.worktree_path,
+            "src/session.rs",
+            "pub fn change() {}\n",
+        );
         manager.mark_session_ready(&session.name, false).unwrap();
 
         let service = MergeService::new(db.clone(), repo_path.clone());
@@ -1024,8 +1037,101 @@ mod tests {
             "session change should be included in merge commit"
         );
 
-        let parent_file_contents = std::fs::read_to_string(repo_path.join("parent-only.txt")).unwrap();
+        let parent_file_contents =
+            std::fs::read_to_string(repo_path.join("parent-only.txt")).unwrap();
         assert_eq!(parent_file_contents, "parent data\n");
+    }
+
+    #[tokio::test]
+    async fn squash_merge_skips_rebase_when_parent_already_integrated() {
+        let temp = TempDir::new().unwrap();
+        let (manager, db, repo_path) = create_session_manager(&temp);
+
+        let params = SessionCreationParams {
+            name: "manual-merge",
+            prompt: Some("manual merge workflow"),
+            base_branch: Some("main"),
+            was_auto_generated: false,
+            version_group_id: None,
+            version_number: None,
+            agent_type: None,
+            skip_permissions: None,
+        };
+
+        let session = manager.create_session_with_agent(params).unwrap();
+
+        // Session creates its own commit.
+        write_session_file(
+            &session.worktree_path,
+            "src/session.rs",
+            "pub fn change() {}\n",
+        );
+
+        // Main advances after the session work was created.
+        std::fs::write(repo_path.join("main_update.txt"), "main update\n").unwrap();
+        run_git(
+            &repo_path,
+            vec![OsString::from("add"), OsString::from("main_update.txt")],
+        )
+        .unwrap();
+        run_git(
+            &repo_path,
+            vec![
+                OsString::from("commit"),
+                OsString::from("-m"),
+                OsString::from("main update"),
+            ],
+        )
+        .unwrap();
+
+        // Session integrates the latest main via a manual merge, producing a merge commit.
+        run_git(
+            &session.worktree_path,
+            vec![
+                OsString::from("merge"),
+                OsString::from("--no-edit"),
+                OsString::from("main"),
+            ],
+        )
+        .unwrap();
+
+        manager.mark_session_ready(&session.name, false).unwrap();
+
+        let session_after = manager.get_session(&session.name).unwrap();
+        let repo = Repository::open(&session_after.repository_path).unwrap();
+        let context = SessionMergeContext {
+            session_id: session_after.id.clone(),
+            session_name: session_after.name.clone(),
+            repo_path: session_after.repository_path.clone(),
+            worktree_path: session_after.worktree_path.clone(),
+            session_branch: session_after.branch.clone(),
+            parent_branch: session_after.parent_branch.clone(),
+            session_oid: resolve_branch_oid(&repo, &session_after.branch).unwrap(),
+            parent_oid: resolve_branch_oid(&repo, &session_after.parent_branch).unwrap(),
+        };
+
+        assert!(
+            !needs_rebase(&context).unwrap(),
+            "rebase should be skipped when main was already merged into the session branch"
+        );
+
+        let service = MergeService::new(db.clone(), repo_path.clone());
+        let outcome = service
+            .merge(
+                &session_after.name,
+                MergeMode::Squash,
+                Some("Squash merge".into()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(outcome.mode, MergeMode::Squash);
+        let parent_oid = resolve_branch_oid(&repo, &outcome.parent_branch).unwrap();
+        assert_eq!(parent_oid.to_string(), outcome.new_commit);
+
+        let final_session = manager.get_session(&session_after.name).unwrap();
+        assert!(!final_session.ready_to_merge);
+        assert_eq!(final_session.session_state, SessionState::Running);
     }
 
     #[tokio::test]
