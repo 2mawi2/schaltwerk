@@ -4,7 +4,7 @@ import { renderHook, act, waitFor } from '@testing-library/react'
 import { ReactNode, useEffect } from 'react'
 import { SessionsProvider, useSessions } from './SessionsContext'
 import { ProjectProvider, useProject } from './ProjectContext'
-import { SortMode } from '../types/sessionFilters'
+import { FilterMode, SortMode } from '../types/sessionFilters'
 import type { Event } from '@tauri-apps/api/event'
 import { SchaltEvent } from '../common/eventSystem'
 
@@ -670,6 +670,143 @@ describe('SessionsContext', () => {
             TauriCommands.SchaltwerkCoreGetMergePreview,
             { name: 'test-active' }
         )
+    })
+
+    it('updates session state when a running session converts back to spec', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
+        })
+
+        const runningSession = mockSessions[1]
+        const convertedToSpec = {
+            ...runningSession,
+            info: {
+                ...runningSession.info,
+                ready_to_merge: false,
+                status: 'spec',
+                session_state: 'spec',
+            }
+        }
+
+        act(() => {
+            listeners[SchaltEvent.SessionsRefreshed]?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 4,
+                payload: [mockSessions[0], convertedToSpec, mockSessions[2]],
+            } as unknown as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            const session = result.current.allSessions.find(s => s.info.session_id === runningSession.info.session_id)
+            expect(session?.info.session_state).toBe('spec')
+            expect(session?.info.ready_to_merge).toBe(false)
+        })
+    })
+
+    it('clears reviewed state when a reviewed session converts to spec', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(listeners[SchaltEvent.SessionsRefreshed]).toBeTruthy()
+        })
+
+        const reviewedSession = mockSessions[2]
+        const convertedToSpec = {
+            ...reviewedSession,
+            info: {
+                ...reviewedSession.info,
+                ready_to_merge: false,
+                status: 'spec',
+                session_state: 'spec',
+            }
+        }
+
+        act(() => {
+            listeners[SchaltEvent.SessionsRefreshed]?.({
+                event: SchaltEvent.SessionsRefreshed,
+                id: 5,
+                payload: [mockSessions[0], mockSessions[1], convertedToSpec],
+            } as unknown as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            const session = result.current.allSessions.find(s => s.info.session_id === reviewedSession.info.session_id)
+            expect(session?.info.session_state).toBe('spec')
+            expect(session?.info.ready_to_merge).toBe(false)
+        })
+
+        act(() => {
+            result.current.setFilterMode(FilterMode.Reviewed)
+        })
+
+        await waitFor(() => {
+            expect(result.current.sessions.some(s => s.info.session_id === reviewedSession.info.session_id)).toBe(false)
+        })
+    })
+
+    it('optimistically converts a running session to spec state', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        vi.mocked(listen).mockResolvedValue(() => {})
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.sessions.length).toBeGreaterThan(0)
+        })
+
+        act(() => {
+            result.current.optimisticallyConvertSessionToSpec('test-active')
+        })
+
+        await waitFor(() => {
+            const session = result.current.allSessions.find(s => s.info.session_id === 'test-active')
+            expect(session?.info.session_state).toBe('spec')
+            expect(session?.info.status).toBe('spec')
+            expect(session?.info.ready_to_merge).toBe(false)
+        })
     })
 
     it('should handle session removal events', async () => {

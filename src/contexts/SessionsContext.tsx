@@ -123,6 +123,7 @@ interface SessionsContextValue {
     setIsSearchVisible: (visible: boolean) => void
     setCurrentSelection: (sessionId: string | null) => void
     reloadSessions: () => Promise<void>
+    optimisticallyConvertSessionToSpec: (sessionId: string) => void
     updateSessionStatus: (sessionId: string, newStatus: string) => Promise<void>
     createDraft: (name: string, content: string) => Promise<void>
     mergeDialogState: MergeDialogState
@@ -614,6 +615,57 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             hasInitialLoadCompleted.current = true
         }
     }, [projectPath, allSessions, syncMergeStatuses])
+
+    const optimisticallyConvertSessionToSpec = useCallback((sessionId: string) => {
+        let updated = false
+        setAllSessions(prev => {
+            let changed = false
+            const next = prev.map(session => {
+                if (session.info.session_id !== sessionId) {
+                    return session
+                }
+                changed = true
+                const nextInfo: SessionInfo = {
+                    ...session.info,
+                    session_state: 'spec',
+                    status: 'spec',
+                    ready_to_merge: false,
+                    has_uncommitted_changes: false,
+                    has_conflicts: false,
+                    diff_stats: undefined,
+                    merge_has_conflicts: undefined,
+                    merge_conflicting_paths: undefined,
+                    merge_is_up_to_date: undefined,
+                }
+                return {
+                    ...session,
+                    info: nextInfo,
+                }
+            })
+
+            if (!changed) {
+                return prev
+            }
+
+            updated = true
+            return next
+        })
+
+        if (!updated) {
+            logger.debug(`[SessionsContext] Optimistic convert skipped; session ${sessionId} not found`)
+            return
+        }
+
+        prevStatesRef.current.set(sessionId, 'spec')
+        setMergeStatuses(prev => {
+            if (!prev.has(sessionId)) {
+                return prev
+            }
+            const next = new Map(prev)
+            next.delete(sessionId)
+            return next
+        })
+    }, [])
 
     useEffect(() => {
         if (!projectPath) {
@@ -1258,6 +1310,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setIsSearchVisible,
             setCurrentSelection,
             reloadSessions,
+            optimisticallyConvertSessionToSpec,
             updateSessionStatus,
             createDraft,
             mergeDialogState,

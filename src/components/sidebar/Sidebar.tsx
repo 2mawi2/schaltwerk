@@ -70,6 +70,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         setSearchQuery,
         setIsSearchVisible,
         reloadSessions,
+        optimisticallyConvertSessionToSpec,
         mergeDialogState,
         openMergeDialog,
         closeMergeDialog,
@@ -1271,6 +1272,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 hasUncommittedChanges={convertToSpecModal.hasUncommitted}
                 onClose={() => setConvertToDraftModal({ open: false, sessionName: '', hasUncommitted: false })}
                 onSuccess={async () => {
+                    if (convertToSpecModal.sessionName) {
+                        optimisticallyConvertSessionToSpec(convertToSpecModal.sessionName)
+                    }
                     await reloadSessionsAndRefreshIdle()
                 }}
             />
