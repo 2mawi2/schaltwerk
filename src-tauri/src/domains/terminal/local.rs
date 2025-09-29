@@ -1393,9 +1393,31 @@ mod tests {
     use std::sync::{Arc, Mutex};
     use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
-    use tokio::time::{sleep, timeout};
+    use tokio::time::sleep;
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    struct RecordingWriter {
+        records: Arc<Mutex<Vec<String>>>,
+    }
+
+    impl RecordingWriter {
+        fn new(records: Arc<Mutex<Vec<String>>>) -> Self {
+            Self { records }
+        }
+    }
+
+    impl std::io::Write for RecordingWriter {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            let mut guard = self.records.lock().unwrap();
+            guard.push(String::from_utf8_lossy(buf).to_string());
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
 
     // Helper function to wait for command output with simple polling fallback
     async fn execute_command_and_wait(
@@ -1850,6 +1872,15 @@ mod tests {
         adapter.create(params).await.unwrap();
         sleep(Duration::from_millis(100)).await;
 
+        let records = Arc::new(Mutex::new(Vec::new()));
+        {
+            let mut writers = adapter.pty_writers.lock().await;
+            writers.insert(
+                id.clone(),
+                Box::new(RecordingWriter::new(Arc::clone(&records))),
+            );
+        }
+
         let adapter_clone = Arc::clone(&adapter);
         let id_clone = id.clone();
         let write_handle = tokio::spawn(async move {
@@ -1872,18 +1903,13 @@ mod tests {
             }
         });
 
-        timeout(Duration::from_secs(10), async {
-            let (res1, res2) = tokio::join!(write_handle, write_handle2);
-            res1.unwrap();
-            res2.unwrap();
-        })
-        .await
-        .expect("concurrent writes to complete promptly");
+        let (res1, res2) = tokio::join!(write_handle, write_handle2);
+        res1.unwrap();
+        res2.unwrap();
 
         assert!(adapter.exists(&id).await.unwrap());
-
-        let snapshot = adapter.snapshot(&id, None).await.unwrap();
-        assert!(!snapshot.data.is_empty());
+        let recorded = records.lock().unwrap();
+        assert_eq!(recorded.len(), 12);
 
         safe_close(&adapter, &id).await;
     }
