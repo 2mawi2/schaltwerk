@@ -1787,11 +1787,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Force scroll to bottom when switching sessions
     useLayoutEffect(() => {
         if (previousTerminalId.current !== terminalId) {
-            // Terminal ID changed - this is a session switch
             snapshotCursorRef.current = null
             if (terminal.current) {
                 try {
-                    terminal.current.scrollToBottom();
+                    const buffer = terminal.current.buffer.active;
+                    const linesToScroll = buffer.baseY - buffer.viewportY;
+                    if (linesToScroll !== 0) {
+                        terminal.current.scrollLines(linesToScroll);
+                    }
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
                 }
