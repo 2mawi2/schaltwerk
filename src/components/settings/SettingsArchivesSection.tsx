@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { TauriCommands } from '../../common/tauriCommands'
+import { formatDateTime } from '../../utils/dateTime'
 
 type NotificationType = 'success' | 'error' | 'info'
 
@@ -37,17 +38,6 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
         return () => {
             isMountedRef.current = false
         }
-    }, [])
-
-    const formatTimestamp = useCallback((value: number | string) => {
-        let timestamp: number
-        if (typeof value === 'number') {
-            timestamp = value > 1e12 ? value : value * 1000
-        } else {
-            const parsed = Date.parse(value)
-            timestamp = Number.isNaN(parsed) ? Date.now() : parsed
-        }
-        return new Date(timestamp).toLocaleString()
     }, [])
 
     const fetchArchives = useCallback(async () => {
@@ -147,7 +137,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                             onClick={() => onOpenSpec({ name: item.session_name, content: item.content })}
                         >
                             <div className="text-slate-200 text-body truncate">{item.session_name}</div>
-                            <div className="text-caption text-slate-500">{formatTimestamp(item.archived_at)}</div>
+                            <div className="text-caption text-slate-500">{formatDateTime(item.archived_at)}</div>
                             <div className="text-caption text-slate-500 line-clamp-2 mt-1 break-all overflow-hidden max-w-full">{item.content}</div>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -168,7 +158,7 @@ export function SettingsArchivesSection({ onClose: _onClose, onOpenSpec, onNotif
                 ))}
             </div>
         )
-    }, [archives, archivesLoading, formatTimestamp, handleDelete, handleRestore, loadError, onOpenSpec])
+    }, [archives, archivesLoading, handleDelete, handleRestore, loadError, onOpenSpec])
 
     return (
         <div className="flex flex-col h-full">

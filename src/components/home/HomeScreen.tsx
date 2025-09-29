@@ -8,6 +8,11 @@ import { NewProjectDialog } from './NewProjectDialog'
 import { getHomeLogoPositionStyles, getContentAreaStyles } from '../../constants/layout'
 import { logger } from '../../utils/logger'
 import { theme } from '../../common/theme'
+import { formatDateTime } from '../../utils/dateTime'
+
+const RECENT_PROJECT_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  dateStyle: 'medium'
+}
 
 interface RecentProject {
   path: string
@@ -196,7 +201,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
                           {project.path}
                         </p>
                         <p className="text-slate-600 text-xs mt-2">
-                          {new Date(project.lastOpened).toLocaleDateString()}
+                          {formatDateTime(project.lastOpened, RECENT_PROJECT_DATE_OPTIONS)}
                         </p>
                       </div>
                     </div>
