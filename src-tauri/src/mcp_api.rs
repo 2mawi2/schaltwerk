@@ -3,8 +3,9 @@ use hyper::{body::Incoming, Method, Request, Response, StatusCode};
 use log::{error, info, warn};
 
 use crate::get_schaltwerk_core;
+use schaltwerk::domains::sessions::entity::Session;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
-use schaltwerk::schaltwerk_core::SessionState;
+use schaltwerk::schaltwerk_core::{EnrichedSession, SessionManager, SessionState};
 
 pub async fn handle_mcp_request(
     req: Request<Incoming>,
@@ -14,7 +15,7 @@ pub async fn handle_mcp_request(
     let path = req.uri().path().to_string();
 
     match (&method, path.as_str()) {
-        (&Method::POST, "/api/specs") => create_draft(req).await,
+        (&Method::POST, "/api/specs") => create_draft(req, app).await,
         (&Method::GET, "/api/specs") => list_drafts().await,
         (&Method::PATCH, path) if path.starts_with("/api/specs/") && !path.ends_with("/start") => {
             let name = extract_draft_name(path, "/api/specs/");
@@ -96,6 +97,34 @@ fn not_found_response() -> Response<String> {
     response
 }
 
+fn create_spec_session_with_notifications<F>(
+    manager: &SessionManager,
+    name: &str,
+    content: &str,
+    agent_type: Option<&str>,
+    skip_permissions: Option<bool>,
+    emit_sessions: F,
+) -> anyhow::Result<Session>
+where
+    F: Fn(Vec<EnrichedSession>) -> Result<(), tauri::Error>,
+{
+    let session =
+        manager.create_spec_session_with_agent(name, content, agent_type, skip_permissions)?;
+    match manager.list_enriched_sessions() {
+        Ok(sessions) => {
+            if let Err(e) = emit_sessions(sessions) {
+                warn!("Failed to emit SessionsRefreshed after creating spec '{name}': {e}");
+            }
+        }
+        Err(e) => {
+            warn!(
+                "Failed to list sessions for SessionsRefreshed emission after creating spec '{name}': {e}"
+            );
+        }
+    }
+    Ok(session)
+}
+
 fn error_response(status: StatusCode, message: String) -> Response<String> {
     let mut response = Response::new(message);
     *response.status_mut() = status;
@@ -111,7 +140,93 @@ fn json_response(status: StatusCode, json: String) -> Response<String> {
     response
 }
 
-async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper::Error> {
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use git2::Repository;
+    use schaltwerk::schaltwerk_core::Database;
+    use std::path::Path;
+    use std::sync::{Arc, Mutex};
+    use tempfile::TempDir;
+
+    fn init_test_repo() -> (TempDir, std::path::PathBuf) {
+        let tmp = TempDir::new().expect("temp dir");
+        let repo_path = tmp.path().to_path_buf();
+        let repo = Repository::init(&repo_path).expect("init repo");
+
+        // Configure git user for commits
+        let mut config = repo.config().expect("config");
+        config
+            .set_str("user.email", "test@example.com")
+            .expect("email");
+        config.set_str("user.name", "Test User").expect("name");
+
+        // Create initial commit so repo isn't empty
+        std::fs::write(repo_path.join("README.md"), "# Test\n").expect("write readme");
+        let mut index = repo.index().expect("index");
+        index.add_path(Path::new("README.md")).expect("add path");
+        index.write().expect("index write");
+        let tree_id = index.write_tree().expect("tree");
+        let tree = repo.find_tree(tree_id).expect("find tree");
+        let signature = repo
+            .signature()
+            .unwrap_or_else(|_| git2::Signature::now("Test User", "test@example.com").unwrap());
+        repo.commit(Some("HEAD"), &signature, &signature, "Initial", &tree, &[])
+            .expect("commit");
+
+        (tmp, repo_path)
+    }
+
+    fn create_manager(repo_path: &std::path::Path) -> SessionManager {
+        let db_path = repo_path.join("test.db");
+        let database = Database::new(Some(db_path)).expect("db");
+        SessionManager::new(database, repo_path.to_path_buf())
+    }
+
+    #[test]
+    fn create_spec_session_emits_sessions_refreshed_payload() {
+        let (_tmp, repo_path) = init_test_repo();
+        let manager = create_manager(&repo_path);
+        let emitted = Arc::new(Mutex::new(false));
+        let emitted_ids: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let emitted_clone = emitted.clone();
+        let ids_clone = emitted_ids.clone();
+
+        let result = create_spec_session_with_notifications(
+            &manager,
+            "draft-one",
+            "Initial spec content",
+            None,
+            None,
+            move |sessions| {
+                let mut flag = emitted_clone.lock().expect("lock");
+                *flag = true;
+                let mut ids = ids_clone.lock().expect("lock");
+                ids.extend(sessions.iter().map(|s| s.info.session_id.clone()));
+                Ok(())
+            },
+        );
+
+        let session = result.expect("spec creation");
+        assert!(
+            *emitted.lock().expect("lock"),
+            "SessionsRefreshed emitter should be invoked"
+        );
+        assert!(
+            emitted_ids
+                .lock()
+                .expect("lock")
+                .iter()
+                .any(|id| id == &session.name),
+            "emitted sessions should include the new spec"
+        );
+    }
+}
+
+async fn create_draft(
+    req: Request<Incoming>,
+    app: tauri::AppHandle,
+) -> Result<Response<String>, hyper::Error> {
     let body = req.into_body();
     let body_bytes = body.collect().await?.to_bytes();
     let payload: serde_json::Value = match serde_json::from_slice(&body_bytes) {
@@ -152,7 +267,14 @@ async fn create_draft(req: Request<Incoming>) -> Result<Response<String>, hyper:
     let core_lock = core.lock().await;
     let manager = core_lock.session_manager();
 
-    match manager.create_spec_session_with_agent(name, content, agent_type, skip_permissions) {
+    match create_spec_session_with_notifications(
+        &manager,
+        name,
+        content,
+        agent_type,
+        skip_permissions,
+        move |sessions| emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions),
+    ) {
         Ok(session) => {
             info!("Created spec session via API: {name}");
             let json = serde_json::to_string(&session).unwrap_or_else(|e| {
