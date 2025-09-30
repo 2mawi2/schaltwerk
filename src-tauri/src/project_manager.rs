@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use futures::future::join_all;
 use log::{debug, info, warn};
 use sha2::{Digest, Sha256};
 use std::collections::HashMap;
@@ -6,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tokio::sync::{Mutex, RwLock};
 
+use schaltwerk::domains::sessions::entity::{SessionState, SessionStatus};
 use schaltwerk::domains::terminal::TerminalManager;
 use schaltwerk::schaltwerk_core::SchaltwerkCore;
 
@@ -43,6 +45,83 @@ impl Project {
             terminal_manager,
             schaltwerk_core,
         })
+    }
+
+    async fn cleanup_sessions(&self) -> Result<(), String> {
+        info!(
+            "Cleaning up sessions for project: {}",
+            self.path.display()
+        );
+
+        let manager = {
+            let core = self.schaltwerk_core.lock().await;
+            core.session_manager()
+        };
+
+        let sessions = manager
+            .list_sessions()
+            .map_err(|e| format!("Failed to list sessions for {}: {e}", self.path.display()))?;
+
+        let active_sessions: Vec<String> = sessions
+            .into_iter()
+            .filter(|session| {
+                session.status == SessionStatus::Active
+                    && session.session_state != SessionState::Spec
+            })
+            .map(|session| session.name)
+            .collect();
+
+        if active_sessions.is_empty() {
+            debug!(
+                "No active non-spec sessions to cancel for {}",
+                self.path.display()
+            );
+            return Ok(());
+        }
+
+        let cancel_results = join_all(active_sessions.iter().map(|name| async {
+            let result = manager.fast_cancel_session(name).await;
+            (name.clone(), result)
+        }))
+        .await;
+
+        let mut errors = Vec::new();
+        for (name, result) in cancel_results {
+            match result {
+                Ok(()) => info!("Cancelled session {name} during cleanup"),
+                Err(err) => {
+                    warn!("Failed to cancel session {name} during cleanup: {err}");
+                    errors.push(format!("{name}: {err}"));
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join(", "))
+        }
+    }
+
+    async fn cleanup_resources(&self) -> Result<(), String> {
+        let (terminal_result, session_result) =
+            tokio::join!(self.terminal_manager.cleanup_all(), self.cleanup_sessions());
+
+        let mut errors = Vec::new();
+
+        if let Err(err) = terminal_result {
+            errors.push(format!("terminal cleanup failed: {err}"));
+        }
+
+        if let Err(err) = session_result {
+            errors.push(format!("session cleanup failed: {err}"));
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors.join("; "))
+        }
     }
 
     /// Get the database path for a project in the global app data directory
@@ -253,20 +332,25 @@ impl ProjectManager {
     /// Clean up all projects (called on app exit)
     pub async fn cleanup_all(&self) {
         info!("Cleaning up all projects");
+        let projects: Vec<(PathBuf, Arc<Project>)> = {
+            let projects_guard = self.projects.read().await;
+            projects_guard
+                .iter()
+                .map(|(path, project)| (path.clone(), project.clone()))
+                .collect()
+        };
 
-        let projects = self.projects.read().await;
-        for (path, project) in projects.iter() {
+        join_all(projects.into_iter().map(|(path, project)| async move {
             debug!("Cleaning up project: {}", path.display());
-
-            // Clean up all terminals for this project
-            if let Err(e) = project.terminal_manager.cleanup_all().await {
+            if let Err(err) = project.cleanup_resources().await {
                 warn!(
-                    "Failed to cleanup terminals for project {}: {}",
+                    "Failed to cleanup resources for project {}: {}",
                     path.display(),
-                    e
+                    err
                 );
             }
-        }
+        }))
+        .await;
     }
 
     /// Clean up terminals for a specific project path only
@@ -401,7 +485,44 @@ impl ProjectManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use schaltwerk::domains::sessions::entity::SessionStatus;
+    use std::path::Path;
+    use std::process::Command as StdCommand;
     use tempfile::TempDir;
+
+    fn init_git_repo(path: &Path) {
+        assert!(StdCommand::new("git")
+            .args(["init"])
+            .current_dir(path)
+            .status()
+            .unwrap()
+            .success());
+        assert!(StdCommand::new("git")
+            .args(["config", "user.name", "Schaltwerk Test"])
+            .current_dir(path)
+            .status()
+            .unwrap()
+            .success());
+        assert!(StdCommand::new("git")
+            .args(["config", "user.email", "test@example.com"])
+            .current_dir(path)
+            .status()
+            .unwrap()
+            .success());
+        std::fs::write(path.join("README.md"), "root\n").unwrap();
+        assert!(StdCommand::new("git")
+            .args(["add", "."])
+            .current_dir(path)
+            .status()
+            .unwrap()
+            .success());
+        assert!(StdCommand::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(path)
+            .status()
+            .unwrap()
+            .success());
+    }
 
     #[tokio::test]
     async fn test_switch_to_project_sets_current_and_reuses_instance() {
@@ -511,5 +632,61 @@ mod tests {
 
         // Cleanup p2 to avoid leaks for the test
         let _ = p2.terminal_manager.cleanup_all().await;
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_all_cancels_active_sessions() {
+        let mgr = ProjectManager::new();
+        let temp_repo = TempDir::new().unwrap();
+        init_git_repo(temp_repo.path());
+
+        let project = mgr
+            .switch_to_project_in_memory(temp_repo.path().to_path_buf())
+            .await
+            .unwrap();
+
+        let term_id = "cleanup-term".to_string();
+        project
+            .terminal_manager
+            .create_terminal(term_id.clone(), temp_repo.path().to_string_lossy().to_string())
+            .await
+            .unwrap();
+
+        {
+            let core = project.schaltwerk_core.lock().await;
+            let manager = core.session_manager();
+            manager
+                .create_session_with_auto_flag(
+                    "cleanup-session",
+                    Some("prompt"),
+                    None,
+                    false,
+                    None,
+                    None,
+                )
+                .unwrap();
+        }
+
+        {
+            let core = project.schaltwerk_core.lock().await;
+            let manager = core.session_manager();
+            let session = manager.get_session("cleanup-session").unwrap();
+            assert_eq!(session.status, SessionStatus::Active);
+        }
+
+        mgr.cleanup_all().await;
+
+        assert!(!project
+            .terminal_manager
+            .terminal_exists(&term_id)
+            .await
+            .unwrap());
+
+        {
+            let core = project.schaltwerk_core.lock().await;
+            let manager = core.session_manager();
+            let session = manager.get_session("cleanup-session").unwrap();
+            assert_eq!(session.status, SessionStatus::Cancelled);
+        }
     }
 }
