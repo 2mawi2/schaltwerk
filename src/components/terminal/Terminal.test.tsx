@@ -1086,7 +1086,10 @@ describe('Terminal component', () => {
     await flushAll()
 
     const xterm = getLastXtermInstance()
-    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+    xterm.buffer.active.baseY = 100
+    xterm.buffer.active.viewportY = 50
+
+    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
     scrollSpy.mockClear()
 
     ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-other-top' })
@@ -1094,7 +1097,7 @@ describe('Terminal component', () => {
 
     scrollSpy.mockClear()
     ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-force-top' })
-    expect(scrollSpy).toHaveBeenCalled()
+    expect(scrollSpy).toHaveBeenCalledWith(50)
   })
 
   it('reconfigures output listener when agent type changes', async () => {
@@ -1173,10 +1176,11 @@ describe('Terminal component', () => {
     setElementDimensions(termViewport, 800, 400)
 
     const xterm = getLastXtermInstance()
-    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
     xterm.buffer.active.baseY = 100
     xterm.buffer.active.viewportY = 100
     xterm.buffer.active.length = 140
+
+    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
 
     fireEvent.mouseDown(termRoot, { clientX: 10, clientY: 10 })
     fireEvent.mouseMove(termRoot, { clientX: 40, clientY: 45 })
@@ -1204,9 +1208,14 @@ describe('Terminal component', () => {
     await advanceAndFlush(50)
 
     scrollSpy.mockClear()
+    const originalWrite = xterm.write
+    xterm.write = vi.fn((d, cb) => {
+      xterm.buffer.active.baseY = 105
+      return originalWrite.call(xterm, d, cb)
+    })
     ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'CLEARED')
     await advanceAndFlush(200)
-    expect(scrollSpy).toHaveBeenCalled()
+    expect(scrollSpy).toHaveBeenCalledWith(5)
     getSelectionSpy.mockRestore()
   })
 
@@ -1485,10 +1494,13 @@ describe('Terminal component', () => {
     await flushAll()
 
     const xterm = getLastXtermInstance()
-    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
+    xterm.buffer.active.baseY = 100
+    xterm.buffer.active.viewportY = 50
+
+    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
 
     ref.current?.scrollToBottom()
-    expect(scrollSpy).toHaveBeenCalled()
+    expect(scrollSpy).toHaveBeenCalledWith(50)
   })
 
   it('ignores focus events originating from the search container', async () => {
