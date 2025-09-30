@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import React from 'react'
-import { SpecContentView, __clearSpecContentCacheForTests } from './SpecContentView'
+import { SpecContentView } from './SpecContentView'
 
 vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn()
@@ -24,18 +24,7 @@ vi.mock('./MarkdownEditor', () => ({
   )
 }))
 
-const createDeferred = () => {
-  let resolve: (value: [string | null, string | null]) => void
-  const promise = new Promise<[string | null, string | null]>((res) => {
-    resolve = res
-  })
-  return { promise, resolve: resolve! }
-}
-
 describe('SpecContentView', () => {
-  beforeEach(() => {
-    __clearSpecContentCacheForTests()
-  })
   beforeEach(() => {
     vi.resetAllMocks()
   })
@@ -44,7 +33,15 @@ describe('SpecContentView', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
-    const secondSessionDeferred = createDeferred()
+    const deferred = () => {
+      let resolve: (value: [string | null, string | null]) => void
+      const promise = new Promise<[string | null, string | null]>((res) => {
+        resolve = res
+      })
+      return { promise, resolve: resolve! }
+    }
+
+    const secondSessionDeferred = deferred()
 
     mockInvoke.mockImplementation(async (_cmd: string, args?: Record<string, unknown>) => {
       if (args?.name === 'session-one') {
@@ -75,12 +72,24 @@ describe('SpecContentView', () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
+    const deferred = () => {
+      let resolve: (value: [string | null, string | null]) => void
+      const promise = new Promise<[string | null, string | null]>((res) => {
+        resolve = res
+      })
+      return { promise, resolve: resolve! }
+    }
+
+    const alphaDeferred = deferred()
     let alphaCalls = 0
 
     mockInvoke.mockImplementation(async (_cmd: string, args?: Record<string, unknown>) => {
       if (args?.name === 'alpha') {
         alphaCalls += 1
-        return ['Alpha draft', null]
+        if (alphaCalls === 1) {
+          return ['Alpha draft', null]
+        }
+        return alphaDeferred.promise
       }
       if (args?.name === 'beta') {
         return ['Beta draft', null]
@@ -101,14 +110,23 @@ describe('SpecContentView', () => {
       expect(screen.queryByText('Beta draft')).toBeNull()
     })
 
-    expect(alphaCalls).toBe(1)
+    alphaDeferred.resolve(['Alpha refreshed', null])
+    await screen.findByText('Alpha refreshed')
   })
 
   it('ignores late responses from previous sessions', async () => {
     const { invoke } = await import('@tauri-apps/api/core')
     const mockInvoke = invoke as ReturnType<typeof vi.fn>
 
-    const alphaDeferred = createDeferred()
+    const deferred = () => {
+      let resolve: (value: [string | null, string | null]) => void
+      const promise = new Promise<[string | null, string | null]>((res) => {
+        resolve = res
+      })
+      return { promise, resolve: resolve! }
+    }
+
+    const alphaDeferred = deferred()
 
     mockInvoke.mockImplementation(async (_cmd: string, args?: Record<string, unknown>) => {
       if (args?.name === 'alpha') {
