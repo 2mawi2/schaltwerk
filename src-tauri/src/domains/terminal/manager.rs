@@ -2,7 +2,6 @@ use super::{
     get_effective_shell, ApplicationSpec, CreateParams, LocalPtyAdapter, TerminalBackend,
     TerminalSnapshot,
 };
-use futures::future::join_all;
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
 use std::collections::{HashMap, HashSet};
@@ -451,15 +450,10 @@ impl TerminalManager {
     pub async fn close_all(&self) -> Result<(), String> {
         info!("Closing all terminals");
         let ids: Vec<String> = self.active_ids.read().await.iter().cloned().collect();
-        let results = join_all(ids.into_iter().map(|id| async {
-            let result = self.close_terminal(id.clone()).await;
-            (id, result)
-        }))
-        .await;
 
-        for (id, result) in results {
-            if let Err(err) = result {
-                error!("Failed to close terminal {id}: {err}");
+        for id in ids {
+            if let Err(e) = self.close_terminal(id.clone()).await {
+                error!("Failed to close terminal {id}: {e}");
             }
         }
 

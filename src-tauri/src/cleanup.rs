@@ -1,15 +1,15 @@
 use log::info;
 
-/// Cleanup all running terminals and sessions
+/// Cleanup all running terminals
 pub async fn cleanup_all_terminals() {
-    info!("Cleaning up all terminals and sessions...");
+    info!("Cleaning up all terminals...");
 
     // Use the project manager to clean up all projects
     if let Some(manager) = crate::PROJECT_MANAGER.get() {
         manager.cleanup_all().await;
     }
 
-    info!("Cleanup complete");
+    info!("Terminal cleanup complete");
 }
 
 /// Ensure cleanup happens even on panic
