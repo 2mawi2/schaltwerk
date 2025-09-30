@@ -1,5 +1,5 @@
 use super::connection::Database;
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use chrono::Utc;
 use rusqlite::params;
 use serde::{Deserialize, Serialize};
@@ -185,6 +185,13 @@ pub struct RunScript {
     pub environment_variables: HashMap<String, String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectGithubConfig {
+    pub repository: String,
+    pub default_branch: String,
+}
+
 pub trait ProjectConfigMethods {
     fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>>;
     fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()>;
@@ -221,6 +228,13 @@ pub trait ProjectConfigMethods {
     ) -> Result<()>;
     fn get_project_run_script(&self, repo_path: &Path) -> Result<Option<RunScript>>;
     fn set_project_run_script(&self, repo_path: &Path, run_script: &RunScript) -> Result<()>;
+    fn get_project_github_config(&self, repo_path: &Path) -> Result<Option<ProjectGithubConfig>>;
+    fn set_project_github_config(
+        &self,
+        repo_path: &Path,
+        config: &ProjectGithubConfig,
+    ) -> Result<()>;
+    fn clear_project_github_config(&self, repo_path: &Path) -> Result<()>;
 }
 
 impl ProjectConfigMethods for Database {
@@ -608,6 +622,102 @@ impl ProjectConfigMethods for Database {
 
         Ok(())
     }
+
+    fn get_project_github_config(&self, repo_path: &Path) -> Result<Option<ProjectGithubConfig>> {
+        let conn = self.conn.lock().unwrap();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        let query_res: rusqlite::Result<(Option<String>, Option<String>)> = conn.query_row(
+            "SELECT github_repository, github_default_branch
+                FROM project_config
+                WHERE repository_path = ?1",
+            params![canonical_path.to_string_lossy()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        );
+
+        match query_res {
+            Ok((Some(repository), default_branch_opt)) => {
+                let default_branch = default_branch_opt.unwrap_or_else(|| "main".to_string());
+                Ok(Some(ProjectGithubConfig {
+                    repository,
+                    default_branch,
+                }))
+            }
+            Ok((None, _)) | Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(e) => Err(e.into()),
+        }
+    }
+
+    fn set_project_github_config(
+        &self,
+        repo_path: &Path,
+        config: &ProjectGithubConfig,
+    ) -> Result<()> {
+        let repository = config.repository.trim();
+        let default_branch = config.default_branch.trim();
+
+        if repository.is_empty() {
+            return Err(anyhow!("Repository value cannot be empty"));
+        }
+        if default_branch.is_empty() {
+            return Err(anyhow!("Default branch value cannot be empty"));
+        }
+
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        conn.execute(
+            "INSERT INTO project_config (
+                    repository_path,
+                    github_repository,
+                    github_default_branch,
+                    created_at,
+                    updated_at
+                ) VALUES (?1, ?2, ?3, ?4, ?4)
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    github_repository = excluded.github_repository,
+                    github_default_branch = excluded.github_default_branch,
+                    updated_at = excluded.updated_at",
+            params![
+                canonical_path.to_string_lossy(),
+                repository,
+                default_branch,
+                now,
+            ],
+        )?;
+
+        Ok(())
+    }
+
+    fn clear_project_github_config(&self, repo_path: &Path) -> Result<()> {
+        let conn = self.conn.lock().unwrap();
+        let now = Utc::now().timestamp();
+
+        let canonical_path =
+            std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
+
+        conn.execute(
+            "INSERT INTO project_config (
+                    repository_path,
+                    github_repository,
+                    github_default_branch,
+                    created_at,
+                    updated_at
+                ) VALUES (?1, NULL, NULL, ?2, ?2)
+                ON CONFLICT(repository_path) DO UPDATE SET
+                    github_repository = NULL,
+                    github_default_branch = NULL,
+                    updated_at = excluded.updated_at",
+            params![canonical_path.to_string_lossy(), now],
+        )?;
+
+        Ok(())
+    }
 }
 
 impl Database {
@@ -637,4 +747,61 @@ impl Database {
 
 pub fn default_action_buttons() -> Vec<HeaderActionConfig> {
     Database::get_default_action_buttons()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::infrastructure::database::connection::Database;
+    use tempfile::TempDir;
+
+    fn create_temp_repo_path() -> (TempDir, std::path::PathBuf) {
+        let temp_dir = TempDir::new().expect("temp dir");
+        let project_path = temp_dir.path().join("repo");
+        std::fs::create_dir_all(&project_path).expect("create project path");
+        (temp_dir, project_path)
+    }
+
+    #[test]
+    fn github_config_round_trip() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let config = ProjectGithubConfig {
+            repository: "owner/example".to_string(),
+            default_branch: "main".to_string(),
+        };
+
+        db.set_project_github_config(&repo_path, &config)
+            .expect("store config");
+
+        let loaded = db
+            .get_project_github_config(&repo_path)
+            .expect("load config");
+
+        assert_eq!(Some(config), loaded);
+    }
+
+    #[test]
+    fn github_config_clear_resets_state() {
+        let db = Database::new_in_memory().expect("db");
+        let (_tmp, repo_path) = create_temp_repo_path();
+
+        let config = ProjectGithubConfig {
+            repository: "owner/example".to_string(),
+            default_branch: "main".to_string(),
+        };
+
+        db.set_project_github_config(&repo_path, &config)
+            .expect("store config");
+
+        db.clear_project_github_config(&repo_path)
+            .expect("clear config");
+
+        let loaded = db
+            .get_project_github_config(&repo_path)
+            .expect("load config");
+
+        assert!(loaded.is_none());
+    }
 }

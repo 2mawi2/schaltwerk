@@ -1,3 +1,4 @@
+import { useCallback, useEffect } from 'react'
 import {
   VscPlay,
   VscTrash,
@@ -11,15 +12,26 @@ import {
   VscGitMerge,
   VscWarning
 } from 'react-icons/vsc';
+import { FaGithub } from 'react-icons/fa'
 import { IconButton } from '../common/IconButton';
 import { theme } from '../../common/theme';
 import type { MergeStatus } from '../../contexts/SessionsContext';
+import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
+import { useToast } from '../../common/toast/ToastProvider'
+import { UiEvent, listenUiEvent } from '../../common/uiEvents'
+
+const spinnerIcon = (
+  <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+)
 
 interface SessionActionsProps {
   sessionState: 'spec' | 'running' | 'reviewed';
   sessionId: string;
   hasUncommittedChanges?: boolean;
   branch?: string;
+  sessionSlug?: string;
+  worktreePath?: string;
+  defaultBranch?: string;
   showPromoteIcon?: boolean;
   onRunSpec?: (sessionId: string) => void;
   onDeleteSpec?: (sessionId: string) => void;
@@ -44,6 +56,9 @@ export function SessionActions({
   sessionState,
   sessionId,
   hasUncommittedChanges = false,
+  sessionSlug,
+  worktreePath,
+  defaultBranch,
   showPromoteIcon = false,
   onRunSpec,
   onDeleteSpec,
@@ -63,6 +78,8 @@ export function SessionActions({
   isMarkReadyDisabled = false,
   mergeConflictingPaths,
 }: SessionActionsProps) {
+  const github = useGithubIntegrationContext()
+  const { pushToast } = useToast()
   // Use moderate spacing for medium-sized buttons
   const spacing = sessionState === 'spec' ? 'gap-1' : 'gap-0.5';
   const conflictCount = mergeConflictingPaths?.length ?? 0;
@@ -70,6 +87,63 @@ export function SessionActions({
   const conflictTooltip = conflictCount > 0
     ? `Resolve conflicts (⌘⇧M)${mergeConflictingPaths?.length ? ` • ${mergeConflictingPaths.slice(0, 3).join(', ')}${mergeConflictingPaths.length > 3 ? '…' : ''}` : ''}`
     : 'Resolve conflicts (⌘⇧M)';
+
+  const canCreatePr = github.canCreatePr && Boolean(worktreePath);
+  const creatingPr = github.isCreatingPr(sessionId);
+  const cachedUrl = github.getCachedPrUrl(sessionId);
+  const prTooltip = canCreatePr
+    ? cachedUrl
+      ? `Push changes and update PR (${cachedUrl})`
+      : 'Create GitHub pull request'
+    : github.isGhMissing
+      ? 'Install the GitHub CLI to enable PR automation'
+      : github.hasRepository
+        ? 'Sign in with GitHub to enable PR automation'
+        : 'Connect this project to a GitHub repository first';
+
+  const handleCreateGithubPr = useCallback(async () => {
+    if (!worktreePath) {
+      pushToast({ tone: 'error', title: 'Unable to open pull request', description: 'Session worktree path is unavailable.' })
+      return
+    }
+
+    try {
+      const result = await github.createReviewedPr({
+        sessionId,
+        sessionSlug: sessionSlug ?? sessionId,
+        worktreePath,
+        defaultBranch,
+      })
+
+      if (result.url) {
+        pushToast({
+          tone: 'success',
+          title: 'Pull request created',
+          description: result.url,
+        })
+      } else {
+        pushToast({
+          tone: 'success',
+          title: 'Pull request form opened',
+          description: 'Review and create the PR in your browser',
+        })
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      pushToast({ tone: 'error', title: 'GitHub pull request failed', description: message })
+    }
+  }, [worktreePath, github, sessionId, sessionSlug, defaultBranch, pushToast])
+
+  useEffect(() => {
+    if (sessionState !== 'reviewed') return
+    const cleanup = listenUiEvent(UiEvent.CreatePullRequest, (detail) => {
+      if (detail.sessionId === sessionId) {
+        handleCreateGithubPr()
+      }
+    })
+    return cleanup
+  }, [sessionState, sessionId, handleCreateGithubPr])
+
   return (
     <div className={`flex items-center ${spacing}`}>
       {/* Spec state actions */}
@@ -164,6 +238,14 @@ export function SessionActions({
       {/* Reviewed state actions */}
       {sessionState === 'reviewed' && (
         <>
+          <IconButton
+            icon={creatingPr ? spinnerIcon : <FaGithub />}
+            onClick={handleCreateGithubPr}
+            ariaLabel="Create GitHub pull request"
+            tooltip={canCreatePr ? 'Create GitHub pull request (⌘⇧P)' : prTooltip}
+            disabled={!canCreatePr || creatingPr}
+            className={!canCreatePr ? 'opacity-60' : undefined}
+          />
           {onMerge && (
             mergeStatus === 'merged' ? (
               <span

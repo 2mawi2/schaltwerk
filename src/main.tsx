@@ -15,6 +15,7 @@ import { ModalProvider } from './contexts/ModalContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext'
 import { ToastProvider } from './common/toast/ToastProvider'
+import { GithubIntegrationProvider } from './contexts/GithubIntegrationContext'
 
 // Loading wrapper component
 const AppLoader: React.FC = () => {
@@ -36,23 +37,25 @@ const AppLoader: React.FC = () => {
           <FontSizeProvider>
             <KeyboardShortcutsProvider>
               <ProjectProvider>
-                <SessionsProvider>
-                  <ActionButtonsProvider>
-                    <ModalProvider>
-                      <SelectionProvider>
-                        <FocusProvider>
-                          <ReviewProvider>
-                            <RunProvider>
-                              <div className="h-screen w-screen">
-                                <App />
-                              </div>
-                            </RunProvider>
-                          </ReviewProvider>
-                        </FocusProvider>
-                      </SelectionProvider>
-                    </ModalProvider>
-                  </ActionButtonsProvider>
-                </SessionsProvider>
+                <GithubIntegrationProvider>
+                  <SessionsProvider>
+                    <ActionButtonsProvider>
+                      <ModalProvider>
+                        <SelectionProvider>
+                          <FocusProvider>
+                            <ReviewProvider>
+                              <RunProvider>
+                                <div className="h-screen w-screen">
+                                  <App />
+                                </div>
+                              </RunProvider>
+                            </ReviewProvider>
+                          </FocusProvider>
+                        </SelectionProvider>
+                      </ModalProvider>
+                    </ActionButtonsProvider>
+                  </SessionsProvider>
+                </GithubIntegrationProvider>
               </ProjectProvider>
             </KeyboardShortcutsProvider>
           </FontSizeProvider>

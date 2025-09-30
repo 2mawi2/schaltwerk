@@ -124,6 +124,7 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     onOpenProject(projectPath)
   }
 
+
   return (
     <div className="h-screen w-screen bg-slate-950 relative">
       {/* Logo positioned higher for HomeScreen layout */}

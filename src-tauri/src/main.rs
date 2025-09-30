@@ -28,6 +28,62 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::sync::OnceCell;
 
+#[cfg(target_os = "macos")]
+fn extend_process_path() {
+    use std::collections::HashSet;
+    use std::env;
+    use std::path::PathBuf;
+    use std::process::Command;
+
+    const EXTRA_PATHS: &[&str] = &[
+        "/opt/homebrew/bin",
+        "/opt/homebrew/sbin",
+        "/usr/local/bin",
+        "/usr/local/sbin",
+    ];
+
+    let mut current_paths: Vec<PathBuf> = env::var_os("PATH")
+        .map(|value| env::split_paths(&value).collect())
+        .unwrap_or_default();
+
+    let mut seen: HashSet<PathBuf> = current_paths.iter().cloned().collect();
+
+    for candidate in EXTRA_PATHS {
+        let path = PathBuf::from(candidate);
+        if seen.insert(path.clone()) {
+            current_paths.push(path);
+        }
+    }
+
+    let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
+    if let Ok(output) = Command::new(&shell)
+        .arg("-ilc")
+        .arg("echo -n $PATH")
+        .output()
+    {
+        if output.status.success() {
+            if let Ok(login_path) = String::from_utf8(output.stdout) {
+                for segment in login_path.split(':').filter(|s| !s.is_empty()) {
+                    let path = PathBuf::from(segment);
+                    if seen.insert(path.clone()) {
+                        current_paths.push(path);
+                    }
+                }
+            }
+        }
+    }
+
+    if let Ok(joined) = env::join_paths(&current_paths) {
+        env::set_var("PATH", &joined);
+        if let Some(path_str) = joined.to_str() {
+            log::info!("[startup] PATH after extend_process_path: {path_str}");
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn extend_process_path() {}
+
 // Import all commands
 use commands::*;
 
@@ -541,6 +597,8 @@ use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use tauri::Manager;
 
 fn main() {
+    extend_process_path();
+
     let raw_args: Vec<String> = std::env::args().collect();
     if let Some(action) = crate::cli::detect_special_cli_action(&raw_args) {
         crate::cli::perform_special_cli_action(action);
@@ -568,6 +626,7 @@ fn main() {
     // Initialize logging
     schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
+    log::info!("[startup] Effective PATH: {}", std::env::var("PATH").unwrap_or_default());
 
     // macOS: disable smart quotes/dashes/text substitutions app-wide
     macos_prefs::disable_smart_substitutions();
@@ -615,6 +674,10 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             // Development info
             get_development_info,
+            github_get_status,
+            github_authenticate,
+            github_connect_project,
+            github_create_reviewed_pr,
             // Permission commands
             permissions::check_folder_access,
             permissions::trigger_folder_permission_request,

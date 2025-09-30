@@ -5,10 +5,14 @@ import { makeId, calculateToastOverflow } from './toastUtils'
 import { logger } from '../../utils/logger'
 
 export interface ToastOptions {
-  tone: 'success' | 'warning' | 'error'
+  tone: 'success' | 'warning' | 'error' | 'info'
   title: string
   description?: string
   durationMs?: number
+  action?: {
+    label: string
+    onClick: () => void
+  }
 }
 
 interface ToastEntry extends ToastOptions {
@@ -86,16 +90,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           aria-atomic="false"
         >
           {toasts.map((toast) => {
-            const background = toast.tone === 'success'
-              ? theme.colors.accent.green.dark
-              : toast.tone === 'warning'
-                ? theme.colors.accent.yellow.dark
-                : theme.colors.accent.red.dark
-            const border = toast.tone === 'success'
-              ? theme.colors.accent.green.DEFAULT
-              : toast.tone === 'warning'
-                ? theme.colors.accent.yellow.DEFAULT
-                : theme.colors.accent.red.DEFAULT
+            const background = (() => {
+              switch (toast.tone) {
+                case 'success':
+                  return theme.colors.accent.green.dark
+                case 'warning':
+                  return theme.colors.accent.yellow.dark
+                case 'info':
+                  return theme.colors.accent.blue.dark
+                case 'error':
+                default:
+                  return theme.colors.accent.red.dark
+              }
+            })()
+
+            const border = (() => {
+              switch (toast.tone) {
+                case 'success':
+                  return theme.colors.accent.green.DEFAULT
+                case 'warning':
+                  return theme.colors.accent.yellow.DEFAULT
+                case 'info':
+                  return theme.colors.accent.blue.DEFAULT
+                case 'error':
+                default:
+                  return theme.colors.accent.red.DEFAULT
+              }
+            })()
 
             return (
               <div
@@ -106,24 +127,49 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   border: `1px solid ${border}`,
                 }}
               >
-                <div className="flex items-start gap-2 px-3 py-2 text-sm" style={{ color: theme.colors.text.primary }}>
+                <div className="flex items-start gap-3 px-3 py-2 text-sm" style={{ color: theme.colors.text.primary }}>
                   <div className="flex-1">
                     <div className="font-semibold leading-tight">{toast.title}</div>
                     {toast.description && (
                       <div className="mt-0.5 text-xs opacity-80 leading-snug">{toast.description}</div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    aria-label="Dismiss notification"
-                    onClick={() => dismissToast(toast.id)}
-                    className="ml-1 rounded p-1 text-xs transition-colors duration-150"
-                    style={{
-                      color: theme.colors.text.secondary,
-                    }}
-                  >
-                    ×
-                  </button>
+                  <div className="flex flex-col gap-1 items-end">
+                    {toast.action && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            toast.action?.onClick()
+                          } catch (error) {
+                            logger.warn('Toast action failed', error)
+                          } finally {
+                            dismissToast(toast.id)
+                          }
+                        }}
+                        className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium transition-colors disabled:opacity-60 hover:opacity-90"
+                        style={{
+                          backgroundColor: theme.colors.accent.blue.DEFAULT,
+                          border: `1px solid ${theme.colors.accent.blue.light}`,
+                          color: theme.colors.background.primary,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {toast.action.label}
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      aria-label="Dismiss notification"
+                      onClick={() => dismissToast(toast.id)}
+                      className="rounded p-1 text-xs transition-colors duration-150"
+                      style={{
+                        color: theme.colors.text.secondary,
+                      }}
+                    >
+                      ×
+                    </button>
+                  </div>
                 </div>
               </div>
             )
