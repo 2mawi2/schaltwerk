@@ -207,7 +207,18 @@ pub async fn schaltwerk_core_archive_spec_session(
     events::emit_archive_updated(&app, &repo, count);
     // Also emit a SessionRemoved event so the frontend can compute the next selection consistently
     events::emit_session_removed(&app, &name);
-    events::emit_sessions_refreshed(&app, &Vec::<EnrichedSession>::new());
+
+    let sessions = match manager.list_enriched_sessions() {
+        Ok(list) => list,
+        Err(error) => {
+            log::error!(
+                "Failed to load sessions after archiving spec '{name}': {error}"
+            );
+            Vec::new()
+        }
+    };
+
+    events::emit_sessions_refreshed(&app, &sessions);
     Ok(())
 }
 
