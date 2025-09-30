@@ -261,9 +261,15 @@ describe('SelectionContext', () => {
 
       await waitFor(() => {
         const registerCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.RegisterSessionTerminals)
-        const sessionRegistration = registerCalls.find(([, args]) => (args as { sessionId?: string | null })?.sessionId === 'test-session')
+        const sessionRegistration = registerCalls.find(([, args]) => {
+          const directSessionId = (args as { sessionId?: string | null })?.sessionId
+          if (directSessionId === 'test-session') return true
+          const payloadSessionId = (args as { payload?: { sessionId?: string | null } })?.payload?.sessionId
+          return payloadSessionId === 'test-session'
+        })
         expect(sessionRegistration).toBeTruthy()
-        const terminalIds = (sessionRegistration?.[1] as { terminalIds?: string[] })?.terminalIds ?? []
+        const payload = (sessionRegistration?.[1] as { payload?: { terminalIds?: string[] } })?.payload
+        const terminalIds = payload?.terminalIds ?? (sessionRegistration?.[1] as { terminalIds?: string[] })?.terminalIds ?? []
         expect(terminalIds).toContain('session-test-session-bottom-0')
       })
     })

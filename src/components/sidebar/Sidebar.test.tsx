@@ -188,6 +188,23 @@ describe('Sidebar', () => {
     eventListeners.clear()
   })
 
+  describe('layout safeguards', () => {
+    it('keeps sidebar flex containers scrollable', async () => {
+      const { container } = render(<TestProviders><Sidebar /></TestProviders>)
+
+      await waitFor(() => {
+        expect(container.firstElementChild).not.toBeNull()
+      })
+
+      const root = container.firstElementChild as HTMLElement
+      expect(root).toHaveClass('min-h-0')
+
+      const sessionScroll = container.querySelector('[data-testid="session-scroll-container"]') as HTMLElement | null
+      expect(sessionScroll).toBeTruthy()
+      expect(sessionScroll).toHaveClass('min-h-0')
+    })
+  })
+
   describe('session list rendering', () => {
     it('should show empty state when no sessions', async () => {
       // Mock both the regular sessions and specs calls

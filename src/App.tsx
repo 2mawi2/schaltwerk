@@ -959,11 +959,11 @@ function AppContent() {
       {!showHome && activeTabPath && (
         <>
           <div className="pt-[32px] h-full flex flex-col w-full">
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
               <Split className="h-full w-full flex" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
                 <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
-                  <div className="h-full flex flex-col">
-                    <div className="flex-1 overflow-y-auto">
+                  <div className="h-full flex flex-col min-h-0">
+                    <div className="flex-1 min-h-0 overflow-y-auto">
                       <SessionErrorBoundary>
                         <Sidebar 
                         isDiffViewerOpen={isDiffViewerOpen} 
