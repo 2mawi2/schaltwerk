@@ -62,11 +62,9 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     const lastActivity = formatLastActivity(s.last_modified)
     const isBlocked = s.is_blocked || false
     const isReadyToMerge = s.ready_to_merge || false
-    
-    // Determine session state - use the backend session_state directly
-    const baseSessionState = s.session_state
-    const sessionState = isReadyToMerge ? 'reviewed' : baseSessionState
-    const isRunningSession = baseSessionState === 'running'
+
+    const sessionState = s.session_state
+    const isRunningSession = sessionState === 'running'
     
     // Get background color based on state
     const getStateBackground = () => {
@@ -138,6 +136,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                         <div>
                             <SessionActions
                                 sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
+                                isReadyToMerge={isReadyToMerge}
                                 sessionId={s.session_id}
                                 hasUncommittedChanges={s.has_uncommitted_changes}
                                 branch={s.branch}
@@ -164,6 +163,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
                 <div className="flex items-center justify-end -mt-0.5">
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
+                        isReadyToMerge={isReadyToMerge}
                         sessionId={s.session_id}
                         hasUncommittedChanges={s.has_uncommitted_changes}
                         branch={s.branch}

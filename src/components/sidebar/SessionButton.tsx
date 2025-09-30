@@ -97,8 +97,7 @@ export const SessionButton = memo<SessionButtonProps>(({
     const agentLabel = agentKey
     const agentColor = agentKey === 'claude' ? 'blue' : agentKey === 'opencode' ? 'green' : agentKey === 'gemini' ? 'orange' : agentKey === 'codex' ? 'red' : ''
     
-    // Determine session state - use the backend session_state directly
-    const sessionState = isReadyToMerge ? 'reviewed' : s.session_state
+    const sessionState = s.session_state
     const showReviewedDirtyBadge = isReadyToMerge && !isRunning && !!s.has_uncommitted_changes
     
     // State icon removed - no longer using emojis
@@ -212,6 +211,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                     <div className="flex items-center gap-2">
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
+                            isReadyToMerge={isReadyToMerge}
                             sessionId={s.session_id}
                             sessionSlug={s.session_id}
                             worktreePath={s.worktree_path}
@@ -243,6 +243,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                 <div className="flex items-center justify-end -mt-0.5">
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
+                        isReadyToMerge={isReadyToMerge}
                         sessionId={s.session_id}
                         sessionSlug={s.session_id}
                         worktreePath={s.worktree_path}

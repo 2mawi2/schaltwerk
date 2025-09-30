@@ -26,6 +26,7 @@ const spinnerIcon = (
 
 interface SessionActionsProps {
   sessionState: 'spec' | 'running' | 'reviewed';
+  isReadyToMerge?: boolean;
   sessionId: string;
   hasUncommittedChanges?: boolean;
   branch?: string;
@@ -54,6 +55,7 @@ interface SessionActionsProps {
 
 export function SessionActions({
   sessionState,
+  isReadyToMerge = false,
   sessionId,
   hasUncommittedChanges = false,
   sessionSlug,
@@ -135,14 +137,14 @@ export function SessionActions({
   }, [worktreePath, github, sessionId, sessionSlug, defaultBranch, pushToast])
 
   useEffect(() => {
-    if (sessionState !== 'reviewed') return
+    if (!isReadyToMerge) return
     const cleanup = listenUiEvent(UiEvent.CreatePullRequest, (detail) => {
       if (detail.sessionId === sessionId) {
         handleCreateGithubPr()
       }
     })
     return cleanup
-  }, [sessionState, sessionId, handleCreateGithubPr])
+  }, [isReadyToMerge, sessionId, handleCreateGithubPr])
 
   return (
     <div className={`flex items-center ${spacing}`}>
@@ -171,7 +173,7 @@ export function SessionActions({
       )}
 
       {/* Running state actions */}
-      {sessionState === 'running' && (
+      {sessionState === 'running' && !isReadyToMerge && (
         <>
           {showPromoteIcon && onPromoteVersion && (
             <div
@@ -236,7 +238,7 @@ export function SessionActions({
       )}
 
       {/* Reviewed state actions */}
-      {sessionState === 'reviewed' && (
+      {isReadyToMerge && (
         <>
           <IconButton
             icon={creatingPr ? spinnerIcon : <FaGithub />}

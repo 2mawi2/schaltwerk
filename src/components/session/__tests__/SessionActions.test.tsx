@@ -50,6 +50,7 @@ function renderWithGithub(value: Partial<GithubIntegrationValue>) {
     <GithubIntegrationContext.Provider value={contextValue}>
       <SessionActions
         sessionState="reviewed"
+        isReadyToMerge={true}
         sessionId="session-123"
         sessionSlug="session-123"
         worktreePath="/tmp/worktrees/session-123"
