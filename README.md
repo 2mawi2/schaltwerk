@@ -157,6 +157,10 @@ npm run tauri build
 npm run test
 ```
 
+## Documentation
+
+- [Schaltwerk docs](./docs/index.md) – installation, core concepts, agent setup, usage workflow, MCP integration, shortcuts
+
 ## Key Keyboard Shortcuts
 
 Master these for maximum productivity:
