@@ -9,6 +9,9 @@ use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 
+const LARGE_SESSION_THRESHOLD: usize = 500;
+const VERY_LARGE_SESSION_THRESHOLD: usize = 2000;
+
 #[cfg(test)]
 static GIT_STATS_CALL_COUNT: OnceLock<AtomicUsize> = OnceLock::new();
 
@@ -288,21 +291,30 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
     let mut deletions: u32 = 0;
     let mut saw_schema_change: bool = false;
 
-    // Use the same single diff approach as get_changed_files for consistency
-    // This shows net changes from base to current state
     let mut opts = DiffOptions::new();
     opts.include_untracked(true).recurse_untracked_dirs(true);
 
     if let Some(ref bt) = base_tree {
         if let Ok(diff) = repo.diff_tree_to_workdir_with_index(Some(bt), Some(&mut opts)) {
-            // Calculate stats from the single comprehensive diff
-            if let Ok(stats) = diff.stats() {
-                insertions = stats.insertions() as u32;
-                deletions = stats.deletions() as u32;
-            }
-
-            // Process deltas for file tracking and schema change detection
             for delta in diff.deltas() {
+                if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
+                    if let Some(path_str) = path.to_str() {
+                        files.insert(path_str.to_string());
+                        files_for_mtime.insert(path_str.to_string());
+                    }
+                }
+
+                if files.len() >= VERY_LARGE_SESSION_THRESHOLD {
+                    log::info!(
+                        "Session has {} files (>= {VERY_LARGE_SESSION_THRESHOLD}), skipping stats calculation",
+                        files.len()
+                    );
+                    return Err(anyhow::anyhow!(
+                        "Session too large ({} files) for stats calculation",
+                        files.len()
+                    ));
+                }
+
                 use git2::Delta;
                 match delta.status() {
                     Delta::Deleted | Delta::Renamed | Delta::Typechange => {
@@ -310,13 +322,18 @@ pub fn calculate_git_stats_fast(worktree_path: &Path, parent_branch: &str) -> Re
                     }
                     _ => {}
                 }
+            }
 
-                if let Some(path) = delta.new_file().path().or_else(|| delta.old_file().path()) {
-                    if let Some(path_str) = path.to_str() {
-                        files.insert(path_str.to_string());
-                        files_for_mtime.insert(path_str.to_string());
-                    }
-                }
+            if files.len() >= LARGE_SESSION_THRESHOLD {
+                log::info!(
+                    "Session has {} files (>= {LARGE_SESSION_THRESHOLD}), stats calculation may be slow",
+                    files.len()
+                );
+            }
+
+            if let Ok(stats) = diff.stats() {
+                insertions = stats.insertions() as u32;
+                deletions = stats.deletions() as u32;
             }
         }
     }

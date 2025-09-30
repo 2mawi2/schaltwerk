@@ -1,5 +1,4 @@
 use std::path::Path;
-// no serde derives used in this module
 use crate::{get_schaltwerk_core, get_project_manager};
 use crate::domains::git::service as git;
 use crate::domains::sessions::entity::ChangedFile;
@@ -12,6 +11,116 @@ use crate::domains::workspace::diff_engine::{
 use crate::binary_detection::{is_binary_file_by_extension, get_unsupported_reason};
 use serde::Serialize;
 use git2::{Repository, Status, Oid, ObjectType, Sort, DiffOptions, DiffFindOptions, Delta};
+
+const MAX_DIFF_LINES: usize = 5000;
+const MAX_FILE_SIZE_FOR_DIFF: usize = 10 * 1024 * 1024;
+
+fn check_file_size_for_diff(content: &str, file_path: &str) -> Option<DiffResponse> {
+    if content.len() > MAX_FILE_SIZE_FOR_DIFF {
+        return Some(DiffResponse {
+            lines: vec![],
+            stats: calculate_diff_stats(&[]),
+            file_info: FileInfo {
+                language: get_file_language(file_path),
+                size_bytes: content.len(),
+            },
+            is_large_file: true,
+            is_binary: Some(false),
+            unsupported_reason: Some(format!(
+                "File too large for diff view ({:.1}MB > {:.1}MB limit)",
+                content.len() as f64 / 1024.0 / 1024.0,
+                MAX_FILE_SIZE_FOR_DIFF as f64 / 1024.0 / 1024.0
+            )),
+        });
+    }
+    None
+}
+
+fn check_diff_line_count(
+    diff_lines: Vec<crate::domains::workspace::diff_engine::DiffLine>,
+    file_path: &str,
+    file_size: usize,
+) -> Result<Vec<crate::domains::workspace::diff_engine::DiffLine>, DiffResponse> {
+    if diff_lines.len() > MAX_DIFF_LINES {
+        log::info!(
+            "Diff for {} has {} lines, truncating to {}",
+            file_path,
+            diff_lines.len(),
+            MAX_DIFF_LINES
+        );
+        let truncated_lines: Vec<_> = diff_lines.into_iter().take(MAX_DIFF_LINES).collect();
+        let stats = calculate_diff_stats(&truncated_lines);
+
+        return Err(DiffResponse {
+            lines: truncated_lines,
+            stats,
+            file_info: FileInfo {
+                language: get_file_language(file_path),
+                size_bytes: file_size,
+            },
+            is_large_file: true,
+            is_binary: Some(false),
+            unsupported_reason: Some(format!(
+                "Diff too large, showing first {} of many lines",
+                MAX_DIFF_LINES
+            )),
+        });
+    }
+    Ok(diff_lines)
+}
+
+fn check_file_size_for_split_diff(content: &str, file_path: &str) -> Option<SplitDiffResponse> {
+    if content.len() > MAX_FILE_SIZE_FOR_DIFF {
+        return Some(SplitDiffResponse {
+            split_result: compute_split_diff("", ""),
+            stats: calculate_split_diff_stats(&compute_split_diff("", "")),
+            file_info: FileInfo {
+                language: get_file_language(file_path),
+                size_bytes: content.len(),
+            },
+            is_large_file: true,
+            is_binary: Some(false),
+            unsupported_reason: Some(format!(
+                "File too large for diff view ({:.1}MB > {:.1}MB limit)",
+                content.len() as f64 / 1024.0 / 1024.0,
+                MAX_FILE_SIZE_FOR_DIFF as f64 / 1024.0 / 1024.0
+            )),
+        });
+    }
+    None
+}
+
+fn check_split_diff_size(
+    split_result: &crate::domains::workspace::diff_engine::SplitDiffResult,
+    file_path: &str,
+    file_size: usize,
+) -> Option<SplitDiffResponse> {
+    let total_lines = split_result.left_lines.len() + split_result.right_lines.len();
+    if total_lines > MAX_DIFF_LINES {
+        log::info!(
+            "Split diff for {} has {} total lines, which exceeds limit of {}",
+            file_path,
+            total_lines,
+            MAX_DIFF_LINES
+        );
+        return Some(SplitDiffResponse {
+            split_result: compute_split_diff("", ""),
+            stats: calculate_split_diff_stats(&compute_split_diff("", "")),
+            file_info: FileInfo {
+                language: get_file_language(file_path),
+                size_bytes: file_size,
+            },
+            is_large_file: true,
+            is_binary: Some(false),
+            unsupported_reason: Some(format!(
+                "Diff too large for split view ({} lines > {} limit). Try unified view.",
+                total_lines,
+                MAX_DIFF_LINES
+            )),
+        });
+    }
+    None
+}
 
 #[tauri::command]
 pub async fn get_changed_files_from_main(session_name: Option<String>) -> Result<Vec<ChangedFile>, String> {
@@ -311,6 +420,137 @@ mod tests {
         assert!(!file_paths.contains(&&".schaltwerk".to_string()));
         assert!(!file_paths.contains(&&".schaltwerk/config.json".to_string()));
         assert!(!file_paths.contains(&&".schaltwerk/worktrees/branch1/file.txt".to_string()));
+    }
+
+    #[test]
+    fn test_check_file_size_for_diff_small_file() {
+        let small_content = "a".repeat(1000);
+        let result = check_file_size_for_diff(&small_content, "test.txt");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_check_file_size_for_diff_large_file() {
+        let large_content = "a".repeat(11 * 1024 * 1024);
+        let result = check_file_size_for_diff(&large_content, "test.txt");
+        assert!(result.is_some());
+        let response = result.unwrap();
+        assert_eq!(response.is_large_file, true);
+        assert!(response.unsupported_reason.unwrap().contains("File too large"));
+    }
+
+    #[test]
+    fn test_check_file_size_for_diff_exact_limit() {
+        let exact_limit_content = "a".repeat(MAX_FILE_SIZE_FOR_DIFF);
+        let result = check_file_size_for_diff(&exact_limit_content, "test.txt");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_check_file_size_for_diff_one_byte_over() {
+        let over_limit_content = "a".repeat(MAX_FILE_SIZE_FOR_DIFF + 1);
+        let result = check_file_size_for_diff(&over_limit_content, "test.txt");
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_check_diff_line_count_small() {
+        use crate::domains::workspace::diff_engine::{DiffLine, DiffLineType};
+        let lines = vec![
+            DiffLine { line_type: DiffLineType::Context, content: "line1".to_string(), old_line_number: Some(1), new_line_number: Some(1) },
+            DiffLine { line_type: DiffLineType::Addition, content: "line2".to_string(), old_line_number: None, new_line_number: Some(2) },
+        ];
+        let result = check_diff_line_count(lines, "test.txt", 1000);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_check_diff_line_count_large() {
+        use crate::domains::workspace::diff_engine::{DiffLine, DiffLineType};
+        let lines: Vec<DiffLine> = (0..MAX_DIFF_LINES + 100)
+            .map(|i| DiffLine {
+                line_type: DiffLineType::Context,
+                content: format!("line{}", i),
+                old_line_number: Some(i as u32),
+                new_line_number: Some(i as u32),
+            })
+            .collect();
+        let result = check_diff_line_count(lines, "test.txt", 1000);
+        assert!(result.is_err());
+        let response = result.unwrap_err();
+        assert_eq!(response.is_large_file, true);
+        assert_eq!(response.lines.len(), MAX_DIFF_LINES);
+        assert!(response.unsupported_reason.unwrap().contains("Diff too large"));
+    }
+
+    #[test]
+    fn test_check_diff_line_count_exact_limit() {
+        use crate::domains::workspace::diff_engine::{DiffLine, DiffLineType};
+        let lines: Vec<DiffLine> = (0..MAX_DIFF_LINES)
+            .map(|i| DiffLine {
+                line_type: DiffLineType::Context,
+                content: format!("line{}", i),
+                old_line_number: Some(i as u32),
+                new_line_number: Some(i as u32),
+            })
+            .collect();
+        let result = check_diff_line_count(lines, "test.txt", 1000);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().len(), MAX_DIFF_LINES);
+    }
+
+    #[test]
+    fn test_check_split_diff_size_small() {
+        use crate::domains::workspace::diff_engine::{SplitDiffResult, SplitDiffLine, SplitLineType};
+        let split_result = SplitDiffResult {
+            left_lines: vec![
+                SplitDiffLine { line_type: SplitLineType::Both, content: "line1".to_string(), line_number: Some(1) },
+            ],
+            right_lines: vec![
+                SplitDiffLine { line_type: SplitLineType::Both, content: "line1".to_string(), line_number: Some(1) },
+            ],
+        };
+        let result = check_split_diff_size(&split_result, "test.txt", 1000);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_check_split_diff_size_large() {
+        use crate::domains::workspace::diff_engine::{SplitDiffResult, SplitDiffLine, SplitLineType};
+        let left_lines: Vec<SplitDiffLine> = (0..MAX_DIFF_LINES)
+            .map(|i| SplitDiffLine {
+                line_type: SplitLineType::Left,
+                content: format!("line{}", i),
+                line_number: Some(i as u32),
+            })
+            .collect();
+        let right_lines: Vec<SplitDiffLine> = (0..100)
+            .map(|i| SplitDiffLine {
+                line_type: SplitLineType::Right,
+                content: format!("line{}", i),
+                line_number: Some(i as u32),
+            })
+            .collect();
+        let split_result = SplitDiffResult {
+            left_lines,
+            right_lines,
+        };
+        let result = check_split_diff_size(&split_result, "test.txt", 1000);
+        assert!(result.is_some());
+        let response = result.unwrap();
+        assert_eq!(response.is_large_file, true);
+        assert!(response.unsupported_reason.unwrap().contains("Diff too large for split view"));
+    }
+
+    #[test]
+    fn test_check_file_size_for_split_diff_large() {
+        let large_content = "a".repeat(11 * 1024 * 1024);
+        let result = check_file_size_for_split_diff(&large_content, "test.txt");
+        assert!(result.is_some());
+        let response = result.unwrap();
+        assert_eq!(response.is_large_file, true);
+        assert!(response.unsupported_reason.unwrap().contains("File too large"));
     }
 }
 
@@ -718,11 +958,20 @@ pub async fn compute_unified_diff_backend(
         });
     }
     
+    if let Some(response) = check_file_size_for_diff(&new_content, &file_path) {
+        return Ok(response);
+    }
+
     // Profile diff computation
     let start_diff = Instant::now();
     let diff_lines = compute_unified_diff(&old_content, &new_content);
     let diff_duration = start_diff.elapsed();
-    
+
+    let diff_lines = match check_diff_line_count(diff_lines, &file_path, new_content.len()) {
+        Ok(lines) => lines,
+        Err(response) => return Ok(response),
+    };
+
     // Profile collapsible sections
     let start_collapse = Instant::now();
     let lines_with_collapsible = add_collapsible_sections(diff_lines);
@@ -811,11 +1060,19 @@ pub async fn compute_split_diff_backend(
         });
     }
     
+    if let Some(response) = check_file_size_for_split_diff(&new_content, &file_path) {
+        return Ok(response);
+    }
+
     // Profile diff computation
     let start_diff = Instant::now();
     let split_result = compute_split_diff(&old_content, &new_content);
     let diff_duration = start_diff.elapsed();
-    
+
+    if let Some(response) = check_split_diff_size(&split_result, &file_path, new_content.len()) {
+        return Ok(response);
+    }
+
     // Profile stats calculation
     let start_stats = Instant::now();
     let stats = calculate_split_diff_stats(&split_result);
