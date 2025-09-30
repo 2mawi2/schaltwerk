@@ -1303,12 +1303,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         const rehydrateAfterResume = async () => {
             try {
-                logger.debug(`[Terminal ${terminalId}] rehydrateAfterResume called, wasSuspended=${wasSuspendedRef.current}`);
-                if (!wasSuspendedRef.current) {
-                    logger.debug(`[Terminal ${terminalId}] Ignoring TerminalResumed - terminal was not suspended`)
-                    return
-                }
+                const sawSuspension = wasSuspendedRef.current
                 wasSuspendedRef.current = false
+
+                logger.debug(`[Terminal ${terminalId}] rehydrateAfterResume called, previouslySuspended=${sawSuspension}`)
+                if (!sawSuspension) {
+                    logger.debug(`[Terminal ${terminalId}] Proceeding with resume hydration despite missing suspend event`)
+                }
 
                 logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
                 pendingOutput.current = []

@@ -1240,6 +1240,33 @@ describe('Terminal component', () => {
     expect(writes).toContain('RESUMED')
   })
 
+  it('rehydrates on TerminalResumed even when no TerminalSuspended event was observed', async () => {
+    const core = TauriCore as unknown as MockTauriCore
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 1,
+      startSeq: 0,
+      data: 'INITIAL'
+    }))
+
+    renderTerminal({ terminalId: 'session-resume-offscreen', sessionName: 'resume-offscreen' })
+    await flushAll()
+
+    const xterm = getLastXtermInstance()
+    ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => ({
+      seq: 2,
+      startSeq: 0,
+      data: 'LATEST'
+    }))
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-offscreen' })
+    await advanceAndFlush(400)
+
+    const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
+    expect(writes).toContain('LATEST')
+  })
+
   it('updates terminal font family when settings and runtime events change', async () => {
     const core = TauriCore as unknown as MockTauriCore
     const fontSpy = vi.spyOn(TerminalFonts, 'buildTerminalFontFamily')
