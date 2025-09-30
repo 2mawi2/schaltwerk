@@ -888,6 +888,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_find_codex_session_fast_uses_cached_snapshot() {
         let temp_home = tempdir().unwrap();
         let sessions_root = temp_home.path().join(".codex").join("sessions");

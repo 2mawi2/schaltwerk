@@ -31,6 +31,7 @@ import { EnrichedSession, SessionInfo } from '../../types/session'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
 import { useProject } from '../../contexts/ProjectContext'
+import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 
 // Normalize backend states to UI categories
 function mapSessionUiState(info: SessionInfo): 'spec' | 'running' | 'reviewed' {
@@ -386,6 +387,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         if (selection.kind === 'session') {
             const selectedSession = sessions.find(s => s.info.session_id === selection.payload)
             if (selectedSession) {
+                const sessionDisplayName = getSessionDisplayName(selectedSession.info)
                 // Check if it's a spec
                 if (isSpec(selectedSession.info)) {
                     // For specs, always show confirmation dialog (ignore immediate flag)
@@ -393,7 +395,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         action: 'delete-spec',
                         sessionId: selectedSession.info.session_id,
                         sessionName: selectedSession.info.session_id,
-                        sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                        sessionDisplayName,
                         branch: selectedSession.info.branch,
                         hasUncommittedChanges: false,
                     })
@@ -405,7 +407,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             action: 'cancel-immediate',
                             sessionId: selectedSession.info.session_id,
                             sessionName: selectedSession.info.session_id,
-                            sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                            sessionDisplayName,
                             branch: selectedSession.info.branch,
                             hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false,
                         })
@@ -414,7 +416,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                             action: 'cancel',
                             sessionId: selectedSession.info.session_id,
                             sessionName: selectedSession.info.session_id,
-                            sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                            sessionDisplayName,
                             branch: selectedSession.info.branch,
                             hasUncommittedChanges: selectedSession.info.has_uncommitted_changes || false,
                         })
@@ -565,7 +567,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 setConvertToDraftModal({
                     open: true,
                     sessionName: selectedSession.info.session_id,
-                    sessionDisplayName: selectedSession.info.display_name || selectedSession.info.session_id,
+                    sessionDisplayName: getSessionDisplayName(selectedSession.info),
                     hasUncommitted: selectedSession.info.has_uncommitted_changes || false
                 })
             }
@@ -1183,11 +1185,12 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                     onCancel={(sessionId, hasUncommitted) => {
                                         const session = sessions.find(s => s.info.session_id === sessionId)
                                         if (session) {
+                                            const sessionDisplayName = getSessionDisplayName(session.info)
                                             emitUiEvent(UiEvent.SessionAction, {
                                                 action: 'cancel',
                                                 sessionId,
                                                 sessionName: sessionId,
-                                                sessionDisplayName: session.info.display_name || session.info.session_id,
+                                                sessionDisplayName,
                                                 branch: session.info.branch,
                                                 hasUncommittedChanges: hasUncommitted,
                                             })
@@ -1205,7 +1208,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                                             setConvertToDraftModal({
                                                 open: true,
                                                 sessionName: sessionId,
-                                                sessionDisplayName: session.info.display_name || session.info.session_id,
+                                                sessionDisplayName: getSessionDisplayName(session.info),
                                                 hasUncommitted: session.info.has_uncommitted_changes || false
                                             })
                                         }

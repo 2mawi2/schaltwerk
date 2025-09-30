@@ -5,6 +5,7 @@ import { SessionActions } from '../session/SessionActions'
 import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
 import { theme } from '../../common/theme'
+import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 
 export interface SessionCardProps {
     session: {
@@ -52,7 +53,7 @@ export const SessionCard = memo(forwardRef<HTMLDivElement, SessionCardProps>(({
     isMarkReadyDisabled = false
 }, ref) => {
     const s = session.info
-    const sessionName = s.display_name || s.session_id
+    const sessionName = getSessionDisplayName(s)
     const currentAgent = s.current_task || `Working on ${sessionName}`
     const progressPercent = s.todo_percentage || 0
     const additions = s.diff_stats?.insertions || s.diff_stats?.additions || 0

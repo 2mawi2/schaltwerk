@@ -6,6 +6,7 @@ import { SessionInfo, SessionMonitorStatus } from '../../types/session'
 import { UncommittedIndicator } from '../common/UncommittedIndicator'
 import { theme } from '../../common/theme'
 import type { MergeStatus } from '../../contexts/SessionsContext'
+import { getSessionDisplayName } from '../../utils/sessionDisplayName'
 
 interface SessionButtonProps {
     session: {
@@ -82,7 +83,7 @@ export const SessionButton = memo<SessionButtonProps>(({
 }) => {
     const s = session.info
     const color = getSessionStateColor(s.session_state)
-    const sessionName = s.display_name || s.session_id
+    const sessionName = getSessionDisplayName(s)
     const currentAgent = s.current_task || `Working on ${sessionName}`
     const progressPercent = s.todo_percentage || 0
     const additions = s.diff_stats?.insertions || s.diff_stats?.additions || 0

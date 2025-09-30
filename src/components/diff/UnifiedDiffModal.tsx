@@ -8,6 +8,7 @@ import { useLineSelection } from '../../hooks/useLineSelection'
 import { useDiffHover } from '../../hooks/useDiffHover'
 // getFileLanguage now comes from Rust backend via fileInfo in diff responses
 import { loadFileDiff, type FileDiffData } from './loadDiffs'
+import { getFileLanguage } from '../../utils/diff'
 import { useReviewComments } from '../../hooks/useReviewComments'
 import { DiffFileExplorer, ChangedFile } from './DiffFileExplorer'
 import { DiffViewer } from './DiffViewer'
@@ -700,29 +701,9 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   const language = useMemo(() => {
     if (!selectedFile) return undefined
     const diffData = allFileDiffs.get(selectedFile)
-    // Get language from Rust backend fileInfo, fallback to path-based detection
-    return diffData?.fileInfo?.language || getFileLanguageFromPath(selectedFile)
+    // Get language from Rust backend fileInfo, fallback to shared helper
+    return diffData?.fileInfo?.language || getFileLanguage(selectedFile)
   }, [selectedFile, allFileDiffs])
-
-  // Fallback function for language detection from file path
-  function getFileLanguageFromPath(filePath: string): string | undefined {
-    if (!filePath) return undefined
-    const ext = filePath.split('.').pop()?.toLowerCase()
-    const languageMap: Record<string, string> = {
-      'ts': 'typescript', 'tsx': 'typescript',
-      'js': 'javascript', 'jsx': 'javascript',
-      'rs': 'rust', 'py': 'python', 'go': 'go',
-      'java': 'java', 'kt': 'kotlin', 'swift': 'swift',
-      'c': 'c', 'h': 'c',
-      'cpp': 'cpp', 'cc': 'cpp', 'cxx': 'cpp',
-      'cs': 'csharp', 'rb': 'ruby', 'php': 'php',
-      'sh': 'bash', 'bash': 'bash', 'zsh': 'bash',
-      'json': 'json', 'yml': 'yaml', 'yaml': 'yaml',
-      'toml': 'toml', 'md': 'markdown',
-      'css': 'css', 'scss': 'scss', 'less': 'less'
-    }
-    return languageMap[ext || '']
-  }
   const HIGHLIGHT_LINE_CAP = 3000
 
   const highlightCacheRef = useRef<Map<string, string>>(new Map())

@@ -126,11 +126,6 @@ export interface MockContextValue<T = unknown> {
   error: string | null
 }
 
-export type MockComponent = React.ComponentType<Record<string, unknown>>
-export type MockElementRef = React.RefObject<HTMLElement>
-export type MockEventHandler = (event: Event | CustomEvent) => void
-export type MockAsyncHandler = (args: unknown) => Promise<void>
-
 export interface MockTestUtils {
   render: MockFn
   fireEvent: MockFn

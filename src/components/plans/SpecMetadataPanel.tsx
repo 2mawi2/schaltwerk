@@ -6,6 +6,15 @@ import { theme } from '../../common/theme'
 import { AnimatedText } from '../common/AnimatedText'
 import { SessionActions } from '../session/SessionActions'
 import { logger } from '../../utils/logger'
+import { formatDateTime } from '../../utils/dateTime'
+
+const METADATA_DATE_OPTIONS: Intl.DateTimeFormatOptions = {
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit'
+}
 
 interface SpecMetadata {
   created_at?: string
@@ -41,22 +50,6 @@ export function SpecMetadataPanel({ sessionName }: Props) {
 
     loadMetadata()
   }, [sessionName])
-
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return 'Unknown'
-    try {
-      const date = new Date(dateStr)
-      return date.toLocaleDateString('en-US', { 
-        month: 'short', 
-        day: 'numeric', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    } catch {
-      return 'Unknown'
-    }
-  }
 
   if (loading) {
     return (
@@ -131,7 +124,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
               color: theme.colors.text.primary, 
               fontSize: theme.fontSize.body 
             }}>
-              {formatDate(metadata.created_at)}
+              {formatDateTime(metadata.created_at, METADATA_DATE_OPTIONS, 'Unknown', 'en-US')}
             </div>
           </div>
         </div>
@@ -154,7 +147,7 @@ export function SpecMetadataPanel({ sessionName }: Props) {
                 color: theme.colors.text.primary, 
                 fontSize: theme.fontSize.body 
               }}>
-                {formatDate(metadata.updated_at)}
+                {formatDateTime(metadata.updated_at, METADATA_DATE_OPTIONS, 'Unknown', 'en-US')}
               </div>
             </div>
           </div>
