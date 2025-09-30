@@ -13,6 +13,7 @@ import { MCPConfigPanel } from '../settings/MCPConfigPanel'
 import { SettingsArchivesSection } from '../settings/SettingsArchivesSection'
 import { logger } from '../../utils/logger'
 import { FontPicker } from './FontPicker'
+import { GithubProjectIntegrationCard } from '../settings/GithubProjectIntegrationCard'
 import {
     KeyboardShortcutAction,
     KeyboardShortcutConfig,
@@ -1071,6 +1072,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         <div className="flex flex-col h-full">
             <div className="flex-1 overflow-y-auto p-6">
                 <div className="space-y-4">
+                    <GithubProjectIntegrationCard projectPath={projectPath} onNotify={showNotification} />
+
                     <div>
                         <h3 className="text-body font-medium text-slate-200 mb-2">Branch Prefix</h3>
                         <div className="text-body text-slate-400 mb-3">

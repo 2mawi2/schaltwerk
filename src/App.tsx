@@ -27,6 +27,7 @@ import { useOnboarding } from './hooks/useOnboarding'
 import { useSessionPrefill } from './hooks/useSessionPrefill'
 import { useRightPanelPersistence } from './hooks/useRightPanelPersistence'
 import { theme } from './common/theme'
+import { GithubIntegrationProvider, useGithubIntegrationContext } from './contexts/GithubIntegrationContext'
 import { resolveOpenPathForOpenButton } from './utils/resolveOpenPath'
 import { waitForSessionsRefreshed } from './utils/waitForSessionsRefreshed'
 import { TauriCommands } from './common/tauriCommands'
@@ -53,12 +54,22 @@ function getBasename(path: string): string {
   return path.split(/[/\\]/).pop() || path
 }
 
-export default function App() {
+function AppContent() {
   const { selection, clearTerminalTracking } = useSelection()
   const { projectPath, setProjectPath } = useProject()
   const { increaseFontSizes, decreaseFontSizes, resetFontSizes } = useFontSize()
   const { isOnboardingOpen, completeOnboarding, closeOnboarding, openOnboarding } = useOnboarding()
   const { fetchSessionForPrefill } = useSessionPrefill()
+  const github = useGithubIntegrationContext()
+
+  const refreshGithubStatus = github.refreshStatus
+
+  useEffect(() => {
+    if (!projectPath) return
+    refreshGithubStatus().catch(error => {
+      logger.warn('[App] Failed to refresh GitHub status after project change', error)
+    })
+  }, [projectPath, refreshGithubStatus])
 
   // Get dynamic shortcut displays
   const shortcuts = useMultipleShortcutDisplays([
@@ -947,20 +958,22 @@ export default function App() {
       {/* Show project content when a tab is active */}
       {!showHome && activeTabPath && (
         <>
-          <Split className="h-full w-full flex pt-[32px]" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
-            <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
-              <div className="h-full flex flex-col">
-                <div className="flex-1 overflow-y-auto">
-                  <SessionErrorBoundary>
-                    <Sidebar 
-                    isDiffViewerOpen={isDiffViewerOpen} 
-                    openTabs={openTabs}
-                    onSelectPrevProject={handleSelectPrevProject}
-                    onSelectNextProject={handleSelectNextProject}
-                  />
-                  </SessionErrorBoundary>
-                </div>
-                <div className="p-2 border-t grid grid-cols-2 gap-2" style={{ borderTopColor: theme.colors.border.default }}>
+          <div className="pt-[32px] h-full flex flex-col w-full">
+            <div className="flex-1">
+              <Split className="h-full w-full flex" sizes={[20, 80]} minSize={[240, 400]} gutterSize={6}>
+                <div className="h-full border-r overflow-y-auto" style={{ backgroundColor: theme.colors.background.secondary, borderRightColor: theme.colors.border.default }} data-testid="sidebar">
+                  <div className="h-full flex flex-col">
+                    <div className="flex-1 overflow-y-auto">
+                      <SessionErrorBoundary>
+                        <Sidebar 
+                        isDiffViewerOpen={isDiffViewerOpen} 
+                        openTabs={openTabs}
+                        onSelectPrevProject={handleSelectPrevProject}
+                        onSelectNextProject={handleSelectNextProject}
+                      />
+                      </SessionErrorBoundary>
+                    </div>
+                    <div className="p-2 border-t grid grid-cols-2 gap-2" style={{ borderTopColor: theme.colors.border.default }}>
                   <button
                     onClick={() => {
                       previousFocusRef.current = document.activeElement
@@ -1007,45 +1020,47 @@ export default function App() {
                   </button>
                 </div>
               </div>
-            </div>
+                </div>
 
-            <div className="relative h-full">
-              {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
-              <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
-              {isRightCollapsed ? (
-                // When collapsed, render only the terminal grid at full width
-                <main className="h-full w-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
-                  <ErrorBoundary name="TerminalGrid">
-                    <TerminalGrid />
-                  </ErrorBoundary>
-                </main>
-              ) : (
-                // When expanded, render the split view
-                <Split 
-                  className="h-full w-full flex" 
-                  sizes={rightSizes} 
-                  minSize={[400, 280]} 
-                  gutterSize={8}
-                  onDragStart={handleRightSplitDragStart}
-                  onDragEnd={handleRightSplitDragEnd}
-                >
-                  <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
-                    <ErrorBoundary name="TerminalGrid">
-                      <TerminalGrid />
-                    </ErrorBoundary>
-                  </main>
-                  <section className={`overflow-hidden`}>
-                    <ErrorBoundary name="RightPanel">
-                      <RightPanelTabs 
-                        onFileSelect={handleFileSelect}
-                        isDragging={isDraggingRightSplit}
-                      />
-                    </ErrorBoundary>
-                  </section>
-                </Split>
-              )}
+                <div className="relative h-full">
+                  {/* Unified session ring around center + right (Claude, Terminal, Diff) */}
+                  <div id="work-ring" className="absolute inset-2 rounded-xl pointer-events-none" />
+                  {isRightCollapsed ? (
+                    // When collapsed, render only the terminal grid at full width
+                    <main className="h-full w-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                      <ErrorBoundary name="TerminalGrid">
+                        <TerminalGrid />
+                      </ErrorBoundary>
+                    </main>
+                  ) : (
+                    // When expanded, render the split view
+                    <Split 
+                      className="h-full w-full flex" 
+                      sizes={rightSizes} 
+                      minSize={[400, 280]} 
+                      gutterSize={8}
+                      onDragStart={handleRightSplitDragStart}
+                      onDragEnd={handleRightSplitDragEnd}
+                    >
+                      <main className="h-full" style={{ backgroundColor: theme.colors.background.primary }} data-testid="terminal-grid">
+                        <ErrorBoundary name="TerminalGrid">
+                          <TerminalGrid />
+                        </ErrorBoundary>
+                      </main>
+                      <section className={`overflow-hidden`}>
+                        <ErrorBoundary name="RightPanel">
+                          <RightPanelTabs 
+                            onFileSelect={handleFileSelect}
+                            isDragging={isDraggingRightSplit}
+                          />
+                        </ErrorBoundary>
+                      </section>
+                    </Split>
+                  )}
+                </div>
+              </Split>
             </div>
-          </Split>
+          </div>
 
            <NewSessionModal
              open={newSessionOpen}
@@ -1133,5 +1148,13 @@ export default function App() {
         </>
       )}
     </ErrorBoundary>
+  )
+}
+
+export default function App() {
+  return (
+    <GithubIntegrationProvider>
+      <AppContent />
+    </GithubIntegrationProvider>
   )
 }

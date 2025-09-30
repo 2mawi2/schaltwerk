@@ -137,6 +137,19 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
 
+    const scrollToBottomInstant = useCallback(() => {
+        if (!terminal.current) return;
+        try {
+            const buf = terminal.current.buffer.active;
+            const linesToScroll = buf.baseY - buf.viewportY;
+            if (linesToScroll !== 0) {
+                terminal.current.scrollLines(linesToScroll);
+            }
+        } catch (error) {
+            logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom:`, error);
+        }
+    }, [terminalId]);
+
      // Agent conversation terminal detection reused across sizing logic and scrollback config
      const isAgentTopTerminal = useMemo(() => (
          terminalId.endsWith('-top') && (terminalId.startsWith('session-') || terminalId.startsWith('orchestrator-'))
@@ -228,7 +241,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (wasAtBottom) {
                 requestAnimationFrame(() => {
                     try {
-                        terminal.current?.scrollToBottom();
+                        if (!terminal.current) return;
+                        const buf = terminal.current.buffer.active;
+                        const linesToScroll = buf.baseY - buf.viewportY;
+                        if (linesToScroll !== 0) {
+                            terminal.current.scrollLines(linesToScroll);
+                        }
                     } catch (e) {
                         logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom after resize`, e);
                     }
@@ -353,12 +371,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         showSearch: () => {
             setIsSearchVisible(true);
         },
-        scrollToBottom: () => {
-            if (terminal.current) {
-                terminal.current.scrollToBottom();
-            }
-        }
-    }), [isAnyModalOpen, isSearchVisible, focusSearchInput]);
+        scrollToBottom: scrollToBottomInstant
+    }), [isAnyModalOpen, isSearchVisible, focusSearchInput, scrollToBottomInstant]);
 
     // Keep hydratedRef in sync so listeners see the latest state
     useEffect(() => {
@@ -493,14 +507,9 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const setupForceScrollListener = async () => {
             try {
                 unlistenForceScroll = await listenEvent(SchaltEvent.TerminalForceScroll, (payload) => {
-                    // Only handle events for this specific terminal
-                    if (payload.terminal_id === terminalId && terminal.current) {
+                    if (payload.terminal_id === terminalId) {
                         logger.info(`[Terminal] Force scrolling terminal ${terminalId} to bottom`);
-                        try {
-                            terminal.current.scrollToBottom();
-                        } catch (error) {
-                            logger.warn(`[Terminal ${terminalId}] Failed to force scroll to bottom:`, error);
-                        }
+                        scrollToBottomInstant();
                     }
                 });
             } catch (e) {
@@ -515,7 +524,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 unlistenForceScroll();
             }
         };
-    }, [terminalId]);
+    }, [terminalId, scrollToBottomInstant]);
 
     // Workaround: force-fit and send PTY resize when session search runs for OpenCode
     useEffect(() => {
@@ -1016,7 +1025,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     terminal.current.write(chunk, () => {
                         try {
                             if (shouldAutoScroll(wasAtBottom)) {
-                                terminal.current!.scrollToBottom();
+                                scrollToBottomInstant();
                             }
                         } catch (error) {
                             logger.debug('Scroll error during terminal output (cb)', error);
@@ -1058,7 +1067,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     terminal.current.write(chunk, () => {
                         try {
                             if (shouldAutoScroll(wasAtBottom)) {
-                                terminal.current!.scrollToBottom();
+                                scrollToBottomInstant();
                             }
                         } catch (error) {
                             logger.debug('Scroll error during buffer flush (cb)', error);
@@ -1132,12 +1141,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             terminal.current.write(chunk, () => {
                                 try {
                                     if (shouldAutoScroll(wasAtBottom)) {
-                                        terminal.current!.scrollToBottom();
+                                        scrollToBottomInstant();
                                     }
                                 } catch {
                                     // ignore scroll failures during hydration drain
                                 }
-                                // Continue draining until truly empty; use microtask to avoid deep callback chains
                                 queueMicrotask(step);
                             });
                         } catch (error) {
@@ -1253,7 +1261,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                       if (terminal.current) {
                           try {
                               if (agentType !== 'run' || !isUserSelectingInTerminal()) {
-                                  terminal.current.scrollToBottom();
+                                  scrollToBottomInstant();
                               }
                               if (agentType === 'codex') {
                                   const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
@@ -1290,7 +1298,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         if (terminal.current) {
                             try {
                                 if (agentType !== 'run' || !isUserSelectingInTerminal()) {
-                                    terminal.current.scrollToBottom();
+                                    scrollToBottomInstant();
                                 }
                             } catch (error) {
                                 logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom after hydration failure:`, error);
@@ -1303,12 +1311,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         const rehydrateAfterResume = async () => {
             try {
-                logger.debug(`[Terminal ${terminalId}] rehydrateAfterResume called, wasSuspended=${wasSuspendedRef.current}`);
-                if (!wasSuspendedRef.current) {
-                    logger.debug(`[Terminal ${terminalId}] Ignoring TerminalResumed - terminal was not suspended`)
-                    return
-                }
+                const sawSuspension = wasSuspendedRef.current
                 wasSuspendedRef.current = false
+
+                logger.debug(`[Terminal ${terminalId}] rehydrateAfterResume called, previouslySuspended=${sawSuspension}`)
+                if (!sawSuspension) {
+                    logger.debug(`[Terminal ${terminalId}] Proceeding with resume hydration despite missing suspend event`)
+                }
 
                 logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
                 pendingOutput.current = []
@@ -1415,10 +1424,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 if (agentType === 'codex') {
                                     const buf = terminal.current.buffer.active as unknown as ActiveBufferLike
                                     const trailing = typeof buf?.getLine === 'function' ? countTrailingBlankLines(buf) : 0
-                                    terminal.current.scrollToBottom()
+                                    scrollToBottomInstant()
                                     if (trailing > 0) terminal.current.scrollLines(-trailing)
                                 } else {
-                                    terminal.current.scrollToBottom()
+                                    scrollToBottomInstant()
                                 }
                             } catch (error) {
                                 logger.debug('Failed to scroll to bottom after font size change', error);
@@ -1532,11 +1541,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         const isUILayoutChange = document.body.classList.contains('session-switching');
                         if (wasAtBottom && !isUILayoutChange) {
                             requestAnimationFrame(() => {
-                                try {
-                                    terminal.current?.scrollToBottom();
-                                } catch (error) {
-                                    logger.debug('Failed to scroll to bottom after drag', error);
-                                }
+                                scrollToBottomInstant();
                             });
                        }
 
@@ -1601,7 +1606,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {
@@ -1628,7 +1633,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     try {
                         const buffer = terminal.current!.buffer.active;
                         const atBottom = buffer.viewportY === buffer.baseY;
-                        if (shouldAutoScroll(atBottom)) terminal.current!.scrollToBottom();
+                        if (shouldAutoScroll(atBottom)) scrollToBottomInstant();
                         if (getQueueStats().queueLength > 0) flushQueuedWritesLight();
                     } catch (e) {
                         logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
@@ -1674,7 +1679,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             mounted = false;
             detach();
         };
-    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll]);
+    }, [agentType, terminalId, enqueueWrite, flushQueuePending, getQueueStats, shouldAutoScroll, scrollToBottomInstant]);
 
 
      // Automatically start Claude for top terminals when hydrated and first ready

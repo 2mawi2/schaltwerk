@@ -69,6 +69,8 @@ export const KEYBOARD_SHORTCUT_SECTIONS: ShortcutSection[] = [
       { action: KeyboardShortcutAction.OpenDiffSearch, label: 'Open diff search' },
       { action: KeyboardShortcutAction.SubmitDiffComment, label: 'Submit diff comment' },
       { action: KeyboardShortcutAction.RunSpecAgent, label: 'Run spec agent' },
+      { action: KeyboardShortcutAction.OpenMergeModal, label: 'Merge session' },
+      { action: KeyboardShortcutAction.CreatePullRequest, label: 'Create pull request' },
     ],
   },
   {

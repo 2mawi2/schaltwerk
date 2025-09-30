@@ -29,6 +29,7 @@ export enum UiEvent {
   NotGitError = 'schaltwerk:not-git-error',
   ModalsChanged = 'schaltwerk:modals-changed',
   EnterSpecMode = 'schaltwerk:enter-spec-mode',
+  CreatePullRequest = 'schaltwerk:create-pull-request',
 }
 
 export interface TerminalResizeRequestDetail {
@@ -105,6 +106,10 @@ export interface EnterSpecModeDetail {
   sessionName: string
 }
 
+export interface CreatePullRequestDetail {
+  sessionId: string
+}
+
 export type UiEventPayloads = {
   [UiEvent.PermissionError]: { error: string }
   [UiEvent.BackgroundStartMarked]: { terminalId: string }
@@ -136,6 +141,7 @@ export type UiEventPayloads = {
   [UiEvent.NotGitError]: TerminalErrorDetail
   [UiEvent.ModalsChanged]: ModalsChangedDetail
   [UiEvent.EnterSpecMode]: EnterSpecModeDetail
+  [UiEvent.CreatePullRequest]: CreatePullRequestDetail
 }
 
 type UiEventArgs<T extends UiEvent> = undefined extends UiEventPayloads[T]

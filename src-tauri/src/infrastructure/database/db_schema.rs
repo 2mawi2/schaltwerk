@@ -105,6 +105,8 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
             last_selection_kind TEXT,
             last_selection_payload TEXT,
             branch_prefix TEXT DEFAULT 'schaltwerk',
+            github_repository TEXT,
+            github_default_branch TEXT,
             created_at INTEGER NOT NULL,
             updated_at INTEGER NOT NULL
         )",
@@ -271,6 +273,14 @@ fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Resul
     );
     let _ = conn.execute(
         "ALTER TABLE project_config ADD COLUMN auto_cancel_after_merge INTEGER DEFAULT 0",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_repository TEXT",
+        [],
+    );
+    let _ = conn.execute(
+        "ALTER TABLE project_config ADD COLUMN github_default_branch TEXT",
         [],
     );
     Ok(())

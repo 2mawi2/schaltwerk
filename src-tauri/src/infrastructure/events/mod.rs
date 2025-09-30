@@ -30,6 +30,7 @@ pub enum SchaltEvent {
     GitOperationCompleted,
     GitOperationFailed,
     ProjectFilesUpdated,
+    GitHubStatusChanged,
 }
 
 impl SchaltEvent {
@@ -62,6 +63,7 @@ impl SchaltEvent {
             SchaltEvent::GitOperationCompleted => "schaltwerk:git-operation-completed",
             SchaltEvent::GitOperationFailed => "schaltwerk:git-operation-failed",
             SchaltEvent::ProjectFilesUpdated => "schaltwerk:project-files-updated",
+            SchaltEvent::GitHubStatusChanged => "schaltwerk:github-status-changed",
         }
     }
 }
@@ -103,6 +105,10 @@ mod tests {
         assert_eq!(
             SchaltEvent::ProjectFilesUpdated.as_str(),
             "schaltwerk:project-files-updated"
+        );
+        assert_eq!(
+            SchaltEvent::GitHubStatusChanged.as_str(),
+            "schaltwerk:github-status-changed"
         );
     }
 }
