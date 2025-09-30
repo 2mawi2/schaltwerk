@@ -233,7 +233,7 @@ mod client {
     ) -> Result<String, String> {
         log::info!("Configuring Claude MCP using CLI at {}", cli_path.display());
 
-        let output = Command::new(&cli_path)
+        let output = Command::new(cli_path)
             .args([
                 "mcp",
                 "add",
@@ -318,7 +318,7 @@ mod client {
     }
 
     fn remove_mcp_claude(cli_path: &Path, project_path: &str) -> Result<String, String> {
-        let output = Command::new(&cli_path)
+        let output = Command::new(cli_path)
             .args(["mcp", "remove", "schaltwerk"])
             .current_dir(project_path)
             .output()
