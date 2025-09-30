@@ -259,6 +259,7 @@ import * as FitAddonModule from '@xterm/addon-fit'
 import * as SearchAddonModule from '@xterm/addon-search'
 import * as TerminalFonts from '../../utils/terminalFonts'
 import { logger } from '../../utils/logger'
+import * as terminalQueue from '../../utils/terminalQueue'
 
 function getLastXtermInstance(): MockXTerm {
   return (XTermModule as unknown as { __getLastInstance: () => MockXTerm }).__getLastInstance()
@@ -1247,6 +1248,170 @@ describe('Terminal component', () => {
 
     const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls.map(call => call[0]).join('')
     expect(writes).toContain('RESUMED')
+  })
+
+  it('rehydrates after frontend queue overflow to recover dropped output', async () => {
+    const queueSpy = vi.spyOn(terminalQueue, 'makeAgentQueueConfig').mockReturnValue({
+      maxQueueBytes: 64,
+      targetAfterDrop: 32,
+      lowWaterMark: 16,
+      maxWriteChunk: 16
+    })
+
+    const core = TauriCore as unknown as MockTauriCore
+    let snapshotCalls = 0
+    const snapshots = [
+      { seq: 10, startSeq: 0, data: 'PRIMER' },
+      { seq: 40, startSeq: 8, data: 'REFRESHED-TRANSCRIPT' }
+    ]
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {
+      const snap = snapshots[Math.min(snapshotCalls, snapshots.length - 1)]
+      snapshotCalls += 1
+      return snap
+    })
+
+    try {
+      renderTerminal({ terminalId: 'session-overflow-top', sessionName: 'overflow', agentType: 'claude' })
+      await flushAll()
+      await advanceAndFlush(50)
+
+      const xterm = getLastXtermInstance()
+      ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
+
+      const payload = 'X'.repeat(256)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-top', payload)
+
+      await advanceAndFlush(600)
+
+      expect(snapshotCalls).toBeGreaterThanOrEqual(2)
+      const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .map(call => call[0] as string)
+        .join('')
+      expect(writes).toContain('REFRESHED-TRANSCRIPT')
+    } finally {
+      queueSpy.mockRestore()
+    }
+  })
+
+  it('processes multiple overflow notices sequentially', async () => {
+    const queueSpy = vi.spyOn(terminalQueue, 'makeAgentQueueConfig').mockReturnValue({
+      maxQueueBytes: 64,
+      targetAfterDrop: 32,
+      lowWaterMark: 16,
+      maxWriteChunk: 16
+    })
+
+    const core = TauriCore as unknown as MockTauriCore
+    let bufferCall = 0
+    const responses: string[] = []
+    const snapshots = [
+      { seq: 5, startSeq: 0, data: 'BASE' },
+      { seq: 15, startSeq: 0, data: 'FIRST-RECOVERY' },
+      { seq: 25, startSeq: 0, data: 'SECOND-RECOVERY' }
+    ]
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {
+      const snap = snapshots[Math.min(bufferCall, snapshots.length - 1)]
+      bufferCall += 1
+      responses.push(snap.data)
+      return snap
+    })
+
+    try {
+      renderTerminal({ terminalId: 'session-overflow-multi-top', sessionName: 'overflow-multi', agentType: 'claude' })
+      await flushAll()
+
+      const xterm = getLastXtermInstance()
+      ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
+
+      const payloadA = 'A'.repeat(256)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-multi-top', payloadA)
+
+      await advanceAndFlush(800)
+
+      expect(bufferCall).toBeGreaterThanOrEqual(2)
+      expect(responses).toContain('FIRST-RECOVERY')
+
+      ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
+
+      const payloadB = 'B'.repeat(256)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-multi-top', payloadB)
+
+      await advanceAndFlush(800)
+
+      expect(bufferCall).toBeGreaterThanOrEqual(3)
+      expect(responses.filter(item => item === 'SECOND-RECOVERY').length).toBeGreaterThanOrEqual(1)
+    } finally {
+      queueSpy.mockRestore()
+    }
+  })
+
+  it('retries overflow recovery once an in-flight rehydrate finishes', async () => {
+    const queueSpy = vi.spyOn(terminalQueue, 'makeAgentQueueConfig').mockReturnValue({
+      maxQueueBytes: 64,
+      targetAfterDrop: 32,
+      lowWaterMark: 16,
+      maxWriteChunk: 16
+    })
+
+    const core = TauriCore as unknown as MockTauriCore
+    let bufferCall = 0
+    let resumeResolve: ((snapshot: { seq: number; startSeq: number; data: string }) => void) | null = null
+
+    core.__setInvokeHandler(TauriCommands.GetTerminalBuffer, () => {
+      bufferCall += 1
+      if (bufferCall === 1) {
+        return { seq: 1, startSeq: 0, data: 'INIT' }
+      }
+      if (bufferCall === 2) {
+        return new Promise<{ seq: number; startSeq: number; data: string }>((resolve) => {
+          resumeResolve = resolve
+        })
+      }
+      if (bufferCall === 3) {
+        return { seq: 3, startSeq: 0, data: 'RECOVERED' }
+      }
+      return { seq: bufferCall, startSeq: 0, data: '' }
+    })
+
+    try {
+      renderTerminal({ terminalId: 'session-overflow-retry-top', sessionName: 'overflow-retry', agentType: 'claude' })
+      await flushAll()
+
+      const xterm = getLastXtermInstance()
+      ;(xterm.write as unknown as ReturnType<typeof vi.fn>).mockClear()
+
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-overflow-retry-top' })
+      await advanceAndFlush(50)
+
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-overflow-retry-top' })
+      await advanceAndFlush(50)
+
+      const payload = 'X'.repeat(256)
+      ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-overflow-retry-top', payload)
+
+      await advanceAndFlush(50)
+
+      expect(resumeResolve).toBeTruthy()
+      if (!resumeResolve) {
+        throw new Error('resume resolver missing')
+      }
+
+      const resumeResolver: (snapshot: { seq: number; startSeq: number; data: string }) => void = resumeResolve
+
+      resumeResolver({ seq: 2, startSeq: 0, data: 'RESUME' })
+
+      await advanceAndFlush(600)
+
+      const writes = (xterm.write as unknown as { mock: { calls: unknown[][] } }).mock.calls
+        .map(call => call[0] as string)
+        .join('')
+      expect(bufferCall).toBeGreaterThanOrEqual(3)
+      expect(writes).toContain('RECOVERED')
+    } finally {
+      queueSpy.mockRestore()
+    }
   })
 
   it('rehydrates on TerminalResumed even when no TerminalSuspended event was observed', async () => {

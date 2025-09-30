@@ -99,6 +99,13 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
      const wasSuspendedRef = useRef<boolean>(false);
      // Tracks user-initiated SIGINT (Ctrl+C) to distinguish from startup/other exits.
      const lastSigintAtRef = useRef<number | null>(null);
+     const [overflowEpoch, setOverflowEpoch] = useState(0);
+     const overflowNoticesRef = useRef<number[]>([]);
+     const overflowReplayNeededRef = useRef<boolean>(false);
+     const rehydrateByReasonRef = useRef<((reason: 'resume' | 'overflow') => Promise<'completed' | 'deferred' | 'failed'>) | null>(null);
+     const overflowQueuedRef = useRef<boolean>(false);
+     const overflowProcessingRef = useRef<boolean>(false);
+     const rehydrateInFlightRef = useRef<boolean>(false);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const handleSearchTermChange = useCallback((value: string) => {
@@ -167,6 +174,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         agentType ? makeAgentQueueConfig() : makeDefaultQueueConfig()
     ), [agentType]);
 
+    const handleOverflow = useCallback((info: { droppedBytes: number }) => {
+        overflowNoticesRef.current.push(info.droppedBytes);
+        setOverflowEpoch((tick) => tick + 1);
+        logger.warn(`[Terminal ${terminalId}] Write queue overflow dropped ${info.droppedBytes}B`);
+    }, [terminalId]);
+
     const {
         enqueue: enqueueQueue,
         flushPending: flushQueuePending,
@@ -175,6 +188,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     } = useTerminalWriteQueue({
         queueConfig: queueCfg,
         logger,
+        onOverflow: handleOverflow,
         debugTag: terminalId,
     });
 
@@ -1309,42 +1323,80 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         };
 
-        const rehydrateAfterResume = async () => {
-            try {
-                const sawSuspension = wasSuspendedRef.current
-                wasSuspendedRef.current = false
+        const forceRehydrate = async (reason: 'resume' | 'overflow'): Promise<'completed' | 'deferred' | 'failed'> => {
+            if (!mountedRef.current) {
+                return 'deferred';
+            }
 
-                logger.debug(`[Terminal ${terminalId}] rehydrateAfterResume called, previouslySuspended=${sawSuspension}`)
-                if (!sawSuspension) {
-                    logger.debug(`[Terminal ${terminalId}] Proceeding with resume hydration despite missing suspend event`)
+            if (rehydrateInFlightRef.current) {
+                logger.debug(`[Terminal ${terminalId}] Skipping ${reason} rehydrate; already in progress`);
+                if (reason === 'overflow') {
+                    overflowReplayNeededRef.current = true;
+                }
+                return 'deferred';
+            }
+
+            rehydrateInFlightRef.current = true;
+            try {
+                if (reason === 'resume') {
+                    const sawSuspension = wasSuspendedRef.current;
+                    wasSuspendedRef.current = false;
+                    logger.debug(`[Terminal ${terminalId}] rehydrate(${reason}) called, previouslySuspended=${sawSuspension}`);
+                    if (!sawSuspension) {
+                        logger.debug(`[Terminal ${terminalId}] Proceeding with resume hydration despite missing suspend event`);
+                    }
+                } else {
+                    logger.info(`[Terminal ${terminalId}] Rehydrating after write queue overflow`);
                 }
 
                 logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
-                pendingOutput.current = []
-                resetQueue()
+                pendingOutput.current = [];
+                resetQueue();
                 if (terminal.current) {
                     try {
-                        terminal.current.reset()
+                        terminal.current.reset();
                         logger.debug(`[Terminal ${terminalId}] Terminal reset complete`);
                     } catch (error) {
-                        logger.warn(`[Terminal ${terminalId}] Failed to reset terminal before resume:`, error)
+                        logger.warn(`[Terminal ${terminalId}] Failed to reset terminal before ${reason}:`, error);
                     }
                 }
-                setHydrated(false)
-                hydratedRef.current = false
-                snapshotCursorRef.current = null
-                await hydrateTerminal()
-                logger.debug(`[Terminal ${terminalId}] Rehydration complete`);
+                setHydrated(false);
+                hydratedRef.current = false;
+                snapshotCursorRef.current = null;
+                await hydrateTerminal();
+                logger.debug(`[Terminal ${terminalId}] Rehydration (${reason}) complete`);
+                return 'completed';
             } catch (error) {
-                logger.error(`[Terminal ${terminalId}] Failed to rehydrate after resume:`, error)
+                logger.error(`[Terminal ${terminalId}] Failed to rehydrate after ${reason}:`, error);
+                if (reason === 'overflow') {
+                    overflowReplayNeededRef.current = true;
+                }
+                return 'failed';
+            } finally {
+                rehydrateInFlightRef.current = false;
+                if (overflowReplayNeededRef.current) {
+                    overflowReplayNeededRef.current = false;
+                    if (overflowNoticesRef.current.length > 0) {
+                        overflowQueuedRef.current = true;
+                        setOverflowEpoch((tick) => tick + 1);
+                    }
+                }
             }
         }
+
+        rehydrateByReasonRef.current = forceRehydrate;
 
         const attachResumeListener = async () => {
             try {
                 const unlisten = await listenEvent(SchaltEvent.TerminalResumed, (payload) => {
                     if (payload?.terminal_id !== terminalId) return
-                    rehydrateAfterResume().catch(err => logger.error(`[Terminal ${terminalId}] Resume hydration failed:`, err))
+                    forceRehydrate('resume')
+                        .then((result) => {
+                            if (result === 'failed') {
+                                logger.warn(`[Terminal ${terminalId}] Resume rehydrate reported failure`)
+                            }
+                        })
+                        .catch(err => logger.error(`[Terminal ${terminalId}] Resume hydration failed:`, err))
                 })
                 resumeUnlistenRef.current = unlisten
             } catch (error) {
@@ -1559,6 +1611,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Terminal processes will be cleaned up when the app exits
         return () => {
             mountedRef.current = false;
+            rehydrateByReasonRef.current = null;
             cancelled = true;
             rendererReadyRef.current = false;
             
@@ -1607,6 +1660,61 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // useCleanupRegistry handles other cleanup automatically
         };
     }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant]);
+
+    useEffect(() => {
+        if (overflowEpoch === 0) return;
+        overflowQueuedRef.current = true;
+        if (overflowProcessingRef.current) return;
+
+        const processOverflow = async () => {
+            while (overflowNoticesRef.current.length > 0) {
+                const droppedBytes = overflowNoticesRef.current[0];
+                const rehydrate = rehydrateByReasonRef.current;
+
+                if (typeof droppedBytes !== 'number') {
+                    overflowNoticesRef.current.shift();
+                    continue;
+                }
+
+                if (!rehydrate) {
+                    logger.debug(`[Terminal ${terminalId}] Overflow recovery skipped; rehydrate handler unavailable`);
+                    break;
+                }
+
+                logger.debug(`[Terminal ${terminalId}] Processing overflow recovery (dropped ${droppedBytes}B)`);
+
+                let outcome: 'completed' | 'deferred' | 'failed';
+                try {
+                    outcome = await rehydrate('overflow');
+                } catch (error) {
+                    logger.error(`[Terminal ${terminalId}] Overflow rehydrate threw`, error);
+                    outcome = 'failed';
+                }
+
+                if (outcome === 'completed') {
+                    overflowNoticesRef.current.shift();
+                    continue;
+                }
+
+                if (outcome === 'deferred') {
+                    overflowQueuedRef.current = true;
+                    break;
+                }
+
+                logger.warn(`[Terminal ${terminalId}] Overflow rehydrate reported failure`);
+                break;
+            }
+
+            if (overflowNoticesRef.current.length === 0) {
+                overflowQueuedRef.current = false;
+            }
+
+            overflowProcessingRef.current = false;
+        };
+
+        overflowProcessingRef.current = true;
+        processOverflow();
+    }, [overflowEpoch, terminalId]);
 
     // Reconfigure output listener when agent type changes for the same terminal
     useEffect(() => {

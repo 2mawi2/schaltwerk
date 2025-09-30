@@ -8,6 +8,7 @@ type UseTerminalWriteQueueConfig = {
   queueConfig: QueueConfig
   logger?: LoggerLike
   overflowNoticeBuilder?: (droppedBytes: number) => string
+  onOverflow?: (info: { droppedBytes: number }) => void
   debugTag?: string
 }
 
@@ -43,6 +44,7 @@ export function useTerminalWriteQueue({
   queueConfig,
   logger = defaultLogger,
   overflowNoticeBuilder = defaultOverflowNotice,
+  onOverflow,
   debugTag
 }: UseTerminalWriteQueueConfig) {
   const queueRef = useRef<string[]>([])
@@ -102,11 +104,23 @@ export function useTerminalWriteQueue({
           queueRef.current.push(notice)
           queuedBytesRef.current += notice.length
         }
+        if (next.droppedBytes > 0) {
+          try {
+            onOverflow?.({ droppedBytes: next.droppedBytes })
+          } catch (error) {
+            logger.debug?.(
+              debugTag
+                ? `[TerminalWriteQueue:${debugTag}] overflow handler failed`
+                : '[TerminalWriteQueue] overflow handler failed',
+              error
+            )
+          }
+        }
       }
 
       overflowActiveRef.current = next.overflowActive
     },
-    [overflowNoticeBuilder, queueConfig]
+    [overflowNoticeBuilder, onOverflow, queueConfig, logger, debugTag]
   )
 
   const flushInternal = useCallback(

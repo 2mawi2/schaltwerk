@@ -186,10 +186,48 @@ describe('useTerminalWriteQueue', () => {
         observed.push(chunk.length)
         report(chunk.length)
       }, { immediate: true })
+  })
+
+  expect(observed).toEqual([2])
+
+  expect(result.current.drainReportedBytes()).toBe(2)
+  })
+
+  it('notifies overflow handler exactly once per overflow episode', () => {
+    const overflowConfig: QueueConfig = {
+      maxQueueBytes: 12,
+      targetAfterDrop: 6,
+      lowWaterMark: 3,
+      maxWriteChunk: 64
+    }
+
+    const overflowSpy = vi.fn()
+
+    const { result } = renderHook(() =>
+      useTerminalWriteQueue({
+        queueConfig: overflowConfig,
+        logger,
+        onOverflow: overflowSpy
+      })
+    )
+
+    act(() => {
+      result.current.enqueue('ABCDEFGHIJKLM')
+      result.current.enqueue('NOPQRSTUVWXYZ')
     })
 
-    expect(observed).toEqual([2])
+    expect(overflowSpy).toHaveBeenCalledTimes(1)
+    expect(overflowSpy.mock.calls[0]?.[0]).toMatchObject({ droppedBytes: 7 })
 
-    expect(result.current.drainReportedBytes()).toBe(2)
+    act(() => {
+      result.current.reset()
+    })
+
+    act(() => {
+      result.current.enqueue('QRSTUVWXYZABCD')
+    })
+
+    expect(overflowSpy).toHaveBeenCalledTimes(2)
+    expect(overflowSpy.mock.calls[1]?.[0]).toMatchObject({ droppedBytes: 8 })
   })
 })
