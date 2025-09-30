@@ -372,7 +372,7 @@ beforeEach(() => {
       case TauriCommands.CreateTerminal: {
         // Mark as created
         const terminalId = (args as { id?: string })?.id
-        if (terminalId) {
+        if (terminalId && !mountCount.has(terminalId)) {
           mountCount.set(terminalId, 0) // Mark as created but not yet mounted
         }
         return Promise.resolve()

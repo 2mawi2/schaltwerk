@@ -388,9 +388,27 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (sel.kind === 'orchestrator') {
             setIsSpec(false)
             const cwd = projectPath || await invoke<string>(TauriCommands.GetCurrentDirectory)
+            const primaryBottomId = `${ids.bottomBase}-0`
+            const terminalsToRegister: string[] = []
+
             await createTerminal(ids.top, cwd)
-            await registerTerminalsForSelection([ids.top], sel)
-            return ids
+            terminalsToRegister.push(ids.top)
+
+            try {
+                await createTerminal(primaryBottomId, cwd)
+                terminalsToRegister.push(primaryBottomId)
+            } catch (error) {
+                logger.warn('[SelectionContext] Failed to pre-create orchestrator bottom terminal', error)
+            }
+
+            if (terminalsToRegister.length > 0) {
+                await registerTerminalsForSelection(terminalsToRegister, sel)
+            }
+
+            return {
+                ...ids,
+                workingDirectory: cwd,
+            }
         }
 
         const sessionId = sel.payload
@@ -441,8 +459,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             return ids
         }
 
+        const primaryBottomId = `${ids.bottomBase}-0`
+        const terminalsToRegister: string[] = []
+
         await createTerminal(ids.top, worktreePath)
-        await registerTerminalsForSelection([ids.top], sel)
+        terminalsToRegister.push(ids.top)
+
+        try {
+            await createTerminal(primaryBottomId, worktreePath)
+            terminalsToRegister.push(primaryBottomId)
+        } catch (error) {
+            logger.warn(`[SelectionContext] Failed to pre-create bottom terminal for session ${sessionId}:`, error)
+        }
+
+        if (terminalsToRegister.length > 0) {
+            await registerTerminalsForSelection(terminalsToRegister, sel)
+        }
         try {
             const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
             if (legacyExists) {
