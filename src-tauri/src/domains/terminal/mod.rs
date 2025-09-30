@@ -50,10 +50,12 @@ pub trait TerminalBackend: Send + Sync {
 
 pub mod ansi;
 pub mod coalescing;
+pub mod idle_detection;
 pub mod local;
 pub mod manager;
 pub mod shell_invocation;
 pub mod utf8_stream;
+pub mod visible;
 
 #[cfg(test)]
 pub mod manager_test;

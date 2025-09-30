@@ -485,6 +485,19 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     // Function to update the current selection (used by SelectionContext)
     const setCurrentSelection = useCallback((sessionId: string | null) => {
         currentSelectionRef.current = sessionId
+        if (sessionId) {
+            setAllSessions(prev => {
+                const targetIndex = prev.findIndex(s => s.info.session_id === sessionId)
+                if (targetIndex === -1 || !prev[targetIndex].info.attention_required) return prev
+
+                const updated = [...prev]
+                updated[targetIndex] = {
+                    ...prev[targetIndex],
+                    info: { ...prev[targetIndex].info, attention_required: undefined }
+                }
+                return updated
+            })
+        }
     }, [])
 
     const mergeSessionsPreferDraft = (base: EnrichedSession[], specs: EnrichedSession[]): EnrichedSession[] => {
@@ -497,6 +510,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         return Array.from(byId.values())
     }
 
+    const allSessionsRef = useRef<EnrichedSession[]>([])
+    useEffect(() => {
+        allSessionsRef.current = allSessions
+    }, [allSessions])
+
     const reloadSessions = useCallback(async () => {
         if (!projectPath) {
             setAllSessions([])
@@ -506,13 +524,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
 
         try {
-            // Only show loading state on initial load
             if (!hasInitialLoadCompleted.current) {
                 setLoading(true)
             }
             const enrichedSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
             const enriched = enrichedSessions || []
-            const previousSessions = new Map(allSessions.map(session => [session.info.session_id, session]))
+            const previousSessions = new Map(allSessionsRef.current.map(session => [session.info.session_id, session]))
 
             const attachMergeSnapshot = (session: EnrichedSession): EnrichedSession => {
                 const previous = previousSessions.get(session.info.session_id)
@@ -615,7 +632,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, allSessions, syncMergeStatuses])
+    }, [projectPath, syncMergeStatuses])
 
     const optimisticallyConvertSessionToSpec = useCallback((sessionId: string) => {
         let updated = false
@@ -915,9 +932,18 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                             for (const existing of prev) {
                                 const newSession = newSessionsMap.get(existing.info.session_id)
                                 if (newSession) {
+                                    // Preserve frontend-only state fields
+                                    const preservedInfo = {
+                                        ...newSession.info,
+                                        attention_required: existing.info.attention_required
+                                    }
+
                                     // Check if the session has actually changed
-                                    if (JSON.stringify(existing.info) !== JSON.stringify(newSession.info)) {
-                                        updated.push(newSession)
+                                    if (JSON.stringify(existing.info) !== JSON.stringify(preservedInfo)) {
+                                        updated.push({
+                                            ...newSession,
+                                            info: preservedInfo
+                                        })
                                     } else {
                                         updated.push(existing) // Keep existing reference to avoid re-render
                                     }
@@ -1062,6 +1088,27 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     }
 
                     return next
+                })
+            }))
+
+            // Terminal attention (idle detection)
+            addListener(listenEvent(SchaltEvent.TerminalAttention, (event) => {
+                const { session_id, needs_attention } = event
+                setAllSessions(prev => {
+                    const targetIndex = prev.findIndex(s => s.info.session_id === session_id)
+                    if (targetIndex === -1) return prev
+
+                    const target = prev[targetIndex]
+                    const newValue = needs_attention ? true : undefined
+
+                    if (target.info.attention_required === newValue) return prev
+
+                    const updated = [...prev]
+                    updated[targetIndex] = {
+                        ...target,
+                        info: { ...target.info, attention_required: newValue }
+                    }
+                    return updated
                 })
             }))
 

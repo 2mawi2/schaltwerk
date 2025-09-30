@@ -1,4 +1,6 @@
 use super::coalescing::{handle_coalesced_output, CoalescingParams, CoalescingState};
+use super::idle_detection::{IdleDetector, IdleTransition};
+use super::visible::VisibleScreen;
 use super::{CreateParams, TerminalBackend, TerminalSnapshot};
 use crate::infrastructure::events::{emit_event, SchaltEvent};
 use log::{debug, error, info, warn};
@@ -11,18 +13,19 @@ use std::time::{Duration, Instant, SystemTime};
 use tauri::AppHandle;
 use tokio::sync::{broadcast, Mutex, RwLock};
 
-// Default in-memory buffer sizes for terminal output
-// Agent conversation terminals can produce very large transcripts; give them more room
-const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024; // 2MB for regular terminals
-const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024; // 64MB for agent "top" terminals
-
-// PTY state maps moved to instance level to avoid test interference
+const DEFAULT_MAX_BUFFER_SIZE: usize = 2 * 1024 * 1024;
+const AGENT_MAX_BUFFER_SIZE: usize = 64 * 1024 * 1024;
+const IDLE_THRESHOLD_MS: u64 = 5000;
+const IDLE_WINDOW_LINES: usize = 15;
 
 struct TerminalState {
     buffer: Vec<u8>,
     seq: u64,
     start_seq: u64,
     last_output: SystemTime,
+    screen: VisibleScreen,
+    idle_detector: IdleDetector,
+    session_id: Option<String>,
 }
 
 pub struct LocalPtyAdapter {
@@ -193,7 +196,53 @@ impl LocalPtyAdapter {
     }
 
     pub async fn set_app_handle(&self, handle: AppHandle) {
-        *self.coalescing_state.app_handle.lock().await = Some(handle);
+        *self.coalescing_state.app_handle.lock().await = Some(handle.clone());
+        self.spawn_idle_ticker(handle).await;
+    }
+
+    async fn spawn_idle_ticker(&self, handle: AppHandle) {
+        let terminals = Arc::clone(&self.terminals);
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(Duration::from_millis(250));
+            loop {
+                interval.tick().await;
+                let now = Instant::now();
+
+                let transitions = {
+                    let mut terminals = terminals.write().await;
+                    let mut transitions = Vec::new();
+                    for (id, state) in terminals.iter_mut() {
+                        if state.session_id.is_none() {
+                            continue;
+                        }
+
+                        if !state.idle_detector.needs_tick() {
+                            continue;
+                        }
+
+                        if let Some(transition) = state.idle_detector.tick(now, &mut state.screen) {
+                            let needs_attention = match transition {
+                                IdleTransition::BecameIdle => true,
+                                IdleTransition::BecameActive => false,
+                            };
+                            transitions.push((state.session_id.clone().unwrap(), id.clone(), needs_attention));
+                        }
+                    }
+                    transitions
+                };
+
+                if !transitions.is_empty() {
+                    for (session_id, terminal_id, needs_attention) in transitions {
+                        let payload = serde_json::json!({
+                            "session_id": session_id,
+                            "terminal_id": terminal_id,
+                            "needs_attention": needs_attention
+                        });
+                        let _ = emit_event(&handle, SchaltEvent::TerminalAttention, &payload);
+                    }
+                }
+            }
+        });
     }
 
     fn resolve_command(command: &str) -> String {
@@ -385,6 +434,10 @@ impl LocalPtyAdapter {
                                 // Increment sequence and update last output time
                                 state.seq = state.seq.saturating_add(sanitized_len as u64);
                                 state.last_output = SystemTime::now();
+
+                                // Observe bytes for idle detection
+                                let now = Instant::now();
+                                state.idle_detector.observe_bytes(now, &sanitized);
 
                                 // Trim buffer if needed and update start_seq accordingly
                                 if state.buffer.len() > max_size {
@@ -648,11 +701,25 @@ impl TerminalBackend for LocalPtyAdapter {
         )
         .await;
 
+        let session_id = if id.starts_with("session-") && id.contains("-top") {
+            id.split('-')
+                .skip(1)
+                .take_while(|&s| s != "top")
+                .collect::<Vec<_>>()
+                .join("-")
+                .into()
+        } else {
+            None
+        };
+
         let state = TerminalState {
             buffer: Vec::new(),
             seq: 0,
             start_seq: 0,
             last_output: SystemTime::now(),
+            screen: VisibleScreen::new(rows, cols),
+            idle_detector: IdleDetector::new(IDLE_THRESHOLD_MS, IDLE_WINDOW_LINES),
+            session_id,
         };
 
         self.terminals.write().await.insert(id.clone(), state);
@@ -739,6 +806,10 @@ impl TerminalBackend for LocalPtyAdapter {
                     pixel_height: 0,
                 })
                 .map_err(|e| format!("Resize failed: {e}"))?;
+
+            if let Some(state) = self.terminals.write().await.get_mut(id) {
+                state.screen.resize(rows, cols);
+            }
 
             debug!("Resized terminal {id}: {cols}x{rows}");
             Ok(())
