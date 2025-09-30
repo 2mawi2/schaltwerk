@@ -233,48 +233,6 @@ describe('SelectionContext', () => {
     })
   })
 
-  describe('terminal bootstrapping parity', () => {
-    it('pre-creates and registers the primary bottom terminal when switching to a running session', async () => {
-      rawSessionsMock = {
-        'test-session': createRawSession('test-session', '/test/session/path'),
-      }
-
-      const { result } = renderHook(() => useSelection(), { wrapper })
-
-      await waitFor(() => {
-        expect(result.current.isReady).toBe(true)
-      })
-
-      await act(async () => {
-        await result.current.setSelection({
-          kind: 'session',
-          payload: 'test-session',
-          worktreePath: '/test/session/path',
-          sessionState: 'running'
-        })
-      })
-
-      await waitFor(() => {
-        const createCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.CreateTerminal)
-        expect(createCalls.some(([, args]) => (args as { id?: string })?.id === 'session-test-session-bottom-0')).toBe(true)
-      })
-
-      await waitFor(() => {
-        const registerCalls = mockInvoke.mock.calls.filter(([command]) => command === TauriCommands.RegisterSessionTerminals)
-        const sessionRegistration = registerCalls.find(([, args]) => {
-          const payloadSessionId = (args as { payload?: { sessionId?: string | null } })?.payload?.sessionId
-          if (payloadSessionId === 'test-session') return true
-          const directSessionId = (args as { sessionId?: string | null })?.sessionId
-          return directSessionId === 'test-session'
-        })
-        expect(sessionRegistration).toBeTruthy()
-        const payload = (sessionRegistration?.[1] as { payload?: { terminalIds?: string[] } })?.payload
-        const terminalIds = payload?.terminalIds ?? (sessionRegistration?.[1] as { terminalIds?: string[] })?.terminalIds ?? []
-        expect(terminalIds).toContain('session-test-session-bottom-0')
-      })
-    })
-  })
-
   describe('ensureTerminals deduplication and path selection', () => {
     it('should use orchestrator cwd for orchestrator selection', async () => {
       const { result } = renderHook(() => useSelection(), { wrapper })
