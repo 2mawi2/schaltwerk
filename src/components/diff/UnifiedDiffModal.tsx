@@ -1032,7 +1032,11 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       }
 
       if (e.key === 'Escape') {
-        // Prevent ESC from reaching terminals while modal is open
+        const hasOpenDialog = document.querySelector('[role="dialog"]') !== null
+        if (hasOpenDialog) {
+          return
+        }
+
         e.preventDefault()
         e.stopPropagation()
         if (isSearchVisible) {

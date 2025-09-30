@@ -1,9 +1,11 @@
+import { useState } from 'react'
 import clsx from 'clsx'
 import { VscComment, VscCheck } from 'react-icons/vsc'
 import { getFileIcon } from '../../utils/fileIcons'
 import { ReviewCommentsList } from './ReviewCommentsList'
 import { ReviewComment } from '../../types/review'
 import { theme } from '../../common/theme'
+import { ConfirmModal } from '../modals/ConfirmModal'
 
 export interface ChangedFile {
   path: string
@@ -37,8 +39,10 @@ export function DiffFileExplorer({
   onFinishReview,
   onCancelReview,
   removeComment,
-  getConfirmationMessage = (count: number) => `Are you sure you want to cancel this review? You will lose ${count} comment${count > 1 ? 's' : ''}.`
+  getConfirmationMessage = (count: number) => `Cancel review and discard ${count} comment${count > 1 ? 's' : ''}?`
 }: DiffFileExplorerProps) {
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
+
   return (
   <div className="w-80 border-r border-slate-800 bg-slate-900/30 flex flex-col">
       <div className="p-3 border-b border-slate-800">
@@ -111,11 +115,7 @@ export function DiffFileExplorer({
               </span>
             </button>
             <button
-              onClick={() => {
-                if (window.confirm(getConfirmationMessage(currentReview.comments.length))) {
-                  onCancelReview()
-                }
-              }}
+              onClick={() => setShowCancelConfirm(true)}
               className="w-full px-3 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-300"
             >
               Cancel Review
@@ -123,6 +123,24 @@ export function DiffFileExplorer({
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={showCancelConfirm}
+        title="Cancel Review"
+        body={
+          <p className="text-sm text-slate-300">
+            {currentReview ? getConfirmationMessage(currentReview.comments.length) : 'Cancel review?'}
+          </p>
+        }
+        confirmText="Discard Comments"
+        cancelText="Keep Review"
+        onConfirm={() => {
+          setShowCancelConfirm(false)
+          onCancelReview()
+        }}
+        onCancel={() => setShowCancelConfirm(false)}
+        variant="danger"
+      />
     </div>
   )
 }
