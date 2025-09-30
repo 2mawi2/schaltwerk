@@ -97,8 +97,19 @@ mod client {
         }
     }
 
-    fn resolve_cli_path(client: McpClient) -> Option<PathBuf> {
-        let config = load_agent_binary_config(client);
+    async fn load_agent_binary_config(client: McpClient) -> Option<AgentBinaryConfig> {
+        if let Some(manager) = crate::SETTINGS_MANAGER.get() {
+            let guard = manager.lock().await;
+            guard.get_agent_binary_config(client.as_str())
+        } else {
+            None
+        }
+    }
+
+    fn resolve_cli_path_from_sources(
+        client: McpClient,
+        config: Option<AgentBinaryConfig>,
+    ) -> Option<PathBuf> {
         let detected = BinaryDetector::detect_agent_binaries(client.as_str());
 
         if let Some(path) = select_cli_path(config, &detected) {
@@ -108,13 +119,9 @@ mod client {
         which(client.as_str()).ok()
     }
 
-    fn load_agent_binary_config(client: McpClient) -> Option<AgentBinaryConfig> {
-        crate::SETTINGS_MANAGER.get().and_then(|manager| {
-            tauri::async_runtime::block_on(async {
-                let guard = manager.lock().await;
-                guard.get_agent_binary_config(client.as_str())
-            })
-        })
+    pub async fn resolve_cli_path(client: McpClient) -> Option<PathBuf> {
+        let config = load_agent_binary_config(client).await;
+        resolve_cli_path_from_sources(client, config)
     }
 
     #[cfg(test)]
@@ -188,29 +195,42 @@ mod client {
             let result = select_cli_path(None, &detection).expect("cli path");
             assert_eq!(result, detected_path);
         }
+
+        #[tokio::test]
+        async fn check_cli_availability_runs_without_blocking() {
+            // Should never panic even when executed inside an async runtime.
+            let _ = super::check_cli_availability(super::McpClient::Claude).await;
+        }
     }
 
-    pub fn check_cli_availability(client: McpClient) -> bool {
-        resolve_cli_path(client).is_some()
+    pub async fn check_cli_availability(client: McpClient) -> bool {
+        resolve_cli_path(client).await.is_some()
     }
 
-    pub fn configure_mcp(
+    pub async fn configure_mcp(
         client: McpClient,
         project_path: &str,
         mcp_server_path: &str,
     ) -> Result<String, String> {
         match client {
-            McpClient::Claude => configure_mcp_claude(project_path, mcp_server_path),
+            McpClient::Claude => {
+                let cli_path = resolve_cli_path(McpClient::Claude)
+                    .await
+                    .ok_or_else(|| {
+                        "Claude CLI not found. Install the claude command or set a custom path in Settings → Agent Configuration.".to_string()
+                    })?;
+                configure_mcp_claude(&cli_path, project_path, mcp_server_path)
+            }
             McpClient::Codex => configure_mcp_codex(mcp_server_path),
             McpClient::OpenCode => configure_mcp_opencode(project_path, mcp_server_path),
         }
     }
 
-    fn configure_mcp_claude(project_path: &str, mcp_server_path: &str) -> Result<String, String> {
-        let cli_path = resolve_cli_path(McpClient::Claude).ok_or_else(|| {
-            "Claude CLI not found. Install the claude command or set a custom path in Settings → Agent Configuration.".to_string()
-        })?;
-
+    fn configure_mcp_claude(
+        cli_path: &Path,
+        project_path: &str,
+        mcp_server_path: &str,
+    ) -> Result<String, String> {
         log::info!("Configuring Claude MCP using CLI at {}", cli_path.display());
 
         let output = Command::new(&cli_path)
@@ -282,19 +302,22 @@ mod client {
         Ok("Codex MCP configured in ~/.codex/config.toml".to_string())
     }
 
-    pub fn remove_mcp(client: McpClient, project_path: &str) -> Result<String, String> {
+    pub async fn remove_mcp(client: McpClient, project_path: &str) -> Result<String, String> {
         match client {
-            McpClient::Claude => remove_mcp_claude(project_path),
+            McpClient::Claude => {
+                let cli_path = resolve_cli_path(McpClient::Claude)
+                    .await
+                    .ok_or_else(|| {
+                        "Claude CLI not found. Install the claude command or set a custom path in Settings → Agent Configuration.".to_string()
+                    })?;
+                remove_mcp_claude(&cli_path, project_path)
+            }
             McpClient::Codex => remove_mcp_codex(),
             McpClient::OpenCode => remove_mcp_opencode(project_path),
         }
     }
 
-    fn remove_mcp_claude(project_path: &str) -> Result<String, String> {
-        let cli_path = resolve_cli_path(McpClient::Claude).ok_or_else(|| {
-            "Claude CLI not found. Install the claude command or set a custom path in Settings → Agent Configuration.".to_string()
-        })?;
-
+    fn remove_mcp_claude(cli_path: &Path, project_path: &str) -> Result<String, String> {
         let output = Command::new(&cli_path)
             .args(["mcp", "remove", "schaltwerk"])
             .current_dir(project_path)
@@ -639,7 +662,7 @@ pub async fn get_mcp_status(
 
     // Parse client and check if CLI is available
     let client = parse_client_or_default(client);
-    let cli_available = client::check_cli_availability(client);
+    let cli_available = client::check_cli_availability(client).await;
     log::debug!("{} CLI available: {}", client.as_str(), cli_available);
 
     // Check if MCP is already configured (per-client logic)
@@ -677,7 +700,7 @@ pub async fn configure_mcp_for_project(
     }
 
     // Execute client MCP configuration
-    client::configure_mcp(client, &project_path, &status.mcp_server_path)
+    client::configure_mcp(client, &project_path, &status.mcp_server_path).await
 }
 
 #[tauri::command]
@@ -688,7 +711,7 @@ pub async fn remove_mcp_for_project(
     log::info!("Removing MCP configuration for project: {project_path}");
 
     let client = parse_client_or_default(client);
-    client::remove_mcp(client, &project_path)
+    client::remove_mcp(client, &project_path).await
 }
 
 #[tauri::command]
