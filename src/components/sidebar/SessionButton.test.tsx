@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { screen } from '@testing-library/react'
+import { renderWithProviders } from '../../tests/test-utils'
 import { SessionButton } from './SessionButton'
 import type { EnrichedSession, SessionInfo } from '../../types/session'
 
@@ -42,7 +43,7 @@ describe('SessionButton dirty indicator', () => {
         top_uncommitted_paths: ['src/main.rs', 'README.md']
       } 
     }
-    render(
+    renderWithProviders(
       <SessionButton
         session={session}
         index={0}
@@ -73,7 +74,7 @@ describe('SessionButton dirty indicator', () => {
       },
     }
 
-    render(
+    renderWithProviders(
       <SessionButton
         session={session}
         index={0}
@@ -92,7 +93,7 @@ describe('SessionButton dirty indicator', () => {
   })
 
   it('does not show dirty indicator when has_uncommitted_changes is false for reviewed session', () => {
-    render(
+    renderWithProviders(
       <SessionButton
         session={{
           ...baseSession,
@@ -129,7 +130,7 @@ describe('SessionButton running tag', () => {
       },
     }
 
-    render(
+    renderWithProviders(
       <SessionButton
         session={session}
         index={0}
@@ -150,7 +151,7 @@ describe('SessionButton running tag', () => {
 
 describe('SessionButton review cooldown', () => {
   it('disables the mark reviewed action when mark ready is temporarily blocked', () => {
-    render(
+    renderWithProviders(
       <SessionButton
         session={baseSession}
         index={0}

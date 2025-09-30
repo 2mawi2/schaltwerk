@@ -213,7 +213,10 @@ export const SessionButton = memo<SessionButtonProps>(({
                         <SessionActions
                             sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                             sessionId={s.session_id}
+                            sessionSlug={s.session_id}
+                            worktreePath={s.worktree_path}
                             branch={s.branch}
+                            defaultBranch={s.parent_branch ?? undefined}
                             showPromoteIcon={showPromoteIcon}
                             onRunSpec={onRunDraft}
                             onDeleteSpec={onDeleteSpec}
@@ -241,7 +244,10 @@ export const SessionButton = memo<SessionButtonProps>(({
                     <SessionActions
                         sessionState={sessionState as 'spec' | 'running' | 'reviewed'}
                         sessionId={s.session_id}
+                        sessionSlug={s.session_id}
+                        worktreePath={s.worktree_path}
                         branch={s.branch}
+                        defaultBranch={s.parent_branch ?? undefined}
                         showPromoteIcon={showPromoteIcon}
                         onRunSpec={onRunDraft}
                         onDeleteSpec={onDeleteSpec}

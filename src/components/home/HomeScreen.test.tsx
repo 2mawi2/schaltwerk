@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { TauriCommands } from '../../common/tauriCommands'
 import userEvent from '@testing-library/user-event'
 import { HomeScreen } from './HomeScreen'
+import { renderWithProviders } from '../../tests/test-utils'
 
 import { vi } from 'vitest'
 
@@ -42,7 +43,16 @@ describe('HomeScreen', () => {
       }
     })
 
-    render(<HomeScreen onOpenProject={onOpenProject} />)
+    renderWithProviders(<HomeScreen onOpenProject={onOpenProject} />, {
+      githubOverrides: {
+        status: { installed: true, authenticated: true, userLogin: null, repository: null },
+        loading: false,
+        authenticate: vi.fn(),
+        connectProject: vi.fn(),
+        refreshStatus: vi.fn(),
+        createReviewedPr: vi.fn(),
+      },
+    })
 
     return { onOpenProject }
   }

@@ -7,7 +7,7 @@ export function makeId(): string {
 
 interface ToastEntry {
   id: string
-  tone: 'success' | 'warning' | 'error'
+  tone: 'success' | 'warning' | 'error' | 'info'
   title: string
   description?: string
   durationMs?: number

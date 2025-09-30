@@ -28,6 +28,7 @@ import { clearTerminalStartedTracking } from '../terminal/Terminal'
 import { logger } from '../../utils/logger'
 import { UiEvent, emitUiEvent, listenUiEvent } from '../../common/uiEvents'
 import { EnrichedSession, SessionInfo } from '../../types/session'
+import { useGithubIntegrationContext } from '../../contexts/GithubIntegrationContext'
 import { useRun } from '../../contexts/RunContext'
 import { useModal } from '../../contexts/ModalContext'
 import { useProject } from '../../contexts/ProjectContext'
@@ -58,6 +59,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     const { setFocusForSession, setCurrentFocus } = useFocus()
     const { isSessionRunning } = useRun()
     const { isAnyModalOpen } = useModal()
+    const github = useGithubIntegrationContext()
     const { 
         sessions,
         allSessions,
@@ -762,6 +764,15 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         openMergeDialog(selection.payload)
     }, [isAnyModalOpen, selection, sessions, openMergeDialog, isSessionMergeInFlight])
 
+    const handleCreatePullRequestShortcut = useCallback(() => {
+        if (isAnyModalOpen()) return
+        if (selection.kind !== 'session' || !selection.payload) return
+        const session = sessions.find(s => s.info.session_id === selection.payload)
+        if (!session || !session.info.ready_to_merge) return
+        if (!github.canCreatePr) return
+        emitUiEvent(UiEvent.CreatePullRequest, { sessionId: selection.payload })
+    }, [isAnyModalOpen, selection, sessions, github.canCreatePr])
+
     useKeyboardShortcuts({
         onSelectOrchestrator: handleSelectOrchestrator,
         onSelectSession: handleSelectSession,
@@ -813,6 +824,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         onResetSelection: handleResetSelectionShortcut,
         onOpenSwitchModel: handleOpenSwitchModelShortcut,
         onOpenMergeModal: handleOpenMergeShortcut,
+        onCreatePullRequest: handleCreatePullRequestShortcut,
         isDiffViewerOpen
     })
 

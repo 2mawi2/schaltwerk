@@ -30,6 +30,7 @@ interface KeyboardShortcutsProps {
   onResetSelection?: () => void
   onOpenSwitchModel?: () => void
   onOpenMergeModal?: () => void
+  onCreatePullRequest?: () => void
 }
 
 interface KeyboardShortcutOptions {
@@ -59,6 +60,7 @@ export function useKeyboardShortcuts(
     onResetSelection,
     onOpenSwitchModel,
     onOpenMergeModal,
+    onCreatePullRequest,
   }: KeyboardShortcutsProps,
   options: KeyboardShortcutOptions = {},
 ) {
@@ -195,6 +197,12 @@ export function useKeyboardShortcuts(
         onOpenMergeModal()
         return
       }
+
+      if (onCreatePullRequest && isShortcutForAction(event, KeyboardShortcutAction.CreatePullRequest, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onCreatePullRequest()
+        return
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -219,6 +227,7 @@ export function useKeyboardShortcuts(
     onResetSelection,
     onOpenSwitchModel,
     onOpenMergeModal,
+    onCreatePullRequest,
     isDiffViewerOpen,
     shortcutConfig,
     platform,

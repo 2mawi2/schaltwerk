@@ -1,5 +1,6 @@
 pub mod agent_binaries;
 pub mod clipboard;
+pub mod github;
 pub mod mcp;
 pub mod mcp_config;
 pub mod project;
@@ -13,6 +14,7 @@ mod tests;
 
 // Export schaltwerk_core commands individually to avoid unused import warnings
 pub use agent_binaries::*;
+pub use github::*;
 pub use mcp::*;
 pub use mcp_config::*;
 pub use project::*;

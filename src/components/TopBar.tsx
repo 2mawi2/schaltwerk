@@ -8,6 +8,7 @@ import { BranchIndicator } from './BranchIndicator'
 import { logger } from '../utils/logger'
 import { theme } from '../common/theme'
 import { withOpacity } from '../common/colorUtils'
+import { GithubMenuButton } from './github/GithubMenuButton'
 
 interface TopBarProps {
   tabs: ProjectTab[]
@@ -123,6 +124,9 @@ export function TopBar({
         {/* Branch indicator - only shows in development builds */}
         <BranchIndicator />
         
+        {/* GitHub status/actions */}
+        <GithubMenuButton className="mr-2" hasActiveProject={Boolean(activeTabPath)} />
+
         {/* Open in IDE button - only show when a tab is active */}
         {activeTabPath && (
           <div className="mr-2" data-testid="topbar-open-button">
