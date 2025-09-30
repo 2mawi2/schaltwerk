@@ -180,7 +180,7 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
   if (!isVisible) return null
 
   return (
-    <div className={`absolute top-2 right-2 flex items-center bg-panel border border-slate-700 rounded px-2 py-1 z-10 ${className}`}>
+    <div className={`absolute top-2 right-2 flex items-center bg-slate-800 border border-slate-700 rounded px-2 py-1 z-10 shadow-lg ${className}`}>
       <input
         ref={inputRef}
         type="text"
@@ -188,16 +188,16 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
         onChange={(e) => handleSearch(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Search..."
-        className="bg-transparent text-sm text-slate-200 outline-none w-40"
+        className="bg-transparent text-sm text-slate-200 outline-none w-40 placeholder:text-slate-500"
       />
-      
+
       {totalMatches > 0 && (
         <div className="text-xs text-slate-400 ml-2 whitespace-nowrap">
           {currentMatchIndex + 1}/{totalMatches}
         </div>
       )}
-      
-      <button 
+
+      <button
         onClick={findPrevious}
         className="text-slate-400 hover:text-slate-200 ml-1 disabled:opacity-50"
         title="Previous match (Shift+Enter)"
@@ -207,8 +207,8 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
           <path d="M7 12L3 8L7 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
-      
-      <button 
+
+      <button
         onClick={findNext}
         className="text-slate-400 hover:text-slate-200 ml-1 disabled:opacity-50"
         title="Next match (Enter)"
@@ -218,8 +218,8 @@ export function SearchBox({ targetRef, isVisible, onClose, className = '' }: Sea
           <path d="M9 4L13 8L9 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
-      
-      <button 
+
+      <button
         onClick={handleClose}
         className="text-slate-400 hover:text-slate-200 ml-2"
         title="Close search (Escape)"

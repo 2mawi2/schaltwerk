@@ -88,10 +88,20 @@ export function DiffFileExplorer({
             />
           </div>
           <div className="space-y-2">
-             <button
-               onClick={onFinishReview}
-               className={`w-full px-3 py-2 ${theme.colors.accent.cyan.dark} hover:${theme.colors.accent.cyan.DEFAULT} rounded-lg text-sm font-medium flex items-center justify-center gap-2`}
-             >
+            <button
+              onClick={onFinishReview}
+              className="w-full px-3 py-2 rounded-lg text-sm font-medium flex items-center justify-center gap-2"
+              style={{
+                backgroundColor: theme.colors.accent.blue.DEFAULT,
+                color: theme.colors.text.inverse,
+              }}
+              onMouseEnter={(event) => {
+                event.currentTarget.style.backgroundColor = theme.colors.accent.blue.dark
+              }}
+              onMouseLeave={(event) => {
+                event.currentTarget.style.backgroundColor = theme.colors.accent.blue.DEFAULT
+              }}
+            >
               <VscCheck />
               <span>
                 Finish Review ({currentReview.comments.length} comment{currentReview.comments.length > 1 ? 's' : ''})

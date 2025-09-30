@@ -401,16 +401,17 @@ describe('Terminal component', () => {
   it('scrolls to bottom synchronously on session switch', async () => {
     const originalRaf = globalThis.requestAnimationFrame
     const rafStub = vi.fn().mockReturnValue(0)
-    // Prevent queued callbacks from running automatically so we can detect synchronous behavior
     globalThis.requestAnimationFrame = rafStub as unknown as typeof globalThis.requestAnimationFrame
 
     const utils = renderTerminal({ terminalId: 'session-alpha-top', sessionName: 'alpha' })
     await flushAll()
 
     const xterm = getLastXtermInstance()
-    const scrollSpy = vi.spyOn(xterm, 'scrollToBottom')
 
-    // Reset any calls from initial hydration
+    xterm.buffer.active.baseY = 100
+    xterm.buffer.active.viewportY = 50
+
+    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
     scrollSpy.mockClear()
 
     try {
@@ -420,8 +421,7 @@ describe('Terminal component', () => {
         </TestProviders>
       )
 
-      // Expect synchronous scroll without relying on requestAnimationFrame callbacks
-      expect(scrollSpy).toHaveBeenCalled()
+      expect(scrollSpy).toHaveBeenCalledWith(50)
     } finally {
       scrollSpy.mockRestore()
       globalThis.requestAnimationFrame = originalRaf
@@ -1229,6 +1229,9 @@ describe('Terminal component', () => {
       startSeq: 0,
       data: 'RESUMED'
     }))
+
+    ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-suspended', { terminal_id: 'session-resume-top' })
+    await advanceAndFlush(100)
 
     ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-resumed', { terminal_id: 'session-resume-top' })
     await advanceAndFlush(400)

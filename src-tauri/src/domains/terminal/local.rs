@@ -852,6 +852,11 @@ impl TerminalBackend for LocalPtyAdapter {
         self.coalescing_state.clear_for(id).await;
         self.pending_control_sequences.lock().await.remove(id);
         self.abort_reader(id).await;
+        if let Some(handle) = self.coalescing_state.app_handle.lock().await.as_ref() {
+            let payload = serde_json::json!({ "terminal_id": id });
+            emit_event(handle, SchaltEvent::TerminalSuspended, &payload)
+                .map_err(|e| format!("Failed to emit terminal suspended event: {e}"))?;
+        }
         Ok(())
     }
 

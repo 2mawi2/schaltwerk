@@ -259,6 +259,155 @@ mod service_unified_tests {
         assert!(command.contains("--sandbox workspace-write"));
     }
 
+    fn sanitize_path_for_opencode(path: &Path) -> String {
+        let path_str = path.to_string_lossy();
+        let without_leading_slash = path_str.trim_start_matches('/');
+        let mut result = String::new();
+        for (i, component) in without_leading_slash.split('/').enumerate() {
+            if component.is_empty() {
+                continue;
+            }
+            if i > 0 {
+                if component.starts_with('.') {
+                    result.push_str("--");
+                } else {
+                    result.push('-');
+                }
+            }
+            if let Some(stripped) = component.strip_prefix('.') {
+                result.push_str(&stripped.replace('.', "-"));
+            } else {
+                result.push_str(&component.replace('.', "-"));
+            }
+        }
+        result
+    }
+
+    fn setup_opencode_session_history(
+        root: &Path,
+        worktree_path: &Path,
+        session_id: &str,
+        message_file_count: usize,
+    ) {
+        let sanitized = sanitize_path_for_opencode(worktree_path);
+        let base = root
+            .join(".local")
+            .join("share")
+            .join("opencode")
+            .join("project")
+            .join(sanitized);
+        let info_dir = base.join("storage").join("session").join("info");
+        std::fs::create_dir_all(&info_dir).unwrap();
+        std::fs::write(info_dir.join(format!("{session_id}.json")), "{}{}").unwrap();
+
+        let message_dir = base
+            .join("storage")
+            .join("session")
+            .join("message")
+            .join(session_id);
+        std::fs::create_dir_all(&message_dir).unwrap();
+        for idx in 0..message_file_count {
+            std::fs::write(message_dir.join(format!("{idx}.json")), "{}").unwrap();
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_opencode_resumes_when_history_exists() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let session = create_test_session(&temp_dir, "opencode", "resume");
+        manager.db_manager.create_session(&session).unwrap();
+
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_dir.path());
+
+        std::fs::create_dir_all(temp_dir.path().join("repo").join(".git")).unwrap();
+
+        setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-session", 3);
+
+        let cmd = manager
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
+            .expect("expected OpenCode command");
+
+        assert!(
+            cmd.contains("opencode"),
+            "expected opencode binary to be invoked: {cmd}"
+        );
+        assert!(
+            cmd.contains("--session \"oc-session\""),
+            "expected resume via --session when history exists: {cmd}"
+        );
+        assert!(
+            !cmd.contains("--prompt"),
+            "should not include prompt when resuming: {cmd}"
+        );
+
+        if let Some(prev) = prev_home {
+            std::env::set_var("HOME", prev);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_opencode_respects_resume_gate_then_resumes() {
+        let (manager, temp_dir) = create_test_session_manager();
+        let mut session = create_test_session(&temp_dir, "opencode", "gate");
+        session.resume_allowed = false;
+        manager.db_manager.create_session(&session).unwrap();
+
+        let home_dir = tempfile::TempDir::new().unwrap();
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_dir.path());
+
+        std::fs::create_dir_all(temp_dir.path().join("repo").join(".git")).unwrap();
+
+        setup_opencode_session_history(home_dir.path(), &session.worktree_path, "oc-gate", 4);
+
+        let cmd_first = manager
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
+            .expect("expected OpenCode command");
+
+        assert!(
+            !cmd_first.contains("--session"),
+            "resume should be gated off on first start"
+        );
+        assert!(
+            cmd_first.contains("--prompt \"test prompt\""),
+            "first start should use initial prompt when resume is gated"
+        );
+
+        let refreshed = manager
+            .db_manager
+            .get_session_by_name(&session.name)
+            .expect("session should still exist");
+        assert!(
+            refreshed.resume_allowed,
+            "resume_allowed should flip true after fresh start"
+        );
+
+        let cmd_second = manager
+            .start_claude_in_session_with_restart_and_binary(&session.name, false, &HashMap::new())
+            .expect("expected OpenCode command");
+
+        assert!(
+            cmd_second.contains("--session \"oc-gate\""),
+            "second start should resume once gate is lifted"
+        );
+        assert!(
+            !cmd_second.contains("--prompt"),
+            "resume path should not include prompt"
+        );
+
+        if let Some(prev) = prev_home {
+            std::env::set_var("HOME", prev);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
     #[test]
     #[serial_test::serial]
     fn test_start_spec_with_config_uses_codex_and_prompt_without_resume() {
@@ -1589,6 +1738,97 @@ impl SessionManager {
                 let binary_path = self.utils.get_effective_binary_path_with_override(
                     "codex",
                     binary_paths.get("codex").map(|s| s.as_str()),
+                );
+                return Ok(agent.build_command(
+                    &session.worktree_path,
+                    session_id_to_use.as_deref(),
+                    prompt_to_use,
+                    skip_permissions,
+                    Some(&binary_path),
+                ));
+            }
+        }
+
+        if agent_type == "opencode" {
+            log::info!(
+                "Session manager: Starting OpenCode agent for session '{}' in worktree: {}",
+                session_name,
+                session.worktree_path.display()
+            );
+            log::info!(
+                "Session manager: force_restart={}, session.initial_prompt={:?}, resume_allowed={}",
+                force_restart,
+                session.initial_prompt,
+                session.resume_allowed
+            );
+
+            let resume_info = if !force_restart && session.resume_allowed {
+                crate::domains::agents::opencode::find_opencode_session(&session.worktree_path)
+            } else {
+                None
+            };
+
+            if let Some(info) = resume_info.as_ref() {
+                log::info!(
+                    "Session manager: OpenCode resume probe found session '{}' (has_history={})",
+                    info.id,
+                    info.has_history
+                );
+            } else {
+                log::info!("Session manager: OpenCode resume probe found no resumable session");
+            }
+
+            let (session_id_to_use, prompt_to_use, did_start_fresh) = if force_restart {
+                log::info!(
+                    "Session manager: Force restarting OpenCode session '{}' with initial_prompt={:?}",
+                    session_name,
+                    session.initial_prompt
+                );
+                (None, session.initial_prompt.as_deref(), true)
+            } else if let Some(info) = resume_info.as_ref().filter(|info| info.has_history) {
+                log::info!(
+                    "Session manager: Resuming OpenCode session '{}' via --session {}",
+                    session_name,
+                    info.id
+                );
+                (Some(info.id.clone()), None, false)
+            } else {
+                if let Some(info) = resume_info.as_ref() {
+                    log::info!(
+                        "Session manager: OpenCode session '{}' lacks history; starting fresh",
+                        info.id
+                    );
+                } else {
+                    log::info!(
+                        "Session manager: No OpenCode history detected; starting fresh with initial_prompt={:?}",
+                        session.initial_prompt
+                    );
+                }
+                (None, session.initial_prompt.as_deref(), true)
+            };
+
+            log::info!(
+                "Session manager: Final OpenCode decision - resume_id={:?}, using_prompt={}, did_start_fresh={}",
+                session_id_to_use.as_ref(),
+                prompt_to_use.is_some(),
+                did_start_fresh
+            );
+
+            if prompt_to_use.is_some() {
+                self.cache_manager
+                    .mark_session_prompted(&session.worktree_path);
+            }
+
+            if did_start_fresh && !session.resume_allowed {
+                let _ = self
+                    .db_manager
+                    .set_session_resume_allowed(&session.id, true);
+            }
+
+            if let Some(agent) = registry.get("opencode") {
+                let binary_path = self.utils.get_effective_binary_path_with_override(
+                    "opencode",
+                    binary_paths.get("opencode").map(|s| s.as_str()),
                 );
                 return Ok(agent.build_command(
                     &session.worktree_path,

@@ -30,7 +30,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
       <div
         ref={ref}
         data-terminal-search="true"
-        className="absolute top-2 right-2 flex items-center bg-panel border border-slate-700 rounded px-2 py-1 z-10"
+        className="absolute top-2 right-2 flex items-center bg-slate-800 border border-slate-700 rounded px-2 py-1 z-10 shadow-lg"
       >
         <input
           type="text"
@@ -38,7 +38,7 @@ export const TerminalSearchPanel = forwardRef<HTMLDivElement, Props>(
           onChange={(event) => onSearchTermChange(event.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search..."
-          className="bg-transparent text-sm text-slate-200 outline-none w-40"
+          className="bg-transparent text-sm text-slate-200 outline-none w-40 placeholder:text-slate-500"
           autoFocus
         />
         <button

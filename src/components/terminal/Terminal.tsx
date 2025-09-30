@@ -96,6 +96,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
      const hydratedRef = useRef<boolean>(false);
      const pendingOutput = useRef<string[]>([]);
      const snapshotCursorRef = useRef<number | null>(null);
+     const wasSuspendedRef = useRef<boolean>(false);
      // Tracks user-initiated SIGINT (Ctrl+C) to distinguish from startup/other exits.
      const lastSigintAtRef = useRef<number | null>(null);
     const [isSearchVisible, setIsSearchVisible] = useState(false);
@@ -197,10 +198,42 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         const measuredChanged = (cols !== lastSize.current.cols) || (rows !== lastSize.current.rows);
         lastSize.current = { cols, rows };
 
+        let wasAtBottom = false;
+        let bufferLinesBefore = 0;
+        try {
+            const buf = terminal.current.buffer.active;
+            wasAtBottom = buf.viewportY === buf.baseY;
+            bufferLinesBefore = buf.length;
+            if (termDebug()) {
+                logger.debug(`[Terminal ${terminalId}] BEFORE resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, wasAtBottom=${wasAtBottom}`);
+            }
+        } catch (_e) {
+            wasAtBottom = true;
+        }
+
         // Align frontend grid to effective size first, then repaint
         try {
             terminal.current.resize(effectiveCols, rows);
             (terminal.current as unknown as { refresh?: (start: number, end: number) => void })?.refresh?.(0, Math.max(0, rows - 1));
+
+            if (termDebug()) {
+                try {
+                    const buf = terminal.current.buffer.active;
+                    logger.debug(`[Terminal ${terminalId}] AFTER resize: buffer.length=${buf.length}, viewportY=${buf.viewportY}, baseY=${buf.baseY}, linesLost=${bufferLinesBefore - buf.length}`);
+                } catch (_e) {
+                    logger.debug(`[Terminal ${terminalId}] Could not read buffer after resize`);
+                }
+            }
+
+            if (wasAtBottom) {
+                requestAnimationFrame(() => {
+                    try {
+                        terminal.current?.scrollToBottom();
+                    } catch (e) {
+                        logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom after resize`, e);
+                    }
+                });
+            }
         } catch (e) {
             logger.debug(`[Terminal ${terminalId}] Failed to apply frontend resize to ${effectiveCols}x${rows}`, e);
         }
@@ -1270,11 +1303,20 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
         const rehydrateAfterResume = async () => {
             try {
+                logger.debug(`[Terminal ${terminalId}] rehydrateAfterResume called, wasSuspended=${wasSuspendedRef.current}`);
+                if (!wasSuspendedRef.current) {
+                    logger.debug(`[Terminal ${terminalId}] Ignoring TerminalResumed - terminal was not suspended`)
+                    return
+                }
+                wasSuspendedRef.current = false
+
+                logger.debug(`[Terminal ${terminalId}] Starting rehydration - CLEARING TERMINAL`);
                 pendingOutput.current = []
                 resetQueue()
                 if (terminal.current) {
                     try {
                         terminal.current.reset()
+                        logger.debug(`[Terminal ${terminalId}] Terminal reset complete`);
                     } catch (error) {
                         logger.warn(`[Terminal ${terminalId}] Failed to reset terminal before resume:`, error)
                     }
@@ -1283,6 +1325,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 hydratedRef.current = false
                 snapshotCursorRef.current = null
                 await hydrateTerminal()
+                logger.debug(`[Terminal ${terminalId}] Rehydration complete`);
             } catch (error) {
                 logger.error(`[Terminal ${terminalId}] Failed to rehydrate after resume:`, error)
             }
@@ -1300,7 +1343,21 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             }
         }
 
+        let suspendUnlisten: UnlistenFn | null = null
+        const attachSuspendListener = async () => {
+            try {
+                suspendUnlisten = await listenEvent(SchaltEvent.TerminalSuspended, (payload) => {
+                    if (payload?.terminal_id !== terminalId) return
+                    wasSuspendedRef.current = true
+                    logger.debug(`[Terminal ${terminalId}] Marked as suspended`)
+                })
+            } catch (error) {
+                logger.warn(`[Terminal ${terminalId}] Failed to attach suspend listener`, error)
+            }
+        }
+
         attachResumeListener()
+        attachSuspendListener()
         hydrateTerminal();
 
         // Helper functions for scroll position management
@@ -1520,6 +1577,11 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     logger.error(`[Terminal ${terminalId}] Resume listener cleanup error:`, error);
                 }
                 resumeUnlistenRef.current = null;
+            }
+            if (suspendUnlisten) {
+                try { suspendUnlisten(); } catch (error) {
+                    logger.error(`[Terminal ${terminalId}] Suspend listener cleanup error:`, error);
+                }
             }
             
             // Only disconnect if not already disconnected (it disconnects itself after initialization)
@@ -1787,11 +1849,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     // Force scroll to bottom when switching sessions
     useLayoutEffect(() => {
         if (previousTerminalId.current !== terminalId) {
-            // Terminal ID changed - this is a session switch
             snapshotCursorRef.current = null
             if (terminal.current) {
                 try {
-                    terminal.current.scrollToBottom();
+                    const buffer = terminal.current.buffer.active;
+                    const linesToScroll = buffer.baseY - buffer.viewportY;
+                    if (linesToScroll !== 0) {
+                        terminal.current.scrollLines(linesToScroll);
+                    }
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Failed to scroll to bottom on session switch:`, error);
                 }
