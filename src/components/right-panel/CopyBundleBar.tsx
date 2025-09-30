@@ -124,11 +124,11 @@ export function CopyBundleBar({ sessionName }: CopyBundleBarProps) {
 
 
   const copyButtonStyleVars = useMemo(() => ({
-    '--copy-btn-bg': theme.colors.background.elevated,
-    '--copy-btn-bg-hover': theme.colors.background.hover,
-    '--copy-btn-text': theme.colors.text.secondary,
-    '--copy-btn-text-hover': theme.colors.text.primary,
-    '--copy-btn-border': theme.colors.border.subtle,
+    '--copy-btn-bg': theme.colors.accent.blue.DEFAULT,
+    '--copy-btn-bg-hover': theme.colors.accent.blue.dark,
+    '--copy-btn-text': theme.colors.background.primary,
+    '--copy-btn-text-hover': theme.colors.background.primary,
+    '--copy-btn-border': theme.colors.accent.blue.DEFAULT,
   }) as CSSProperties, [])
 
   const resetCaches = useCallback(() => {
