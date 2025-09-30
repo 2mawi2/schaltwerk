@@ -15,7 +15,6 @@ import { DiffViewer } from './DiffViewer'
 import {
   VscClose, VscSend, VscListFlat, VscListSelection, VscCollapseAll, VscExpandAll
 } from 'react-icons/vsc'
-import hljs from 'highlight.js'
 import { SearchBox } from '../common/SearchBox'
 import '../../styles/vscode-dark-theme.css'
 import { logger } from '../../utils/logger'
@@ -27,6 +26,7 @@ import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsCont
 import { KeyboardShortcutAction, KeyboardShortcutConfig } from '../../keyboardShortcuts/config'
 import { detectPlatformSafe, isShortcutForAction } from '../../keyboardShortcuts/helpers'
 import type { Platform } from '../../keyboardShortcuts/matcher'
+import { useHighlightWorker } from '../../hooks/useHighlightWorker'
 
 // ChangedFile type now imported from DiffFileExplorer
 
@@ -706,33 +706,20 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
   }, [selectedFile, allFileDiffs])
   const HIGHLIGHT_LINE_CAP = 3000
 
-  const highlightCacheRef = useRef<Map<string, string>>(new Map())
+  const { highlightCode: highlightWithWorker } = useHighlightWorker()
   const highlightCode = useCallback((code: string) => {
     if (!code) return ''
-    // Disable highlighting when too many changed lines in file to avoid jank
-    if (selectedFile) {
-      const fd = allFileDiffs.get(selectedFile)
-      if ((fd as FileDiffData)?.changedLinesCount && (fd as FileDiffData).changedLinesCount > HIGHLIGHT_LINE_CAP) {
-        return code
-      }
-    }
-    const langKey = language || 'auto'
-    const cacheKey = `${langKey}::${code}`
-    const cache = highlightCacheRef.current
-    const cached = cache.get(cacheKey)
-    if (cached) return cached
-    try {
-      const highlighted = language && hljs.getLanguage(language)
-        ? hljs.highlight(code, { language, ignoreIllegals: true }).value
-        : hljs.highlightAuto(code).value
-      // Simple cap to avoid unbounded growth
-      if (cache.size > 10000) cache.clear()
-      cache.set(cacheKey, highlighted)
-      return highlighted
-    } catch {
-      return code
-    }
-  }, [language, allFileDiffs, selectedFile])
+
+    const fileDiff = selectedFile ? allFileDiffs.get(selectedFile) : undefined
+    const bypass = shouldBypassHighlighting(fileDiff as FileDiffData | undefined, HIGHLIGHT_LINE_CAP)
+
+    return highlightWithWorker({
+      code,
+      language: language ?? null,
+      bypass,
+      autoDetect: !language
+    })
+  }, [selectedFile, allFileDiffs, highlightWithWorker, language])
 
   // Performance marks to capture compute and render timings (visible in devtools Timeline)
   useEffect(() => {
@@ -1253,6 +1240,12 @@ export function UnifiedDiffModal({ filePath, isOpen, onClose }: UnifiedDiffModal
       )}
     </DiffSessionActions>
   )
+}
+
+export function shouldBypassHighlighting(fileDiff: FileDiffData | undefined, cap: number): boolean {
+  if (!fileDiff) return false
+  const { changedLinesCount } = fileDiff
+  return typeof changedLinesCount === 'number' && changedLinesCount > cap
 }
 
 function CommentForm({ onSubmit, onCancel, keyboardShortcutConfig, platform }: {
