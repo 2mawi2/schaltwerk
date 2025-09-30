@@ -306,9 +306,11 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         if (!params) return
         try {
             await invoke(TauriCommands.RegisterSessionTerminals, {
-                projectId: params.projectId,
-                sessionId: params.sessionId,
-                terminalIds,
+                payload: {
+                    projectId: params.projectId,
+                    sessionId: params.sessionId,
+                    terminalIds,
+                },
             })
         } catch (error) {
             logger.warn('[SelectionContext] Failed to register terminals for session', error)

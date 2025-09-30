@@ -48,9 +48,11 @@ export function useTerminalTabs({
     if (!projectPath) return
     try {
       await invoke(TauriCommands.RegisterSessionTerminals, {
-        projectId: projectPath,
-        sessionId: sessionName ?? null,
-        terminalIds: [terminalId],
+        payload: {
+          projectId: projectPath,
+          sessionId: sessionName ?? null,
+          terminalIds: [terminalId],
+        },
       })
     } catch (error) {
       logger.warn(`[useTerminalTabs] Failed to register terminal ${terminalId}`, error)

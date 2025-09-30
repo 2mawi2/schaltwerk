@@ -7,6 +7,8 @@ import type { MarkdownEditorRef } from './MarkdownEditor'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
+const sessionContentCache = new Map<string, string>()
+
 interface Props {
   sessionName: string
   editable?: boolean
@@ -21,7 +23,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   const [error, setError] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
-  const sessionCacheRef = useRef<Map<string, string>>(new Map())
+  const sessionCacheRef = useRef(sessionContentCache)
   const loadTokenRef = useRef(0)
 
   const updateContent = useCallback((value: string) => {
@@ -44,6 +46,10 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
 
     setError(null)
 
+    if (cachedContent !== undefined && !editable) {
+      return () => { mounted = false }
+    }
+
     invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName })
       .then(([draftContent, initialPrompt]) => {
         if (!mounted) return
@@ -61,7 +67,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
         setLoading(false)
       })
     return () => { mounted = false }
-  }, [sessionName])
+  }, [sessionName, editable])
 
   // Auto-save
   useEffect(() => {
@@ -166,4 +172,10 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
       </div>
     </div>
   )
+}
+
+export function __clearSpecContentCacheForTests() {
+  if (process.env.NODE_ENV === 'test') {
+    sessionContentCache.clear()
+  }
 }

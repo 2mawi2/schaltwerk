@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode, SetStateAction } from 'react'
 import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { UnlistenFn } from '@tauri-apps/api/event'
@@ -147,7 +147,17 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     const { addCleanup } = useCleanupRegistry()
     const toast = useOptionalToast()
     const pushToast = toast?.pushToast ?? noopToast
-    const [allSessions, setAllSessions] = useState<EnrichedSession[]>([])
+    const [allSessions, setAllSessionsState] = useState<EnrichedSession[]>([])
+    const allSessionsRef = useRef<EnrichedSession[]>([])
+    const setAllSessionsRef = useCallback((updater: SetStateAction<EnrichedSession[]>) => {
+        setAllSessionsState(prev => {
+            const next = typeof updater === 'function'
+                ? (updater as (prevState: EnrichedSession[]) => EnrichedSession[])(prev)
+                : updater
+            allSessionsRef.current = next
+            return next
+        })
+    }, [])
     const [loading, setLoading] = useState(true)
     const [sortMode, setSortMode] = useState<SortMode>(getDefaultSortMode())
     const [filterMode, setFilterMode] = useState<FilterMode>(getDefaultFilterMode())
@@ -254,7 +264,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 { name: sessionId }
             )
             mergePreviewCacheRef.current.set(sessionId, preview)
-            setAllSessions(prev => prev.map(session => {
+            setAllSessionsRef(prev => prev.map((session): EnrichedSession => {
                 if (session.info.session_id !== sessionId) {
                     return session
                 }
@@ -297,7 +307,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 error: message,
             })
         }
-    }, [])
+    }, [setAllSessionsRef])
 
     const closeMergeDialog = useCallback(() => {
         setMergeDialogState({
@@ -499,7 +509,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
     const reloadSessions = useCallback(async () => {
         if (!projectPath) {
-            setAllSessions([])
+            setAllSessionsRef([])
             setLoading(false)
             hasInitialLoadCompleted.current = false
             return
@@ -512,7 +522,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
             const enrichedSessions = await invoke<EnrichedSession[]>(TauriCommands.SchaltwerkCoreListEnrichedSessions)
             const enriched = enrichedSessions || []
-            const previousSessions = new Map(allSessions.map(session => [session.info.session_id, session]))
+            const previousSessions = new Map(allSessionsRef.current.map(session => [session.info.session_id, session]))
 
             const attachMergeSnapshot = (session: EnrichedSession): EnrichedSession => {
                 const previous = previousSessions.get(session.info.session_id)
@@ -552,7 +562,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             if (hasSpecSessions(enriched)) {
                 const normalized = enriched.map(attachMergeSnapshot)
-                setAllSessions(normalized)
+                setAllSessionsRef(normalized)
                 syncMergeStatuses(normalized)
                 const nextStates = new Map<string, string>()
                 for (const s of normalized) {
@@ -579,7 +589,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                     worktree_path: spec.worktree_path || '',
                                     base_branch: spec.parent_branch,
                                     parent_branch: spec.parent_branch,
-                                    status: 'spec',
+                                    status: 'spec' as const,
                                     session_state: SessionState.Spec,
                                     created_at: spec.created_at ? new Date(spec.created_at).toISOString() : undefined,
                                     last_modified: spec.updated_at ? new Date(spec.updated_at).toISOString() : undefined,
@@ -600,7 +610,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     logger.warn('Failed to fetch draft sessions, continuing with enriched sessions only:', error)
                 }
 
-                setAllSessions(all)
+                setAllSessionsRef(all)
                 syncMergeStatuses(all)
                 const nextStates = new Map<string, string>()
                 for (const s of all) {
@@ -610,16 +620,16 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             }
         } catch (error) {
             logger.error('Failed to load sessions:', error)
-            setAllSessions([])
+            setAllSessionsRef([])
         } finally {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, allSessions, syncMergeStatuses])
+    }, [projectPath, setAllSessionsRef, syncMergeStatuses])
 
     const optimisticallyConvertSessionToSpec = useCallback((sessionId: string) => {
         let updated = false
-        setAllSessions(prev => {
+        setAllSessionsRef(prev => {
             let changed = false
             const next = prev.map(session => {
                 if (session.info.session_id !== sessionId) {
@@ -629,7 +639,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 const nextInfo: SessionInfo = {
                     ...session.info,
                     session_state: 'spec',
-                    status: 'spec',
+                    status: 'spec' as const,
                     ready_to_merge: false,
                     has_uncommitted_changes: false,
                     has_conflicts: false,
@@ -666,7 +676,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             next.delete(sessionId)
             return next
         })
-    }, [])
+    }, [setAllSessionsRef])
 
     useEffect(() => {
         if (!projectPath) {
@@ -704,7 +714,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         return
                     }
 
-                    setAllSessions(prev => prev.map(existing => {
+                    setAllSessionsRef(prev => prev.map(existing => {
                         if (existing.info.session_id !== sessionId) {
                             return existing
                         }
@@ -737,7 +747,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     pendingMergePreviewRef.current.delete(sessionId)
                 })
         })
-    }, [allSessions, projectPath])
+    }, [allSessions, projectPath, setAllSessionsRef])
 
     useEffect(() => {
         let cancelled = false
@@ -884,11 +894,11 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             if (projectPath) {
                 reloadSessions()
             } else {
-                setAllSessions([])
+                setAllSessionsRef([])
                 setLoading(false)
             }
         }
-    }, [projectPath, lastProjectPath, reloadSessions])
+    }, [projectPath, lastProjectPath, reloadSessions, setAllSessionsRef])
 
     useEffect(() => {
         // Previous listeners will be cleaned up automatically by useCleanupRegistry
@@ -900,7 +910,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     if (event && event.length > 0) {
                         // Do a smart merge instead of replacing the entire array to reduce flashing
                         // This preserves session order and references to avoid selection jumping
-                        setAllSessions(prev => {
+                        setAllSessionsRef(prev => {
                             // Create a map of new sessions for quick lookup
                             const newSessionsMap = new Map<string, EnrichedSession>()
                             for (const session of event) {
@@ -974,7 +984,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             // Activity updates
             addListener(listenEvent(SchaltEvent.SessionActivity, (event) => {
                 const { session_name, last_activity_ts, current_task, todo_percentage, is_blocked } = event
-                setAllSessions(prev => prev.map(s => {
+                setAllSessionsRef(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     return {
                         ...s,
@@ -1005,7 +1015,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                     merge_is_up_to_date,
                     merge_conflicting_paths,
                 } = event
-                setAllSessions(prev => prev.map(s => {
+                setAllSessionsRef(prev => prev.map(s => {
                     if (s.info.session_id !== session_name) return s
                     const diff = {
                         files_changed: files_changed || 0,
@@ -1071,7 +1081,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                 const nowIso = new Date().toISOString()
                 const createdAt = event.created_at ?? nowIso
                 const lastModified = event.last_modified ?? createdAt
-                setAllSessions(prev => {
+                setAllSessionsRef(prev => {
                     if (prev.some(s => s.info.session_id === session_name)) return prev
                     const info: SessionInfo = {
                         session_id: session_name,
@@ -1079,7 +1089,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                         worktree_path,
                         base_branch: parent_branch,
                         parent_branch,
-                        status: 'active',
+                        status: 'active' as const,
                         created_at: createdAt,
                         last_modified: lastModified,
                         has_uncommitted_changes: false,
@@ -1132,13 +1142,13 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             // Session cancelling (marks as cancelling but doesn't remove)
             addListener(listenEvent(SchaltEvent.SessionCancelling, (event) => {
-                setAllSessions(prev => prev.map(s => {
+                setAllSessionsRef(prev => prev.map(s => {
                     if (s.info.session_id !== event.session_name) return s
                     return {
                         ...s,
                         info: {
                             ...s.info,
-                            status: 'spec'
+                                status: 'spec' as const
                         }
                     }
                 }))
@@ -1146,12 +1156,12 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
 
             // Session removed (actual removal after cancellation completes)
             addListener(listenEvent(SchaltEvent.SessionRemoved, (event) => {
-                setAllSessions(prev => prev.filter(s => s.info.session_id !== event.session_name))
+                setAllSessionsRef(prev => prev.filter(s => s.info.session_id !== event.session_name))
             }))
         }
 
         setupListeners()
-    }, [projectPath, addListener, reloadSessions, syncMergeStatuses])
+    }, [projectPath, addListener, reloadSessions, setAllSessionsRef, syncMergeStatuses])
 
     useEffect(() => {
         let disposed = false
