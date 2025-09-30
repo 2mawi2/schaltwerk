@@ -87,10 +87,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         >
           {toasts.map((toast) => {
             const background = toast.tone === 'success'
-              ? theme.colors.accent.green.bg
+              ? theme.colors.accent.green.dark
               : toast.tone === 'warning'
-                ? theme.colors.accent.yellow.bg
-                : theme.colors.accent.red.bg
+                ? theme.colors.accent.yellow.dark
+                : theme.colors.accent.red.dark
             const border = toast.tone === 'success'
               ? theme.colors.accent.green.DEFAULT
               : toast.tone === 'warning'
