@@ -17,13 +17,14 @@ pub fn build_login_shell_invocation_with_shell(
     command: &str,
 ) -> ShellInvocation {
     let shell_kind = classify_shell(shell);
-    let mut args: Vec<String> = base_args.to_vec();
+    let command_flag = command_flag(shell_kind);
+    let mut args: Vec<String> = sanitize_base_args(base_args, command_flag);
 
     for flag in login_flags(shell_kind) {
         ensure_flag(&mut args, flag);
     }
 
-    if let Some(flag) = command_flag(shell_kind) {
+    if let Some(flag) = command_flag {
         ensure_flag(&mut args, flag);
     }
 
@@ -87,6 +88,59 @@ fn command_flag(kind: ShellKind) -> Option<&'static str> {
         PowerShell => Some("-Command"),
         _ => Some("-c"),
     }
+}
+
+fn sanitize_base_args(base_args: &[String], command_flag: Option<&str>) -> Vec<String> {
+    if command_flag.is_none() {
+        return base_args.to_vec();
+    }
+
+    let flag = command_flag.unwrap();
+    let mut sanitized = Vec::with_capacity(base_args.len());
+    let mut i = 0;
+    while i < base_args.len() {
+        let arg = &base_args[i];
+
+        if flag == "-c" {
+            if arg == flag {
+                i += 1; // skip flag
+                if i < base_args.len() {
+                    i += 1; // skip user command
+                }
+                continue;
+            }
+
+            if arg.starts_with('-') && !arg.starts_with("--") {
+                let mut cluster: Vec<char> = arg[1..].chars().collect();
+                if cluster.contains(&'c') {
+                    cluster.retain(|ch| *ch != 'c');
+                    if !cluster.is_empty() {
+                        let mut rebuilt = String::from("-");
+                        for ch in cluster {
+                            rebuilt.push(ch);
+                        }
+                        sanitized.push(rebuilt);
+                    }
+                    i += 1;
+                    if i < base_args.len() {
+                        i += 1; // skip user command argument
+                    }
+                    continue;
+                }
+            }
+        } else if arg == flag {
+            i += 1; // skip flag
+            if i < base_args.len() {
+                i += 1; // skip user command
+            }
+            continue;
+        }
+
+        sanitized.push(arg.clone());
+        i += 1;
+    }
+
+    sanitized
 }
 
 fn ensure_flag(args: &mut Vec<String>, flag: &str) {
@@ -196,6 +250,45 @@ mod tests {
         assert_eq!(
             invocation.args,
             to_vec(&["--login", "-c", "sh '/tmp/setup.sh'"])
+        );
+    }
+
+    #[test]
+    fn replaces_existing_command_argument() {
+        let invocation = build_login_shell_invocation_with_shell(
+            "/bin/bash",
+            &to_vec(&["-i", "-c", "tmux attach"]),
+            "sh '/tmp/setup.sh'",
+        );
+        assert_eq!(invocation.program, "/bin/bash");
+        assert_eq!(
+            invocation.args,
+            to_vec(&["-i", "-l", "-c", "sh '/tmp/setup.sh'"])
+        );
+    }
+
+    #[test]
+    fn handles_combined_short_flags() {
+        let invocation = build_login_shell_invocation_with_shell(
+            "/bin/zsh",
+            &to_vec(&["-lc"]),
+            "sh '/tmp/setup.sh'",
+        );
+        assert_eq!(invocation.program, "/bin/zsh");
+        assert_eq!(invocation.args, to_vec(&["-l", "-c", "sh '/tmp/setup.sh'"]));
+    }
+
+    #[test]
+    fn replaces_powershell_command_argument() {
+        let invocation = build_login_shell_invocation_with_shell(
+            "pwsh",
+            &to_vec(&["-Login", "-Command", "Write-Host hi"]),
+            "Write-Host 'setup'",
+        );
+        assert_eq!(invocation.program, "pwsh");
+        assert_eq!(
+            invocation.args,
+            to_vec(&["-Login", "-Command", "Write-Host 'setup'"])
         );
     }
 
