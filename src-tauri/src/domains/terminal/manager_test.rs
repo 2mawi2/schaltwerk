@@ -817,21 +817,37 @@ mod tests {
             .await
             .unwrap();
 
-        // Poll buffer until output is captured (max 100 iterations to avoid infinite loop)
-        let mut attempts = 0;
         let mut last_len = 0;
+        let mut stable_count = 0;
+        let start = std::time::Instant::now();
+
         loop {
-            attempts += 1;
             let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
             let current_len = snapshot.data.len();
-            if current_len > 2 * 1024 * 1024 || (current_len == last_len && attempts > 10) {
+
+            if current_len > 2 * 1024 * 1024 {
                 break;
             }
-            last_len = current_len;
-            sleep(Duration::from_millis(50)).await;
-            if attempts > 100 {
-                panic!("Buffer not populated after 100 attempts");
+
+            if current_len == last_len {
+                stable_count += 1;
+                if current_len > 0 && stable_count > 20 {
+                    break;
+                }
+            } else {
+                stable_count = 0;
             }
+
+            last_len = current_len;
+
+            if start.elapsed() > Duration::from_secs(10) {
+                panic!(
+                    "Buffer not populated after 10 seconds. Current size: {} bytes",
+                    current_len
+                );
+            }
+
+            sleep(Duration::from_millis(50)).await;
         }
 
         let snapshot = manager.get_terminal_buffer(id.clone(), None).await.unwrap();
