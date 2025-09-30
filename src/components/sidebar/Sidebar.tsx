@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import clsx from 'clsx'
 import { invoke } from '@tauri-apps/api/core'
@@ -847,13 +847,11 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
 
     // Scroll selected session into view when selection changes
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (selection.kind !== 'session') return
 
-        // Use requestAnimationFrame to ensure DOM updates are complete
         requestAnimationFrame(() => {
-            // Add a small delay to ensure the selection state has been applied to the DOM
-            setTimeout(() => {
+            requestAnimationFrame(() => {
                 const selectedElement = sidebarRef.current?.querySelector(`[data-session-selected="true"]`)
                 if (selectedElement) {
                     selectedElement.scrollIntoView({
@@ -862,7 +860,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                         inline: 'nearest'
                     })
                 }
-            }, 50)
+            })
         })
     }, [selection])
 
