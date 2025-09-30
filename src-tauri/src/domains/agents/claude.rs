@@ -1,7 +1,10 @@
 use std::collections::HashSet;
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use std::io::{BufRead, BufReader};
+
+const CLAUDE_SESSION_SCAN_LIMIT: usize = 64;
 
 #[derive(Debug, Clone, Default)]
 pub struct ClaudeConfig {
@@ -105,6 +108,14 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
                         }
                     };
 
+                    if !session_file_contains_session_metadata(&entry_path, &session_id) {
+                        log::debug!(
+                            "Claude session detection (fast-path): Skipping session file without session metadata {}",
+                            entry_path.display()
+                        );
+                        continue;
+                    }
+
                     // Prefer the most recently modified file, fall back to lexicographic order for stability
                     let is_newer = match &newest {
                         Some((existing_time, existing_id, _)) => {
@@ -154,6 +165,58 @@ pub fn find_resumable_claude_session_fast(path: &Path) -> Option<String> {
 
 fn sanitize_path_for_claude(path: &Path) -> String {
     path.to_string_lossy().replace(['/', '.', '_'], "-")
+}
+
+fn session_file_contains_session_metadata(path: &Path, expected_session_id: &str) -> bool {
+    let file = match File::open(path) {
+        Ok(file) => file,
+        Err(err) => {
+            log::debug!(
+                "Claude session detection: Failed to open session file {}: {err}",
+                path.display()
+            );
+            return false;
+        }
+    };
+
+    let reader = BufReader::new(file);
+    for (index, line_result) in reader.lines().enumerate() {
+        if index >= CLAUDE_SESSION_SCAN_LIMIT {
+            break;
+        }
+
+        let line = match line_result {
+            Ok(line) => line,
+            Err(err) => {
+                log::debug!(
+                    "Claude session detection: Failed to read line {index} from {}: {err}",
+                    path.display()
+                );
+                break;
+            }
+        };
+
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        match serde_json::from_str::<serde_json::Value>(trimmed) {
+            Ok(value) => {
+                if matches!(value.get("sessionId").and_then(|v| v.as_str()), Some(id) if id == expected_session_id) {
+                    return true;
+                }
+            }
+            Err(err) => {
+                log::debug!(
+                    "Claude session detection: Failed to parse JSON from {}: {err}",
+                    path.display()
+                );
+            }
+        }
+    }
+
+    false
 }
 
 pub fn build_claude_command_with_config(
@@ -308,9 +371,17 @@ mod tests {
 
         // Create session files for testing
         let mut f_old = File::create(&older).unwrap();
-        f_old.write_all(b"test content").unwrap();
+        f_old
+            .write_all(
+                b"{\"sessionId\":\"ses_old\",\"cwd\":\"/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla\"}",
+            )
+            .unwrap();
         let mut f_new = File::create(&newer).unwrap();
-        f_new.write_all(b"test content").unwrap();
+        f_new
+            .write_all(
+                b"{\"sessionId\":\"ses_new\",\"cwd\":\"/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/eager_tesla\"}",
+            )
+            .unwrap();
 
         // Ensure deterministic modification ordering (newer file has later mtime)
         let older_time = FileTime::from_unix_time(100, 0);
@@ -340,6 +411,88 @@ mod tests {
         assert_eq!(found.as_deref(), Some("ses_new"));
 
         // Restore HOME
+        if let Some(h) = prev_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_find_resumable_claude_session_ignores_summary_only_files() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let home_path = tempdir.path();
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_path);
+
+        let worktree = Path::new(
+            "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/focused_mccarthy",
+        );
+        let sanitized = sanitize_path_for_claude(worktree);
+
+        let projects_root = home_path.join(".claude").join("projects");
+        let projects = projects_root.join(&sanitized);
+        fs::create_dir_all(&projects).expect("create projects dir");
+
+        let summary_file = projects.join("summary-only.jsonl");
+        let mut summary = File::create(&summary_file).unwrap();
+        summary
+            .write_all(b"{\"type\":\"summary\",\"summary\":\"Latest summary\"}")
+            .unwrap();
+
+        let valid_file = projects.join("valid-session.jsonl");
+        let mut valid = File::create(&valid_file).unwrap();
+        valid
+            .write_all(
+                b"{\"sessionId\":\"valid-session\",\"cwd\":\"/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/focused_mccarthy\"}",
+            )
+            .unwrap();
+
+        // Make the summary file appear newer than the valid conversation
+        let older_time = FileTime::from_unix_time(100, 0);
+        let newer_time = FileTime::from_unix_time(200, 0);
+        set_file_mtime(&valid_file, older_time).unwrap();
+        set_file_mtime(&summary_file, newer_time).unwrap();
+
+        let found = find_resumable_claude_session_fast(worktree);
+        assert_eq!(found.as_deref(), Some("valid-session"));
+
+        if let Some(h) = prev_home {
+            std::env::set_var("HOME", h);
+        } else {
+            std::env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_find_resumable_claude_session_returns_none_for_summary_only_dir() {
+        let tempdir = tempfile::tempdir().expect("tempdir");
+        let home_path = tempdir.path();
+        let prev_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", home_path);
+
+        let worktree = Path::new(
+            "/Users/marius.wichtner/Documents/git/schaltwerk/.schaltwerk/worktrees/fleet_torvalds",
+        );
+        let sanitized = sanitize_path_for_claude(worktree);
+
+        let projects_root = home_path.join(".claude").join("projects");
+        let projects = projects_root.join(&sanitized);
+        fs::create_dir_all(&projects).expect("create projects dir");
+
+        let summary_file = projects.join("summary-only.jsonl");
+        let mut summary = File::create(&summary_file).unwrap();
+        summary
+            .write_all(b"{\"type\":\"summary\",\"summary\":\"Latest summary\"}")
+            .unwrap();
+
+        set_file_mtime(&summary_file, FileTime::from_unix_time(300, 0)).unwrap();
+
+        let found = find_resumable_claude_session_fast(worktree);
+        assert_eq!(found, None);
+
         if let Some(h) = prev_home {
             std::env::set_var("HOME", h);
         } else {

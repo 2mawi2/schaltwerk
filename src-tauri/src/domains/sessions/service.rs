@@ -145,7 +145,12 @@ mod service_unified_tests {
         };
         let projects = projects_root.join(sanitized);
         std::fs::create_dir_all(&projects).unwrap();
-        std::fs::write(projects.join("resume-session-id.jsonl"), b"dummy").unwrap();
+        let resume_file = projects.join("resume-session-id.jsonl");
+        let resume_content = format!(
+            "{{\"sessionId\":\"resume-session-id\",\"cwd\":\"{}\"}}",
+            session.worktree_path.to_string_lossy()
+        );
+        std::fs::write(resume_file, resume_content).unwrap();
 
         // First start should be FRESH (no --continue / no -r)
         let cmd1 = manager
