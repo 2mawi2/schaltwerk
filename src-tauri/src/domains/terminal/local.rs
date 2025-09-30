@@ -381,22 +381,19 @@ impl LocalPtyAdapter {
                                 } else {
                                     DEFAULT_MAX_BUFFER_SIZE
                                 };
-                                if state.buffer.len() > max_size {
-                                    let excess = state.buffer.len() - max_size;
-                                    state.buffer.drain(0..excess);
-                                }
 
-                                // Persist to transcript for agent terminals
                                 // Increment sequence and update last output time
                                 state.seq = state.seq.saturating_add(sanitized_len as u64);
                                 state.last_output = SystemTime::now();
-                                let new_seq = state.seq; // Capture for event emission
-                                let buffer_len = state.buffer.len() as u64;
-                                state.start_seq = if buffer_len == 0 {
-                                    state.seq
-                                } else {
-                                    state.seq.saturating_sub(buffer_len)
-                                };
+
+                                // Trim buffer if needed and update start_seq accordingly
+                                if state.buffer.len() > max_size {
+                                    let excess = state.buffer.len() - max_size;
+                                    state.buffer.drain(0..excess);
+                                    state.start_seq = state.start_seq.saturating_add(excess as u64);
+                                }
+
+                                let new_seq = state.seq;
 
                                 // Handle output emission - different strategies for agent vs standard terminals
                                 drop(terminals); // release lock before awaits below
