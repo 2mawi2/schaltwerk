@@ -6,6 +6,10 @@ use schaltwerk::domains::sessions::db_sessions::SessionMethods;
 use schaltwerk::domains::sessions::entity::{
     EnrichedSession, FilterMode, Session, SessionState, SortMode,
 };
+use schaltwerk::domains::terminal::{
+    build_login_shell_invocation_with_shell, get_effective_shell, sh_quote_string,
+    shell_invocation_to_posix,
+};
 use schaltwerk::domains::workspace::get_project_files_with_status;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
@@ -15,23 +19,6 @@ mod agent_launcher;
 mod events;
 mod schaltwerk_core_cli;
 mod terminals;
-
-// Simple POSIX sh single-quote helper for safe argument joining in one-liners
-fn sh_quote_string(s: &str) -> String {
-    if s.is_empty() {
-        return "''".to_string();
-    }
-    let mut out = String::from("'");
-    for ch in s.chars() {
-        if ch == '\'' {
-            out.push_str("'\\''");
-        } else {
-            out.push(ch);
-        }
-    }
-    out.push('\'');
-    out
-}
 
 // Helper functions for session name parsing
 fn is_version_suffix(s: &str) -> bool {
@@ -1155,6 +1142,16 @@ pub async fn schaltwerk_core_start_claude_with_restart(
                 // Build: set -e; if [ ! -f marker ]; then sh '<tmp>'; rm -f '<tmp>'; mkdir -p .schaltwerk; touch marker; fi; exec <agent> <args...>
                 let marker_q = sh_quote_string(marker_rel);
                 let script_q = sh_quote_string(&script_path.display().to_string());
+                let script_command = format!("sh {script_q}");
+
+                let (user_shell, default_args) = get_effective_shell();
+                let login_invocation = build_login_shell_invocation_with_shell(
+                    &user_shell,
+                    &default_args,
+                    &script_command,
+                );
+                let run_setup_command = shell_invocation_to_posix(&login_invocation);
+
                 let mut exec_cmd = String::new();
                 exec_cmd.push_str(&sh_quote_string(&agent_name));
                 for a in &agent_args {
@@ -1162,7 +1159,7 @@ pub async fn schaltwerk_core_start_claude_with_restart(
                     exec_cmd.push_str(&sh_quote_string(a));
                 }
                 let chained = format!(
-                        "set -e; if [ ! -f {marker_q} ]; then sh {script_q}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; exec {exec_cmd}"
+                        "set -e; if [ ! -f {marker_q} ]; then {run_setup_command}; rm -f {script_q}; mkdir -p .schaltwerk; : > {marker_q}; fi; exec {exec_cmd}"
                     );
                 shell_cmd = Some(chained);
                 use_shell_chain = true;

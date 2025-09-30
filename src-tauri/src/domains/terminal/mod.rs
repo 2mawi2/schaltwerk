@@ -52,6 +52,7 @@ pub mod ansi;
 pub mod coalescing;
 pub mod local;
 pub mod manager;
+pub mod shell_invocation;
 pub mod utf8_stream;
 
 #[cfg(test)]
@@ -59,6 +60,10 @@ pub mod manager_test;
 
 pub use local::LocalPtyAdapter;
 pub use manager::TerminalManager;
+pub use shell_invocation::{
+    build_login_shell_invocation, build_login_shell_invocation_with_shell, sh_quote_string,
+    shell_invocation_to_posix, ShellInvocation,
+};
 
 use std::sync::RwLock;
 static TERMINAL_SHELL_STATE: RwLock<Option<(String, Vec<String>)>> = RwLock::new(None);

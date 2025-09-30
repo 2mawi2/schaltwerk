@@ -3,6 +3,7 @@ use crate::{
     domains::sessions::cache::SessionCacheManager,
     domains::sessions::entity::{EnrichedSession, FilterMode, SessionState, SortMode},
     domains::sessions::repository::SessionDbManager,
+    domains::terminal::{build_login_shell_invocation, sh_quote_string},
     schaltwerk_core::db_project_config::{ProjectConfigMethods, DEFAULT_BRANCH_PREFIX},
 };
 use anyhow::{anyhow, Result};
@@ -248,8 +249,11 @@ impl SessionUtils {
             std::fs::set_permissions(&script_path, perms)?;
         }
 
-        let mut cmd = Command::new("sh");
-        cmd.arg(&script_path);
+        let command_string = format!("sh {}", sh_quote_string(&script_path.display().to_string()));
+        let shell_invocation = build_login_shell_invocation(&command_string);
+
+        let mut cmd = Command::new(&shell_invocation.program);
+        cmd.args(&shell_invocation.args);
 
         let output = cmd
             .current_dir(worktree_path)
