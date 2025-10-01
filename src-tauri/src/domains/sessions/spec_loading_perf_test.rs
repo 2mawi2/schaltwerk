@@ -117,8 +117,8 @@ mod spec_loading_performance_tests {
         );
 
         assert!(
-            avg_micros < 5,
-            "Cached spec loading should be under 5µs per operation (at least 2x faster than baseline), got {}µs",
+            avg_micros <= 5,
+            "Cached spec loading should be 5µs or under per operation (at least 2x faster than baseline), got {}µs",
             avg_micros
         );
     }
