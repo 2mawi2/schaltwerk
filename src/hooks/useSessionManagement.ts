@@ -3,6 +3,7 @@ import { TauriCommands } from '../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { SchaltEvent, listenEvent } from '../common/eventSystem'
 import { UiEvent, emitUiEvent, TerminalResetDetail } from '../common/uiEvents'
+import { closeTerminalBackend, terminalExistsBackend } from '../terminal/transport/backend'
 
 export interface SessionSelection {
     kind: 'orchestrator' | 'session'
@@ -38,7 +39,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
 
     const closeTerminalIfExists = useCallback(async (terminalId: string): Promise<void> => {
         // Assume existence when we already checked; backend is resilient to idempotent close
-        await invoke(TauriCommands.CloseTerminal, { id: terminalId })
+        await closeTerminalBackend(terminalId)
     }, [])
 
     const restartClaudeInSession = useCallback(async (sessionName: string): Promise<void> => {
@@ -112,7 +113,7 @@ export function useSessionManagement(): SessionManagementHookReturn {
         sessionName: string, 
         terminalId: string
     ): Promise<void> => {
-        const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
+        const exists = await terminalExistsBackend(terminalId)
         const closedP = exists ? waitForTerminalClosed(terminalId) : Promise.resolve()
         const startedP = waitForAgentStarted(terminalId)
         if (exists) {

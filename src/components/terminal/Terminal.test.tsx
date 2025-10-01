@@ -453,9 +453,21 @@ describe('Terminal component', () => {
     await flushAll()
 
     const xterm = getLastXtermInstance()
-    xterm.__triggerData('hello')
+    await act(async () => {
+      xterm.__triggerData('hello')
+    })
+    await flushAll()
 
-    expect((TauriCore as unknown as MockTauriCore).invoke).toHaveBeenCalledWith(TauriCommands.WriteTerminal, { id: 'session-io-top', data: 'hello' })
+    const writeCalls = (TauriCore as unknown as MockTauriCore & {
+      invoke: { mock: { calls: unknown[][] } }
+    }).invoke.mock.calls.filter(call => call[0] === TauriCommands.WriteTerminal)
+
+    expect(
+      writeCalls.some(call => {
+        const args = call[1] as { id: string, data: string }
+        return args.id === 'session-io-top' && args.data === 'hello'
+      })
+    ).toBe(true)
   })
 
   it('filters printable input when inputFilter rejects it', async () => {
@@ -547,6 +559,7 @@ describe('Terminal component', () => {
     const result = xterm.__triggerKey({ key: 'Enter', shiftKey: true, metaKey: false, ctrlKey: false, altKey: false, type: 'keydown' } as KeyboardEvent)
 
     expect(result).toBe(true)
+    await flushAll()
     const callData = invokeSpy.mock.calls
       .filter((call) => call[0] === TauriCommands.WriteTerminal)
       .map((call) => call[1] as { data?: string; id?: string })

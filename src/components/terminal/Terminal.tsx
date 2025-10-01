@@ -24,6 +24,13 @@ import { makeAgentQueueConfig, makeDefaultQueueConfig } from '../../utils/termin
 import { useTerminalWriteQueue } from '../../hooks/useTerminalWriteQueue'
 import { TerminalLoadingOverlay } from './TerminalLoadingOverlay'
 import { TerminalSearchPanel } from './TerminalSearchPanel'
+import {
+    writeTerminalBackend,
+    resizeTerminalBackend,
+    subscribeTerminalBackend,
+    ackTerminalBackend,
+    isPluginTerminal,
+} from '../../terminal/transport/backend'
 
 const DEFAULT_SCROLLBACK_LINES = 10000
 const BACKGROUND_SCROLLBACK_LINES = 5000
@@ -126,6 +133,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         setSearchTerm('');
     }, []);
     const seqRef = useRef<number>(0);
+    const [pluginTransportActive, setPluginTransportActive] = useState(() => isPluginTerminal(terminalId));
+    const pluginAckRef = useRef<{ lastSeq: number }>({ lastSeq: 0 });
+    const textDecoderRef = useRef<TextDecoder | null>(null);
+    const textEncoderRef = useRef<TextEncoder | null>(null);
     const termDebug = () => (typeof window !== 'undefined' && localStorage.getItem('TERMINAL_DEBUG') === '1');
     // No timer-based retries; gate on renderer readiness and microtasks/RAFs
     const unlistenRef = useRef<UnlistenFn | null>(null);
@@ -143,6 +154,44 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const dragSelectingRef = useRef<boolean>(false);
     const selectionActiveRef = useRef<boolean>(false);
     const skipNextFocusCallbackRef = useRef<boolean>(false);
+
+    useEffect(() => {
+        let cancelled = false;
+        const refresh = () => {
+            const active = isPluginTerminal(terminalId);
+            if (!cancelled) {
+                setPluginTransportActive(active);
+                if (!active) {
+                    pluginAckRef.current.lastSeq = 0;
+                }
+            }
+        };
+        refresh();
+        let timer: number | undefined;
+        if (typeof window !== 'undefined') {
+            timer = window.setTimeout(refresh, 0);
+        }
+        return () => {
+            cancelled = true;
+            if (typeof window !== 'undefined' && timer !== undefined) {
+                window.clearTimeout(timer);
+            }
+        };
+    }, [terminalId]);
+
+    const acknowledgeChunk = useCallback((chunk: string) => {
+        if (!pluginTransportActive) return;
+        if (typeof TextEncoder === 'undefined') return;
+        if (!chunk || chunk.length === 0) return;
+        const encoder = textEncoderRef.current ?? new TextEncoder();
+        textEncoderRef.current = encoder;
+        const bytes = encoder.encode(chunk).length;
+        if (bytes === 0) return;
+        const seq = pluginAckRef.current.lastSeq;
+        ackTerminalBackend(terminalId, seq, bytes).catch(error => {
+            logger.debug(`[Terminal ${terminalId}] ack failed`, error);
+        });
+    }, [pluginTransportActive, terminalId]);
 
     const scrollToBottomInstant = useCallback(() => {
         if (!terminal.current) return;
@@ -647,7 +696,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     const effectiveCols = Math.max(cols - RIGHT_EDGE_GUARD_COLUMNS, MIN_DIM);
                     try { terminal.current.resize(effectiveCols, rows); } catch (e) { logger.debug(`[Terminal ${terminalId}] frontend resize failed during opencode-selection`, e) }
                     recordTerminalSize(terminalId, effectiveCols, rows);
-                    invoke(TauriCommands.ResizeTerminal, { id: terminalId, cols: effectiveCols, rows }).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
+                    resizeTerminalBackend(terminalId, effectiveCols, rows).catch(err => logger.debug("[Terminal] resize ignored (backend not ready yet)", err));
                 } catch (error) {
                     logger.warn(`[Terminal ${terminalId}] Selection resize fit failed:`, error);
                 }
@@ -714,6 +763,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     useEffect(() => {
         mountedRef.current = true;
         let cancelled = false;
+        const ackState = pluginAckRef.current;
         // track mounted lifecycle only; no timer-based logic tied to mount time
         if (!termRef.current) {
             logger.error(`[Terminal ${terminalId}] No ref available!`);
@@ -955,7 +1005,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             )
 
             if (shouldHandleClaudeShiftEnter) {
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: CLAUDE_SHIFT_ENTER_SEQUENCE })
+                void writeTerminalBackend(terminalId, CLAUDE_SHIFT_ENTER_SEQUENCE)
                     .catch(err => logger.debug('[Terminal] quick-escape prefix ignored (backend not ready yet)', err));
                 return true
             }
@@ -964,7 +1014,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             if (modifierKey && event.key === 'Enter' && event.type === 'keydown') {
                 // Send a newline character without submitting the command
                 // This allows multiline input in shells that support it
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '\n' }).catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
+                writeTerminalBackend(terminalId, '\n').catch(err => logger.debug('[Terminal] newline ignored (backend not ready yet)', err));
                 return false; // Prevent default Enter behavior
             }
             // Prefer Shift+Cmd/Ctrl+N as "New spec"
@@ -1045,6 +1095,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             logger.debug('Scroll error during terminal output (cb)', error);
                         }
 
+                        acknowledgeChunk(chunk);
                         if (getQueueStats().queueLength > 0) {
                             scheduleFlush();
                         }
@@ -1086,6 +1137,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                         } catch (error) {
                             logger.debug('Scroll error during buffer flush (cb)', error);
                         } finally {
+                            acknowledgeChunk(chunk);
                             if (getQueueStats().queueLength > 0) {
                                 queueMicrotask(() => flushNow());
                             }
@@ -1098,6 +1150,25 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
                 return true;
             }, { immediate: true });
+        };
+
+        const flushStreamingDecoder = () => {
+            const decoder = textDecoderRef.current;
+            if (!decoder) return;
+            try {
+                const tail = decoder.decode(new Uint8Array(0), { stream: false });
+                if (tail && tail.length > 0) {
+                    if (!hydratedRef.current) {
+                        pendingOutput.current.push(tail);
+                    } else {
+                        enqueueWrite(tail);
+                        scheduleFlush();
+                    }
+                }
+            } catch (error) {
+                logger.debug(`[Terminal ${terminalId}] decoder flush failed`, error);
+            }
+            textDecoderRef.current = null;
         };
 
         // Promise-based drain used only during initial hydration to guarantee "all content applied" before reveal
@@ -1160,6 +1231,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                                 } catch {
                                     // ignore scroll failures during hydration drain
                                 }
+                                acknowledgeChunk(chunk);
                                 queueMicrotask(step);
                             });
                         } catch (error) {
@@ -1182,11 +1254,65 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // Listen for terminal output from backend (buffer until hydrated)
         unlistenRef.current = null;
         const attachListener = async () => {
-            unlistenRef.current = await listenTerminalOutput(terminalId, (output) => {
+            if (pluginTransportActive) {
+                const unsubscribe = await subscribeTerminalBackend(
+                    terminalId,
+                    snapshotCursorRef.current ?? 0,
+                    (message) => {
+                        if (cancelled) return;
+                        if (!pluginTransportActive) return;
+
+                        const decoder = textDecoderRef.current ?? (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null);
+                        if (!decoder) {
+                            logger.warn('[Terminal] TextDecoder unavailable; dropping PTY chunk');
+                            return;
+                        }
+                        textDecoderRef.current = decoder;
+
+                        pluginAckRef.current.lastSeq = message.seq;
+                        snapshotCursorRef.current = message.seq;
+
+                        const output = decoder.decode(message.bytes, { stream: true });
+
+                        if (output.length === 0) {
+                            return;
+                        }
+
+                        if (termDebug()) {
+                            const n = ++seqRef.current;
+                            const { queueLength } = getQueueStats();
+                            logger.debug(`[Terminal ${terminalId}] recv(plugin) #${n} +${message.bytes.length}B qlen=${queueLength}`);
+                        }
+
+                        if (!hydratedRef.current) {
+                            pendingOutput.current.push(output);
+                        } else {
+                            enqueueWrite(output);
+                            scheduleFlush();
+                        }
+                    },
+                );
+
+                const unlisten: UnlistenFn = () => {
+                    flushStreamingDecoder();
+                    try {
+                        const result = unsubscribe?.() as unknown;
+                        if (result instanceof Promise) {
+                            (result as Promise<void>).catch((error) => logger.debug('[Terminal] plugin unsubscribe failed', error));
+                        }
+                    } catch (error) {
+                        logger.debug('[Terminal] plugin unsubscribe failed', error);
+                    }
+                };
+                unlistenRef.current = unlisten;
+                return unlisten;
+            }
+
+            const unlisten = await listenTerminalOutput(terminalId, (output) => {
                 if (termDebug()) {
                     const n = ++seqRef.current;
                     const { queueLength } = getQueueStats();
-                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`)
+                    logger.debug(`[Terminal ${terminalId}] recv #${n} +${(output?.length ?? 0)}B qlen=${queueLength}`);
                 }
                 if (cancelled) return;
                 if (!hydratedRef.current) {
@@ -1196,7 +1322,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     scheduleFlush();
                 }
             });
-            return unlistenRef.current!;
+            unlistenRef.current = unlisten;
+            return unlisten;
         };
         unlistenPromiseRef.current = attachListener();
         listenerAgentRef.current = agentType;
@@ -1210,15 +1337,17 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                 } catch (e) {
                     logger.warn(`[Terminal ${terminalId}] Listener attach awaited with error (continuing):`, e);
                 }
-                const snapshot = await invoke<TerminalBufferResponse>(TauriCommands.GetTerminalBuffer, {
-                    id: terminalId,
-                    from_seq: snapshotCursorRef.current ?? null,
-                });
+                if (!pluginTransportActive) {
+                    const snapshot = await invoke<TerminalBufferResponse>(TauriCommands.GetTerminalBuffer, {
+                        id: terminalId,
+                        from_seq: snapshotCursorRef.current ?? null,
+                    });
 
-                snapshotCursorRef.current = snapshot.seq;
+                    snapshotCursorRef.current = snapshot.seq;
 
-                if (snapshot.data) {
-                    enqueueWrite(snapshot.data);
+                    if (snapshot.data) {
+                        enqueueWrite(snapshot.data);
+                    }
                 }
                 // Queue any pending output that arrived during hydration
                 if (pendingOutput.current.length > 0) {
@@ -1512,7 +1641,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                  logger.debug(`[Terminal ${terminalId}] SIGINT detected (Ctrl+C)`);
              }
              
-             invoke(TauriCommands.WriteTerminal, { id: terminalId, data }).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
+            writeTerminalBackend(terminalId, data).catch(err => logger.debug('[Terminal] write ignored (backend not ready yet)', err));
          });
      }
         
@@ -1520,7 +1649,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         // This helps with arrow key handling in some shells
         requestAnimationFrame(() => {
             if (terminal.current) {
-                invoke(TauriCommands.WriteTerminal, { id: terminalId, data: '' }).catch(err => logger.debug('[Terminal] init write ignored (backend not ready yet)', err));
+                writeTerminalBackend(terminalId, '').catch(err => logger.debug('[Terminal] init write ignored (backend not ready yet)', err));
             }
         });
 
@@ -1614,6 +1743,10 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             rehydrateByReasonRef.current = null;
             cancelled = true;
             rendererReadyRef.current = false;
+            flushStreamingDecoder();
+            textDecoderRef.current = null;
+            textEncoderRef.current = null;
+            ackState.lastSeq = 0;
             
             // no timers to clear
             
@@ -1659,7 +1792,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             // All terminals are cleaned up when the app exits via the backend cleanup handler
             // useCleanupRegistry handles other cleanup automatically
         };
-    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant]);
+    }, [terminalId, addEventListener, addResizeObserver, agentType, isBackground, terminalFontSize, onReady, resolvedFontFamily, readOnly, enqueueWrite, shouldAutoScroll, isUserSelectingInTerminal, applySizeUpdate, flushQueuePending, getQueueStats, resetQueue, inputFilter, isAgentTopTerminal, scrollToBottomInstant, pluginTransportActive, acknowledgeChunk]);
 
     useEffect(() => {
         if (overflowEpoch === 0) return;

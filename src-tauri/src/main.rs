@@ -626,7 +626,10 @@ fn main() {
     // Initialize logging
     schaltwerk::infrastructure::logging::init_logging();
     log::info!("Schaltwerk starting...");
-    log::info!("[startup] Effective PATH: {}", std::env::var("PATH").unwrap_or_default());
+    log::info!(
+        "[startup] Effective PATH: {}",
+        std::env::var("PATH").unwrap_or_default()
+    );
 
     // macOS: disable smart quotes/dashes/text substitutions app-wide
     macos_prefs::disable_smart_substitutions();
@@ -698,10 +701,18 @@ fn main() {
             register_session_terminals,
             suspend_session_terminals,
             resume_session_terminals,
+            // PTY plugin commands
+            pty_spawn,
+            pty_write,
+            pty_resize,
+            pty_kill,
+            pty_ack,
+            pty_subscribe,
             // Utility commands
             get_current_directory,
             open_in_vscode,
             path_exists,
+            get_environment_variable,
             get_app_version,
             schaltwerk_core_log_frontend_message,
             // Clipboard

@@ -7,6 +7,7 @@ pub mod shared;
 
 pub mod binary_detection;
 pub mod binary_detector;
+pub mod events;
 pub mod open_apps;
 pub mod schaltwerk_core;
 pub mod utils;

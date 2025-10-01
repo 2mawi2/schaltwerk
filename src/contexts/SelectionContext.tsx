@@ -10,6 +10,11 @@ import { RawSession, ProjectSelection, EnrichedSession } from '../types/session'
 import { logger } from '../utils/logger'
 import { useModal } from './ModalContext'
 import { UiEvent, emitUiEvent } from '../common/uiEvents'
+import {
+    createTerminalBackend,
+    terminalExistsBackend,
+    closeTerminalBackend,
+} from '../terminal/transport/backend'
 
 type NormalizedSessionState = 'spec' | 'running' | 'reviewed'
 
@@ -357,9 +362,9 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         // Create promise for this creation
         const createPromise = (async () => {
             try {
-                const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id })
+                const exists = await terminalExistsBackend(id)
                 if (!exists) {
-                    await invoke(TauriCommands.CreateTerminal, { id, cwd })
+                    await createTerminalBackend({ id, cwd })
                 }
                 terminalsCreated.current.add(id)
             } catch (error) {
@@ -444,7 +449,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         try {
             const legacyExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.bottomBase })
             if (legacyExists) {
-                await invoke(TauriCommands.CloseTerminal, { id: ids.bottomBase })
+                await closeTerminalBackend(ids.bottomBase)
                 terminalsCreated.current.delete(ids.bottomBase)
             }
         } catch (_e) {
@@ -539,7 +544,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             try {
                 const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id })
                 if (exists) {
-                    await invoke(TauriCommands.CloseTerminal, { id })
+                    await closeTerminalBackend(id)
                 }
             } catch (_e) {
                 logger.warn(`[SelectionContext] Failed to close terminal ${id}:`, _e)
@@ -934,7 +939,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                                 creationLock.current.delete(ids.top)
                                 const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: ids.top })
                                 if (exists) {
-                                    await invoke(TauriCommands.CloseTerminal, { id: ids.top })
+                                    await closeTerminalBackend(ids.top)
                                 }
                             } catch (_e) {
                                 logger.warn('[SelectionContext] Failed to cleanup terminals after running→spec transition:', _e)

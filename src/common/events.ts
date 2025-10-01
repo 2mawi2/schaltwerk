@@ -16,6 +16,7 @@ export enum SchaltEvent {
   TerminalResumed = 'schaltwerk:terminal-resumed',
   TerminalAgentStarted = 'schaltwerk:terminal-agent-started',
   TerminalForceScroll = 'schaltwerk:terminal-force-scroll',
+  PtyData = 'schaltwerk:pty-data',
   ProjectReady = 'schaltwerk:project-ready',
   OpenDirectory = 'schaltwerk:open-directory',
   OpenHome = 'schaltwerk:open-home',
@@ -59,6 +60,12 @@ export interface FollowUpMessagePayload {
   timestamp: number
   terminal_id: string
   message_type: 'system' | 'user'
+}
+
+export interface PtyDataPayload {
+  term_id: string
+  seq: number
+  base64: string
 }
 
 export interface ChangedFile {
@@ -138,6 +145,7 @@ export type EventPayloadMap = {
   [SchaltEvent.TerminalResumed]: { terminal_id: string }
   [SchaltEvent.TerminalAgentStarted]: { terminal_id: string, session_name?: string }
   [SchaltEvent.TerminalForceScroll]: { terminal_id: string }
+  [SchaltEvent.PtyData]: PtyDataPayload
   [SchaltEvent.ProjectReady]: string
   [SchaltEvent.OpenDirectory]: string
   [SchaltEvent.OpenHome]: string

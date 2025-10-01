@@ -6,6 +6,13 @@ import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import { listenEvent, SchaltEvent, listenTerminalOutput } from '../../common/eventSystem'
 import { theme } from '../../common/theme'
+import {
+  createRunTerminalBackend,
+  terminalExistsBackend,
+  writeTerminalBackend,
+  subscribeTerminalBackend,
+  isPluginTerminal,
+} from '../../terminal/transport/backend'
 
 interface RunScript {
   command: string
@@ -52,6 +59,48 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   const terminalRef = useRef<TerminalHandle | null>(null)
   const [scrollRequestId, setScrollRequestId] = useState(0)
   const pendingScrollToBottomRef = useRef(false)
+  const [pluginTransportActive, setPluginTransportActive] = useState(() => isPluginTerminal(runTerminalId))
+  const pluginSeqRef = useRef(0)
+  const textDecoderRef = useRef<TextDecoder | null>(null)
+  const textEncoderRef = useRef<TextEncoder | null>(null)
+
+  const processChunk = useCallback((chunk: string) => {
+    if (chunk.length > 0) {
+      outputBufferRef.current = (outputBufferRef.current + chunk).slice(-2048)
+    }
+
+    const trimmed = chunk.trim()
+    const containsSentinel = chunk.includes(RUN_EXIT_SENTINEL_PREFIX)
+    if (trimmed.length === 0 && !containsSentinel) {
+      return
+    }
+
+    let searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
+    while (searchIndex !== -1) {
+      const start = searchIndex + RUN_EXIT_SENTINEL_PREFIX.length
+      const terminatorIndex = RUN_EXIT_SENTINEL_TERMINATORS
+        .map(term => ({ term, index: outputBufferRef.current.indexOf(term, start) }))
+        .filter(({ index }) => index !== -1)
+        .sort((a, b) => a.index - b.index)[0]?.index ?? -1
+
+      if (terminatorIndex === -1) {
+        outputBufferRef.current = outputBufferRef.current.slice(searchIndex)
+        return
+      }
+
+      const exitCode = outputBufferRef.current.slice(start, terminatorIndex)
+      logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
+
+      if (runningRef.current) {
+        runningRef.current = false
+        setIsRunning(false)
+        onRunningStateChange?.(false)
+      }
+
+      outputBufferRef.current = outputBufferRef.current.slice(terminatorIndex + 1)
+      searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
+    }
+  }, [onRunningStateChange])
 
   useEffect(() => {
     runningRef.current = isRunning
@@ -60,6 +109,30 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   useEffect(() => {
     sessionStorage.setItem(runStateKey, String(isRunning))
   }, [isRunning, runStateKey])
+
+  useEffect(() => {
+    let cancelled = false
+    const refresh = () => {
+      const active = isPluginTerminal(runTerminalId)
+      if (!cancelled) {
+        setPluginTransportActive(active)
+        if (!active) {
+          pluginSeqRef.current = 0
+        }
+      }
+    }
+    refresh()
+    let timer: number | undefined
+    if (typeof window !== 'undefined') {
+      timer = window.setTimeout(refresh, 0)
+    }
+    return () => {
+      cancelled = true
+      if (typeof window !== 'undefined' && timer !== undefined) {
+        window.clearTimeout(timer)
+      }
+    }
+  }, [runTerminalId])
 
   useEffect(() => {
     const loadRunScript = async () => {
@@ -86,7 +159,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   useEffect(() => {
     const checkExistingTerminal = async () => {
       try {
-        const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: runTerminalId })
+        const exists = await terminalExistsBackend(runTerminalId)
         if (exists) {
           setTerminalCreated(true)
           const storedRunning = sessionStorage.getItem(runStateKey) === 'true'
@@ -127,60 +200,72 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
   useEffect(() => {
     let unlisten: (() => void) | null = null
 
+    const flushStreamingDecoder = () => {
+      const decoder = textDecoderRef.current
+      if (!decoder) return
+      try {
+        const tail = decoder.decode(new Uint8Array(0), { stream: false })
+        if (tail && tail.length > 0) {
+          processChunk(tail)
+        }
+      } catch (error) {
+        logger.debug('[RunTerminal] decoder flush failed', error)
+      }
+      textDecoderRef.current = null
+    }
+
     const setup = async () => {
       try {
-        unlisten = await listenTerminalOutput(runTerminalId, (payload) => {
-          if (!payload) return
-          const chunk = payload.toString()
-          const trimmed = chunk.trim()
-          const containsSentinel = chunk.includes(RUN_EXIT_SENTINEL_PREFIX)
-          const isNonInformational = trimmed.length === 0 && !containsSentinel
-
-          // Keep a rolling buffer so we can detect sentinel across chunk boundaries.
-          if (chunk.length > 0) {
-            outputBufferRef.current = (outputBufferRef.current + chunk).slice(-2048)
-          }
-
-          if (isNonInformational) {
-            return
-          }
-
-          let searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
-          while (searchIndex !== -1) {
-            const start = searchIndex + RUN_EXIT_SENTINEL_PREFIX.length
-            const terminatorIndex = RUN_EXIT_SENTINEL_TERMINATORS
-              .map(term => ({ term, index: outputBufferRef.current.indexOf(term, start) }))
-              .filter(({ index }) => index !== -1)
-              .sort((a, b) => a.index - b.index)[0]?.index ?? -1
-
-            if (terminatorIndex === -1) {
-              // Sentinel not complete yet; keep trailing content for next chunk
-              outputBufferRef.current = outputBufferRef.current.slice(searchIndex)
-              return
+        if (pluginTransportActive) {
+          const unsubscribe = await subscribeTerminalBackend(
+            runTerminalId,
+            pluginSeqRef.current,
+            (message) => {
+              const decoder = textDecoderRef.current ?? (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { fatal: false }) : null)
+              if (!decoder) {
+                logger.warn('[RunTerminal] TextDecoder unavailable; dropping PTY chunk')
+                return
+              }
+              textDecoderRef.current = decoder
+              pluginSeqRef.current = message.seq
+              const chunk = decoder.decode(message.bytes, { stream: true })
+              if (chunk.length === 0) {
+                return
+              }
+              processChunk(chunk)
+            },
+          )
+          
+          unlisten = () => {
+            try {
+              flushStreamingDecoder()
+              const result = unsubscribe?.() as unknown
+              if (result instanceof Promise) {
+                void (result as Promise<void>).catch(err => logger.debug('[RunTerminal] unsubscribe failed', err))
+              }
+            } catch (error) {
+              logger.debug('[RunTerminal] unsubscribe failed', error)
             }
-
-            const exitCode = outputBufferRef.current.slice(start, terminatorIndex)
-            logger.info('[RunTerminal] Detected run command completion with exit code:', exitCode || 'unknown')
-
-            if (runningRef.current) {
-              runningRef.current = false
-              setIsRunning(false)
-              onRunningStateChange?.(false)
-            }
-
-            // Trim processed data and continue searching in case of repeated sentinels.
-            outputBufferRef.current = outputBufferRef.current.slice(terminatorIndex + 1)
-            searchIndex = outputBufferRef.current.indexOf(RUN_EXIT_SENTINEL_PREFIX)
           }
-        })
+        } else {
+          unlisten = await listenTerminalOutput(runTerminalId, (payload) => {
+            if (!payload) return
+            processChunk(payload.toString())
+          })
+        }
       } catch (err) {
         logger.error('[RunTerminal] Failed to listen for run completion sentinel:', err)
       }
     }
 
     setup()
-    return () => { unlisten?.() }
-  }, [runTerminalId, onRunningStateChange])
+    return () => {
+      unlisten?.()
+      flushStreamingDecoder()
+      textDecoderRef.current = null
+      textEncoderRef.current = null
+    }
+  }, [runTerminalId, onRunningStateChange, pluginTransportActive, processChunk])
 
   const executeRunCommand = useCallback(async (command: string) => {
     try {
@@ -193,10 +278,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
         'unset __schaltwerk_exit_code'
       ].join('; ') + '\n'
       outputBufferRef.current = ''
-      await invoke(TauriCommands.WriteTerminal, {
-        id: runTerminalId,
-        data: decoratedCommand,
-      })
+      await writeTerminalBackend(runTerminalId, decoratedCommand)
       logger.info('[RunTerminal] Executed run script command:', command)
       runningRef.current = true
       setIsRunning(true)
@@ -241,7 +323,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
 
       if (isRunning) {
         try {
-          await invoke(TauriCommands.WriteTerminal, { id: runTerminalId, data: '\u0003' })
+          await writeTerminalBackend(runTerminalId, '\u0003')
           runningRef.current = false
           outputBufferRef.current = ''
           setIsRunning(false)
@@ -256,7 +338,7 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
             cwd = await invoke<string>(TauriCommands.GetCurrentDirectory)
           }
 
-          const terminalExists = await invoke<boolean>(TauriCommands.TerminalExists, { id: runTerminalId })
+          const terminalExists = await terminalExistsBackend(runTerminalId)
 
           if (!terminalExists) {
             logger.info('[RunTerminal] Creating new run terminal')
@@ -265,13 +347,11 @@ export const RunTerminal = forwardRef<RunTerminalHandle, RunTerminalProps>(({
               pendingScrollToBottomRef.current = true
               setScrollRequestId(id => id + 1)
             }
-            await invoke(TauriCommands.CreateRunTerminal, {
+            await createRunTerminalBackend({
               id: runTerminalId,
               cwd,
               command: script.command,
               env: Object.entries(script.environmentVariables || {}),
-              cols: null,
-              rows: null,
             })
           } else {
             setTerminalCreated(true)

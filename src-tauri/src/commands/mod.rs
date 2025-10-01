@@ -4,6 +4,7 @@ pub mod github;
 pub mod mcp;
 pub mod mcp_config;
 pub mod project;
+pub mod pty;
 pub mod schaltwerk_core;
 pub mod settings;
 pub mod terminal;
@@ -18,6 +19,7 @@ pub use github::*;
 pub use mcp::*;
 pub use mcp_config::*;
 pub use project::*;
+pub use pty::*;
 pub use schaltwerk_core::{
     schaltwerk_core_append_spec_content, schaltwerk_core_archive_spec_session,
     schaltwerk_core_cancel_session, schaltwerk_core_cleanup_orphaned_worktrees,

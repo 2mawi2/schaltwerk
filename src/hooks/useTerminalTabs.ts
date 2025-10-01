@@ -6,6 +6,11 @@ import { TabInfo } from '../types/terminalTabs'
 import { useProject } from '../contexts/ProjectContext'
 import { UiEvent, TerminalResetDetail, emitUiEvent, listenUiEvent } from '../common/uiEvents'
 import { bestBootstrapSize } from '../common/terminalSizeCache'
+import {
+  closeTerminalBackend,
+  createTerminalBackend,
+  terminalExistsBackend,
+} from '../terminal/transport/backend'
 
 interface SessionTabState {
   activeTab: number
@@ -129,7 +134,7 @@ export function useTerminalTabs({
         return
       }
 
-      const exists = await invoke<boolean>(TauriCommands.TerminalExists, { id: terminalId })
+      const exists = await terminalExistsBackend(terminalId)
       if (!exists) {
         let sizeHint: { cols: number; rows: number } | null = null
         try {
@@ -138,16 +143,12 @@ export function useTerminalTabs({
           logger.debug(`[useTerminalTabs] Failed to compute size hint for ${terminalId}`, error)
         }
 
-        if (sizeHint) {
-          await invoke(TauriCommands.CreateTerminalWithSize, {
-            id: terminalId,
-            cwd: sanitizedCwd,
-            cols: sizeHint.cols,
-            rows: sizeHint.rows,
-          })
-        } else {
-          await invoke(TauriCommands.CreateTerminal, { id: terminalId, cwd: sanitizedCwd })
-        }
+        await createTerminalBackend({
+          id: terminalId,
+          cwd: sanitizedCwd,
+          cols: sizeHint?.cols,
+          rows: sizeHint?.rows,
+        })
       }
       globalTerminalCreated.add(terminalId)
     } catch (error) {
@@ -209,7 +210,7 @@ export function useTerminalTabs({
     if (!tabToClose) return
 
     try {
-      await invoke(TauriCommands.CloseTerminal, { id: tabToClose.terminalId })
+      await closeTerminalBackend(tabToClose.terminalId)
       globalTerminalCreated.delete(tabToClose.terminalId)
 
       const newTabs = sessionTabs.tabs.filter(t => t.index !== tabIndex)

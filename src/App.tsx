@@ -46,6 +46,7 @@ import { installSmartDashGuards } from './utils/normalizeCliText'
 import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
+import { createTerminalBackend } from './terminal/transport/backend'
 
 
 
@@ -476,7 +477,7 @@ function AppContent() {
       const topTerminalId = `session-${sanitizedSessionName}-top`
       
       // Create only the top terminal. Bottom terminals are tabbed and created by TerminalTabs as needed (-bottom-0)
-      await invoke(TauriCommands.CreateTerminal, { id: topTerminalId, cwd: worktreePath })
+      await createTerminalBackend({ id: topTerminalId, cwd: worktreePath })
     } catch (_e) {
       logger.warn(`[App] Failed to create terminals for session ${sessionName}:`, _e)
     }

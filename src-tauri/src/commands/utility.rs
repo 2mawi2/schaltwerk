@@ -71,3 +71,14 @@ pub fn schaltwerk_core_log_frontend_message(level: String, message: String) -> R
     }
     Ok(())
 }
+
+const ALLOWED_ENV_VARS: &[&str] = &["SCHALTWERK_TERMINAL_TRANSPORT"];
+
+#[tauri::command]
+pub fn get_environment_variable(name: String) -> Result<Option<String>, String> {
+    if !ALLOWED_ENV_VARS.contains(&name.as_str()) {
+        return Err(format!("Environment variable '{name}' is not accessible"));
+    }
+
+    Ok(std::env::var(&name).ok())
+}

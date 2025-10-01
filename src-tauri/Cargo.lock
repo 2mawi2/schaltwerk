@@ -3507,6 +3507,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pty_host"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "base64 0.22.1",
+ "bytes",
+ "dirs",
+ "libc",
+ "parking_lot",
+ "portable-pty",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "quick-xml"
 version = "0.37.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3914,6 +3932,7 @@ dependencies = [
  "notify-debouncer-mini",
  "once_cell",
  "portable-pty",
+ "pty_host",
  "rand 0.9.2",
  "rusqlite",
  "serde",
