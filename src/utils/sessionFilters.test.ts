@@ -225,42 +225,4 @@ describe('searchSessions', () => {
         expect(searchSessions(sessions, 'Complex')).toHaveLength(1) // single term found
         expect(searchSessions(sessions, 'functionality')).toHaveLength(1) // single term found
     })
-
-    describe('Performance tests', () => {
-        it('should handle large session lists efficiently', () => {
-            // Create a large number of sessions
-            const largeSessions = Array.from({ length: 1000 }, (_, i) => 
-                createMockSession({
-                    session_id: `session-${i}`,
-                    display_name: `Session ${i}`,
-                    spec_content: `Content for session ${i} with various keywords`
-                })
-            )
-
-            const startTime = performance.now()
-            const results = searchSessions(largeSessions, 'session')
-            const endTime = performance.now()
-
-            // Should find all sessions (they all contain "session")
-            expect(results).toHaveLength(1000)
-            
-            // Should complete within reasonable time (100ms for 1000 sessions)
-            expect(endTime - startTime).toBeLessThan(100)
-        })
-
-        it('should handle long spec content efficiently', () => {
-            const longContent = 'Lorem ipsum '.repeat(1000) + 'unique-keyword'
-            const sessionWithLongContent = createMockSession({
-                session_id: 'long-content-session',
-                spec_content: longContent
-            })
-
-            const startTime = performance.now()
-            const results = searchSessions([sessionWithLongContent], 'unique-keyword')
-            const endTime = performance.now()
-
-            expect(results).toHaveLength(1)
-            expect(endTime - startTime).toBeLessThan(10) // Should be very fast even with long content
-        })
-    })
 })

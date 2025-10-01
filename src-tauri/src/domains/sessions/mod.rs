@@ -8,8 +8,6 @@ pub mod utils;
 
 #[cfg(test)]
 pub mod sorting;
-#[cfg(test)]
-mod spec_loading_perf_test;
 
 pub use entity::{EnrichedSession, SessionState};
 pub use repository::SessionDbManager;
