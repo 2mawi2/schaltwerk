@@ -63,6 +63,8 @@ describe('Reviewed session cancellation focus preservation', () => {
 
     currentSessions = [currentSession, reviewedSession, anotherSession]
 
+    ;(globalThis as { __testCurrentSessions?: TestSession[] }).__testCurrentSessions = currentSessions
+
     // Create a dynamic mock that always returns current sessions
     vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
       // Always use the current value of currentSessions
@@ -498,5 +500,171 @@ describe('Reviewed session cancellation focus preservation', () => {
       const currentButton = screen.getByText('current-session').closest('[role="button"]')
       expect(currentButton).toHaveClass('session-ring-blue')
     })
+  })
+})
+
+describe('Merge selection progression', () => {
+  let currentSessions: ReturnType<typeof mockEnrichedSession>[] = []
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.keys(listeners).forEach(key => delete listeners[key])
+    localStorage.clear()
+
+    const reviewedOne = mockEnrichedSession('reviewed-one', SessionState.Reviewed, true)
+    const reviewedTwo = mockEnrichedSession('reviewed-two', SessionState.Reviewed, true)
+    const running = mockEnrichedSession('running-session', SessionState.Running, false)
+
+    currentSessions = [reviewedOne, reviewedTwo, running]
+    ;(globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions = currentSessions
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
+      const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+        const mode = (args as { filterMode?: string })?.filterMode || 'all'
+        if (mode === 'spec') return sessions.filter(s => s.info.session_state === 'spec')
+        if (mode === 'running') return sessions.filter(s => s.info.session_state !== 'spec' && !s.info.ready_to_merge)
+        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+      return undefined
+    })
+  })
+
+  async function emitEvent(event: SchaltEvent, payload: unknown) {
+    const handlers = listeners[event]
+    if (!handlers || handlers.length === 0) {
+      throw new Error(`No handler registered for ${event}`)
+    }
+
+    if (event === SchaltEvent.SessionsRefreshed && Array.isArray(payload)) {
+      currentSessions = payload as ReturnType<typeof mockEnrichedSession>[]
+      ;(globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions = currentSessions
+    }
+
+    await act(async () => {
+      for (const handler of handlers) {
+        await handler({ event, id: 0, payload } as unknown as Event)
+      }
+    })
+  }
+
+  it('selects the next reviewed session after completing a merge', async () => {
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      expect(screen.getByText('reviewed-one')).toBeInTheDocument()
+      expect(screen.getByText('reviewed-two')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByText('reviewed-one'))
+    await waitFor(() => {
+      const reviewedButton = screen.getByText('reviewed-one').closest('[role="button"]')
+      expect(reviewedButton).toHaveClass('session-ring-blue')
+    })
+
+    await emitEvent(SchaltEvent.GitOperationCompleted, {
+      session_name: 'reviewed-one',
+      session_branch: 'schaltwerk/reviewed-one',
+      parent_branch: 'main',
+      mode: 'reapply',
+      operation: 'merge',
+      commit: 'abc123',
+      status: 'success'
+    })
+
+    const updatedReviewedOne = {
+      ...currentSessions[0],
+      info: {
+        ...currentSessions[0].info,
+        ready_to_merge: false,
+        session_state: SessionState.Running
+      }
+    }
+    currentSessions = [
+      updatedReviewedOne,
+      currentSessions[1],
+      currentSessions[2]
+    ]
+    ;(globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions = currentSessions
+
+    await emitEvent(SchaltEvent.SessionsRefreshed, currentSessions)
+
+    await waitFor(() => {
+      const selectedButtons = screen.getAllByRole('button').filter(btn => btn.classList.contains('session-ring-blue'))
+      expect(selectedButtons[0]?.textContent ?? '').toContain('reviewed-two')
+    })
+
+    const mergedButton = screen.getByText('reviewed-one').closest('[role="button"]')
+    expect(mergedButton).not.toHaveClass('session-ring-blue')
+  })
+
+  it('falls back to orchestrator when no reviewed sessions remain after merge', async () => {
+    const soloReviewed = mockEnrichedSession('solo-reviewed', SessionState.Reviewed, true)
+    currentSessions = [soloReviewed]
+    ;(globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions = currentSessions
+
+    vi.mocked(invoke).mockImplementation(async (cmd: string, args?: MockTauriInvokeArgs) => {
+      const sessions = (globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions || currentSessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return sessions
+      if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessionsSorted) {
+        const mode = (args as { filterMode?: string })?.filterMode || 'all'
+        if (mode === 'reviewed') return sessions.filter(s => s.info.ready_to_merge)
+        return sessions
+      }
+      if (cmd === TauriCommands.SchaltwerkCoreListSessionsByState) return []
+      if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+      if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+      return undefined
+    })
+
+    render(<TestProviders><Sidebar /></TestProviders>)
+
+    await waitFor(() => {
+      expect(screen.getByText('solo-reviewed')).toBeInTheDocument()
+    })
+
+    const reviewedFilterButton = screen.getByTitle('Show reviewed agents')
+    await userEvent.click(reviewedFilterButton)
+
+    await userEvent.click(screen.getByText('solo-reviewed'))
+    await waitFor(() => {
+      const reviewedButton = screen.getByText('solo-reviewed').closest('[role="button"]')
+      expect(reviewedButton).toHaveClass('session-ring-blue')
+    })
+
+    await emitEvent(SchaltEvent.GitOperationCompleted, {
+      session_name: 'solo-reviewed',
+      session_branch: 'schaltwerk/solo-reviewed',
+      parent_branch: 'main',
+      mode: 'reapply',
+      operation: 'merge',
+      commit: 'def456',
+      status: 'success'
+    })
+
+    const updatedSolo = {
+      ...currentSessions[0],
+      info: {
+        ...currentSessions[0].info,
+        ready_to_merge: false,
+        session_state: SessionState.Running
+      }
+    }
+    currentSessions = [updatedSolo]
+    ;(globalThis as { __testCurrentSessions?: ReturnType<typeof mockEnrichedSession>[] }).__testCurrentSessions = currentSessions
+
+    await emitEvent(SchaltEvent.SessionsRefreshed, currentSessions)
+
+    await waitFor(() => {
+      const selectedButtons = screen.getAllByRole('button').filter(btn => btn.classList.contains('session-ring-blue'))
+      expect(selectedButtons[0]?.textContent ?? '').toMatch(/orchestrator/i)
+    })
+
+    expect(screen.queryByText('solo-reviewed')).toBeNull()
   })
 })
