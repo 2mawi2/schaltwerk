@@ -394,9 +394,14 @@ impl TerminalManager {
     }
 
     pub async fn paste_and_submit_terminal(&self, id: String, data: Vec<u8>) -> Result<(), String> {
-        let buf = build_bracketed_paste_buffer(&data);
-        // Atomic immediate write: bracketed paste start + data + end + CR
-        self.backend.write_immediate(&id, &buf).await?;
+        let mut payload = data;
+        if !payload.ends_with(b"\n") && !payload.ends_with(b"\r") {
+            payload.push(b'\n');
+        }
+
+        // Write directly as if the user typed the content; avoids paste side-effects like
+        // Claude attaching clipboard assets when bracketed paste escape sequences are used.
+        self.backend.write_immediate(&id, &payload).await?;
 
         // Emit force scroll event to ensure terminal scrolls to bottom after pasting
         if let Some(app_handle) = self.app_handle.read().await.as_ref() {
@@ -507,17 +512,6 @@ impl TerminalManager {
     pub async fn get_all_terminal_activity(&self) -> Vec<(String, u64)> {
         self.backend.get_all_terminal_activity().await
     }
-}
-
-/// Build a single buffer for bracketed paste with trailing carriage return
-/// Format: ESC[200~ <data> ESC[201~ CR
-pub(crate) fn build_bracketed_paste_buffer(data: &[u8]) -> Vec<u8> {
-    let mut buf = Vec::with_capacity(data.len() + 2 + 5 + 1); // rough extra capacity
-    buf.extend_from_slice(b"\x1b[200~");
-    buf.extend_from_slice(data);
-    buf.extend_from_slice(b"\x1b[201~");
-    buf.push(b'\r');
-    buf
 }
 
 #[cfg(test)]
