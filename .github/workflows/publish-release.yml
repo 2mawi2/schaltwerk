@@ -1,0 +1,118 @@
+name: Publish Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  update-homebrew-tap:
+    name: Update Homebrew Tap
+    runs-on: ubuntu-latest
+    if: github.repository == '2mawi2/schaltwerk'
+
+    steps:
+      - name: Checkout Homebrew tap
+        uses: actions/checkout@v5
+        with:
+          repository: 2mawi2/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Download and prepare DMG
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
+
+          # Download DMG from GitHub release
+          curl -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/2mawi2/schaltwerk/releases/tags/v${VERSION}" | \
+            jq -r '.assets[] | select(.name | endswith(".dmg")) | .url' | \
+            xargs curl -L -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/octet-stream" -o "Schaltwerk-${VERSION}-universal.dmg"
+
+          # Calculate SHA256
+          SHA256=$(shasum -a 256 "Schaltwerk-${VERSION}-universal.dmg" | cut -d' ' -f1)
+          echo "SHA256=${SHA256}" >> $GITHUB_ENV
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+          # Copy DMG to homebrew-tap for distribution
+          mkdir -p homebrew-tap/releases
+          cp "Schaltwerk-${VERSION}-universal.dmg" homebrew-tap/releases/
+
+      - name: Update Schaltwerk Cask
+        run: |
+          mkdir -p homebrew-tap/Casks
+          cat > homebrew-tap/Casks/schaltwerk.rb << 'EOF'
+          cask "schaltwerk" do
+            version "${{ env.VERSION }}"
+            sha256 "${{ env.SHA256 }}"
+
+            url "https://github.com/2mawi2/homebrew-tap/raw/main/releases/Schaltwerk-#{version}-universal.dmg"
+            name "Schaltwerk"
+            desc "Visual interface for managing Para sessions"
+            homepage "https://github.com/2mawi2/schaltwerk"
+
+            app "Schaltwerk.app"
+
+            postflight do
+              # Remove quarantine attribute
+              system_command "/usr/bin/xattr",
+                            args: ["-cr", "#{appdir}/Schaltwerk.app"],
+                            sudo: false
+
+              # Ad-hoc sign if needed
+              system_command "/usr/bin/codesign",
+                            args: ["--force", "--deep", "-s", "-", "#{appdir}/Schaltwerk.app"],
+                            sudo: false
+
+              # Create wrapper script for CLI with better handling
+              wrapper_script = "#{HOMEBREW_PREFIX}/bin/schaltwerk"
+              File.write wrapper_script, <<~SHELL
+                #!/bin/bash
+                APP_PATH="#{appdir}/Schaltwerk.app"
+                EXECUTABLE_PATH="$APP_PATH/Contents/MacOS/Schaltwerk"
+
+                if [ $# -eq 0 ]; then
+                  open "$APP_PATH"
+                else
+                  TARGET_DIR="$1"
+                  [[ ! "$TARGET_DIR" = /* ]] && TARGET_DIR="$(pwd)/$TARGET_DIR"
+                  TARGET_DIR="${TARGET_DIR%/}"
+
+                  if [ ! -d "$TARGET_DIR" ]; then
+                    echo "Error: Directory not found: $TARGET_DIR" >&2
+                    exit 1
+                  fi
+
+                  "$EXECUTABLE_PATH" "$TARGET_DIR" &
+                fi
+              SHELL
+              File.chmod 0755, wrapper_script
+
+              ohai "Schaltwerk MCP configuration is now available through Settings → Agent Configuration → Claude tab."
+            end
+
+            zap trash: [
+              "~/Library/Application Support/schaltwerk",
+              "~/Library/Logs/schaltwerk",
+              "~/Library/Preferences/com.mariuswichtner.schaltwerk.plist",
+              "~/Library/Saved Application State/com.mariuswichtner.schaltwerk.savedState",
+            ]
+          end
+          EOF
+
+      - name: Commit and push
+        run: |
+          cd homebrew-tap
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add Casks/schaltwerk.rb releases/
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update Schaltwerk to ${{ env.VERSION }}"
+            git push
+          fi

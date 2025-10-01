@@ -83,10 +83,22 @@ npm run test:rust       # Rust tests only
 just run                # Start app (ONLY when user requests testing)
 npm run tauri:build     # Build production app
 
-# Release Management
-just release            # Create patch release (0.0.x)
-just release minor      # Create minor release (0.x.0)
-just release major      # Create major release (x.0.0)
+# Release Management (3-Step Process)
+# Step 1: Create draft release
+just release            # Create patch release (0.0.x) - creates DRAFT
+just release minor      # Create minor release (0.x.0) - creates DRAFT
+just release major      # Create major release (x.0.0) - creates DRAFT
+
+# Step 2: Generate and review release notes
+# User asks: "Generate release notes for vX.Y.Z"
+# I run: git log vPREV..vX.Y.Z, analyze commits, categorize changes
+# I run: gh release edit vX.Y.Z --notes "generated notes"
+# User reviews notes (can ask for edits)
+
+# Step 3: Publish release
+# User asks: "Publish the release" OR clicks button on GitHub
+# I run: gh release edit vX.Y.Z --draft=false
+# This triggers Homebrew tap update automatically
 ```
 
 ### Command Context
