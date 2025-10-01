@@ -304,6 +304,58 @@ describe('SessionsContext', () => {
         expect(result.current.getMergeStatus('test-ready')).toBe('conflict')
     })
 
+    it('preserves idle attention state when selecting the session', async () => {
+        const { listen } = await import('@tauri-apps/api/event')
+        const listeners: Record<string, (event: Event<unknown>) => void> = {}
+        vi.mocked(listen).mockImplementation(async (event: string, handler: (event: Event<unknown>) => void) => {
+            listeners[event] = handler
+            return () => {}
+        })
+
+        const { invoke } = await import('@tauri-apps/api/core')
+        vi.mocked(invoke).mockImplementation(async (cmd: string) => {
+            if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return mockSessions
+            if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
+            if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
+            if (cmd === TauriCommands.GetProjectMergePreferences) return { auto_cancel_after_merge: false }
+            return undefined
+        })
+
+        const { result } = renderHook(() => useSessions(), { wrapper: wrapperWithProject })
+
+        await waitFor(() => {
+            expect(result.current.loading).toBe(false)
+        })
+
+        await waitFor(() => {
+            expect(listeners[SchaltEvent.TerminalAttention]).toBeTruthy()
+        })
+
+        act(() => {
+            listeners[SchaltEvent.TerminalAttention]?.({
+                event: SchaltEvent.TerminalAttention,
+                id: 42,
+                payload: {
+                    session_id: 'test-active',
+                    terminal_id: 'session-test-active-top',
+                    needs_attention: true,
+                }
+            } as Event<unknown>)
+        })
+
+        await waitFor(() => {
+            const target = result.current.sessions.find(s => s.info.session_id === 'test-active')
+            expect(target?.info.attention_required).toBe(true)
+        })
+
+        act(() => {
+            result.current.setCurrentSelection('test-active')
+        })
+
+        const targetAfterSelection = result.current.sessions.find(s => s.info.session_id === 'test-active')
+        expect(targetAfterSelection?.info.attention_required).toBe(true)
+    })
+
     it('should handle session refresh events', async () => {
         const { listen } = await import('@tauri-apps/api/event')
         const listeners: Record<string, (event: Event<unknown>) => void> = {}

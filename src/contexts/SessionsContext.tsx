@@ -486,19 +486,6 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
     // Function to update the current selection (used by SelectionContext)
     const setCurrentSelection = useCallback((sessionId: string | null) => {
         currentSelectionRef.current = sessionId
-        if (sessionId) {
-            setAllSessions(prev => {
-                const targetIndex = prev.findIndex(s => s.info.session_id === sessionId)
-                if (targetIndex === -1 || !prev[targetIndex].info.attention_required) return prev
-
-                const updated = [...prev]
-                updated[targetIndex] = {
-                    ...prev[targetIndex],
-                    info: { ...prev[targetIndex].info, attention_required: undefined }
-                }
-                return updated
-            })
-        }
     }, [])
 
     const mergeSessionsPreferDraft = useCallback((base: EnrichedSession[], specs: EnrichedSession[]): EnrichedSession[] => {
