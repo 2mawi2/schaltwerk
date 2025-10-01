@@ -6,10 +6,11 @@ import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts'
 import { useFocus } from '../../contexts/FocusContext'
 import { UnlistenFn } from '@tauri-apps/api/event'
 import { listenEvent, SchaltEvent } from '../../common/eventSystem'
+import { GitOperationPayload } from '../../common/events'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useSessions } from '../../contexts/SessionsContext'
-import { computeNextSelectedSessionId } from '../../utils/selectionNext'
 import { captureSelectionSnapshot, SelectionMemoryEntry } from '../../utils/selectionMemory'
+import { computeSelectionCandidate } from '../../utils/selectionPostMerge'
 import { MarkReadyConfirmation } from '../modals/MarkReadyConfirmation'
 import { ConvertToSpecConfirmation } from '../modals/ConvertToSpecConfirmation'
 import { FilterMode, SortMode, FILTER_MODES } from '../../types/sessionFilters'
@@ -223,15 +224,31 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         const { previousSessions } = captureSelectionSnapshot(entry, visibleSessions)
 
         const removalCandidate = lastRemovedSessionRef.current
+        const mergedCandidate = lastMergedReviewedSessionRef.current
+
+        const mergedSessionInfo = mergedCandidate
+            ? allSessions.find(s => s.info.session_id === mergedCandidate)
+            : undefined
+        const mergedStillReviewed = mergedSessionInfo?.info.ready_to_merge ?? false
+
+        const shouldAdvanceFromMerged = Boolean(
+            mergedCandidate &&
+            currentSelectionId === mergedCandidate &&
+            !mergedStillReviewed
+        )
+
+        if (mergedCandidate && (!currentSelectionId || currentSelectionId !== mergedCandidate)) {
+            lastMergedReviewedSessionRef.current = null
+        }
 
         // Check if the removed session was a reviewed session
         const wasReviewedSession = removalCandidate ?
             allSessions.find(s => s.info.session_id === removalCandidate)?.info.ready_to_merge : false
-        const shouldPreserveForReviewedRemoval = wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed
+        const shouldPreserveForReviewedRemoval = Boolean(wasReviewedSession && removalCandidate && filterMode !== FilterMode.Reviewed)
 
         if (selection.kind === 'orchestrator') {
             entry.lastSelection = null
-            if (!removalCandidate) {
+            if (!removalCandidate && !shouldAdvanceFromMerged) {
                 return
             }
         }
@@ -242,10 +259,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
             if (lastRemovedSessionRef.current) {
                 lastRemovedSessionRef.current = null
             }
+            if (shouldAdvanceFromMerged) {
+                lastMergedReviewedSessionRef.current = null
+            }
             return
         }
 
-        if (selection.kind === 'session' && currentSelectionId && visibleIds.has(currentSelectionId)) {
+        if (selection.kind === 'session' && currentSelectionId && visibleIds.has(currentSelectionId) && !shouldAdvanceFromMerged) {
             entry.lastSelection = currentSelectionId
             if (lastRemovedSessionRef.current) {
                 lastRemovedSessionRef.current = null
@@ -254,41 +274,17 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
         }
 
         const rememberedId = entry.lastSelection
-        let candidateId: string | null = null
-
-        // If a reviewed session was cancelled, preserve current focus instead of auto-switching
-        if (shouldPreserveForReviewedRemoval) {
-            // Keep current selection or fall back to orchestrator
-            if (currentSelectionId && visibleIds.has(currentSelectionId)) {
-                candidateId = currentSelectionId
-            } else {
-                candidateId = null // Will fall back to orchestrator below
-            }
-        } else {
-            // Normal auto-selection logic for non-reviewed sessions (including specs)
-            const baselineId = currentSelectionId ?? rememberedId ?? removalCandidate
-
-            if (rememberedId && visibleIds.has(rememberedId)) {
-                candidateId = rememberedId
-            }
-
-            if (!candidateId && baselineId && previousSessions.length > 0) {
-                const neighbourId = computeNextSelectedSessionId(previousSessions, baselineId, baselineId)
-                if (neighbourId && visibleIds.has(neighbourId)) {
-                    candidateId = neighbourId
-                } else {
-                    const previousIndex = previousSessions.findIndex(s => s.info.session_id === baselineId)
-                    if (previousIndex !== -1 && visibleSessions.length > 0) {
-                        const boundedIndex = Math.min(previousIndex, visibleSessions.length - 1)
-                        candidateId = visibleSessions[boundedIndex]?.info.session_id ?? null
-                    }
-                }
-            }
-
-            if (!candidateId && visibleSessions.length > 0) {
-                candidateId = visibleSessions[0]?.info.session_id ?? null
-            }
-        }
+        const candidateId = computeSelectionCandidate({
+            currentSelectionId,
+            visibleSessions,
+            previousSessions,
+            rememberedId,
+            removalCandidate,
+            mergedCandidate,
+            shouldAdvanceFromMerged,
+            shouldPreserveForReviewedRemoval,
+            allSessions
+        })
 
         if (candidateId) {
             entry.lastSelection = candidateId
@@ -311,6 +307,9 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
 
         if (removalCandidate) {
             lastRemovedSessionRef.current = null
+        }
+        if (shouldAdvanceFromMerged) {
+            lastMergedReviewedSessionRef.current = null
         }
     }, [sessions, selection, filterMode, ensureProjectMemory, allSessions, setSelection])
 
@@ -843,6 +842,7 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
     // Keep latest values in refs for use in event handlers without re-attaching listeners
     const latestSessionsRef = useRef(allSessions)
     const lastRemovedSessionRef = useRef<string | null>(null)
+    const lastMergedReviewedSessionRef = useRef<string | null>(null)
 
     useEffect(() => { latestSessionsRef.current = allSessions }, [allSessions])
 
@@ -882,6 +882,13 @@ export function Sidebar({ isDiffViewerOpen, openTabs = [], onSelectPrevProject, 
                 lastRemovedSessionRef.current = event.session_name
             })
             unlisteners.push(u4)
+
+            const uMergeCompleted = await listenEvent(SchaltEvent.GitOperationCompleted, (event: GitOperationPayload) => {
+                if (event?.operation === 'merge') {
+                    lastMergedReviewedSessionRef.current = event.session_name
+                }
+            })
+            unlisteners.push(uMergeCompleted)
             
             // Listen for follow-up message notifications
             const u5 = await listenEvent(SchaltEvent.FollowUpMessage, (event) => {
