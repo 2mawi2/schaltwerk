@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { VscFolderOpened, VscHistory, VscWarning, VscTrash, VscNewFolder } from 'react-icons/vsc'
 import { invoke } from '@tauri-apps/api/core'
@@ -29,10 +29,6 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
   const [error, setError] = useState<string | null>(null)
   const [showNewProjectDialog, setShowNewProjectDialog] = useState(false)
 
-  useEffect(() => {
-    loadRecentProjects()
-  }, [])
-
   const loadRecentProjects = async () => {
     try {
       const projects = await invoke<RecentProject[]>(TauriCommands.GetRecentProjects)
@@ -42,41 +38,12 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     }
   }
 
-  const handleSelectDirectory = async () => {
+  const handleOpenRecent = useCallback(async (project: RecentProject) => {
     setError(null)
-    
+
     try {
-      const selected = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select Git Repository'
-      })
-
-      if (!selected) return
-
-      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, { 
-        path: selected 
-      })
-
-      if (!isGitRepo) {
-        setError('Selected directory is not a Git repository. Please select a valid Git repository.')
-        return
-      }
-
-      await invoke(TauriCommands.AddRecentProject, { path: selected })
-      onOpenProject(selected as string)
-    } catch (err) {
-      logger.error('Failed to select directory:', err)
-      setError(`Failed to open directory: ${err}`)
-    }
-  }
-
-  const handleOpenRecent = async (project: RecentProject) => {
-    setError(null)
-    
-    try {
-      const exists = await invoke<boolean>(TauriCommands.DirectoryExists, { 
-        path: project.path 
+      const exists = await invoke<boolean>(TauriCommands.DirectoryExists, {
+        path: project.path
       })
 
       if (!exists) {
@@ -86,8 +53,8 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
         return
       }
 
-      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, { 
-        path: project.path 
+      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, {
+        path: project.path
       })
 
       if (!isGitRepo) {
@@ -102,6 +69,59 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
     } catch (err) {
       logger.error('Failed to open recent project:', err)
       setError(`Failed to open project: ${err}`)
+    }
+  }, [onOpenProject])
+
+  useEffect(() => {
+    loadRecentProjects()
+  }, [])
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.metaKey && !event.shiftKey && !event.altKey && !event.ctrlKey) {
+        const key = event.key
+        const num = parseInt(key, 10)
+
+        if (num >= 1 && num <= 9) {
+          const projectIndex = num - 1
+          if (projectIndex < recentProjects.length) {
+            event.preventDefault()
+            handleOpenRecent(recentProjects[projectIndex])
+          }
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [recentProjects, handleOpenRecent])
+
+  const handleSelectDirectory = async () => {
+    setError(null)
+
+    try {
+      const selected = await open({
+        directory: true,
+        multiple: false,
+        title: 'Select Git Repository'
+      })
+
+      if (!selected) return
+
+      const isGitRepo = await invoke<boolean>(TauriCommands.IsGitRepository, {
+        path: selected
+      })
+
+      if (!isGitRepo) {
+        setError('Selected directory is not a Git repository. Please select a valid Git repository.')
+        return
+      }
+
+      await invoke(TauriCommands.AddRecentProject, { path: selected })
+      onOpenProject(selected as string)
+    } catch (err) {
+      logger.error('Failed to select directory:', err)
+      setError(`Failed to open directory: ${err}`)
     }
   }
 
@@ -176,11 +196,18 @@ export function HomeScreen({ onOpenProject }: HomeScreenProps) {
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar pr-2">
-              {recentProjects.map((project) => (
+              {recentProjects.map((project, index) => (
                 <div
                   key={project.path}
                   className="bg-slate-900/50 hover:bg-slate-800/60 border border-slate-800 hover:border-slate-700 rounded-lg p-4 group relative"
                 >
+                  {index < 9 && (
+                    <div className="absolute top-2 right-2 transition-opacity group-hover:opacity-0">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400">
+                        ⌘{index + 1}
+                      </span>
+                    </div>
+                  )}
                   <button
                     onClick={() => handleOpenRecent(project)}
                     className="w-full text-left"
