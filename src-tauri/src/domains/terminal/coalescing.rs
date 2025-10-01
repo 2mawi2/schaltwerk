@@ -314,45 +314,48 @@ mod tests {
         let data = vec![0x66, 0x6f, 0xff, 0x6f]; // fo + invalid + o
         let mut utf8_streams = HashMap::new();
         let (payload, remainder) = decode_coalesced_bytes(data, "term-invalid", &mut utf8_streams);
-        // Under "Remove" policy the invalid 0xFF vanishes; decoder still emits the trailing 'o'.
-        assert_eq!(payload.as_deref(), Some("fo"));
+        // Invalid bytes should surface as replacements without dropping trailing content.
+        assert_eq!(payload.as_deref(), Some("fo\u{FFFD}o"));
         assert!(remainder.is_none());
     }
 
     #[test]
     fn test_decode_coalesced_bytes_replaces_invalid_continuation_bytes() {
-        // Orphan continuation bytes should be silently removed.
+        // Orphan continuation bytes surface as replacement characters but the trailing content stays intact.
         let data = vec![b'f', b'o', b'o', b' ', 0x90, 0x80, b' ', b'b', b'a', b'r'];
         let mut utf8_streams = HashMap::new();
         let (payload, remainder) =
             decode_coalesced_bytes(data, "term-claude-tail", &mut utf8_streams);
-        assert_eq!(payload.as_deref(), Some("foo ")); // space after invalid bytes is also removed
+        assert_eq!(payload.as_deref(), Some("foo \u{FFFD}\u{FFFD} bar"));
         assert!(remainder.is_none());
     }
 
     #[test]
     fn test_decode_coalesced_bytes_replaces_invalid_continuations_for_claude() {
-        // Two stray continuation bytes should be replaced while preserving the rest of the line.
+        // Two stray continuation bytes should surface as replacements while preserving the rest of the line.
         let mut data = b"let value = ".to_vec();
         data.extend([0x80, 0xBF]);
         data.extend_from_slice(b"formatted\n");
         let mut utf8_streams = HashMap::new();
         let (payload, remainder) =
             decode_coalesced_bytes(data, "term-claude-cont", &mut utf8_streams);
-        assert_eq!(payload.as_deref(), Some("let value = format")); // Invalid continuation bytes removed
+        assert_eq!(payload.as_deref(), Some("let value = \u{FFFD}\u{FFFD}formatted\n"));
         assert!(remainder.is_none());
     }
 
     #[test]
     fn test_decode_coalesced_bytes_replaces_isolated_surrogate_from_claude() {
-        // High surrogate half (0xED 0xA0 0x80) without its pair should be replaced.
+        // High surrogate half (0xED 0xA0 0x80) without its pair should result in replacement markers.
         let mut data = b"println!(\"start\");".to_vec();
         data.extend([0xED, 0xA0, 0x80]);
         data.extend_from_slice(b"println!(\"done\");");
         let mut utf8_streams = HashMap::new();
         let (payload, remainder) =
             decode_coalesced_bytes(data, "term-claude-surrogate", &mut utf8_streams);
-        assert_eq!(payload.as_deref(), Some("println!(\"start\");println!(\"d")); // Invalid surrogate removed
+        assert_eq!(
+            payload.as_deref(),
+            Some("println!(\"start\");\u{FFFD}\u{FFFD}\u{FFFD}println!(\"done\");")
+        );
         assert!(remainder.is_none());
     }
 

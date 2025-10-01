@@ -1,5 +1,4 @@
 // schaltwerk/domains/terminal/utf8_stream.rs
-use encoding_rs::{Decoder, UTF_8};
 use std::time::{Duration, Instant};
 
 /// How to handle malformed UTF‑8 subparts.
@@ -16,7 +15,7 @@ pub enum InvalidPolicy {
 /// - Carries incomplete trailing sequences to the next chunk.
 /// - Handles malformed subparts per `invalid_policy`.
 pub struct Utf8Stream {
-    decoder: Decoder,
+    pending: Vec<u8>,
     invalid_policy: InvalidPolicy,
     warn_last: Option<Instant>,
     warn_every: Duration,
@@ -27,9 +26,10 @@ pub struct Utf8Stream {
 impl Default for Utf8Stream {
     fn default() -> Self {
         Self {
-            decoder: UTF_8.new_decoder_without_bom_handling(),
-            // IMPORTANT: default to removing malformed bytes to avoid visible artifacts.
-            invalid_policy: InvalidPolicy::Remove,
+            pending: Vec::new(),
+            // Default to replacement so malformed sequences remain visible and downstream
+            // consumers do not silently lose surrounding output.
+            invalid_policy: InvalidPolicy::Replace,
             warn_last: None,
             warn_every: Duration::from_secs(10),
             warn_count: 0,
@@ -51,30 +51,62 @@ impl Utf8Stream {
 
     /// Decode a chunk. Returns the decoded string and whether replacements *would* have occurred.
     pub fn decode_chunk(&mut self, input: &[u8]) -> (String, bool) {
-        let mut out = String::with_capacity(input.len());
-        let (_res, _read, had_replacements) = self.decoder.decode_to_string(input, &mut out, false);
+        let mut had_replacements = false;
+        let mut buffer = Vec::with_capacity(self.pending.len() + input.len());
+        buffer.extend_from_slice(&self.pending);
+        buffer.extend_from_slice(input);
+        self.pending.clear();
 
-        if had_replacements && matches!(self.invalid_policy, InvalidPolicy::Remove) {
-            // Strip U+FFFD produced by encoding_rs. This removes only truly-malformed bytes.
-            let original = out.clone();
-            out.retain(|ch| ch != '\u{FFFD}');
-            let _ = original;
+        let mut slice = buffer.as_slice();
+        let mut out = String::with_capacity(buffer.len());
+
+        while !slice.is_empty() {
+            match std::str::from_utf8(slice) {
+                Ok(valid) => {
+                    out.push_str(valid);
+                    slice = &[];
+                }
+                Err(err) => {
+                    let valid_end = err.valid_up_to();
+                    let (valid_bytes, remainder) = slice.split_at(valid_end);
+                    if !valid_bytes.is_empty() {
+                        // SAFETY: valid_bytes only contains verified UTF-8.
+                        out.push_str(unsafe { std::str::from_utf8_unchecked(valid_bytes) });
+                    }
+
+                    if let Some(error_len) = err.error_len() {
+                        had_replacements = true;
+                        if matches!(self.invalid_policy, InvalidPolicy::Replace) {
+                            out.push('\u{FFFD}');
+                        }
+
+                        let skip = error_len.min(remainder.len());
+                        slice = &remainder[skip..];
+                    } else {
+                        // Incomplete multi-byte sequence at the end; stash for next chunk.
+                        self.pending.extend_from_slice(remainder);
+                        slice = &[];
+                    }
+                }
+            }
         }
+
         (out, had_replacements)
     }
 
     /// Flush pending state at stream end (optional).
     pub fn finish(&mut self) -> Option<String> {
-        let mut out = String::new();
-        let (_res, _read, had_replacements) = self.decoder.decode_to_string(&[], &mut out, true);
-        if had_replacements && matches!(self.invalid_policy, InvalidPolicy::Remove) {
-            out.retain(|ch| ch != '\u{FFFD}');
+        if self.pending.is_empty() {
+            return None;
         }
-        if out.is_empty() {
-            None
+
+        let emit = if matches!(self.invalid_policy, InvalidPolicy::Replace) {
+            Some("\u{FFFD}".to_string())
         } else {
-            Some(out)
-        }
+            None
+        };
+        self.pending.clear();
+        emit
     }
 
     pub fn maybe_warn(&mut self, terminal_id: &str, had_replacements: bool) {
@@ -137,20 +169,28 @@ mod tests {
     }
 
     #[test]
-    fn removes_malformed_sequences_by_default() {
-        // malformed: F0 80 80 FF (4-byte sequence with invalid continuation) -> should be removed entirely under Remove policy
-        let mut d = Utf8Stream::new(); // default Remove
+    fn replaces_malformed_sequences_by_default() {
+        // malformed: F0 80 80 FF (4-byte sequence with invalid continuation) -> should surface as replacement
+        let mut d = Utf8Stream::new(); // default Replace
         let (s, rep) = d.decode_chunk(&[0xF0, 0x80, 0x80, 0xFF]);
         assert!(rep);
-        assert_eq!(s, "");
+        assert_eq!(s, "����");
     }
 
     #[test]
-    fn can_use_replacement_policy_instead() {
+    fn preserves_suffix_when_replacing_invalid_middle_sequence() {
         let mut d = Utf8Stream::new();
-        d.set_policy(InvalidPolicy::Replace);
+        let (s, rep) = d.decode_chunk(&[b'f', b'o', 0xFF, b'o']);
+        assert!(rep);
+        assert_eq!(s, "fo�o");
+    }
+
+    #[test]
+    fn can_opt_in_to_removal_policy() {
+        let mut d = Utf8Stream::new();
+        d.set_policy(InvalidPolicy::Remove);
         let (s, rep) = d.decode_chunk(&[0xF0, 0x80, 0x80, 0xFF]);
         assert!(rep);
-        assert_eq!(s, "�");
+        assert_eq!(s, "");
     }
 }

@@ -58,7 +58,6 @@ notify-debouncer-mini = "0.7"
 similar = "2.6"
 fontdb = "0.23"
 libc = "0.2"
-encoding_rs = "0.8"
 dashmap = "6"
 pty_host = { path = "crates/pty_host" }
 vt100 = "0.15"

@@ -8,15 +8,16 @@ pub fn has_incomplete_ansi_sequence(data: &[u8]) -> bool {
         return false;
     }
 
-    // Find the last ESC character (0x1B)
+    // Find the last ESC character (0x1B), limiting how far we scan for performance.
     let mut esc_pos = None;
+    let mut scanned = 0usize;
     for (i, &byte) in data.iter().enumerate().rev() {
         if byte == 0x1B {
             esc_pos = Some(i);
             break;
         }
-        // If we find a character that would terminate any sequence, stop looking
-        if byte.is_ascii_alphabetic() || byte == b'@' || byte == b'`' || byte == b'~' {
+        scanned += 1;
+        if scanned > 8192 {
             break;
         }
     }
@@ -107,6 +108,7 @@ pub fn find_safe_split_point(data: &[u8]) -> usize {
     }
 
     // Find the start of the incomplete sequence at the end
+    let mut scanned = 0usize;
     for i in (0..data.len()).rev() {
         if data[i] == 0x1B {
             // Check if this sequence is complete
@@ -118,6 +120,10 @@ pub fn find_safe_split_point(data: &[u8]) -> usize {
                 // This is the incomplete sequence, split before it
                 return i;
             }
+        }
+        scanned += 1;
+        if scanned > 8192 {
+            break;
         }
     }
 
@@ -154,7 +160,7 @@ mod tests {
         // Incomplete OSC sequences
         assert!(has_incomplete_ansi_sequence(b"\x1b]"));
         assert!(has_incomplete_ansi_sequence(b"\x1b]0"));
-        assert!(!has_incomplete_ansi_sequence(b"\x1b]0;title")); // Current impl stops at 't' in title
+        assert!(has_incomplete_ansi_sequence(b"\x1b]0;title"));
     }
 
     #[test]
@@ -187,8 +193,8 @@ mod tests {
         assert!(has_incomplete_ansi_sequence(b"\x1b]"));
         assert!(has_incomplete_ansi_sequence(b"\x1b]0"));
         assert!(has_incomplete_ansi_sequence(b"\x1b]0;"));
-        assert!(!has_incomplete_ansi_sequence(b"\x1b]0;Window Title")); // Current impl stops at 'e' in Title"
-        assert!(!has_incomplete_ansi_sequence(b"\x1b]52;c;")); // Current impl stops at 'c'
+        assert!(has_incomplete_ansi_sequence(b"\x1b]0;Window Title"));
+        assert!(has_incomplete_ansi_sequence(b"\x1b]52;c;"));
 
         // Complete OSC sequences (terminated with BEL or ST)
         assert!(!has_incomplete_ansi_sequence(b"\x1b]0;Title\x07")); // BEL terminator
@@ -244,7 +250,7 @@ mod tests {
         // Mix of complete and incomplete sequences
         let data = b"Normal\x1b[1mBold\x1b[0mNormal\x1b]0;Title";
         let split = find_safe_split_point(data);
-        assert_eq!(split, 33); // OSC without terminator still tracked as incomplete
+        assert_eq!(split, 24); // Split right before the unterminated OSC sequence
 
         let data = b"\x1b[31mRed\x1b[32mGreen\x1b[33";
         let split = find_safe_split_point(data);
