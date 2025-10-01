@@ -100,7 +100,13 @@ impl SessionDbManager {
     pub fn update_session_state(&self, session_id: &str, state: SessionState) -> Result<()> {
         self.db
             .update_session_state(session_id, state)
-            .map_err(|e| anyhow!("Failed to update session state: {e}"))
+            .map_err(|e| anyhow!("Failed to update session state: {e}"))?;
+
+        if let Ok(session) = self.db.get_session_by_id(session_id) {
+            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+        }
+
+        Ok(())
     }
 
     pub fn update_session_ready_to_merge(&self, session_id: &str, ready: bool) -> Result<()> {
@@ -118,19 +124,45 @@ impl SessionDbManager {
     pub fn update_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
         self.db
             .update_spec_content(session_id, content)
-            .map_err(|e| anyhow!("Failed to update spec content: {e}"))
+            .map_err(|e| anyhow!("Failed to update spec content: {e}"))?;
+
+        if let Ok(session) = self.db.get_session_by_id(session_id) {
+            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+        }
+
+        Ok(())
     }
 
     pub fn append_spec_content(&self, session_id: &str, content: &str) -> Result<()> {
         self.db
             .append_spec_content(session_id, content)
-            .map_err(|e| anyhow!("Failed to append spec content: {e}"))
+            .map_err(|e| anyhow!("Failed to append spec content: {e}"))?;
+
+        if let Ok(session) = self.db.get_session_by_id(session_id) {
+            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+        }
+
+        Ok(())
     }
 
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
-        self.db
+        if let Some(cached) = crate::domains::sessions::cache::get_cached_spec_content(&self.repo_path, name) {
+            log::debug!("Cache hit for spec content: {name}");
+            return Ok(cached);
+        }
+
+        let (spec_content, initial_prompt, session_state) = self.db
             .get_session_task_content(&self.repo_path, name)
-            .map_err(|e| anyhow!("Failed to get session agent content: {e}"))
+            .map_err(|e| anyhow!("Failed to get session agent content: {e}"))?;
+
+        let result = (spec_content, initial_prompt);
+
+        if matches!(session_state, crate::domains::sessions::entity::SessionState::Running | crate::domains::sessions::entity::SessionState::Reviewed) {
+            log::debug!("Caching spec content for running/reviewed session: {name}");
+            crate::domains::sessions::cache::cache_spec_content(&self.repo_path, name, result.clone());
+        }
+
+        Ok(result)
     }
 
     pub fn set_session_original_settings(

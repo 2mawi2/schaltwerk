@@ -1,4 +1,5 @@
 use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
+use std::str::FromStr;
 use crate::schaltwerk_core::database::Database;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
@@ -13,7 +14,7 @@ pub trait SessionMethods {
         &self,
         repo_path: &Path,
         name: &str,
-    ) -> Result<(Option<String>, Option<String>)>;
+    ) -> Result<(Option<String>, Option<String>, SessionState)>;
     fn list_sessions(&self, repo_path: &Path) -> Result<Vec<Session>>;
     fn list_all_active_sessions(&self) -> Result<Vec<Session>>;
     fn list_sessions_by_state(&self, repo_path: &Path, state: SessionState)
@@ -203,20 +204,22 @@ impl SessionMethods for Database {
         &self,
         repo_path: &Path,
         name: &str,
-    ) -> Result<(Option<String>, Option<String>)> {
+    ) -> Result<(Option<String>, Option<String>, SessionState)> {
         let conn = self.conn.lock().unwrap();
 
         let mut stmt = conn.prepare(
-            "SELECT spec_content, initial_prompt
+            "SELECT spec_content, initial_prompt, session_state
              FROM sessions
              WHERE repository_path = ?1 AND name = ?2",
         )?;
 
         let result = stmt.query_row(params![repo_path.to_string_lossy(), name], |row| {
-            Ok((
-                row.get::<_, Option<String>>(0)?,
-                row.get::<_, Option<String>>(1)?,
-            ))
+            let spec_content: Option<String> = row.get(0)?;
+            let initial_prompt: Option<String> = row.get(1)?;
+            let session_state_str: String = row.get(2)?;
+            let session_state = SessionState::from_str(&session_state_str)
+                .map_err(|_e| rusqlite::Error::InvalidQuery)?;
+            Ok((spec_content, initial_prompt, session_state))
         })?;
 
         Ok(result)

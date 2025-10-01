@@ -16,6 +16,10 @@ vi.mock('../../contexts/FocusContext', () => ({
   useFocus: () => ({ setFocusForSession: vi.fn(), currentFocus: null })
 }))
 
+vi.mock('../../contexts/SessionsContext', () => ({
+  useSessions: () => ({ allSessions: [] })
+}))
+
 // Mock heavy children to simple markers
 vi.mock('../diff/SimpleDiffPanel', () => ({
   SimpleDiffPanel: ({ isCommander }: { isCommander?: boolean }) => (

@@ -3,6 +3,7 @@ import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
 import { useFocus } from '../../contexts/FocusContext'
+import { useSessions } from '../../contexts/SessionsContext'
 import { VscDiff, VscNotebook, VscInfo } from 'react-icons/vsc'
 import clsx from 'clsx'
 import { SpecContentView as SpecContentView } from '../plans/SpecContentView'
@@ -24,8 +25,15 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
   const { selection, isSpec } = useSelection()
   const { projectPath } = useProject()
   const { setFocusForSession, currentFocus } = useFocus()
+  const { allSessions } = useSessions()
     const [userSelectedTab, setUserSelectedTab] = useState<'changes' | 'agent' | 'info' | null>(null)
     const [localFocus, setLocalFocus] = useState<boolean>(false)
+
+  const effectiveSelection = selectionOverride ?? selection
+  const currentSession = effectiveSelection.kind === 'session' && effectiveSelection.payload
+    ? allSessions.find(s => s.info.session_id === effectiveSelection.payload || s.info.branch === effectiveSelection.payload)
+    : null
+  const sessionState = currentSession?.info.session_state as ('spec' | 'running' | 'reviewed') | undefined
 
     // Drag handlers for internal split
     const handleInternalSplitDragStart = useCallback(() => {
@@ -49,7 +57,6 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
 
    // Determine active tab based on user selection or smart defaults
    // For specs, always show info tab regardless of user selection
-   const effectiveSelection = selectionOverride ?? selection
    const effectiveIsSpec = typeof isSpecOverride === 'boolean' ? isSpecOverride : isSpec
   const activeTab = (effectiveSelection.kind === 'session' && effectiveIsSpec) ? 'info' : (
     userSelectedTab || (
@@ -191,6 +198,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
                     sessionName={effectiveSelection.payload!}
                     editable={false}
                     debounceMs={1000}
+                    sessionState={sessionState}
                   />
                 </>
               )}
@@ -217,6 +225,7 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
                     sessionName={effectiveSelection.payload!}
                     editable={false}
                     debounceMs={1000}
+                    sessionState={sessionState}
                   />
                 )
               ) : (

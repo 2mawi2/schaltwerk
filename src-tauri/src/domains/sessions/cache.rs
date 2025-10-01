@@ -7,6 +7,9 @@ static RESERVED_NAMES: OnceLock<StdMutex<HashMap<PathBuf, HashSet<String>>>> = O
 
 static REPO_LOCKS: OnceLock<StdMutex<HashMap<PathBuf, Arc<StdMutex<()>>>>> = OnceLock::new();
 
+type SpecContentMap = HashMap<String, (Option<String>, Option<String>)>;
+static SPEC_CONTENT_CACHE: OnceLock<StdMutex<SpecContentMap>> = OnceLock::new();
+
 #[derive(Clone)]
 pub struct SessionCacheManager {
     repo_path: PathBuf,
@@ -83,7 +86,37 @@ impl SessionCacheManager {
             let mut locks = repo_locks.lock().unwrap();
             locks.clear();
         }
+
+        if let Some(spec_cache) = SPEC_CONTENT_CACHE.get() {
+            let mut cache = spec_cache.lock().unwrap();
+            cache.clear();
+        }
     }
+}
+
+fn make_cache_key(repo_path: &Path, name: &str) -> String {
+    format!("{}:{}", repo_path.display(), name)
+}
+
+pub fn get_cached_spec_content(repo_path: &Path, name: &str) -> Option<(Option<String>, Option<String>)> {
+    let cache = SPEC_CONTENT_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    let cache = cache.lock().unwrap();
+    let key = make_cache_key(repo_path, name);
+    cache.get(&key).cloned()
+}
+
+pub fn cache_spec_content(repo_path: &Path, name: &str, content: (Option<String>, Option<String>)) {
+    let cache = SPEC_CONTENT_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    let mut cache = cache.lock().unwrap();
+    let key = make_cache_key(repo_path, name);
+    cache.insert(key, content);
+}
+
+pub fn invalidate_spec_content(repo_path: &Path, name: &str) {
+    let cache = SPEC_CONTENT_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
+    let mut cache = cache.lock().unwrap();
+    let key = make_cache_key(repo_path, name);
+    cache.remove(&key);
 }
 
 pub fn clear_session_prompted_non_test(worktree_path: &Path) {

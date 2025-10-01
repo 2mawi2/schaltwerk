@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, lazy, Suspense, useCallback } from 'react'
+import { useEffect, useRef, useState, lazy, Suspense } from 'react'
 import { TauriCommands } from '../../common/tauriCommands'
 import { invoke } from '@tauri-apps/api/core'
 import { AnimatedText } from '../common/AnimatedText'
 import { logger } from '../../utils/logger'
 import type { MarkdownEditorRef } from './MarkdownEditor'
+import { useSpecContentCache } from '../../hooks/useSpecContentCache'
 
 const MarkdownEditor = lazy(() => import('./MarkdownEditor').then(m => ({ default: m.MarkdownEditor })))
 
@@ -14,54 +15,11 @@ interface Props {
   sessionState?: 'spec' | 'running' | 'reviewed'
 }
 
-export function SpecContentView({ sessionName, editable = true, debounceMs = 1000 }: Props) {
-  const [content, setContent] = useState('')
-  const [loading, setLoading] = useState(true)
+export function SpecContentView({ sessionName, editable = true, debounceMs = 1000, sessionState }: Props) {
+  const { content, loading, error, updateContent } = useSpecContentCache(sessionName, sessionState)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const markdownEditorRef = useRef<MarkdownEditorRef>(null)
-  const sessionCacheRef = useRef<Map<string, string>>(new Map())
-  const loadTokenRef = useRef(0)
-
-  const updateContent = useCallback((value: string) => {
-    setContent(value)
-    sessionCacheRef.current.set(sessionName, value)
-  }, [sessionName])
-
-  useEffect(() => {
-    let mounted = true
-    const token = ++loadTokenRef.current
-
-    const cachedContent = sessionCacheRef.current.get(sessionName)
-    if (cachedContent !== undefined) {
-      setContent(cachedContent)
-      setLoading(false)
-    } else {
-      setContent('')
-      setLoading(true)
-    }
-
-    setError(null)
-
-    invoke<[string | null, string | null]>(TauriCommands.SchaltwerkCoreGetSessionAgentContent, { name: sessionName })
-      .then(([draftContent, initialPrompt]) => {
-        if (!mounted) return
-        if (loadTokenRef.current !== token) return
-        const text: string = draftContent ?? initialPrompt ?? ''
-        sessionCacheRef.current.set(sessionName, text)
-        setContent(text)
-        setLoading(false)
-      })
-      .catch((e) => {
-        if (!mounted) return
-        if (loadTokenRef.current !== token) return
-        logger.error('Failed to get spec content:', e)
-        setError(String(e))
-        setLoading(false)
-      })
-    return () => { mounted = false }
-  }, [sessionName])
 
   // Auto-save
   useEffect(() => {
