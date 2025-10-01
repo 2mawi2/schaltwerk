@@ -20,6 +20,7 @@ mod permissions;
 mod project_manager;
 mod projects;
 
+use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use clap::Parser;
 use project_manager::ProjectManager;
 use schaltwerk::infrastructure::config::SettingsManager;
@@ -412,16 +413,11 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                 let manager = core.session_manager();
                                 match manager.unmark_reviewed_on_follow_up(session_name) {
                                     Ok(true) => {
-                                        log::info!("Follow-up unmarked review state for '{session_name}', emitting SessionsRefreshed");
-                                        if let Ok(sessions) = manager.list_enriched_sessions() {
-                                            if let Err(e) = emit_event(
-                                                &app,
-                                                SchaltEvent::SessionsRefreshed,
-                                                &sessions,
-                                            ) {
-                                                log::warn!("Failed to emit sessions-refreshed after follow-up: {e}");
-                                            }
-                                        }
+                                        log::info!("Follow-up unmarked review state for '{session_name}', scheduling sessions refresh");
+                                        request_sessions_refresh(
+                                            &app,
+                                            SessionsRefreshReason::AgentActivity,
+                                        );
                                     }
                                     Ok(false) => {
                                         log::debug!("Follow-up received for '{session_name}' with no review state to clear");
@@ -504,17 +500,8 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                         {
                             log::info!("Spec created via MCP: {draft_name}");
 
-                            // Emit sessions-refreshed event to trigger UI updates
-                            // We emit with empty array since UI components will fetch what they need
-                            // (specs via list_sessions_by_state, sessions via list_enriched_sessions)
-                            log::info!("Emitting sessions-refreshed event after MCP spec creation");
-                            if let Err(e) = emit_event(
-                                &app,
-                                SchaltEvent::SessionsRefreshed,
-                                &Vec::<schaltwerk::schaltwerk_core::EnrichedSession>::new(),
-                            ) {
-                                log::error!("Failed to emit sessions-refreshed event: {e}");
-                            }
+                            log::info!("Queueing sessions refresh after MCP spec creation");
+                            request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
 
                             // Don't emit Selection event - let the user stay focused on their current session
                             // The spec will appear in the sidebar but won't steal focus

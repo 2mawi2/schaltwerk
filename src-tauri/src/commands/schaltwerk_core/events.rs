@@ -1,4 +1,5 @@
-use schaltwerk::domains::sessions::entity::EnrichedSession;
+use crate::commands::sessions_refresh::request_sessions_refresh;
+pub use crate::commands::sessions_refresh::SessionsRefreshReason;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
 use tauri::AppHandle;
 
@@ -79,8 +80,8 @@ pub fn emit_archive_updated(app: &AppHandle, repo: &str, count: usize) {
     );
 }
 
-pub fn emit_sessions_refreshed(app: &AppHandle, sessions: &Vec<EnrichedSession>) {
-    let _ = emit_event(app, SchaltEvent::SessionsRefreshed, sessions);
+pub fn request_sessions_refreshed(app: &AppHandle, reason: SessionsRefreshReason) {
+    request_sessions_refresh(app, reason);
 }
 
 pub fn emit_git_operation_started(

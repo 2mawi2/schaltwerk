@@ -1,7 +1,7 @@
-use std::time::Instant;
+use super::visible::VisibleScreen;
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
-use super::visible::VisibleScreen;
+use std::time::Instant;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum IdleTransition {
@@ -72,10 +72,12 @@ impl IdleDetector {
             }
         }
 
-        let bytes_elapsed = self.last_bytes_at
+        let bytes_elapsed = self
+            .last_bytes_at
             .map(|t| now.duration_since(t).as_millis() as u64)
             .unwrap_or(u64::MAX);
-        let visible_elapsed = self.last_visible_change_at
+        let visible_elapsed = self
+            .last_visible_change_at
             .map(|t| now.duration_since(t).as_millis() as u64)
             .unwrap_or(u64::MAX);
 

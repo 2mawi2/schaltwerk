@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 use std::fs::{self, File};
+use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
-use std::io::{BufRead, BufReader};
 
 const CLAUDE_SESSION_SCAN_LIMIT: usize = 64;
 
@@ -203,7 +203,8 @@ fn session_file_contains_session_metadata(path: &Path, expected_session_id: &str
 
         match serde_json::from_str::<serde_json::Value>(trimmed) {
             Ok(value) => {
-                if matches!(value.get("sessionId").and_then(|v| v.as_str()), Some(id) if id == expected_session_id) {
+                if matches!(value.get("sessionId").and_then(|v| v.as_str()), Some(id) if id == expected_session_id)
+                {
                     return true;
                 }
             }

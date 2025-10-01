@@ -1,4 +1,7 @@
-use crate::{get_schaltwerk_core, get_terminal_manager, SETTINGS_MANAGER};
+use crate::{
+    commands::session_lookup_cache::global_session_lookup_cache, get_schaltwerk_core,
+    get_terminal_manager, SETTINGS_MANAGER,
+};
 use schaltwerk::domains::agents::{naming, parse_agent_command};
 use schaltwerk::domains::merge::types::MergeStateSnapshot;
 use schaltwerk::domains::merge::{MergeMode, MergePreview, MergeService};
@@ -36,6 +39,12 @@ fn matches_version_pattern(name: &str, base_name: &str) -> bool {
     } else {
         false
     }
+}
+
+async fn evict_session_cache_entry_for_repo(repo_key: &str, session_id: &str) {
+    global_session_lookup_cache()
+        .evict_repo_session(repo_key, session_id)
+        .await;
 }
 
 fn is_conflict_error(message: &str) -> bool {
@@ -159,7 +168,7 @@ pub async fn schaltwerk_core_merge_session_to_main(
                 outcome.mode.as_str(),
                 &outcome.new_commit,
             );
-            events::emit_sessions_refreshed(&app, &Vec::<EnrichedSession>::new());
+            events::request_sessions_refreshed(&app, events::SessionsRefreshReason::MergeWorkflow);
             Ok(())
         }
         Err(err) => {
@@ -207,18 +216,9 @@ pub async fn schaltwerk_core_archive_spec_session(
     events::emit_archive_updated(&app, &repo, count);
     // Also emit a SessionRemoved event so the frontend can compute the next selection consistently
     events::emit_session_removed(&app, &name);
+    evict_session_cache_entry_for_repo(&repo, &name).await;
 
-    let sessions = match manager.list_enriched_sessions() {
-        Ok(list) => list,
-        Err(error) => {
-            log::error!(
-                "Failed to load sessions after archiving spec '{name}': {error}"
-            );
-            Vec::new()
-        }
-    };
-
-    events::emit_sessions_refreshed(&app, &sessions);
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
     Ok(())
 }
 
@@ -250,14 +250,7 @@ pub async fn schaltwerk_core_restore_archived_spec(
     let repo = core.repo_path.to_string_lossy().to_string();
     let count = manager.list_archived_specs().map(|v| v.len()).unwrap_or(0);
     events::emit_archive_updated(&app, &repo, count);
-    let sessions = match manager.list_enriched_sessions() {
-        Ok(list) => list,
-        Err(error) => {
-            log::error!("Failed to load sessions after restoring archived spec: {error}");
-            Vec::new()
-        }
-    };
-    events::emit_sessions_refreshed(&app, &sessions);
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
     Ok(session)
 }
 
@@ -568,24 +561,17 @@ pub async fn schaltwerk_core_create_session(
                 Ok(Some(display_name)) => {
                     log::info!("Successfully generated display name '{display_name}' for session '{session_name_clone}'");
 
-                    let core = match get_schaltwerk_core().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            log::warn!("Cannot get schaltwerk_core for sessions refresh: {e}");
-                            return;
-                        }
-                    };
-                    let core = core.lock().await;
-                    let manager = core.session_manager();
-                    // Invalidate cache before emitting refreshed event
-                    if let Ok(sessions) = manager.list_enriched_sessions() {
-                        log::info!("Emitting sessions-refreshed event after name generation");
-                        if let Err(e) =
-                            emit_event(&app_handle, SchaltEvent::SessionsRefreshed, &sessions)
-                        {
-                            log::warn!("Could not emit sessions refreshed: {e}");
-                        }
+                    if let Err(e) = db_clone.set_pending_name_generation(&session_id, false) {
+                        log::warn!(
+                            "Failed to clear pending_name_generation for session '{session_name_clone}': {e}"
+                        );
                     }
+
+                    log::info!("Queueing sessions refresh after AI name generation");
+                    events::request_sessions_refreshed(
+                        &app_handle,
+                        events::SessionsRefreshReason::SessionLifecycle,
+                    );
                 }
                 Ok(None) => {
                     log::warn!("Name generation returned None for session '{session_name_clone}'");
@@ -794,15 +780,8 @@ pub async fn schaltwerk_core_rename_version_group(
 
     drop(core_lock);
 
-    // Emit sessions refreshed event
-    let core = get_schaltwerk_core().await?;
-    let core_lock = core.lock().await;
-    let manager = core_lock.session_manager();
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after version group rename");
-        // Using centralized event helper
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    log::info!("Queueing sessions refresh after version group rename");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SessionLifecycle);
 
     Ok(())
 }
@@ -882,13 +861,8 @@ pub async fn schaltwerk_core_cancel_session(
         events::emit_archive_updated(&app, &repo_path_str, archive_count_after_opt.unwrap_or(0));
         // Ensure frontend selection logic runs consistently by emitting SessionRemoved for specs too
         events::emit_session_removed(&app, &name);
-        if let Ok(core) = get_schaltwerk_core().await {
-            let core = core.lock().await;
-            let manager = core.session_manager();
-            if let Ok(sessions) = manager.list_enriched_sessions() {
-                events::emit_sessions_refreshed(&app, &sessions);
-            }
-        }
+        evict_session_cache_entry_for_repo(&repo_path_str, &name).await;
+        events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SessionLifecycle);
 
         terminals::close_session_terminals_if_any(&name).await;
         return Ok(());
@@ -899,6 +873,7 @@ pub async fn schaltwerk_core_cancel_session(
 
     let app_for_refresh = app.clone();
     let name_for_bg = name.clone();
+    let repo_for_eviction = repo_path_str.clone();
     tokio::spawn(async move {
         log::debug!("Cancel {name_for_bg}: Starting background work");
 
@@ -941,14 +916,12 @@ pub async fn schaltwerk_core_cancel_session(
                         session_name: name_for_bg.clone(),
                     },
                 );
+                evict_session_cache_entry_for_repo(&repo_for_eviction, &name_for_bg).await;
 
-                if let Ok(core) = get_schaltwerk_core().await {
-                    let core = core.lock().await;
-                    let manager = core.session_manager();
-                    if let Ok(sessions) = manager.list_enriched_sessions() {
-                        events::emit_sessions_refreshed(&app_for_refresh, &sessions);
-                    }
-                }
+                events::request_sessions_refreshed(
+                    &app_for_refresh,
+                    events::SessionsRefreshReason::SessionLifecycle,
+                );
             }
             Err(e) => {
                 log::error!("CRITICAL: Background cancel failed for {name_for_bg}: {e}");
@@ -967,13 +940,10 @@ pub async fn schaltwerk_core_cancel_session(
                     },
                 );
 
-                if let Ok(core) = get_schaltwerk_core().await {
-                    let core = core.lock().await;
-                    let manager = core.session_manager();
-                    if let Ok(sessions) = manager.list_enriched_sessions() {
-                        events::emit_sessions_refreshed(&app_for_refresh, &sessions);
-                    }
-                }
+                events::request_sessions_refreshed(
+                    &app_for_refresh,
+                    events::SessionsRefreshReason::SessionLifecycle,
+                );
             }
         }
 
@@ -1019,10 +989,8 @@ pub async fn schaltwerk_core_convert_session_to_draft(
             }
 
             // Emit event to notify frontend of the change
-            if let Ok(sessions) = manager.list_enriched_sessions() {
-                log::info!("Emitting sessions-refreshed event after converting session to spec");
-                events::emit_sessions_refreshed(&app, &sessions);
-            }
+            log::info!("Queueing sessions refresh after converting session to spec");
+            events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
             Ok(())
         }
@@ -1555,10 +1523,8 @@ pub async fn schaltwerk_core_mark_session_ready(
 
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after marking session ready");
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    log::info!("Queueing sessions refresh after marking session ready");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::MergeWorkflow);
 
     Ok(result)
 }
@@ -1594,10 +1560,8 @@ pub async fn schaltwerk_core_unmark_session_ready(
 
     // Emit event to notify frontend of the change
     // Invalidate cache before emitting refreshed event
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after unmarking session ready");
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    log::info!("Queueing sessions refresh after unmarking session ready");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::MergeWorkflow);
 
     Ok(())
 }
@@ -1635,10 +1599,8 @@ pub async fn schaltwerk_core_create_spec_session(
 
     // Emit event with actual sessions list
     // Invalidate cache before emitting refreshed event
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after creating spec session");
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    log::info!("Queueing sessions refresh after creating spec session");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Drop the lock before spawning async task
     drop(core_lock);
@@ -1725,26 +1687,11 @@ pub async fn schaltwerk_core_create_spec_session(
                         // Clear the pending flag
                         let _ = db_clone.set_pending_name_generation(&session_id, false);
 
-                        // Emit refresh event
-                        let core = match get_schaltwerk_core().await {
-                            Ok(c) => c,
-                            Err(e) => {
-                                log::warn!("Cannot get schaltwerk_core after spec renaming: {e}");
-                                return;
-                            }
-                        };
-                        let core = core.lock().await;
-                        let manager = core.session_manager();
-                        if let Ok(sessions) = manager.list_enriched_sessions() {
-                            log::info!("Emitting sessions-refreshed after spec renaming");
-                            if let Err(e) =
-                                emit_event(&app_handle, SchaltEvent::SessionsRefreshed, &sessions)
-                            {
-                                log::warn!(
-                                    "Could not emit sessions refreshed after spec renaming: {e}"
-                                );
-                            }
-                        }
+                        log::info!("Queueing sessions refresh after spec renaming");
+                        events::request_sessions_refreshed(
+                            &app_handle,
+                            events::SessionsRefreshReason::SpecSync,
+                        );
                     }
                 }
                 Ok(None) => {
@@ -1795,10 +1742,8 @@ pub async fn schaltwerk_core_create_and_start_spec_session(
         .map_err(|e| format!("Failed to create and start spec session: {e}"))?;
 
     // Emit event with actual sessions list
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after creating and starting spec session");
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    log::info!("Queueing sessions refresh after creating and starting spec session");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Drop the lock
     drop(core_lock);
@@ -1837,10 +1782,8 @@ pub async fn schaltwerk_core_start_spec_session(
     events::emit_selection_running(&app, &name);
 
     // Invalidate cache before emitting refreshed event
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        log::info!("Emitting sessions-refreshed event after starting spec session");
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    log::info!("Queueing sessions refresh after starting spec session");
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     // Check if AI renaming should be triggered for spec-derived sessions
     // First, get the session info to check if it has auto-generation potential
@@ -2017,26 +1960,16 @@ pub async fn schaltwerk_core_start_spec_session(
                 Ok(Some(display_name)) => {
                     log::info!("Successfully generated display name '{display_name}' for spec-started session '{session_name_clone}'");
 
-                    let core = match get_schaltwerk_core().await {
-                        Ok(c) => c,
-                        Err(e) => {
-                            log::warn!("Cannot get schaltwerk_core for sessions refresh: {e}");
-                            return;
-                        }
-                    };
-                    let core = core.lock().await;
-                    let manager = core.session_manager();
-                    // Invalidate cache before emitting refreshed event
-                    if let Ok(sessions) = manager.list_enriched_sessions() {
-                        log::info!(
-                            "Emitting sessions-refreshed event after spec-session name generation"
+                    if let Err(e) = db_clone.set_pending_name_generation(&session_id, false) {
+                        log::warn!(
+                            "Failed to clear pending_name_generation for spec-started session '{session_name_clone}': {e}"
                         );
-                        if let Err(e) =
-                            emit_event(&app_handle, SchaltEvent::SessionsRefreshed, &sessions)
-                        {
-                            log::warn!("Could not emit sessions refreshed: {e}");
-                        }
                     }
+                    log::info!("Queueing sessions refresh after spec-session name generation");
+                    events::request_sessions_refreshed(
+                        &app_handle,
+                        events::SessionsRefreshReason::SpecSync,
+                    );
                 }
                 Ok(None) => {
                     log::warn!("Name generation returned None for spec-started session '{session_name_clone}'");
@@ -2109,9 +2042,7 @@ pub async fn schaltwerk_core_rename_draft_session(
         .map_err(|e| format!("Failed to rename spec session: {e}"))?;
 
     // Emit sessions-refreshed event to update UI
-    if let Ok(sessions) = manager.list_enriched_sessions() {
-        events::emit_sessions_refreshed(&app, &sessions);
-    }
+    events::request_sessions_refreshed(&app, events::SessionsRefreshReason::SpecSync);
 
     Ok(())
 }
@@ -2290,9 +2221,7 @@ pub async fn reset_session_worktree_impl(
 
     // Emit sessions refreshed so UI updates its diffs/state when AppHandle is available
     if let Some(app_handle) = app {
-        if let Ok(sessions) = manager.list_enriched_sessions() {
-            events::emit_sessions_refreshed(&app_handle, &sessions);
-        }
+        events::request_sessions_refreshed(&app_handle, events::SessionsRefreshReason::GitUpdate);
     }
     Ok(())
 }

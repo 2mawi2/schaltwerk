@@ -1,10 +1,10 @@
 use crate::domains::sessions::entity::{Session, SessionState, SessionStatus};
-use std::str::FromStr;
 use crate::schaltwerk_core::database::Database;
 use anyhow::Result;
 use chrono::{TimeZone, Utc};
 use rusqlite::{params, Result as SqlResult};
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 pub trait SessionMethods {
     fn create_session(&self, session: &Session) -> Result<()>;

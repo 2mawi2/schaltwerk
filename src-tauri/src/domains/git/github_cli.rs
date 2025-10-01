@@ -75,7 +75,9 @@ impl std::fmt::Display for GitHubCliError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             GitHubCliError::NotInstalled => write!(f, "GitHub CLI (gh) is not installed."),
-            GitHubCliError::NoGitRemote => write!(f, "No Git remotes configured for this repository."),
+            GitHubCliError::NoGitRemote => {
+                write!(f, "No Git remotes configured for this repository.")
+            }
             GitHubCliError::CommandFailed {
                 program,
                 status,
@@ -150,7 +152,10 @@ impl CommandRunner for SystemCommandRunner {
 
                 for candidate in EXTRA_PATHS {
                     let candidate_path = PathBuf::from(candidate);
-                    if !path_entries.iter().any(|existing| existing == &candidate_path) {
+                    if !path_entries
+                        .iter()
+                        .any(|existing| existing == &candidate_path)
+                    {
                         path_entries.push(candidate_path);
                     }
                 }
@@ -204,10 +209,7 @@ impl<R: CommandRunner> GitHubCli<R> {
             self.program,
             std::env::var("PATH").unwrap_or_else(|_| "<not set>".to_string())
         );
-        match self
-            .runner
-            .run(&self.program, &["--version"], None, &[])
-        {
+        match self.runner.run(&self.program, &["--version"], None, &[]) {
             Ok(output) => {
                 if output.success() {
                     info!("GitHub CLI detected: {}", output.stdout.trim());
@@ -243,7 +245,9 @@ impl<R: CommandRunner> GitHubCli<R> {
 
         debug!(
             "gh auth status result: exit={:?}, stdout_len={}, stderr_len={}",
-            output.status, output.stdout.len(), output.stderr.len()
+            output.status,
+            output.stdout.len(),
+            output.stderr.len()
         );
 
         if output.success() {
@@ -310,29 +314,29 @@ impl<R: CommandRunner> GitHubCli<R> {
 
         debug!(
             "[GitHubCli] gh repo view result: exit={:?}, stdout_len={}, stderr_len={}",
-            output.status, output.stdout.len(), output.stderr.len()
+            output.status,
+            output.stdout.len(),
+            output.stderr.len()
         );
 
         if !output.success() {
             let arg_vec: Vec<String> = args.iter().map(|s| s.to_string()).collect();
-            debug!(
-                "[GitHubCli] gh repo view failed: stderr={}",
-                output.stderr
-            );
+            debug!("[GitHubCli] gh repo view failed: stderr={}", output.stderr);
             return Err(command_failure(&self.program, &arg_vec, output));
         }
 
         let clean_output = strip_ansi_codes(&output.stdout);
-        let response: RepoViewResponse = serde_json::from_str(clean_output.trim()).map_err(|err| {
-            log::error!(
-                "[GitHubCli] Failed to parse repo view response: {err}; raw={}, cleaned={}",
-                output.stdout.trim(),
-                clean_output.trim()
-            );
-            GitHubCliError::InvalidOutput(
-                "GitHub CLI returned data in an unexpected format.".to_string(),
-            )
-        })?;
+        let response: RepoViewResponse =
+            serde_json::from_str(clean_output.trim()).map_err(|err| {
+                log::error!(
+                    "[GitHubCli] Failed to parse repo view response: {err}; raw={}, cleaned={}",
+                    output.stdout.trim(),
+                    clean_output.trim()
+                );
+                GitHubCliError::InvalidOutput(
+                    "GitHub CLI returned data in an unexpected format.".to_string(),
+                )
+            })?;
         let default_branch = response
             .default_branch_ref
             .and_then(|branch| branch.name)
@@ -588,12 +592,12 @@ fn command_failure(program: &str, args: &[String], output: CommandOutput) -> Git
 }
 
 fn ensure_git_remote_exists(project_path: &Path) -> Result<(), GitHubCliError> {
-    let repo = Repository::open(project_path).map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
-    let remotes = repo.remotes().map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
-    let has_remote = remotes
-        .iter()
-        .flatten()
-        .any(|name| !name.trim().is_empty());
+    let repo =
+        Repository::open(project_path).map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
+    let remotes = repo
+        .remotes()
+        .map_err(|err| GitHubCliError::Git(AnyhowError::new(err)))?;
+    let has_remote = remotes.iter().flatten().any(|name| !name.trim().is_empty());
 
     if has_remote {
         Ok(())
@@ -638,12 +642,7 @@ fn resolve_github_cli_program() -> String {
         }
     }
 
-    let common_paths = [
-        "/opt/homebrew/bin",
-        "/usr/local/bin",
-        "/usr/bin",
-        "/bin",
-    ];
+    let common_paths = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"];
 
     for path in &common_paths {
         let full_path = PathBuf::from(path).join(command);
@@ -703,7 +702,6 @@ fn strip_ansi_codes(text: &str) -> String {
 
     result
 }
-
 
 fn extract_pr_url(text: &str) -> Option<String> {
     for token in text.split_whitespace() {
@@ -768,12 +766,12 @@ struct PrViewResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
     use std::collections::VecDeque;
     use std::io;
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
     use tempfile::TempDir;
-    use serde_json::json;
 
     #[derive(Default, Clone)]
     struct MockRunner {
@@ -855,7 +853,8 @@ mod tests {
         runner.push_response(Ok(CommandOutput {
             status: Some(1),
             stdout: String::new(),
-            stderr: "You are not logged into any GitHub hosts. Run gh auth login to authenticate.".to_string(),
+            stderr: "You are not logged into any GitHub hosts. Run gh auth login to authenticate."
+                .to_string(),
         }));
         let cli = GitHubCli::with_runner(runner);
 
@@ -1028,9 +1027,7 @@ mod tests {
         {
             let mut config = repo.config().unwrap();
             config.set_str("user.name", "Tester").unwrap();
-            config
-                .set_str("user.email", "tester@example.com")
-                .unwrap();
+            config.set_str("user.email", "tester@example.com").unwrap();
         }
         std::fs::write(repo_path.join("README.md"), "hello").unwrap();
         let mut index = repo.index().unwrap();
@@ -1069,9 +1066,7 @@ mod tests {
             repository: Some("owner/repo"),
         };
 
-        let result = cli
-            .create_pr_from_worktree(opts)
-            .expect("pr result");
+        let result = cli.create_pr_from_worktree(opts).expect("pr result");
         assert_eq!(result.branch, "reviewed/session-demo");
         assert_eq!(result.url, "https://github.com/owner/repo/pull/99");
 

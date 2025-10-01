@@ -225,7 +225,11 @@ impl LocalPtyAdapter {
                                 IdleTransition::BecameIdle => true,
                                 IdleTransition::BecameActive => false,
                             };
-                            transitions.push((state.session_id.clone().unwrap(), id.clone(), needs_attention));
+                            transitions.push((
+                                state.session_id.clone().unwrap(),
+                                id.clone(),
+                                needs_attention,
+                            ));
                         }
                     }
                     transitions

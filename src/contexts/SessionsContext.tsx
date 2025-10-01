@@ -501,7 +501,7 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
         }
     }, [])
 
-    const mergeSessionsPreferDraft = (base: EnrichedSession[], specs: EnrichedSession[]): EnrichedSession[] => {
+    const mergeSessionsPreferDraft = useCallback((base: EnrichedSession[], specs: EnrichedSession[]): EnrichedSession[] => {
         const byId = new Map<string, EnrichedSession>()
         for (const s of base) byId.set(s.info.session_id, s)
         for (const d of specs) {
@@ -509,14 +509,17 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             if (!existing || mapSessionUiState(existing.info) !== 'spec') byId.set(d.info.session_id, d)
         }
         return Array.from(byId.values())
-    }
+    }, [])
 
     const allSessionsRef = useRef<EnrichedSession[]>([])
     useEffect(() => {
         allSessionsRef.current = allSessions
     }, [allSessions])
 
-    const reloadSessions = useCallback(async () => {
+    const reloadInFlightRef = useRef<Promise<void> | null>(null)
+    const reloadDirtyRef = useRef(false)
+
+    const executeReload = useCallback(async () => {
         if (!projectPath) {
             setAllSessions([])
             setLoading(false)
@@ -633,7 +636,30 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
             setLoading(false)
             hasInitialLoadCompleted.current = true
         }
-    }, [projectPath, syncMergeStatuses])
+    }, [projectPath, mergeSessionsPreferDraft, syncMergeStatuses])
+
+    const reloadSessions = useCallback(() => {
+        if (reloadInFlightRef.current) {
+            reloadDirtyRef.current = true
+            return reloadInFlightRef.current
+        }
+
+        const promise = (async () => {
+            try {
+                await executeReload()
+            } finally {
+                const shouldReplay = reloadDirtyRef.current
+                reloadDirtyRef.current = false
+                reloadInFlightRef.current = null
+                if (shouldReplay) {
+                    void reloadSessions()
+                }
+            }
+        })()
+
+        reloadInFlightRef.current = promise
+        return promise
+    }, [executeReload])
 
     const optimisticallyConvertSessionToSpec = useCallback((sessionId: string) => {
         let updated = false

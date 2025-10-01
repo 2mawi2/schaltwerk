@@ -1,5 +1,6 @@
 use std::path::Path;
 // no serde derives used in this module
+use crate::commands::session_lookup_cache::{current_repo_cache_key, global_session_lookup_cache};
 use crate::diff_engine::{
     add_collapsible_sections, calculate_diff_stats, calculate_split_diff_stats, compute_split_diff,
     compute_unified_diff, get_file_language, DiffResponse, FileInfo, SplitDiffResponse,
@@ -777,21 +778,8 @@ pub async fn get_commit_file_contents(
 
 async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
-        let core = get_schaltwerk_core().await?;
-        let core = core.lock().await;
-        let manager = core.session_manager();
-
-        let sessions = manager
-            .list_enriched_sessions()
-            .map_err(|e| format!("Failed to get sessions: {e}"))?;
-
-        let session = sessions.into_iter().find(|s| s.info.session_id == name);
-
-        if let Some(session) = session {
-            Ok(session.info.worktree_path)
-        } else {
-            Err(format!("Session '{name}' not found"))
-        }
+        let (worktree_path, _) = resolve_session_info(&name).await?;
+        Ok(worktree_path)
     } else {
         // For diff commands without session, use current project path if available,
         // otherwise fall back to current directory for backward compatibility
@@ -817,21 +805,8 @@ async fn get_repo_path(session_name: Option<String>) -> Result<String, String> {
 
 async fn get_base_branch(session_name: Option<String>) -> Result<String, String> {
     if let Some(name) = session_name {
-        let core = get_schaltwerk_core().await?;
-        let core = core.lock().await;
-        let manager = core.session_manager();
-
-        let sessions = manager
-            .list_enriched_sessions()
-            .map_err(|e| format!("Failed to get sessions: {e}"))?;
-
-        let session = sessions.into_iter().find(|s| s.info.session_id == name);
-
-        if let Some(session) = session {
-            Ok(session.info.base_branch)
-        } else {
-            Err(format!("Session '{name}' not found"))
-        }
+        let (_, base_branch) = resolve_session_info(&name).await?;
+        Ok(base_branch)
     } else {
         // No session specified, get default branch from current project
         let manager = crate::get_project_manager().await;
@@ -846,6 +821,50 @@ async fn get_base_branch(session_name: Option<String>) -> Result<String, String>
                 .map_err(|e| format!("Failed to get default branch: {e}"))
         }
     }
+}
+
+async fn resolve_session_info(session_name: &str) -> Result<(String, String), String> {
+    let repo_key = current_repo_cache_key().await?;
+    let cache = global_session_lookup_cache();
+    if let Some((worktree_path, base_branch)) = cache.get(&repo_key, session_name).await {
+        return Ok((worktree_path, base_branch));
+    }
+
+    let core = get_schaltwerk_core().await?;
+    let (worktree_path, base_branch) = {
+        let core_guard = core.lock().await;
+        let manager = core_guard.session_manager();
+        let session = match manager.get_session_by_id(session_name) {
+            Ok(session) => session,
+            Err(id_err) => {
+                log::debug!(
+                    "resolve_session_info: session id lookup failed for '{session_name}': {id_err}, falling back to name lookup"
+                );
+                manager
+                    .get_session(session_name)
+                    .map_err(|name_err| {
+                        format!(
+                            "Failed to load session '{session_name}': {name_err} (id lookup error: {id_err})"
+                        )
+                    })?
+            }
+        };
+        (
+            session.worktree_path.to_string_lossy().to_string(),
+            session.parent_branch.clone(),
+        )
+    };
+
+    cache
+        .upsert_repo_session(
+            &repo_key,
+            session_name,
+            worktree_path.clone(),
+            base_branch.clone(),
+        )
+        .await;
+
+    Ok((worktree_path, base_branch))
 }
 
 #[tauri::command]

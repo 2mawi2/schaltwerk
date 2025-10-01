@@ -98,7 +98,10 @@ fn make_cache_key(repo_path: &Path, name: &str) -> String {
     format!("{}:{}", repo_path.display(), name)
 }
 
-pub fn get_cached_spec_content(repo_path: &Path, name: &str) -> Option<(Option<String>, Option<String>)> {
+pub fn get_cached_spec_content(
+    repo_path: &Path,
+    name: &str,
+) -> Option<(Option<String>, Option<String>)> {
     let cache = SPEC_CONTENT_CACHE.get_or_init(|| StdMutex::new(HashMap::new()));
     let cache = cache.lock().unwrap();
     let key = make_cache_key(repo_path, name);

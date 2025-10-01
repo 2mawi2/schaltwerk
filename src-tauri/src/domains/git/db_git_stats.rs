@@ -87,14 +87,21 @@ impl GitStatsMethods for Database {
         }
 
         let conn = self.conn.lock().unwrap();
-        let placeholders = session_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let placeholders = session_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
         let query = format!(
             "SELECT session_id, files_changed, lines_added, lines_removed, has_uncommitted, calculated_at
              FROM git_stats WHERE session_id IN ({placeholders})"
         );
 
         let mut stmt = conn.prepare(&query)?;
-        let params: Vec<&dyn rusqlite::ToSql> = session_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+        let params: Vec<&dyn rusqlite::ToSql> = session_ids
+            .iter()
+            .map(|id| id as &dyn rusqlite::ToSql)
+            .collect();
 
         let stats_iter = stmt.query_map(params.as_slice(), |row| {
             Ok(GitStats {

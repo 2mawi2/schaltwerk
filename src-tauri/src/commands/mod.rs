@@ -6,6 +6,8 @@ pub mod mcp_config;
 pub mod project;
 pub mod pty;
 pub mod schaltwerk_core;
+pub mod session_lookup_cache;
+pub mod sessions_refresh;
 pub mod settings;
 pub mod terminal;
 pub mod utility;

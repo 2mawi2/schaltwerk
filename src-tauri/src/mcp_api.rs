@@ -2,10 +2,11 @@ use http_body_util::BodyExt;
 use hyper::{body::Incoming, Method, Request, Response, StatusCode};
 use log::{error, info, warn};
 
+use crate::commands::sessions_refresh::{request_sessions_refresh, SessionsRefreshReason};
 use crate::get_schaltwerk_core;
 use schaltwerk::domains::sessions::entity::Session;
 use schaltwerk::infrastructure::events::{emit_event, SchaltEvent};
-use schaltwerk::schaltwerk_core::{EnrichedSession, SessionManager, SessionState};
+use schaltwerk::schaltwerk_core::{SessionManager, SessionState};
 
 pub async fn handle_mcp_request(
     req: Request<Incoming>,
@@ -106,21 +107,12 @@ fn create_spec_session_with_notifications<F>(
     emit_sessions: F,
 ) -> anyhow::Result<Session>
 where
-    F: Fn(Vec<EnrichedSession>) -> Result<(), tauri::Error>,
+    F: Fn() -> Result<(), tauri::Error>,
 {
     let session =
         manager.create_spec_session_with_agent(name, content, agent_type, skip_permissions)?;
-    match manager.list_enriched_sessions() {
-        Ok(sessions) => {
-            if let Err(e) = emit_sessions(sessions) {
-                warn!("Failed to emit SessionsRefreshed after creating spec '{name}': {e}");
-            }
-        }
-        Err(e) => {
-            warn!(
-                "Failed to list sessions for SessionsRefreshed emission after creating spec '{name}': {e}"
-            );
-        }
+    if let Err(e) = emit_sessions() {
+        warn!("Failed to emit SessionsRefreshed after creating spec '{name}': {e}");
     }
     Ok(session)
 }
@@ -190,19 +182,15 @@ mod tests {
         let emitted = Arc::new(Mutex::new(false));
         let emitted_ids: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
         let emitted_clone = emitted.clone();
-        let ids_clone = emitted_ids.clone();
-
         let result = create_spec_session_with_notifications(
             &manager,
             "draft-one",
             "Initial spec content",
             None,
             None,
-            move |sessions| {
+            move || {
                 let mut flag = emitted_clone.lock().expect("lock");
                 *flag = true;
-                let mut ids = ids_clone.lock().expect("lock");
-                ids.extend(sessions.iter().map(|s| s.info.session_id.clone()));
                 Ok(())
             },
         );
@@ -212,6 +200,13 @@ mod tests {
             *emitted.lock().expect("lock"),
             "SessionsRefreshed emitter should be invoked"
         );
+        let sessions_after = manager
+            .list_enriched_sessions()
+            .expect("sessions available after refresh");
+        {
+            let mut ids = emitted_ids.lock().expect("lock");
+            ids.extend(sessions_after.iter().map(|s| s.info.session_id.clone()));
+        }
         assert!(
             emitted_ids
                 .lock()
@@ -273,7 +268,10 @@ async fn create_draft(
         content,
         agent_type,
         skip_permissions,
-        move |sessions| emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions),
+        move || {
+            request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
+            Ok(())
+        },
     ) {
         Ok(session) => {
             info!("Created spec session via API: {name}");
@@ -381,38 +379,8 @@ async fn update_spec_content(
                 content.len()
             );
 
-            // Emit sessions-refreshed event with actual sessions to update UI
-            match manager.list_enriched_sessions() {
-                Ok(sessions) => {
-                    info!(
-                        "MCP API: Emitting sessions-refreshed with {} sessions",
-                        sessions.len()
-                    );
-                    // Log details about spec sessions
-                    for session in &sessions {
-                        if session.info.session_state == SessionState::Spec {
-                            info!(
-                                "MCP API: Spec session {} has content: {} chars",
-                                session.info.session_id,
-                                session
-                                    .info
-                                    .spec_content
-                                    .as_ref()
-                                    .map(|c| c.len())
-                                    .unwrap_or(0)
-                            );
-                        }
-                    }
-                    if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-                        error!("Failed to emit sessions-refreshed event: {e}");
-                    } else {
-                        info!("MCP API: Successfully emitted sessions-refreshed event");
-                    }
-                }
-                Err(e) => {
-                    error!("MCP API: Failed to list sessions for event emission: {e}");
-                }
-            }
+            request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
+            info!("MCP API: queued sessions refresh after spec update");
 
             Ok(Response::new("OK".to_string()))
         }
@@ -475,12 +443,7 @@ async fn start_spec_session(
     ) {
         Ok(()) => {
             info!("Started spec session via API: {name}");
-
-            if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-                    warn!("Could not emit sessions refreshed: {e}");
-                }
-            }
+            request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
             Ok(Response::new("OK".to_string()))
         }
         Err(e) => {
@@ -523,6 +486,7 @@ async fn delete_draft(name: &str, app: tauri::AppHandle) -> Result<Response<Stri
                     session_name: name.to_string(),
                 },
             );
+            request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
             Ok(Response::new("OK".to_string()))
         }
         Err(e) => {
@@ -593,12 +557,7 @@ async fn create_session(
     ) {
         Ok(session) => {
             info!("Created session via API: {name}");
-
-            if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-                    warn!("Could not emit sessions refreshed: {e}");
-                }
-            }
+            request_sessions_refresh(&app, SessionsRefreshReason::SessionLifecycle);
 
             let json = serde_json::to_string(&session).unwrap_or_else(|e| {
                 error!("Failed to serialize session: {e}");
@@ -774,13 +733,7 @@ async fn mark_session_reviewed(
     match manager.mark_session_as_reviewed(name) {
         Ok(()) => {
             info!("Marked session '{name}' as reviewed via API");
-
-            // Emit events to update UI
-            if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-                    warn!("Could not emit sessions refreshed: {e}");
-                }
-            }
+            request_sessions_refresh(&app, SessionsRefreshReason::MergeWorkflow);
 
             Ok(Response::new("OK".to_string()))
         }
@@ -816,13 +769,7 @@ async fn convert_session_to_spec(
     match manager.convert_session_to_spec(name) {
         Ok(()) => {
             info!("Converted session '{name}' to spec via API");
-
-            // Emit events to update UI
-            if let Ok(sessions) = manager.list_enriched_sessions() {
-                if let Err(e) = emit_event(&app, SchaltEvent::SessionsRefreshed, &sessions) {
-                    warn!("Could not emit sessions refreshed: {e}");
-                }
-            }
+            request_sessions_refresh(&app, SessionsRefreshReason::SpecSync);
 
             Ok(Response::new("OK".to_string()))
         }

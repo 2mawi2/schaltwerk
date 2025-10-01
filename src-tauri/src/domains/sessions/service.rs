@@ -16,7 +16,8 @@ fn get_or_compute_git_stats(
 ) -> Option<GitStats> {
     match cached_stats {
         Some(existing) => {
-            let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp() > GIT_STATS_STALE_THRESHOLD_SECS;
+            let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp()
+                > GIT_STATS_STALE_THRESHOLD_SECS;
             if is_stale {
                 let mut updated = git::calculate_git_stats_fast(worktree_path, parent_branch).ok();
                 if let Some(ref mut s) = updated {
@@ -890,17 +891,12 @@ mod service_unified_tests {
         };
 
         let mut save_called = false;
-        let result = get_or_compute_git_stats(
-            "test-session",
-            &repo,
-            "main",
-            Some(&stale_stats),
-            |stats| {
+        let result =
+            get_or_compute_git_stats("test-session", &repo, "main", Some(&stale_stats), |stats| {
                 save_called = true;
                 assert_eq!(stats.session_id, "test-session");
                 Ok(())
-            },
-        );
+            });
 
         assert!(result.is_some());
         assert!(save_called);
@@ -940,17 +936,11 @@ mod service_unified_tests {
             .unwrap();
 
         let mut save_called = false;
-        let result = get_or_compute_git_stats(
-            "test-session",
-            &repo,
-            "main",
-            None,
-            |stats| {
-                save_called = true;
-                assert_eq!(stats.session_id, "test-session");
-                Ok(())
-            },
-        );
+        let result = get_or_compute_git_stats("test-session", &repo, "main", None, |stats| {
+            save_called = true;
+            assert_eq!(stats.session_id, "test-session");
+            Ok(())
+        });
 
         assert!(result.is_some());
         assert!(save_called);
@@ -1477,6 +1467,10 @@ impl SessionManager {
         self.db_manager.get_session_by_name(name)
     }
 
+    pub fn get_session_by_id(&self, id: &str) -> Result<Session> {
+        self.db_manager.get_session_by_id(id)
+    }
+
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
         self.db_manager.get_session_task_content(name)
     }
@@ -1504,13 +1498,24 @@ impl SessionManager {
         );
 
         let bulk_stats_start = std::time::Instant::now();
-        let session_ids: Vec<String> = sessions.iter()
-            .filter(|s| s.status != SessionStatus::Cancelled && s.session_state != SessionState::Spec)
+        let session_ids: Vec<String> = sessions
+            .iter()
+            .filter(|s| {
+                s.status != SessionStatus::Cancelled && s.session_state != SessionState::Spec
+            })
             .map(|s| s.id.clone())
             .collect();
-        let all_stats = self.db_manager.get_git_stats_bulk(&session_ids).unwrap_or_else(|_| Vec::new());
-        let stats_by_id: std::collections::HashMap<String, crate::domains::sessions::entity::GitStats> =
-            all_stats.into_iter().map(|s| (s.session_id.clone(), s)).collect();
+        let all_stats = self
+            .db_manager
+            .get_git_stats_bulk(&session_ids)
+            .unwrap_or_else(|_| Vec::new());
+        let stats_by_id: std::collections::HashMap<
+            String,
+            crate::domains::sessions::entity::GitStats,
+        > = all_stats
+            .into_iter()
+            .map(|s| (s.session_id.clone(), s))
+            .collect();
         let bulk_stats_time = bulk_stats_start.elapsed();
         log::debug!(
             "list_enriched_sessions: Loaded {} git stats for {} sessions in {}ms",

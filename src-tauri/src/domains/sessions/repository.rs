@@ -103,7 +103,10 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to update session state: {e}"))?;
 
         if let Ok(session) = self.db.get_session_by_id(session_id) {
-            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+            crate::domains::sessions::cache::invalidate_spec_content(
+                &self.repo_path,
+                &session.name,
+            );
         }
 
         Ok(())
@@ -127,7 +130,10 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to update spec content: {e}"))?;
 
         if let Ok(session) = self.db.get_session_by_id(session_id) {
-            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+            crate::domains::sessions::cache::invalidate_spec_content(
+                &self.repo_path,
+                &session.name,
+            );
         }
 
         Ok(())
@@ -139,27 +145,41 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to append spec content: {e}"))?;
 
         if let Ok(session) = self.db.get_session_by_id(session_id) {
-            crate::domains::sessions::cache::invalidate_spec_content(&self.repo_path, &session.name);
+            crate::domains::sessions::cache::invalidate_spec_content(
+                &self.repo_path,
+                &session.name,
+            );
         }
 
         Ok(())
     }
 
     pub fn get_session_task_content(&self, name: &str) -> Result<(Option<String>, Option<String>)> {
-        if let Some(cached) = crate::domains::sessions::cache::get_cached_spec_content(&self.repo_path, name) {
+        if let Some(cached) =
+            crate::domains::sessions::cache::get_cached_spec_content(&self.repo_path, name)
+        {
             log::debug!("Cache hit for spec content: {name}");
             return Ok(cached);
         }
 
-        let (spec_content, initial_prompt, session_state) = self.db
+        let (spec_content, initial_prompt, session_state) = self
+            .db
             .get_session_task_content(&self.repo_path, name)
             .map_err(|e| anyhow!("Failed to get session agent content: {e}"))?;
 
         let result = (spec_content, initial_prompt);
 
-        if matches!(session_state, crate::domains::sessions::entity::SessionState::Running | crate::domains::sessions::entity::SessionState::Reviewed) {
+        if matches!(
+            session_state,
+            crate::domains::sessions::entity::SessionState::Running
+                | crate::domains::sessions::entity::SessionState::Reviewed
+        ) {
             log::debug!("Caching spec content for running/reviewed session: {name}");
-            crate::domains::sessions::cache::cache_spec_content(&self.repo_path, name, result.clone());
+            crate::domains::sessions::cache::cache_spec_content(
+                &self.repo_path,
+                name,
+                result.clone(),
+            );
         }
 
         Ok(result)
