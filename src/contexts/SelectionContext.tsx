@@ -407,20 +407,43 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             snapshot = await ensureSessionSnapshot(sessionId)
         }
 
+        const desiredState = sel.sessionState
+        if (
+            snapshot &&
+            desiredState &&
+            snapshot.sessionState !== desiredState
+        ) {
+            const refreshedSnapshot = await ensureSessionSnapshot(sessionId, { refresh: true })
+            if (refreshedSnapshot) {
+                snapshot = refreshedSnapshot
+            }
+        }
+
         if (!snapshot) {
+            if (desiredState === 'running' && sel.worktreePath) {
+                setIsSpec(false)
+                await createTerminal(ids.top, sel.worktreePath)
+                await registerTerminalsForSelection([ids.top], sel)
+                return {
+                    ...ids,
+                    workingDirectory: sel.worktreePath,
+                }
+            }
+
             logger.warn('[SelectionContext] Missing session snapshot while ensuring terminals', { sessionId })
             setIsSpec(false)
             return ids
         }
 
-        const isSpecSession = snapshot.sessionState === 'spec'
+        const resolvedState = desiredState ?? snapshot.sessionState ?? 'running'
+        const isSpecSession = resolvedState === 'spec'
         setIsSpec(isSpecSession)
 
         if (isSpecSession) {
             return ids
         }
 
-        const worktreePath = snapshot.worktreePath
+        const worktreePath = snapshot.worktreePath ?? sel.worktreePath
         if (!worktreePath) {
             logger.error(`[SelectionContext] Session ${sessionId} is running but has no worktree_path`)
             return ids

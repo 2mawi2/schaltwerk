@@ -163,6 +163,55 @@ describe('SelectionContext', () => {
     })
   })
 
+  describe('spec to running transitions', () => {
+    it('refreshes cached session metadata when a spec session starts running', async () => {
+      const sessionName = 'transition-session'
+      const worktreePath = '/sessions/transition'
+
+      rawSessionsMock[sessionName] = createRawSession(sessionName, worktreePath, SessionState.Spec)
+
+      const { result } = renderHook(() => useSelection(), { wrapper })
+
+      await waitFor(() => {
+        expect(result.current.isReady).toBe(true)
+      })
+
+      // First select the session while it is still in spec state
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: sessionName,
+          sessionState: 'spec',
+        })
+      })
+
+      expect(result.current.isSpec).toBe(true)
+
+      const createTerminalCallsBefore = mockInvoke.mock.calls.filter(
+        ([command]) => command === TauriCommands.CreateTerminal || command === TauriCommands.CreateTerminalWithSize
+      ).length
+
+      // Simulate backend updating the session to running
+      rawSessionsMock[sessionName] = createRawSession(sessionName, worktreePath, SessionState.Running)
+
+      await act(async () => {
+        await result.current.setSelection({
+          kind: 'session',
+          payload: sessionName,
+          sessionState: 'running',
+          worktreePath,
+        })
+      })
+
+      const createTerminalCallsAfter = mockInvoke.mock.calls.filter(
+        ([command]) => command === TauriCommands.CreateTerminal || command === TauriCommands.CreateTerminalWithSize
+      ).length
+
+      expect(createTerminalCallsAfter).toBeGreaterThan(createTerminalCallsBefore)
+      expect(result.current.isSpec).toBe(false)
+    })
+  })
+
   afterEach(() => {
     vi.restoreAllMocks()
   })
