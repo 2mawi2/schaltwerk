@@ -195,6 +195,18 @@ impl SessionDbManager {
             .map_err(|e| anyhow!("Failed to get git stats: {e}"))
     }
 
+    pub fn get_all_git_stats(&self) -> Result<Vec<GitStats>> {
+        self.db
+            .get_all_git_stats()
+            .map_err(|e| anyhow!("Failed to get all git stats: {e}"))
+    }
+
+    pub fn get_git_stats_bulk(&self, session_ids: &[String]) -> Result<Vec<GitStats>> {
+        self.db
+            .get_git_stats_bulk(session_ids)
+            .map_err(|e| anyhow!("Failed to get bulk git stats: {e}"))
+    }
+
     pub fn update_git_stats(&self, session_id: &str) -> Result<()> {
         let session = self.get_session_by_id(session_id)?;
         let mut stats =

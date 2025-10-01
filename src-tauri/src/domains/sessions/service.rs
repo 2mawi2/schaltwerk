@@ -5,6 +5,40 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const GIT_STATS_STALE_THRESHOLD_SECS: i64 = 60;
+
+fn get_or_compute_git_stats(
+    session_id: &str,
+    worktree_path: &Path,
+    parent_branch: &str,
+    cached_stats: Option<&GitStats>,
+    save_fn: impl FnOnce(&GitStats) -> Result<()>,
+) -> Option<GitStats> {
+    match cached_stats {
+        Some(existing) => {
+            let is_stale = Utc::now().timestamp() - existing.calculated_at.timestamp() > GIT_STATS_STALE_THRESHOLD_SECS;
+            if is_stale {
+                let mut updated = git::calculate_git_stats_fast(worktree_path, parent_branch).ok();
+                if let Some(ref mut s) = updated {
+                    s.session_id = session_id.to_string();
+                    let _ = save_fn(s);
+                }
+                updated.or_else(|| Some(existing.clone()))
+            } else {
+                Some(existing.clone())
+            }
+        }
+        None => {
+            let mut computed = git::calculate_git_stats_fast(worktree_path, parent_branch).ok();
+            if let Some(ref mut s) = computed {
+                s.session_id = session_id.to_string();
+                let _ = save_fn(s);
+            }
+            computed
+        }
+    }
+}
+
 pub struct SessionCreationParams<'a> {
     pub name: &'a str,
     pub prompt: Option<&'a str>,
@@ -22,8 +56,8 @@ use crate::{
     domains::sessions::cache::{clear_session_prompted_non_test, SessionCacheManager},
     domains::sessions::entity::ArchivedSpec,
     domains::sessions::entity::{
-        DiffStats, EnrichedSession, FilterMode, Session, SessionInfo, SessionState, SessionStatus,
-        SessionStatusType, SessionType, SortMode,
+        DiffStats, EnrichedSession, FilterMode, GitStats, Session, SessionInfo, SessionState,
+        SessionStatus, SessionStatusType, SessionType, SortMode,
     },
     domains::sessions::repository::SessionDbManager,
     domains::sessions::utils::SessionUtils,
@@ -777,6 +811,150 @@ mod service_unified_tests {
             "Spec session should not be returned when listing running sessions after normalization"
         );
     }
+
+    #[test]
+    fn test_get_or_compute_git_stats_returns_cached_when_fresh() {
+        let temp_dir = TempDir::new().unwrap();
+        let worktree = temp_dir.path().join("worktree");
+        std::fs::create_dir_all(&worktree).unwrap();
+
+        let fresh_stats = GitStats {
+            session_id: "test-session".to_string(),
+            files_changed: 5,
+            lines_added: 100,
+            lines_removed: 50,
+            has_uncommitted: false,
+            calculated_at: Utc::now(),
+            last_diff_change_ts: None,
+        };
+
+        let mut save_called = false;
+        let result = get_or_compute_git_stats(
+            "test-session",
+            &worktree,
+            "main",
+            Some(&fresh_stats),
+            |_| {
+                save_called = true;
+                Ok(())
+            },
+        );
+
+        assert!(result.is_some());
+        assert!(!save_called);
+        let stats = result.unwrap();
+        assert_eq!(stats.files_changed, 5);
+    }
+
+    #[test]
+    fn test_get_or_compute_git_stats_recomputes_when_stale() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo = temp_dir.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("test.txt"), "content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let stale_stats = GitStats {
+            session_id: "test-session".to_string(),
+            files_changed: 999,
+            lines_added: 999,
+            lines_removed: 999,
+            has_uncommitted: false,
+            calculated_at: Utc::now() - chrono::Duration::seconds(120),
+            last_diff_change_ts: None,
+        };
+
+        let mut save_called = false;
+        let result = get_or_compute_git_stats(
+            "test-session",
+            &repo,
+            "main",
+            Some(&stale_stats),
+            |stats| {
+                save_called = true;
+                assert_eq!(stats.session_id, "test-session");
+                Ok(())
+            },
+        );
+
+        assert!(result.is_some());
+        assert!(save_called);
+    }
+
+    #[test]
+    fn test_get_or_compute_git_stats_computes_when_no_cache() {
+        let temp_dir = TempDir::new().unwrap();
+        let repo = temp_dir.path().join("repo");
+        std::fs::create_dir_all(&repo).unwrap();
+
+        std::process::Command::new("git")
+            .args(["init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.email", "test@test.com"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["config", "user.name", "Test"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::fs::write(repo.join("test.txt"), "content").unwrap();
+        std::process::Command::new("git")
+            .args(["add", "."])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+        std::process::Command::new("git")
+            .args(["commit", "-m", "init"])
+            .current_dir(&repo)
+            .output()
+            .unwrap();
+
+        let mut save_called = false;
+        let result = get_or_compute_git_stats(
+            "test-session",
+            &repo,
+            "main",
+            None,
+            |stats| {
+                save_called = true;
+                assert_eq!(stats.session_id, "test-session");
+                Ok(())
+            },
+        );
+
+        assert!(result.is_some());
+        assert!(save_called);
+    }
 }
 
 pub struct SessionManager {
@@ -1325,6 +1503,22 @@ impl SessionManager {
             db_time.as_millis()
         );
 
+        let bulk_stats_start = std::time::Instant::now();
+        let session_ids: Vec<String> = sessions.iter()
+            .filter(|s| s.status != SessionStatus::Cancelled && s.session_state != SessionState::Spec)
+            .map(|s| s.id.clone())
+            .collect();
+        let all_stats = self.db_manager.get_git_stats_bulk(&session_ids).unwrap_or_else(|_| Vec::new());
+        let stats_by_id: std::collections::HashMap<String, crate::domains::sessions::entity::GitStats> =
+            all_stats.into_iter().map(|s| (s.session_id.clone(), s)).collect();
+        let bulk_stats_time = bulk_stats_start.elapsed();
+        log::debug!(
+            "list_enriched_sessions: Loaded {} git stats for {} sessions in {}ms",
+            stats_by_id.len(),
+            session_ids.len(),
+            bulk_stats_time.as_millis()
+        );
+
         let mut enriched = Vec::new();
         let mut git_stats_total_time = std::time::Duration::ZERO;
         let mut worktree_check_time = std::time::Duration::ZERO;
@@ -1368,7 +1562,14 @@ impl SessionManager {
             let git_stats = if is_spec_session {
                 None
             } else {
-                self.db_manager.get_enriched_git_stats(&session)?
+                let cached_stats = stats_by_id.get(&session.id);
+                get_or_compute_git_stats(
+                    &session.id,
+                    &session.worktree_path,
+                    &session.parent_branch,
+                    cached_stats,
+                    |stats| self.db_manager.save_git_stats(stats),
+                )
             };
             let git_stats_elapsed = git_stats_start.elapsed();
             git_stats_total_time += git_stats_elapsed;

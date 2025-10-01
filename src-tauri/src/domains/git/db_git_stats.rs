@@ -7,6 +7,8 @@ use rusqlite::params;
 pub trait GitStatsMethods {
     fn save_git_stats(&self, stats: &GitStats) -> Result<()>;
     fn get_git_stats(&self, session_id: &str) -> Result<Option<GitStats>>;
+    fn get_all_git_stats(&self) -> Result<Vec<GitStats>>;
+    fn get_git_stats_bulk(&self, session_ids: &[String]) -> Result<Vec<GitStats>>;
     fn should_update_stats(&self, session_id: &str) -> Result<bool>;
 }
 
@@ -52,6 +54,65 @@ impl GitStatsMethods for Database {
             Ok(stats) => Ok(Some(stats)),
             Err(_) => Ok(None),
         }
+    }
+
+    fn get_all_git_stats(&self) -> Result<Vec<GitStats>> {
+        let conn = self.conn.lock().unwrap();
+        let mut stmt = conn.prepare(
+            "SELECT session_id, files_changed, lines_added, lines_removed, has_uncommitted, calculated_at
+             FROM git_stats",
+        )?;
+        let stats_iter = stmt.query_map([], |row| {
+            Ok(GitStats {
+                session_id: row.get(0)?,
+                files_changed: row.get(1)?,
+                lines_added: row.get(2)?,
+                lines_removed: row.get(3)?,
+                has_uncommitted: row.get(4)?,
+                calculated_at: Utc.timestamp_opt(row.get(5)?, 0).unwrap(),
+                last_diff_change_ts: None,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for stat in stats_iter {
+            results.push(stat?);
+        }
+        Ok(results)
+    }
+
+    fn get_git_stats_bulk(&self, session_ids: &[String]) -> Result<Vec<GitStats>> {
+        if session_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let conn = self.conn.lock().unwrap();
+        let placeholders = session_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let query = format!(
+            "SELECT session_id, files_changed, lines_added, lines_removed, has_uncommitted, calculated_at
+             FROM git_stats WHERE session_id IN ({placeholders})"
+        );
+
+        let mut stmt = conn.prepare(&query)?;
+        let params: Vec<&dyn rusqlite::ToSql> = session_ids.iter().map(|id| id as &dyn rusqlite::ToSql).collect();
+
+        let stats_iter = stmt.query_map(params.as_slice(), |row| {
+            Ok(GitStats {
+                session_id: row.get(0)?,
+                files_changed: row.get(1)?,
+                lines_added: row.get(2)?,
+                lines_removed: row.get(3)?,
+                has_uncommitted: row.get(4)?,
+                calculated_at: Utc.timestamp_opt(row.get(5)?, 0).unwrap(),
+                last_diff_change_ts: None,
+            })
+        })?;
+
+        let mut results = Vec::new();
+        for stat in stats_iter {
+            results.push(stat?);
+        }
+        Ok(results)
     }
 
     fn should_update_stats(&self, session_id: &str) -> Result<bool> {

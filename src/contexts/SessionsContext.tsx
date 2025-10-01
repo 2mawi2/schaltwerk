@@ -14,6 +14,7 @@ import { hasBackgroundStart, emitUiEvent, UiEvent } from '../common/uiEvents'
 import { hasInflight } from '../utils/singleflight'
 import { startSessionTop, computeProjectOrchestratorId } from '../common/agentSpawn'
 import { EventPayloadMap, GitOperationFailedPayload, GitOperationPayload } from '../common/events'
+import { areSessionInfosEqual } from '../utils/sessionComparison'
 
 type MergeModeOption = 'squash' | 'reapply'
 
@@ -938,8 +939,8 @@ export function SessionsProvider({ children }: { children: ReactNode }) {
                                         attention_required: existing.info.attention_required
                                     }
 
-                                    // Check if the session has actually changed
-                                    if (JSON.stringify(existing.info) !== JSON.stringify(preservedInfo)) {
+                                    // Check if the session has actually changed using efficient shallow comparison
+                                    if (!areSessionInfosEqual(existing.info, preservedInfo)) {
                                         updated.push({
                                             ...newSession,
                                             info: preservedInfo
