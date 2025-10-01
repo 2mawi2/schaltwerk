@@ -196,7 +196,7 @@ export const SessionButton = memo<SessionButtonProps>(({
                             </span>
                         )}
 
-                        {s.attention_required && !isSelected && (
+                        {s.attention_required && (
                             <span className="ml-2 text-xs text-yellow-400">
                                 ⏸ Idle
                             </span>
