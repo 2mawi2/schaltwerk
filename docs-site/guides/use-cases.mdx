@@ -1,0 +1,697 @@
+---
+title: Use Cases
+description: 'Real-world examples of how to use Schaltwerk effectively'
+---
+
+Discover how Schaltwerk solves real development challenges with isolated AI agents and parallel workflows.
+
+## Parallel Feature Development
+
+<Accordion title="Build multiple features simultaneously">
+  **Scenario:** You need to build a user authentication system with registration, login, and password reset.
+
+  **Without Schaltwerk:** Work on one feature at a time, or risk merge conflicts if working in parallel.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Create specs">
+      ```markdown
+      Spec 1: User Registration
+      - Email/password validation
+      - Hash passwords with bcrypt
+      - Store in database
+      - Send confirmation email
+
+      Spec 2: Login System
+      - JWT token generation
+      - Session management
+      - Token refresh mechanism
+
+      Spec 3: Password Reset
+      - Reset token generation
+      - Email reset link
+      - Secure token validation
+      - Password update flow
+      ```
+    </Step>
+
+    <Step title="Launch agents">
+      - Claude works on registration
+      - OpenCode handles login
+      - Codex implements password reset
+      - All in isolated worktrees
+    </Step>
+
+    <Step title="Work in parallel">
+      - No conflicts between agents
+      - Each has own git branch
+      - Switch between sessions to monitor
+    </Step>
+
+    <Step title="Review and integrate">
+      - Test each feature independently
+      - Merge in dependency order
+      - Run integration tests
+    </Step>
+  </Steps>
+
+  **Result:** 3 features built in parallel, tested independently, integrated safely.
+</Accordion>
+
+## Bug Fixing at Scale
+
+<Accordion title="Fix multiple bugs simultaneously">
+  **Scenario:** Your test suite has 15 failing tests across different modules.
+
+  **Without Schaltwerk:** Fix bugs one at a time, or juggle multiple branches manually.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Identify bugs">
+      ```bash
+      npm test 2>&1 | grep "FAIL"
+      # Output:
+      # FAIL auth/login.test.ts
+      # FAIL api/users.test.ts
+      # FAIL ui/ProfilePage.test.ts
+      # ... 12 more
+      ```
+    </Step>
+
+    <Step title="Create specs">
+      Create one spec per bug with test output, stack trace, and affected files
+    </Step>
+
+    <Step title="Assign agents">
+      Start sessions for each bug:
+      - `fix-auth-login` → Claude
+      - `fix-api-users` → Codex
+      - `fix-ui-profile` → OpenCode
+      - Continue for remaining bugs
+    </Step>
+
+    <Step title="Verify fixes">
+      ```bash
+      # In each session's bottom terminal
+      npm test -- auth/login.test.ts
+      # Verify specific test passes
+      ```
+    </Step>
+
+    <Step title="Merge passing fixes">
+      - Mark sessions as reviewed after tests pass
+      - Merge fixes one by one
+      - Re-run full suite after each merge
+    </Step>
+  </Steps>
+
+  **Result:** 15 bugs fixed in parallel, each tested in isolation, zero regressions.
+</Accordion>
+
+## Safe Refactoring
+
+<Accordion title="Refactor code with confidence">
+  **Scenario:** Legacy payment module needs refactoring to use Strategy pattern for different payment providers.
+
+  **Without Schaltwerk:** Refactor on main branch and hope tests catch issues, or create complex branch structure manually.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Create refactoring spec">
+      ```markdown
+      # Refactor Payment Module
+
+      ## Goal
+      Extract payment provider logic into Strategy pattern
+
+      ## Current State
+      - Single PaymentProcessor class with if/else for providers
+      - Stripe, PayPal, Square logic mixed together
+      - Hard to test, hard to add new providers
+
+      ## Target State
+      - PaymentStrategy interface
+      - StripeStrategy, PayPalStrategy, SquareStrategy
+      - PaymentProcessor uses strategy pattern
+      - Each provider independently testable
+
+      ## Constraints
+      - All existing tests must pass
+      - No breaking API changes
+      - Maintain current functionality
+      ```
+    </Step>
+
+    <Step title="Start refactoring session">
+      Agent works in isolated worktree, can't break main branch
+    </Step>
+
+    <Step title="Incremental approach">
+      ```markdown
+      1. Extract PaymentStrategy interface
+      2. Create StripeStrategy (test)
+      3. Create PayPalStrategy (test)
+      4. Create SquareStrategy (test)
+      5. Update PaymentProcessor to use strategies (test)
+      6. Remove old if/else logic (test)
+      7. Update all call sites (test)
+      ```
+    </Step>
+
+    <Step title="Validate thoroughly">
+      ```bash
+      # Run full test suite
+      npm test
+
+      # Run integration tests
+      npm run test:integration
+
+      # Check code coverage
+      npm run coverage
+
+      # Performance benchmarks
+      npm run benchmark
+      ```
+    </Step>
+
+    <Step title="Review changes">
+      - Inspect every file in diff view
+      - Verify no functionality changed
+      - Check performance metrics
+      - Mark as reviewed only when confident
+    </Step>
+  </Steps>
+
+  **Result:** Major refactoring completed safely, tested thoroughly, zero downtime.
+</Accordion>
+
+## Comparing Implementations
+
+<Accordion title="Let multiple agents solve the same problem">
+  **Scenario:** Need to implement a caching layer, but not sure about the best approach.
+
+  **Without Schaltwerk:** Implement one solution, hope it's optimal, or spend time prototyping manually.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Create identical specs">
+      ```markdown
+      # Implement Caching Layer
+
+      ## Requirements
+      - Cache API responses
+      - Configurable TTL
+      - LRU eviction policy
+      - Metrics for hit/miss rates
+      - Thread-safe
+
+      ## Acceptance Criteria
+      - Sub-10ms cache hits
+      - 90%+ hit rate for repeated queries
+      - Memory usage under 100MB
+      - Pass all existing tests
+      ```
+    </Step>
+
+    <Step title="Launch multiple agents">
+      - Session 1: Claude → Redis-based cache
+      - Session 2: Codex → In-memory LRU cache
+      - Session 3: OpenCode → Memcached-based cache
+    </Step>
+
+    <Step title="Compare implementations">
+      ```markdown
+      ## Redis Approach (Claude)
+      Pros:
+      - Distributed caching
+      - Persistence
+      - Advanced data structures
+
+      Cons:
+      - Extra dependency
+      - Network latency
+      - More complex setup
+
+      ## In-Memory LRU (Codex)
+      Pros:
+      - Fastest (no network)
+      - Simple implementation
+      - No external dependencies
+
+      Cons:
+      - Not distributed
+      - Lost on restart
+      - Limited by single machine memory
+
+      ## Memcached (OpenCode)
+      Pros:
+      - Distributed
+      - Fast
+      - Battle-tested
+
+      Cons:
+      - External dependency
+      - Network latency
+      - No persistence
+      ```
+    </Step>
+
+    <Step title="Benchmark all three">
+      ```bash
+      # Run benchmarks in each session
+      npm run benchmark -- cache
+
+      # Compare results
+      Redis: 5ms avg, 98% hit rate, 50MB memory
+      LRU: 2ms avg, 95% hit rate, 80MB memory
+      Memcached: 4ms avg, 97% hit rate, 40MB memory
+      ```
+    </Step>
+
+    <Step title="Choose winner">
+      Pick LRU approach (fastest, simplest, meets requirements)
+
+      Merge that session, cancel others
+    </Step>
+  </Steps>
+
+  **Result:** Three solutions tested in parallel, best one chosen based on data, not guesswork.
+</Accordion>
+
+## Exploratory Development
+
+<Accordion title="Prototype ideas quickly">
+  **Scenario:** Exploring different UI frameworks for a new feature.
+
+  **Without Schaltwerk:** Create branches manually, switch between them, cleanup after.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Create exploration specs">
+      ```markdown
+      Spec 1: React + TailwindCSS
+      Spec 2: Vue + Bootstrap
+      Spec 3: Svelte + Custom CSS
+      ```
+    </Step>
+
+    <Step title="Rapid prototyping">
+      - Each agent builds same feature in different framework
+      - No setup overhead (automatic worktrees)
+      - Switch between sessions to compare
+    </Step>
+
+    <Step title="Quick evaluation">
+      - Check bundle sizes
+      - Measure load times
+      - Review code complexity
+      - Get user feedback on each
+    </Step>
+
+    <Step title="Decide and cleanup">
+      - Merge chosen approach
+      - Convert others to specs for documentation
+      - Or cancel if not needed
+    </Step>
+  </Steps>
+
+  **Result:** Rapid exploration of alternatives without cluttering your main branch.
+</Accordion>
+
+## Code Review Assistance
+
+<Accordion title="Get AI help reviewing pull requests">
+  **Scenario:** Large PR needs review, but you're short on time.
+
+  **Without Schaltwerk:** Review manually or use basic GitHub tools.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Create review session via MCP">
+      ```javascript
+      await fetch('http://localhost:8547/api/sessions', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: `review-pr-${prNumber}`,
+          spec_content: `Review PR #${prNumber}\n\n${prDiff}`,
+          select: true
+        })
+      });
+      ```
+    </Step>
+
+    <Step title="Agent reviews code">
+      - Claude analyzes diff
+      - Identifies potential bugs
+      - Suggests improvements
+      - Checks test coverage
+    </Step>
+
+    <Step title="Get structured feedback">
+      ```markdown
+      ## Security Issues
+      - Line 45: SQL injection vulnerability
+
+      ## Performance Concerns
+      - Line 102: N+1 query problem
+
+      ## Best Practices
+      - Line 67: Consider extracting to separate function
+      - Line 89: Missing error handling
+
+      ## Tests
+      - Missing tests for edge case: null input
+      - Integration tests needed for API changes
+      ```
+    </Step>
+
+    <Step title="Manual review">
+      Use AI feedback as starting point for your own review
+    </Step>
+  </Steps>
+
+  **Result:** Faster, more thorough code reviews with AI assistance.
+</Accordion>
+
+## Automated Issue Triage
+
+<Accordion title="Convert GitHub issues to sessions automatically">
+  **Scenario:** New issues are filed daily, need to be triaged and assigned.
+
+  **Without Schaltwerk:** Manually create branches, assign developers, track progress.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Setup webhook">
+      ```javascript
+      // GitHub webhook handler
+      app.post('/webhook/issues', async (req, res) => {
+        const issue = req.body.issue;
+
+        if (issue.labels.includes('bug')) {
+          // Create session for bug fix
+          await createSchaltwerkSession({
+            name: `fix-issue-${issue.number}`,
+            prompt: `Fix: ${issue.title}\n\n${issue.body}\n\nReported by: ${issue.user.login}`,
+            agent_type: 'claude'
+          });
+        }
+
+        res.status(200).send('OK');
+      });
+      ```
+    </Step>
+
+    <Step title="Auto-create sessions">
+      - Webhook receives new issue
+      - Creates Schaltwerk session automatically
+      - Agent starts investigating
+    </Step>
+
+    <Step title="Agent investigates">
+      - Reproduces issue
+      - Identifies root cause
+      - Proposes fix
+      - Adds tests
+    </Step>
+
+    <Step title="Human review">
+      - Review proposed fix in Schaltwerk
+      - Test locally
+      - Merge if good, or provide feedback
+    </Step>
+  </Steps>
+
+  **Result:** Issues automatically converted to actionable sessions, faster response time.
+</Accordion>
+
+## Documentation Generation
+
+<Accordion title="Keep docs in sync with code">
+  **Scenario:** Code changes but documentation lags behind.
+
+  **Without Schaltwerk:** Manually update docs, often forgotten.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Create doc update spec">
+      ```markdown
+      # Update API Documentation
+
+      ## Changes
+      - New endpoint: POST /api/users/:id/avatar
+      - Updated endpoint: GET /api/users (added pagination)
+      - Deprecated: GET /api/user (use /api/users/:id)
+
+      ## Tasks
+      - Update OpenAPI spec
+      - Update README examples
+      - Add migration guide
+      - Update changelog
+      ```
+    </Step>
+
+    <Step title="Agent updates docs">
+      - Scans code for API changes
+      - Updates relevant documentation
+      - Maintains consistent formatting
+    </Step>
+
+    <Step title="Review doc changes">
+      - Verify accuracy
+      - Check examples work
+      - Ensure clarity
+    </Step>
+
+    <Step title="Merge with code changes">
+      - Docs stay in sync with code
+      - No outdated documentation
+    </Step>
+  </Steps>
+
+  **Result:** Documentation always reflects current code state.
+</Accordion>
+
+## Performance Optimization
+
+<Accordion title="Optimize different parts in parallel">
+  **Scenario:** Application is slow, multiple bottlenecks identified.
+
+  **Without Schaltwerk:** Optimize one at a time, long iteration cycle.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Identify bottlenecks">
+      ```bash
+      npm run benchmark
+      # Output:
+      # API response time: 500ms (slow)
+      # Database queries: 200ms (acceptable)
+      # Frontend render: 800ms (slow)
+      # Image loading: 1200ms (slow)
+      ```
+    </Step>
+
+    <Step title="Create optimization specs">
+      - Spec 1: Optimize API response time
+      - Spec 2: Optimize frontend rendering
+      - Spec 3: Optimize image loading
+    </Step>
+
+    <Step title="Parallel optimization">
+      - Claude optimizes API (caching, query optimization)
+      - Codex optimizes frontend (code splitting, lazy loading)
+      - OpenCode optimizes images (compression, lazy loading, CDN)
+    </Step>
+
+    <Step title="Benchmark improvements">
+      ```bash
+      # Session 1: API optimization
+      API response time: 80ms (6x improvement)
+
+      # Session 2: Frontend optimization
+      Frontend render: 200ms (4x improvement)
+
+      # Session 3: Image optimization
+      Image loading: 300ms (4x improvement)
+      ```
+    </Step>
+
+    <Step title="Merge all improvements">
+      - Integrate optimizations
+      - Final benchmark: 95% faster overall
+    </Step>
+  </Steps>
+
+  **Result:** Multiple optimizations in parallel, massive speedup.
+</Accordion>
+
+## Test Coverage Improvement
+
+<Accordion title="Increase test coverage systematically">
+  **Scenario:** Code coverage is 45%, need to reach 80%+.
+
+  **Without Schaltwerk:** Write tests manually, slow progress.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Identify untested code">
+      ```bash
+      npm run coverage
+      # Identifies files with low coverage
+      # auth/login.ts: 30%
+      # api/users.ts: 40%
+      # ui/Profile.tsx: 25%
+      # ... 20 more files
+      ```
+    </Step>
+
+    <Step title="Create test specs">
+      One spec per low-coverage file:
+      ```markdown
+      # Add Tests for auth/login.ts
+
+      Current Coverage: 30%
+      Target: 90%
+
+      Missing Tests:
+      - Login with invalid credentials
+      - Login with expired token
+      - Login with rate limiting
+      - Login with 2FA
+      - Error handling edge cases
+      ```
+    </Step>
+
+    <Step title="Agents write tests">
+      - Multiple agents work on different files
+      - Each writes comprehensive test suites
+      - Follows existing test patterns
+    </Step>
+
+    <Step title="Verify coverage">
+      ```bash
+      # After merging all test sessions
+      npm run coverage
+      # Total coverage: 87% ✓
+      ```
+    </Step>
+  </Steps>
+
+  **Result:** Test coverage improved from 45% to 87% efficiently.
+</Accordion>
+
+## Migration Projects
+
+<Accordion title="Migrate codebase incrementally">
+  **Scenario:** Migrate from JavaScript to TypeScript gradually.
+
+  **Without Schaltwerk:** Migrate files one by one on main branch, risky.
+
+  **With Schaltwerk:**
+
+  <Steps>
+    <Step title="Plan migration">
+      ```markdown
+      # TypeScript Migration Plan
+
+      ## Phase 1: Utilities (10 files)
+      Low risk, no dependencies
+
+      ## Phase 2: Components (25 files)
+      Moderate risk, some dependencies
+
+      ## Phase 3: Business Logic (30 files)
+      High risk, many dependencies
+
+      ## Phase 4: Entry Points (5 files)
+      Critical, final integration
+      ```
+    </Step>
+
+    <Step title="Create sessions per phase">
+      - Session 1: Migrate utilities
+      - Session 2: Migrate components (depends on Session 1)
+      - Session 3: Migrate business logic (depends on Session 2)
+      - Session 4: Migrate entry points (depends on Session 3)
+    </Step>
+
+    <Step title="Incremental migration">
+      - Complete Phase 1, test, merge
+      - Complete Phase 2, test, merge
+      - Continue through all phases
+    </Step>
+
+    <Step title="Verify at each step">
+      ```bash
+      # After each phase
+      npm run typecheck
+      npm test
+      npm run build
+      ```
+    </Step>
+  </Steps>
+
+  **Result:** Complete migration with minimal risk, tested at every step.
+</Accordion>
+
+## Best Practices Across Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Start Small" icon="seedling">
+    Begin with simple use cases
+
+    Build confidence before complex workflows
+  </Card>
+
+  <Card title="Name Clearly" icon="tag">
+    Use descriptive session names
+
+    `fix-login-bug` not `session1`
+  </Card>
+
+  <Card title="Test Everything" icon="flask">
+    Run tests in each session before merging
+
+    Catch issues early
+  </Card>
+
+  <Card title="Review Carefully" icon="magnifying-glass">
+    AI agents make mistakes
+
+    Always review generated code
+  </Card>
+
+  <Card title="Iterate Quickly" icon="arrows-rotate">
+    Fast feedback loops
+
+    Don't let sessions pile up
+  </Card>
+
+  <Card title="Document Workflows" icon="book">
+    Save successful patterns as templates
+
+    Reuse proven approaches
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Try a Use Case" icon="play" href="/guides/using-schaltwerk">
+    Follow the daily workflow guide
+  </Card>
+  <Card title="Setup MCP Automation" icon="bolt" href="/mcp/setup">
+    Automate common workflows
+  </Card>
+</CardGroup>

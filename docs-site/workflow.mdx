@@ -1,0 +1,365 @@
+---
+title: Workflow
+description: 'Best practices for using Schaltwerk effectively'
+---
+
+Here are our recommendations for how to get the most out of Schaltwerk.
+
+## Core Principles
+
+<CardGroup cols={2}>
+  <Card title="One Session Per Feature" icon="layer-group">
+    Create a dedicated session for each feature or bugfix. Keep work isolated and manageable.
+  </Card>
+  <Card title="Review Before Merge" icon="magnifying-glass">
+    Always review changes with `⌘G` and test before merging. Agents make mistakes.
+  </Card>
+  <Card title="Clean Up After Merge" icon="broom">
+    Cancel sessions with `⌘D` after successful merge to keep your workspace tidy.
+  </Card>
+  <Card title="Use the Orchestrator" icon="chess-queen">
+    Plan and coordinate work in the orchestrator (`⌘1`) before creating sessions.
+  </Card>
+</CardGroup>
+
+## Recommended Workflow
+
+### 1. Plan in the Orchestrator
+
+Press `⌘1` to switch to the orchestrator—a special session that stays on your main branch.
+
+<Steps>
+  <Step title="Create a spec">
+    Press `⌘⇧N` to create a planning document:
+    - Break down the feature into tasks
+    - List requirements and constraints
+    - Document the architecture
+
+    ![Create new spec dialog with agent name field, 'Create as spec' checkbox checked, spec content textarea with user story, and Create Spec button](/images/create-spec.png)
+  </Step>
+
+  <Step title="Ask the orchestrator">
+    Use the orchestrator's agent terminal to:
+    - Get implementation suggestions
+    - Generate task breakdowns
+    - Plan the overall approach
+  </Step>
+
+  <Step title="Convert to sessions">
+    Once you have a plan, create individual sessions for each task
+
+    ![Spec management view showing multiple specs in sidebar with Run Agent and Copy buttons, markdown editor displaying spec content with goals, context, and requirements](/images/spec-management.png)
+  </Step>
+</Steps>
+
+### 2. Create Sessions
+
+For each feature or task:
+
+<Steps>
+  <Step title="Press ⌘N">
+    Open the New Session dialog
+  </Step>
+
+  <Step title="Name it descriptively">
+    Use names like:
+    - `feature-auth` not `session1`
+    - `fix-typescript-errors` not `fixes`
+    - `refactor-api-layer` not `refactor`
+  </Step>
+
+  <Step title="Write a clear prompt">
+    Be specific about what you want:
+
+    **Good:**
+    > "Add JWT-based authentication with login, logout, and token refresh endpoints. Use bcrypt for password hashing."
+
+    **Bad:**
+    > "Add auth"
+  </Step>
+
+  <Step title="Select the right agent">
+    - **Complex refactoring?** Use Claude Code
+    - **Quick fixes?** Use Codex
+    - **Experimenting?** Try different agents
+  </Step>
+</Steps>
+
+### 3. Monitor Progress
+
+<Tabs>
+  <Tab title="Agent Terminal (⌘T)">
+    Watch the agent work in real-time:
+    - See which files it's reading
+    - Understand its reasoning
+    - Spot issues early
+
+    **Tip:** You can interact with the agent while it works. Just type in the terminal.
+  </Tab>
+
+  <Tab title="Your Shell (⌘/)">
+    Use the bottom terminal to:
+    - Run tests as the agent works
+    - Check git status with `git status`
+    - Inspect changes with `git diff`
+    - Run build commands
+  </Tab>
+
+  <Tab title="Run Mode (⌘E)">
+    If you've configured a run script:
+    - Press `⌘E` to start your dev server or test suite
+    - Monitor output in real-time
+    - Press `⌘E` again to stop
+  </Tab>
+</Tabs>
+
+### 4. Review Changes
+
+Before marking as reviewed:
+
+<Steps>
+  <Step title="Open the diff (⌘G)">
+    Review every change the agent made:
+    - Check for unintended modifications
+    - Look for commented-out code
+    - Verify no secrets were added
+  </Step>
+
+  <Step title="Run tests">
+    In the bottom terminal or with `⌘E`:
+    ```bash
+    npm test        # or your test command
+    npm run lint    # check for style issues
+    npm run build   # verify it builds
+    ```
+  </Step>
+
+  <Step title="Test manually">
+    Actually use the feature:
+    - Start the dev server
+    - Test the happy path
+    - Try edge cases
+    - Check error handling
+  </Step>
+</Steps>
+
+### 5. Mark as Reviewed
+
+When you're confident:
+
+<Steps>
+  <Step title="Press ⌘R">
+    Marks the session as reviewed
+  </Step>
+
+  <Step title="Session moves to Reviewed filter">
+    Use `⌘←/→` to switch between All/Specs/Running/Reviewed
+  </Step>
+</Steps>
+
+### 6. Merge or PR
+
+<Tabs>
+  <Tab title="Solo Developer">
+    Press **`⌘⇧M`** to merge directly to main:
+    - Fast and simple
+    - No PR overhead
+    - Good for personal projects
+
+    <Warning>Make sure you reviewed and tested first!</Warning>
+  </Tab>
+
+  <Tab title="Team Environment">
+    Press **`⌘⇧P`** to create a GitHub PR:
+    - Code review from teammates
+    - CI/CD validation
+    - Discussion and approval process
+
+    **Requirements:**
+    - `gh` CLI installed and authenticated
+    - Push access to remote repo
+  </Tab>
+</Tabs>
+
+### 7. Clean Up
+
+After successful merge:
+
+<Steps>
+  <Step title="Press ⌘D">
+    Cancel the session and remove the worktree
+  </Step>
+
+  <Step title="Confirm deletion">
+    Schaltwerk asks for confirmation to prevent accidents
+  </Step>
+
+  <Step title="Worktree is removed">
+    The isolated git worktree and branch are deleted
+  </Step>
+</Steps>
+
+<Warning>
+  **NEVER** cancel a session before merging unless you want to lose the work. Use `⌘S` to convert to a Spec if you want to pause instead.
+</Warning>
+
+## Advanced Workflows
+
+### Parallel Development
+
+Run multiple agents on different features simultaneously:
+
+<Steps>
+  <Step title="Create multiple sessions">
+    - `⌘N` → "Add authentication"
+    - `⌘N` → "Fix bug in checkout"
+    - `⌘N` → "Refactor database layer"
+  </Step>
+
+  <Step title="Switch between them">
+    - `⌘1-9` to jump directly to a session
+    - `⌘↑/↓` to cycle through sessions
+  </Step>
+
+  <Step title="Monitor all at once">
+    Each agent works independently in its own worktree—no conflicts!
+  </Step>
+</Steps>
+
+### Using Specs
+
+Specs are markdown planning documents that can become sessions:
+
+<Steps>
+  <Step title="Create a spec (⌘⇧N)">
+    Write your plan in markdown:
+    - Requirements
+    - Architecture decisions
+    - Implementation notes
+  </Step>
+
+  <Step title="Refine with the orchestrator">
+    Ask the orchestrator to help improve the spec
+  </Step>
+
+  <Step title="Convert to session (⌘N)">
+    When ready, start a session from the spec
+  </Step>
+</Steps>
+
+### Session to Spec
+
+Pause work on a session without losing progress:
+
+<Steps>
+  <Step title="Press ⌘S">
+    Converts the running session to a Spec
+  </Step>
+
+  <Step title="Worktree is removed">
+    Git worktree deleted but all commits preserved
+  </Step>
+
+  <Step title="Restart later">
+    Select the spec and press `⌘N` to restart as a session
+  </Step>
+</Steps>
+
+## Navigation Tips
+
+<AccordionGroup>
+  <Accordion title="Quick Session Switching">
+    - `⌘1` - Orchestrator
+    - `⌘2-9` - Sessions 1-8
+    - `⌘↑/↓` - Cycle through sessions in current filter
+  </Accordion>
+
+  <Accordion title="Filter Views">
+    - `⌘←/→` - Switch between All/Specs/Running/Reviewed
+    - See exactly what you need when you need it
+  </Accordion>
+
+  <Accordion title="Multi-Project Workflows">
+    - `⌘⇧←/→` - Switch between project tabs
+    - Perfect for frontend ↔ backend workflows
+  </Accordion>
+
+  <Accordion title="Terminal Focus">
+    - `⌘T` - Focus agent terminal
+    - `⌘/` - Focus your shell
+    - `⌘E` - Run configured script
+  </Accordion>
+</AccordionGroup>
+
+## Common Patterns
+
+### Feature Development
+
+```
+1. ⌘1 (Orchestrator) → Plan the feature
+2. ⌘⇧N → Create spec with requirements
+3. ⌘N → Start session with detailed prompt
+4. ⌘T → Monitor agent progress
+5. ⌘G → Review changes
+6. ⌘E → Run tests
+7. ⌘R → Mark as reviewed
+8. ⌘⇧P → Create PR
+9. [After merge] ⌘D → Clean up
+```
+
+### Bug Fix
+
+```
+1. ⌘N → Create session: "Fix bug in X"
+2. ⌘/ → Reproduce the bug manually
+3. ⌘T → Let agent investigate and fix
+4. ⌘/ → Verify the fix works
+5. ⌘G → Review the changes
+6. ⌘R → Mark reviewed
+7. ⌘⇧M → Merge directly (if solo)
+8. ⌘D → Clean up
+```
+
+### Refactoring
+
+```
+1. ⌘1 → Discuss approach with orchestrator
+2. ⌘⇧N → Create spec documenting the refactor plan
+3. ⌘N → Start session with clear constraints
+4. ⌘T → Watch agent work
+5. ⌘E → Run test suite frequently
+6. ⌘G → Carefully review all changes
+7. ⌘/ → Run tests again manually
+8. ⌘R → Mark reviewed
+9. ⌘⇧P → Create PR for team review
+10. [After approval + merge] ⌘D → Clean up
+```
+
+## Things to Avoid
+
+<Warning>
+  **Don't:**
+  - Merge without reviewing (`⌘G` first!)
+  - Cancel sessions before merging (use `⌘S` to pause)
+  - Create vague prompts like "fix it"
+  - Forget to run tests before marking reviewed
+  - Let sessions pile up—clean up after merging
+  - Work directly in the orchestrator for features (create sessions instead)
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Keyboard Shortcuts" icon="keyboard" href="/guides/keyboard-shortcuts">
+    Master all keyboard shortcuts
+  </Card>
+  <Card title="Agent Setup" icon="robot" href="/guides/agent-setup">
+    Configure agents and environment
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core-concepts">
+    Understand the architecture
+  </Card>
+  <Card title="Troubleshooting" icon="wrench" href="/guides/troubleshooting">
+    Fix common issues
+  </Card>
+</CardGroup>

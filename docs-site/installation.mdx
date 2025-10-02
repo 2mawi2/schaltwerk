@@ -1,0 +1,222 @@
+---
+title: Installation
+description: 'Get Schaltwerk running on your Mac'
+---
+
+<Info>
+  **Requirements:** macOS (Apple Silicon or Intel) with Git installed
+</Info>
+
+## Quick Install (Homebrew)
+
+<Steps>
+  <Step title="Install Schaltwerk">
+    ```bash
+    brew install --cask 2mawi2/tap/schaltwerk
+    ```
+  </Step>
+
+  <Step title="Launch the app">
+    ```bash
+    open -a Schaltwerk
+    ```
+  </Step>
+</Steps>
+
+## Manual Installation
+
+Prefer manual installation? Download the latest release and install manually.
+
+<Steps>
+  <Step title="Download the application">
+    Go to the [Releases page](https://github.com/2mawi2/schaltwerk/releases) and download:
+    - `schaltwerk-*-aarch64-apple-darwin.tar.gz` for Apple Silicon (M1/M2/M3)
+    - `schaltwerk-*-x86_64-apple-darwin.tar.gz` for Intel Macs
+  </Step>
+
+  <Step title="Extract and install">
+    ```bash
+    # Extract the archive
+    tar -xzf schaltwerk-*.tar.gz
+
+    # Move to Applications folder
+    mv Schaltwerk.app /Applications/
+
+    # Remove quarantine attribute
+    xattr -cr /Applications/Schaltwerk.app
+    ```
+  </Step>
+
+  <Step title="Launch from Applications">
+    Open Finder, navigate to Applications, and double-click Schaltwerk
+  </Step>
+</Steps>
+
+## First Launch Setup
+
+<Warning>
+  Since Schaltwerk is distributed without an Apple Developer certificate, macOS Gatekeeper will block the initial run.
+</Warning>
+
+<Steps>
+  <Step title="Attempt first launch">
+    Try launching Schaltwerk from your terminal or by double-clicking the app. You'll see a security warning.
+  </Step>
+
+  <Step title="Open System Settings">
+    Navigate to **System Settings → Privacy & Security**
+  </Step>
+
+  <Step title="Approve the application">
+    1. Scroll down to find: "Schaltwerk was blocked from use because it is not from an identified developer"
+    2. Click **Open Anyway** beside the warning
+    3. Enter your password if prompted
+  </Step>
+
+  <Step title="Confirm launch">
+    Launch Schaltwerk again and click **Open** when the confirmation dialog appears
+  </Step>
+</Steps>
+
+<Check>
+  After approving once, Schaltwerk will launch normally on future runs.
+</Check>
+
+<Tip>
+  **Next step:** [Your First Session](/first-session) to create and run an agent
+</Tip>
+
+## Where Schaltwerk Stores Data
+
+<AccordionGroup>
+  <Accordion title="App Settings">
+    **Location:** `~/Library/Application Support/schaltwerk/settings.json`
+
+    Stores agent binaries, CLI args, and personal defaults
+  </Accordion>
+
+  <Accordion title="Project State">
+    **Location:** `~/Library/Application Support/schaltwerk/<project-name>/database.db`
+
+    Stores sessions, specs, and project-level environment variables
+  </Accordion>
+
+  <Accordion title="Git Worktrees">
+    **Location:** `<repo>/.schaltwerk/worktrees/<session-name>/`
+
+    Created for each running session and removed when you cancel
+  </Accordion>
+
+  <Accordion title="Logs">
+    **Location:** `~/Library/Application Support/schaltwerk/logs/`
+
+    **Development builds:** Keep 3 days of logs (cleaned on startup)
+
+    **Production builds:** File logging disabled by default. Enable with:
+    ```bash
+    SCHALTWERK_ENABLE_LOGS=1 open /Applications/Schaltwerk.app
+    ```
+
+    **Retention:** Adjust retention window (default 72 hours):
+    ```bash
+    SCHALTWERK_LOG_RETENTION_HOURS=168 open /Applications/Schaltwerk.app
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Development Setup (Optional)
+
+If you plan to build or extend Schaltwerk from source:
+
+```bash
+git clone https://github.com/2mawi2/schaltwerk.git
+cd schaltwerk
+npm install
+npm run tauri:dev
+```
+
+Use `npm run test` to run the full validation suite (TypeScript linting, `cargo clippy`, `cargo test`, and a release build check).
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Schaltwerk is damaged and can't be opened">
+    Remove the quarantine attribute:
+    ```bash
+    xattr -cr /Applications/Schaltwerk.app
+    ```
+  </Accordion>
+
+  <Accordion title="The application Schaltwerk can't be opened">
+    Re-sign the application:
+    ```bash
+    codesign --force --deep -s - /Applications/Schaltwerk.app
+    ```
+  </Accordion>
+
+  <Accordion title="App doesn't appear in Applications after Homebrew install">
+    Check if it was installed to the Homebrew prefix:
+    ```bash
+    ls -la $(brew --prefix)/bin/schaltwerk
+    ```
+  </Accordion>
+
+  <Accordion title="Terminal permissions issues">
+    1. Go to **System Settings → Privacy & Security → Developer Tools**
+    2. Add Terminal.app or your preferred terminal
+    3. Restart Schaltwerk
+  </Accordion>
+
+  <Accordion title="Port 8547 already in use">
+    Schaltwerk runs an API server on port 8547. Find and kill the conflicting process:
+    ```bash
+    # Find what's using the port
+    lsof -i :8547
+
+    # Kill the process if needed
+    kill -9 <PID>
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Uninstallation
+
+<Tabs>
+  <Tab title="Homebrew">
+    ```bash
+    brew uninstall schaltwerk
+    ```
+  </Tab>
+  <Tab title="Manual">
+    ```bash
+    # Remove the application
+    rm -rf /Applications/Schaltwerk.app
+
+    # Remove application support files
+    rm -rf ~/Library/Application\ Support/schaltwerk
+
+    # Remove logs
+    rm -rf ~/Library/Logs/schaltwerk
+    ```
+  </Tab>
+</Tabs>
+
+## Security Considerations
+
+<Info>
+  Schaltwerk is distributed without an Apple Developer certificate to keep it free and open. The ad-hoc signing provides basic code integrity verification and protection against tampering.
+</Info>
+
+### What Permissions Does Schaltwerk Need?
+
+- **File System Access**: To read and write session files
+- **Process Spawning**: To create terminal sessions (PTY)
+- **Network Access**: Local API server on port 8547
+- **No Special Entitlements**: No camera, microphone, or contacts access
+
+### Is It Safe?
+
+<Check>All code is open source and auditable</Check>
+<Check>No external network connections (only localhost)</Check>
+<Check>No telemetry or data collection</Check>
+<Check>Built and signed via GitHub Actions for transparency</Check>

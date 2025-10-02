@@ -1,0 +1,543 @@
+---
+title: The Orchestrator
+description: 'Your command center for managing multiple AI agents and complex workflows'
+---
+
+The orchestrator is a special terminal that runs in your main repository (not in a worktree). Think of it as your project manager that coordinates AI agents and manages complex workflows.
+
+## What Makes the Orchestrator Special?
+
+<CardGroup cols={2}>
+  <Card title="Main Branch Access" icon="code-branch">
+    Works directly on your main branch
+
+    No isolated worktree - full repo access
+  </Card>
+
+  <Card title="Planning Hub" icon="lightbulb">
+    Create and manage multiple specs
+
+    Draft complex features before execution
+  </Card>
+
+  <Card title="Agent Coordination" icon="users">
+    Launch multiple agents in parallel
+
+    Monitor progress across sessions
+  </Card>
+
+  <Card title="MCP Automation" icon="bolt">
+    Programmatic session management
+
+    External tool integration via REST API
+  </Card>
+</CardGroup>
+
+## Core Capabilities
+
+### 1. Plan and Create Specs
+
+Draft multiple specs for complex features:
+
+<Steps>
+  <Step title="Open orchestrator">
+    Press `⌘1` to switch to orchestrator
+  </Step>
+
+  <Step title="Create specs">
+    Use `⌘⇧N` to create planning documents:
+    - Feature requirements
+    - Implementation approach
+    - Acceptance criteria
+    - Dependencies
+  </Step>
+
+  <Step title="Refine specs">
+    Edit specs before launching agents
+
+    Add context, constraints, examples
+  </Step>
+
+  <Step title="Organize specs">
+    Group related specs together
+
+    Plan parallel work streams
+  </Step>
+</Steps>
+
+### 2. Launch Agents in Parallel
+
+Start multiple agents working on different specs simultaneously:
+
+<Tabs>
+  <Tab title="Manual Launch">
+    1. Select first spec
+    2. Press `⌘N` to start session
+    3. Select next spec
+    4. Press `⌘N` to start another session
+    5. Switch between sessions with `⌘1-9`
+  </Tab>
+
+  <Tab title="MCP Automation">
+    ```javascript
+    // Via MCP REST API or Claude
+    const specs = [
+      { name: 'auth-login', prompt: 'Implement login...' },
+      { name: 'auth-register', prompt: 'Implement registration...' },
+      { name: 'auth-reset', prompt: 'Implement password reset...' }
+    ];
+
+    for (const spec of specs) {
+      await createSession(spec.name, spec.prompt);
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### 3. Review Agent Work
+
+Check diffs, run tests, provide feedback:
+
+<AccordionGroup>
+  <Accordion title="Inspect Changes">
+    - Switch to session with `⌘2-9`
+    - View diffs in right panel
+    - Check git status in bottom terminal
+    - Review file changes
+  </Accordion>
+
+  <Accordion title="Run Tests">
+    - Focus bottom terminal with `⌘/`
+    - Execute test suite
+    - Or use Run Mode with `⌘E`
+    - Verify all tests pass
+  </Accordion>
+
+  <Accordion title="Provide Feedback">
+    - Focus agent terminal with `⌘T`
+    - Send instructions or corrections
+    - Agent receives feedback and continues
+  </Accordion>
+
+  <Accordion title="Mark Reviewed">
+    - Press `⌘R` when satisfied
+    - Session moves to Reviewed filter
+    - Ready for merge
+  </Accordion>
+</AccordionGroup>
+
+### 4. Integrate Changes
+
+Merge approved sessions back to main branch:
+
+<Steps>
+  <Step title="Filter reviewed sessions">
+    Click **Reviewed** tab to see approved sessions
+  </Step>
+
+  <Step title="Verify each session">
+    - Tests pass
+    - No merge conflicts
+    - Changes are correct
+  </Step>
+
+  <Step title="Merge to main">
+    From session header actions:
+    - Create GitHub PR
+    - Merge directly
+    - Cherry-pick specific commits
+  </Step>
+
+  <Step title="Clean up">
+    After successful merge, press `⌘D` to cancel session
+  </Step>
+</Steps>
+
+### 5. Coordinate Workflows
+
+Chain tasks together for complex automation:
+
+<CodeGroup>
+```markdown Example: Feature Breakdown
+Orchestrator receives: "Build complete authentication system"
+
+1. Break into specs:
+   - Spec 1: User registration with email validation
+   - Spec 2: Login with JWT tokens
+   - Spec 3: Password reset via email
+   - Spec 4: Session management
+
+2. Launch agents on each spec in parallel
+
+3. Monitor progress:
+   - Check which sessions are complete
+   - Identify any blocked sessions
+   - Provide additional context if needed
+
+4. Review completed work:
+   - Run integration tests
+   - Check for conflicts between sessions
+   - Verify all acceptance criteria met
+
+5. Integrate in order:
+   - Merge dependencies first (e.g., session management)
+   - Then merge features (registration, login, reset)
+   - Run full test suite after each merge
+```
+
+```javascript Example: Bug Triage
+Orchestrator receives: "Fix all failing tests"
+
+1. Identify failing tests:
+   - Run test suite
+   - Parse output for failures
+   - Group by module/component
+
+2. Create spec for each failure:
+   - Spec includes test output
+   - Relevant file paths
+   - Error messages
+
+3. Assign agents to fix in parallel
+
+4. Collect results:
+   - Monitor which fixes are reviewed
+   - Run tests to verify fixes
+   - Merge passing fixes
+
+5. Iterate if needed:
+   - Re-run tests
+   - Create new specs for remaining failures
+```
+</CodeGroup>
+
+## Automated Workflows via MCP
+
+The orchestrator supports MCP (Model Context Protocol), enabling programmatic session management.
+
+### What MCP Enables
+
+<CardGroup cols={2}>
+  <Card title="Session Creation" icon="plus">
+    External tools create sessions via REST API
+
+    No manual UI interaction needed
+  </Card>
+
+  <Card title="Status Monitoring" icon="chart-line">
+    Query session states programmatically
+
+    Track completion and review status
+  </Card>
+
+  <Card title="Workflow Automation" icon="gears">
+    Chain operations together
+
+    Build complex multi-agent pipelines
+  </Card>
+</CardGroup>
+
+## Customization Options
+
+### Claude Slash Commands
+
+Create custom commands that execute orchestrator actions:
+
+<Info>
+  Documentation for custom slash commands coming soon. This feature enables you to define shortcuts for common orchestrator workflows.
+</Info>
+
+### Action Buttons (F1-F6)
+
+Configure function keys with prompts for common workflows:
+
+<Info>
+  Action button configuration coming soon. Map F1-F6 to frequently-used orchestrator commands.
+</Info>
+
+### Prompt Templates
+
+Save and reuse complex orchestration patterns:
+
+<CodeGroup>
+```markdown Template: Feature Breakdown
+# Feature: [FEATURE_NAME]
+
+## Goal
+[Describe the feature]
+
+## Breakdown
+Create the following sessions:
+1. [Component 1] - [Description]
+2. [Component 2] - [Description]
+3. [Component 3] - [Description]
+
+## Dependencies
+- [Component 1] must complete before [Component 2]
+- All components use [shared dependency]
+
+## Testing Strategy
+- Integration tests after each component
+- Full E2E tests after all merges
+```
+
+```markdown Template: Bug Triage
+# Bug Triage: [ISSUE_ID]
+
+## Problem
+[Describe the bug]
+
+## Investigation
+1. Reproduce the issue
+2. Identify root cause
+3. Assess impact
+
+## Fix Strategy
+- Create specs for:
+  1. [Fix 1]
+  2. [Fix 2]
+- Run tests after each fix
+- Verify no regressions
+```
+</CodeGroup>
+
+## Terminal Layout
+
+The orchestrator has the same dual-terminal layout as regular sessions:
+
+<Tabs>
+  <Tab title="Top Terminal">
+    <Card icon="robot" color="#ec4899">
+      **Agent Terminal**
+
+      Run AI assistants that can:
+      - Create and manage specs
+      - Launch sessions programmatically
+      - Monitor session progress
+      - Coordinate multi-agent workflows
+    </Card>
+  </Tab>
+
+  <Tab title="Bottom Terminal">
+    <Card icon="terminal" color="#22c55e">
+      **Your Shell**
+
+      Use for:
+      - Git operations
+      - Running tests
+      - Checking build status
+      - Manual commands
+    </Card>
+  </Tab>
+</Tabs>
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Plan Before Launching">
+    - Draft all specs first
+    - Identify dependencies
+    - Determine execution order
+    - Consider resource constraints (don't run 20 agents at once)
+  </Accordion>
+
+  <Accordion title="Name Sessions Clearly">
+    Use descriptive names that indicate:
+    - What the session does
+    - Which component it affects
+    - Relationship to other sessions
+
+    Examples:
+    - `auth-login-implementation`
+    - `api-user-endpoints`
+    - `fix-email-validation-bug`
+  </Accordion>
+
+  <Accordion title="Monitor Resource Usage">
+    Each session creates 3 OS processes:
+    - Shell process
+    - Agent process
+    - Terminal backend
+
+    Don't run too many sessions simultaneously
+  </Accordion>
+
+  <Accordion title="Review Frequently">
+    Don't let reviewed sessions pile up:
+    - Review daily if possible
+    - Merge or provide feedback
+    - Keep the pipeline moving
+  </Accordion>
+
+  <Accordion title="Document Workflows">
+    Create prompt templates for:
+    - Common feature patterns
+    - Bug fix procedures
+    - Review checklists
+    - Integration strategies
+  </Accordion>
+</AccordionGroup>
+
+## Common Orchestrator Workflows
+
+### Feature Development
+
+<Steps>
+  <Step title="Receive feature request">
+    User describes desired functionality
+  </Step>
+
+  <Step title="Break into components">
+    Create specs for each component:
+    - Backend API
+    - Frontend UI
+    - Database migrations
+    - Tests
+  </Step>
+
+  <Step title="Launch agents">
+    Start sessions for each component
+
+    Agents work in parallel
+  </Step>
+
+  <Step title="Monitor progress">
+    Check which sessions are complete
+
+    Provide feedback as needed
+  </Step>
+
+  <Step title="Integrate">
+    Merge components in dependency order
+
+    Run integration tests
+  </Step>
+
+  <Step title="Final review">
+    Test complete feature
+
+    Verify all requirements met
+  </Step>
+</Steps>
+
+### Bug Fixing
+
+<Steps>
+  <Step title="Identify bugs">
+    Run test suite or review issue tracker
+  </Step>
+
+  <Step title="Create bug specs">
+    One spec per bug with:
+    - Reproduction steps
+    - Expected behavior
+    - Error messages
+    - Related files
+  </Step>
+
+  <Step title="Assign agents">
+    Start sessions for each bug
+
+    Agents investigate and fix
+  </Step>
+
+  <Step title="Verify fixes">
+    Run tests for each fix
+
+    Check for regressions
+  </Step>
+
+  <Step title="Merge fixes">
+    Integrate passing fixes
+
+    Re-run full test suite
+  </Step>
+</Steps>
+
+### Refactoring
+
+<Steps>
+  <Step title="Identify refactoring needs">
+    Code smell, performance issue, or architectural change
+  </Step>
+
+  <Step title="Plan refactoring">
+    Break into safe, incremental steps:
+    - Extract methods
+    - Rename variables
+    - Restructure modules
+    - Update tests
+  </Step>
+
+  <Step title="Create specs for each step">
+    Small, focused changes
+
+    Each step maintains functionality
+  </Step>
+
+  <Step title="Execute incrementally">
+    Complete one step at a time
+
+    Verify tests pass after each
+  </Step>
+
+  <Step title="Final verification">
+    Run full test suite
+
+    Check performance metrics
+  </Step>
+</Steps>
+
+## Tips and Tricks
+
+<CardGroup cols={2}>
+  <Card title="Use Filters Effectively" icon="filter">
+    - **Specs**: Planning queue
+    - **Running**: Active work
+    - **Reviewed**: Ready for merge
+
+    Switch between views with `⌘←/→`
+  </Card>
+
+  <Card title="Leverage Keyboard Shortcuts" icon="keyboard">
+    - `⌘1` - Back to orchestrator
+    - `⌘2-9` - Jump to sessions
+    - `⌘↑/↓` - Cycle through sessions
+    - `⌘N` - Start selected spec
+  </Card>
+
+  <Card title="Keep Main Clean" icon="code-branch">
+    Orchestrator works on main branch
+
+    Don't make direct changes - use sessions
+  </Card>
+
+  <Card title="Document Decisions" icon="file-text">
+    Use orchestrator's bottom terminal to:
+    - Record design decisions
+    - Document workflow patterns
+    - Save useful commands
+  </Card>
+</CardGroup>
+
+## Limitations
+
+<Warning>
+  **Be aware of these orchestrator limitations:**
+</Warning>
+
+- **No Worktree** - Orchestrator runs on main branch, not in isolation
+- **Resource Usage** - Each session consumes system resources (3 processes)
+- **Concurrent Agents** - Don't run too many agents simultaneously
+- **Manual Merge** - Merging sessions still requires manual review and approval
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MCP Server Setup" icon="plug" href="/mcp/setup">
+    Set up programmatic session management
+  </Card>
+  <Card title="Using Schaltwerk" icon="play" href="/guides/using-schaltwerk">
+    Learn the day-to-day workflow
+  </Card>
+</CardGroup>

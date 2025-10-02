@@ -1,0 +1,224 @@
+---
+title: Your First Session
+description: 'Create and run your first AI agent in Schaltwerk'
+---
+
+Once you've installed Schaltwerk, it's time to create your first session.
+
+## Open Your Repository
+
+<Steps>
+  <Step title="Launch Schaltwerk">
+    Open the app from Applications or via terminal:
+    ```bash
+    open -a Schaltwerk
+    ```
+  </Step>
+
+  <Step title="Open a project">
+    On the Home screen, click **Open Repository** and select your Git repository.
+
+    <Info>Schaltwerk verifies that the folder is a valid Git repository before opening it.</Info>
+  </Step>
+
+  <Step title="Recent Projects">
+    The project is added to **Recent Projects** for quick access next time
+  </Step>
+</Steps>
+
+<Tip>
+  **Alternative:** Click **New Project** to create a new empty Git repository
+</Tip>
+
+## Create a Session
+
+Sessions are where AI agents work. Each session runs in its own isolated [git worktree](https://git-scm.com/docs/git-worktree) with its own branch.
+
+<Steps>
+  <Step title="Press ⌘N">
+    This opens the **New Session** dialog
+
+    ![Start new agent dialog showing agent name field, initial prompt, base branch selection, agent dropdown (Codex), and permission settings](/images/starting-agents.png)
+  </Step>
+
+  <Step title="Enter a task description">
+    Describe what you want the agent to build:
+    - "Add user authentication"
+    - "Fix TypeScript errors"
+    - "Refactor the database layer"
+
+    This becomes the initial prompt for your agent
+  </Step>
+
+  <Step title="Select your agent">
+    Choose which agent to use:
+    - **Claude Code** - Best for complex refactoring and understanding large codebases
+    - **Codex** - Fast, efficient, great for smaller tasks
+    - **Gemini** - Alternative AI assistant
+    - **OpenCode** - Open-source option
+
+    <Info>Make sure you've configured your agent in Settings. See [Agent Setup](/guides/agent-setup) for details.</Info>
+  </Step>
+
+  <Step title="Choose base branch">
+    Select which branch the session should start from (usually `main` or `develop`)
+  </Step>
+
+  <Step title="Press ⌘Enter to start">
+    Schaltwerk will:
+    1. Create a new git branch named `schaltwerk/<session-name>`
+    2. Create an isolated [git worktree](https://git-scm.com/docs/git-worktree) at `.schaltwerk/worktrees/<session-name>/`
+    3. Spawn two terminals (agent terminal on top, your shell below)
+    4. Start the agent with your task description
+
+    ![Full Schaltwerk interface showing sidebar with sessions, agent terminal on top displaying code analysis, and shell terminal below](/images/schaltwerk-agent-view.png)
+  </Step>
+</Steps>
+
+## Watch Your Agent Work
+
+The agent appears in the sidebar and starts working immediately.
+
+![Session card showing 'tooltip-duplicate-fix' with Idle status, filter tabs for All/Specs/Running/Reviewed, and action buttons including code view, refresh, mark reviewed, archive, and cancel](/images/session-card-and-filter.png)
+
+<AccordionGroup>
+  <Accordion title="Top Terminal (Agent)">
+    Shows the AI agent's output in real-time. Watch as it:
+    - Reads and understands your codebase
+    - Makes edits across multiple files
+    - Runs tests and validates changes
+
+    **Press `⌘T`** to focus this terminal
+  </Accordion>
+
+  <Accordion title="Bottom Terminal (Your Shell)">
+    Your personal shell in the session's worktree. Use it to:
+    - Run tests manually
+    - Inspect changes with `git diff`
+    - Execute build commands
+
+    **Press `⌘/`** to focus this terminal
+  </Accordion>
+
+  <Accordion title="Run Mode">
+    If you've configured a run script in Settings, press **`⌘E`** to execute it in the bottom terminal.
+
+    Perfect for starting dev servers, running test suites, or building the project.
+
+    ![Run tab showing build output with compilation progress, multiple terminal tabs, and Run button with ⌘E shortcut](/images/run-tab.png)
+  </Accordion>
+</AccordionGroup>
+
+## Review Changes
+
+Once the agent is done (or you want to check progress):
+
+<Steps>
+  <Step title="Press ⌘G">
+    Opens the **Diff Viewer** showing all changes the agent made
+
+    ![Diff viewer showing file changes with inline comments and review interface](/images/review-comment.png)
+  </Step>
+
+  <Step title="Review the diff">
+    - See which files were modified
+    - Review line-by-line changes
+    - Add comments if needed
+    - Press `⌘F` to search within the diff
+  </Step>
+
+  <Step title="Test the changes">
+    Use the bottom terminal (`⌘/`) or Run Mode (`⌘E`) to:
+    - Run your test suite
+    - Start the dev server
+    - Verify the changes work as expected
+  </Step>
+</Steps>
+
+## Mark as Reviewed
+
+When you're satisfied with the changes:
+
+<Steps>
+  <Step title="Press ⌘R">
+    This marks the session as **Reviewed**
+
+    The session moves to the "Reviewed" filter in the sidebar
+
+    ![Reviewed session card with green checkmark, showing GitHub PR button, merge button, refresh button, and cancel button](/images/pr-merge-reviewed-sessions.png)
+  </Step>
+
+  <Step title="Session is ready for merge">
+    You can now:
+    - **Merge to main** with `⌘⇧M`
+    - **Create a PR** with `⌘⇧P`
+    - Continue working on it (edit files, run more commands)
+  </Step>
+</Steps>
+
+## Merge or Create PR
+
+<Tabs>
+  <Tab title="Merge to Main">
+    Press **`⌘⇧M`** to merge directly to your base branch.
+
+    Schaltwerk will:
+    1. Switch to the base branch
+    2. Merge the session branch
+    3. Push changes (if configured)
+
+    <Warning>Only use direct merge if you're working solo or on trusted changes</Warning>
+  </Tab>
+
+  <Tab title="Create Pull Request">
+    Press **`⌘⇧P`** to create a GitHub PR.
+
+    Requirements:
+    - GitHub CLI (`gh`) installed and authenticated
+    - Remote repository configured
+
+    ![GitHub CLI status showing installed, authenticated, repository name, default branch, account, with options to reconnect or refresh status](/images/connect-github.png)
+
+    The PR will include:
+    - Session name as title
+    - Diff summary in description
+    - All commits from the session
+  </Tab>
+</Tabs>
+
+## Clean Up
+
+After merging, clean up the session:
+
+<Steps>
+  <Step title="Press ⌘D">
+    Cancels the session and removes the worktree
+
+    <Warning>This is destructive! Only cancel after successfully merging.</Warning>
+  </Step>
+
+  <Step title="Confirm deletion">
+    Schaltwerk will ask for confirmation before removing the worktree
+  </Step>
+</Steps>
+
+<Tip>
+  If you want to pause work without deleting, press **`⌘S`** to convert the session to a Spec instead
+</Tip>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Workflow Guide" icon="arrows-rotate" href="/workflow">
+    Learn best practices for daily use
+  </Card>
+  <Card title="Keyboard Shortcuts" icon="keyboard" href="/guides/keyboard-shortcuts">
+    Master the keyboard-driven workflow
+  </Card>
+  <Card title="Agent Setup" icon="robot" href="/guides/agent-setup">
+    Configure agents, environment variables, and run mode
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/core-concepts">
+    Understand sessions, specs, and the orchestrator
+  </Card>
+</CardGroup>

@@ -1,0 +1,33 @@
+<svg viewBox="0 0 720 220" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+  <!-- Labels -->
+  <text x="100" y="30" fill="#cbd5e1" font-size="13" text-anchor="middle">Spec</text>
+  <text x="240" y="30" fill="#cbd5e1" font-size="13" text-anchor="middle">Running</text>
+  <text x="380" y="30" fill="#cbd5e1" font-size="13" text-anchor="middle">Reviewed</text>
+  <text x="520" y="30" fill="#cbd5e1" font-size="13" text-anchor="middle">Integrate</text>
+  <text x="640" y="30" fill="#cbd5e1" font-size="13" text-anchor="middle">Cleanup</text>
+
+  <!-- Arrows -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#22d3ee" />
+    </marker>
+  </defs>
+
+  <line x1="130" y1="80" x2="210" y2="80" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="270" y1="80" x2="350" y2="80" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="410" y1="80" x2="490" y2="80" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="550" y1="80" x2="620" y2="80" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowhead)" />
+
+  <!-- Stage dots -->
+  <circle cx="100" cy="80" r="6" fill="#22d3ee" />
+  <circle cx="240" cy="80" r="6" fill="#22d3ee" />
+  <circle cx="380" cy="80" r="6" fill="#22d3ee" />
+  <circle cx="520" cy="80" r="6" fill="#22d3ee" />
+  <circle cx="640" cy="80" r="6" fill="#22d3ee" />
+
+  <!-- Integrate branches -->
+  <line x1="520" y1="100" x2="610" y2="135" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowhead)" />
+  <line x1="520" y1="100" x2="610" y2="170" stroke="#22d3ee" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="614" y="137" font-size="13" fill="#94a3b8">PR to feature/main</text>
+  <text x="614" y="172" font-size="13" fill="#94a3b8">Squash merge</text>
+</svg>

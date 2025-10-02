@@ -1,0 +1,503 @@
+---
+title: Troubleshooting
+description: 'Common issues and solutions for Schaltwerk'
+---
+
+This guide covers common issues you might encounter and how to resolve them.
+
+## Installation Issues
+
+<AccordionGroup>
+  <Accordion title="Schaltwerk won't open on first launch">
+    **Symptom:** macOS blocks the app with "can't be opened because it is from an unidentified developer"
+
+    **Solution:**
+    1. Go to **System Settings → Privacy & Security**
+    2. Scroll down to find: "Schaltwerk was blocked"
+    3. Click **Open Anyway**
+    4. Launch Schaltwerk again and click **Open**
+
+    Only needed once - macOS will remember your choice.
+  </Accordion>
+
+  <Accordion title="App is damaged and can't be opened">
+    **Symptom:** Error message about damaged application
+
+    **Solution:**
+    Remove the quarantine attribute:
+    ```bash
+    xattr -cr /Applications/Schaltwerk.app
+    ```
+
+    Then try launching again.
+  </Accordion>
+
+  <Accordion title="Homebrew installation fails">
+    **Symptom:** `brew install --cask 2mawi2/tap/schaltwerk` fails
+
+    **Solution:**
+    1. Update Homebrew:
+       ```bash
+       brew update
+       ```
+    2. Try installation again:
+       ```bash
+       brew install --cask 2mawi2/tap/schaltwerk
+       ```
+    3. If still failing, manually add tap first:
+       ```bash
+       brew tap 2mawi2/tap
+       brew install --cask schaltwerk
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Session Issues
+
+<AccordionGroup>
+  <Accordion title="Can't create new session">
+    **Symptom:** Error when trying to start a spec or create session
+
+    **Possible Causes & Solutions:**
+
+    **1. Not in a Git repository:**
+    ```bash
+    git status
+    # If error: "not a git repository"
+    git init
+    ```
+
+    **2. Working directory not clean:**
+    ```bash
+    git status
+    # Commit or stash changes
+    git stash
+    ```
+
+    **3. Worktree directory exists:**
+    ```bash
+    ls .schaltwerk/worktrees/
+    # If session directory exists, cancel old session first
+    ```
+
+    **4. Permission issues:**
+    ```bash
+    # Check permissions
+    ls -la .schaltwerk/
+    # Fix if needed
+    chmod -R u+w .schaltwerk/
+    ```
+  </Accordion>
+
+  <Accordion title="Session stuck in 'Creating' state">
+    **Symptom:** Session shows "Creating..." but never completes
+
+    **Solution:**
+    1. Check Schaltwerk logs:
+       ```bash
+       tail -f ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
+       ```
+    2. Look for errors in the log
+    3. Common causes:
+       - Git worktree creation failed
+       - Disk space full
+       - Permission denied
+    4. Try canceling and recreating the session
+  </Accordion>
+
+  <Accordion title="Terminal won't start">
+    **Symptom:** Session created but terminals are blank or frozen
+
+    **Solution:**
+    1. Check terminal permissions:
+       - **System Settings → Privacy & Security → Developer Tools**
+       - Add Terminal.app
+    2. Restart Schaltwerk
+    3. Try selecting the session again
+    4. Check logs for PTY errors:
+       ```bash
+       tail -f ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log | grep PTY
+       ```
+  </Accordion>
+
+  <Accordion title="Can't switch between sessions">
+    **Symptom:** Keyboard shortcuts don't work or sessions don't switch
+
+    **Solution:**
+    1. Check if another app is intercepting shortcuts:
+       - **System Settings → Keyboard → Keyboard Shortcuts**
+       - Look for conflicts with `⌘1-9`
+    2. Try clicking session in sidebar instead
+    3. Restart Schaltwerk
+  </Accordion>
+</AccordionGroup>
+
+## Agent Issues
+
+<AccordionGroup>
+  <Accordion title="Agent won't start">
+    **Symptom:** Top terminal shows error or nothing happens
+
+    **Possible Causes & Solutions:**
+
+    **1. Agent binary not found:**
+    - Open Settings
+    - Go to **Agent Configuration**
+    - Verify binary path is correct
+    - Try: `which claude` or `which codex` in terminal
+
+    **2. Agent binary not executable:**
+    ```bash
+    chmod +x /path/to/agent/binary
+    ```
+
+    **3. Environment variables missing:**
+    - Check Settings → Agent Configuration → Environment Variables
+    - Add required keys (e.g., `ANTHROPIC_API_KEY`)
+
+    **4. Setup script failed:**
+    - Check Settings → Projects → Worktree Setup Script
+    - Look for errors in top terminal output
+    - Try running script manually in worktree
+  </Accordion>
+
+  <Accordion title="Agent crashes immediately">
+    **Symptom:** Agent starts but exits right away
+
+    **Solution:**
+    1. Check agent terminal output for errors
+    2. Common issues:
+       - Invalid API key
+       - Network connectivity
+       - Incompatible CLI arguments
+    3. Try running agent manually:
+       ```bash
+       cd .schaltwerk/worktrees/session-name/
+       claude  # or your agent command
+       ```
+    4. Check agent-specific logs
+  </Accordion>
+
+  <Accordion title="Agent hangs or becomes unresponsive">
+    **Symptom:** Agent stops responding, no output
+
+    **Solution:**
+    1. Check agent terminal - might be waiting for input
+    2. Press `Ctrl+C` to interrupt
+    3. Click **Restart** in session toolbar
+    4. If persists, cancel session and create new one
+  </Accordion>
+</AccordionGroup>
+
+## Git Issues
+
+<AccordionGroup>
+  <Accordion title="Merge conflicts when merging to main">
+    **Symptom:** Can't merge session back to main due to conflicts
+
+    **Solution:**
+    1. **Option 1: Merge main into session first**
+       ```bash
+       cd .schaltwerk/worktrees/session-name/
+       git fetch origin main
+       git merge origin/main
+       # Resolve conflicts
+       git add .
+       git commit
+       ```
+
+    2. **Option 2: Cherry-pick specific commits**
+       ```bash
+       git checkout main
+       git cherry-pick <commit-hash>
+       ```
+
+    3. **Option 3: Manual merge**
+       - Copy changes you want
+       - Apply manually to main branch
+       - Cancel session when done
+  </Accordion>
+
+  <Accordion title="Worktree directory already exists">
+    **Symptom:** Error: "worktree already exists" when creating session
+
+    **Solution:**
+    1. Check if worktree is actually in use:
+       ```bash
+       git worktree list
+       ```
+    2. If session was cancelled but worktree remains:
+       ```bash
+       git worktree remove .schaltwerk/worktrees/session-name
+       ```
+    3. If worktree is locked:
+       ```bash
+       git worktree remove --force .schaltwerk/worktrees/session-name
+       ```
+    4. Retry session creation
+  </Accordion>
+
+  <Accordion title="Can't delete branch after canceling session">
+    **Symptom:** Session cancelled but branch still exists
+
+    **Solution:**
+    This is normal - Schaltwerk preserves branches for recovery.
+
+    To delete manually:
+    ```bash
+    git branch -D schaltwerk/session-name
+    ```
+
+    To delete from remote:
+    ```bash
+    git push origin --delete schaltwerk/session-name
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Performance Issues
+
+<AccordionGroup>
+  <Accordion title="Schaltwerk is slow or laggy">
+    **Symptom:** UI is unresponsive, switching sessions is slow
+
+    **Possible Causes & Solutions:**
+
+    **1. Too many sessions running:**
+    - Each session uses 3 OS processes
+    - Close unused sessions
+    - Don't run more than 5-10 sessions simultaneously
+
+    **2. Large worktrees:**
+    - Big repositories take longer to create worktrees
+    - Use `.gitignore` to exclude unnecessary files
+    - Clean up `node_modules` in worktrees
+
+    **3. System resources:**
+    ```bash
+    # Check CPU/memory usage
+    top -o cpu
+    # Look for Schaltwerk processes
+    ```
+
+    **4. Database size:**
+    ```bash
+    # Check database size
+    du -sh ~/Library/Application\ Support/schaltwerk/
+    # If very large, consider cleaning old projects
+    ```
+  </Accordion>
+
+  <Accordion title="Diff view is slow to load">
+    **Symptom:** File diffs take long time to appear
+
+    **Solution:**
+    1. Large files slow down diff rendering
+    2. Exclude large binary files from worktrees
+    3. Use `.gitattributes` to mark files as binary
+    4. Consider breaking up large files
+  </Accordion>
+</AccordionGroup>
+
+## MCP Server Issues
+
+<AccordionGroup>
+  <Accordion title="Claude can't find MCP server">
+    **Symptom:** MCP tools not available in Claude
+
+    **Solution:**
+    1. Verify MCP server is built:
+       ```bash
+       ls mcp-server/build/schaltwerk-mcp-server.js
+       ```
+    2. Check configuration:
+       ```bash
+       cat .claude.json
+       # or
+       claude mcp list
+       ```
+    3. Ensure path is absolute, not relative
+    4. Restart orchestrator in Schaltwerk Settings
+  </Accordion>
+
+  <Accordion title="MCP operations fail">
+    **Symptom:** `schaltwerk_create` or other MCP tools error
+
+    **Solution:**
+    1. Check Schaltwerk is running
+    2. Verify project is loaded in Schaltwerk
+    3. Check database exists:
+       ```bash
+       ls ~/Library/Application\ Support/schaltwerk/*/database.db
+       ```
+    4. Look for errors in MCP server logs
+    5. Try rebuilding MCP server:
+       ```bash
+       cd mcp-server && npm run build
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Database Issues
+
+<AccordionGroup>
+  <Accordion title="Database locked or corrupted">
+    **Symptom:** Errors about database being locked or unable to open
+
+    **Solution:**
+    1. **Close Schaltwerk completely**
+    2. **Check for zombie processes:**
+       ```bash
+       ps aux | grep Schaltwerk
+       # Kill any remaining processes
+       kill -9 <PID>
+       ```
+    3. **Backup database:**
+       ```bash
+       cp ~/Library/Application\ Support/schaltwerk/project-name/database.db \
+          ~/Desktop/schaltwerk-backup.db
+       ```
+    4. **Try SQLite repair:**
+       ```bash
+       sqlite3 ~/Library/Application\ Support/schaltwerk/project-name/database.db
+       # In SQLite prompt:
+       PRAGMA integrity_check;
+       .exit
+       ```
+    5. **Last resort - delete and recreate:**
+       ```bash
+       rm ~/Library/Application\ Support/schaltwerk/project-name/database.db
+       # Restart Schaltwerk - will create fresh database
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Network Issues
+
+<AccordionGroup>
+  <Accordion title="MCP REST API not accessible">
+    **Symptom:** Can't connect to `localhost:8547`
+
+    **Solution:**
+    1. Check if Schaltwerk is running
+    2. Verify project is loaded
+    3. Check if port is available:
+       ```bash
+       lsof -i :8547
+       # or for project-specific port
+       lsof -i :854X  # X depends on project hash
+       ```
+    4. Try restarting Schaltwerk
+    5. Check firewall settings
+  </Accordion>
+
+  <Accordion title="Agent can't access internet">
+    **Symptom:** Agent errors related to network/API calls
+
+    **Solution:**
+    1. Check system internet connection
+    2. Verify API keys are correct
+    3. Check for proxy settings
+    4. Try agent manually in terminal
+    5. Look for firewall blocking the agent
+  </Accordion>
+</AccordionGroup>
+
+## Logs and Debugging
+
+### Where to Find Logs
+
+<CodeGroup>
+```bash Application Logs
+~/Library/Application Support/schaltwerk/logs/schaltwerk-*.log
+```
+
+```bash Tail Logs in Real-Time
+tail -f ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
+```
+
+```bash Filter for Errors
+grep -i error ~/Library/Application\ Support/schaltwerk/logs/schaltwerk-*.log
+```
+
+```bash Session-Specific Logs
+# Check terminal output in the session itself
+# Or look for session ID in main logs
+grep "session-name" ~/Library/Application\ Support/schaltwerk/logs/*.log
+```
+</CodeGroup>
+
+### Debug Mode
+
+Run Schaltwerk with debug logging:
+
+```bash
+RUST_LOG=schaltwerk=debug npm run tauri:dev
+```
+
+Or for maximum verbosity:
+
+```bash
+RUST_LOG=trace npm run tauri:dev
+```
+
+## Getting Help
+
+If you can't resolve an issue:
+
+<Steps>
+  <Step title="Check logs">
+    Look at Schaltwerk logs for error messages
+  </Step>
+
+  <Step title="Search existing issues">
+    Check [GitHub Issues](https://github.com/2mawi2/schaltwerk/issues)
+  </Step>
+
+  <Step title="Create an issue">
+    If not found, open a new issue with:
+    - Steps to reproduce
+    - Expected behavior
+    - Actual behavior
+    - Relevant log excerpts
+    - macOS version
+    - Schaltwerk version
+  </Step>
+
+  <Step title="Workaround">
+    While waiting for fix:
+    - Try manual git operations
+    - Use terminal directly
+    - Restart Schaltwerk
+    - Close and reopen project
+  </Step>
+</Steps>
+
+## Preventive Measures
+
+<CardGroup cols={2}>
+  <Card title="Regular Cleanup" icon="broom">
+    - Cancel merged sessions
+    - Remove old worktrees
+    - Clean up database periodically
+  </Card>
+
+  <Card title="Keep Updated" icon="arrow-up">
+    ```bash
+    brew upgrade --cask schaltwerk
+    ```
+    Updates include bug fixes
+  </Card>
+
+  <Card title="Backup Important Work" icon="floppy-disk">
+    - Commit work in sessions regularly
+    - Push branches to remote
+    - Don't rely on local-only sessions
+  </Card>
+
+  <Card title="Monitor Resources" icon="gauge">
+    - Don't run too many sessions
+    - Close unused sessions
+    - Watch system resource usage
+  </Card>
+</CardGroup>

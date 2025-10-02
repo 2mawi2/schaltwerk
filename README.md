@@ -166,7 +166,11 @@ npm run test
 
 ## Documentation
 
-- [Schaltwerk docs](./docs/index.md) – installation, core concepts, agent setup, usage workflow, MCP integration, shortcuts
+📚 **[Read the full documentation](https://schaltwerk.mintlify.app)** – Installation, core concepts, agent setup, usage workflow, MCP integration, shortcuts
+
+Local documentation is also available in:
+- [./docs/index.md](./docs/index.md) – Markdown docs in the repository
+- [./docs-site/](./docs-site/) – Mintlify documentation source
 
 ## Key Keyboard Shortcuts
 

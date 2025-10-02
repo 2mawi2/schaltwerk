@@ -1,0 +1,412 @@
+---
+title: MCP Server Setup
+description: 'Set up the Schaltwerk MCP server for Claude Code integration'
+---
+
+The Schaltwerk MCP (Model Context Protocol) server enables AI assistants like Claude to manage development sessions programmatically.
+
+## Quick Setup (Recommended)
+
+<Steps>
+  <Step title="Run setup command">
+    From the Schaltwerk repository root:
+    ```bash
+    just mcp-setup
+    ```
+
+    This command will:
+    - Install dependencies
+    - Build the MCP server
+    - Display the exact registration command with the correct path
+  </Step>
+
+  <Step title="Register with Claude Code">
+    Copy and run the registration command displayed by `just mcp-setup`:
+    ```bash
+    claude mcp add --transport stdio --scope project schaltwerk \
+      node /path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
+    ```
+  </Step>
+
+  <Step title="Restart the orchestrator">
+    Use the Settings modal in Schaltwerk to restart the orchestrator and reload the MCP configuration.
+  </Step>
+
+  <Step title="Verify installation">
+    In Claude Code, ask: "List my Schaltwerk sessions"
+
+    If successful, Claude will use the MCP server to show your sessions.
+  </Step>
+</Steps>
+
+## Manual Installation
+
+If you prefer to set up manually:
+
+### 1. Build the MCP Server
+
+<CodeGroup>
+```bash Build
+cd mcp-server
+npm install
+npm run build
+```
+
+```bash Verify Build
+ls -la build/schaltwerk-mcp-server.js
+```
+</CodeGroup>
+
+### 2. Configure Claude Code (CLI)
+
+Since the orchestrator runs Claude Code CLI (not Claude Desktop), configure using one of these methods:
+
+<Tabs>
+  <Tab title="CLI Command (Recommended)">
+    ```bash
+    claude mcp add \
+      --transport stdio \
+      --scope project \
+      schaltwerk \
+      node /path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
+    ```
+
+    Replace `/path/to/schaltwerk` with your actual repository path.
+  </Tab>
+
+  <Tab title="Manual Configuration">
+    Add to `.claude.json` in your project root:
+
+    ```json
+    {
+      "mcpServers": {
+        "schaltwerk": {
+          "type": "stdio",
+          "command": "node",
+          "args": [
+            "/absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js"
+          ]
+        }
+      }
+    }
+    ```
+
+    **Important:** Use absolute paths, not relative paths.
+  </Tab>
+</Tabs>
+
+### 3. Restart Orchestrator
+
+Open Schaltwerk Settings and restart the orchestrator terminal to reload MCP configuration.
+
+## Available Tools
+
+Once configured, Claude can use these tools:
+
+### schaltwerk_create
+
+Create new development sessions:
+
+<CodeGroup>
+```javascript Basic Usage
+schaltwerk_create({
+  name: "feature-auth",
+  prompt: "Implement user authentication with JWT tokens",
+  agent_type: "claude"
+})
+```
+
+```javascript Advanced Options
+schaltwerk_create({
+  name: "feature-auth",
+  prompt: "Implement user authentication with JWT tokens",
+  agent_type: "claude",
+  base_branch: "main",
+  skip_permissions: true
+})
+```
+</CodeGroup>
+
+**Parameters:**
+- `name` - Session name (alphanumeric, hyphens, underscores)
+- `prompt` - Initial instructions for the agent
+- `agent_type` - Agent to use: `claude`, `opencode`, `gemini`, `codex`
+- `base_branch` - Branch to start from (default: main)
+- `skip_permissions` - Skip permission prompts (default: false)
+
+### schaltwerk_list
+
+View all sessions with their status:
+
+<CodeGroup>
+```javascript Human Readable
+schaltwerk_list()
+
+// Output:
+// [NEW] feature-auth - Updated 5 minutes ago (claude)
+// [REVIEWED] bug-fix - Updated 1 hour ago (opencode)
+```
+
+```javascript JSON Format
+schaltwerk_list({ json: true })
+
+// Returns structured data for parsing
+```
+</CodeGroup>
+
+### schaltwerk_cancel
+
+<Warning>
+  **EXTREME CAUTION REQUIRED** - Only use after successful merge and tests pass!
+</Warning>
+
+Remove sessions after they're safely merged:
+
+```javascript
+schaltwerk_cancel({
+  session_name: "feature-auth",
+  force: true  // Required for safety bypass
+})
+```
+
+**Critical Safety Rules:**
+- ❌ Never cancel without explicit user consent
+- ❌ Never cancel reviewed sessions without merge validation
+- ✅ Only cancel after successful merge to main AND passing tests
+- ✅ Use `schaltwerk_pause` when uncertain (preserves all work)
+
+## Available Resources
+
+The MCP server exposes these resources you can read:
+
+<CardGroup cols={3}>
+  <Card title="All Sessions" icon="list">
+    `schaltwerk://sessions`
+
+    Returns all active sessions
+  </Card>
+
+  <Card title="Reviewed" icon="check">
+    `schaltwerk://sessions/reviewed`
+
+    Returns only reviewed sessions
+  </Card>
+
+  <Card title="New" icon="plus">
+    `schaltwerk://sessions/new`
+
+    Returns only unreviewed sessions
+  </Card>
+</CardGroup>
+
+## Security & Safety
+
+<Warning>
+  This MCP server manages Git worktrees and session data. Follow these security principles:
+</Warning>
+
+### Session Protection Rules
+
+<AccordionGroup>
+  <Accordion title="Never Cancel Without Consent">
+    - Never cancel or delete sessions without explicit user consent
+    - Only cancel reviewed sessions after successful merge and passing tests
+    - Preserve Git state for all failed operations
+  </Accordion>
+
+  <Accordion title="Merge Workflow Security">
+    - First merge main into session branch to resolve conflicts
+    - Understand Git diffs: Files appearing as "removed" may be files added to main after session creation (NORMAL)
+    - Focus on what the session ADDS (new files, modifications)
+    - Run tests after merge attempts
+  </Accordion>
+
+  <Accordion title="Validation Criteria">
+    **✅ Proceed with merge:**
+    - Small mechanical conflicts
+    - Clean diffs (ignoring false deletions)
+    - Tests pass
+    - No compilation errors
+
+    **❌ Send follow-up message:**
+    - Compilation failures
+    - Test failures
+    - Complex conflicts
+    - Unclear changes
+    - Obvious regressions
+
+    **❓ Ask user:**
+    - Content duplication
+    - Unclear session purpose
+    - Strategic decisions
+  </Accordion>
+
+  <Accordion title="Recovery Options">
+    If a session is accidentally cancelled:
+    1. **Check Git History** - Commits may still exist
+    2. **Recover from Commits** - `git checkout -b recover-session <commit-hash>`
+    3. **Re-merge Work** - Merge recovered branch back to main
+    4. **Contact User** - Always seek guidance for recovery
+
+    **Remember:** Commits are recoverable, uncommitted changes are permanently lost.
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Server Not Starting">
+    **Symptoms:**
+    - Claude can't find the MCP server
+    - No session management tools available
+
+    **Solutions:**
+    1. Check that the database exists:
+       ```bash
+       ls ~/Library/Application\ Support/schaltwerk/
+       ```
+    2. Ensure Git is installed:
+       ```bash
+       git --version
+       ```
+    3. Verify the repository path is correct
+    4. Check build output exists:
+       ```bash
+       ls mcp-server/build/schaltwerk-mcp-server.js
+       ```
+  </Accordion>
+
+  <Accordion title="Sessions Not Creating">
+    **Symptoms:**
+    - `schaltwerk_create` fails
+    - Error about Git repository
+
+    **Solutions:**
+    1. Ensure you're in a Git repository:
+       ```bash
+       git status
+       ```
+    2. Check that the base branch exists:
+       ```bash
+       git branch --list main
+       ```
+    3. Verify write permissions:
+       ```bash
+       touch .test && rm .test
+       ```
+  </Accordion>
+
+  <Accordion title="Claude Not Finding the Server">
+    **Symptoms:**
+    - Tools not available in Claude Code
+    - MCP server not listed
+
+    **Solutions:**
+    1. Check configuration path is correct:
+       ```bash
+       cat .claude.json
+       ```
+    2. Ensure MCP server path is absolute, not relative
+    3. Restart orchestrator in Schaltwerk Settings
+    4. Try re-running registration command
+  </Accordion>
+
+  <Accordion title="Permission Errors">
+    **Symptoms:**
+    - Can't create worktrees
+    - File permission errors
+
+    **Solutions:**
+    1. Check directory permissions:
+       ```bash
+       ls -la .schaltwerk/
+       ```
+    2. Ensure Schaltwerk has full disk access:
+       - System Settings → Privacy & Security → Full Disk Access
+       - Add Schaltwerk.app
+    3. Verify SQLite database permissions:
+       ```bash
+       ls -la ~/Library/Application\ Support/schaltwerk/
+       ```
+  </Accordion>
+</AccordionGroup>
+
+## Development Mode
+
+For MCP server development:
+
+<CodeGroup>
+```bash Watch Mode
+cd mcp-server
+npm run dev  # TypeScript watch mode
+```
+
+```bash Test Server
+node build/schaltwerk-mcp-server.js
+```
+
+```bash Run Tests
+npm test
+```
+</CodeGroup>
+
+## Architecture
+
+The MCP server communicates directly with the Schaltwerk SQLite database:
+
+<Steps>
+  <Step title="Database Access">
+    Reads session data from `~/Library/Application Support/schaltwerk/sessions.db`
+  </Step>
+
+  <Step title="Git Operations">
+    Creates Git worktrees for new sessions using native Git commands
+  </Step>
+
+  <Step title="Metadata Management">
+    Updates session metadata in the database (status, timestamps, etc.)
+  </Step>
+
+  <Step title="Review Tracking">
+    Manages review status and session lifecycle
+  </Step>
+</Steps>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Descriptive Names" icon="tag">
+    `feature-auth` not `session1`
+
+    Makes sessions easy to identify
+  </Card>
+
+  <Card title="Detailed Prompts" icon="message">
+    Include requirements, constraints, and acceptance criteria
+
+    Better prompts = better results
+  </Card>
+
+  <Card title="Parallel Development" icon="bars-staggered">
+    Create multiple sessions for different features
+
+    Each agent works in isolation
+  </Card>
+
+  <Card title="Safe Cleanup" icon="shield-check">
+    Use `schaltwerk_pause` when uncertain
+
+    Only cancel after merge validation
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Prompting Guide" icon="book" href="/mcp/prompting">
+    Learn how to write effective prompts for AI agents
+  </Card>
+  <Card title="MCP Integration" icon="plug" href="/mcp/integration">
+    Understand the REST API and automation
+  </Card>
+</CardGroup>

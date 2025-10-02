@@ -1,0 +1,80 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Schaltwerk",
+  "logo": {
+    "dark": "/logo/dark.png",
+    "light": "/logo/light.png"
+  },
+  "favicon": "/logo/icon.png",
+  "colors": {
+    "primary": "#22d3ee",
+    "light": "#67e8f9",
+    "dark": "#0891b2",
+    "background": {
+      "dark": "#050817"
+    }
+  },
+  "announcement": {
+    "text": "Documentation for Schaltwerk v0.2.x",
+    "link": "https://github.com/2mawi2/schaltwerk/releases"
+  },
+  "topbarLinks": [
+    {
+      "name": "Support",
+      "url": "https://github.com/2mawi2/schaltwerk/issues"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Download",
+    "url": "https://github.com/2mawi2/schaltwerk/releases"
+  },
+  "navigation": [
+    {
+      "group": "Get Started",
+      "pages": [
+        "introduction",
+        "installation",
+        "first-session",
+        "workflow"
+      ]
+    },
+    {
+      "group": "Core Concepts",
+      "pages": [
+        "core-concepts"
+      ]
+    },
+    {
+      "group": "Guides",
+      "pages": [
+        "guides/using-schaltwerk",
+        "guides/orchestrator",
+        "guides/agent-setup",
+        "guides/keyboard-shortcuts",
+        "guides/troubleshooting",
+        "guides/use-cases"
+      ]
+    },
+    {
+      "group": "MCP",
+      "pages": [
+        "mcp/setup",
+        "mcp/integration",
+        "mcp/prompting"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/2mawi2/schaltwerk"
+  },
+  "theme": "quill",
+  "modeToggle": {
+    "default": "dark",
+    "isHidden": true
+  },
+  "integrations": {
+    "telemetry": {
+      "enabled": false
+    }
+  }
+}

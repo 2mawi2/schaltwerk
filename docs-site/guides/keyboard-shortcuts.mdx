@@ -1,0 +1,112 @@
+---
+title: Keyboard Shortcuts
+description: 'Complete list of keyboard shortcuts for efficient session management'
+---
+
+<Info>
+  Schaltwerk is designed to be driven from the keyboard. All shortcuts are available system-wide.
+</Info>
+
+## Quick Reference
+
+<Tabs>
+  <Tab title="Session Management">
+    | Shortcut | Action | Description |
+    |----------|--------|-------------|
+    | `⌘N` | Create Session | Start spec as running session |
+    | `⌘⇧N` | Create Spec | New markdown spec |
+    | `⌘R` | Mark Reviewed | Flag session for merge |
+    | `⌘⇧M` | Merge to Main | Direct merge reviewed session |
+    | `⌘⇧P` | Create PR | Create GitHub pull request |
+    | `⌘S` | Convert to Spec | Pause session, keep notes |
+    | `⌘D` | Cancel Session | Remove worktree |
+    | `⌘⇧D` | Force Cancel | Force cancel without confirmation |
+    | `⌘B` | Promote Version | Promote best session version |
+    | `⌘Y` | Reset Session | Reset session or orchestrator |
+    | `⌘P` | Switch Model | Open model selection dialog |
+  </Tab>
+
+  <Tab title="Navigation">
+    | Shortcut | Action | Description |
+    |----------|--------|-------------|
+    | `⌘1` | Orchestrator | Jump to orchestrator |
+    | `⌘2–9` | Sessions 2-9 | Jump to specific session |
+    | `⌘↑/↓` | Cycle Sessions | Navigate sessions in current filter |
+    | `⌘←/→` | Switch Filters | Switch between All/Specs/Running/Reviewed |
+    | `⌘⇧←/→` | Switch Projects | Jump between project tabs |
+    | `⌘G` | Git Diff | Open diff viewer for current session |
+  </Tab>
+
+  <Tab title="Terminals">
+    | Shortcut | Action | Description |
+    |----------|--------|-------------|
+    | `⌘T` | Agent Terminal | Focus top terminal |
+    | `⌘/` | Shell Terminal | Focus bottom terminal |
+    | `⌘E` | Run Script | Execute configured command |
+    | `⌘Enter` | New Line | Insert new line in terminal |
+    | `⌘F` | Search | Open terminal search |
+  </Tab>
+
+  <Tab title="Diff Viewer">
+    | Shortcut | Action | Description |
+    |----------|--------|-------------|
+    | `⌘Enter` | Finish Review | Complete diff review |
+    | `⌘Enter` | Submit Comment | Submit diff comment |
+    | `⌘F` | Search Diff | Open diff search |
+  </Tab>
+
+  <Tab title="Appearance">
+    | Shortcut | Action | Description |
+    |----------|--------|-------------|
+    | `⌘+` / `⌘⇧=` | Increase Font | Increase font size |
+    | `⌘-` | Decrease Font | Decrease font size |
+    | `⌘0` | Reset Font | Reset font size to default |
+  </Tab>
+</Tabs>
+
+## Common Workflows
+
+<AccordionGroup>
+  <Accordion title="Review Running Sessions">
+    1. Switch to Running filter with `⌘←/→`
+    2. Navigate sessions with `⌘↑/↓`
+    3. For each session:
+       - `⌘G` to open git diff viewer
+       - Add comments if needed
+       - `⌘Enter` twice to accept and paste comments
+  </Accordion>
+
+  <Accordion title="Review and Test Sessions">
+    1. Switch to Reviewed filter with `⌘←/→`
+    2. Navigate sessions with `⌘↑/↓`
+    3. For each session:
+       - `⌘T` to focus agent terminal (prompt agent to run tests)
+       - OR `⌘/` to focus your terminal (test manually)
+       - Review results before merging
+  </Accordion>
+
+  <Accordion title="Switch Between Project Tabs">
+    Use `⌘⇧←/→` to jump between project tabs (e.g., frontend ↔ backend)
+  </Accordion>
+
+  <Accordion title="Quick Session Access">
+    Use `⌘1–9` for instant session switching instead of scrolling
+  </Accordion>
+</AccordionGroup>
+
+## Customizing Shortcuts
+
+All shortcuts can be customized in **Settings → Keyboard Shortcuts**:
+
+![Keyboard Shortcuts settings panel showing Font Controls section with increase/decrease/reset font size shortcuts, and Navigation section with switch to orchestrator shortcut, each with Record, Reset, and Clear buttons](/images/keyboard-shortcuts.png)
+
+Click **Record** to capture a new key combination, **Reset** to restore defaults, or **Clear** to remove a binding.
+
+## Notes
+
+<Warning>
+  Some shortcuts may conflict with macOS system shortcuts. Check **System Settings → Keyboard → Keyboard Shortcuts** if they don't work as expected.
+</Warning>
+
+- Common conflicts: `⌘1–9` (app switching)
+- Context-aware: Some shortcuts like `⌘Enter` and `⌘F` behave differently based on active context (terminal, diff viewer, etc.)

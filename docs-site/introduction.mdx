@@ -1,0 +1,100 @@
+---
+title: Introduction
+description: 'Schaltwerk keeps every AI coding session in its own git worktree'
+---
+
+## What is Schaltwerk?
+
+Run multiple AI agents on the same codebase—safely. Each agent works in an isolated [git worktree](https://git-scm.com/docs/git-worktree), with its own branch, terminals, and state.
+
+<video
+  controls
+  muted
+  playsInline
+  className="w-full aspect-video rounded-lg shadow-lg my-8"
+  src="/videos/workflow.mp4"
+>
+  Your browser does not support the video tag.
+</video>
+
+## Quick Start (1 Minute)
+
+<Steps>
+  <Step title="Install">
+    ```bash
+    brew install --cask 2mawi2/tap/schaltwerk
+    open -a Schaltwerk
+    ```
+  </Step>
+
+  <Step title="Open your project">
+    Select your git repository in Schaltwerk
+  </Step>
+
+  <Step title="Start an agent">
+    Press `⌘N` to create a new session:
+    - Enter a task description
+    - Select your agent (Claude Code, Codex, Gemini, or OpenCode)
+    - Choose the base branch
+    - Press `⌘Enter` to start
+  </Step>
+
+  <Step title="Watch it work">
+    The agent starts in the sidebar in its own isolated [git worktree](https://git-scm.com/docs/git-worktree) and branch. Monitor progress in the top terminal.
+  </Step>
+
+  <Step title="Review and merge">
+    When done, press `⌘R` to mark as reviewed, then merge to main with `⌘⇧M` or create a PR with `⌘⇧P`.
+  </Step>
+</Steps>
+
+## Get Started
+
+<CardGroup cols={2}>
+  <Card
+    title="Installation"
+    icon="download"
+    href="/installation"
+  >
+    Install Schaltwerk on your Mac
+  </Card>
+  <Card
+    title="Your First Session"
+    icon="rocket"
+    href="/first-session"
+  >
+    Create and run your first agent
+  </Card>
+  <Card
+    title="Workflow"
+    icon="arrows-rotate"
+    href="/workflow"
+  >
+    Best practices for daily use
+  </Card>
+  <Card
+    title="Core Concepts"
+    icon="book"
+    href="/core-concepts"
+  >
+    Understand sessions, specs, and orchestrator
+  </Card>
+</CardGroup>
+
+## Key Features
+
+- **Isolated Git Worktrees** - Each session gets its own branch and worktree
+- **Dual Terminals** - Agent terminal on top, your shell below
+- **Spec-Driven** - Plan in markdown, then execute
+- **Orchestrator** - Coordinate multiple sessions from main branch
+- **MCP API** - Automate session management via REST
+
+## Platform Support
+
+<Warning>
+  **macOS only** - Apple Silicon and Intel supported. Windows and Linux are not available at this time.
+</Warning>
+
+---
+
+<sup>[Privacy](/privacy) · [Imprint](/imprint)</sup>

@@ -1,0 +1,121 @@
+---
+title: Prompting Guide
+description: 'How to use Claude Code with Schaltwerk MCP'
+---
+
+When Claude Code has MCP access to Schaltwerk, you can manage sessions using natural language.
+
+## What You Can Ask
+
+<AccordionGroup>
+  <Accordion title="Create a New Spec">
+    **You:** "Create a Schaltwerk spec to add user authentication with JWT tokens"
+
+    **Claude:** Creates a spec with the task description, ready to start when you're ready
+  </Accordion>
+
+  <Accordion title="Check Session Status">
+    **You:** "Which Schaltwerk sessions are ready for review?"
+
+    **Claude:** Lists all reviewed sessions that need your attention
+  </Accordion>
+
+  <Accordion title="Start Existing Specs">
+    **You:** "Start the user-auth spec in Schaltwerk"
+
+    **Claude:** Converts the spec to a running session with worktree
+  </Accordion>
+
+  <Accordion title="Decide What to Work On">
+    **You:** "What Schaltwerk specs should I prioritize?"
+
+    **Claude:** Reviews your specs and suggests what to work on based on dependencies and importance
+  </Accordion>
+
+  <Accordion title="Merge Sessions">
+    **You:** "Merge the user-auth session to main"
+
+    **Claude:** Checks the session is reviewed, runs tests, and merges if everything passes
+  </Accordion>
+</AccordionGroup>
+
+## Example Workflows
+
+### 1. Creating Multiple Specs
+
+**You:** "I need to build a complete authentication system. Create Schaltwerk specs for each part."
+
+**Claude creates:**
+- `auth-registration` - User signup with validation
+- `auth-login` - Login with JWT tokens
+- `auth-password-reset` - Password reset flow
+- `auth-session-management` - Token refresh and logout
+
+### 2. Starting Work
+
+**You:** "Which spec should I start first?"
+
+**Claude:** "Start with `auth-registration` since the other specs depend on it. Shall I start this session for you?"
+
+**You:** "Yes, start it"
+
+**Claude:** Starts the session - now visible in your sidebar
+
+### 3. Reviewing Progress
+
+**You:** "Show me the status of all auth sessions"
+
+**Claude:**
+- `auth-registration` - ✅ Reviewed, ready to merge
+- `auth-login` - 🔄 Running
+- `auth-password-reset` - 📝 Spec (not started)
+- `auth-session-management` - 📝 Spec (not started)
+
+### 4. Merging Work
+
+**You:** "The auth-registration session looks good. Merge it to main."
+
+**Claude:**
+1. Checks tests pass
+2. Verifies no conflicts
+3. Merges to main
+4. Cleans up the session
+
+## Best Prompts
+
+<CardGroup cols={2}>
+  <Card title="Be Specific" icon="bullseye">
+    "Create a spec for OAuth login with Google and GitHub"
+
+    vs ❌ "Add OAuth"
+  </Card>
+
+  <Card title="Mention Files" icon="file">
+    "Fix the validation bug in src/auth/validator.js"
+
+    vs ❌ "Fix the bug"
+  </Card>
+
+  <Card title="Set Context" icon="info">
+    "Add error handling to all API endpoints in the payment module"
+
+    vs ❌ "Add error handling"
+  </Card>
+
+  <Card title="Ask for Help" icon="question">
+    "What's the best way to organize these features into sessions?"
+
+    Claude can suggest how to structure your work
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="MCP Setup" icon="plug" href="/mcp/integration">
+    Set up Claude Code with MCP
+  </Card>
+  <Card title="Using Schaltwerk" icon="play" href="/guides/using-schaltwerk">
+    Learn the workflow
+  </Card>
+</CardGroup>

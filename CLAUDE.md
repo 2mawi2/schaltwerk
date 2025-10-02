@@ -325,3 +325,8 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 
 - Store all plan MD files in the `plans/` directory, not at the repository root
 - This keeps the root clean and organizes planning documents
+
+## Documentation
+
+- Project documentation is maintained in `docs-site/` using Mintlify
+- MDX files in `docs-site/` cover core concepts, guides, MCP integration, and installation

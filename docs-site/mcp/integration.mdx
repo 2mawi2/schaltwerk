@@ -1,0 +1,184 @@
+---
+title: MCP Integration
+description: 'Automate session management with the Model Context Protocol REST API'
+---
+
+Schaltwerk ships with a Model Context Protocol (MCP) server so AI assistants (Claude, etc.) can automate session management.
+
+## Setup
+
+### Option 1: Via Schaltwerk Settings (Recommended)
+
+<Steps>
+  <Step title="Open Settings">
+    Click the gear icon in the top bar to open Schaltwerk Settings
+  </Step>
+
+  <Step title="Configure MCP">
+    Navigate to the MCP configuration section and enable the Schaltwerk MCP server for your agent
+  </Step>
+
+  <Step title="Restart Agent">
+    Restart your orchestrator session to load the MCP configuration
+  </Step>
+</Steps>
+
+### Option 2: Manual Setup
+
+If you prefer manual setup or your agent doesn't appear in settings:
+
+<Tabs>
+  <Tab title="Codex">
+    ```bash
+    # Build the MCP server
+    cd mcp-server
+    npm install
+    npm run build
+
+    # Register with Codex
+    codex mcp add schaltwerk node /absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
+    ```
+
+    Then restart Codex to load the MCP server.
+  </Tab>
+
+  <Tab title="Claude Code">
+    ```bash
+    # Build the MCP server
+    cd mcp-server
+    npm install
+    npm run build
+
+    # Register with Claude Code
+    claude mcp add --transport stdio --scope project schaltwerk \
+      node /absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js
+    ```
+
+    Then restart Claude Code to load the MCP server.
+  </Tab>
+
+  <Tab title="Manual Config">
+    Add to your agent's MCP configuration file:
+
+    **For Codex** (`~/.codex/config.json`):
+    ```json
+    {
+      "mcpServers": {
+        "schaltwerk": {
+          "command": "node",
+          "args": ["/absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js"]
+        }
+      }
+    }
+    ```
+
+    **For Claude Code** (`.claude.json` in project root):
+    ```json
+    {
+      "mcpServers": {
+        "schaltwerk": {
+          "type": "stdio",
+          "command": "node",
+          "args": ["/absolute/path/to/schaltwerk/mcp-server/build/schaltwerk-mcp-server.js"]
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## What Can Agents Do?
+
+Once set up, your AI agent can use these MCP tools to automate session management:
+
+<CardGroup cols={2}>
+  <Card title="Create Sessions" icon="plus">
+    Agent can create new specs or sessions directly in Schaltwerk
+  </Card>
+
+  <Card title="Update Specs" icon="pen">
+    Modify existing spec content before starting work
+  </Card>
+
+  <Card title="Start Work" icon="play">
+    Convert specs to running sessions with worktrees
+  </Card>
+
+  <Card title="Check Status" icon="list">
+    Query all sessions and their current state
+  </Card>
+</CardGroup>
+
+## How It Works
+
+<Steps>
+  <Step title="Agent receives task">
+    You give your agent a coding task
+  </Step>
+
+  <Step title="Agent creates session">
+    Agent uses MCP to create a Schaltwerk session with the task description
+  </Step>
+
+  <Step title="Schaltwerk updates">
+    New session appears in your sidebar automatically
+  </Step>
+
+  <Step title="You review">
+    Check the session, test the code, and merge when ready
+  </Step>
+</Steps>
+
+## Use Cases
+
+<AccordionGroup>
+  <Accordion title="Task Breakdown">
+    Break down a large feature into multiple parallel sessions:
+
+    - Agent creates multiple specs for different components
+    - Each spec becomes a separate session
+    - Work on all parts simultaneously
+    - Review and merge independently
+  </Accordion>
+
+  <Accordion title="Code Review Automation">
+    Let your agent help with code reviews:
+
+    - Agent analyzes pull requests
+    - Creates Schaltwerk session with review notes
+    - You see the session appear in sidebar
+    - Review agent's feedback and suggestions
+  </Accordion>
+
+  <Accordion title="Multi-Agent Workflows">
+    Coordinate multiple AI agents:
+
+    - Orchestrator agent breaks down work
+    - Creates sessions for implementation agents
+    - Monitors progress across all sessions
+    - Collects results when ready
+  </Accordion>
+</AccordionGroup>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Sessions not appearing">
+    Make sure Schaltwerk is running and your project is open. The MCP server only works when Schaltwerk is active.
+  </Accordion>
+
+  <Accordion title="Agent can't connect">
+    Restart your agent after setting up MCP. The MCP tools are only loaded when the agent starts.
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Prompting Guide" icon="message" href="/mcp/prompting">
+    Learn how to write effective prompts
+  </Card>
+  <Card title="Agent Setup" icon="robot" href="/guides/agent-setup">
+    Configure your agents
+  </Card>
+</CardGroup>

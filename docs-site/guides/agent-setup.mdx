@@ -1,0 +1,388 @@
+---
+title: Agent Setup
+description: 'Configure agent binaries, environment variables, setup scripts, and run mode'
+---
+
+Configure each agent from **Settings → Agent Configuration** before you launch sessions. Open Settings by clicking the gear icon in the top bar.
+
+<Info>
+  Settings are saved locally in `~/Library/Application Support/schaltwerk/settings.json` (plain JSON). Keep this file protected if you store API keys.
+</Info>
+
+## Storage Locations
+
+<AccordionGroup>
+  <Accordion title="Global Settings">
+    **Location:** `~/Library/Application Support/schaltwerk/settings.json`
+
+    **Contains:**
+    - Agent binaries
+    - CLI arguments
+    - Agent-specific environment variables
+    - Personal defaults
+  </Accordion>
+
+  <Accordion title="Project Settings">
+    **Location:** `~/Library/Application Support/schaltwerk/<project>/database.db`
+
+    **Contains:**
+    - Worktree setup scripts
+    - Project environment variables
+    - Run scripts
+    - Session state
+  </Accordion>
+</AccordionGroup>
+
+<Warning>
+  Changes only apply after you click **Save** in the bottom-right corner of the Settings modal.
+</Warning>
+
+## Choose the Agent Binary
+
+<Steps>
+  <Step title="Select agent tab">
+    Choose from: Claude, Codex, OpenCode, or Gemini
+  </Step>
+
+  <Step title="Pick binary">
+    - Select a detected binary from the dropdown
+    - Or paste an absolute path for custom builds
+  </Step>
+
+  <Step title="Verify details">
+    Schaltwerk shows:
+    - Installation method
+    - Version number
+    - Full path to executable
+  </Step>
+</Steps>
+
+### Common Binary Locations
+
+<CodeGroup>
+```bash Claude Code (Homebrew)
+/opt/homebrew/bin/claude
+```
+
+```bash Codex (npm global)
+~/.npm-global/bin/codex
+```
+
+```bash Google Gemini
+/usr/local/bin/gcloud
+```
+
+```bash Custom Build
+/Users/you/dev/agent-cli/bin/agent
+```
+</CodeGroup>
+
+<Tip>
+  Schaltwerk auto-detects common installation paths. If your binary isn't listed, paste the absolute path.
+</Tip>
+
+## Add Custom CLI Arguments
+
+Use the **CLI Arguments** field to append extra flags to the launch command.
+
+### Argument Parsing
+
+Arguments are parsed with shell-style quoting:
+
+<CodeGroup>
+```bash Profile Selection
+--profile work
+```
+
+```bash Model Override
+--model gpt-4
+```
+
+```bash Sandbox Mode
+--sandbox danger-full-access
+```
+
+```bash Multiple Arguments
+--profile work --model gpt-4 --verbose
+```
+</CodeGroup>
+
+<Info>
+  Codex launches are normalized automatically (single-dash long flags are fixed and profiles come before `--model`).
+</Info>
+
+### When Arguments Apply
+
+CLI arguments are appended:
+- Every time the top terminal starts
+- When you trigger a restart from the session toolbar
+- After the setup script completes
+
+## Set Agent Environment Variables
+
+Add key/value pairs for the agent terminal (API keys, profile names, feature flags).
+
+![Agent Configuration settings showing detected binaries section with Claude Code path, CLI Arguments field with --permission-mode plan example, and Environment Variables section with ANTHROPIC_MODEL set to claude-sonnet-4](/images/agent-configuration-env-vars-custom-arguments.png)
+
+**Key points:**
+- Variables are scoped per agent type (Claude doesn't see Codex vars)
+- Merged with project-level variables at agent start
+- Stored unencrypted - rotate keys on shared machines
+- Use **Edit variables** button for bulk editing
+
+**Example Variables:**
+
+<CodeGroup>
+```bash API Keys
+OPENAI_API_KEY=sk-...
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+```bash Feature Flags
+ENABLE_EXPERIMENTAL=true
+DEBUG_MODE=false
+```
+
+```bash Configuration
+AGENT_PROFILE=production
+MODEL_OVERRIDE=gpt-4
+```
+</CodeGroup>
+
+## Project Defaults
+
+Open **Settings → Projects** to configure shared defaults for every session.
+
+### Worktree Setup Script
+
+<Card title="One-Time Initialization" icon="play" color="#22d3ee">
+  Runs once when Schaltwerk creates a new worktree. Perfect for dependency installation, environment setup, and project bootstrapping.
+</Card>
+
+#### Available Environment Variables
+
+<CodeGroup>
+```bash Session Variables
+$WORKTREE_PATH   # /path/to/repo/.schaltwerk/worktrees/session-name
+$REPO_PATH       # /path/to/repo
+$SESSION_NAME    # session-name
+$BRANCH_NAME     # schaltwerk/session-name
+```
+</CodeGroup>
+
+#### Common Setup Tasks
+
+<Tabs>
+  <Tab title="Copy Environment Files">
+    ```bash
+    #!/bin/bash
+    cp "$REPO_PATH/.env.template" "$WORKTREE_PATH/.env"
+    echo "SESSION_NAME=$SESSION_NAME" >> "$WORKTREE_PATH/.env"
+    ```
+  </Tab>
+
+  <Tab title="Install Dependencies">
+    ```bash
+    #!/bin/bash
+    cd "$WORKTREE_PATH"
+    npm install
+    ```
+  </Tab>
+
+  <Tab title="Seed Database">
+    ```bash
+    #!/bin/bash
+    cd "$WORKTREE_PATH"
+    npm run db:seed
+    ```
+  </Tab>
+
+  <Tab title="Create Directories">
+    ```bash
+    #!/bin/bash
+    mkdir -p "$WORKTREE_PATH/logs"
+    mkdir -p "$WORKTREE_PATH/tmp"
+    ```
+  </Tab>
+</Tabs>
+
+**Execution:**
+- Runs in top terminal before agent launches
+- Creates `.schaltwerk/setup.done` marker (delete to force re-run)
+- Optional - leave empty if not needed
+
+<Warning>
+  If the setup script fails, the agent won't start. Check the top terminal for errors.
+</Warning>
+
+### Project Environment Variables
+
+Added to every agent launch. Perfect for configuration shared by all agents.
+
+**Benefits:** Set once, available everywhere. Agent vars + Project vars = Final environment.
+
+**Example:**
+
+<CodeGroup>
+```bash Shared API Keys
+DATABASE_URL=postgres://localhost/dev
+REDIS_URL=redis://localhost:6379
+```
+
+```bash Project Configuration
+NODE_ENV=development
+LOG_LEVEL=debug
+```
+
+```bash Feature Flags
+ENABLE_ANALYTICS=false
+USE_LOCAL_API=true
+```
+</CodeGroup>
+
+### Run Script (⌘E)
+
+Define a command to execute with `⌘E` in the bottom terminal.
+
+**Configuration:** Set command (e.g., `npm run dev`), optional working directory, optional environment variables.
+
+**Features:** Real-time output, exit status display, press `⌘E` again to stop.
+
+**Common examples:** `npm run dev`, `npm run test`, `npm run build`, `npm run lint`
+
+## Recommended Setup Flow
+
+<Steps>
+  <Step title="Configure project settings">
+    1. Open **Settings → Projects**
+    2. Add project environment variables
+    3. Write worktree setup script
+    4. Define run script for `⌘E`
+  </Step>
+
+  <Step title="Configure agents">
+    1. Open **Settings → Agent Configuration**
+    2. For each agent you use:
+       - Select binary path
+       - Add CLI arguments
+       - Set agent-specific environment variables
+  </Step>
+
+  <Step title="Test with a session">
+    1. Create a test spec
+    2. Start session (`⌘N`)
+    3. Verify setup script runs successfully
+    4. Check agent launches with correct configuration
+  </Step>
+
+  <Step title="Verify run mode">
+    1. Press `⌘E` in bottom terminal
+    2. Confirm run script executes correctly
+    3. Check environment variables are present
+  </Step>
+</Steps>
+
+<Check>
+  Once configured, every new session will automatically use these settings!
+</Check>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Agent won't start">
+    **Check:**
+    - Binary path is correct and executable
+    - Agent has necessary permissions
+    - CLI arguments are valid
+    - Environment variables are set correctly
+
+    **Debug:**
+    - Look at top terminal output for error messages
+    - Try running binary manually from command line
+  </Accordion>
+
+  <Accordion title="Setup script fails">
+    **Check:**
+    - Script has execute permissions
+    - All required dependencies are available
+    - Environment variables are accessible
+
+    **Debug:**
+    - Check top terminal for error output
+    - Run script manually with same environment
+    - Verify marker file isn't preventing re-run
+  </Accordion>
+
+  <Accordion title="Environment variables not visible">
+    **Check:**
+    - Clicked **Save** in Settings modal
+    - Variables are set in correct section (agent vs project)
+    - No typos in variable names
+
+    **Debug:**
+    - Print environment in agent terminal: `env | grep VAR_NAME`
+    - Check both agent and project variable sections
+  </Accordion>
+
+  <Accordion title="Run script doesn't execute">
+    **Check:**
+    - Run script is defined in project settings
+    - Working directory exists
+    - Command is valid for your project
+
+    **Debug:**
+    - Check bottom terminal for error messages
+    - Try running command manually in terminal
+  </Accordion>
+
+  <Accordion title="Schaltwerk uses old agent version after upgrade">
+    **Problem:** After upgrading your agent, Schaltwerk still uses the old version
+
+    **Cause:** Multiple installations exist, Schaltwerk points to the old binary
+
+    **Solution:**
+    1. Find current installation path: `which <agent-name>`
+    2. Open **Settings → Agent Configuration**
+    3. Select the agent tab (Claude, Codex, etc.)
+    4. Click **Refresh Binary** to auto-detect new version
+    5. Or manually select the correct binary path
+    6. Return to active sessions and restart the agent
+
+    **Note:** Binary paths are cached per agent. Always refresh after system upgrades.
+  </Accordion>
+</AccordionGroup>
+
+## Security Best Practices
+
+<Warning>
+  Settings are stored unencrypted. Follow these guidelines to protect sensitive data:
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Rotate Keys" icon="rotate">
+    Regularly rotate API keys and tokens
+  </Card>
+
+  <Card title="Use OS Keychain" icon="key">
+    Store sensitive values in system keychain when possible
+  </Card>
+
+  <Card title="Restrict Permissions" icon="lock">
+    Limit file permissions on settings.json
+  </Card>
+
+  <Card title="Shared Machines" icon="users">
+    Don't store API keys on shared/public machines
+  </Card>
+</CardGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Start Using Schaltwerk" icon="play" href="/guides/using-schaltwerk">
+    Learn the day-to-day workflow
+  </Card>
+  <Card title="Keyboard Shortcuts" icon="keyboard" href="/guides/keyboard-shortcuts">
+    Master the keyboard shortcuts
+  </Card>
+</CardGroup>

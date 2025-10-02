@@ -1,0 +1,318 @@
+---
+title: Using Schaltwerk
+description: 'Day-to-day workflow of running agents, reviewing output, and managing sessions'
+---
+
+This guide walks through the daily workflow of creating specs, running agents, reviewing their output, and keeping your repository clean.
+
+## First Session Quick Start
+
+<Steps>
+  <Step title="Open orchestrator">
+    Press `⌘1` or click **orchestrator** in sidebar
+  </Step>
+
+  <Step title="Create spec">
+    Press `⌘⇧N` and describe what you want the agent to build
+  </Step>
+
+  <Step title="Start session">
+    Press `⌘N` to create worktree, branch, and terminals
+  </Step>
+
+  <Step title="Monitor agent">
+    Top terminal shows agent progress automatically
+  </Step>
+
+  <Step title="Test and review">
+    Run tests in bottom terminal, then press `⌘R` to mark as reviewed
+  </Step>
+</Steps>
+
+## Learn the Layout
+
+<CardGroup cols={3}>
+  <Card title="Top Bar" icon="bars">
+    - Tabs for each open project
+    - Gear icon for Settings
+    - **Open** button to launch active worktree in Finder/editor
+  </Card>
+
+  <Card title="Sidebar" icon="sidebar">
+    - Orchestrator entry
+    - Session filters (All/Specs/Running/Reviewed)
+    - Quick actions for starting agents or creating specs
+  </Card>
+
+  <Card title="Center" icon="window">
+    - Terminals and diff/review panels
+    - Grouped per session
+  </Card>
+</CardGroup>
+
+## Create a Spec
+
+<Steps>
+  <Step title="Select orchestrator">
+    Press `⌘1` to work on the main repo branch
+  </Step>
+
+  <Step title="Create new spec">
+    Click **Create Spec** in sidebar footer or press `⌘⇧N`
+  </Step>
+
+  <Step title="Write requirements">
+    Fill out the markdown prompt with:
+    - Requirements
+    - Test expectations
+    - Acceptance criteria
+  </Step>
+
+  <Step title="Save for later">
+    Specs stay in the orchestrator until you promote them
+    - Edit anytime
+    - Duplicate for variations
+  </Step>
+</Steps>
+
+<Tip>
+  Keep specs focused so agents work on small, testable changes.
+</Tip>
+
+## Start a Session
+
+<Steps>
+  <Step title="Select spec">
+    Highlight the spec in the sidebar
+  </Step>
+
+  <Step title="Start agent">
+    Click **Start Agent** or press `⌘N`
+  </Step>
+
+  <Step title="Worktree created">
+    Schaltwerk creates:
+    - New git worktree in `.schaltwerk/worktrees/<session-name>/`
+    - Dedicated branch with project's branch prefix
+    - Two PTY terminals
+  </Step>
+
+  <Step title="Setup runs">
+    - Configured worktree setup script runs once
+    - When complete, top terminal launches your agent
+    - Agent receives the spec content as initial prompt
+  </Step>
+</Steps>
+
+<Info>
+  The session moves to the **Running** filter and opens two terminals the first time you view it.
+</Info>
+
+## Run Your Agent
+
+<Tabs>
+  <Tab title="Top Terminal">
+    <Card icon="robot" color="#ec4899">
+      **Agent Process**
+
+      - Streams the agent process automatically
+      - Use **Restart** action to reload with new prompt/config
+      - Agent receives spec content as initial instructions
+    </Card>
+  </Tab>
+
+  <Tab title="Bottom Terminal">
+    <Card icon="terminal" color="#22c55e">
+      **Your Shell**
+
+      - Regular shell rooted in session worktree
+      - Use for tests, formatting, helper scripts
+      - Shows **Run** button when project run script configured
+      - Press `⌘E` to execute run script
+    </Card>
+  </Tab>
+</Tabs>
+
+### Run Mode
+
+Configure Run Mode in Settings to map `⌘E` to a common command:
+
+<CodeGroup>
+```bash Example: Tests
+npm run test
+```
+
+```bash Example: Dev Server
+npm run dev
+```
+
+```bash Example: Build
+npm run build
+```
+</CodeGroup>
+
+The bottom terminal shows a status header while the command runs.
+
+## Review the Work
+
+<CardGroup cols={2}>
+  <Card title="Switch Sessions" icon="arrows-rotate">
+    - `⌘1–9` to jump to specific session
+    - `⌘↑/⌘↓` to cycle through sessions
+    - Terminals stay alive when you change focus
+  </Card>
+
+  <Card title="Inspect Changes" icon="code-compare">
+    - View diffs in the right panel
+    - Leave notes in the spec
+    - Send instructions through agent terminal
+  </Card>
+
+  <Card title="Run Tests" icon="flask">
+    - Execute test suite in bottom terminal
+    - Or use Run Mode (`⌘E`)
+    - Verify before marking as reviewed
+  </Card>
+
+  <Card title="External Editor" icon="code">
+    - Click **Open** in top bar
+    - Opens worktree in Finder or editor
+    - Make manual edits if needed
+  </Card>
+</CardGroup>
+
+<Warning>
+  Always run tests before marking a session as reviewed!
+</Warning>
+
+## Mark as Reviewed
+
+<Steps>
+  <Step title="Verify tests pass">
+    Run your project's test suite in the bottom terminal
+  </Step>
+
+  <Step title="Mark reviewed">
+    Press `⌘R` or click the checkmark action
+  </Step>
+
+  <Step title="Session moves to Reviewed">
+    Session badge turns green and appears in **Reviewed** filter
+  </Step>
+
+  <Step title="Choose next action">
+    From session header actions:
+    - Create GitHub pull request
+    - Merge directly
+    - Export branch
+    - Continue editing in external editor
+  </Step>
+</Steps>
+
+## Convert Back to a Spec
+
+Need to pause development but keep notes?
+
+<CodeGroup>
+```bash Keyboard Shortcut
+⌘S
+```
+</CodeGroup>
+
+**What happens:**
+- Worktree is removed
+- Markdown spec is preserved
+- Session returns to **Specs** filter
+- Can be restarted later as a fresh session
+
+<Info>
+  Perfect for deferring work or archiving exploratory sessions.
+</Info>
+
+## Merge and Clean Up
+
+<Steps>
+  <Step title="Merge the branch">
+    After merging or cherry-picking the reviewed branch:
+    - Use GitHub PR flow
+    - Or merge directly from command line
+  </Step>
+
+  <Step title="Cancel session">
+    Press `⌘D` or click **Cancel Session**
+  </Step>
+
+  <Step title="Cleanup happens">
+    - Worktree is removed from `.schaltwerk/worktrees/`
+    - Terminals are closed
+    - Session disappears from sidebar
+  </Step>
+
+  <Step title="Recreate if needed">
+    You can always recreate from:
+    - The spec (if preserved)
+    - Git history (if branch still exists)
+  </Step>
+</Steps>
+
+<Check>
+  Schaltwerk never cancels sessions automatically, so it's safe to keep a branch around while you validate changes.
+</Check>
+
+<Tip>
+  Master the keyboard shortcuts to speed up your workflow. See the complete [Keyboard Shortcuts](/guides/keyboard-shortcuts) reference.
+</Tip>
+
+## Tips for Smooth Sessions
+
+<CardGroup cols={2}>
+  <Card title="Small Changes" icon="arrows-split-up-and-left">
+    Keep specs focused on small, testable changes that agents can complete confidently
+  </Card>
+
+  <Card title="Parallel Work" icon="bars-staggered">
+    Use separate sessions for competing implementations and pick the best result
+  </Card>
+
+  <Card title="Orchestrator Power" icon="tower-control">
+    The orchestrator can coordinate multiple agents in parallel while you monitor progress
+  </Card>
+
+  <Card title="Iterate Settings" icon="gear">
+    Visit [Agent Setup](/guides/agent-setup) to tweak binaries, environment variables, or project setup scripts
+  </Card>
+</CardGroup>
+
+## Common Workflows
+
+<Tabs>
+  <Tab title="Bug Fix">
+    1. Create spec describing the bug and expected behavior
+    2. Start session and let agent investigate
+    3. Review proposed fix and run tests
+    4. Mark as reviewed and create PR
+  </Tab>
+
+  <Tab title="New Feature">
+    1. Draft detailed spec with requirements and acceptance criteria
+    2. Start session with focused scope
+    3. Agent implements feature in isolated worktree
+    4. Test locally in bottom terminal
+    5. Review, adjust, and merge when ready
+  </Tab>
+
+  <Tab title="Refactoring">
+    1. Create spec outlining refactoring goals
+    2. Start session on dedicated branch
+    3. Agent performs refactoring
+    4. Verify tests still pass
+    5. Review changes carefully before merging
+  </Tab>
+
+  <Tab title="Exploration">
+    1. Create spec for experimental approach
+    2. Start multiple sessions with different strategies
+    3. Compare results across sessions
+    4. Keep best approach, convert others to specs or cancel
+  </Tab>
+</Tabs>
