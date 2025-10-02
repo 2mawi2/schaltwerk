@@ -339,7 +339,10 @@ mod tests {
         let mut utf8_streams = HashMap::new();
         let (payload, remainder) =
             decode_coalesced_bytes(data, "term-claude-cont", &mut utf8_streams);
-        assert_eq!(payload.as_deref(), Some("let value = \u{FFFD}\u{FFFD}formatted\n"));
+        assert_eq!(
+            payload.as_deref(),
+            Some("let value = \u{FFFD}\u{FFFD}formatted\n")
+        );
         assert!(remainder.is_none());
     }
 

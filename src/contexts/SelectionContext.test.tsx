@@ -81,7 +81,6 @@ describe('SelectionContext', () => {
     localStorage.clear()
 
     // Setup default mocks
-    let savedSelection: { kind: 'session'|'orchestrator', payload: string|null } | null = null
     enrichedSessionsMock = []
     rawSessionsMock = {
       'test-session': createRawSession('test-session', '/test/session/path'),
@@ -105,14 +104,6 @@ describe('SelectionContext', () => {
           return Promise.resolve(true)
         case TauriCommands.DirectoryExists:
           return Promise.resolve(true)
-        case TauriCommands.GetProjectSelection:
-          return Promise.resolve(savedSelection)
-        case TauriCommands.SetProjectSelection:
-          {
-            const sel = args as { kind: 'session'|'orchestrator'; payload: string|null }
-            savedSelection = { kind: sel.kind, payload: sel.payload }
-          }
-          return Promise.resolve()
         case TauriCommands.SchaltwerkCoreListEnrichedSessions:
           return Promise.resolve(enrichedSessionsMock)
         case TauriCommands.SchaltwerkCoreListSessionsByState:
@@ -335,10 +326,6 @@ describe('SelectionContext', () => {
             return Promise.resolve(false)
           case TauriCommands.CreateTerminal:
             return Promise.resolve()
-          case TauriCommands.GetProjectSelection:
-            return Promise.resolve(null)
-          case TauriCommands.SetProjectSelection:
-            return Promise.resolve()
           case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
           case TauriCommands.SchaltwerkCoreListSessionsByState:
@@ -451,10 +438,6 @@ describe('SelectionContext', () => {
             return Promise.resolve()
           case TauriCommands.PathExists:
             return Promise.resolve(true)
-          case TauriCommands.GetProjectSelection:
-            return Promise.resolve(null)
-          case TauriCommands.SetProjectSelection:
-            return Promise.resolve()
           case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
           case TauriCommands.SchaltwerkCoreListSessionsByState:
@@ -520,10 +503,6 @@ describe('SelectionContext', () => {
             return Promise.resolve()
           case TauriCommands.PathExists:
             return Promise.resolve(true)
-          case TauriCommands.GetProjectSelection:
-            return Promise.resolve(null)
-          case TauriCommands.SetProjectSelection:
-            return Promise.resolve()
           case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])
           case TauriCommands.SchaltwerkCoreListSessionsByState:
@@ -592,10 +571,6 @@ describe('SelectionContext', () => {
             // Simulate terminal existence check used during creation/cleanup
             return Promise.resolve(false)
           case TauriCommands.CreateTerminal:
-            return Promise.resolve()
-          case TauriCommands.GetProjectSelection:
-            return Promise.resolve(null)
-          case TauriCommands.SetProjectSelection:
             return Promise.resolve()
           case TauriCommands.SchaltwerkCoreListEnrichedSessions:
             return Promise.resolve([])

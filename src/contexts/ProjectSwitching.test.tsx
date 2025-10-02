@@ -33,7 +33,6 @@ describe('Project Switching Selection Behavior', () => {
         vi.clearAllMocks()
         
         // Setup default mocks
-        let savedSelection: { kind: 'session'|'orchestrator', payload: string|null } | null = null
         mockInvoke.mockImplementation((command: string, args?: MockTauriInvokeArgs) => {
             const typedArgs = args as { name?: string; id?: string } | undefined
             switch (command) {
@@ -50,16 +49,6 @@ describe('Project Switching Selection Behavior', () => {
                         session_state: 'running',
                         name: typedArgs?.name || 'test-session'
                     })
-                case TauriCommands.GetProjectSelection:
-                    // Return last saved selection (simulating DB)
-                    return Promise.resolve(savedSelection)
-                case TauriCommands.SetProjectSelection:
-                    // Persist selection locally for test run
-                    {
-                        const sel = args as { kind: 'session'|'orchestrator'; payload: string|null }
-                        savedSelection = { kind: sel.kind, payload: sel.payload }
-                    }
-                    return Promise.resolve()
                 case TauriCommands.SchaltwerkCoreListEnrichedSessions:
                     return Promise.resolve([])
                 case TauriCommands.GetProjectSessionsSettings:

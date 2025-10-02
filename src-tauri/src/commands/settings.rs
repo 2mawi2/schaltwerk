@@ -7,7 +7,7 @@ use schaltwerk::domains::settings::{
 use schaltwerk::schaltwerk_core::db_app_config::AppConfigMethods;
 use schaltwerk::schaltwerk_core::db_project_config::{
     default_action_buttons, HeaderActionConfig, ProjectConfigMethods, ProjectMergePreferences,
-    ProjectSelection, ProjectSessionsSettings, RunScript,
+    ProjectSessionsSettings, RunScript,
 };
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
@@ -226,39 +226,6 @@ pub async fn set_project_settings(settings: ProjectSettings) -> Result<(), Strin
         .map_err(|e| format!("Failed to set project branch prefix: {e}"))?;
 
     Ok(())
-}
-
-#[tauri::command]
-pub async fn get_project_selection() -> Result<Option<ProjectSelection>, String> {
-    let project = PROJECT_MANAGER
-        .get()
-        .ok_or_else(|| "Project manager not initialized".to_string())?
-        .current_project()
-        .await
-        .map_err(|e| format!("Failed to get current project: {e}"))?;
-
-    let core = project.schaltwerk_core.lock().await;
-    let db = core.database();
-
-    db.get_project_selection(&project.path)
-        .map_err(|e| format!("Failed to get project selection: {e}"))
-}
-
-#[tauri::command]
-pub async fn set_project_selection(kind: String, payload: Option<String>) -> Result<(), String> {
-    let project = PROJECT_MANAGER
-        .get()
-        .ok_or_else(|| "Project manager not initialized".to_string())?
-        .current_project()
-        .await
-        .map_err(|e| format!("Failed to get current project: {e}"))?;
-
-    let core = project.schaltwerk_core.lock().await;
-    let db = core.database();
-
-    let selection = ProjectSelection { kind, payload };
-    db.set_project_selection(&project.path, &selection)
-        .map_err(|e| format!("Failed to set project selection: {e}"))
 }
 
 #[tauri::command]
@@ -996,17 +963,6 @@ mod tests {
             auto_cancel_after_merge: true,
         };
         let result = set_project_merge_preferences(preferences).await;
-        assert!(result.is_err());
-        let error_msg = result.unwrap_err();
-        assert!(
-            error_msg.contains("Failed to get current project")
-                || error_msg.contains("Project manager not initialized")
-        );
-    }
-
-    #[tokio::test]
-    async fn test_get_project_selection_uninitialized_manager() {
-        let result = get_project_selection().await;
         assert!(result.is_err());
         let error_msg = result.unwrap_err();
         assert!(

@@ -99,9 +99,3 @@ export interface RawSession {
         insertions: number
     }
 }
-
-// Project selection returned from get_project_selection
-export interface ProjectSelection {
-    kind: string
-    payload: string | null
-}

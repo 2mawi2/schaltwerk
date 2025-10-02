@@ -6,7 +6,7 @@ import { useProject } from './ProjectContext'
 import { useFontSize } from './FontSizeContext'
 import { useSessions } from './SessionsContext'
 import { FilterMode } from '../types/sessionFilters'
-import { RawSession, ProjectSelection, EnrichedSession } from '../types/session'
+import { RawSession, EnrichedSession } from '../types/session'
 import { logger } from '../utils/logger'
 import { useModal } from './ModalContext'
 import { UiEvent, emitUiEvent } from '../common/uiEvents'
@@ -157,11 +157,20 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     }, [allSessions])
     const sessionSnapshotsRef = useRef(new Map<string, SessionSnapshot>())
     const sessionFetchPromisesRef = useRef(new Map<string, Promise<SessionSnapshot | null>>())
+    const lastSelectionByProjectRef = useRef(new Map<string, Selection>())
+
+    const rememberSelection = useCallback((sel: Selection) => {
+        if (!projectPath) {
+            return
+        }
+        lastSelectionByProjectRef.current.set(projectPath, { ...sel })
+    }, [projectPath])
 
     // Helper: finalize a selection change by removing the switching class and notifying listeners
     const finalizeSelectionChange = useCallback((sel: Selection) => {
         const doFinalize = () => {
             document.body.classList.remove('session-switching')
+            rememberSelection(sel)
             try {
                 if (sel.kind === 'session' && sel.payload) {
                     emitUiEvent(UiEvent.OpencodeSelectionResize, { kind: 'session', sessionId: sel.payload })
@@ -187,7 +196,7 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const isTestEnv = typeof process !== 'undefined' && (process as unknown as { env?: Record<string, string> }).env?.NODE_ENV === 'test'
         if (isTestEnv) doFinalize()
         else requestAnimationFrame(doFinalize)
-    }, [])
+    }, [rememberSelection])
     
     // Get terminal IDs for a selection
     // Helper function to get cached project ID
@@ -387,10 +396,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const ensureTerminals = useCallback(async (sel: Selection): Promise<TerminalSet> => {
         const ids = getTerminalIds(sel)
 
-        // Orchestrator always has terminals and is never a spec
         if (sel.kind === 'orchestrator') {
             setIsSpec(false)
-            const cwd = projectPath || await invoke<string>(TauriCommands.GetCurrentDirectory)
+            let cwd = projectPath
+            if (!cwd) {
+                try {
+                    cwd = await invoke<string>(TauriCommands.GetCurrentDirectory)
+                } catch (error) {
+                    logger.warn('[SelectionContext] Failed to resolve current directory for orchestrator terminals', error)
+                    cwd = ''
+                }
+            }
+
             await createTerminal(ids.top, cwd)
             await registerTerminalsForSelection([ids.top], sel)
             return ids
@@ -408,25 +425,22 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
 
         const desiredState = sel.sessionState
-        if (
-            snapshot &&
-            desiredState &&
-            snapshot.sessionState !== desiredState
-        ) {
-            const refreshedSnapshot = await ensureSessionSnapshot(sessionId, { refresh: true })
-            if (refreshedSnapshot) {
-                snapshot = refreshedSnapshot
+        if (snapshot && desiredState && snapshot.sessionState !== desiredState) {
+            const refreshed = await ensureSessionSnapshot(sessionId, { refresh: true })
+            if (refreshed) {
+                snapshot = refreshed
             }
         }
 
         if (!snapshot) {
             if (desiredState === 'running' && sel.worktreePath) {
+                const fallbackWorktree = sel.worktreePath
                 setIsSpec(false)
-                await createTerminal(ids.top, sel.worktreePath)
+                await createTerminal(ids.top, fallbackWorktree)
                 await registerTerminalsForSelection([ids.top], sel)
                 return {
                     ...ids,
-                    workingDirectory: sel.worktreePath,
+                    workingDirectory: fallbackWorktree,
                 }
             }
 
@@ -438,7 +452,6 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         const resolvedState = desiredState ?? snapshot.sessionState ?? 'running'
         const isSpecSession = resolvedState === 'spec'
         setIsSpec(isSpecSession)
-
         if (isSpecSession) {
             return ids
         }
@@ -450,8 +463,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
         }
 
         try {
-            const exists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
-            if (!exists) {
+            const pathExists = await invoke<boolean>(TauriCommands.PathExists, { path: worktreePath })
+            if (!pathExists) {
                 logger.warn(`[SelectionContext] Worktree path does not exist for session ${sessionId}: ${worktreePath}`)
                 return ids
             }
@@ -462,8 +475,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 logger.warn(`[SelectionContext] Worktree is not properly initialized for session ${sessionId}: ${worktreePath}`)
                 return ids
             }
-        } catch (_e) {
-            logger.warn(`[SelectionContext] Could not verify worktree path for session ${sessionId}:`, _e)
+        } catch (error) {
+            logger.warn(`[SelectionContext] Could not verify worktree path for session ${sessionId}:`, error)
             return ids
         }
 
@@ -475,8 +488,8 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                 await closeTerminalBackend(ids.bottomBase)
                 terminalsCreated.current.delete(ids.bottomBase)
             }
-        } catch (_e) {
-            logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sessionId}:`, _e)
+        } catch (error) {
+            logger.warn(`[SelectionContext] Failed to cleanup legacy bottom terminal for ${sessionId}:`, error)
         }
 
         return {
@@ -484,26 +497,18 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
             workingDirectory: worktreePath
         }
     }, [getTerminalIds, projectPath, createTerminal, registerTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot])
-    
+
     // Helper to get default selection for current project
     const getDefaultSelection = useCallback(async (): Promise<Selection> => {
-        // Try to load saved selection for this project from database
         if (projectPath) {
-            try {
-                const dbSelection = await invoke<ProjectSelection | null>(TauriCommands.GetProjectSelection)
-                if (dbSelection) {
-                    logger.info('[SelectionContext] Restored saved selection for project:', projectPath, dbSelection)
-                    return {
-                        kind: dbSelection.kind as 'session' | 'orchestrator',
-                        payload: dbSelection.payload ?? undefined
-                    }
-                }
-            } catch (error) {
-                logger.error('[SelectionContext] Failed to load saved selection:', error)
+            const remembered = lastSelectionByProjectRef.current.get(projectPath)
+            if (remembered) {
+                logger.info('[SelectionContext] Restored in-memory selection for project:', projectPath, remembered)
+                return { ...remembered }
             }
         }
-        
-        // Default to orchestrator if no saved selection
+
+        // Default to orchestrator if no remembered selection
         return { kind: 'orchestrator' }
     }, [projectPath])
     
@@ -579,53 +584,44 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
     const setSelection = useCallback(async (newSelection: Selection, forceRecreate = false, isIntentional = true) => {
         logger.info('[SelectionContext] setSelection invoked', { newSelection, forceRecreate, isIntentional })
 
-        // Increment token to invalidate previous async continuations
         const callToken = ++selectionTokenRef.current
         if (isIntentional) {
             lastIntentionalRef.current++
             suppressAutoRestoreRef.current = true
         }
-        // Mark session switching to prevent terminal resize interference
+
         document.body.classList.add('session-switching')
-        // Treat any non-restoration call as a user selection within current project epoch
         const isAuto = isRestoringRef.current === true
         lastTokenWasAutoRef.current = isAuto
         if (!isAuto) {
             lastUserSelectionEpochRef.current = projectEpochRef.current
-            // Track most recent user token to prioritize over auto-restores
             lastUserTokenRef.current = callToken
             userSelectionInFlightRef.current = true
         }
-        
-        // Get the new terminal IDs to check if they're changing
+
         const newTerminalIds = getTerminalIds(newSelection)
-        
-        // Check if session state is changing from spec to running (or vice versa)
-        const isStateTransition = selection.kind === 'session' && 
-            newSelection.kind === 'session' && 
+
+        const isStateTransition = selection.kind === 'session' &&
+            newSelection.kind === 'session' &&
             selection.payload === newSelection.payload &&
             isSpec !== (newSelection.sessionState === 'spec')
-        
-        // Check if we're actually changing selection or terminals (but allow initial setup, force recreate, or state transitions)
-        if (!forceRecreate && !isStateTransition && isReady && 
-            selection.kind === newSelection.kind && 
+
+        const selectionUnchanged = !forceRecreate && !isStateTransition && isReady &&
+            selection.kind === newSelection.kind &&
             selection.payload === newSelection.payload &&
             terminals.top === newTerminalIds.top &&
-            // If sessionState is unknown for a session, do not early-return; resolve current state
-            !(newSelection.kind === 'session' && newSelection.sessionState === undefined)) {
-            // Remove session switching class if no actual change
+            !(newSelection.kind === 'session' && newSelection.sessionState === undefined)
+
+        if (selectionUnchanged) {
             document.body.classList.remove('session-switching')
             return
         }
-        
-        // For already created terminals, switch immediately without showing "Initializing..."
+
         const terminalAlreadyExists = terminalsCreated.current.has(newTerminalIds.top)
         logger.info('[SelectionContext] Terminal existence for quick switch', { id: newTerminalIds.top, terminalAlreadyExists })
-        
-        // Only mark as not ready if we actually need to create new terminals
+
         if (!terminalAlreadyExists) {
             setIsReady(false)
-            // Optimistically apply selection for better UX and deterministic tests
             try {
                 if (newSelection.kind === 'session') {
                     let resolvedState = newSelection.sessionState
@@ -636,72 +632,69 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         if (!snapshot || shouldForceRefresh) {
                             try {
                                 snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
-                            } catch (e) {
-                                logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', e)
+                            } catch (error) {
+                                logger.warn('[SelectionContext] Failed to resolve session state for optimistic switch:', error)
                             }
                         }
                         if (snapshot) {
-                            resolvedState = resolvedState || snapshot.sessionState
-                            resolvedWorktree = resolvedWorktree || snapshot.worktreePath
+                            resolvedState = resolvedState ?? snapshot.sessionState
+                            resolvedWorktree = resolvedWorktree ?? snapshot.worktreePath
                         }
                     }
                     setIsSpec(resolvedState === 'spec')
                     const optimistic = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
-                    // Apply immediately for user selections to ensure determinism
                     setSelectionState(optimistic)
                     setTerminals(newTerminalIds)
                     setCurrentSelection(optimistic.payload || null)
-                    if (!isRestoringRef.current && projectPath) {
-                        try {
-                            await invoke(TauriCommands.SetProjectSelection, {
-                                kind: optimistic.kind,
-                                payload: optimistic.payload ?? null
-                            })
-                        } catch (e) {
-                            logger.error('[SelectionContext] Failed to persist optimistic selection to database:', e)
-                        }
-                    }
                 } else {
-                    // Orchestrator optimistic set
                     setIsSpec(false)
                     setSelectionState(newSelection)
                     setTerminals(newTerminalIds)
                     setCurrentSelection(null)
-                    if (!isRestoringRef.current && projectPath) {
-                        try {
-                            await invoke(TauriCommands.SetProjectSelection, {
-                                kind: newSelection.kind,
-                                payload: newSelection.payload ?? null
-                            })
-                        } catch (e) {
-                            logger.error('[SelectionContext] Failed to persist optimistic selection to database:', e)
-                        }
-                    }
                 }
-            } catch (e) {
-                logger.debug('[SelectionContext] Optimistic selection application failed silently:', e)
+            } catch (error) {
+                logger.debug('[SelectionContext] Optimistic selection application failed silently:', error)
             }
         }
-        
+
         const shouldSwitchSessions = forceRecreate || selection.kind !== newSelection.kind || selection.payload !== newSelection.payload
         let previousSuspended = false
         let resumedNew = false
 
+        const suspendIfNeeded = async () => {
+            if (shouldSwitchSessions && !previousSuspended) {
+                try {
+                    await suspendTerminalsForSelection(selection)
+                    previousSuspended = true
+                } catch (error) {
+                    logger.warn('[SelectionContext] Failed to suspend previous session terminals', error)
+                }
+            }
+        }
+
+        const resumeIfNeeded = async () => {
+            if (shouldSwitchSessions && !resumedNew) {
+                try {
+                    await resumeTerminalsForSelection(newSelection)
+                    resumedNew = true
+                } catch (error) {
+                    logger.warn('[SelectionContext] Failed to resume new session terminals', error)
+                }
+            }
+        }
+
         try {
-            // If forcing recreate, clear terminal tracking and close old terminals first
             if (forceRecreate) {
                 const ids = getTerminalIds(newSelection)
                 await clearTerminalTracking([ids.top])
             }
-            
-            // If terminal already exists, update state immediately for instant switch
+
             if (terminalAlreadyExists && !forceRecreate) {
-                // If this is an auto-restore and a newer user selection occurred, skip applying
                 const lastUserToken = lastUserTokenRef.current ?? 0
                 if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                     return
                 }
-                // Ensure we have authoritative state when sessionState is unknown
+
                 if (newSelection.kind === 'session') {
                     let resolvedState = newSelection.sessionState
                     let resolvedWorktree = newSelection.worktreePath
@@ -711,150 +704,88 @@ export function SelectionProvider({ children }: { children: React.ReactNode }) {
                         if (!snapshot || shouldForceRefresh) {
                             try {
                                 snapshot = await ensureSessionSnapshot(newSelection.payload, { refresh: shouldForceRefresh })
-                            } catch (_e) {
-                                logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', _e)
+                            } catch (error) {
+                                logger.warn('[SelectionContext] Failed to resolve session state during immediate switch:', error)
                             }
                         }
                         if (snapshot) {
                             resolvedState = snapshot.sessionState
-                            resolvedWorktree = resolvedWorktree || snapshot.worktreePath
+                            if (!resolvedWorktree) {
+                                resolvedWorktree = snapshot.worktreePath
+                            }
                         }
                     }
                     setIsSpec(resolvedState === 'spec')
-                    logger.info('[SelectionContext] Immediate switch resolved state', { payload: newSelection.payload, resolvedState, isSpec: resolvedState === 'spec' })
-                    // Persist the resolved state back into selection we apply below
                     newSelection = { ...newSelection, sessionState: resolvedState, worktreePath: resolvedWorktree }
                 } else {
-                    // Orchestrator is never a spec
                     setIsSpec(false)
                 }
 
-                if (shouldSwitchSessions && !previousSuspended) {
-                    try {
-                        await suspendTerminalsForSelection(selection)
-                        previousSuspended = true
-                    } catch (error) {
-                        logger.warn('[SelectionContext] Failed to suspend previous session terminals', error)
-                    }
-                }
+                await suspendIfNeeded()
 
-                // Update selection and terminals immediately
                 if (callToken === selectionTokenRef.current) {
                     setSelectionState(newSelection)
                     setTerminals(newTerminalIds)
                 }
-                
-                // Notify SessionsContext about the selection change to preserve position during sorting
+
                 setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
-                
-                // Save to database for any non-restoration change (intentional or local user action)
-                if (!isAuto && projectPath) {
-                    try {
-                        await invoke(TauriCommands.SetProjectSelection, {
-                            kind: newSelection.kind,
-                            payload: newSelection.payload ?? null
-                        })
-            } catch (_e) {
-                logger.error('[SelectionContext] Failed to persist selection to database:', _e)
-            }
-                }
-                
-                // Ensure ready state
                 if (!isReady) {
                     setIsReady(true)
                 }
-
-                if (shouldSwitchSessions && !resumedNew) {
-                    try {
-                        await resumeTerminalsForSelection(newSelection)
-                        resumedNew = true
-                    } catch (error) {
-                        logger.warn('[SelectionContext] Failed to resume new session terminals', error)
-                    }
+                if (!isAuto) {
+                    rememberSelection(newSelection)
                 }
 
-                // Finalize immediate switch
-                finalizeSelectionChange(newSelection)
+                await resumeIfNeeded()
                 return
             }
-            
-            // For new terminals, create them first
+
             const terminalIds = await ensureTerminals(newSelection)
-            // If another selection superseded this call, abandon applying its result
             if (callToken !== selectionTokenRef.current) {
                 const lastWasAuto = lastTokenWasAutoRef.current ?? false
-                // Allow user selection to continue even if an auto selection bumped the token
-                if (!( !isAuto && lastWasAuto )) {
+                if (!(!isAuto && lastWasAuto)) {
                     return
                 }
             }
-            // If this is an auto-restore and a newer user selection occurred while creating, skip applying
+
             const lastUserToken = lastUserTokenRef.current ?? 0
             if (isAuto && (lastUserToken > callToken || lastUserSelectionEpochRef.current === projectEpochRef.current)) {
                 return
             }
 
-            if (shouldSwitchSessions && !previousSuspended) {
-                try {
-                    await suspendTerminalsForSelection(selection)
-                    previousSuspended = true
-                } catch (error) {
-                    logger.warn('[SelectionContext] Failed to suspend previous session terminals', error)
-                }
-            }
+            await suspendIfNeeded()
 
-            // Now atomically update both selection and terminals (may overwrite optimistic values)
             setSelectionState(newSelection)
             setTerminals(terminalIds)
-            
-            // Notify SessionsContext about the selection change to preserve position during sorting
             setCurrentSelection(newSelection.kind === 'session' ? newSelection.payload || null : null)
-            
-            // Save to database for any non-restoration change
-            if (!isAuto && projectPath) {
-                try {
-                    await invoke(TauriCommands.SetProjectSelection, {
-                        kind: newSelection.kind,
-                        payload: newSelection.payload ?? null
-                    })
-                } catch (_e) {
-                    logger.error('[SelectionContext] Failed to persist selection to database:', _e)
-                }
+
+            if (!isAuto) {
+                rememberSelection(newSelection)
             }
 
-            // Mark as ready
             setIsReady(true)
 
-            if (shouldSwitchSessions && !resumedNew) {
-                try {
-                    await resumeTerminalsForSelection(newSelection)
-                    resumedNew = true
-                } catch (error) {
-                    logger.warn('[SelectionContext] Failed to resume new session terminals', error)
-                }
-            }
-
-        } catch (_e) {
-            logger.error('[SelectionContext] Failed to set selection:', _e)
-            // Stay on current selection if we fail
+            await resumeIfNeeded()
+        } catch (error) {
+            logger.error('[SelectionContext] Failed to set selection:', error)
             setIsReady(true)
-            // Attempt to roll back suspension if new session wasn't resumed
             if (previousSuspended && !resumedNew) {
                 try {
                     await resumeTerminalsForSelection(selection)
-                } catch (error) {
-                    logger.warn('[SelectionContext] Failed to re-resume previous session after error', error)
+                } catch (resumeError) {
+                    logger.warn('[SelectionContext] Failed to re-resume previous session after error', resumeError)
                 }
             }
         } finally {
-            // Always finalize selection changes and clear transient flags
             finalizeSelectionChange(newSelection)
             if (isIntentional) {
                 suppressAutoRestoreRef.current = false
             }
-            if (!isAuto) userSelectionInFlightRef.current = false
+            if (!isAuto) {
+                userSelectionInFlightRef.current = false
+            }
         }
-    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, projectPath, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot])
+    }, [ensureTerminals, getTerminalIds, clearTerminalTracking, isReady, selection, terminals, isSpec, setCurrentSelection, finalizeSelectionChange, suspendTerminalsForSelection, resumeTerminalsForSelection, getCachedSessionSnapshot, ensureSessionSnapshot, rememberSelection])
 
     // Start a lightweight backend watcher for the currently selected running session
     useEffect(() => {

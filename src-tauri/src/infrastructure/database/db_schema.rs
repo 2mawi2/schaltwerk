@@ -102,8 +102,6 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
         "CREATE TABLE IF NOT EXISTS project_config (
             repository_path TEXT PRIMARY KEY,
             setup_script TEXT,
-            last_selection_kind TEXT,
-            last_selection_payload TEXT,
             branch_prefix TEXT DEFAULT 'schaltwerk',
             github_repository TEXT,
             github_default_branch TEXT,
@@ -239,11 +237,11 @@ fn apply_sessions_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> 
 fn apply_project_config_migrations(conn: &rusqlite::Connection) -> anyhow::Result<()> {
     // These migrations are idempotent - they silently fail if column already exists
     let _ = conn.execute(
-        "ALTER TABLE project_config ADD COLUMN last_selection_kind TEXT",
+        "ALTER TABLE project_config DROP COLUMN last_selection_kind",
         [],
     );
     let _ = conn.execute(
-        "ALTER TABLE project_config ADD COLUMN last_selection_payload TEXT",
+        "ALTER TABLE project_config DROP COLUMN last_selection_payload",
         [],
     );
     let _ = conn.execute(

@@ -1538,23 +1538,57 @@ impl SessionManager {
             let session_start = std::time::Instant::now();
 
             let is_spec_session = session.session_state == SessionState::Spec;
-            if !is_spec_session {
-                log::debug!(
-                    "Processing session '{}': status={:?}, session_state={:?}",
-                    session.name,
-                    session.status,
-                    session.session_state
-                );
+            if is_spec_session {
+                // Specs do not require git stats or worktree checks; return lightweight metadata
+                let info = SessionInfo {
+                    session_id: session.name.clone(),
+                    display_name: session.display_name.clone(),
+                    version_group_id: session.version_group_id.clone(),
+                    version_number: session.version_number,
+                    branch: session.branch.clone(),
+                    worktree_path: session.worktree_path.to_string_lossy().to_string(),
+                    base_branch: session.parent_branch.clone(),
+                    status: SessionStatusType::Spec,
+                    created_at: Some(session.created_at),
+                    last_modified: session.last_activity,
+                    has_uncommitted_changes: Some(false),
+                    has_conflicts: Some(false),
+                    is_current: false,
+                    session_type: SessionType::Worktree,
+                    container_status: None,
+                    original_agent_type: session
+                        .original_agent_type
+                        .clone()
+                        .or_else(|| self.db_manager.get_agent_type().ok()),
+                    current_task: session.initial_prompt.clone(),
+                    diff_stats: None,
+                    ready_to_merge: session.ready_to_merge,
+                    spec_content: session.spec_content.clone(),
+                    session_state: session.session_state.clone(),
+                };
+
+                enriched.push(EnrichedSession {
+                    info,
+                    status: None,
+                    terminals: Vec::new(),
+                });
+
+                continue;
             }
 
-            // Check if worktree exists for non-spec sessions
+            log::debug!(
+                "Processing session '{}': status={:?}, session_state={:?}",
+                session.name,
+                session.status,
+                session.session_state
+            );
+
+            // Check if worktree exists for running/reviewed sessions
             let worktree_check_start = std::time::Instant::now();
             let worktree_exists = session.worktree_path.exists();
             worktree_check_time += worktree_check_start.elapsed();
 
-            // For spec sessions, we don't need worktrees to exist
-            // For running sessions, skip if worktree is missing (unless in test mode)
-            if !is_spec_session && !worktree_exists && !cfg!(test) {
+            if !worktree_exists && !cfg!(test) {
                 log::warn!(
                     "Skipping session '{}' - worktree missing: {}",
                     session.name,
@@ -1564,18 +1598,14 @@ impl SessionManager {
             }
 
             let git_stats_start = std::time::Instant::now();
-            let git_stats = if is_spec_session {
-                None
-            } else {
-                let cached_stats = stats_by_id.get(&session.id);
-                get_or_compute_git_stats(
-                    &session.id,
-                    &session.worktree_path,
-                    &session.parent_branch,
-                    cached_stats,
-                    |stats| self.db_manager.save_git_stats(stats),
-                )
-            };
+            let cached_stats = stats_by_id.get(&session.id);
+            let git_stats = get_or_compute_git_stats(
+                &session.id,
+                &session.worktree_path,
+                &session.parent_branch,
+                cached_stats,
+                |stats| self.db_manager.save_git_stats(stats),
+            );
             let git_stats_elapsed = git_stats_start.elapsed();
             git_stats_total_time += git_stats_elapsed;
 
@@ -1586,28 +1616,20 @@ impl SessionManager {
                     git_stats_elapsed.as_millis()
                 );
             }
-            let has_uncommitted = if worktree_exists {
-                git_stats
-                    .as_ref()
-                    .map(|s| s.has_uncommitted)
-                    .unwrap_or(false)
-            } else {
-                false
-            };
+            let has_uncommitted = git_stats
+                .as_ref()
+                .map(|s| s.has_uncommitted)
+                .unwrap_or(false);
 
-            let has_conflicts = if worktree_exists {
-                match git::has_conflicts(&session.worktree_path) {
-                    Ok(value) => value,
-                    Err(err) => {
-                        log::warn!(
-                            "Conflict detection failed for session '{}': {err}",
-                            session.name
-                        );
-                        false
-                    }
+            let has_conflicts = match git::has_conflicts(&session.worktree_path) {
+                Ok(value) => value,
+                Err(err) => {
+                    log::warn!(
+                        "Conflict detection failed for session '{}': {err}",
+                        session.name
+                    );
+                    false
                 }
-            } else {
-                false
             };
 
             let diff_stats = git_stats.as_ref().map(|stats| DiffStats {
@@ -1617,17 +1639,11 @@ impl SessionManager {
                 insertions: stats.lines_added as usize,
             });
 
-            let status_type = if !worktree_exists && !is_spec_session {
-                SessionStatusType::Missing
+            let status_type = if has_uncommitted {
+                SessionStatusType::Dirty
             } else {
                 match session.status {
-                    SessionStatus::Active => {
-                        if has_uncommitted {
-                            SessionStatusType::Dirty
-                        } else {
-                            SessionStatusType::Active
-                        }
-                    }
+                    SessionStatus::Active => SessionStatusType::Active,
                     SessionStatus::Cancelled => SessionStatusType::Archived,
                     SessionStatus::Spec => SessionStatusType::Spec,
                 }

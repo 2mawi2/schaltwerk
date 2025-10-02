@@ -811,8 +811,6 @@ fn main() {
             set_keyboard_shortcuts,
             get_project_settings,
             set_project_settings,
-            get_project_selection,
-            set_project_selection,
             get_project_sessions_settings,
             set_project_sessions_settings,
             get_project_environment_variables,

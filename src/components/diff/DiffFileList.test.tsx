@@ -32,8 +32,6 @@ vi.mock('@tauri-apps/api/core', () => ({
     if (cmd === TauriCommands.SchaltwerkCoreListEnrichedSessions) return []
     if (cmd === TauriCommands.GetProjectSessionsSettings) return { filter_mode: 'all', sort_mode: 'name' }
     if (cmd === TauriCommands.SetProjectSessionsSettings) return undefined
-    if (cmd === TauriCommands.GetProjectSelection) return null
-    if (cmd === TauriCommands.SetProjectSelection) return undefined
     if (cmd === TauriCommands.SchaltwerkCoreGetFontSizes) return [13, 14]
     return undefined
   }),
