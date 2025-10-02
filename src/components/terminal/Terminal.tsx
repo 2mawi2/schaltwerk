@@ -230,10 +230,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         if (!terminal.current) return;
         try {
             const buf = terminal.current.buffer.active;
-            const linesToScroll = buf.baseY - buf.viewportY;
-            if (linesToScroll !== 0) {
-                terminal.current.scrollLines(linesToScroll);
-            }
+            terminal.current.scrollToLine(buf.baseY);
         } catch (error) {
             logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom:`, error);
         }
@@ -850,6 +847,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
             cursorStyle: 'block',
             cursorInactiveStyle: 'outline',
             scrollback: scrollbackLines,
+            smoothScrollDuration: 0,
             // Important: Keep TUI control sequences intact (e.g., emitted by agent CLIs)
             // Converting EOLs breaks carriage-return based updates and causes visual jumping
             convertEol: false,
@@ -1250,20 +1248,8 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                             return false;
                         }
 
-                        const buffer = terminal.current.buffer.active as unknown as ActiveBufferLike & { viewportY?: number; baseY?: number };
-                        const wasAtBottom = (buffer?.viewportY != null && buffer?.baseY != null)
-                            ? buffer.viewportY === buffer.baseY
-                            : false;
-
                         try {
                             terminal.current.write(chunk, () => {
-                                try {
-                                    if (shouldAutoScroll(wasAtBottom)) {
-                                        scrollToBottomInstant();
-                                    }
-                                } catch {
-                                    // ignore scroll failures during hydration drain
-                                }
                                 acknowledgeChunk(chunk);
                                 queueMicrotask(step);
                             });
@@ -2209,7 +2195,7 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
         >
              <div
                  ref={termRef}
-                 className="h-full w-full overflow-hidden"
+                 className={`h-full w-full overflow-hidden transition-opacity duration-150 ${!hydrated ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
              />
               {isAgentTopTerminal && agentStopped && hydrated && terminalEverStartedRef.current && (
                  <div className="absolute inset-0 flex items-center justify-center z-30">
