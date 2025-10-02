@@ -1,14 +1,27 @@
 use chrono::Local;
 use env_logger::Builder;
 use log::LevelFilter;
+use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufWriter, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::time::{Duration, SystemTime};
 
 static LOG_PATH: Mutex<Option<PathBuf>> = Mutex::new(None);
 static LOG_FILE_WRITER: Mutex<Option<BufWriter<File>>> = Mutex::new(None);
 static LOGGER_INITIALIZED: Mutex<bool> = Mutex::new(false);
+
+const DEFAULT_RETENTION_HOURS: u64 = 72;
+const SECONDS_PER_HOUR: u64 = 3_600;
+
+#[derive(Debug)]
+struct LoggingConfig {
+    file_logging_enabled: bool,
+    retention: Duration,
+    log_dir: PathBuf,
+    deferred_warnings: Vec<String>,
+}
 
 /// Get the application's log directory
 pub fn get_log_dir() -> PathBuf {
@@ -55,23 +68,46 @@ pub fn init_logging() {
         }
         *initialized = true;
     }
-    let log_path = get_log_path();
+    let mut config = resolve_logging_config();
+    let mut log_path: Option<PathBuf> = None;
 
-    // Ensure parent directory exists before opening
-    if let Some(parent) = log_path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
-    // Create buffered writer for the log file
-    match OpenOptions::new().create(true).append(true).open(&log_path) {
-        Ok(file) => {
-            let writer = BufWriter::new(file);
-            if let Ok(mut guard) = LOG_FILE_WRITER.lock() {
-                *guard = Some(writer);
+    if config.file_logging_enabled {
+        if let Err(e) = fs::create_dir_all(&config.log_dir) {
+            config.deferred_warnings.push(format!(
+                "Failed to create log directory {}: {e}",
+                config.log_dir.display()
+            ));
+        } else {
+            let cleanup_warnings = cleanup_old_logs(&config.log_dir, config.retention);
+            config.deferred_warnings.extend(cleanup_warnings);
+
+            let candidate = config.log_dir.join(format!(
+                "schaltwerk-{}.log",
+                Local::now().format("%Y%m%d-%H%M%S")
+            ));
+
+            match OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&candidate)
+            {
+                Ok(file) => {
+                    let writer = BufWriter::new(file);
+                    if let Ok(mut guard) = LOG_FILE_WRITER.lock() {
+                        *guard = Some(writer);
+                    }
+                    if let Ok(mut path_guard) = LOG_PATH.lock() {
+                        *path_guard = Some(candidate.clone());
+                    }
+                    log_path = Some(candidate);
+                }
+                Err(e) => {
+                    config.deferred_warnings.push(format!(
+                        "Failed to open log file {}: {e}. Continuing with console logging only.",
+                        candidate.display()
+                    ));
+                }
             }
-        }
-        Err(e) => {
-            eprintln!("Failed to open log file: {e}");
-            eprintln!("Logging will continue to console only");
         }
     }
 
@@ -82,9 +118,9 @@ pub fn init_logging() {
     }
 
     // Set log level from env or default to DEBUG for our crates, INFO for others
-    if let Ok(rust_log) = std::env::var("RUST_LOG") {
+    if let Ok(rust_log) = env::var("RUST_LOG") {
         builder.parse_filters(&rust_log);
-    } else {
+    } else if config.file_logging_enabled {
         // Our crate (schaltwerk) - set to Debug to see all our logs
         builder.filter_module("schaltwerk", LevelFilter::Debug);
 
@@ -93,6 +129,8 @@ pub fn init_logging() {
         builder.filter_module("tauri", LevelFilter::Info);
 
         // Everything else defaults to Warn
+        builder.filter_level(LevelFilter::Warn);
+    } else {
         builder.filter_level(LevelFilter::Warn);
     }
 
@@ -148,24 +186,125 @@ pub fn init_logging() {
 
     log::info!("========================================");
     log::info!("Schaltwerk v{} starting", env!("CARGO_PKG_VERSION"));
-    log::info!("Log file: {}", log_path.display());
+    if let Some(path) = log_path.as_ref() {
+        log::info!("Log file: {}", path.display());
+    } else {
+        log::info!("File logging disabled. Console logging set to WARN by default.");
+    }
     log::info!("Process ID: {}", std::process::id());
     log::info!("========================================");
 
     // Print to console so user knows where logs are (skip in tests to avoid noisy outputs)
     if !cfg!(test) {
-        eprintln!("📝 Logs are being written to: {}", log_path.display());
+        if let Some(path) = log_path {
+            eprintln!("📝 Logs are being written to: {}", path.display());
+        }
         // Force immediate flush
         use std::io::{self, Write as IoWrite};
         let _ = io::stderr().flush();
     }
+
+    for warning in config.deferred_warnings {
+        log::warn!("{warning}");
+    }
+}
+
+fn resolve_logging_config() -> LoggingConfig {
+    let mut deferred_warnings = Vec::new();
+
+    let log_dir = get_log_dir();
+
+    let retention = match env::var("SCHALTWERK_LOG_RETENTION_HOURS") {
+        Ok(value) => match value.parse::<u64>() {
+            Ok(hours) => Duration::from_secs(hours.saturating_mul(SECONDS_PER_HOUR)),
+            Err(_) => {
+                deferred_warnings.push(format!(
+                    "Invalid SCHALTWERK_LOG_RETENTION_HOURS value '{value}'. Using default {DEFAULT_RETENTION_HOURS} hours."
+                ));
+                Duration::from_secs(DEFAULT_RETENTION_HOURS * SECONDS_PER_HOUR)
+            }
+        },
+        Err(_) => Duration::from_secs(DEFAULT_RETENTION_HOURS * SECONDS_PER_HOUR),
+    };
+
+    let mut file_logging_enabled = cfg!(debug_assertions);
+    if let Ok(value) = env::var("SCHALTWERK_ENABLE_LOGS") {
+        match parse_bool(&value) {
+            Some(flag) => file_logging_enabled = flag,
+            None => deferred_warnings.push(format!(
+                "Invalid SCHALTWERK_ENABLE_LOGS value '{value}'. Expected a boolean. Falling back to default ({file_logging_enabled})."
+            )),
+        }
+    }
+
+    LoggingConfig {
+        file_logging_enabled,
+        retention,
+        log_dir,
+        deferred_warnings,
+    }
+}
+
+fn parse_bool(value: &str) -> Option<bool> {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "1" | "true" | "yes" | "on" => Some(true),
+        "0" | "false" | "no" | "off" => Some(false),
+        _ => None,
+    }
+}
+
+fn cleanup_old_logs(log_dir: &Path, retention: Duration) -> Vec<String> {
+    if retention.is_zero() {
+        return Vec::new();
+    }
+
+    let mut warnings = Vec::new();
+    let cutoff = match SystemTime::now().checked_sub(retention) {
+        Some(cutoff) => cutoff,
+        None => return warnings,
+    };
+
+    let entries = match fs::read_dir(log_dir) {
+        Ok(entries) => entries,
+        Err(_) => return warnings,
+    };
+
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_file() {
+            continue;
+        }
+        if path.extension().and_then(|ext| ext.to_str()).unwrap_or("") != "log" {
+            continue;
+        }
+
+        match entry.metadata().and_then(|meta| meta.modified()) {
+            Ok(modified) if modified < cutoff => {
+                if let Err(e) = fs::remove_file(&path) {
+                    warnings.push(format!(
+                        "Failed to delete old log file {}: {e}",
+                        path.display()
+                    ));
+                }
+            }
+            Ok(_) => {}
+            Err(_) => warnings.push(format!(
+                "Unable to determine age for log file {}",
+                path.display()
+            )),
+        }
+    }
+
+    warnings
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use filetime::{set_file_mtime, FileTime};
     use serial_test::serial;
     use std::env;
+    use std::time::{Duration, SystemTime};
     use tempfile::TempDir;
 
     #[test]
@@ -203,6 +342,57 @@ mod tests {
 
         if let Some(p) = prev {
             env::set_var("HOME", p);
+        } else {
+            env::remove_var("HOME");
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_cleanup_removes_only_logs_older_than_retention() {
+        let tmp = TempDir::new().unwrap();
+        let log_dir = tmp.path().join("logs");
+        std::fs::create_dir_all(&log_dir).unwrap();
+
+        let old_log = log_dir.join("schaltwerk-old.log");
+        let recent_log = log_dir.join("schaltwerk-recent.log");
+        std::fs::write(&old_log, "old").unwrap();
+        std::fs::write(&recent_log, "recent").unwrap();
+
+        let two_hours_ago = SystemTime::now() - Duration::from_secs(2 * 60 * 60);
+        let thirty_minutes_ago = SystemTime::now() - Duration::from_secs(30 * 60);
+        set_file_mtime(&old_log, FileTime::from_system_time(two_hours_ago)).unwrap();
+        set_file_mtime(&recent_log, FileTime::from_system_time(thirty_minutes_ago)).unwrap();
+
+        let warnings = cleanup_old_logs(&log_dir, Duration::from_secs(60 * 60));
+        assert!(warnings.is_empty());
+        assert!(!old_log.exists());
+        assert!(recent_log.exists());
+    }
+
+    #[test]
+    #[serial]
+    fn test_resolve_logging_config_respects_env_toggle() {
+        let tmp = TempDir::new().unwrap();
+        let prev_home = env::var("HOME").ok();
+        let prev_enable = env::var("SCHALTWERK_ENABLE_LOGS").ok();
+        env::set_var("HOME", tmp.path());
+        env::set_var("SCHALTWERK_ENABLE_LOGS", "0");
+
+        let config = resolve_logging_config();
+        assert!(!config.file_logging_enabled);
+
+        env::set_var("SCHALTWERK_ENABLE_LOGS", "1");
+        let enabled_config = resolve_logging_config();
+        assert!(enabled_config.file_logging_enabled);
+
+        if let Some(prev) = prev_enable {
+            env::set_var("SCHALTWERK_ENABLE_LOGS", prev);
+        } else {
+            env::remove_var("SCHALTWERK_ENABLE_LOGS");
+        }
+        if let Some(prev) = prev_home {
+            env::set_var("HOME", prev);
         } else {
             env::remove_var("HOME");
         }

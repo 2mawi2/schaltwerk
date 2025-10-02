@@ -4,7 +4,7 @@ use parking_lot::{Condvar, Mutex};
 use portable_pty::{Child, CommandBuilder, MasterPty, NativePtySystem, PtySize, PtySystem};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::io::{Read, Seek, SeekFrom, Write};
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -14,7 +14,6 @@ use tokio::time::{sleep, Duration};
 const CHUNK_SIZE: usize = 64 * 1024;
 const HIGH_WATER: usize = 512 * 1024;
 const LOW_WATER: usize = 256 * 1024;
-const INDEX_SPACING: u64 = 1024 * 1024;
 const RESIZE_DEBOUNCE_MS: u64 = 50;
 
 pub trait EventSink: Send + Sync {
@@ -84,114 +83,37 @@ pub struct TerminalSnapshot {
     pub base64: String,
 }
 
-#[derive(Serialize)]
-struct TranscriptIndexEntry {
-    seq: u64,
-    offset: u64,
-}
-
-fn sanitize_id(id: &str) -> String {
-    let mut sanitized = String::with_capacity(id.len());
-    for ch in id.chars() {
-        if ch.is_ascii_alphanumeric() || ch == '-' || ch == '_' {
-            sanitized.push(ch);
-        } else {
-            sanitized.push('_');
-        }
-    }
-    sanitized
-}
+const MAX_TRANSCRIPT_BYTES: usize = 4 * 1024 * 1024;
 
 struct TranscriptWriter {
-    data_path: PathBuf,
-    data: Mutex<std::fs::File>,
-    index: Mutex<std::fs::File>,
-    total_bytes: AtomicU64,
-    next_threshold: AtomicU64,
+    buffer: Mutex<Vec<u8>>,
 }
 
 impl TranscriptWriter {
-    fn new(root: &Path, term_id: &str) -> Result<Self> {
-        std::fs::create_dir_all(root).map_err(PtyHostError::IoError)?;
-        let safe_id = sanitize_id(term_id);
-
-        let data_path = root.join(format!("term_{safe_id}.bin"));
-        let data_file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&data_path)
-            .map_err(PtyHostError::IoError)?;
-
-        let index_file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(root.join(format!("term_{safe_id}.idx")))
-            .map_err(PtyHostError::IoError)?;
-
-        let current_len = data_file.metadata().map_err(PtyHostError::IoError)?.len();
-        let mut next_threshold = ((current_len / INDEX_SPACING) + 1) * INDEX_SPACING;
-        if next_threshold == 0 {
-            next_threshold = INDEX_SPACING;
-        }
-
+    fn new(_root: &Path, _term_id: &str) -> Result<Self> {
         Ok(Self {
-            data_path,
-            data: Mutex::new(data_file),
-            index: Mutex::new(index_file),
-            total_bytes: AtomicU64::new(current_len),
-            next_threshold: AtomicU64::new(next_threshold),
+            buffer: Mutex::new(Vec::new()),
         })
     }
 
-    fn append(&self, seq: u64, bytes: &[u8]) -> Result<()> {
-        {
-            let mut file = self.data.lock();
-            file.write_all(bytes).map_err(PtyHostError::IoError)?;
+    fn append(&self, _seq: u64, bytes: &[u8]) -> Result<()> {
+        let mut buffer = self.buffer.lock();
+        buffer.extend_from_slice(bytes);
+        if buffer.len() > MAX_TRANSCRIPT_BYTES {
+            let excess = buffer.len() - MAX_TRANSCRIPT_BYTES;
+            buffer.drain(..excess);
         }
-
-        let start_offset = self
-            .total_bytes
-            .fetch_add(bytes.len() as u64, Ordering::SeqCst);
-        let end_offset = start_offset + bytes.len() as u64;
-
-        let mut threshold = self.next_threshold.load(Ordering::SeqCst);
-        if end_offset >= threshold {
-            while threshold <= end_offset {
-                if threshold > start_offset {
-                    self.write_index(seq, threshold)?;
-                }
-                threshold += INDEX_SPACING;
-            }
-            self.next_threshold.store(threshold, Ordering::SeqCst);
-        }
-
-        Ok(())
-    }
-
-    fn write_index(&self, seq: u64, offset: u64) -> Result<()> {
-        let entry = TranscriptIndexEntry { seq, offset };
-        let json = serde_json::to_vec(&entry)
-            .map_err(|e| PtyHostError::Internal(format!("failed to encode index: {e}")))?;
-        let mut file = self.index.lock();
-        file.write_all(&json).map_err(PtyHostError::IoError)?;
-        file.write_all(b"\n").map_err(PtyHostError::IoError)?;
         Ok(())
     }
 
     fn load_snapshot(&self, limit_bytes: u64) -> Result<Vec<u8>> {
-        let file = std::fs::OpenOptions::new()
-            .read(true)
-            .open(&self.data_path)
-            .map_err(PtyHostError::IoError)?;
-        let len = file.metadata().map_err(PtyHostError::IoError)?.len();
-        let start = len.saturating_sub(limit_bytes);
-        let mut reader = file;
-        reader
-            .seek(SeekFrom::Start(start))
-            .map_err(PtyHostError::IoError)?;
-        let mut buf = vec![0u8; (len - start) as usize];
-        reader.read_exact(&mut buf).map_err(PtyHostError::IoError)?;
-        Ok(buf)
+        let buffer = self.buffer.lock();
+        if buffer.is_empty() {
+            return Ok(Vec::new());
+        }
+        let limit = limit_bytes as usize;
+        let start = buffer.len().saturating_sub(limit);
+        Ok(buffer[start..].to_vec())
     }
 }
 
@@ -593,6 +515,40 @@ mod tests {
             .collect();
         let text = String::from_utf8_lossy(&combined);
         assert!(text.contains("hello world"));
+
+        Ok(())
+    }
+
+    #[test]
+    fn transcript_writer_limits_history_in_memory() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let writer = TranscriptWriter::new(temp_dir.path(), "limit-test")?;
+
+        let half = MAX_TRANSCRIPT_BYTES / 2;
+        let first = vec![b'a'; half];
+        let second = vec![b'b'; MAX_TRANSCRIPT_BYTES];
+
+        writer.append(1, &first)?;
+        writer.append(2, &second)?;
+
+        let snapshot = writer.load_snapshot(MAX_TRANSCRIPT_BYTES as u64)?;
+        assert_eq!(snapshot.len(), MAX_TRANSCRIPT_BYTES);
+        assert!(snapshot.iter().all(|byte| *byte == b'b'));
+
+        Ok(())
+    }
+
+    #[test]
+    fn transcript_writer_avoids_creating_files() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let writer = TranscriptWriter::new(temp_dir.path(), "fs-test")?;
+        writer.append(1, b"hello world")?;
+
+        let entries: Vec<_> = std::fs::read_dir(temp_dir.path())?.collect();
+        assert!(entries.is_empty());
+
+        let snapshot = writer.load_snapshot(1024)?;
+        assert_eq!(snapshot, b"hello world".to_vec());
 
         Ok(())
     }

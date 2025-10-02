@@ -1882,6 +1882,14 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
                     return false;
                 }
 
+                let wasAtBottom = false;
+                try {
+                    const buffer = terminal.current.buffer.active as ActiveBufferLike & { viewportY?: number; baseY?: number };
+                    wasAtBottom = buffer.viewportY === buffer.baseY;
+                } catch (error) {
+                    logger.debug(`[Terminal ${terminalId}] Unable to read buffer before flush`, error);
+                }
+
                 try {
                     terminal.current.write(chunk);
                 } catch (error) {
@@ -1891,10 +1899,12 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
 
                 requestAnimationFrame(() => {
                     try {
-                        const buffer = terminal.current!.buffer.active;
-                        const atBottom = buffer.viewportY === buffer.baseY;
-                        if (shouldAutoScroll(atBottom)) scrollToBottomInstant();
-                        if (getQueueStats().queueLength > 0) flushQueuedWritesLight();
+                        if (shouldAutoScroll(wasAtBottom)) {
+                            scrollToBottomInstant();
+                        }
+                        if (getQueueStats().queueLength > 0) {
+                            flushQueuedWritesLight();
+                        }
                     } catch (e) {
                         logger.warn(`[Terminal ${terminalId}] Failed to scroll after flush:`, e);
                     }

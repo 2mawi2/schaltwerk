@@ -157,6 +157,13 @@ npm run tauri build
 npm run test
 ```
 
+### Logging
+
+- Development builds keep three days of log files under `~/Library/Application Support/schaltwerk/logs/` (cleaned on startup).
+- Production builds skip file logging unless you opt in with `SCHALTWERK_ENABLE_LOGS=1`.
+- Adjust the retention window by setting `SCHALTWERK_LOG_RETENTION_HOURS` (default `72`).
+
+
 ## Documentation
 
 - [Schaltwerk docs](./docs/index.md) – installation, core concepts, agent setup, usage workflow, MCP integration, shortcuts

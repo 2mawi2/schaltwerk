@@ -1492,7 +1492,10 @@ mod tests {
     #[test]
     fn retains_embedded_top_segment_in_session_name() {
         let id = "session-feature-top-top";
-        assert_eq!(session_id_from_terminal_id(id), Some("feature-top".to_string()));
+        assert_eq!(
+            session_id_from_terminal_id(id),
+            Some("feature-top".to_string())
+        );
     }
 
     #[test]

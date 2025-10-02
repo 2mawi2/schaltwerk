@@ -32,4 +32,5 @@ Transitions are explicit: start a spec to enter Running, mark as reviewed when t
 - Schaltwerk spawns PTY terminals using the session’s worktree as the working directory.
 - The top terminal is reserved for the agent process, the bottom terminal is yours.
 - Terminals persist until you close the session, making context switches instant.
+- Terminal history stays in-memory (about 4 MB per terminal) so high-volume sessions may trim the oldest output; nothing is written to disk.
 - The bottom terminal includes a **Run** button (`⌘E`) when a project run script is configured so you can launch dev servers or tests without leaving the app.

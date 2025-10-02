@@ -29,7 +29,7 @@ type UseTerminalWriteQueueStats = {
 
 const defaultOverflowNotice = (droppedBytes: number) => {
   const droppedKB = Math.max(1, Math.round(droppedBytes / 1024))
-  return `\r\n[schaltwerk] high-volume output; ${droppedKB}KB skipped in UI to stay responsive. Full content preserved in transcript for agent terminals.\r\n`
+  return `\r\n[schaltwerk] high-volume output; ${droppedKB}KB skipped in UI to stay responsive.\r\n`
 }
 
 const scheduleMicrotask = (cb: () => void) => {
