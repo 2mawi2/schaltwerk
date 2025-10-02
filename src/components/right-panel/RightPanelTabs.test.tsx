@@ -1,6 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import * as splitDragCoordinator from '../../utils/splitDragCoordinator'
+import type { ReactNode } from 'react'
+
+interface MockSplitProps {
+  onDragStart?: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
+  onDragEnd?: (sizes: number[], gutterIndex: number, event: MouseEvent) => void
+  [key: string]: unknown
+}
+
+const splitPropsStore: { current: MockSplitProps | null } = { current: null }
+
+vi.mock('react-split', () => {
+  const SplitMock = ({ children, ...props }: MockSplitProps & { children: ReactNode }) => {
+    splitPropsStore.current = props
+    return <div data-testid="split-mock">{children}</div>
+  }
+
+  return {
+    __esModule: true,
+    default: SplitMock
+  }
+})
+
 import { RightPanelTabs } from './RightPanelTabs'
 
 // Mock contexts used by RightPanelTabs
@@ -48,6 +71,7 @@ vi.mock('./CopyBundleBar', () => ({
 describe('RightPanelTabs split layout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    splitPropsStore.current = null
   })
 
   it('renders Spec above the Copy bar and Diff for running sessions', () => {
@@ -107,5 +131,32 @@ describe('RightPanelTabs split layout', () => {
     // Find Changes button again and ensure it remains active
     const changesBtn2 = screen.getByTitle('Changes')
     expect(changesBtn2.getAttribute('data-active')).toBe('true')
+  })
+
+  it('cleans up internal split drag if react-split misses onDragEnd', async () => {
+    const endSpy = vi.spyOn(splitDragCoordinator, 'endSplitDrag')
+
+    render(
+      <RightPanelTabs
+        onFileSelect={vi.fn()}
+        selectionOverride={{ kind: 'session', payload: 'test-session' }}
+        isSpecOverride={false}
+      />
+    )
+
+    await Promise.resolve()
+
+    const splitProps = splitPropsStore.current
+    expect(splitProps?.onDragStart).toBeTypeOf('function')
+
+    splitProps?.onDragStart?.([60, 40], 0, new MouseEvent('mousedown'))
+
+    const callsBeforePointer = endSpy.mock.calls.length
+    window.dispatchEvent(new Event('pointerup'))
+
+    expect(endSpy.mock.calls.length).toBeGreaterThan(callsBeforePointer)
+    const lastCall = endSpy.mock.calls.at(-1)
+    expect(lastCall?.[0]).toBe('right-panel-internal')
+    expect(document.body.classList.contains('is-split-dragging')).toBe(false)
   })
 })

@@ -4,6 +4,7 @@ import { createRef } from 'react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { beginSplitDrag, endSplitDrag, resetSplitDragForTests } from '../../utils/splitDragCoordinator'
 
 const CLAUDE_SHIFT_ENTER_SEQUENCE = '\\'
 
@@ -106,8 +107,14 @@ vi.mock('@xterm/xterm', () => {
       this.dataHandler = fn
     }
     scrollToBottom() {}
-    scrollToLine = vi.fn()
     scrollLines = vi.fn()
+    scrollToLine = vi.fn((line: number) => {
+      const delta = line - this.buffer.active.viewportY
+      if (delta !== 0) {
+        this.scrollLines(delta)
+        this.buffer.active.viewportY = line
+      }
+    })
     focus() {}
     dispose() {}
     resize(cols: number, rows: number) {
@@ -290,6 +297,7 @@ function setElementDimensions(el: HTMLElement | null, width: number, height: num
 
 beforeEach(() => {
   vi.useFakeTimers()
+  resetSplitDragForTests()
   ;(TauriCore as unknown as MockTauriCore).invoke.mockClear()
   ;(TauriCore as unknown as MockTauriCore).__clearInvokeHandlers()
   ;(TauriEvent as unknown as MockTauriEvent).__clear()
@@ -318,6 +326,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  resetSplitDragForTests()
   vi.runOnlyPendingTimers()
   vi.useRealTimers()
 })
@@ -884,7 +893,7 @@ describe('Terminal component', () => {
       ).length
       
       // Add split dragging class
-      document.body.classList.add('is-split-dragging')
+      beginSplitDrag('terminal-test')
       
       // Trigger resize during dragging
       ro.trigger()
@@ -899,7 +908,7 @@ describe('Terminal component', () => {
       expect(afterCalls - initialCalls).toBeLessThanOrEqual(1)
       
       // Clean up
-      document.body.classList.remove('is-split-dragging')
+      endSplitDrag('terminal-test')
     })
 
     // Test removed - split drag end resize confirmed working in production

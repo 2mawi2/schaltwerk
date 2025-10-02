@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { SimpleDiffPanel } from '../diff/SimpleDiffPanel'
 import { useSelection } from '../../contexts/SelectionContext'
 import { useProject } from '../../contexts/ProjectContext'
@@ -13,6 +13,7 @@ import Split from 'react-split'
 import { CopyBundleBar } from './CopyBundleBar'
 import { logger } from '../../utils/logger'
 import { emitUiEvent, UiEvent } from '../../common/uiEvents'
+import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
 
 interface RightPanelTabsProps {
   onFileSelect: (filePath: string) => void
@@ -36,12 +37,13 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
   const sessionState = currentSession?.info.session_state as ('spec' | 'running' | 'reviewed') | undefined
 
     // Drag handlers for internal split
-    const handleInternalSplitDragStart = useCallback(() => {
-      document.body.classList.add('is-split-dragging')
-    }, [])
+    const internalSplitActiveRef = useRef(false)
 
-    const handleInternalSplitDragEnd = useCallback(() => {
-      document.body.classList.remove('is-split-dragging')
+    const finalizeInternalSplitDrag = useCallback(() => {
+      if (!internalSplitActiveRef.current) return
+      internalSplitActiveRef.current = false
+
+      endSplitDrag('right-panel-internal')
 
       // Dispatch OpenCode resize event when internal right panel split drag ends
       try {
@@ -54,6 +56,34 @@ export function RightPanelTabs({ onFileSelect, selectionOverride, isSpecOverride
         logger.warn('[RightPanelTabs] Failed to dispatch OpenCode resize event on internal split drag end', e)
       }
     }, [selection])
+
+    const handleInternalSplitDragStart = useCallback(() => {
+      beginSplitDrag('right-panel-internal')
+      internalSplitActiveRef.current = true
+    }, [])
+
+    const handleInternalSplitDragEnd = useCallback(() => {
+      finalizeInternalSplitDrag()
+    }, [finalizeInternalSplitDrag])
+
+    useEffect(() => {
+      const handlePointerEnd = () => finalizeInternalSplitDrag()
+      window.addEventListener('pointerup', handlePointerEnd)
+      window.addEventListener('pointercancel', handlePointerEnd)
+      window.addEventListener('blur', handlePointerEnd)
+      return () => {
+        window.removeEventListener('pointerup', handlePointerEnd)
+        window.removeEventListener('pointercancel', handlePointerEnd)
+        window.removeEventListener('blur', handlePointerEnd)
+      }
+    }, [finalizeInternalSplitDrag])
+
+    useEffect(() => () => {
+      if (internalSplitActiveRef.current) {
+        internalSplitActiveRef.current = false
+        endSplitDrag('right-panel-internal')
+      }
+    }, [])
 
    // Determine active tab based on user selection or smart defaults
    // For specs, always show info tab regardless of user selection

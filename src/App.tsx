@@ -47,6 +47,7 @@ import { useKeyboardShortcutsConfig } from './contexts/KeyboardShortcutsContext'
 import { detectPlatformSafe, isShortcutForAction } from './keyboardShortcuts/helpers'
 import { useSelectionPreserver } from './hooks/useSelectionPreserver'
 import { createTerminalBackend } from './terminal/transport/backend'
+import { beginSplitDrag, endSplitDrag } from './utils/splitDragCoordinator'
 
 
 
@@ -117,17 +118,28 @@ function AppContent() {
   
   // Right panel drag state for performance optimization
   const [isDraggingRightSplit, setIsDraggingRightSplit] = useState(false)
+  const rightSplitDraggingRef = useRef(false)
 
   // Memoized drag handlers for performance (following TerminalGrid pattern)
   const handleRightSplitDragStart = useCallback(() => {
-    document.body.classList.add('is-split-dragging')
+    beginSplitDrag('app-right-panel')
+    rightSplitDraggingRef.current = true
     setIsDraggingRightSplit(true)
   }, [])
 
-  const handleRightSplitDragEnd = useCallback((nextSizes: number[]) => {
-    setRightSizes((): [number, number] => [nextSizes[0], nextSizes[1]])
+  const finalizeRightSplitDrag = useCallback((options?: { sizes?: number[] }) => {
+    if (!rightSplitDraggingRef.current) return
+    rightSplitDraggingRef.current = false
+
+    setIsDraggingRightSplit(false)
+
+    const resultSizes = options?.sizes
+    if (Array.isArray(resultSizes) && resultSizes.length === 2) {
+      setRightSizes((): [number, number] => [resultSizes[0], resultSizes[1]])
+    }
     setRightPanelCollapsedExplicit(false)
-    document.body.classList.remove('is-split-dragging')
+
+    endSplitDrag('app-right-panel')
     window.dispatchEvent(new Event('right-panel-split-drag-end'))
 
     // Dispatch OpenCode resize event when right panel drag ends
@@ -151,9 +163,32 @@ function AppContent() {
     } catch (e) {
       logger.warn('[App] Failed to dispatch generic terminal resize request on right panel drag end', e)
     }
+  }, [selection, setRightPanelCollapsedExplicit, setRightSizes])
 
-    setIsDraggingRightSplit(false)
-}, [setRightPanelCollapsedExplicit, setRightSizes, selection])
+  const handleRightSplitDragEnd = useCallback((nextSizes: number[]) => {
+    finalizeRightSplitDrag({ sizes: nextSizes })
+  }, [finalizeRightSplitDrag])
+
+  useEffect(() => {
+    const handlePointerEnd = () => finalizeRightSplitDrag()
+    window.addEventListener('pointerup', handlePointerEnd)
+    window.addEventListener('pointercancel', handlePointerEnd)
+    window.addEventListener('blur', handlePointerEnd)
+    return () => {
+      window.removeEventListener('pointerup', handlePointerEnd)
+      window.removeEventListener('pointercancel', handlePointerEnd)
+      window.removeEventListener('blur', handlePointerEnd)
+    }
+  }, [finalizeRightSplitDrag])
+
+  useEffect(() => {
+    return () => {
+      if (rightSplitDraggingRef.current) {
+        rightSplitDraggingRef.current = false
+        endSplitDrag('app-right-panel')
+      }
+    }
+  }, [])
   
   // Start with home screen, user must explicitly choose a project
   // Remove automatic project detection to ensure home screen is shown first

@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, act, waitFor, fireEvent } from '@testing-library/react'
 import { MockTauriInvokeArgs } from '../../types/testing'
 import { UiEvent, emitUiEvent } from '../../common/uiEvents'
+import { resetSplitDragForTests } from '../../utils/splitDragCoordinator'
 
 // Type definitions for proper typing
 interface MockSplitProps {
@@ -349,6 +350,7 @@ function ControlBridge() {
 
 beforeEach(() => {
   vi.useFakeTimers()
+  resetSplitDragForTests()
   mountCount.clear()
   unmountCount.clear()
   runTerminalRefs.clear()

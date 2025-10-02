@@ -229,8 +229,23 @@ export const Terminal = forwardRef<TerminalHandle, TerminalProps>(({ terminalId,
     const scrollToBottomInstant = useCallback(() => {
         if (!terminal.current) return;
         try {
-            const buf = terminal.current.buffer.active;
-            terminal.current.scrollToLine(buf.baseY);
+            const buf = terminal.current.buffer.active as { baseY: number; viewportY?: number };
+            const target = buf.baseY;
+            const scrollToLine = (terminal.current as { scrollToLine?: (line: number) => void }).scrollToLine;
+
+            if (typeof scrollToLine === 'function') {
+                scrollToLine.call(terminal.current, target);
+                return;
+            }
+
+            const fallbackScroll = terminal.current.scrollLines;
+            if (typeof fallbackScroll === 'function') {
+                const currentViewport = buf.viewportY ?? target;
+                const delta = target - currentViewport;
+                if (delta !== 0) {
+                    fallbackScroll.call(terminal.current, delta);
+                }
+            }
         } catch (error) {
             logger.debug(`[Terminal ${terminalId}] Failed to scroll to bottom:`, error);
         }

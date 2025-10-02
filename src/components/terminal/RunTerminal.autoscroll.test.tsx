@@ -24,8 +24,14 @@ vi.mock('@xterm/xterm', () => {
     attachCustomKeyEventHandler() { return true }
     onData() {}
     scrollToBottom = vi.fn()
-    scrollToLine = vi.fn()
     scrollLines = vi.fn()
+    scrollToLine = vi.fn((line: number) => {
+      const delta = line - this.buffer.active.viewportY
+      if (delta !== 0) {
+        this.scrollLines(delta)
+        this.buffer.active.viewportY = line
+      }
+    })
     focus() {}
     dispose() {}
     resize(c: number, r: number) { this.cols = c; this.rows = r }

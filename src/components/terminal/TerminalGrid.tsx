@@ -27,6 +27,7 @@ import { loadRunScriptConfiguration } from '../../utils/runScriptLoader'
 import { useModal } from '../../contexts/ModalContext'
 import { safeTerminalFocus } from '../../utils/safeFocus'
 import { UiEvent, emitUiEvent, listenUiEvent, TerminalResetDetail } from '../../common/uiEvents'
+import { beginSplitDrag, endSplitDrag } from '../../utils/splitDragCoordinator'
 
 type TerminalTabDescriptor = { index: number; terminalId: string; label: string }
 type TerminalTabsUiState = {
@@ -649,7 +650,7 @@ export function TerminalGrid() {
         const handlePointerEnd = () => {
             if (!isDraggingRef.current) return
             isDraggingRef.current = false
-            document.body.classList.remove('is-split-dragging')
+            endSplitDrag('terminal-grid')
             window.dispatchEvent(new Event('terminal-split-drag-end'))
             setIsDraggingSplit(false)
         }
@@ -818,17 +819,17 @@ export function TerminalGrid() {
                 minSize={[120, isBottomCollapsed ? 44 : 24]} 
                 gutterSize={8}
                 onDragStart={() => {
-                    document.body.classList.add('is-split-dragging')
+                    beginSplitDrag('terminal-grid')
                     setIsDraggingSplit(true)
                     isDraggingRef.current = true
                 }}
                 onDragEnd={(nextSizes: number[]) => {
                     setSizes(nextSizes)
                     setIsBottomCollapsed(false)
-                    document.body.classList.remove('is-split-dragging')
+                    isDraggingRef.current = false
+                    endSplitDrag('terminal-grid')
                     window.dispatchEvent(new Event('terminal-split-drag-end'))
                     setIsDraggingSplit(false)
-                    isDraggingRef.current = false
                 }}
             >
                 <div
