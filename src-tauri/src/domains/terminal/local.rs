@@ -64,7 +64,6 @@ impl Default for LocalPtyAdapter {
 
 enum ControlSequenceAction {
     Respond(&'static [u8]),
-    Drop,
     Pass,
 }
 
@@ -78,8 +77,6 @@ impl LocalPtyAdapter {
             b'n' => {
                 if params == b"5" && prefix.is_none() {
                     ControlSequenceAction::Respond(b"\x1b[0n")
-                } else if params == b"6" && (prefix.is_none() || prefix == Some(b'?')) {
-                    ControlSequenceAction::Respond(b"\x1b[1;1R")
                 } else {
                     ControlSequenceAction::Pass
                 }
@@ -90,7 +87,7 @@ impl LocalPtyAdapter {
                 None => ControlSequenceAction::Respond(b"\x1b[?1;2c"),
                 _ => ControlSequenceAction::Pass,
             },
-            b'R' => ControlSequenceAction::Drop,
+            b'R' => ControlSequenceAction::Pass,
             _ => ControlSequenceAction::Pass,
         }
     }
@@ -151,14 +148,6 @@ impl LocalPtyAdapter {
                         let _ = writer.flush();
                     }
                     debug!("Handled terminal query {:?} for {}", &data[i..=cursor], id);
-                    i = cursor + 1;
-                }
-                ControlSequenceAction::Drop => {
-                    debug!(
-                        "Dropped terminal handshake {:?} for {}",
-                        &data[i..=cursor],
-                        id
-                    );
                     i = cursor + 1;
                 }
                 ControlSequenceAction::Pass => {
@@ -1606,11 +1595,11 @@ mod tests {
         let (sanitized, remainder) =
             LocalPtyAdapter::sanitize_control_sequences(&id, b"pre\x1b[6npost", &mut writers);
 
-        assert_eq!(sanitized, b"prepost");
+        assert_eq!(sanitized, b"pre\x1b[6npost");
         assert!(remainder.is_none());
 
         let buf = capture.lock().unwrap().clone();
-        assert_eq!(buf, b"\x1b[1;1R".to_vec());
+        assert!(buf.is_empty());
     }
 
     #[test]
