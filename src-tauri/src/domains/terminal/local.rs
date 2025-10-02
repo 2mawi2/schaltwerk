@@ -705,16 +705,7 @@ impl TerminalBackend for LocalPtyAdapter {
         )
         .await;
 
-        let session_id = if id.starts_with("session-") && id.contains("-top") {
-            id.split('-')
-                .skip(1)
-                .take_while(|&s| s != "top")
-                .collect::<Vec<_>>()
-                .join("-")
-                .into()
-        } else {
-            None
-        };
+        let session_id = session_id_from_terminal_id(&id);
 
         let state = TerminalState {
             buffer: Vec::new(),
@@ -947,6 +938,24 @@ impl TerminalBackend for LocalPtyAdapter {
     async fn is_suspended(&self, id: &str) -> Result<bool, String> {
         Ok(self.suspended.read().await.contains(id))
     }
+}
+
+fn session_id_from_terminal_id(id: &str) -> Option<String> {
+    let mut rest = id.strip_prefix("session-")?;
+
+    if let Some((prefix, maybe_index)) = rest.rsplit_once('-') {
+        if maybe_index.chars().all(|c| c.is_ascii_digit()) {
+            rest = prefix;
+        }
+    }
+
+    for suffix in ["-top", "-bottom"] {
+        if let Some(stripped) = rest.strip_suffix(suffix) {
+            return Some(stripped.to_string());
+        }
+    }
+
+    None
 }
 
 impl LocalPtyAdapter {
@@ -1473,6 +1482,24 @@ mod tests {
     use tokio::time::sleep;
 
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    #[test]
+    fn extracts_session_id_for_basic_top_terminal() {
+        let id = "session-pr-68-top";
+        assert_eq!(session_id_from_terminal_id(id), Some("pr-68".to_string()));
+    }
+
+    #[test]
+    fn retains_embedded_top_segment_in_session_name() {
+        let id = "session-feature-top-top";
+        assert_eq!(session_id_from_terminal_id(id), Some("feature-top".to_string()));
+    }
+
+    #[test]
+    fn supports_bottom_terminals_with_indices() {
+        let id = "session-top-nav-bottom-0";
+        assert_eq!(session_id_from_terminal_id(id), Some("top-nav".to_string()));
+    }
 
     struct RecordingWriter {
         records: Arc<Mutex<Vec<String>>>,
