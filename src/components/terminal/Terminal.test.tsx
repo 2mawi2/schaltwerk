@@ -106,8 +106,8 @@ vi.mock('@xterm/xterm', () => {
       this.dataHandler = fn
     }
     scrollToBottom() {}
-    scrollLines = vi.fn()
     scrollToLine = vi.fn()
+    scrollLines = vi.fn()
     focus() {}
     dispose() {}
     resize(cols: number, rows: number) {
