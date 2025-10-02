@@ -40,6 +40,7 @@ memchr = "2.7"
 dirs = "6.0"
 which = "8.0"
 rusqlite = { version = "0.37", features = ["bundled", "chrono"] }
+r2d2 = "0.8"
 uuid = { version = "1.18", features = ["v4", "serde"] }
 walkdir = "2.5"
 git2 = { version = "0.20", features = ["vendored-libgit2", "vendored-openssl"] }

@@ -17,7 +17,7 @@ pub trait ArchivedSpecMethods {
 
 impl ArchivedSpecMethods for Database {
     fn insert_archived_spec(&self, spec: &ArchivedSpec) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         conn.execute(
             "INSERT INTO archived_specs (id, session_name, repository_path, repository_name, content, archived_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![
@@ -33,12 +33,12 @@ impl ArchivedSpecMethods for Database {
     }
 
     fn list_archived_specs(&self, repo_path: &Path) -> Result<Vec<ArchivedSpec>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let mut stmt = conn.prepare(
             "SELECT id, session_name, repository_path, repository_name, content, archived_at \
              FROM archived_specs \
              WHERE repository_path = ?1 \
-             ORDER BY archived_at DESC",
+             ORDER BY archived_at DESC, rowid DESC",
         )?;
         let rows = stmt.query_map(params![repo_path.to_string_lossy()], |row| {
             Ok(ArchivedSpec {
@@ -61,13 +61,13 @@ impl ArchivedSpecMethods for Database {
     }
 
     fn delete_archived_spec(&self, id: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         conn.execute("DELETE FROM archived_specs WHERE id = ?1", params![id])?;
         Ok(())
     }
 
     fn get_archive_max_entries(&self) -> Result<i32> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let result: rusqlite::Result<i32> = conn.query_row(
             "SELECT archive_max_entries FROM app_config WHERE id = 1",
             [],
@@ -77,7 +77,7 @@ impl ArchivedSpecMethods for Database {
     }
 
     fn set_archive_max_entries(&self, limit: i32) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         conn.execute(
             "UPDATE app_config SET archive_max_entries = ?1 WHERE id = 1",
             params![limit],
@@ -86,9 +86,7 @@ impl ArchivedSpecMethods for Database {
     }
 
     fn enforce_archive_limit(&self, repo_path: &Path) -> Result<()> {
-        // IMPORTANT: Avoid nested locking of self.conn by performing all queries
-        // using a single connection lock and not calling other methods that also lock.
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         // Read configured max entries (fallback to 50 if missing)
         let max_entries: i64 = conn
@@ -111,10 +109,10 @@ impl ArchivedSpecMethods for Database {
             let to_delete = count - max_entries;
             conn.execute(
                 "DELETE FROM archived_specs \
-                 WHERE id IN (
-                   SELECT id FROM archived_specs \
+                 WHERE rowid IN (
+                   SELECT rowid FROM archived_specs \
                    WHERE repository_path = ?1 \
-                   ORDER BY archived_at ASC \
+                   ORDER BY archived_at ASC, rowid ASC \
                    LIMIT ?2
                  )",
                 params![repo_path.to_string_lossy(), to_delete],

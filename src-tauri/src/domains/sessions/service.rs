@@ -2901,7 +2901,7 @@ impl SessionManager {
 
         // Physically remove spec session from DB to declutter
         {
-            let conn = self.db_manager.db.conn.lock().unwrap();
+            let conn = self.db_manager.db.get_conn()?;
             use rusqlite::params;
             conn.execute("DELETE FROM sessions WHERE id = ?1", params![session.id])?;
         }

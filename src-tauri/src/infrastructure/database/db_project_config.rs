@@ -231,7 +231,7 @@ pub trait ProjectConfigMethods {
 
 impl ProjectConfigMethods for Database {
     fn get_project_setup_script(&self, repo_path: &Path) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         // Canonicalize the path for consistent storage/retrieval
         let canonical_path =
@@ -251,7 +251,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn set_project_setup_script(&self, repo_path: &Path, setup_script: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         // Canonicalize the path for consistent storage/retrieval
@@ -271,7 +271,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn get_project_sessions_settings(&self, repo_path: &Path) -> Result<ProjectSessionsSettings> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -302,7 +302,7 @@ impl ProjectConfigMethods for Database {
         repo_path: &Path,
         settings: &ProjectSessionsSettings,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -329,7 +329,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn get_project_branch_prefix(&self, repo_path: &Path) -> Result<String> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -350,7 +350,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn set_project_branch_prefix(&self, repo_path: &Path, branch_prefix: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -374,7 +374,7 @@ impl ProjectConfigMethods for Database {
         &self,
         repo_path: &Path,
     ) -> Result<HashMap<String, String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -402,7 +402,7 @@ impl ProjectConfigMethods for Database {
         repo_path: &Path,
         env_vars: &HashMap<String, String>,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -424,7 +424,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn get_project_merge_preferences(&self, repo_path: &Path) -> Result<ProjectMergePreferences> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -451,7 +451,7 @@ impl ProjectConfigMethods for Database {
         repo_path: &Path,
         preferences: &ProjectMergePreferences,
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -476,7 +476,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn get_project_action_buttons(&self, repo_path: &Path) -> Result<Vec<HeaderActionConfig>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -504,7 +504,7 @@ impl ProjectConfigMethods for Database {
         repo_path: &Path,
         actions: &[HeaderActionConfig],
     ) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -525,7 +525,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn get_project_run_script(&self, repo_path: &Path) -> Result<Option<RunScript>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -547,7 +547,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn set_project_run_script(&self, repo_path: &Path, run_script: &RunScript) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -568,7 +568,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn get_project_github_config(&self, repo_path: &Path) -> Result<Option<ProjectGithubConfig>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let canonical_path =
             std::fs::canonicalize(repo_path).unwrap_or_else(|_| repo_path.to_path_buf());
@@ -609,7 +609,7 @@ impl ProjectConfigMethods for Database {
             return Err(anyhow!("Default branch value cannot be empty"));
         }
 
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =
@@ -639,7 +639,7 @@ impl ProjectConfigMethods for Database {
     }
 
     fn clear_project_github_config(&self, repo_path: &Path) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let now = Utc::now().timestamp();
 
         let canonical_path =

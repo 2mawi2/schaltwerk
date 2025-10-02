@@ -1,7 +1,7 @@
 use super::connection::Database;
 
 pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
-    let conn = db.conn.lock().unwrap();
+    let conn = db.get_conn()?;
 
     // Main sessions table - consolidated schema
     conn.execute(
@@ -45,6 +45,16 @@ pub fn initialize_schema(db: &Database) -> anyhow::Result<()> {
 
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_sessions_activity ON sessions(last_activity)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_repo_order ON sessions(repository_path, ready_to_merge, last_activity DESC)",
+        [],
+    )?;
+
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_status_order ON sessions(status, ready_to_merge, last_activity DESC)",
         [],
     )?;
 

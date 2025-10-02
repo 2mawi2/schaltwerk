@@ -14,7 +14,7 @@ pub trait GitStatsMethods {
 
 impl GitStatsMethods for Database {
     fn save_git_stats(&self, stats: &GitStats) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         conn.execute(
             "INSERT OR REPLACE INTO git_stats
@@ -34,7 +34,7 @@ impl GitStatsMethods for Database {
     }
 
     fn get_git_stats(&self, session_id: &str) -> Result<Option<GitStats>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let mut stmt = conn.prepare(
             "SELECT session_id, files_changed, lines_added, lines_removed, has_uncommitted, calculated_at
              FROM git_stats WHERE session_id = ?1",
@@ -57,7 +57,7 @@ impl GitStatsMethods for Database {
     }
 
     fn get_all_git_stats(&self) -> Result<Vec<GitStats>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let mut stmt = conn.prepare(
             "SELECT session_id, files_changed, lines_added, lines_removed, has_uncommitted, calculated_at
              FROM git_stats",
@@ -86,7 +86,7 @@ impl GitStatsMethods for Database {
             return Ok(Vec::new());
         }
 
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let placeholders = session_ids
             .iter()
             .map(|_| "?")
@@ -123,7 +123,7 @@ impl GitStatsMethods for Database {
     }
 
     fn should_update_stats(&self, session_id: &str) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let result: rusqlite::Result<i64> = conn.query_row(
             "SELECT calculated_at FROM git_stats WHERE session_id = ?1",

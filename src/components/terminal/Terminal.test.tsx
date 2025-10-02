@@ -49,8 +49,8 @@ interface MockXTerm {
   __triggerKey: (e: KeyboardEvent) => boolean
   focus: () => void
   scrollToBottom: () => void
-  scrollLines: ReturnType<typeof vi.fn>
   scrollToLine: ReturnType<typeof vi.fn>
+  scrollLines: ReturnType<typeof vi.fn>
   dispose: () => void
   resize: (cols: number, rows: number) => void
   __setTrailingBlankLines: (n: number) => void

@@ -60,3 +60,8 @@ Use `npm run test` to run the full validation suite (TypeScript linting, `cargo 
 - App settings (agent binaries, CLI args, personal defaults) live in `~/Library/Application Support/schaltwerk/settings.json`.
 - Project state (sessions, specs, project-level environment variables) lives in `~/Library/Application Support/schaltwerk/<project-name>/database.db`.
 - Git worktrees are created under `<repo>/.schaltwerk/worktrees/<session-name>/` and are removed when you cancel the session.
+
+## Database Performance Tuning
+- The bundled SQLite database now runs with Write-Ahead Logging (`journal_mode=WAL`) and `synchronous=NORMAL` for better concurrent read/write throughput.
+- A small connection pool (default size `4`) fans out read-heavy UI work; override with `SCHALTWERK_DB_POOL_SIZE=<N>` when you need to stress-test higher parallelism.
+- Listing queries hydrate only the columns they need for the UI and fetch large text blobs (spec content, prompts) on demand, keeping sidebar refreshes responsive even with hundreds of sessions.

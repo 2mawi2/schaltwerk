@@ -319,6 +319,7 @@ Automatically updates versions, commits, tags, and triggers GitHub Actions.
 - Fix problems directly, no fallbacks/alternatives
 - All code must be used now (no YAGNI)
 - Always use the project 'logger' with the appropriate log level instead of using console logs when introducing logging
+- Session database runs with WAL + `synchronous=NORMAL` and a pooled connection manager (default pool size `4`, override with `SCHALTWERK_DB_POOL_SIZE`). Keep this tuned rather than reverting to a single shared connection.
 
 ## Plan Files
 

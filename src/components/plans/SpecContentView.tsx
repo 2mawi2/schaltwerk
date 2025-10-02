@@ -62,7 +62,7 @@ export function SpecContentView({ sessionName, editable = true, debounceMs = 100
   }, [])
 
 
-  if (loading) {
+  if (loading && content === '') {
     return (
       <div className="h-full flex items-center justify-center">
         <AnimatedText text="loading" size="md" />

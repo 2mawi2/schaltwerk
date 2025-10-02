@@ -22,10 +22,12 @@ export function useSpecContentCache(sessionName: string, sessionState?: 'spec' |
     const cached = specCache.get(sessionName)
     if (cached) {
       setContent(cached.content)
-      setLoading(false)
       if (cached.isStatic) {
+        setLoading(false)
         logger.debug(`[useSpecContentCache] Cache hit for static session: ${sessionName}`)
         return
+      } else {
+        setLoading(true)
       }
     } else {
       setContent('')

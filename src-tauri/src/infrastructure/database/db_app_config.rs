@@ -23,7 +23,7 @@ pub trait AppConfigMethods {
 
 impl AppConfigMethods for Database {
     fn get_skip_permissions(&self) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let result: rusqlite::Result<bool> = conn.query_row(
             "SELECT skip_permissions FROM app_config WHERE id = 1",
@@ -38,7 +38,7 @@ impl AppConfigMethods for Database {
     }
 
     fn set_skip_permissions(&self, enabled: bool) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         conn.execute(
             "UPDATE app_config SET skip_permissions = ?1 WHERE id = 1",
@@ -50,7 +50,7 @@ impl AppConfigMethods for Database {
 
     fn get_orchestrator_skip_permissions(&self) -> Result<bool> {
         let result: rusqlite::Result<bool> = {
-            let conn = self.conn.lock().unwrap();
+            let conn = self.get_conn()?;
             conn.query_row(
                 "SELECT orchestrator_skip_permissions FROM app_config WHERE id = 1",
                 [],
@@ -66,7 +66,7 @@ impl AppConfigMethods for Database {
 
     fn set_orchestrator_skip_permissions(&self, enabled: bool) -> Result<()> {
         let result = {
-            let conn = self.conn.lock().unwrap();
+            let conn = self.get_conn()?;
             conn.execute(
                 "UPDATE app_config SET orchestrator_skip_permissions = ?1 WHERE id = 1",
                 params![enabled],
@@ -80,7 +80,7 @@ impl AppConfigMethods for Database {
     }
 
     fn get_agent_type(&self) -> Result<String> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let result: rusqlite::Result<String> = conn.query_row(
             "SELECT agent_type FROM app_config WHERE id = 1",
@@ -95,7 +95,7 @@ impl AppConfigMethods for Database {
     }
 
     fn set_agent_type(&self, agent_type: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         conn.execute(
             "UPDATE app_config SET agent_type = ?1 WHERE id = 1",
@@ -107,7 +107,7 @@ impl AppConfigMethods for Database {
 
     fn get_orchestrator_agent_type(&self) -> Result<String> {
         let result: rusqlite::Result<String> = {
-            let conn = self.conn.lock().unwrap();
+            let conn = self.get_conn()?;
             conn.query_row(
                 "SELECT orchestrator_agent_type FROM app_config WHERE id = 1",
                 [],
@@ -123,7 +123,7 @@ impl AppConfigMethods for Database {
 
     fn set_orchestrator_agent_type(&self, agent_type: &str) -> Result<()> {
         let result = {
-            let conn = self.conn.lock().unwrap();
+            let conn = self.get_conn()?;
             conn.execute(
                 "UPDATE app_config SET orchestrator_agent_type = ?1 WHERE id = 1",
                 params![agent_type],
@@ -137,7 +137,7 @@ impl AppConfigMethods for Database {
     }
 
     fn get_font_sizes(&self) -> Result<(i32, i32)> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         // Try new columns first
         let result: rusqlite::Result<(i32, i32)> = conn.query_row(
@@ -167,7 +167,7 @@ impl AppConfigMethods for Database {
     }
 
     fn set_font_sizes(&self, terminal_font_size: i32, ui_font_size: i32) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         conn.execute(
             "UPDATE app_config SET terminal_font_size = ?1, ui_font_size = ?2 WHERE id = 1",
@@ -178,7 +178,7 @@ impl AppConfigMethods for Database {
     }
 
     fn get_default_base_branch(&self) -> Result<Option<String>> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let result: rusqlite::Result<Option<String>> = conn.query_row(
             "SELECT default_base_branch FROM app_config WHERE id = 1",
@@ -193,7 +193,7 @@ impl AppConfigMethods for Database {
     }
 
     fn set_default_base_branch(&self, branch: Option<&str>) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         conn.execute(
             "UPDATE app_config SET default_base_branch = ?1 WHERE id = 1",
@@ -204,7 +204,7 @@ impl AppConfigMethods for Database {
     }
 
     fn get_default_open_app(&self) -> Result<String> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         let result: rusqlite::Result<String> = conn.query_row(
             "SELECT default_open_app FROM app_config WHERE id = 1",
             [],
@@ -217,7 +217,7 @@ impl AppConfigMethods for Database {
     }
 
     fn set_default_open_app(&self, app_id: &str) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
         conn.execute(
             "UPDATE app_config SET default_open_app = ?1 WHERE id = 1",
             params![app_id],
@@ -226,7 +226,7 @@ impl AppConfigMethods for Database {
     }
 
     fn get_tutorial_completed(&self) -> Result<bool> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         let result: rusqlite::Result<bool> = conn.query_row(
             "SELECT tutorial_completed FROM app_config WHERE id = 1",
@@ -241,7 +241,7 @@ impl AppConfigMethods for Database {
     }
 
     fn set_tutorial_completed(&self, completed: bool) -> Result<()> {
-        let conn = self.conn.lock().unwrap();
+        let conn = self.get_conn()?;
 
         conn.execute(
             "UPDATE app_config SET tutorial_completed = ?1 WHERE id = 1",
@@ -260,7 +260,7 @@ mod tests {
     fn create_test_database() -> Database {
         let db = Database::new_in_memory().expect("Failed to create in-memory database");
         // Initialize with default row
-        let conn = db.conn.lock().unwrap();
+        let conn = db.get_conn().expect("Failed to borrow connection");
         conn.execute(
             "INSERT OR REPLACE INTO app_config (
                 id,
@@ -341,29 +341,12 @@ mod tests {
 
     #[test]
     fn test_get_tutorial_completed_missing_column() {
-        // Create a database without the tutorial_completed column by using raw connection
-        let conn =
-            rusqlite::Connection::open(":memory:").expect("Failed to create in-memory connection");
-
-        // Create app_config table without tutorial_completed column
-        conn.execute(
-            "CREATE TABLE app_config (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                skip_permissions BOOLEAN DEFAULT FALSE
-            )",
-            [],
-        )
-        .expect("Failed to create app_config table");
-
-        conn.execute(
-            "INSERT INTO app_config (id, skip_permissions) VALUES (1, FALSE)",
-            [],
-        )
-        .expect("Failed to insert default row");
-
-        let db = Database {
-            conn: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-        };
+        let db = Database::new_in_memory().expect("Failed to create database");
+        {
+            let conn = db.get_conn().expect("Failed to borrow connection");
+            conn.execute("ALTER TABLE app_config DROP COLUMN tutorial_completed", [])
+                .expect("Failed to drop tutorial_completed column");
+        }
 
         // Should return false when column doesn't exist
         let result = db
@@ -374,23 +357,12 @@ mod tests {
 
     #[test]
     fn test_set_tutorial_completed_missing_row() {
-        let conn =
-            rusqlite::Connection::open(":memory:").expect("Failed to create in-memory connection");
-
-        // Create app_config table with tutorial_completed column but no rows
-        conn.execute(
-            "CREATE TABLE app_config (
-                id INTEGER PRIMARY KEY CHECK (id = 1),
-                skip_permissions BOOLEAN DEFAULT FALSE,
-                tutorial_completed BOOLEAN DEFAULT FALSE
-            )",
-            [],
-        )
-        .expect("Failed to create app_config table");
-
-        let db = Database {
-            conn: std::sync::Arc::new(std::sync::Mutex::new(conn)),
-        };
+        let db = Database::new_in_memory().expect("Failed to create database");
+        {
+            let conn = db.get_conn().expect("Failed to borrow connection");
+            conn.execute("DELETE FROM app_config", [])
+                .expect("Failed to clear app_config rows");
+        }
 
         // Should handle missing row gracefully
         let result = db.get_tutorial_completed();
@@ -404,7 +376,27 @@ mod tests {
 
     #[test]
     fn test_tutorial_completed_concurrent_access() {
-        let db = create_test_database();
+        let temp_dir = tempfile::TempDir::new().expect("Failed to create temp dir");
+        let db_path = temp_dir.path().join("app_config.db");
+        let db = Database::new(Some(db_path)).expect("Failed to create temp database");
+        {
+            let conn = db.get_conn().expect("Failed to borrow connection");
+            conn.execute(
+                "INSERT OR REPLACE INTO app_config (
+                    id,
+                    skip_permissions,
+                    agent_type,
+                    orchestrator_skip_permissions,
+                    orchestrator_agent_type,
+                    default_open_app,
+                    terminal_font_size,
+                    ui_font_size,
+                    tutorial_completed
+                ) VALUES (1, FALSE, 'claude', FALSE, 'claude', 'finder', 13, 12, FALSE)",
+                [],
+            )
+            .expect("Failed to seed app_config");
+        }
 
         // Simulate concurrent access by multiple threads
         // All threads should be able to write and read without panicking
