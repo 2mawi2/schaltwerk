@@ -312,24 +312,66 @@ export function TerminalGrid() {
         }
     }, [selection, sessions, getAgentType, getOrchestratorAgentType])
 
-    // Load run script availability and manage run mode state
-    useEffect(() => {
-        const initializeRunMode = async () => {
-            const sessionKey = getSessionKey()
-            const config = await loadRunScriptConfiguration(sessionKey)
-            
+    const persistRunModeState = useCallback((sessionKeyValue: string, isActive: boolean) => {
+        sessionStorage.setItem(`schaltwerk:run-mode:${sessionKeyValue}`, String(isActive))
+        setRunModeActive(isActive)
+    }, [setRunModeActive])
+
+    const syncActiveTab = useCallback((targetIndex: number, shouldUpdate?: (state: TerminalTabsUiState) => boolean) => {
+        applyTabsState(prev => {
+            if (prev.activeTab === targetIndex) {
+                return prev
+            }
+            if (shouldUpdate && !shouldUpdate(prev)) {
+                return prev
+            }
+            sessionStorage.setItem(activeTabKey, String(targetIndex))
+            return { ...prev, activeTab: targetIndex }
+        })
+    }, [applyTabsState, activeTabKey])
+
+    const refreshRunScriptConfiguration = useCallback(async () => {
+        const currentSessionKey = getSessionKey()
+        try {
+            const config = await loadRunScriptConfiguration(currentSessionKey)
+
             setHasRunScripts(config.hasRunScripts)
-            setRunModeActive(config.shouldActivateRunMode)
-            
-            // Restore saved active tab if available
+            persistRunModeState(currentSessionKey, config.shouldActivateRunMode)
+
             if (config.savedActiveTab !== null) {
                 const savedTab = config.savedActiveTab
-                applyTabsState(prev => ({ ...prev, activeTab: savedTab }))
+                syncActiveTab(savedTab)
+            } else if (!config.shouldActivateRunMode) {
+                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
             }
+        } catch (error) {
+            logger.error('[TerminalGrid] Failed to load run script configuration:', error)
         }
-        
-        initializeRunMode()
-    }, [selection, getSessionKey, applyTabsState])
+    }, [getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
+
+    // Load run script availability and manage run mode state
+    useEffect(() => {
+        void refreshRunScriptConfiguration()
+    }, [selection, refreshRunScriptConfiguration])
+
+    useEffect(() => {
+        const cleanup = listenUiEvent(UiEvent.RunScriptUpdated, detail => {
+            const hasScript = detail?.hasRunScript ?? false
+            const sessionKeyForUpdate = getSessionKey()
+
+            setHasRunScripts(hasScript)
+            persistRunModeState(sessionKeyForUpdate, hasScript)
+
+            if (hasScript) {
+                syncActiveTab(RUN_TAB_INDEX)
+            } else {
+                syncActiveTab(0, state => state.activeTab === RUN_TAB_INDEX)
+            }
+
+            void refreshRunScriptConfiguration()
+        })
+        return cleanup
+    }, [refreshRunScriptConfiguration, getSessionKey, persistRunModeState, syncActiveTab, RUN_TAB_INDEX])
 
     // Focus appropriate terminal when selection changes
     useEffect(() => {

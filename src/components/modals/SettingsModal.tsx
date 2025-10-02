@@ -25,6 +25,7 @@ import { shortcutFromEvent, normalizeShortcut } from '../../keyboardShortcuts/ma
 import { detectPlatformSafe, getDisplayLabelForSegment, splitShortcutBinding } from '../../keyboardShortcuts/helpers'
 import { useKeyboardShortcutsConfig } from '../../contexts/KeyboardShortcutsContext'
 import { theme } from '../../common/theme'
+import { emitUiEvent, UiEvent } from '../../common/uiEvents'
 
 const shortcutArraysEqual = (a: string[] = [], b: string[] = []) => {
     if (a.length !== b.length) return false
@@ -622,6 +623,8 @@ export function SettingsModal({ open, onClose, onOpenTutorial }: Props) {
         try {
             await invoke(TauriCommands.SetProjectRunScript, { runScript })
             result.savedSettings.push('run script')
+            const hasRunCommand = Boolean(runScript.command?.trim())
+            emitUiEvent(UiEvent.RunScriptUpdated, { hasRunScript: hasRunCommand })
         } catch (error) {
             logger.info('Run script not saved - requires active project', error)
         }
