@@ -1,0 +1,35 @@
+# Agent Manifest
+# This file defines all supported CLI agents and their default configurations.
+# Frontend and backend both use this manifest to ensure consistency.
+
+[agents.claude]
+id = "claude"
+display_name = "Claude"
+binary_name = "claude"
+default_binary_path = "claude"
+auto_send_initial_command = false
+supports_resume = true
+
+[agents.codex]
+id = "codex"
+display_name = "Codex"
+binary_name = "codex"
+default_binary_path = "codex"
+auto_send_initial_command = false
+supports_resume = true
+
+[agents.gemini]
+id = "gemini"
+display_name = "Gemini"
+binary_name = "gemini"
+default_binary_path = "gemini"
+auto_send_initial_command = false
+supports_resume = false
+
+[agents.opencode]
+id = "opencode"
+display_name = "OpenCode"
+binary_name = "opencode"
+default_binary_path = "opencode"
+auto_send_initial_command = false
+supports_resume = true

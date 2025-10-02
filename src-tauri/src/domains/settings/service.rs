@@ -145,6 +145,54 @@ impl SettingsService {
         }
     }
 
+    pub fn get_agent_initial_command(&self, agent_type: &str) -> String {
+        match agent_type {
+            "claude" => self.settings.agent_initial_commands.claude.clone(),
+            "opencode" => self.settings.agent_initial_commands.opencode.clone(),
+            "gemini" => self.settings.agent_initial_commands.gemini.clone(),
+            "codex" => self.settings.agent_initial_commands.codex.clone(),
+            _ => String::new(),
+        }
+    }
+
+    pub fn set_agent_initial_command(
+        &mut self,
+        agent_type: &str,
+        initial_command: String,
+    ) -> Result<(), SettingsServiceError> {
+        log::debug!(
+            "Setting initial command in settings: agent_type='{agent_type}', length={} bytes",
+            initial_command.len()
+        );
+
+        match agent_type {
+            "claude" => self.settings.agent_initial_commands.claude = initial_command.clone(),
+            "opencode" => self.settings.agent_initial_commands.opencode = initial_command.clone(),
+            "gemini" => self.settings.agent_initial_commands.gemini = initial_command.clone(),
+            "codex" => self.settings.agent_initial_commands.codex = initial_command.clone(),
+            _ => {
+                let error = format!("Unknown agent type: {agent_type}");
+                log::error!("Invalid agent type in set_agent_initial_command: {error}");
+                return Err(SettingsServiceError::UnknownAgentType(
+                    agent_type.to_string(),
+                ));
+            }
+        }
+
+        log::debug!("Initial command set in memory, now saving to disk");
+
+        match self.save() {
+            Ok(()) => {
+                log::debug!("Successfully saved initial command for agent '{agent_type}' to disk");
+                Ok(())
+            }
+            Err(e) => {
+                log::error!("Failed to save initial command to disk for agent '{agent_type}': {e}");
+                Err(e)
+            }
+        }
+    }
+
     pub fn get_terminal_settings(&self) -> TerminalSettings {
         self.settings.terminal.clone()
     }

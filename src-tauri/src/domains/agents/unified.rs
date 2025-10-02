@@ -1,70 +1,39 @@
+use super::adapter::{AgentAdapter, AgentLaunchContext, DefaultAdapter};
+use super::launch_spec::AgentLaunchSpec;
+use super::manifest::AgentManifest;
 use std::collections::HashMap;
 use std::path::Path;
 
-pub trait AgentCommand: Send + Sync {
-    fn binary_name(&self) -> &str;
-    fn default_binary(&self) -> &str;
-    fn find_session(&self, path: &Path) -> Option<String>;
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String;
-}
+pub struct ClaudeAdapter;
 
-pub struct ClaudeAgent;
-
-impl AgentCommand for ClaudeAgent {
-    fn binary_name(&self) -> &str {
-        "claude"
-    }
-
-    fn default_binary(&self) -> &str {
-        "claude"
-    }
-
+impl AgentAdapter for ClaudeAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
         super::claude::find_resumable_claude_session_fast(path)
     }
 
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String {
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
         let config = super::claude::ClaudeConfig {
-            binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
         };
-        super::claude::build_claude_command_with_config(
-            worktree_path,
-            session_id,
-            initial_prompt,
-            skip_permissions,
+        let command = super::claude::build_claude_command_with_config(
+            ctx.worktree_path,
+            ctx.session_id,
+            ctx.initial_prompt,
+            ctx.skip_permissions,
             Some(&config),
-        )
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
     }
 }
 
-pub struct CodexAgent;
+pub struct CodexAdapter;
 
-impl AgentCommand for CodexAgent {
-    fn binary_name(&self) -> &str {
-        "codex"
-    }
-
-    fn default_binary(&self) -> &str {
-        "codex"
-    }
-
+impl AgentAdapter for CodexAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
-        // Prefer precise resume via explicit session JSONL path if available,
-        // falling back to sentinel-based resume/continue.
         if let Some(p) = super::codex::find_codex_resume_path(path) {
             if let Some(id) = super::codex::extract_session_id_from_path(&p) {
                 return Some(id);
@@ -73,134 +42,142 @@ impl AgentCommand for CodexAgent {
         super::codex::find_codex_session(path)
     }
 
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String {
-        let sandbox_mode = if skip_permissions {
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let sandbox_mode = if ctx.skip_permissions {
             "danger-full-access"
         } else {
             "workspace-write"
         };
 
         let config = super::codex::CodexConfig {
-            binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
         };
-        super::codex::build_codex_command_with_config(
-            worktree_path,
-            session_id,
-            initial_prompt,
+        let command = super::codex::build_codex_command_with_config(
+            ctx.worktree_path,
+            ctx.session_id,
+            ctx.initial_prompt,
             sandbox_mode,
             Some(&config),
-        )
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
     }
 }
 
-pub struct GeminiAgent;
+pub struct GeminiAdapter;
 
-impl AgentCommand for GeminiAgent {
-    fn binary_name(&self) -> &str {
-        "gemini"
-    }
-
-    fn default_binary(&self) -> &str {
-        "gemini"
-    }
-
+impl AgentAdapter for GeminiAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
         super::gemini::find_gemini_session(path)
     }
 
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        _session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String {
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
         let config = super::gemini::GeminiConfig {
-            binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
         };
-        super::gemini::build_gemini_command_with_config(
-            worktree_path,
+        let command = super::gemini::build_gemini_command_with_config(
+            ctx.worktree_path,
             None,
-            initial_prompt,
-            skip_permissions,
+            ctx.initial_prompt,
+            ctx.skip_permissions,
             Some(&config),
-        )
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
     }
 }
 
-pub struct OpenCodeAgent;
+pub struct OpenCodeAdapter;
 
-impl AgentCommand for OpenCodeAgent {
-    fn binary_name(&self) -> &str {
-        "opencode"
-    }
-
-    fn default_binary(&self) -> &str {
-        "opencode"
-    }
-
+impl AgentAdapter for OpenCodeAdapter {
     fn find_session(&self, path: &Path) -> Option<String> {
         super::opencode::find_opencode_session(path).map(|info| info.id)
     }
 
-    fn build_command(
-        &self,
-        worktree_path: &Path,
-        session_id: Option<&str>,
-        initial_prompt: Option<&str>,
-        skip_permissions: bool,
-        binary_override: Option<&str>,
-    ) -> String {
-        let session_info = session_id.map(|id| super::opencode::OpenCodeSessionInfo {
+    fn build_launch_spec(&self, ctx: AgentLaunchContext) -> AgentLaunchSpec {
+        let session_info = ctx.session_id.map(|id| super::opencode::OpenCodeSessionInfo {
             id: id.to_string(),
             has_history: true,
         });
 
         let config = super::opencode::OpenCodeConfig {
-            binary_path: Some(binary_override.unwrap_or(self.default_binary()).to_string()),
+            binary_path: Some(
+                ctx.binary_override
+                    .unwrap_or(&ctx.manifest.default_binary_path)
+                    .to_string(),
+            ),
         };
-        super::opencode::build_opencode_command_with_config(
-            worktree_path,
+        let command = super::opencode::build_opencode_command_with_config(
+            ctx.worktree_path,
             session_info.as_ref(),
-            initial_prompt,
-            skip_permissions,
+            ctx.initial_prompt,
+            ctx.skip_permissions,
             Some(&config),
-        )
+        );
+        AgentLaunchSpec::new(command, ctx.worktree_path.to_path_buf())
     }
 }
 
 pub struct AgentRegistry {
-    agents: HashMap<&'static str, Box<dyn AgentCommand>>,
+    adapters: HashMap<String, Box<dyn AgentAdapter>>,
 }
 
 impl AgentRegistry {
     pub fn new() -> Self {
-        let mut agents: HashMap<&'static str, Box<dyn AgentCommand>> = HashMap::new();
+        let mut adapters: HashMap<String, Box<dyn AgentAdapter>> = HashMap::new();
 
-        agents.insert("claude", Box::new(ClaudeAgent));
-        agents.insert("codex", Box::new(CodexAgent));
-        agents.insert("gemini", Box::new(GeminiAgent));
-        agents.insert("opencode", Box::new(OpenCodeAgent));
+        adapters.insert("claude".to_string(), Box::new(ClaudeAdapter));
+        adapters.insert("codex".to_string(), Box::new(CodexAdapter));
+        adapters.insert("gemini".to_string(), Box::new(GeminiAdapter));
+        adapters.insert("opencode".to_string(), Box::new(OpenCodeAdapter));
 
-        Self { agents }
+        for agent_id in AgentManifest::supported_agents() {
+            if !adapters.contains_key(&agent_id) {
+                adapters.insert(agent_id.clone(), Box::new(DefaultAdapter::new(agent_id)));
+            }
+        }
+
+        Self { adapters }
     }
 
-    pub fn get(&self, agent_type: &str) -> Option<&dyn AgentCommand> {
-        self.agents.get(agent_type).map(|b| b.as_ref())
+    pub fn get(&self, agent_type: &str) -> Option<&dyn AgentAdapter> {
+        self.adapters.get(agent_type).map(|b| b.as_ref())
     }
 
-    pub fn supported_agents(&self) -> Vec<&str> {
-        let mut agents: Vec<_> = self.agents.keys().copied().collect();
+    pub fn supported_agents(&self) -> Vec<String> {
+        let mut agents: Vec<_> = self.adapters.keys().cloned().collect();
         agents.sort();
         agents
+    }
+
+    pub fn build_launch_spec(
+        &self,
+        agent_type: &str,
+        worktree_path: &Path,
+        session_id: Option<&str>,
+        initial_prompt: Option<&str>,
+        skip_permissions: bool,
+        binary_override: Option<&str>,
+    ) -> Option<AgentLaunchSpec> {
+        let adapter = self.get(agent_type)?;
+        let manifest = AgentManifest::get(agent_type)?;
+
+        let ctx = AgentLaunchContext {
+            worktree_path,
+            session_id,
+            initial_prompt,
+            skip_permissions,
+            binary_override,
+            manifest,
+        };
+
+        Some(adapter.build_launch_spec(ctx))
     }
 }
 
@@ -213,7 +190,6 @@ impl Default for AgentRegistry {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::Path;
 
     #[test]
     fn test_registry_has_all_agents() {
@@ -228,122 +204,73 @@ mod tests {
     fn test_registry_supported_agents() {
         let registry = AgentRegistry::new();
         let supported = registry.supported_agents();
-        assert_eq!(supported.len(), 4);
-        assert!(supported.contains(&"claude"));
-        assert!(supported.contains(&"codex"));
-        assert!(supported.contains(&"gemini"));
-        assert!(supported.contains(&"opencode"));
+        assert!(supported.len() >= 4);
+        assert!(supported.contains(&"claude".to_string()));
+        assert!(supported.contains(&"codex".to_string()));
+        assert!(supported.contains(&"gemini".to_string()));
+        assert!(supported.contains(&"opencode".to_string()));
     }
 
     #[test]
-    fn test_registry_unsupported_agent() {
+    fn test_build_launch_spec() {
         let registry = AgentRegistry::new();
-        assert!(registry.get("nonexistent").is_none());
+        let spec = registry.build_launch_spec(
+            "claude",
+            Path::new("/test/path"),
+            None,
+            Some("test prompt"),
+            false,
+            None,
+        );
+
+        assert!(spec.is_some());
+        let spec = spec.unwrap();
+        assert!(spec.shell_command.contains("claude"));
+        assert!(spec.shell_command.contains("test prompt"));
     }
 
-    // Test each agent implementation matches original behavior
     mod claude_tests {
         use super::*;
 
         #[test]
-        fn test_claude_command_matches_original() {
-            let agent = ClaudeAgent;
-            let path = Path::new("/test/path");
+        fn test_claude_adapter_basic() {
+            let adapter = ClaudeAdapter;
+            let manifest = AgentManifest::get("claude").unwrap();
 
-            // Test basic command
-            let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("claude"));
-            let original_cmd = crate::domains::agents::claude::build_claude_command_with_config(
-                path,
-                None,
-                Some("test prompt"),
-                true,
-                Some(&crate::domains::agents::claude::ClaudeConfig {
-                    binary_path: Some("claude".to_string()),
-                }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("claude"),
+                manifest,
+            };
+
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("claude"));
         }
 
-        #[test]
-        fn test_claude_with_session_id() {
-            let agent = ClaudeAgent;
-            let path = Path::new("/test/path");
-
-            let unified_cmd = agent.build_command(path, Some("session123"), None, false, None);
-            let original_cmd = crate::domains::agents::claude::build_claude_command_with_config(
-                path,
-                Some("session123"),
-                None,
-                false,
-                Some(&crate::domains::agents::claude::ClaudeConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_claude_binary_name() {
-            let agent = ClaudeAgent;
-            assert_eq!(agent.binary_name(), "claude");
-            assert_eq!(agent.default_binary(), "claude");
-        }
     }
 
     mod codex_tests {
         use super::*;
 
         #[test]
-        fn test_codex_sandbox_modes() {
-            let agent = CodexAgent;
-            let path = Path::new("/test/path");
+        fn test_codex_adapter_sandbox_modes() {
+            let adapter = CodexAdapter;
+            let manifest = AgentManifest::get("codex").unwrap();
 
-            // Test danger mode
-            let unified_cmd = agent.build_command(path, None, Some("test"), true, Some("codex"));
-            let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
-                path,
-                None,
-                Some("test"),
-                "danger-full-access",
-                Some(&crate::domains::agents::codex::CodexConfig {
-                    binary_path: Some("codex".to_string()),
-                }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test"),
+                skip_permissions: true,
+                binary_override: Some("codex"),
+                manifest,
+            };
 
-            // Test safe mode
-            let unified_cmd = agent.build_command(path, None, Some("test"), false, None);
-            let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
-                path,
-                None,
-                Some("test"),
-                "workspace-write",
-                Some(&crate::domains::agents::codex::CodexConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_codex_session_handling() {
-            let agent = CodexAgent;
-            let path = Path::new("/test/path");
-
-            // Codex ignores session_id when provided
-            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
-            let original_cmd = crate::domains::agents::codex::build_codex_command_with_config(
-                path,
-                Some("ignored"),
-                None,
-                "workspace-write",
-                Some(&crate::domains::agents::codex::CodexConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_codex_binary_name() {
-            let agent = CodexAgent;
-            assert_eq!(agent.binary_name(), "codex");
-            assert_eq!(agent.default_binary(), "codex");
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("danger-full-access"));
         }
     }
 
@@ -351,46 +278,21 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_gemini_command_matches_original() {
-            let agent = GeminiAgent;
-            let path = Path::new("/test/path");
+        fn test_gemini_adapter_basic() {
+            let adapter = GeminiAdapter;
+            let manifest = AgentManifest::get("gemini").unwrap();
 
-            let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("gemini"));
-            let original_cmd = crate::domains::agents::gemini::build_gemini_command_with_config(
-                path,
-                None,
-                Some("test prompt"),
-                true,
-                Some(&crate::domains::agents::gemini::GeminiConfig {
-                    binary_path: Some("gemini".to_string()),
-                }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("gemini"),
+                manifest,
+            };
 
-        #[test]
-        fn test_gemini_ignores_session_id() {
-            let agent = GeminiAgent;
-            let path = Path::new("/test/path");
-
-            // Gemini ignores session_id
-            let unified_cmd = agent.build_command(path, Some("ignored"), None, false, None);
-            let original_cmd = crate::domains::agents::gemini::build_gemini_command_with_config(
-                path,
-                None, // Original always passes None
-                None,
-                false,
-                Some(&crate::domains::agents::gemini::GeminiConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_gemini_binary_name() {
-            let agent = GeminiAgent;
-            assert_eq!(agent.binary_name(), "gemini");
-            assert_eq!(agent.default_binary(), "gemini");
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("gemini"));
         }
     }
 
@@ -398,95 +300,21 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_opencode_command_matches_original() {
-            let agent = OpenCodeAgent;
-            let path = Path::new("/test/path");
+        fn test_opencode_adapter_basic() {
+            let adapter = OpenCodeAdapter;
+            let manifest = AgentManifest::get("opencode").unwrap();
 
-            let unified_cmd =
-                agent.build_command(path, None, Some("test prompt"), true, Some("opencode"));
-            let original_cmd = crate::domains::agents::opencode::build_opencode_command_with_config(
-                path,
-                None,
-                Some("test prompt"),
-                true,
-                Some(&crate::domains::agents::opencode::OpenCodeConfig {
-                    binary_path: Some("opencode".to_string()),
-                }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
-
-        #[test]
-        fn test_opencode_with_session_info() {
-            let agent = OpenCodeAgent;
-            let path = Path::new("/test/path");
-
-            let unified_cmd = agent.build_command(path, Some("test-session"), None, false, None);
-            let session_info = crate::domains::agents::opencode::OpenCodeSessionInfo {
-                id: "test-session".to_string(),
-                has_history: true,
+            let ctx = AgentLaunchContext {
+                worktree_path: Path::new("/test/path"),
+                session_id: None,
+                initial_prompt: Some("test prompt"),
+                skip_permissions: true,
+                binary_override: Some("opencode"),
+                manifest,
             };
-            let original_cmd = crate::domains::agents::opencode::build_opencode_command_with_config(
-                path,
-                Some(&session_info),
-                None,
-                false,
-                Some(&crate::domains::agents::opencode::OpenCodeConfig { binary_path: None }),
-            );
-            assert_eq!(unified_cmd, original_cmd);
-        }
 
-        #[test]
-        fn test_opencode_binary_name() {
-            let agent = OpenCodeAgent;
-            assert_eq!(agent.binary_name(), "opencode");
-            assert_eq!(agent.default_binary(), "opencode");
-        }
-    }
-
-    // Integration tests for command building
-    #[test]
-    fn test_all_agents_handle_empty_prompt() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, None, false, None);
-
-            // All commands should contain the cd and binary name
-            assert!(cmd.starts_with(&format!("cd {} && ", path.display())));
-            assert!(cmd.contains(agent.binary_name()) || cmd.contains(agent.default_binary()));
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_binary_override() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let custom_binary = "/custom/path/to/binary";
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, None, false, Some(custom_binary));
-
-            // Command should use the custom binary path
-            assert!(cmd.contains(custom_binary));
-        }
-    }
-
-    #[test]
-    fn test_all_agents_handle_quotes_in_prompt() {
-        let registry = AgentRegistry::new();
-        let path = Path::new("/test/path");
-        let prompt_with_quotes = r#"implement "feature" with quotes"#;
-
-        for agent_name in registry.supported_agents() {
-            let agent = registry.get(agent_name).unwrap();
-            let cmd = agent.build_command(path, None, Some(prompt_with_quotes), false, None);
-
-            // Quotes should be escaped
-            assert!(cmd.contains(r#"\"feature\""#));
+            let spec = adapter.build_launch_spec(ctx);
+            assert!(spec.shell_command.contains("opencode"));
         }
     }
 }

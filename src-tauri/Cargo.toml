@@ -52,6 +52,7 @@ urlencoding = "2.1"
 rand = "0.9"
 shell-words = "1.1"
 once_cell = "1.19"
+toml = "0.8"
 futures = "0.3"
 clap = { version = "4", features = ["derive"] }
 notify = "8"

@@ -119,6 +119,16 @@ impl SettingsManager {
             .map_err(|e| e.to_string())
     }
 
+    pub fn get_agent_initial_command(&self, agent_type: &str) -> String {
+        self.service.get_agent_initial_command(agent_type)
+    }
+
+    pub fn set_agent_initial_command(&mut self, agent_type: &str, initial_command: String) -> Result<(), String> {
+        self.service
+            .set_agent_initial_command(agent_type, initial_command)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn get_terminal_settings(&self) -> crate::domains::settings::TerminalSettings {
         self.service.get_terminal_settings()
     }

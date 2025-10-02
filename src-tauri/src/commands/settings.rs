@@ -127,6 +127,39 @@ pub async fn set_agent_cli_args(agent_type: String, cli_args: String) -> Result<
 }
 
 #[tauri::command]
+pub async fn get_agent_initial_command(agent_type: String) -> Result<String, String> {
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_agent_initial_command(&agent_type))
+}
+
+#[tauri::command]
+pub async fn set_agent_initial_command(agent_type: String, initial_command: String) -> Result<(), String> {
+    log::info!("Setting initial command for agent '{agent_type}': {} bytes", initial_command.len());
+
+    let settings_manager = SETTINGS_MANAGER.get().ok_or_else(|| {
+        let error = "Settings manager not initialized".to_string();
+        log::error!("Failed to set initial command: {error}");
+        error
+    })?;
+
+    let mut manager = settings_manager.lock().await;
+    match manager.set_agent_initial_command(&agent_type, initial_command.clone()) {
+        Ok(()) => {
+            log::info!("Successfully saved initial command for agent '{agent_type}': {} bytes", initial_command.len());
+            Ok(())
+        }
+        Err(e) => {
+            log::error!("Failed to save initial command for agent '{agent_type}': {e}");
+            Err(e)
+        }
+    }
+}
+
+#[tauri::command]
 pub async fn get_terminal_ui_preferences() -> Result<TerminalUIPreferences, String> {
     let settings_manager = SETTINGS_MANAGER
         .get()

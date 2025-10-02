@@ -11,6 +11,14 @@ pub struct AgentCliArgs {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct AgentInitialCommands {
+    pub claude: String,
+    pub opencode: String,
+    pub gemini: String,
+    pub codex: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct AgentEnvVars {
     pub claude: HashMap<String, String>,
     pub opencode: HashMap<String, String>,
@@ -81,6 +89,8 @@ pub struct AgentBinaryConfigs {
 pub struct Settings {
     pub agent_env_vars: AgentEnvVars,
     pub agent_cli_args: AgentCliArgs,
+    #[serde(default)]
+    pub agent_initial_commands: AgentInitialCommands,
     pub terminal_ui: TerminalUIPreferences,
     pub terminal: TerminalSettings,
     pub agent_binaries: AgentBinaryConfigs,
