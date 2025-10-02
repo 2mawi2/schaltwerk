@@ -49,6 +49,7 @@ interface MockXTerm {
   focus: () => void
   scrollToBottom: () => void
   scrollLines: ReturnType<typeof vi.fn>
+  scrollToLine: ReturnType<typeof vi.fn>
   dispose: () => void
   resize: (cols: number, rows: number) => void
   __setTrailingBlankLines: (n: number) => void
@@ -106,6 +107,7 @@ vi.mock('@xterm/xterm', () => {
     }
     scrollToBottom() {}
     scrollLines = vi.fn()
+    scrollToLine = vi.fn()
     focus() {}
     dispose() {}
     resize(cols: number, rows: number) {
@@ -1074,7 +1076,7 @@ describe('Terminal component', () => {
     xterm.buffer.active.baseY = 100
     xterm.buffer.active.viewportY = 50
 
-    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
+    const scrollSpy = vi.spyOn(xterm, 'scrollToLine')
     scrollSpy.mockClear()
 
     ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-other-top' })
@@ -1082,7 +1084,7 @@ describe('Terminal component', () => {
 
     scrollSpy.mockClear()
     ;(TauriEvent as unknown as MockTauriEvent).__emit('schaltwerk:terminal-force-scroll', { terminal_id: 'session-force-top' })
-    expect(scrollSpy).toHaveBeenCalledWith(50)
+    expect(scrollSpy).toHaveBeenCalledWith(100)
   })
 
   it('reconfigures output listener when agent type changes', async () => {
@@ -1165,7 +1167,7 @@ describe('Terminal component', () => {
     xterm.buffer.active.viewportY = 100
     xterm.buffer.active.length = 140
 
-    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
+    const scrollSpy = vi.spyOn(xterm, 'scrollToLine')
 
     fireEvent.mouseDown(termRoot, { clientX: 10, clientY: 10 })
     fireEvent.mouseMove(termRoot, { clientX: 40, clientY: 45 })
@@ -1200,7 +1202,7 @@ describe('Terminal component', () => {
     })
     ;(TauriEvent as unknown as MockTauriEvent).__emit('terminal-output-session-run-bottom-0', 'CLEARED')
     await advanceAndFlush(200)
-    expect(scrollSpy).toHaveBeenCalledWith(5)
+    expect(scrollSpy).toHaveBeenCalledWith(105)
     getSelectionSpy.mockRestore()
   })
 
@@ -1646,10 +1648,10 @@ describe('Terminal component', () => {
     xterm.buffer.active.baseY = 100
     xterm.buffer.active.viewportY = 50
 
-    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
+    const scrollSpy = vi.spyOn(xterm, 'scrollToLine')
 
     ref.current?.scrollToBottom()
-    expect(scrollSpy).toHaveBeenCalledWith(50)
+    expect(scrollSpy).toHaveBeenCalledWith(100)
   })
 
   it('ignores focus events originating from the search container', async () => {

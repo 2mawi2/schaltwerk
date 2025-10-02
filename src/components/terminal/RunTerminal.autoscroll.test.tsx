@@ -25,6 +25,7 @@ vi.mock('@xterm/xterm', () => {
     onData() {}
     scrollToBottom = vi.fn()
     scrollLines = vi.fn()
+    scrollToLine = vi.fn()
     focus() {}
     dispose() {}
     resize(c: number, r: number) { this.cols = c; this.rows = r }
@@ -184,7 +185,7 @@ vi.mock('../../utils/safeFocus', () => ({
   safeTerminalFocusImmediate: vi.fn((fn: () => void) => fn()),
   safeTerminalFocus: vi.fn((fn: () => void) => fn()),
 }))
-    const { __getLastInstance } = await import('@xterm/xterm') as unknown as { __getLastInstance: () => { buffer: { active: { baseY: number, viewportY: number } }, scrollLines: (...args: unknown[]) => unknown, write: (...args: unknown[]) => unknown } }
+    const { __getLastInstance } = await import('@xterm/xterm') as unknown as { __getLastInstance: () => { buffer: { active: { baseY: number, viewportY: number } }, scrollToLine: (...args: unknown[]) => unknown, write: (...args: unknown[]) => unknown } }
     const events = await import('@tauri-apps/api/event') as unknown as { __emit: (event: string, payload: unknown) => void }
 
     renderWithProviders(
@@ -195,7 +196,7 @@ vi.mock('../../utils/safeFocus', () => ({
     const xterm = __getLastInstance()
     xterm.buffer.active.baseY = 5
     xterm.buffer.active.viewportY = 5
-    const scrollSpy = vi.spyOn(xterm, 'scrollLines')
+    const scrollSpy = vi.spyOn(xterm, 'scrollToLine')
     const originalWrite = xterm.write
     xterm.write = vi.fn((d, cb) => {
       xterm.buffer.active.baseY = 10
@@ -210,6 +211,6 @@ vi.mock('../../utils/safeFocus', () => ({
     events.__emit('terminal-output-run-terminal-demo2', 'world')
     await flushAll()
 
-    expect(scrollSpy).toHaveBeenCalledWith(5)
+    expect(scrollSpy).toHaveBeenCalledWith(10)
   })
 })
