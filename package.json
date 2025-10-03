@@ -79,7 +79,7 @@
     "@vitest/coverage-v8": "^3.2.4",
     "@vitest/ui": "^3.2.4",
     "eslint": "^9.36.0",
-    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-hooks": "^6.1.0",
     "happy-dom": "^19.0.2",
     "terser": "^5.44.0",
     "typescript": "~5.9.3",
