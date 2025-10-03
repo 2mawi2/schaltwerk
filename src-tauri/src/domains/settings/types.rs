@@ -98,4 +98,6 @@ pub struct Settings {
     pub session: SessionPreferences,
     #[serde(default)]
     pub keyboard_shortcuts: HashMap<String, Vec<String>>,
+    #[serde(default)]
+    pub tutorial_completed: bool,
 }

@@ -560,18 +560,22 @@ pub async fn reset_project_action_buttons_to_defaults() -> Result<Vec<HeaderActi
 
 #[tauri::command]
 pub async fn get_tutorial_completed() -> Result<bool, String> {
-    let schaltwerk_core = get_schaltwerk_core().await?;
-    let core = schaltwerk_core.lock().await;
-    core.db
-        .get_tutorial_completed()
-        .map_err(|e| format!("Failed to get tutorial completion status: {e}"))
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let manager = settings_manager.lock().await;
+    Ok(manager.get_tutorial_completed())
 }
 
 #[tauri::command]
 pub async fn set_tutorial_completed(completed: bool) -> Result<(), String> {
-    let schaltwerk_core = get_schaltwerk_core().await?;
-    let core = schaltwerk_core.lock().await;
-    core.db
+    let settings_manager = SETTINGS_MANAGER
+        .get()
+        .ok_or_else(|| "Settings manager not initialized".to_string())?;
+
+    let mut manager = settings_manager.lock().await;
+    manager
         .set_tutorial_completed(completed)
         .map_err(|e| format!("Failed to set tutorial completion status: {e}"))
 }
@@ -1109,14 +1113,22 @@ mod tests {
     async fn test_get_tutorial_completed_uninitialized_core() {
         let result = get_tutorial_completed().await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to get para core"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[tokio::test]
     async fn test_set_tutorial_completed_uninitialized_core() {
         let result = set_tutorial_completed(true).await;
         assert!(result.is_err());
-        assert!(result.unwrap_err().contains("Failed to get para core"));
+        assert!(
+            result
+                .unwrap_err()
+                .contains("Settings manager not initialized")
+        );
     }
 
     #[test]
