@@ -77,6 +77,10 @@ impl EventSink for TauriEventSink {
             }
         }
     }
+
+    fn emit_exit(&self, term_id: &str) {
+        self.emit_terminal_closed(term_id);
+    }
 }
 
 #[derive(Clone)]
