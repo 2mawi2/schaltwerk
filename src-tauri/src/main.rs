@@ -439,6 +439,7 @@ async fn start_webhook_server(app: tauri::AppHandle) -> bool {
                                             .paste_and_submit_terminal(
                                                 terminal_id.clone(),
                                                 message.as_bytes().to_vec(),
+                                                true,
                                             )
                                             .await
                                         {

@@ -164,10 +164,10 @@ pub async fn write_terminal(id: String, data: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn paste_and_submit_terminal(id: String, data: String) -> Result<(), String> {
+pub async fn paste_and_submit_terminal(id: String, data: String, use_bracketed_paste: Option<bool>) -> Result<(), String> {
     let manager = get_terminal_manager().await?;
     manager
-        .paste_and_submit_terminal(id, data.into_bytes())
+        .paste_and_submit_terminal(id, data.into_bytes(), use_bracketed_paste.unwrap_or(true))
         .await
 }
 
