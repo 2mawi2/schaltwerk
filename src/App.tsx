@@ -94,6 +94,7 @@ function AppContent() {
   const [showPermissionPrompt, setShowPermissionPrompt] = useState(false)
   const [permissionDeniedPath, setPermissionDeniedPath] = useState<string | null>(null)
   const [openAsDraft, setOpenAsSpec] = useState(false)
+  const [triggerOpenInApp, setTriggerOpenInApp] = useState<number>(0)
   const projectSwitchPromiseRef = useRef<Promise<boolean> | null>(null)
   const projectSwitchAbortControllerRef = useRef<AbortController | null>(null)
   const projectSwitchTargetRef = useRef<string | null>(null)
@@ -377,6 +378,12 @@ function AppContent() {
         resetFontSizes()
         return
       }
+
+      if (isShortcutForAction(e, KeyboardShortcutAction.OpenInApp, keyboardShortcutConfig, { platform })) {
+        e.preventDefault()
+        handleOpenInApp()
+        return
+      }
     }
 
     const handleGlobalNewSession = () => {
@@ -393,6 +400,10 @@ function AppContent() {
     const handleOpenDiffView = () => {
       setSelectedDiffFile(null)
       setIsDiffViewerOpen(true)
+    }
+
+    const handleOpenInApp = () => {
+      setTriggerOpenInApp(prev => prev + 1)
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -980,6 +991,7 @@ function AppContent() {
         })}
         isRightPanelCollapsed={isRightCollapsed}
         onToggleRightPanel={toggleRightPanelCollapsed}
+        triggerOpenCounter={triggerOpenInApp}
       />
 
       {/* Show home screen if requested, or no active tab */}

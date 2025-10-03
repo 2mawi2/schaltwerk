@@ -2,7 +2,7 @@ import { VscHome, VscSettingsGear, VscLayoutSidebarRight, VscLayoutSidebarRightO
 import { TabBar } from './TabBar'
 import { ProjectTab } from '../common/projectTabs'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useCallback } from 'react'
 import { OpenInSplitButton } from './OpenInSplitButton'
 import { BranchIndicator } from './BranchIndicator'
 import { logger } from '../utils/logger'
@@ -21,6 +21,8 @@ interface TopBarProps {
   onToggleRightPanel?: () => void
   // Optional custom resolver for Open button path (e.g., active session worktree)
   resolveOpenPath?: () => Promise<string | undefined>
+  // Counter to trigger open from keyboard shortcut
+  triggerOpenCounter?: number
 }
 
 export function TopBar({
@@ -32,11 +34,25 @@ export function TopBar({
   onOpenSettings,
   isRightPanelCollapsed = false,
   onToggleRightPanel,
-  resolveOpenPath
+  resolveOpenPath,
+  triggerOpenCounter
 }: TopBarProps) {
   const dragAreaRef = useRef<HTMLDivElement>(null)
   const topBarRef = useRef<HTMLDivElement>(null)
-  
+  const openButtonRef = useRef<{ triggerOpen: () => Promise<void> } | null>(null)
+
+  const handleOpenReady = useCallback((handler: () => Promise<void>) => {
+    openButtonRef.current = { triggerOpen: handler }
+  }, [])
+
+  useEffect(() => {
+    if (triggerOpenCounter && triggerOpenCounter > 0 && openButtonRef.current) {
+      openButtonRef.current.triggerOpen().catch(err => {
+        logger.error('Failed to open in app from keyboard shortcut', err)
+      })
+    }
+  }, [triggerOpenCounter])
+
   useEffect(() => {
     const handleMouseDown = async (e: MouseEvent) => {
       // Check if the click is on the drag area or the top bar itself (not buttons)
@@ -130,8 +146,9 @@ export function TopBar({
         {/* Open in IDE button - only show when a tab is active */}
         {activeTabPath && (
           <div className="mr-2" data-testid="topbar-open-button">
-            <OpenInSplitButton 
+            <OpenInSplitButton
               resolvePath={resolveOpenPath ?? (async () => activeTabPath)}
+              onOpenReady={handleOpenReady}
             />
           </div>
         )}

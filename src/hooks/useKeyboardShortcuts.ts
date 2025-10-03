@@ -31,6 +31,7 @@ interface KeyboardShortcutsProps {
   onOpenSwitchModel?: () => void
   onOpenMergeModal?: () => void
   onCreatePullRequest?: () => void
+  onOpenInApp?: () => void
 }
 
 interface KeyboardShortcutOptions {
@@ -61,6 +62,7 @@ export function useKeyboardShortcuts(
     onOpenSwitchModel,
     onOpenMergeModal,
     onCreatePullRequest,
+    onOpenInApp,
   }: KeyboardShortcutsProps,
   options: KeyboardShortcutOptions = {},
 ) {
@@ -203,6 +205,12 @@ export function useKeyboardShortcuts(
         onCreatePullRequest()
         return
       }
+
+      if (onOpenInApp && isShortcutForAction(event, KeyboardShortcutAction.OpenInApp, shortcutConfig, { platform })) {
+        event.preventDefault()
+        onOpenInApp()
+        return
+      }
     }
 
     window.addEventListener('keydown', handleKeyDown)
@@ -228,6 +236,7 @@ export function useKeyboardShortcuts(
     onOpenSwitchModel,
     onOpenMergeModal,
     onCreatePullRequest,
+    onOpenInApp,
     isDiffViewerOpen,
     shortcutConfig,
     platform,

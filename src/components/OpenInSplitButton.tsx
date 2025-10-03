@@ -12,9 +12,10 @@ export type OpenApp = {
 
 interface OpenInSplitButtonProps {
   resolvePath: () => Promise<string | undefined>
+  onOpenReady?: (openHandler: () => Promise<void>) => void
 }
 
-export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
+export function OpenInSplitButton({ resolvePath, onOpenReady }: OpenInSplitButtonProps) {
   const [apps, setApps] = useState<OpenApp[]>([])
   const [defaultApp, setDefaultApp] = useState<OpenApp['id']>('finder')
   const [open, setOpen] = useState(false)
@@ -77,9 +78,15 @@ export function OpenInSplitButton({ resolvePath }: OpenInSplitButtonProps) {
     }
   }, [resolvePath])
 
-  const handleMainClick = async () => {
+  const handleMainClick = useCallback(async () => {
     await openWithApp(defaultApp, true)
-  }
+  }, [defaultApp, openWithApp])
+
+  useEffect(() => {
+    if (onOpenReady) {
+      onOpenReady(handleMainClick)
+    }
+  }, [onOpenReady, handleMainClick])
 
   const handleSelectApp = async (app: OpenApp) => {
     setOpen(false)
